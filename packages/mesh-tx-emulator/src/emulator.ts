@@ -99,8 +99,8 @@ export type TxEmulatorNetwork = "mainnet" | "preprod" | "preview";
 
 /**
  * What decides whether a transaction is valid:
- * - `"scalus"`: Scalus's ledger rules and Plutus evaluator. Reports the first rule broken. Does
- *   not check governance, nor that pools and DReps delegated to exist.
+ * - `"scalus"`: Scalus's ledger rules and Plutus evaluator. Reports the first rule broken. Of
+ *   governance, it checks only what needs no governance state.
  * - `"cquisitor"`: cquisitor-lib, which checks the ledger rules against the emulator's state,
  *   governance included, and reports every problem with hints. Needs the optional
  *   `@cardananium/cquisitor-lib` package.
@@ -365,6 +365,109 @@ const SCALUS_IN_STEP = new Set<string>([
   Cardano.CertificateType.VoteRegistrationDelegation,
   Cardano.CertificateType.StakeVoteRegistrationDelegation,
 ]);
+
+/**
+ * Ledger failures by which a refusal of Scalus's is not taken. Scalus checks these rules against
+ * a governance state of its own, which holds only what the transactions it applied itself made:
+ * it cannot be given the governance actions and the last enacted ones, the committee members
+ * only proposed, or the DRep a stake address delegates its vote to, and it is not given the
+ * committee, the constitution and the treasury. Its verdict by them says nothing of the state.
+ */
+const SCALUS_UNJUDGED = new Set<string>([
+  // Votes: the actions voted on, and who may vote on them
+  "GovActionsDoNotExist",
+  "VotingOnExpiredGovAction",
+  "DisallowedVoters",
+  "VotersDoNotExist",
+  "UnelectedCommitteeVoters",
+  // Proposals: the action followed, and the guardrail script
+  "InvalidPrevGovActionId",
+  "ProposalCantFollow",
+  "InvalidGuardrailsScriptHash",
+  // Committee certificates
+  "ConwayCommitteeIsUnknown",
+  "ConwayCommitteeHasPreviouslyResigned",
+  // A withdrawal to a key-hash stake address, and the treasury a transaction states
+  "ConwayWdrlNotDelegatedToDRep",
+  "ConwayTreasuryValueMismatch",
+]);
+
+/** The same failures as `submitTx` names them: two have another name there */
+const SCALUS_UNJUDGED_REPORTED = new Set<string>([
+  ...SCALUS_UNJUDGED,
+  "WithdrawalsNotDelegatedToDRep",
+  "TreasuryValueMismatch",
+]);
+
+/**
+ * Every first-phase rule a transaction breaks on a Scalus ledger, by its cardano-ledger name and
+ * in the ledger's order, changing nothing. Scalus runs no script once one of them is broken.
+ */
+const brokenRules = (ledger: Emulator, tx: Uint8Array): string[] => {
+  try {
+    return ledger.ledgerFailures(tx);
+  } catch {
+    return [];
+  }
+};
+
+/** Redeemer tags as Mesh spells them, by their number in a transaction */
+const REDEEMER_TAGS: Action["tag"][] = [
+  "SPEND",
+  "MINT",
+  "CERT",
+  "REWARD",
+  "VOTE",
+  "PROPOSE",
+];
+
+/**
+ * The first redeemer whose script needs more than the units the transaction declares for it, as
+ * a message. Scalus evaluates a script without holding it to them; the ledger does not.
+ */
+const overBudget = (
+  tx: Serialization.Transaction,
+  redeemers: Omit<Action, "data">[],
+): string | undefined => {
+  const declared = new Map(
+    (tx.witnessSet().redeemers()?.values() ?? []).map((redeemer) => [
+      `${REDEEMER_TAGS[redeemer.tag()]}:${redeemer.index()}`,
+      redeemer.exUnits(),
+    ]),
+  );
+  for (const { tag, index, budget } of redeemers) {
+    const units = declared.get(`${tag}:${index}`);
+    if (
+      units &&
+      (BigInt(budget.mem) > units.mem() || BigInt(budget.steps) > units.steps())
+    )
+      return `${tag}[${index}] failed: out of budget, the script needs { mem: ${budget.mem}, steps: ${budget.steps} }`;
+  }
+  return undefined;
+};
+
+/**
+ * Why the scripts of a transaction do not pass, if they do not: the failure of their evaluation,
+ * or a script needing more than the units its redeemer declares
+ */
+const scriptIssue = (
+  tx: Serialization.Transaction,
+  redeemers: Omit<Action, "data">[],
+  failure: unknown,
+): TxIssue | undefined => {
+  if (failure === undefined) {
+    const message = overBudget(tx, redeemers);
+    return message === undefined
+      ? undefined
+      : { rule: "ScriptFailure", message, phase: 2 };
+  }
+  const message = failure instanceof Error ? failure.message : String(failure);
+  // A script that fails is phase 2; anything else kept the scripts from running at all
+  return failure instanceof Error &&
+    failure.name === "PlutusScriptEvaluationError"
+    ? { rule: "ScriptFailure", message, phase: 2 }
+    : { rule: "CollectErrors", message, phase: 1 };
+};
 
 const scalusCredential = (credential: CredentialRef) => ({
   credentialType: credential.type,
@@ -1202,6 +1305,19 @@ export class TxEmulator
     return result;
   }
 
+  /**
+   * Take the outputs a transaction spent out of a Scalus ledger that did not apply it, and add
+   * those it created
+   */
+  private settle(
+    ledger: Emulator,
+    spent: UTxO["input"][],
+    produced: UTxO[],
+  ): void {
+    for (const outRef of spent) ledger.removeUtxo(outRef);
+    for (const utxo of produced) ledger.addUtxo(fromMeshUtxo(utxo, this.lib));
+  }
+
   /** A transaction being checked reads the state throughout, so it must not change meanwhile */
   private assertIdle(): void {
     if (this.pending > 0)
@@ -1282,32 +1398,71 @@ export class TxEmulator
           : this.ledger.snapshot();
       // Budgets are evaluated while the inputs are still in the ledger. A script failure is
       // left for the submission to report, with its rule and logs.
+      let scriptFailure: unknown;
       if (isValid && (tx.witnessSet().redeemers()?.size() ?? 0) > 0) {
         try {
           redeemers = await new ScalusEmulator(target).evaluateTx(txHex);
-        } catch {
+        } catch (error) {
           redeemers = [];
+          scriptFailure = error;
         }
       }
-      const result = target.submitTx(hexToBytes(txHex));
+      const bytes = hexToBytes(txHex);
+      const result = target.submitTx(bytes);
       logs = result.logs;
       if (!result.isSuccess) {
         const rule = result.errorRule ?? "Unknown";
         const message = result.error ?? "";
-        // Scalus names native and Plutus script failures alike; only Plutus is phase 2
-        const phase =
-          rule === "ScriptFailure" && !/native script/i.test(message) ? 2 : 1;
-        return rejected(txHash, [{ rule, message, phase }], notChecked, logs);
+        // Scalus reports one rule broken; these are all of them. The rules not taken are not
+        // applied to a transaction marked invalid, so it breaks none of them.
+        const broken = isValid ? brokenRules(target, bytes) : [];
+        const judged = broken.filter(
+          (failure) => !SCALUS_UNJUDGED.has(failure),
+        );
+        if (broken.length === 0 || judged.length > 0) {
+          // The rule Scalus reports, unless that is one not taken: then another the
+          // transaction breaks, which Scalus lists without describing it
+          if (judged.length > 0 && SCALUS_UNJUDGED_REPORTED.has(rule))
+            return rejected(
+              txHash,
+              [
+                {
+                  rule: judged[0]!,
+                  message: `Scalus lists this rule as broken, and describes only ${rule}, which is not checked`,
+                  phase: 1,
+                },
+              ],
+              notChecked,
+              logs,
+            );
+          // Scalus names native and Plutus script failures alike; only Plutus is phase 2
+          const phase =
+            rule === "ScriptFailure" && !/native script/i.test(message) ? 2 : 1;
+          return rejected(txHash, [{ rule, message, phase }], notChecked, logs);
+        }
+        // Only rules not taken are broken, so nothing but the scripts is left to check, which
+        // Scalus did not run
+        const issue = scriptIssue(tx, redeemers, scriptFailure);
+        if (issue)
+          return rejected(
+            txHash,
+            [issue],
+            notChecked,
+            (scriptFailure as { logs?: string[] } | undefined)?.logs ?? [],
+          );
+        if (apply) this.settle(target, spent, produced);
       }
       warnings = notChecked;
       if (apply) this.current = target;
       // Scalus applies some transactions in its own way: it applies the certificates of a
       // transaction marked invalid, and some certificates otherwise than the state. Nor must
-      // what was assumed for this one outlive it. Its ledger is rebuilt from the state then.
+      // what was assumed for this one outlive it, and one accepted against Scalus's refusal
+      // left its registrations as they were. Its ledger is rebuilt from the state then.
       // It does not take withdrawals off the rewards it holds either, which matters only to a
       // later transaction reading the stake address.
       resync =
         assuming ||
+        !result.isSuccess ||
         !isValid ||
         (body.certs()?.values() ?? []).some(
           (certificate) =>
@@ -1344,12 +1499,8 @@ export class TxEmulator
         );
       redeemers = report.redeemers;
       warnings = [...report.warnings, ...notChecked];
-      if (apply) {
-        // cquisitor only validates; the UTxO set is kept in the Scalus ledger, updated here
-        for (const outRef of spent) this.ledger.removeUtxo(outRef);
-        for (const utxo of produced)
-          this.ledger.addUtxo(fromMeshUtxo(utxo, this.lib));
-      }
+      // cquisitor only validates; the UTxO set is kept in the Scalus ledger, updated here
+      if (apply) this.settle(this.ledger, spent, produced);
     }
 
     if (apply) {

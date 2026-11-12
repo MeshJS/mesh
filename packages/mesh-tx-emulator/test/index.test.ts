@@ -1316,6 +1316,199 @@ describe.each(["scalus", "cquisitor"] as const)(
   },
 );
 
+/*
+ * Scalus checks some rules against a governance state of its own, which cannot be given the
+ * emulator's, so the emulator does not take its refusal by them. Here it is a withdrawal to a
+ * key-hash stake address that delegates its vote to no DRep, as far as Scalus knows.
+ */
+describe("TxEmulator (scalus) rules Scalus cannot judge", () => {
+  const locked = (outputIndex: number, script: typeof alwaysSucceed): UTxO => ({
+    input: { txHash: "9".repeat(64), outputIndex },
+    output: {
+      address: resolvePlutusScriptAddress(script, 1),
+      amount: lovelace("20000000"),
+      plutusData: "d87980",
+    },
+  });
+  const withRewards = async () => {
+    const context = await setup("scalus", {
+      utxos: [locked(0, alwaysSucceed), locked(1, alwaysFail)],
+    });
+    context.emulator.setAccount({
+      rewardAddress: context.stake,
+      rewards: "7000000",
+    });
+    return context;
+  };
+
+  it("applies a transaction Scalus refuses only by them", async () => {
+    const { wallet, emulator, stake, sign, address, funding, builder } =
+      await withRewards();
+    const withdrawal = expectAccepted(
+      await emulator.submit(
+        await sign(
+          await builder()
+            .withdrawal(stake, "7000000")
+            .changeAddress(address)
+            .selectUtxosFrom([funding])
+            .complete(),
+        ),
+      ),
+    );
+    expect(withdrawal.consumed).toEqual([funding]);
+    expect(emulator.utxos({ txHash: funding.input.txHash })).toHaveLength(0);
+    expect(emulator.utxos({ txHash: withdrawal.txHash })).toHaveLength(
+      withdrawal.produced.length,
+    );
+    expect((await emulator.fetchAccountInfo(stake)).rewards).toBe("0");
+
+    // The ledger goes on from what the transaction produced
+    expectAccepted(
+      await emulator.submit(
+        await wallet.signTx(
+          await builder()
+            .txOut(address, lovelace("2000000"))
+            .changeAddress(address)
+            .selectUtxosFrom(withdrawal.produced)
+            .complete(),
+        ),
+      ),
+    );
+  });
+
+  it("runs the scripts of such a transaction, which Scalus did not", async () => {
+    const { emulator, stake, sign, address, funding, collateral, builder } =
+      await withRewards();
+    const spend = (
+      outputIndex: number,
+      script: typeof alwaysSucceed,
+      budget = { mem: 1_000_000, steps: 500_000_000 },
+    ) =>
+      builder({ evaluate: false })
+        .spendingPlutusScriptV3()
+        .txIn("9".repeat(64), outputIndex)
+        .txInInlineDatumPresent()
+        .txInRedeemerValue(mConStr0([]), "Mesh", budget)
+        .txInScript(script.code)
+        .txInCollateral(
+          collateral.input.txHash,
+          collateral.input.outputIndex,
+          collateral.output.amount,
+          collateral.output.address,
+        )
+        .withdrawal(stake, "7000000")
+        .changeAddress(address)
+        .selectUtxosFrom([funding])
+        .complete();
+
+    // A script that fails, and one given fewer units than it needs
+    for (const failing of [
+      await spend(1, alwaysFail),
+      await spend(0, alwaysSucceed, { mem: 10, steps: 10 }),
+    ]) {
+      const result = await emulator.simulate(await sign(failing));
+      expect(result.accepted).toBe(false);
+      expect(!result.accepted && result.errors).toEqual([
+        expect.objectContaining({ rule: "ScriptFailure", phase: 2 }),
+      ]);
+    }
+
+    const passing = expectAccepted(
+      await emulator.submit(await sign(await spend(0, alwaysSucceed))),
+    );
+    expect(passing.redeemers).toEqual([
+      { tag: "SPEND", index: 0, budget: expect.any(Object) },
+    ]);
+    // The script's output is spent, and the collateral is not
+    expect(emulator.utxos({ txHash: "9".repeat(64) })).toEqual([
+      expect.objectContaining({ input: locked(1, alwaysFail).input }),
+    ]);
+    expect(emulator.utxos({ txHash: collateral.input.txHash })).toHaveLength(1);
+  });
+
+  it("refuses a script given a transaction it cannot be shown, which Scalus did not report", async () => {
+    // A Plutus V2 script cannot be shown a donation to the treasury
+    const alwaysSucceedV2 = {
+      code: "4e4d01000033222220051200120011",
+      version: "V2" as const,
+    };
+    const { emulator, stake, sign, address, funding, collateral, builder } =
+      await setup("scalus", {
+        utxos: [
+          {
+            input: { txHash: "8".repeat(64), outputIndex: 0 },
+            output: {
+              address: resolvePlutusScriptAddress(alwaysSucceedV2, 1),
+              amount: lovelace("20000000"),
+              plutusData: "d87980",
+            },
+          },
+        ],
+      });
+    emulator.setAccount({ rewardAddress: stake, rewards: "7000000" });
+    const spend = (donation?: string) => {
+      const tx = builder({ evaluate: false })
+        .spendingPlutusScriptV2()
+        .txIn("8".repeat(64), 0)
+        .txInInlineDatumPresent()
+        .txInRedeemerValue(mConStr0([]), "Mesh", {
+          mem: 1_000_000,
+          steps: 500_000_000,
+        })
+        .txInScript(alwaysSucceedV2.code)
+        .txInCollateral(
+          collateral.input.txHash,
+          collateral.input.outputIndex,
+          collateral.output.amount,
+          collateral.output.address,
+        )
+        .withdrawal(stake, "7000000");
+      if (donation) tx.setDonation(donation);
+      return tx.changeAddress(address).selectUtxosFrom([funding]).complete();
+    };
+
+    expectAccepted(await emulator.simulate(await sign(await spend())));
+    expect(
+      rules(await emulator.simulate(await sign(await spend("1000000")))),
+    ).toEqual(["CollectErrors"]);
+  });
+
+  it("does not check the treasury a transaction states", async () => {
+    const { emulator } = await setup("scalus");
+    emulator.setTreasury("1000000000");
+    for (const value of ["1000000000", "999"])
+      expectAccepted(
+        await emulator.simulate(
+          rawTx({ body: { current_treasury_value: value } }),
+        ),
+      );
+  });
+
+  it("refuses such a transaction that breaks another rule too", async () => {
+    const { wallet, emulator, stake, sign, address, funding, builder } =
+      await withRewards();
+    const withdrawing = (quantity: string) =>
+      builder()
+        .withdrawal(stake, quantity)
+        .changeAddress(address)
+        .selectUtxosFrom([funding])
+        .complete();
+
+    // The stake key has to sign a withdrawal
+    expect(
+      rules(
+        await emulator.simulate(
+          await wallet.signTx(await withdrawing("7000000"), true),
+        ),
+      ),
+    ).toEqual(["MissingKeyHashes"]);
+    // More than the rewards hold
+    expect(
+      rules(await emulator.simulate(await sign(await withdrawing("9000000")))),
+    ).toEqual(["WithdrawalsNotInRewards"]);
+  });
+});
+
 describe("TxEmulator (cquisitor) ledger rules", () => {
   it("delegates votes to AlwaysAbstain and AlwaysNoConfidence", async () => {
     const { emulator } = await setup("cquisitor", {
@@ -2956,6 +3149,11 @@ describe.each(["scalus", "cquisitor"] as const)(
         expect(
           warningRules(expectAccepted(await emulator.simulate(tx))),
         ).toContain("NotChecked");
+
+      // Applied too, on the state taken for it
+      const applied = expectAccepted(await emulator.submit(withdrawal));
+      expect(emulator.utxos({ txHash: outRef(2).txHash })).toHaveLength(0);
+      expect(emulator.utxos({ txHash: applied.txHash })).toHaveLength(1);
     });
 
     it("tells a DRep delegation it does not know from none, as a provider for another ledger", async () => {
