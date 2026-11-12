@@ -8,6 +8,7 @@ import {
   toNativeScriptSource,
   toPlutusScriptSource,
   toRedeemer,
+  toRewardAddress,
   withKnownHash,
 } from "./normalize";
 import {
@@ -23,7 +24,7 @@ import {
 type Credential = ReturnType<typeof rewardCredential>;
 
 type WithdrawalParams = {
-  /** The stake address, in bech32 */
+  /** The stake address, in bech32 or hex */
   rewardAddress: string;
   /**
    * Lovelace to withdraw, which must be the whole reward balance; `"all"` looks the balance
@@ -41,7 +42,7 @@ const build = (
   ) => KeyWitness | NativeWitness | PlutusWitness,
 ): WithdrawalPart => {
   const ctx: PartContext = { part: "withdrawal", label: params.label };
-  const credential = rewardCredential(ctx, params.rewardAddress);
+  const { address, credential } = toRewardAddress(ctx, params.rewardAddress);
   const { amount } = params;
   if (amount !== "all" && (typeof amount !== "bigint" || amount < 0n))
     fail(ctx, "INVALID_VALUE", `invalid withdrawal amount ${amount}`);
@@ -56,7 +57,7 @@ const build = (
   );
   return freeze({
     kind: "withdrawal",
-    rewardAddress: params.rewardAddress,
+    rewardAddress: address,
     ...(amount !== "all" && { amount: amount.toString() }),
     witness,
     ...labelOf(params.label),
@@ -66,7 +67,7 @@ const build = (
 export const withdrawal = {
   /**
    * Withdraw rewards from a stake address with a key stake credential.
-   * @param params.rewardAddress The stake address, in bech32
+   * @param params.rewardAddress The stake address, in bech32 or hex
    * @param params.amount The whole reward balance, or `"all"` to look it up
    * @param params.label Name echoed in errors about this part
    */
@@ -91,8 +92,8 @@ export const withdrawal = {
 
   /**
    * Withdraw rewards from a stake address with a Plutus script stake credential.
-   * @param params.script The script: attached (`{ code, version }`) or held in a reference
-   *   output (`{ reference }`)
+   * @param params.script The script: attached (`{ code, version }`, the code flat or in one or
+   *   two CBOR wrappings) or held in a reference output (`{ reference }`)
    * @param params.redeemer Redeemer data, with execution units if already known
    */
   plutus: (

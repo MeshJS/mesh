@@ -17,6 +17,7 @@ import {
   fromBuilderToPlutusData,
   fromNativeScript,
   HexBlob,
+  normalizePlutusScript,
   toNativeScript,
   toScriptRef,
 } from "@meshsdk/core-cst";
@@ -67,6 +68,7 @@ export const freeze = <T>(value: T): T => {
 const HASH_32 = /^[0-9a-f]{64}$/;
 const HASH_28 = /^[0-9a-f]{56}$/;
 const HEX = /^(?:[0-9a-f]{2})*$/;
+const HEX_ANY_CASE = /^(?:[0-9a-f]{2})*$/i;
 
 export const isHash32 = (value: string) => HASH_32.test(value);
 export const isHash28 = (value: string) => HASH_28.test(value);
@@ -76,7 +78,7 @@ const isUtxo = (ref: InputRef): ref is UTxO => "input" in ref;
 
 /**
  * Normalises an input reference. A full UTxO is copied, so later changes to the caller's
- * object cannot reach the part.
+ * object cannot reach the part, and the copy holds its address in canonical text.
  */
 export const toResolvableInput = (ctx: PartContext, ref: InputRef) => {
   const { txHash, outputIndex } = isUtxo(ref) ? ref.input : ref;
@@ -91,7 +93,7 @@ export const toResolvableInput = (ctx: PartContext, ref: InputRef) => {
   if (!isUtxo(ref)) return { input };
   const utxo = structuredClone(ref);
   utxo.input = { txHash: transactionId, outputIndex };
-  parseAddress(ctx, utxo.output.address);
+  utxo.output.address = addressText(parseAddress(ctx, utxo.output.address));
   return { input, utxo };
 };
 
@@ -107,6 +109,13 @@ export const parseAddress = (ctx: PartContext, address: string): Address => {
     return fail(ctx, "INVALID_ADDRESS", `invalid address ${address}`);
   return parsed;
 };
+
+/**
+ * The text a part stores for an address, whatever text it was given in: bech32, or base58 for
+ * a Byron address. The encoder reads only these, and one address then has one text.
+ */
+export const addressText = (address: Address): string =>
+  address.asByron() ? address.toBase58() : address.toBech32();
 
 /** The payment credential of an address; undefined for Byron addresses, which have none */
 export const paymentCredential = (
@@ -169,26 +178,43 @@ export const toRedeemer = (
   ...(redeemer.exUnits && { exUnits: toExUnits(ctx, redeemer.exUnits) }),
 });
 
-/** The stake credential of a reward address */
-export const rewardCredential = (
+/**
+ * A reward address given in bech32 or hex, with its stake credential; `address` is the text a
+ * part stores for it
+ */
+export const toRewardAddress = (
   ctx: PartContext,
   rewardAddress: string,
-): { type: "key" | "script"; hash: string } => {
-  const credential =
+): {
+  address: string;
+  credential: { type: "key" | "script"; hash: string };
+} => {
+  const parsed =
     typeof rewardAddress === "string"
-      ? Address.fromString(rewardAddress)?.asReward()?.getPaymentCredential()
-      : undefined;
-  if (!credential)
+      ? Address.fromString(rewardAddress)
+      : null;
+  const credential = parsed?.asReward()?.getPaymentCredential();
+  if (!parsed || !credential)
     return fail(
       ctx,
       "INVALID_ADDRESS",
       `invalid reward address ${rewardAddress}`,
     );
   return {
-    type: credential.type === CredentialType.ScriptHash ? "script" : "key",
-    hash: credential.hash.toString(),
+    address: addressText(parsed),
+    credential: {
+      type: credential.type === CredentialType.ScriptHash ? "script" : "key",
+      hash: credential.hash.toString(),
+    },
   };
 };
+
+/** The stake credential of a reward address */
+export const rewardCredential = (
+  ctx: PartContext,
+  rewardAddress: string,
+): { type: "key" | "script"; hash: string } =>
+  toRewardAddress(ctx, rewardAddress).credential;
 
 /**
  * Checks that a credential is the one a witness can authorise: a key, or the script with the
@@ -292,13 +318,43 @@ const checkScriptSize = (ctx: PartContext, scriptSize?: number) => {
     fail(ctx, "INVALID_SCRIPT", `invalid script size ${scriptSize}`);
 };
 
+/**
+ * The code of an attached Plutus script in its double CBOR wrapping, the form the script's hash
+ * is taken over. `code` may be the flat program or the program in any number of CBOR
+ * byte-string wrappings, in hex of either case; anything else is INVALID_SCRIPT, reported as
+ * `<what>: <reason>`.
+ */
+export const toPlutusScriptCode = (
+  ctx: PartContext,
+  code: string,
+  what: string,
+): string => {
+  // The helper reads hex up to the first bad digit, so the part checks it first
+  if (typeof code !== "string" || !HEX_ANY_CASE.test(code))
+    return fail(
+      ctx,
+      "INVALID_SCRIPT",
+      `${what}: the code is not hex of whole bytes`,
+    );
+  try {
+    return normalizePlutusScript(code, "DoubleCBOR");
+  } catch (error) {
+    return fail(ctx, "INVALID_SCRIPT", `${what}: ${errorText(error)}`);
+  }
+};
+
 export const toPlutusScriptSource = (
   ctx: PartContext,
   script: PlutusScriptInput,
 ): PlutusScriptSource => {
   if ("code" in script) {
+    const code = toPlutusScriptCode(
+      ctx,
+      script.code,
+      `invalid Plutus ${script.version} script`,
+    );
     try {
-      const cbor = deserializePlutusScript(script.code, script.version)
+      const cbor = deserializePlutusScript(code, script.version)
         .toCbor()
         .toString();
       const scriptHash = toScriptRef({ code: cbor, version: script.version })

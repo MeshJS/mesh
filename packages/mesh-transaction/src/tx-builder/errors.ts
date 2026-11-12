@@ -3,7 +3,10 @@ import type { TxPart, Unresolved } from "./parts/types";
 export type TxBuildErrorCode =
   /** A part still leaves something to be filled in; `details` lists the gaps */
   | "UNRESOLVED"
-  /** Two parts claim what a transaction holds only once: an input, a policy, a voter, ... */
+  /**
+   * Two parts claim what a transaction holds only once: an input, a policy, a voter, ...; or a
+   * reference input names an output the transaction spends
+   */
   | "DUPLICATE_PART"
   /** Collateral inputs that cannot cover the total collateral */
   | "INVALID_COLLATERAL"

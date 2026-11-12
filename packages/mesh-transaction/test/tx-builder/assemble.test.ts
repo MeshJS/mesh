@@ -7,6 +7,7 @@ import {
   UTxO,
 } from "@meshsdk/core";
 import {
+  Address,
   blake2b,
   keyHashToRewardAddress,
   resolvePlutusScriptAddress,
@@ -583,5 +584,83 @@ describe("assembleTxPrototype: errors", () => {
   ];
   it.each(twice)("rejects %s given twice", (_, parts) => {
     expectBuildError(() => assembleTxPrototype(parts, fee), "DUPLICATE_PART");
+  });
+
+  it("rejects a reference input the transaction also spends", () => {
+    const spent = utxo("aa".repeat(32), 3);
+    const read = referenceInput({ utxo: spent, label: "oracle" });
+    for (const parts of [
+      [spend.pubKey({ utxo: spent }), read],
+      [read, spend.pubKey({ utxo: spent })],
+    ]) {
+      const error = expectBuildError(
+        () => assembleTxPrototype(parts, fee),
+        "DUPLICATE_PART",
+      );
+      expect(error).toMatchObject({
+        part: "referenceInput",
+        label: "oracle",
+        details: { key: `${"aa".repeat(32)}#3` },
+      });
+      expect(error.message).toContain(
+        `${"aa".repeat(32)}#3 is also spent by this transaction`,
+      );
+    }
+  });
+
+  it("allows a script read from the output it spends, and collateral that is read", () => {
+    const holder = utxo("aa".repeat(32), 0, scriptAddress, {
+      plutusData: "d87980",
+      scriptRef: referenceScript,
+    });
+    const self = assembleTxPrototype(
+      [
+        spend.plutus({
+          utxo: holder,
+          script: { reference: holder },
+          redeemer: redeemer(1),
+        }),
+      ],
+      fee,
+    );
+    expect(self.prototype.body.reference_inputs).toBeUndefined();
+    expect(self.prototype.body.inputs).toEqual([
+      { transaction_id: "aa".repeat(32), index: 0 },
+    ]);
+
+    const put = utxo("cc".repeat(32), 1);
+    const { prototype } = assembleTxPrototype(
+      [
+        keySpend("bb".repeat(32), 0),
+        collateral({ utxo: put }),
+        referenceInput({ utxo: put }),
+      ],
+      fee,
+    );
+    const input = { transaction_id: "cc".repeat(32), index: 1 };
+    expect(prototype.body.collateral).toEqual([input]);
+    expect(prototype.body.reference_inputs).toEqual([input]);
+  });
+
+  it("rejects one reward account withdrawn twice, in two texts", () => {
+    const account = keyHashToRewardAddress(keyHashHex(5), 0);
+    const hex = Address.fromString(account)!.toBytes().toString();
+    for (const [a, b] of [
+      [account, hex],
+      [account, account.toUpperCase()],
+    ]) {
+      expectBuildError(
+        () =>
+          assembleTxPrototype(
+            [
+              keySpend("aa".repeat(32), 0),
+              withdrawal.pubKey({ rewardAddress: a!, amount: 0n }),
+              withdrawal.pubKey({ rewardAddress: b!, amount: 0n }),
+            ],
+            fee,
+          ),
+        "DUPLICATE_PART",
+      );
+    }
   });
 });

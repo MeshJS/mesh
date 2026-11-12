@@ -68,7 +68,13 @@ export type ScriptReferenceInput = {
   scriptSize?: number;
 };
 
-/** A Plutus script, attached to the transaction or held in a reference output */
+/**
+ * A Plutus script, attached to the transaction or held in a reference output. `code` of an
+ * attached script may be the flat program, its single CBOR wrapping (a blueprint's
+ * `compiledCode`) or its double wrapping: it is normalised at the part call
+ * (`normalizePlutusScript(code, "DoubleCBOR")`), so the hash, policy id and address are those
+ * the blueprint states. Anything that is not a script throws TxPartError INVALID_SCRIPT.
+ */
 export type PlutusScriptInput =
   | PlutusScript
   | (ScriptReferenceInput & {

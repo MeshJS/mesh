@@ -75,11 +75,17 @@ export type BuildTxRequest = {
   /** Where change, and by default the collateral return, goes */
   changeAddress: string;
   /**
-   * UTxOs to pay for the transaction and put up collateral from, typically the wallet's. Only
-   * key-locked ones are selected. Parts may also reference them by out ref alone.
+   * UTxOs to pay for the transaction and put up collateral from, typically the wallet's. Parts
+   * may also reference them by out ref alone. Only key-locked ones are selected; those the parts
+   * read (reference inputs, reference scripts) are never selected, and one named by a collateral
+   * part is never selected as an input.
    */
   utxos?: readonly UTxO[];
-  /** A fee to use as is instead of the minimum fee; it must not be below the minimum */
+  /**
+   * A fee that goes into the body as given, instead of the minimum fee. FEE_TOO_LOW
+   * `{ fee, minFee }` when the minimum fee of the final transaction is higher; the build never
+   * raises it.
+   */
   fee?: bigint;
   /**
    * Operator key hashes of pools that are already registered, so that registering them again

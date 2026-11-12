@@ -158,8 +158,8 @@ const getPurePlutusBytes = (plutusScript: Uint8Array): Uint8Array => {
         break;
       }
     }
-  } catch (error) {
-    console.error("Error parsing Plutus script:", error);
+  } catch {
+    // Bytes that are not CBOR are judged by the version check below
   }
   if (hasSupportedPlutusVersion(unwrappedScript)) {
     return unwrappedScript;

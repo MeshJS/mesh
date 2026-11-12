@@ -194,8 +194,7 @@ describe("TxBuilder on the emulator", () => {
         }),
       ],
       changeAddress: address,
-      // The wallet's UTxOs, without the reference script output
-      utxos: (await utxos()).filter((u) => !u.output.scriptRef),
+      utxos: await utxos(),
     });
 
     expect(built.redeemers).toEqual([

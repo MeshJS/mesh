@@ -24,9 +24,9 @@ import {
   isHash32,
   labelOf,
   PartContext,
-  rewardCredential,
   toNativeScriptSource,
   toPlutusScriptSource,
+  toRewardAddress,
 } from "./normalize";
 import {
   AnchorInput,
@@ -145,7 +145,7 @@ export const vote = (params: {
  * ------------------------------------------------------------------------------------------- */
 
 type ProposalParams = {
-  /** The reward address the deposit is returned to */
+  /** The reward address the deposit is returned to, in bech32 or hex */
   rewardAccount: string;
   /** Where the proposal's rationale is published */
   anchor: AnchorInput;
@@ -215,7 +215,7 @@ const build = (
   governanceAction: GovernanceActionPrototype,
   witness: ProposalPart["witness"] = { type: "none" },
 ): ProposalPart => {
-  rewardCredential(ctx, params.rewardAccount);
+  const rewardAccount = toRewardAddress(ctx, params.rewardAccount).address;
   const anchor = toAnchor(ctx, params.anchor);
   if (!anchor) return fail(ctx, "INVALID_DATA", "a proposal needs an anchor");
   const { coin, depositParameter } = toDeposit(
@@ -228,7 +228,7 @@ const build = (
     proposal: {
       governance_action: governanceAction,
       anchor,
-      reward_account: params.rewardAccount,
+      reward_account: rewardAccount,
       ...(coin && { deposit: coin }),
     },
     ...(depositParameter && { depositParameter }),
@@ -348,7 +348,8 @@ export const proposal = {
 
   /**
    * Propose withdrawing lovelace from the treasury.
-   * @param params.withdrawals Lovelace by receiving reward address
+   * @param params.withdrawals Lovelace by receiving reward address, in bech32 or hex; one
+   *   account given twice, in two texts, is refused
    * @param params.guardrail The constitution's guardrail script, when it has one
    */
   treasuryWithdrawals: (
@@ -359,14 +360,12 @@ export const proposal = {
     const entries = Object.entries(params.withdrawals ?? {});
     if (entries.length === 0) fail(ctx, "INVALID_VALUE", "no withdrawals");
     const withdrawals: Record<string, string> = {};
-    for (const [address, amount] of entries) {
-      rewardCredential(ctx, address);
+    for (const [key, amount] of entries) {
+      const { address } = toRewardAddress(ctx, key);
       if (typeof amount !== "bigint" || amount < 0n)
-        fail(
-          ctx,
-          "INVALID_VALUE",
-          `invalid withdrawal ${amount} to ${address}`,
-        );
+        fail(ctx, "INVALID_VALUE", `invalid withdrawal ${amount} to ${key}`);
+      if (address in withdrawals)
+        fail(ctx, "INVALID_VALUE", `reward account ${key} given twice`);
       withdrawals[address] = amount.toString();
     }
     const { policyHash, witness } = toGuardrail(ctx, params);

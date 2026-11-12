@@ -4,6 +4,7 @@ import {
   auxiliaryScript,
   donation,
   metadata,
+  mint,
   networkId,
   requiredSigner,
   treasuryValue,
@@ -62,6 +63,44 @@ describe("validity", () => {
       () => validity({ invalidHereafter: 2n ** 64n }),
       "INVALID_DATA",
     );
+  });
+
+  it("rejects a slot above 1e11, which looks like POSIX milliseconds", () => {
+    const messageOf = (build: () => unknown) => {
+      try {
+        build();
+      } catch (error) {
+        expect(error).toBeInstanceOf(TxPartError);
+        expect((error as TxPartError).code).toBe("INVALID_DATA");
+        return (error as TxPartError).message;
+      }
+      throw new Error("expected an INVALID_DATA error");
+    };
+
+    expect(
+      messageOf(() => validity({ invalidBefore: 1_793_788_355_463 })),
+    ).toMatch(/invalidBefore 1793788355463 .*POSIX milliseconds/);
+    expect(
+      messageOf(() => validity({ invalidHereafter: 1_793_788_355_463n })),
+    ).toMatch(/invalidHereafter 1793788355463 .*POSIX milliseconds/);
+    expect(
+      messageOf(() => validity({ invalidBefore: 100_000_000_001 })),
+    ).toMatch(/invalidBefore 100000000001 .*POSIX milliseconds/);
+    expect(messageOf(() => validity({ invalidHereafter: 2n ** 64n }))).toMatch(
+      /invalid invalidHereafter slot /,
+    );
+
+    expect(validity({ invalidHereafter: 100_000_000_000 })).toEqual({
+      kind: "validity",
+      invalidHereafter: "100000000000",
+    });
+    // Slots inside native scripts are not checked
+    expect(
+      mint.native({
+        script: { type: "after", slot: "1793788355463" },
+        assets: { "01": 1n },
+      }).kind,
+    ).toBe("mint");
   });
 });
 

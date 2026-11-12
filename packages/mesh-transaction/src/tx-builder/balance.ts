@@ -17,6 +17,7 @@ import type { Value } from "./value";
 import { assembleTxPrototype } from "./assemble";
 import { TxBuildError } from "./errors";
 import { coversMinCoin, minCoin, minFee, valueSize } from "./fee";
+import { outRefString } from "./parts/normalize";
 import { utxoKey } from "./resolve";
 import {
   addValues,
@@ -34,11 +35,17 @@ export type BalanceContext = {
   params: Protocol;
   costModels: readonly (readonly number[])[];
   changeAddress: string;
-  /** UTxOs inputs and collateral may be selected from */
+  /**
+   * UTxOs inputs and collateral may be selected from. Those the parts read are never selected,
+   * and those named by collateral parts are never selected as inputs.
+   */
   utxos: readonly UTxO[];
   /** Every UTxO known to the build, keyed by `txHash#index` */
   known: ReadonlyMap<string, UTxO>;
-  /** A fee fixed by the caller, used as is */
+  /**
+   * A fee fixed by the caller, used as is: never raised, and judged against the minimum fee
+   * only in a round that is not provisional
+   */
   fee?: bigint;
   /** Pools already registered: registering them again takes no deposit */
   registeredPools: ReadonlySet<string>;
@@ -77,6 +84,22 @@ const MAX_ROUNDS = 50;
 
 /** The largest lovelace quantity, to size values whatever lovelace they end up holding */
 const MAX_COIN = (2n ** 64n - 1n).toString();
+
+/** The out refs of the outputs the parts read: reference inputs and reference scripts */
+const readByParts = (parts: readonly TxPart[]): Set<string> => {
+  const read = new Set<string>();
+  for (const part of parts) {
+    if (part.kind === "referenceInput") read.add(outRefString(part.input));
+    if (!("witness" in part)) continue;
+    const { witness } = part;
+    if (
+      (witness.type === "native" || witness.type === "plutus") &&
+      witness.script.type === "reference"
+    )
+      read.add(outRefString(witness.script.input));
+  }
+  return read;
+};
 
 const isKeyLocked = (utxo: UTxO) => {
   const address = Address.fromString(utxo.output.address);
@@ -300,9 +323,15 @@ export const balance = (
   const spent = new Set(
     parts.flatMap((p) => (p.kind === "spend" ? [utxoKey(p.utxo!)] : [])),
   );
-  const pool = ctx.utxos.filter(
-    (u) => isKeyLocked(u) && !spent.has(utxoKey(u)),
-  );
+  const read = readByParts(parts);
+  // A collateral part's UTxO is spent only when a spend part names it as well
+  const putUp = new Set(givenCollateral.map((p) => outRefString(p.input)));
+  const pool = ctx.utxos.filter((u) => {
+    const key = utxoKey(u);
+    return (
+      isKeyLocked(u) && !spent.has(key) && !read.has(key) && !putUp.has(key)
+    );
+  });
   const selected: UTxO[] = [];
   const selectedKeys = new Set<string>();
   const select = (utxo: UTxO) => {
@@ -367,7 +396,9 @@ export const balance = (
   };
 
   const needsCollateral = runsPlutus || givenCollateral.length > 0;
-  const collateralPool = ctx.utxos.filter(isKeyLocked);
+  const collateralPool = ctx.utxos.filter(
+    (u) => isKeyLocked(u) && !read.has(utxoKey(u)),
+  );
   const planCollateral = (fee: bigint): CollateralPlan => {
     const plan = () =>
       collateralFor(fee, {
@@ -464,13 +495,15 @@ export const balance = (
       totalExUnits(sized),
       params,
     );
-    if (ctx.fee !== undefined && required > ctx.fee)
+    // A given fee is never raised. A provisional round's units overstate the minimum, so the
+    // fee is judged only once they are real
+    if (ctx.fee !== undefined && !ctx.provisional && required > ctx.fee)
       throw new TxBuildError(
         "FEE_TOO_LOW",
         `the fee ${ctx.fee} is below the transaction's minimum fee ${required}`,
         { details: { fee: ctx.fee, minFee: required } },
       );
-    if (required <= fee)
+    if (ctx.fee !== undefined || required <= fee)
       return {
         assembled: assembleTxPrototype(all, {
           fee,

@@ -223,6 +223,13 @@ export const assembleTxPrototype = (
     compareInputs(a.input, b.input),
   );
   checkUnique(spends, (p) => outRef(p.input), "input");
+  // An output the transaction spends cannot also be one of its reference inputs
+  const spent = new Set(spends.map((p) => outRef(p.input)));
+  for (const part of byKind.referenceInput as ReferenceInputPart[]) {
+    const key = outRef(part.input);
+    if (spent.has(key))
+      duplicate(part, `${key} is also spent by this transaction`, { key });
+  }
   const mints = [...byKind.mint].sort((a, b) =>
     compareHashes(a.policyId, b.policyId),
   );
@@ -331,7 +338,6 @@ export const assembleTxPrototype = (
   );
 
   // A spent input's reference script is visible to the transaction without a reference input
-  const spent = new Set(spends.map((p) => outRef(p.input)));
   const referenceInputs = new Map<string, TransactionInputPrototype>();
   for (const input of [
     ...byKind.referenceInput.map((p: ReferenceInputPart) => p.input),

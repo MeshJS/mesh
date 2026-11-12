@@ -7,12 +7,14 @@ import {
   IEvaluator,
   IFetcher,
   mConStr0,
+  NativeScript,
   Protocol,
   resolveScriptRef,
   UTxO,
 } from "@meshsdk/core";
 import { CSLSerializer } from "@meshsdk/core-csl";
 import {
+  Address,
   keyHashToRewardAddress,
   OfflineEvaluatorScalus,
   resolvePlutusScriptAddress,
@@ -825,6 +827,225 @@ describe("TxBuilder: scripts", () => {
       }),
       "INSUFFICIENT_COLLATERAL",
     );
+  });
+});
+
+describe("TxBuilder: UTxOs left out of selection", () => {
+  const locked = (lovelaceHeld = ada(10)): UTxO =>
+    utxo(lovelace(lovelaceHeld), { plutusData: "d87980" }, scriptAddress);
+  const scriptSpend = (
+    from = locked(),
+    script: Parameters<typeof spend.plutus>[0]["script"] = plutusScript,
+  ) => spend.plutus({ utxo: from, script, redeemer: { data: mConStr0([]) } });
+  const pay = (n: number) =>
+    output({ address: recipient, value: { lovelace: ada(n) } });
+  const inputsOf = (built: BuiltTx) =>
+    built.prototype.body.inputs.map((i) => `${i.transaction_id}#${i.index}`);
+  const keyOf = (u: UTxO) => `${u.input.txHash}#${u.input.outputIndex}`;
+  const referencesOf = (built: BuiltTx) =>
+    (built.prototype.body.reference_inputs ?? []).map(
+      (i) => `${i.transaction_id}#${i.index}`,
+    );
+  const build = (parts: TxPart[], utxos: UTxO[]) =>
+    new TxBuilder({ params, evaluator: fakeEvaluator().evaluator }).build({
+      parts,
+      changeAddress: wallet,
+      utxos,
+    });
+
+  it("does not spend a UTxO a reference input reads", async () => {
+    const plain = utxo(lovelace(ada(40)));
+    const oracle = utxo(lovelace(ada(50)));
+    const built = await build(
+      [pay(10), referenceInput({ utxo: oracle })],
+      [plain, oracle],
+    );
+
+    expect(built.selectedInputs).toEqual([plain]);
+    expect(inputsOf(built)).toEqual([keyOf(plain)]);
+    expect(referencesOf(built)).toEqual([keyOf(oracle)]);
+  });
+
+  it("does not spend or put up a UTxO holding a reference script the parts read", async () => {
+    const holder = utxo(lovelace(ada(50)), {
+      scriptRef: resolveScriptRef(plutusScript),
+    });
+    const parts = () => [scriptSpend(locked(), { reference: holder }), pay(15)];
+    await expectBuildError(build(parts(), [holder]), "INSUFFICIENT_FUNDS");
+
+    const plain = utxo(lovelace(ada(20)));
+    const built = await build(parts(), [holder, plain]);
+    expect(referencesOf(built)).toEqual([keyOf(holder)]);
+    expect(inputsOf(built)).not.toContain(keyOf(holder));
+    expect(built.collateral!.inputs).not.toContainEqual(holder);
+  });
+
+  it("does not spend a UTxO holding a native reference script the parts read", async () => {
+    const nativeScript: NativeScript = { type: "all", scripts: [] };
+    const holder = utxo(lovelace(ada(50)), {
+      scriptRef: resolveScriptRef(nativeScript),
+    });
+    const parts = [
+      mint.native({ script: { reference: holder }, assets: { "01": 1n } }),
+      pay(15),
+    ];
+    await expectBuildError(build(parts, [holder]), "INSUFFICIENT_FUNDS");
+
+    const built = await build(parts, [holder, utxo(lovelace(ada(20)))]);
+    expect(referencesOf(built)).toEqual([keyOf(holder)]);
+    expect(inputsOf(built)).not.toContain(keyOf(holder));
+  });
+
+  it("does not put up a UTxO a reference input reads as collateral", async () => {
+    const oracle = utxo(lovelace(ada(5)));
+    const unit = mockTokenUnit(1);
+    const withToken = utxo([...lovelace(ada(10)), { unit, quantity: "1" }]);
+    const parts = () => [
+      scriptSpend(),
+      pay(5),
+      referenceInput({ utxo: oracle }),
+    ];
+
+    const built = await build(parts(), [oracle, withToken]);
+    expect(built.collateral!.inputs).toEqual([withToken]);
+    expect(built.selectedInputs).toEqual([]);
+
+    await expectBuildError(build(parts(), [oracle]), "INSUFFICIENT_COLLATERAL");
+  });
+
+  it("rejects a reference input the transaction also spends", async () => {
+    const both = utxo(lovelace(ada(10)));
+    await expectBuildError(
+      build(
+        [spend.pubKey({ utxo: both }), referenceInput({ utxo: both }), pay(2)],
+        [],
+      ),
+      "DUPLICATE_PART",
+    );
+  });
+
+  it("does not spend a UTxO a collateral part puts up", async () => {
+    const plain = utxo(lovelace(ada(40)));
+    const putUp = utxo(lovelace(ada(50)));
+    const parts = () => [scriptSpend(), pay(30), collateral({ utxo: putUp })];
+
+    const built = await build(parts(), [plain, putUp]);
+    expect(built.collateral!.inputs).toEqual([putUp]);
+    expect(built.selectedInputs).toEqual([plain]);
+    expect(built.inputs).not.toContainEqual(putUp);
+
+    await expectBuildError(build(parts(), [putUp]), "INSUFFICIENT_FUNDS");
+  });
+
+  it("spends a collateral UTxO that a spend part names too", async () => {
+    const both = utxo(lovelace(ada(10)));
+    const built = await build(
+      [spend.pubKey({ utxo: both }), collateral({ utxo: both }), pay(5)],
+      [],
+    );
+    expect(built.inputs).toContainEqual(both);
+    expect(built.collateral!.inputs).toEqual([both]);
+  });
+});
+
+describe("TxBuilder: a given fee with scripts", () => {
+  const locked = (lovelaceHeld = ada(10)): UTxO =>
+    utxo(lovelace(lovelaceHeld), { plutusData: "d87980" }, scriptAddress);
+  const scriptSpend = (exUnits?: { mem: number; steps: number }) =>
+    spend.plutus({
+      utxo: locked(),
+      script: plutusScript,
+      redeemer: { data: mConStr0([]), ...(exUnits && { exUnits }) },
+    });
+  const pay = (n: number) =>
+    output({ address: recipient, value: { lovelace: ada(n) } });
+
+  it("judges the fee on the final transaction, not the provisional round", async () => {
+    const { evaluator, calls } = fakeEvaluator();
+    const built = await new TxBuilder({ params, evaluator }).build({
+      parts: [scriptSpend(), pay(5)],
+      changeAddress: wallet,
+      utxos: [utxo(lovelace(ada(10)))],
+      fee: 1_000_000n,
+    });
+
+    expect(built.fee).toBe(1_000_000n);
+    expect(built.prototype.body.fee).toBe("1000000");
+    // The difference to the minimum stays fee and is not in the change
+    expectBalanced(built);
+    // Every body the evaluator saw carries the given fee
+    expect(calls.length).toBeGreaterThan(1);
+    for (const tx of calls)
+      expect(Transaction.fromCbor(TxCBOR(tx)).body().fee()).toBe(1_000_000n);
+  });
+
+  it("rejects a fee below the final transaction's minimum", async () => {
+    const error = await expectBuildError(
+      new TxBuilder({ params, evaluator: fakeEvaluator().evaluator }).build({
+        parts: [scriptSpend(), pay(5)],
+        changeAddress: wallet,
+        utxos: [utxo(lovelace(ada(10)))],
+        fee: 100_000n,
+      }),
+      "FEE_TOO_LOW",
+    );
+    const details = error.details as { fee: bigint; minFee: bigint };
+    expect(details.fee).toBe(100_000n);
+    expect(details.minFee).toBeGreaterThan(100_000n);
+    expect(details.minFee).toBeLessThan(1_000_000n);
+  });
+
+  it("asks the payer for no more than the given fee in the provisional round", async () => {
+    const built = await new TxBuilder({
+      params,
+      evaluator: fakeEvaluator().evaluator,
+    }).build({
+      parts: [scriptSpend(), pay(10)],
+      changeAddress: wallet,
+      utxos: [utxo(lovelace(ada(2)))],
+      fee: 300_000n,
+    });
+    expect(built.fee).toBe(300_000n);
+    expect(built.change.map((o) => o.amount.coin)).toEqual(["1700000"]);
+    expectBalanced(built);
+  });
+
+  it("judges the fee in the first round when every redeemer states its units", async () => {
+    const units = { mem: 1000, steps: 2000 };
+    const request = {
+      parts: [scriptSpend(units), pay(5)],
+      changeAddress: wallet,
+      utxos: [utxo(lovelace(ada(10)))],
+      fee: 1000n,
+    };
+    await expectBuildError(
+      new TxBuilder({ params, evaluator: null }).build(request),
+      "FEE_TOO_LOW",
+    );
+    const { evaluator, calls } = fakeEvaluator();
+    await expectBuildError(
+      new TxBuilder({ params, evaluator }).build(request),
+      "FEE_TOO_LOW",
+    );
+    expect(calls).toEqual([]);
+  });
+});
+
+describe("TxBuilder: addresses in hex", () => {
+  it("builds with an output address and a reward address given in hex", async () => {
+    const stake = keyHashToRewardAddress(keyHashHex(5), 0);
+    const hexOf = (address: string) =>
+      Address.fromString(address)!.toBytes().toString();
+    const built = await new TxBuilder({ params }).build({
+      parts: [
+        output({ address: hexOf(recipient), value: { lovelace: ada(2) } }),
+        withdrawal.pubKey({ rewardAddress: hexOf(stake), amount: 0n }),
+      ],
+      changeAddress: wallet,
+      utxos: [utxo(lovelace(ada(10)))],
+    });
+    expect(built.prototype.body.outputs[0]!.address).toBe(recipient);
+    expect(built.prototype.body.withdrawals).toEqual({ [stake]: "0" });
   });
 });
 

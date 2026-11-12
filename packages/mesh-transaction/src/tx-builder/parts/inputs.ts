@@ -14,6 +14,7 @@ import type {
   SpendPart,
 } from "./types";
 import {
+  addressText,
   checkCredential,
   fail,
   freeze,
@@ -164,8 +165,8 @@ export const spend = {
   /**
    * Spend an output locked by a Plutus script.
    * @param params.utxo The output, by reference or in full
-   * @param params.script The script: attached (`{ code, version }`) or held in a reference
-   *   output (`{ reference }`)
+   * @param params.script The script: attached (`{ code, version }`, the code flat or in one or
+   *   two CBOR wrappings) or held in a reference output (`{ reference }`)
    * @param params.redeemer Redeemer data, with execution units if already known
    * @param params.datum The datum of the output; worked out from the output when omitted
    * @param params.label Name echoed in errors about this part, such as a script failure
@@ -247,7 +248,7 @@ export const collateral = (params: {
 /**
  * Send what is left of the collateral after a script failure to an address, so that only the
  * required amount is forfeited rather than the whole of the collateral inputs.
- * @param params.address Where the rest of the collateral goes
+ * @param params.address Where the rest of the collateral goes, in bech32, base58 (Byron) or hex
  * @param params.totalCollateral Lovelace forfeited on failure; worked out from the fee when
  *   omitted
  * @param params.label Name echoed in errors about this part
@@ -273,7 +274,7 @@ export const collateralReturn = (params: {
     fail(ctx, "INVALID_VALUE", `invalid total collateral ${totalCollateral}`);
   return freeze({
     kind: "collateralReturn",
-    address: params.address,
+    address: addressText(address),
     ...(totalCollateral !== undefined && {
       totalCollateral: totalCollateral.toString(),
     }),

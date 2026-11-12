@@ -24,7 +24,7 @@ import {
   isHash32,
   labelOf,
   PartContext,
-  rewardCredential,
+  toRewardAddress,
 } from "./normalize";
 import {
   AnchorInput,
@@ -184,7 +184,7 @@ const toPoolParams = (
       fail(ctx, "INVALID_DATA", `invalid pool owner ${owner}`);
     return hash;
   });
-  rewardCredential(ctx, params.rewardAddress);
+  const rewardAccount = toRewardAddress(ctx, params.rewardAddress).address;
   let poolMetadata: PoolParamsPrototype["pool_metadata"];
   if (params.metadata) {
     const hash = params.metadata.hash.toLowerCase();
@@ -211,7 +211,7 @@ const toPoolParams = (
     pledge: coin("pledge", params.pledge),
     cost: coin("cost", params.cost),
     margin: { numerator: String(numerator), denominator: String(denominator) },
-    reward_account: params.rewardAddress,
+    reward_account: rewardAccount,
     pool_owners: owners,
     relays: params.relays.map((relay) => toRelay(ctx, relay)),
     ...(poolMetadata && { pool_metadata: poolMetadata }),
@@ -534,7 +534,7 @@ export const certificate = {
   /**
    * Register or update a stake pool. Signed by the operator and owner keys; the deposit is the
    * `poolDeposit` protocol parameter, owed only on first registration.
-   * @param params.params The pool's parameters
+   * @param params.params The pool's parameters; `rewardAddress` in bech32 or hex
    */
   poolRegistration: (
     params: Labelled & { params: PoolParams },

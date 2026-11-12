@@ -113,8 +113,8 @@ export const mint = {
 
   /**
    * Mint or burn tokens under a Plutus script policy.
-   * @param params.script The policy script: attached (`{ code, version }`) or held in a
-   *   reference output (`{ reference }`)
+   * @param params.script The policy script: attached (`{ code, version }`, the code flat or in
+   *   one or two CBOR wrappings) or held in a reference output (`{ reference }`)
    * @param params.redeemer Redeemer data, with execution units if already known
    * @param params.assets Quantities by asset name in hex; negative to burn
    * @param params.policyId Needed only for a script referenced by out ref alone

@@ -11,6 +11,7 @@ import { toScriptRef } from "@meshsdk/core-cst";
 import type { PartContext } from "./normalize";
 import type { OutputDatumInput, OutputPart, ValueInput } from "./types";
 import {
+  addressText,
   errorText,
   fail,
   freeze,
@@ -20,6 +21,7 @@ import {
   labelOf,
   parseAddress,
   toPlutusData,
+  toPlutusScriptCode,
 } from "./normalize";
 
 /** Asset names are at most 32 bytes */
@@ -88,24 +90,26 @@ const toScriptReference = (
   ctx: PartContext,
   script: PlutusScript | NativeScript,
 ): string => {
+  const what = "invalid reference script";
+  const normalised =
+    "code" in script
+      ? { ...script, code: toPlutusScriptCode(ctx, script.code, what) }
+      : script;
   try {
-    return toScriptRef(script).toCbor().toString();
+    return toScriptRef(normalised).toCbor().toString();
   } catch (error) {
-    return fail(
-      ctx,
-      "INVALID_SCRIPT",
-      `invalid reference script: ${errorText(error)}`,
-    );
+    return fail(ctx, "INVALID_SCRIPT", `${what}: ${errorText(error)}`);
   }
 };
 
 /**
  * Create an output.
- * @param params.address The address receiving the output
+ * @param params.address The address receiving the output, in bech32, base58 (Byron) or hex
  * @param params.value Lovelace and assets; without lovelace, the output holds the minimum it
  *   needs
  * @param params.datum A datum held inline, or as a hash
- * @param params.scriptRef A Plutus or native script made available as a reference script
+ * @param params.scriptRef A Plutus or native script made available as a reference script; a
+ *   Plutus script's code flat or in one or two CBOR wrappings
  * @param params.label Name echoed in errors about this part
  */
 export const output = (params: {
@@ -127,7 +131,7 @@ export const output = (params: {
   return freeze({
     kind: "output",
     output: {
-      address: params.address,
+      address: addressText(address),
       amount: toValue(ctx, params.value),
       ...(datum && { plutus_data: datum.plutus_data }),
       ...(params.scriptRef && {

@@ -13,6 +13,7 @@ import {
   labelOf,
   PartContext,
   toNativeScriptSource,
+  toPlutusScriptCode,
 } from "./normalize";
 import {
   AuxiliaryScriptPart,
@@ -44,6 +45,9 @@ export const requiredSigner = (params: {
   return freeze({ kind: "requiredSigner", keyHash, ...labelOf(params.label) });
 };
 
+/** Slots above this are taken for POSIX milliseconds given by mistake */
+const MAX_SLOT = 100_000_000_000n;
+
 const toSlot = (
   ctx: PartContext,
   name: string,
@@ -56,6 +60,12 @@ const toSlot = (
     BigInt(slot) >= 2n ** 64n
   )
     fail(ctx, "INVALID_DATA", `invalid ${name} slot ${slot}`);
+  if (BigInt(slot) > MAX_SLOT)
+    fail(
+      ctx,
+      "INVALID_DATA",
+      `${name} ${slot} looks like POSIX milliseconds, not a slot`,
+    );
   return BigInt(slot);
 };
 
@@ -64,6 +74,9 @@ const toSlot = (
  * @param params.invalidBefore First slot the transaction is valid in
  * @param params.invalidHereafter First slot the transaction is no longer valid in
  * @param params.label Name echoed in errors about this part
+ * @throws TxPartError INVALID_DATA for no bound given, a slot that is not a whole number from 0
+ *   to 1e11 (above that it looks like POSIX milliseconds), or a lower bound not before the
+ *   upper one
  */
 export const validity = (params: {
   invalidBefore?: bigint | number;
@@ -175,7 +188,8 @@ export const metadata = (params: {
 
 /**
  * Publish a script in the transaction's auxiliary data, alongside its metadata.
- * @param params.script A native script, or a Plutus script (`{ code, version }`)
+ * @param params.script A native script, or a Plutus script (`{ code, version }`, the code flat
+ *   or in one or two CBOR wrappings)
  * @param params.label Name echoed in errors about this part
  */
 export const auxiliaryScript = (params: {
@@ -185,11 +199,14 @@ export const auxiliaryScript = (params: {
   const ctx: PartContext = { part: "auxiliaryScript", label: params.label };
   const { script } = params;
   if ("code" in script) {
+    const code = toPlutusScriptCode(
+      ctx,
+      script.code,
+      `invalid Plutus ${script.version} script`,
+    );
     let cbor = "";
     try {
-      cbor = deserializePlutusScript(script.code, script.version)
-        .toCbor()
-        .toString();
+      cbor = deserializePlutusScript(code, script.version).toCbor().toString();
     } catch (error) {
       fail(
         ctx,
