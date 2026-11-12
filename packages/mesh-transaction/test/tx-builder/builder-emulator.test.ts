@@ -13,7 +13,7 @@ import {
   scriptHashToRewardAddress,
 } from "@meshsdk/core-cst";
 import { ScalusEmulator } from "@meshsdk/scalus-emulator";
-import { MeshWallet } from "@meshsdk/wallet";
+import { BrowserWallet, MeshWallet } from "@meshsdk/wallet";
 
 import {
   BuiltTx,
@@ -72,13 +72,21 @@ describe("TxBuilder on the emulator", () => {
   let params: Protocol;
 
   const utxos = () => provider.fetchAddressUTxOs(address);
-  const submit = async (
+  const signWith = async (
     built: BuiltTx,
-    signers: ("payment" | "stake" | "drep")[] = ["payment"],
+    signers: ("payment" | "stake" | "drep")[],
   ) => {
     let tx = built.tx;
     for (const signer of signers)
       tx = await wallets[signer].signTx(tx, signer !== "payment");
+    return tx;
+  };
+  const submit = async (
+    built: BuiltTx,
+    signers: ("payment" | "stake" | "drep")[] = ["payment"],
+  ) => submitSigned(built, await signWith(built, signers));
+  // Checks the fee of a transaction signed outside this file's wallets, then submits it
+  const submitSigned = async (built: BuiltTx, tx: string) => {
     // The fee is the minimum for the signed transaction, or a few bytes' worth above it: the
     // wallet encodes its key witnesses without the set tag the placeholders carry
     const { body } = built.prototype;
@@ -314,6 +322,69 @@ describe("TxBuilder on the emulator", () => {
     );
     expect(change).toBe(spent + 4_000_000n - deregister.fee);
     await submit(deregister, ["payment", "stake"]);
+  });
+
+  it("registers, withdraws and deregisters signed by one wallet with its payment and stake keys", async () => {
+    // One wallet object for both keys: the one the fixture's payment wallet is
+    const wallet = wallets.payment;
+    const { pubKeyHash, stakeCredentialHash } = deserializeAddress(address);
+    const signOnce = async (built: BuiltTx) => {
+      const witnessSet = await wallet.signTxWitnesses(built.tx, [
+        pubKeyHash,
+        stakeCredentialHash,
+      ]);
+      const tx = BrowserWallet.addBrowserWitnesses(built.tx, witnessSet);
+      // The same transaction as signing with one wallet per key gives
+      expect(tx).toBe(await signWith(built, ["payment", "stake"]));
+      return submitSigned(built, tx);
+    };
+
+    const register = await builder.build({
+      parts: [
+        certificate.stakeRegistration({ stake: stakeAddress }),
+        certificate.voteDelegation({
+          stake: stakeAddress,
+          drep: "alwaysAbstain",
+        }),
+      ],
+      changeAddress: address,
+      utxos: await utxos(),
+    });
+    await signOnce(register);
+
+    const withdraw = await builder.build({
+      parts: [withdrawal.pubKey({ rewardAddress: stakeAddress, amount: 0n })],
+      changeAddress: address,
+      utxos: await utxos(),
+    });
+    await signOnce(withdraw);
+
+    const deregister = await builder.build({
+      parts: [certificate.stakeDeregistration({ stake: stakeAddress })],
+      changeAddress: address,
+      utxos: await utxos(),
+    });
+    await signOnce(deregister);
+  });
+
+  it("rejects a stake registration signed with the payment key alone", async () => {
+    const { pubKeyHash } = deserializeAddress(address);
+    const register = await builder.build({
+      parts: [
+        certificate.stakeRegistration({ stake: stakeAddress }),
+        certificate.voteDelegation({
+          stake: stakeAddress,
+          drep: "alwaysAbstain",
+        }),
+      ],
+      changeAddress: address,
+      utxos: await utxos(),
+    });
+    const witnessSet = await wallets.payment.signTxWitnesses(register.tx, [
+      pubKeyHash,
+    ]);
+    const tx = BrowserWallet.addBrowserWitnesses(register.tx, witnessSet);
+    await expect(provider.submitTx(tx)).rejects.toThrow(/^MissingKeyHashes:/);
   });
 
   it("registers DReps, proposes, and votes as script and key DReps in one transaction", async () => {
