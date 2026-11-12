@@ -1,5 +1,9 @@
-import type { TxPart, Unresolved } from "./parts/types";
+import type { Budget, ScriptFailure } from "@meshsdk/common";
 
+import type { TxPartError, TxPartErrorCode } from "./parts/errors";
+import type { OutRef, TxPart, Unresolved } from "./parts/types";
+
+/** Codes of a `TxBuildError`: why a transaction could not be built from its parts */
 export type TxBuildErrorCode =
   /** A part still leaves something to be filled in; `details` lists the gaps */
   | "UNRESOLVED"
@@ -41,7 +45,66 @@ export type TxBuildErrorCode =
   /** Balancing did not settle on a fee within the allowed rounds */
   | "FEE_NOT_CONVERGED"
   /** The serializer cannot serialize a `TransactionPrototype` */
-  | "UNSUPPORTED_SERIALIZER";
+  | "UNSUPPORTED_SERIALIZER"
+  /** An address, wallet or provider of another network than the builder's */
+  | "NETWORK_MISMATCH"
+  /** No `payer` says who pays */
+  | "MISSING_PAYER"
+  /**
+   * A provider call failed, and no other code says what could not be read; the provider's error
+   * is the `cause`
+   */
+  | "PROVIDER_FAILED"
+  /** A redeemer function threw, asked for an item the tx does not hold, or gave bad data */
+  | "INVALID_REDEEMER"
+  /** A key guard whose hash is the hash of one of the transaction's scripts */
+  | "INVALID_GUARD"
+  /** `coinSelection` returned a UTxO that was not a candidate */
+  | "INVALID_SELECTION"
+  /** The call's `signal` aborted it */
+  | "ABORTED"
+  /** A part holds a redeemer function, which cannot be written as data */
+  | "NOT_SERIALIZABLE"
+  /** Reading the payer from a wallet failed */
+  | "WALLET_FAILED"
+  /** An option with a value that is not accepted */
+  | "INVALID_OPTION"
+  /** No output of the transaction has this label */
+  | "UNKNOWN_LABEL";
+
+/** Every build error code, once: the compiler checks the list against `TxBuildErrorCode` */
+export const TX_BUILD_ERROR_CODES = Object.keys({
+  UNRESOLVED: true,
+  DUPLICATE_PART: true,
+  INVALID_COLLATERAL: true,
+  MISSING_FETCHER: true,
+  UTXO_NOT_FOUND: true,
+  MISSING_PARAMETER: true,
+  MISSING_EVALUATOR: true,
+  EVALUATION_FAILED: true,
+  EXUNITS_TOO_LOW: true,
+  EXUNITS_EXCEEDED: true,
+  EVALUATION_NOT_CONVERGED: true,
+  INSUFFICIENT_FUNDS: true,
+  INSUFFICIENT_COLLATERAL: true,
+  OUTPUT_BELOW_MIN_COIN: true,
+  VALUE_TOO_LARGE: true,
+  TX_TOO_LARGE: true,
+  FEE_TOO_LOW: true,
+  FEE_NOT_CONVERGED: true,
+  UNSUPPORTED_SERIALIZER: true,
+  NETWORK_MISMATCH: true,
+  MISSING_PAYER: true,
+  PROVIDER_FAILED: true,
+  INVALID_REDEEMER: true,
+  INVALID_GUARD: true,
+  INVALID_SELECTION: true,
+  ABORTED: true,
+  NOT_SERIALIZABLE: true,
+  WALLET_FAILED: true,
+  INVALID_OPTION: true,
+  UNKNOWN_LABEL: true,
+} satisfies Record<TxBuildErrorCode, true>) as TxBuildErrorCode[];
 
 /** A part's gaps, as listed in an `UNRESOLVED` error */
 export type PartGaps = {
@@ -50,39 +113,502 @@ export type PartGaps = {
   gaps: Unresolved[];
 };
 
+/** Why INSUFFICIENT_FUNDS */
+export type InsufficientFundsDetails = {
+  /** `"lovelace"` or the token unit */
+  unit: string;
+  /**
+   * What to add for this build to pass: outputs, deposits, the fee with every selectable UTxO
+   * selected, and the change minimum
+   */
+  missing: bigint;
+  /** What the transaction takes out of `unit`, the fee and the change minimum included */
+  required: bigint;
+  /** What the parts bring in of `unit`, and every selectable UTxO holds */
+  available: bigint;
+  /**
+   * `noUtxos`: the payer has no UTxOs at all (the message says so, and names the payer);
+   * `change`: only the change minimum is short; `payment`: the rest
+   */
+  reason: "payment" | "change" | "noUtxos";
+  /** The fee of the transaction with every selectable UTxO selected; lovelace only */
+  feeEstimate?: bigint;
+  /** The least lovelace the change of that transaction must hold; lovelace only */
+  changeMinimum?: bigint;
+  /** The payer's UTxOs, and why some could not be selected */
+  pool: {
+    given: number;
+    selectable: number;
+    scriptLocked: number;
+    excludedByFilter: number;
+    readByParts: number;
+    spentByAfter: number;
+  };
+};
+
+/** An address, wallet or provider of another network than the builder's */
+export type NetworkMismatchDetails = {
+  expected: { name: string; networkId: 0 | 1 };
+  found: {
+    role:
+      | "payer"
+      | "wallet"
+      | "provider"
+      | "utxo"
+      | "output"
+      | "collateralReturn"
+      | "withdrawal"
+      | "rewardAccount";
+    address?: string;
+    networkId?: number;
+    network?: string;
+    part?: TxPart["kind"];
+    label?: string;
+  }[];
+};
+
+/** A failed script joined to the part whose redeemer it ran */
+export type PartFailure = ScriptFailure & {
+  part: TxPart["kind"];
+  label?: string;
+};
+
+/** `details` of a build error, by code; codes not listed carry none */
+export type TxBuildErrorDetails = {
+  UNRESOLVED: PartGaps[];
+  /** The repeated key (out ref, policy, reward address, ...), or the kind held once */
+  DUPLICATE_PART: { item: string };
+  UTXO_NOT_FOUND: { input: OutRef };
+  /** The option the value was expected from */
+  MISSING_PARAMETER: { parameter: "params" | "costModels" | "deposits" };
+  INSUFFICIENT_FUNDS: InsufficientFundsDetails;
+  INSUFFICIENT_COLLATERAL: { required: bigint; available: bigint };
+  NETWORK_MISMATCH: NetworkMismatchDetails;
+  /**
+   * The transaction evaluated, in CBOR hex, and its failed scripts. With exactly one failure,
+   * the error's own `part` and `label` are that failure's
+   */
+  EVALUATION_FAILED: { tx: string; failures: PartFailure[] };
+  EXUNITS_TOO_LOW: { needed: Budget; given: Budget };
+  EXUNITS_EXCEEDED: { mem: bigint; steps: bigint };
+  VALUE_TOO_LARGE: { size: number; maxValSize: number };
+  TX_TOO_LARGE: { size: number; maxTxSize: number };
+  FEE_TOO_LOW: { fee: bigint; minFee: bigint };
+  OUTPUT_BELOW_MIN_COIN: { coin: bigint; minCoin: bigint };
+  INVALID_REDEEMER: {
+    reason:
+      | "notAnInput"
+      | "notAReferenceInput"
+      | "noSuchOutput"
+      | "threw"
+      | "invalidData";
+    ref?: string;
+  };
+  INVALID_SELECTION: { utxo: OutRef };
+  /** The provider's method that failed */
+  PROVIDER_FAILED: { operation: string };
+  /** `scriptHash`: a key guard whose hash is the hash of one of the transaction's scripts */
+  INVALID_GUARD: { reason: "scriptHash"; hash: string };
+  /** A bad option, or a JSON version or part this library does not read */
+  INVALID_OPTION: { option: string; value: unknown; allowed: string };
+  /** The label asked for, and the labels the transaction's outputs have */
+  UNKNOWN_LABEL: { label: string; labels: string[] };
+  /** A failed payer read: the CIP-30 APIError code, -1..-4, if any */
+  WALLET_FAILED: { walletCode?: number };
+};
+
+/**
+ * Codes of a `TxIntentError`: signing, submitting, waiting for the chain, any step of an intent,
+ * and its store
+ */
+export type TxIntentErrorCode =
+  /** The signer declined to sign */
+  | "SIGN_DECLINED"
+  /** The signer failed, timed out, or changed accounts */
+  | "SIGNER_FAILED"
+  /** A witness set that cannot be used for the transaction */
+  | "INVALID_WITNESS"
+  /** Keys the transaction needs have not signed it */
+  | "MISSING_SIGNATURES"
+  /** Nothing to submit the transaction with */
+  | "MISSING_SUBMITTER"
+  /** The transaction's validity interval has not started yet */
+  | "NOT_YET_VALID"
+  /** Submitting failed with an unknown outcome; the same bytes are safe to submit again */
+  | "SUBMIT_FAILED"
+  /** The ledger rejected the transaction */
+  | "REJECTED"
+  /** The transaction was not seen on chain within the time allowed */
+  | "CONFIRM_TIMEOUT"
+  /** The transaction's validity interval ended before it was included */
+  | "EXPIRED"
+  /** The transaction was included with a failed script, and its collateral taken */
+  | "SCRIPT_FAILED"
+  /** The block holding the transaction was rolled back, and it cannot come back */
+  | "ORPHANED"
+  /** The provider cannot tell what is needed, or cannot tell it yet */
+  | "CANNOT_OBSERVE"
+  /** An attempt is on chain */
+  | "ATTEMPT_ON_CHAIN"
+  /** The call does not fit the intent's state */
+  | "INVALID_STATE"
+  /** An attempt may still land */
+  | "STILL_LIVE"
+  /** The payer is not the one the intent was made for */
+  | "PAYER_MISMATCH"
+  /** Inputs the parts name explicitly are spent */
+  | "INPUTS_SPENT"
+  /** An intent with this id is already stored */
+  | "INTENT_EXISTS"
+  /** No intent with this id is stored */
+  | "INTENT_NOT_FOUND"
+  /** The stored intent was changed by someone else */
+  | "VERSION_CONFLICT"
+  /** The store failed */
+  | "STORE_FAILED"
+  /** The call needs a store, and none is given */
+  | "MISSING_STORE"
+  /** The call needs an intent id, and none is given */
+  | "MISSING_ID";
+
+/** Every intent error code, once: the compiler checks the list against `TxIntentErrorCode` */
+export const TX_INTENT_ERROR_CODES = Object.keys({
+  SIGN_DECLINED: true,
+  SIGNER_FAILED: true,
+  INVALID_WITNESS: true,
+  MISSING_SIGNATURES: true,
+  MISSING_SUBMITTER: true,
+  NOT_YET_VALID: true,
+  SUBMIT_FAILED: true,
+  REJECTED: true,
+  CONFIRM_TIMEOUT: true,
+  EXPIRED: true,
+  SCRIPT_FAILED: true,
+  ORPHANED: true,
+  CANNOT_OBSERVE: true,
+  ATTEMPT_ON_CHAIN: true,
+  INVALID_STATE: true,
+  STILL_LIVE: true,
+  PAYER_MISMATCH: true,
+  INPUTS_SPENT: true,
+  INTENT_EXISTS: true,
+  INTENT_NOT_FOUND: true,
+  VERSION_CONFLICT: true,
+  STORE_FAILED: true,
+  MISSING_STORE: true,
+  MISSING_ID: true,
+} satisfies Record<TxIntentErrorCode, true>) as TxIntentErrorCode[];
+
+/** `details` of an intent error, by code; codes not listed carry none */
+export type TxIntentErrorDetails = {
+  /** The CIP-30 code, if any; an aborted signal is ABORTED */
+  SIGNER_FAILED: {
+    reason: "error" | "timeout" | "accountChanged";
+    walletCode?: number;
+  };
+  INVALID_WITNESS: {
+    reason: "undecodable" | "wrongBody" | "staleAttempt";
+    argument: number;
+    keyHash?: string;
+  };
+  NOT_YET_VALID: { waitMs: number };
+  /** The CIP-30 code when a wallet submitted: TxSendError Refused 1, Failure 2 */
+  SUBMIT_FAILED: { walletCode?: number };
+  REJECTED: { otherLive: string[]; tipAgeMs?: number };
+  /** `unsent`: the intent never sent this attempt */
+  EXPIRED: { otherLive: string[]; unsent?: true; tipAgeMs?: number };
+  ORPHANED: { otherLive: string[] };
+  CONFIRM_TIMEOUT: { waitedFor: "included" | "final"; timeoutMs: number };
+  /**
+   * `unconfirmed`: this answer confirms nothing now (retryable); the other reasons are about the
+   * provider itself; `noDepth`: no block heights, for any intent
+   */
+  CANNOT_OBSERVE: {
+    reason:
+      | "noTip"
+      | "noValidity"
+      | "noDepth"
+      | "noSearch"
+      | "addressCache"
+      | "unconfirmed";
+  };
+  /**
+   * `closing`: the intent carries the closing mark; `recordVersion`: the record is of a newer
+   * format, another kind, or holds content this library does not know
+   */
+  INVALID_STATE: {
+    reason:
+      | "status"
+      | "terminal"
+      | "closing"
+      | "tooManyAttempts"
+      | "pastHorizon"
+      | "recordVersion";
+  };
+  /** `safeAfter`: POSIX ms */
+  STILL_LIVE: { txHashes: string[]; safeAfter: number };
+  /** Change addresses; only when the recorded anchor is not among the payer's UTxOs either */
+  PAYER_MISMATCH: { recorded: string; given: string };
+  /** Explicit inputs of the parts that are gone */
+  INPUTS_SPENT: { inputs: OutRef[] };
+};
+
+/** `details` of code `C` in a details table `D`: `undefined` for a code not listed there */
+export type DetailsOf<C extends string, D> = C extends keyof D
+  ? D[C]
+  : undefined;
+
+/** Every code of the error tree; a code belongs to one class only */
+export type TxErrorCode =
+  TxPartErrorCode | TxBuildErrorCode | TxIntentErrorCode;
+
+/** The error a code belongs to, with `details` of that code */
+export type TxErrorOf<C extends TxErrorCode> = C extends TxBuildErrorCode
+  ? TxBuildError<C>
+  : C extends TxIntentErrorCode
+    ? TxIntentError<C>
+    : C extends TxPartErrorCode
+      ? TxPartError & { readonly code: C }
+      : never;
+
+/** Any error of the tree, as a union by code */
+export type AnyTxError = TxErrorOf<TxErrorCode>;
+
+/** Any build error, as a union by code */
+export type AnyTxBuildError = {
+  [C in TxBuildErrorCode]: TxBuildError<C>;
+}[TxBuildErrorCode];
+
+/** Any intent error, as a union by code */
+export type AnyTxIntentError = {
+  [C in TxIntentErrorCode]: TxIntentError<C>;
+}[TxIntentErrorCode];
+
+/** Fails to compile when a code is in two of the unions */
+const codesAreUnique: [
+  TxPartErrorCode & TxBuildErrorCode,
+  TxPartErrorCode & TxIntentErrorCode,
+  TxBuildErrorCode & TxIntentErrorCode,
+] extends [never, never, never]
+  ? true
+  : false = true;
+void codesAreUnique;
+
+/** Tells the three classes apart; a `Symbol.for` key holds across copies of the package */
+const BRAND = Symbol.for("@meshsdk/transaction/TxError");
+type Brand = "part" | "build" | "intent";
+
+const brandOf = (error: unknown): Brand | undefined => {
+  if (typeof error !== "object" || error === null) return undefined;
+  try {
+    const brand = (error as Record<symbol, unknown>)[BRAND];
+    return brand === "part" || brand === "build" || brand === "intent"
+      ? brand
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const hasCode = (error: unknown, codes: readonly string[]) =>
+  codes.length === 0 || codes.includes((error as { code: string }).code);
+
+/** Marks a class of the tree; called once per class */
+export const brandClass = (target: { prototype: object }, value: Brand) =>
+  Object.defineProperty(target.prototype, BRAND, { value });
+
+const prefixOf = (part?: TxPart["kind"], label?: string) =>
+  part === undefined
+    ? ""
+    : `${part}${label === undefined ? "" : ` "${label}"`}: `;
+
+/** What every error of the tree may carry besides its code and message */
+export type TxErrorContext = {
+  part?: TxPart["kind"];
+  label?: string;
+  cause?: unknown;
+};
+
+/**
+ * Base of every error of the transaction API: a code, the part and its label, the error it was
+ * raised from, and whether the same call may be repeated.
+ *
+ * `TxError.is(error)` and `TxError.is(error, ...codes)` check the whole tree, also errors made
+ * by another copy of this package, and narrow `details` by code.
+ */
+export abstract class TxError extends Error {
+  abstract readonly code: string;
+  /** Kind of the part the error is about, if it is about one */
+  declare readonly part?: TxPart["kind"];
+  /** Label of that part, if any */
+  declare readonly label?: string;
+  /** The error this one was raised from, if any */
+  declare readonly cause?: unknown;
+  /**
+   * The same call, repeated no earlier than `retryAfterMs`, is safe and may pass. Decided by the
+   * code alone (for `CANNOT_OBSERVE`, by its reason)
+   */
+  declare readonly retryable: boolean;
+  /** How long to wait before repeating the call, on a retryable error that says so */
+  declare readonly retryAfterMs?: number;
+
+  protected constructor(
+    message: string,
+    context: TxErrorContext & { retryable: boolean; retryAfterMs?: number },
+  ) {
+    super(message);
+    const { part, label, cause, retryable, retryAfterMs } = context;
+    const self = this as { -readonly [K in keyof TxError]: TxError[K] };
+    if (part !== undefined) self.part = part;
+    if (label !== undefined) self.label = label;
+    if (cause !== undefined) self.cause = cause;
+    self.retryable = retryable;
+    if (retryable && retryAfterMs !== undefined)
+      self.retryAfterMs = retryAfterMs;
+  }
+
+  /**
+   * Whether a value is an error of the tree, and when codes are given, one with any of them.
+   * Checks a `Symbol.for` brand, so it holds across duplicate copies of the package; never
+   * throws.
+   */
+  static is(error: unknown): error is AnyTxError;
+  static is<C extends TxErrorCode>(
+    error: unknown,
+    ...codes: [C, ...C[]]
+  ): error is TxErrorOf<C>;
+  static is(error: unknown, ...codes: string[]): boolean {
+    return brandOf(error) !== undefined && hasCode(error, codes);
+  }
+}
+
+/** The context of a build error with code `C`: `details` required where the code has them */
+export type TxBuildErrorContext<C extends TxBuildErrorCode> = TxErrorContext &
+  (C extends keyof TxBuildErrorDetails
+    ? { details: TxBuildErrorDetails[C] }
+    : { details?: undefined });
+
 /**
  * Raised when parts cannot be put together into a transaction, or the transaction cannot be
  * completed: resolved, balanced or evaluated. Unlike `TxPartError`, which points at a single
- * part builder call, this concerns the parts as a whole.
+ * part builder call, this concerns the parts as a whole. Never retryable.
  */
-export class TxBuildError extends Error {
-  readonly code: TxBuildErrorCode;
-  /** Kind of the part the error is about, if it is about one */
-  readonly part?: TxPart["kind"];
-  /** Label of that part, if any */
-  readonly label?: string;
-  /** Structured context: the gaps, the conflicting item, ... */
-  readonly details?: unknown;
+export class TxBuildError<
+  C extends TxBuildErrorCode = TxBuildErrorCode,
+> extends TxError {
+  readonly code: C;
+  /** Data of the error, typed by `code`; `undefined` for a code that carries none */
+  readonly details: DetailsOf<C, TxBuildErrorDetails>;
 
   constructor(
-    code: TxBuildErrorCode,
+    code: C,
     message: string,
-    context: {
-      part?: TxPart["kind"];
-      label?: string;
-      details?: unknown;
-    } = {},
+    ...[context]: C extends keyof TxBuildErrorDetails
+      ? [context: TxBuildErrorContext<C>]
+      : [context?: TxBuildErrorContext<C>]
   ) {
-    const { part, label, details } = context;
-    const prefix =
-      part === undefined
-        ? ""
-        : `${part}${label === undefined ? "" : ` "${label}"`}: `;
-    super(`${prefix}${message}`);
+    const { part, label, cause, details } = (context ??
+      {}) as TxErrorContext & {
+      details?: unknown;
+    };
+    super(`${prefixOf(part, label)}${message}`, {
+      part,
+      label,
+      cause,
+      retryable: false,
+    });
     this.name = "TxBuildError";
     this.code = code;
-    if (part !== undefined) this.part = part;
-    if (label !== undefined) this.label = label;
-    if (details !== undefined) this.details = details;
+    this.details = details as DetailsOf<C, TxBuildErrorDetails>;
+  }
+
+  /** Whether a value is a build error, and when a code is given, one with that code */
+  static is(error: unknown): error is AnyTxBuildError;
+  static is<C extends TxBuildErrorCode>(
+    error: unknown,
+    code: C,
+  ): error is TxBuildError<C>;
+  static is(error: unknown, ...codes: string[]): boolean {
+    return brandOf(error) === "build" && hasCode(error, codes);
   }
 }
+brandClass(TxBuildError, "build");
+
+/** Intent codes whose same call may pass when repeated */
+const RETRYABLE: ReadonlySet<string> = new Set<TxIntentErrorCode>([
+  "SUBMIT_FAILED",
+  "CONFIRM_TIMEOUT",
+  "NOT_YET_VALID",
+  "STILL_LIVE",
+]);
+
+/** The context of an intent error with code `C` */
+export type TxIntentErrorContext<C extends TxIntentErrorCode> =
+  TxErrorContext & {
+    /** How long to wait before repeating the call; kept only on a retryable error */
+    retryAfterMs?: number;
+    /** The intent's id */
+    intentId?: string;
+    /** The attempt the error is about */
+    txHash?: string;
+  } & (C extends keyof TxIntentErrorDetails
+      ? { details: TxIntentErrorDetails[C] }
+      : { details?: undefined });
+
+/**
+ * Raised by signing, submitting, waiting for and storing a transaction intent. Retryable for
+ * `SUBMIT_FAILED`, `CONFIRM_TIMEOUT`, `NOT_YET_VALID`, `STILL_LIVE`, and `CANNOT_OBSERVE` with
+ * the reason `unconfirmed`; for no other code.
+ */
+export class TxIntentError<
+  C extends TxIntentErrorCode = TxIntentErrorCode,
+> extends TxError {
+  readonly code: C;
+  /** Data of the error, typed by `code`; `undefined` for a code that carries none */
+  readonly details: DetailsOf<C, TxIntentErrorDetails>;
+  /** The intent's id: plain data, safe to log */
+  declare readonly intentId?: string;
+  /** The attempt the error is about */
+  declare readonly txHash?: string;
+
+  constructor(
+    code: C,
+    message: string,
+    ...[context]: C extends keyof TxIntentErrorDetails
+      ? [context: TxIntentErrorContext<C>]
+      : [context?: TxIntentErrorContext<C>]
+  ) {
+    const { part, label, cause, details, retryAfterMs, intentId, txHash } =
+      (context ?? {}) as TxIntentErrorContext<TxIntentErrorCode> & {
+        details?: unknown;
+      };
+    const retryable =
+      RETRYABLE.has(code) ||
+      (code === "CANNOT_OBSERVE" &&
+        (details as { reason?: string } | undefined)?.reason === "unconfirmed");
+    super(message, {
+      part,
+      label,
+      cause,
+      retryable,
+      ...(retryAfterMs !== undefined && { retryAfterMs }),
+    });
+    this.name = "TxIntentError";
+    this.code = code;
+    this.details = details as DetailsOf<C, TxIntentErrorDetails>;
+    const self = this as { intentId?: string; txHash?: string };
+    if (intentId !== undefined) self.intentId = intentId;
+    if (txHash !== undefined) self.txHash = txHash;
+  }
+
+  /** Whether a value is an intent error, and when codes are given, one with any of them */
+  static is(error: unknown): error is AnyTxIntentError;
+  static is<C extends TxIntentErrorCode>(
+    error: unknown,
+    ...codes: [C, ...C[]]
+  ): error is TxErrorOf<C>;
+  static is(error: unknown, ...codes: string[]): boolean {
+    return brandOf(error) === "intent" && hasCode(error, codes);
+  }
+}
+brandClass(TxIntentError, "intent");

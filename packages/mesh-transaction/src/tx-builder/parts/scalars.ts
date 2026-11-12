@@ -212,6 +212,7 @@ export const auxiliaryScript = (params: {
         ctx,
         "INVALID_SCRIPT",
         `invalid Plutus ${script.version} script: ${errorText(error)}`,
+        error,
       );
     }
     return freeze({

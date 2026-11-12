@@ -135,11 +135,12 @@ const groupParts = (parts: readonly TxPart[]): PartsByKind => {
 const outRef = (input: Readonly<TransactionInputPrototype>) =>
   `${input.transaction_id}#${input.index}`;
 
-const duplicate = (part: TxPart, message: string, details?: unknown): never => {
+/** `item`: the repeated key, or the kind of a part a transaction holds once */
+const duplicate = (part: TxPart, message: string, item: string): never => {
   throw new TxBuildError("DUPLICATE_PART", message, {
     part: part.kind,
     label: part.label,
-    details,
+    details: { item },
   });
 };
 
@@ -149,7 +150,11 @@ const atMostOne = <P extends TxPart>(
   what: string,
 ): P | undefined => {
   if (parts.length > 1)
-    duplicate(parts[1]!, `a transaction holds a single ${what}`);
+    duplicate(
+      parts[1]!,
+      `a transaction holds a single ${what}`,
+      parts[1]!.kind,
+    );
   return parts[0];
 };
 
@@ -162,7 +167,7 @@ const checkUnique = <P extends TxPart>(
   const seen = new Set<string>();
   for (const part of parts) {
     const k = key(part);
-    if (seen.has(k)) duplicate(part, `${what} ${k} given twice`, { key: k });
+    if (seen.has(k)) duplicate(part, `${what} ${k} given twice`, k);
     seen.add(k);
   }
 };
@@ -228,7 +233,7 @@ export const assembleTxPrototype = (
   for (const part of byKind.referenceInput as ReferenceInputPart[]) {
     const key = outRef(part.input);
     if (spent.has(key))
-      duplicate(part, `${key} is also spent by this transaction`, { key });
+      duplicate(part, `${key} is also spent by this transaction`, key);
   }
   const mints = [...byKind.mint].sort((a, b) =>
     compareHashes(a.policyId, b.policyId),

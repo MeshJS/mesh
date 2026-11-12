@@ -109,8 +109,8 @@ export const toPoolKeyHash = (ctx: PartContext, pool: PoolInput): string => {
     return pool.toLowerCase();
   try {
     return Cardano.PoolId.toKeyHash(Cardano.PoolId(pool)).toString();
-  } catch {
-    return fail(ctx, "INVALID_DATA", `invalid pool id ${pool}`);
+  } catch (error) {
+    return fail(ctx, "INVALID_DATA", `invalid pool id ${pool}`, error);
   }
 };
 

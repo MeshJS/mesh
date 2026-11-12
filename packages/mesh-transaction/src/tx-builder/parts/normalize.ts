@@ -42,12 +42,14 @@ export type PartContext = {
   readonly label?: string;
 };
 
+/** Throws a `TxPartError`; `cause` is the error the argument was rejected for, if caught */
 export const fail = (
   ctx: PartContext,
   code: TxPartErrorCode,
   message: string,
+  cause?: unknown,
 ): never => {
-  throw new TxPartError(code, ctx.part, message, ctx.label);
+  throw new TxPartError(code, ctx.part, message, ctx.label, cause);
 };
 
 /** `{ label }` when a label is given, so parts carry no `undefined` fields */
@@ -155,6 +157,7 @@ export const toPlutusData = (
       ctx,
       "INVALID_DATA",
       `invalid Plutus data: ${errorText(error)}`,
+      error,
     );
   }
 };
@@ -279,6 +282,7 @@ const readScriptReference = (
       ctx,
       "INVALID_SCRIPT",
       `${outRef} holds an invalid reference script: ${errorText(error)}`,
+      error,
     );
   }
 };
@@ -339,7 +343,7 @@ export const toPlutusScriptCode = (
   try {
     return normalizePlutusScript(code, "DoubleCBOR");
   } catch (error) {
-    return fail(ctx, "INVALID_SCRIPT", `${what}: ${errorText(error)}`);
+    return fail(ctx, "INVALID_SCRIPT", `${what}: ${errorText(error)}`, error);
   }
 };
 
@@ -366,6 +370,7 @@ export const toPlutusScriptSource = (
         ctx,
         "INVALID_SCRIPT",
         `invalid Plutus ${script.version} script: ${errorText(error)}`,
+        error,
       );
     }
   }
@@ -419,6 +424,7 @@ export const toNativeScriptSource = (
         ctx,
         "INVALID_SCRIPT",
         `invalid native script: ${errorText(error)}`,
+        error,
       );
     }
     return {

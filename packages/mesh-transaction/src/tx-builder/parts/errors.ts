@@ -1,4 +1,5 @@
 import type { TxPart } from "./types";
+import { brandClass, TxError } from "../errors";
 
 export type TxPartErrorCode =
   /** An output reference that cannot exist: bad hash or index */
@@ -16,28 +17,48 @@ export type TxPartErrorCode =
   /** A datum choice that does not fit the output being spent */
   | "DATUM_MISMATCH";
 
+/** Every part error code, once: the compiler checks the list against `TxPartErrorCode` */
+export const TX_PART_ERROR_CODES = Object.keys({
+  INVALID_OUT_REF: true,
+  INVALID_ADDRESS: true,
+  INVALID_VALUE: true,
+  INVALID_SCRIPT: true,
+  INVALID_DATA: true,
+  WITNESS_MISMATCH: true,
+  DATUM_MISMATCH: true,
+} satisfies Record<TxPartErrorCode, true>) as TxPartErrorCode[];
+
 /**
  * Raised by a part builder for an argument it rejects. Thrown at the call that built the part,
  * so the failure points at the offending line rather than surfacing when the transaction is
- * assembled.
+ * assembled. Carries no details, and is never retryable.
+ *
+ * It has no check of its own: `TxPartError.is` is `TxError.is`, which answers for the whole
+ * tree. A part error is told by its code, e.g. `TxError.is(error, "INVALID_DATA")`.
  */
-export class TxPartError extends Error {
+export class TxPartError extends TxError {
   readonly code: TxPartErrorCode;
   /** Kind of the part being built */
-  readonly part: TxPart["kind"];
-  /** Label given to the part, if any */
-  readonly label?: string;
+  declare readonly part: TxPart["kind"];
 
+  /**
+   * @param cause The error the argument was rejected for, when one was caught
+   */
   constructor(
     code: TxPartErrorCode,
     part: TxPart["kind"],
     message: string,
     label?: string,
+    cause?: unknown,
   ) {
-    super(`${part}${label === undefined ? "" : ` "${label}"`}: ${message}`);
+    super(`${part}${label === undefined ? "" : ` "${label}"`}: ${message}`, {
+      part,
+      label,
+      cause,
+      retryable: false,
+    });
     this.name = "TxPartError";
     this.code = code;
-    this.part = part;
-    if (label !== undefined) this.label = label;
   }
 }
+brandClass(TxPartError, "part");

@@ -13,6 +13,7 @@ import type {
   KeyWitness,
   NativeScriptSource,
   NativeWitness,
+  OutRef,
   PlutusScriptSource,
   PlutusWitness,
   ProposalPart,
@@ -52,6 +53,11 @@ export const utxoKey = (utxo: Readonly<UTxO>) =>
 const ctxOf = (part: TxPart): PartContext => ({
   part: part.kind,
   ...(part.label !== undefined && { label: part.label }),
+});
+
+const toOutRef = (input: TransactionInputPrototype): OutRef => ({
+  txHash: input.transaction_id,
+  outputIndex: input.index,
 });
 
 /** Every output a part reads: the inputs it spends or references, and its reference scripts */
@@ -98,10 +104,11 @@ const fetchMissing = async (parts: readonly TxPart[], ctx: ResolveContext) => {
       try {
         utxos = await fetcher.fetchUTxOs(txHash);
       } catch (error) {
+        const [first] = missing.get(txHash)!;
         throw new TxBuildError(
           "UTXO_NOT_FOUND",
           `fetching the outputs of ${txHash} failed: ${error instanceof Error ? error.message : String(error)}`,
-          { details: { txHash } },
+          { details: { input: toOutRef(first!) }, cause: error },
         );
       }
       for (const utxo of utxos ?? []) {
@@ -118,7 +125,7 @@ const fetchMissing = async (parts: readonly TxPart[], ctx: ResolveContext) => {
         throw new TxBuildError(
           "UTXO_NOT_FOUND",
           `output ${outRefString(input)} does not exist or is already spent`,
-          { details: { input } },
+          { details: { input: toOutRef(input) } },
         );
     }
   }
@@ -169,11 +176,13 @@ const depositOf = (
     parameter === "keyDeposit"
       ? ctx.params.keyDeposit
       : ctx.deposits[parameter];
+  // keyDeposit is a protocol parameter on `Protocol`; the others come from `deposits`
+  const option = parameter === "keyDeposit" ? "params" : "deposits";
   if (value === undefined || value === null)
     throw new TxBuildError(
       "MISSING_PARAMETER",
-      `the ${parameter} protocol parameter is needed; pass it in the builder's deposits option, or the amount to the part`,
-      { part: part.kind, label: part.label, details: { parameter } },
+      `the ${parameter} protocol parameter is needed; pass it in the builder's ${option} option, or the amount to the part`,
+      { part: part.kind, label: part.label, details: { parameter: option } },
     );
   return BigInt(value).toString();
 };
@@ -261,7 +270,16 @@ const fetchRewardBalances = async (
     );
   await Promise.all(
     Array.from(addresses, async (address) => {
-      const info = await fetcher.fetchAccountInfo(address);
+      let info;
+      try {
+        info = await fetcher.fetchAccountInfo(address);
+      } catch (error) {
+        throw new TxBuildError(
+          "PROVIDER_FAILED",
+          `fetching the reward balance of ${address} failed: ${error instanceof Error ? error.message : String(error)}`,
+          { details: { operation: "fetchAccountInfo" }, cause: error },
+        );
+      }
       balances.set(address, BigInt(info.rewards ?? 0).toString());
     }),
   );

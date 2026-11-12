@@ -175,6 +175,42 @@ describe("output", () => {
     );
   });
 
+  it("keeps the error an argument was rejected for as the cause", () => {
+    const catchError = (build: () => unknown) => {
+      try {
+        build();
+      } catch (error) {
+        return error as TxPartError;
+      }
+      throw new Error("expected an error");
+    };
+    const badData = catchError(() =>
+      output({
+        address,
+        value: [],
+        datum: { type: "inline", data: { type: "CBOR", content: "zz" } },
+        label: "pay",
+      }),
+    );
+    expect(badData).toBeInstanceOf(TxPartError);
+    expect(badData).toMatchObject({
+      code: "INVALID_DATA",
+      part: "output",
+      label: "pay",
+    });
+    expect(badData.cause).toBeInstanceOf(Error);
+    expect(badData.message).toMatch(/^output "pay": invalid Plutus data: /);
+    expect(badData.message.endsWith((badData.cause as Error).message)).toBe(
+      true,
+    );
+
+    const badAddress = catchError(() =>
+      output({ address: "addr_nope", value: [] }),
+    );
+    expect(badAddress).toMatchObject({ code: "INVALID_ADDRESS" });
+    expect(badAddress.cause).toBeUndefined();
+  });
+
   it("rejects a bad address, datum hash or script", () => {
     expectPartError(
       () => output({ address: "nope", value: [] }),

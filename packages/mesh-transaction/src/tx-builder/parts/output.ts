@@ -98,7 +98,7 @@ const toScriptReference = (
   try {
     return toScriptRef(normalised).toCbor().toString();
   } catch (error) {
-    return fail(ctx, "INVALID_SCRIPT", `${what}: ${errorText(error)}`);
+    return fail(ctx, "INVALID_SCRIPT", `${what}: ${errorText(error)}`, error);
   }
 };
 

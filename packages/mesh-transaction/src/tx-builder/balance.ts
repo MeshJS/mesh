@@ -6,6 +6,7 @@ import type {
 import { Address, CredentialType } from "@meshsdk/core-cst";
 
 import type { AssembledTx } from "./assemble";
+import type { InsufficientFundsDetails } from "./errors";
 import type {
   CollateralPart,
   CollateralReturnPart,
@@ -223,9 +224,9 @@ const bundleAssets = (
 ): Map<string, bigint>[] => {
   const bundles: Map<string, bigint>[] = [];
   let current = new Map<string, bigint>();
-  const fits = (bundle: Map<string, bigint>) =>
-    valueSize({ coin: MAX_COIN, multiasset: toMultiAsset(bundle) }) <=
-    maxValSize;
+  const sizeOf = (bundle: Map<string, bigint>) =>
+    valueSize({ coin: MAX_COIN, multiasset: toMultiAsset(bundle) });
+  const fits = (bundle: Map<string, bigint>) => sizeOf(bundle) <= maxValSize;
   for (const unit of Array.from(assets.keys()).sort()) {
     const next = new Map(current).set(unit, assets.get(unit)!);
     if (current.size > 0 && !fits(next)) {
@@ -236,10 +237,38 @@ const bundleAssets = (
       throw new TxBuildError(
         "VALUE_TOO_LARGE",
         `token ${unit} does not fit in an output on its own`,
+        { details: { size: sizeOf(current), maxValSize } },
       );
   }
   if (current.size > 0) bundles.push(current);
   return bundles;
+};
+
+/**
+ * The outputs change holding these tokens takes, each holding the least lovelace it needs: one
+ * output per bundle of tokens that fits, or one without tokens when there are none
+ */
+const leastChange = (
+  assets: Map<string, bigint>,
+  address: string,
+  params: Protocol,
+) => {
+  const bundles =
+    assets.size > 0 ? bundleAssets(assets, params.maxValSize) : [];
+  const outputs: TransactionOutputPrototype[] = (
+    bundles.length > 0 ? bundles : [new Map<string, bigint>()]
+  ).map((bundle) => {
+    const multiasset = toMultiAsset(bundle);
+    return {
+      address,
+      amount: { coin: "0", ...(multiasset && { multiasset }) },
+    };
+  });
+  const mins = outputs.map((o) => minCoin(o, params.coinsPerUtxoSize));
+  outputs.forEach((o, i) => {
+    o.amount.coin = mins[i]!.toString();
+  });
+  return { outputs, mins, needed: mins.reduce((a, b) => a + b, 0n) };
 };
 
 /**
@@ -253,25 +282,8 @@ const makeChange = (
   params: Protocol,
 ): TransactionOutputPrototype[] | { missing: bigint } => {
   if (isEmpty(change)) return [];
-  const bundles =
-    change.assets.size > 0
-      ? bundleAssets(change.assets, params.maxValSize)
-      : [];
-  const outputs: TransactionOutputPrototype[] = (
-    bundles.length > 0 ? bundles : [new Map<string, bigint>()]
-  ).map((bundle) => {
-    const multiasset = toMultiAsset(bundle);
-    return {
-      address,
-      amount: { coin: "0", ...(multiasset && { multiasset }) },
-    };
-  });
-  const mins = outputs.map((o) => minCoin(o, params.coinsPerUtxoSize));
-  const needed = mins.reduce((a, b) => a + b, 0n);
+  const { outputs, mins, needed } = leastChange(change.assets, address, params);
   if (change.coin < needed) return { missing: needed - change.coin };
-  outputs.forEach((o, i) => {
-    o.amount.coin = mins[i]!.toString();
-  });
   outputs[0]!.amount.coin = (mins[0]! + change.coin - needed).toString();
   // The extra lovelace can only lengthen the first output's encoding by a few bytes
   if (!coversMinCoin(outputs[0]!, params.coinsPerUtxoSize))
@@ -326,12 +338,25 @@ export const balance = (
   const read = readByParts(parts);
   // A collateral part's UTxO is spent only when a spend part names it as well
   const putUp = new Set(givenCollateral.map((p) => outRefString(p.input)));
-  const pool = ctx.utxos.filter((u) => {
-    const key = utxoKey(u);
-    return (
-      isKeyLocked(u) && !spent.has(key) && !read.has(key) && !putUp.has(key)
-    );
-  });
+  // The UTxOs selection may take, and why the others may not, each counted once
+  const pool: UTxO[] = [];
+  const counts: InsufficientFundsDetails["pool"] = {
+    given: ctx.utxos.length,
+    selectable: 0,
+    scriptLocked: 0,
+    excludedByFilter: 0,
+    readByParts: 0,
+    spentByAfter: 0,
+  };
+  for (const utxo of ctx.utxos) {
+    const key = utxoKey(utxo);
+    // Already in the transaction: only given
+    if (spent.has(key) || putUp.has(key)) continue;
+    if (!isKeyLocked(utxo)) counts.scriptLocked++;
+    else if (read.has(key)) counts.readByParts++;
+    else pool.push(utxo);
+  }
+  counts.selectable = pool.length;
   const selected: UTxO[] = [];
   const selectedKeys = new Set<string>();
   const select = (utxo: UTxO) => {
@@ -339,8 +364,123 @@ export const balance = (
     selectedKeys.add(utxoKey(utxo));
   };
 
-  const insufficient = (message: string, details: unknown): never => {
-    throw new TxBuildError("INSUFFICIENT_FUNDS", message, { details });
+  let fee = ctx.fee ?? 0n;
+
+  /** What the parts bring in and every selectable UTxO holds, selected or not */
+  const everything = () =>
+    addValues(flow.consumed, ...pool.map((u) => fromAssets(u.output.amount)));
+
+  /**
+   * The fee and the change minimum of the transaction with every selectable UTxO an input and
+   * its change at the minimum, as the rounds would settle them. The fee of the current round
+   * when that transaction cannot be made.
+   */
+  const estimate = (): { feeEstimate: bigint; changeMinimum?: bigint } => {
+    const funds = everything();
+    const tokens = new Map(
+      Array.from(subtractValues(funds, flow.produced).assets).filter(
+        ([, n]) => n > 0n,
+      ),
+    );
+    // A fixed fee lets a transaction short of outputs plus fee pass without change
+    const withoutChange =
+      ctx.fee !== undefined &&
+      tokens.size === 0 &&
+      funds.coin < flow.produced.coin + ctx.fee;
+    let change: TransactionOutputPrototype[] = [];
+    let changeMinimum: bigint | undefined;
+    if (!withoutChange) {
+      try {
+        const least = leastChange(tokens, ctx.changeAddress, params);
+        change = least.outputs;
+        changeMinimum = least.needed;
+      } catch {
+        return { feeEstimate: fee };
+      }
+    }
+    const withMinimum = <T extends object>(estimated: T) =>
+      changeMinimum === undefined ? estimated : { ...estimated, changeMinimum };
+    if (ctx.fee !== undefined) return withMinimum({ feeEstimate: ctx.fee });
+    try {
+      // Priced again while the fee the body carries is below its own minimum, as the rounds do
+      let estimated = 0n;
+      for (let round = 0; round < MAX_ROUNDS; round++) {
+        const collateral = needsCollateral
+          ? planCollateral(estimated, true)
+          : undefined;
+        const all: TxPart[] = [
+          ...core,
+          ...pool.map(spendPart),
+          ...change.map(outputPart),
+          ...(collateral ? collateralParts(collateral) : []),
+        ];
+        const sized = assembleTxPrototype(all, {
+          fee: estimated,
+          costModels: ctx.costModels,
+          ...placeholderWitnesses(requiredSigners(all), ctx.extraKeyWitnesses),
+        });
+        const required = minFee(
+          ctx.serialize(sized.prototype).length / 2,
+          refScriptSize(sized, ctx.known),
+          totalExUnits(sized),
+          params,
+        );
+        if (required <= estimated)
+          return withMinimum({ feeEstimate: estimated });
+        estimated = required;
+      }
+    } catch {
+      // The fee of the current round, below
+    }
+    return withMinimum({ feeEstimate: fee });
+  };
+
+  /** Fails for `unit`, the first one selection cannot cover */
+  const insufficient = (unit: string): never => {
+    const quantity = (value: Value) =>
+      unit === "lovelace" ? value.coin : (value.assets.get(unit) ?? 0n);
+    const available = quantity(everything());
+    const produced = quantity(flow.produced);
+    const estimated: { feeEstimate?: bigint; changeMinimum?: bigint } =
+      unit === "lovelace" ? estimate() : {};
+    const required =
+      produced +
+      (estimated.feeEstimate ?? 0n) +
+      (estimated.changeMinimum ?? 0n);
+    const missing = required - available > 0n ? required - available : 1n;
+    const reason: InsufficientFundsDetails["reason"] =
+      counts.given === 0
+        ? "noUtxos"
+        : unit === "lovelace" &&
+            available >= produced + estimated.feeEstimate! &&
+            available < required
+          ? "change"
+          : "payment";
+    const what =
+      unit === "lovelace"
+        ? `${missing} lovelace are missing: the transaction takes ${required}, the fee of ${estimated.feeEstimate}${estimated.changeMinimum === undefined ? "" : ` and change of at least ${estimated.changeMinimum}`} included, and ${available} are available`
+        : `${missing} of ${unit} are missing: the transaction takes ${required}, and ${available} are available`;
+    const notes = [
+      ...(reason === "noUtxos"
+        ? [
+            `no UTxOs are given for the payer ${ctx.changeAddress}; a provider may answer a failed request with an empty list`,
+          ]
+        : []),
+      ...(unit === "lovelace" && ctx.provisional && ctx.fee === undefined
+        ? ["the fee is an upper bound, taken before the scripts were evaluated"]
+        : []),
+    ];
+    throw new TxBuildError("INSUFFICIENT_FUNDS", [what, ...notes].join("; "), {
+      details: {
+        unit,
+        missing,
+        required,
+        available,
+        reason,
+        ...estimated,
+        pool: { ...counts },
+      },
+    });
   };
 
   /** Selects inputs covering a shortfall: each token from its largest holders, then lovelace */
@@ -367,8 +507,7 @@ export const balance = (
         take(utxo);
         missing -= quantity(utxo);
       }
-      if (missing > 0n)
-        insufficient(`${missing} of ${unit} are missing`, { unit, missing });
+      if (missing > 0n) insufficient(unit);
     }
     let missing = shortfall.coin - added.coin;
     if (missing <= 0n) return;
@@ -388,18 +527,21 @@ export const balance = (
       select(utxo);
       missing -= lovelaceOf(utxo);
     }
-    if (missing > 0n)
-      insufficient(`${missing} lovelace are missing`, {
-        unit: "lovelace",
-        missing,
-      });
+    if (missing > 0n) insufficient("lovelace");
   };
 
   const needsCollateral = runsPlutus || givenCollateral.length > 0;
   const collateralPool = ctx.utxos.filter(
     (u) => isKeyLocked(u) && !read.has(utxoKey(u)),
   );
-  const planCollateral = (fee: bigint): CollateralPlan => {
+  /**
+   * The collateral for a fee. Leniently, collateral that falls short is put up as given rather
+   * than rejected: placeholder units overstate the fee it is worked out from
+   */
+  const planCollateral = (
+    fee: bigint,
+    lenient = ctx.provisional,
+  ): CollateralPlan => {
     const plan = () =>
       collateralFor(fee, {
         params,
@@ -411,7 +553,7 @@ export const balance = (
         address: givenReturn?.address ?? ctx.changeAddress,
         pool: collateralPool,
       });
-    if (!ctx.provisional) return plan();
+    if (!lenient) return plan();
     try {
       return plan();
     } catch (error) {
@@ -425,7 +567,26 @@ export const balance = (
     }
   };
 
-  let fee = ctx.fee ?? 0n;
+  /** The collateral and collateral return parts of a plan */
+  const collateralParts = (collateral: CollateralPlan): TxPart[] => [
+    ...collateral.inputs.map((utxo): CollateralPart => ({
+      kind: "collateral",
+      input: {
+        transaction_id: utxo.input.txHash,
+        index: utxo.input.outputIndex,
+      },
+      utxo,
+    })),
+    {
+      kind: "collateralReturn",
+      address: givenReturn?.address ?? ctx.changeAddress,
+      totalCollateral: collateral.total.toString(),
+      ...(givenReturn?.label !== undefined && {
+        label: givenReturn.label,
+      }),
+    },
+  ];
+
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const available = addValues(
       flow.consumed,
@@ -450,31 +611,11 @@ export const balance = (
     }
 
     const collateral = needsCollateral ? planCollateral(fee) : undefined;
-    const collateralParts: TxPart[] = collateral
-      ? [
-          ...collateral.inputs.map((utxo): CollateralPart => ({
-            kind: "collateral",
-            input: {
-              transaction_id: utxo.input.txHash,
-              index: utxo.input.outputIndex,
-            },
-            utxo,
-          })),
-          {
-            kind: "collateralReturn",
-            address: givenReturn?.address ?? ctx.changeAddress,
-            totalCollateral: collateral.total.toString(),
-            ...(givenReturn?.label !== undefined && {
-              label: givenReturn.label,
-            }),
-          },
-        ]
-      : [];
     const all: TxPart[] = [
       ...core,
       ...selected.map(spendPart),
       ...change.map(outputPart),
-      ...collateralParts,
+      ...(collateral ? collateralParts(collateral) : []),
     ];
 
     const sized = assembleTxPrototype(all, {
@@ -575,11 +716,14 @@ const collateralFor = (
     { address: ctx.address, amount: { coin: "0" } },
     params.coinsPerUtxoSize,
   );
-  const fail = (message: string): never => {
-    throw new TxBuildError("INSUFFICIENT_COLLATERAL", message, {
-      details: { required },
-    });
+  const fail = (
+    message: string,
+    details: { required: bigint; available: bigint },
+  ): never => {
+    throw new TxBuildError("INSUFFICIENT_COLLATERAL", message, { details });
   };
+  const lovelaceIn = (inputs: readonly UTxO[]) =>
+    inputs.reduce((total, u) => total + lovelaceOf(u), 0n);
 
   const plan = (inputs: UTxO[]): CollateralPlan | undefined => {
     const held = addValues(...inputs.map((u) => fromAssets(u.output.amount)));
@@ -599,6 +743,7 @@ const collateralFor = (
   if (required < minimum)
     fail(
       `the total collateral ${required} is below the ${minimum} lovelace the fee calls for`,
+      { required: minimum, available: required },
     );
 
   if (ctx.given.length > 0)
@@ -606,6 +751,7 @@ const collateralFor = (
       plan(ctx.given) ??
       fail(
         `the collateral inputs cannot cover ${required} lovelace and return the rest`,
+        { required, available: lovelaceIn(ctx.given) },
       )
     );
 
@@ -637,5 +783,6 @@ const collateralFor = (
     inputs.length === 0
       ? "no key-locked UTxO is available to put up as collateral"
       : `no ${params.maxCollateralInputs} UTxOs cover the ${required} lovelace collateral`,
+    { required, available: lovelaceIn(inputs) },
   );
 };

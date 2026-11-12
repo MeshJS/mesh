@@ -6,7 +6,24 @@ export {
   type AssembledTx,
   type RedeemerPart,
 } from "./assemble";
-export { TxBuildError, type TxBuildErrorCode, type PartGaps } from "./errors";
+export {
+  TxError,
+  TxBuildError,
+  TxIntentError,
+  type TxErrorCode,
+  type TxErrorOf,
+  type AnyTxError,
+  type AnyTxBuildError,
+  type AnyTxIntentError,
+  type TxBuildErrorCode,
+  type TxBuildErrorDetails,
+  type InsufficientFundsDetails,
+  type NetworkMismatchDetails,
+  type PartFailure,
+  type PartGaps,
+  type TxIntentErrorCode,
+  type TxIntentErrorDetails,
+} from "./errors";
 export {
   TxBuilder,
   type TxBuilderOptions,

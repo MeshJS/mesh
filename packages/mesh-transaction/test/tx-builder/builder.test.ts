@@ -10,6 +10,8 @@ import {
   NativeScript,
   Protocol,
   resolveScriptRef,
+  ScriptEvaluationError,
+  ScriptFailure,
   UTxO,
 } from "@meshsdk/core";
 import { CSLSerializer } from "@meshsdk/core-csl";
@@ -215,7 +217,7 @@ describe("TxBuilder: balancing", () => {
   });
 
   it("rejects an output holding less lovelace than it needs", async () => {
-    await expectBuildError(
+    const error = await expectBuildError(
       new TxBuilder({ params }).build({
         parts: [output({ address: recipient, value: { lovelace: 100n } })],
         changeAddress: wallet,
@@ -223,11 +225,16 @@ describe("TxBuilder: balancing", () => {
       }),
       "OUTPUT_BELOW_MIN_COIN",
     );
+    const { coin, minCoin } = (error as TxBuildError<"OUTPUT_BELOW_MIN_COIN">)
+      .details;
+    expect(coin).toBe(100n);
+    expect(minCoin).toBeGreaterThan(500_000n);
+    expect(error.message).toContain(`less than the ${minCoin} it needs`);
   });
 
   it("rejects an output whose value is too large", async () => {
     const units = Array.from({ length: 30 }, (_, i) => mockTokenUnit(i + 1));
-    await expectBuildError(
+    const error = await expectBuildError(
       new TxBuilder({ params: { ...params, maxValSize: 400 } }).build({
         parts: [
           output({
@@ -240,6 +247,27 @@ describe("TxBuilder: balancing", () => {
       }),
       "VALUE_TOO_LARGE",
     );
+    const { size, maxValSize } = (error as TxBuildError<"VALUE_TOO_LARGE">)
+      .details;
+    expect(maxValSize).toBe(400);
+    expect(size).toBeGreaterThan(400);
+  });
+
+  it("rejects change holding a token that does not fit in an output on its own", async () => {
+    const unit = mockTokenUnit(1);
+    const error = await expectBuildError(
+      new TxBuilder({ params: { ...params, maxValSize: 20 } }).build({
+        parts: [output({ address: recipient, value: { lovelace: ada(5) } })],
+        changeAddress: wallet,
+        utxos: [utxo([...lovelace(ada(100)), { unit, quantity: "1" }])],
+      }),
+      "VALUE_TOO_LARGE",
+    );
+    expect(error.message).toContain(`token ${unit} does not fit`);
+    const { size, maxValSize } = (error as TxBuildError<"VALUE_TOO_LARGE">)
+      .details;
+    expect(maxValSize).toBe(20);
+    expect(size).toBeGreaterThan(20);
   });
 
   it("selects another input when the change would hold too little lovelace", async () => {
@@ -317,7 +345,27 @@ describe("TxBuilder: balancing", () => {
       }),
       "INSUFFICIENT_FUNDS",
     );
-    expect(lovelaceShort.details).toMatchObject({ unit: "lovelace" });
+    const short = (lovelaceShort as TxBuildError<"INSUFFICIENT_FUNDS">).details;
+    expect(short).toMatchObject({
+      unit: "lovelace",
+      available: ada(10),
+      reason: "payment",
+      pool: {
+        given: 1,
+        selectable: 1,
+        scriptLocked: 0,
+        excludedByFilter: 0,
+        readByParts: 0,
+        spentByAfter: 0,
+      },
+    });
+    expect(short.feeEstimate).toBeGreaterThan(0n);
+    expect(short.changeMinimum).toBeGreaterThan(0n);
+    expect(short.required).toBe(
+      ada(50) + short.feeEstimate! + short.changeMinimum!,
+    );
+    expect(short.missing).toBe(short.required - short.available);
+    expect(lovelaceShort.message).toContain(`${short.missing} lovelace`);
 
     const unit = mockTokenUnit(3);
     const tokenShort = await expectBuildError(
@@ -328,11 +376,20 @@ describe("TxBuilder: balancing", () => {
       }),
       "INSUFFICIENT_FUNDS",
     );
-    expect(tokenShort.details).toEqual({ unit, missing: 1n });
+    expect(tokenShort.details).toMatchObject({
+      unit,
+      missing: 1n,
+      required: 2n,
+      available: 1n,
+      reason: "payment",
+    });
+    expect(tokenShort.details).not.toHaveProperty("feeEstimate");
+    expect(tokenShort.details).not.toHaveProperty("changeMinimum");
+    expect(tokenShort.message).toContain(`1 of ${unit}`);
   });
 
   it("selects only key-locked UTxOs", async () => {
-    await expectBuildError(
+    const error = await expectBuildError(
       new TxBuilder({ params }).build({
         parts: [output({ address: recipient, value: { lovelace: ada(2) } })],
         changeAddress: wallet,
@@ -340,6 +397,17 @@ describe("TxBuilder: balancing", () => {
       }),
       "INSUFFICIENT_FUNDS",
     );
+    expect(error.details).toMatchObject({
+      reason: "payment",
+      pool: {
+        given: 1,
+        selectable: 0,
+        scriptLocked: 1,
+        excludedByFilter: 0,
+        readByParts: 0,
+        spentByAfter: 0,
+      },
+    });
   });
 
   it("uses a fixed fee as is, and rejects one below the minimum", async () => {
@@ -355,7 +423,7 @@ describe("TxBuilder: balancing", () => {
     expect(built.prototype.body.fee).toBe("1000000");
     expectBalanced(built);
 
-    await expectBuildError(
+    const error = await expectBuildError(
       new TxBuilder({ params }).build({
         parts,
         changeAddress: wallet,
@@ -364,6 +432,10 @@ describe("TxBuilder: balancing", () => {
       }),
       "FEE_TOO_LOW",
     );
+    const { fee, minFee } = (error as TxBuildError<"FEE_TOO_LOW">).details;
+    expect(fee).toBe(1000n);
+    expect(minFee).toBeGreaterThan(100_000n);
+    expect(minFee).toBeLessThan(ada(1));
   });
 
   it("prices extra key witnesses into the fee", async () => {
@@ -388,6 +460,249 @@ describe("TxBuilder: balancing", () => {
     });
     expect(built.prototype.body.donation).toBe("7000000");
     expectBalanced(built);
+  });
+});
+
+describe("TxBuilder: what INSUFFICIENT_FUNDS reports", () => {
+  const pay = (n: number) =>
+    output({ address: recipient, value: { lovelace: ada(n) } });
+  const fundsShort = async (
+    request: Omit<Parameters<TxBuilder["build"]>[0], "changeAddress">,
+    builder = new TxBuilder({ params }),
+  ) =>
+    (
+      (await expectBuildError(
+        builder.build({ ...request, changeAddress: wallet }),
+        "INSUFFICIENT_FUNDS",
+      )) as TxBuildError<"INSUFFICIENT_FUNDS">
+    ).details;
+  /** The same UTxO, holding more lovelace */
+  const raised = (u: UTxO, by: bigint): UTxO => ({
+    ...u,
+    output: {
+      ...u.output,
+      amount: [
+        ...lovelace(coinOf(u) + by),
+        ...u.output.amount.filter((a) => a.unit !== "lovelace"),
+      ],
+    },
+  });
+
+  it.each([[[10]], [[10, 20]]])(
+    "builds with `missing` more lovelace, and not with one less (UTxOs of %j ADA)",
+    async (holdings) => {
+      const utxos = holdings.map((n) => utxo(lovelace(ada(n))));
+      const parts = [pay(50)];
+      const short = await fundsShort({ parts, utxos });
+      expect(short.pool.selectable).toBe(holdings.length);
+      const last = utxos.length - 1;
+      const topUp = (by: bigint) =>
+        utxos.map((u, i) => (i === last ? raised(u, by) : u));
+
+      const built = await new TxBuilder({ params }).build({
+        parts,
+        changeAddress: wallet,
+        utxos: topUp(short.missing),
+      });
+      expect(built.selectedInputs).toHaveLength(holdings.length);
+      expect(built.fee).toBe(short.feeEstimate);
+      expect(sum(built.change.map((o) => o.amount.coin))).toBe(
+        short.changeMinimum,
+      );
+      expectBalanced(built);
+
+      const less = await fundsShort({
+        parts,
+        utxos: topUp(short.missing - 1n),
+      });
+      expect(less.unit).toBe("lovelace");
+    },
+  );
+
+  it("counts the change for the tokens left over", async () => {
+    const unit = mockTokenUnit(1);
+    const funds = utxo([...lovelace(ada(10)), { unit, quantity: "5" }]);
+    const short = await fundsShort({ parts: [pay(50)], utxos: [funds] });
+    // A change output holding the tokens needs more than one holding lovelace alone
+    const { changeMinimum: lovelaceOnly } = await fundsShort({
+      parts: [pay(50)],
+      utxos: [utxo(lovelace(ada(10)))],
+    });
+    expect(short.changeMinimum).toBeGreaterThan(lovelaceOnly!);
+
+    const built = await new TxBuilder({ params }).build({
+      parts: [pay(50)],
+      changeAddress: wallet,
+      utxos: [raised(funds, short.missing)],
+    });
+    expect(built.fee).toBe(short.feeEstimate);
+    expect(built.change).toHaveLength(1);
+    expect(BigInt(built.change[0]!.amount.coin)).toBe(short.changeMinimum);
+    expect(built.change[0]!.amount.multiasset).toEqual({
+      [unit.slice(0, 56)]: { [unit.slice(56)]: "5" },
+    });
+    expectBalanced(built);
+    await fundsShort({
+      parts: [pay(50)],
+      utxos: [raised(funds, short.missing - 1n)],
+    });
+  });
+
+  it("is still INSUFFICIENT_FUNDS when the change cannot be made", async () => {
+    const unit = mockTokenUnit(1);
+    // The token fits in no output, so the transaction to price cannot be made
+    const short = await fundsShort(
+      {
+        parts: [pay(50)],
+        utxos: [utxo([...lovelace(ada(10)), { unit, quantity: "1" }])],
+      },
+      new TxBuilder({ params: { ...params, maxValSize: 20 } }),
+    );
+    expect(short.unit).toBe("lovelace");
+    expect(short.reason).toBe("payment");
+    // The fee of the round that failed: the first one, at zero
+    expect(short.feeEstimate).toBe(0n);
+    expect(short).not.toHaveProperty("changeMinimum");
+    expect(short.required).toBe(ada(50));
+    expect(short.missing).toBe(ada(40));
+  });
+
+  it("says when only the change is short", async () => {
+    const funds = utxo(lovelace(ada(50) + 200_000n));
+    const short = await fundsShort({ parts: [pay(50)], utxos: [funds] });
+    expect(short.reason).toBe("change");
+    expect(short.available).toBeGreaterThanOrEqual(
+      ada(50) + short.feeEstimate!,
+    );
+    expect(short.missing).toBe(short.required - short.available);
+
+    const built = await new TxBuilder({ params }).build({
+      parts: [pay(50)],
+      changeAddress: wallet,
+      utxos: [raised(funds, short.missing)],
+    });
+    expect(built.fee).toBe(short.feeEstimate);
+    await fundsShort({
+      parts: [pay(50)],
+      utxos: [raised(funds, short.missing - 1n)],
+    });
+  });
+
+  it("names the payer when no UTxOs are given at all", async () => {
+    const builder = new TxBuilder({ params });
+    const error = await expectBuildError(
+      builder.build({ parts: [pay(5)], changeAddress: wallet, utxos: [] }),
+      "INSUFFICIENT_FUNDS",
+    );
+    expect(error.details).toMatchObject({
+      unit: "lovelace",
+      reason: "noUtxos",
+      available: 0n,
+      pool: { given: 0, selectable: 0 },
+    });
+    expect(error.message).toContain(wallet);
+    expect(error.message).toContain(
+      "a provider may answer a failed request with an empty list",
+    );
+  });
+
+  it("counts each given UTxO once, by why it could not be selected", async () => {
+    const oracle = utxo(lovelace(ada(5)));
+    const spent = utxo(lovelace(ada(5)));
+    const putUp = utxo(lovelace(ada(5)));
+    const plain = utxo(lovelace(ada(5)));
+    const locked = utxo(lovelace(ada(5)), {}, scriptAddress);
+    const short = await fundsShort({
+      parts: [
+        referenceInput({ utxo: oracle }),
+        spend.pubKey({ utxo: spent }),
+        collateral({ utxo: putUp }),
+        pay(500),
+      ],
+      utxos: [oracle, spent, putUp, plain, locked],
+    });
+    expect(short.pool).toEqual({
+      given: 5,
+      selectable: 1,
+      scriptLocked: 1,
+      excludedByFilter: 0,
+      readByParts: 1,
+      spentByAfter: 0,
+    });
+    // The spent UTxO counts as what the parts bring in
+    expect(short.available).toBe(ada(10));
+  });
+
+  it("counts a fixed fee as it is, and no change the build does not need", async () => {
+    const funds = utxo(lovelace(ada(3) + 100_000n));
+    const short = await fundsShort({
+      parts: [pay(3)],
+      utxos: [funds],
+      fee: 200_000n,
+    });
+    expect(short.feeEstimate).toBe(200_000n);
+    expect(short).not.toHaveProperty("changeMinimum");
+    expect(short.missing).toBe(100_000n);
+    expect(short.required).toBe(ada(3) + 200_000n);
+
+    const built = await new TxBuilder({ params }).build({
+      parts: [pay(3)],
+      changeAddress: wallet,
+      utxos: [raised(funds, short.missing)],
+      fee: 200_000n,
+    });
+    expect(built.change).toEqual([]);
+    expectBalanced(built);
+  });
+
+  it("says when the fee is an upper bound taken before evaluation", async () => {
+    const locked = utxo(
+      lovelace(ada(10)),
+      { plutusData: "d87980" },
+      scriptAddress,
+    );
+    const units = { mem: 1000, steps: 2000 };
+    const parts = (exUnits?: typeof units) => [
+      spend.plutus({
+        utxo: locked,
+        script: plutusScript,
+        redeemer: { data: mConStr0([]), ...(exUnits && { exUnits }) },
+      }),
+      output({ address: recipient, value: { lovelace: 11_200_000n } }),
+    ];
+    const builder = new TxBuilder({
+      params,
+      evaluator: fakeEvaluator(units).evaluator,
+    });
+    const funds = [utxo(lovelace(ada(3)))];
+    const passing = await builder.build({
+      parts: parts(units),
+      changeAddress: wallet,
+      utxos: funds,
+    });
+
+    const error = await expectBuildError(
+      builder.build({ parts: parts(), changeAddress: wallet, utxos: funds }),
+      "INSUFFICIENT_FUNDS",
+    );
+    const short = (error as TxBuildError<"INSUFFICIENT_FUNDS">).details;
+    expect(short.feeEstimate).toBeGreaterThan(passing.fee);
+    expect(error.message).toContain(
+      "the fee is an upper bound, taken before the scripts were evaluated",
+    );
+  });
+
+  it("asks for one lovelace when only the input a transaction must spend is missing", async () => {
+    const stake = keyHashToRewardAddress(keyHashHex(5), 0);
+    const short = await fundsShort({
+      parts: [certificate.stakeDeregistration({ stake, refund: ada(2) })],
+      utxos: [],
+    });
+    expect(short).toMatchObject({
+      unit: "lovelace",
+      missing: 1n,
+      reason: "noUtxos",
+    });
   });
 });
 
@@ -480,7 +795,24 @@ describe("TxBuilder: deposits and refunds", () => {
       ),
       "MISSING_PARAMETER",
     );
-    expect(error.details).toEqual({ parameter: "govActionDeposit" });
+    expect(error.details).toEqual({ parameter: "deposits" });
+    expect(error.message).toContain("govActionDeposit");
+    expect(error).toMatchObject({ part: "proposal" });
+  });
+
+  it("asks for keyDeposit in the params option", async () => {
+    const { keyDeposit: _, ...withoutKeyDeposit } = params;
+    const error = await expectBuildError(
+      build(
+        [certificate.stakeRegistration({ stake })],
+        new TxBuilder({ params: withoutKeyDeposit as Protocol }),
+      ),
+      "MISSING_PARAMETER",
+    );
+    expect(error.details).toEqual({ parameter: "params" });
+    expect(error.message).toContain("keyDeposit");
+    expect(error.message).toContain("builder's params option");
+    expect(error).toMatchObject({ part: "certificate" });
   });
 
   it("withdraws a whole reward balance, looked up once", async () => {
@@ -551,6 +883,10 @@ describe("TxBuilder: resolution", () => {
       "UTXO_NOT_FOUND",
     );
     expect(error.message).toContain(`${"ee".repeat(32)}#3`);
+    expect(error.details).toEqual({
+      input: { txHash: "ee".repeat(32), outputIndex: 3 },
+    });
+    expect(error.cause).toBeUndefined();
   });
 
   it("works out the datum of a script output once it is fetched", async () => {
@@ -645,6 +981,10 @@ describe("TxBuilder: scripts", () => {
       "EXUNITS_TOO_LOW",
     );
     expect(error.label).toBe("spend 1");
+    expect(error.details).toEqual({
+      needed: { mem: 5000, steps: 7000 },
+      given: { mem: 4000, steps: 8000 },
+    });
   });
 
   it("builds offline when every redeemer states its units", async () => {
@@ -667,29 +1007,203 @@ describe("TxBuilder: scripts", () => {
     );
   });
 
-  it("reports evaluation failures with the redeemers' parts", async () => {
+  /** An evaluator rejecting as a script evaluator does, recording the transactions it got */
+  const failingEvaluator = (failures: ScriptFailure[]) => {
+    const calls: string[] = [];
+    const rejection = new ScriptEvaluationError("scripts failed", failures);
     const evaluator: IEvaluator = {
-      evaluateTx: async () => {
-        throw new Error("script failed");
+      evaluateTx: async (tx) => {
+        calls.push(tx);
+        throw rejection;
       },
     };
-    const error = await expectBuildError(
-      new TxBuilder({ params, evaluator }).build({
-        parts: [scriptSpend(1)],
-        changeAddress: wallet,
-        utxos: [utxo(lovelace(ada(10)))],
-      }),
-      "EVALUATION_FAILED",
+    return { evaluator, calls, rejection };
+  };
+  const failure = (
+    tag: ScriptFailure["tag"],
+    index: number,
+  ): ScriptFailure => ({
+    tag,
+    index,
+    message: `${tag}[${index}] failed`,
+    logs: ["trace"],
+    budget: { mem: 10, steps: 20 },
+  });
+  const evaluationError = (error: TxBuildError) =>
+    error as TxBuildError<"EVALUATION_FAILED">;
+
+  it("reports evaluation failures with the redeemers' parts", async () => {
+    const { evaluator, calls, rejection } = failingEvaluator([
+      failure("SPEND", 0),
+    ]);
+    const error = evaluationError(
+      await expectBuildError(
+        new TxBuilder({ params, evaluator }).build({
+          parts: [scriptSpend(1)],
+          changeAddress: wallet,
+          utxos: [utxo(lovelace(ada(10)))],
+        }),
+        "EVALUATION_FAILED",
+      ),
     );
-    expect(error.message).toContain("script failed");
-    expect(error.details).toMatchObject({
-      redeemers: [{ tag: "SPEND", index: 0, part: "spend", label: "spend 1" }],
+    expect(error).toMatchObject({ part: "spend", label: "spend 1" });
+    expect(error.message).toBe(
+      'spend "spend 1": script evaluation failed: scripts failed',
+    );
+    expect(error.cause).toBe(rejection);
+    expect(error.details.tx).toBe(calls[0]);
+    expect(error.details.failures).toEqual([
+      { ...failure("SPEND", 0), part: "spend", label: "spend 1" },
+    ]);
+    expect(error.details).not.toHaveProperty("redeemers");
+    expect(error.details).not.toHaveProperty("cause");
+  });
+
+  it("joins each script failure to its part, by tag and index", async () => {
+    const two = failingEvaluator([failure("SPEND", 1), failure("SPEND", 0)]);
+    const error = evaluationError(
+      await expectBuildError(
+        new TxBuilder({ params, evaluator: two.evaluator }).build({
+          parts: [scriptSpend(1), scriptSpend(2)],
+          changeAddress: wallet,
+          utxos: [utxo(lovelace(ada(10)))],
+        }),
+        "EVALUATION_FAILED",
+      ),
+    );
+    expect(error.part).toBeUndefined();
+    expect(error.label).toBeUndefined();
+    expect(error.message).toBe("script evaluation failed: scripts failed");
+    expect(
+      error.details.failures.map((f) => [f.tag, f.index, f.label]),
+    ).toEqual([
+      ["SPEND", 1, "spend 2"],
+      ["SPEND", 0, "spend 1"],
+    ]);
+
+    // Every purpose: the parts of the test above
+    const scriptStake = scriptHashToRewardAddress(alwaysSucceedHash, 0);
+    const witness = { plutus: plutusScript, redeemer: { data: mConStr0([]) } };
+    const every = failingEvaluator([
+      failure("PROPOSE", 1),
+      failure("REWARD", 0),
+      failure("CERT", 1),
+      failure("MINT", 0),
+      failure("SPEND", 1),
+    ]);
+    const all = evaluationError(
+      await expectBuildError(
+        new TxBuilder({
+          params,
+          evaluator: every.evaluator,
+          deposits: { govActionDeposit: ada(10) },
+        }).build({
+          parts: [
+            scriptSpend(3),
+            mint.plutus({
+              script: plutusScript,
+              redeemer: { data: mConStr0([]) },
+              assets: { "01": 1n },
+              label: "mint",
+            }),
+            withdrawal.plutus({
+              rewardAddress: scriptStake,
+              amount: 0n,
+              script: plutusScript,
+              redeemer: { data: mConStr0([]) },
+              label: "withdraw",
+            }),
+            certificate.stakeRegistration({
+              stake: keyHashToRewardAddress(keyHashHex(1), 0),
+            }),
+            certificate.stakeDelegation({
+              stake: scriptStake,
+              pool: keyHashHex(2),
+              witness,
+              label: "delegate",
+            }),
+            proposal.info({ rewardAccount: scriptStake, anchor }),
+            proposal.treasuryWithdrawals({
+              rewardAccount: scriptStake,
+              anchor,
+              withdrawals: { [scriptStake]: 1n },
+              guardrail: witness,
+              label: "propose",
+            }),
+          ],
+          changeAddress: wallet,
+          utxos: [utxo(lovelace(ada(100)))],
+        }),
+        "EVALUATION_FAILED",
+      ),
+    );
+    expect(
+      all.details.failures.map((f) => [f.tag, f.index, f.part, f.label]),
+    ).toEqual([
+      ["PROPOSE", 1, "proposal", "propose"],
+      ["REWARD", 0, "withdrawal", "withdraw"],
+      ["CERT", 1, "certificate", "delegate"],
+      ["MINT", 0, "mint", "mint"],
+      ["SPEND", 1, "spend", "spend 3"],
+    ]);
+  });
+
+  it("makes up no failure the evaluator did not join to a redeemer", async () => {
+    const build = (evaluator: IEvaluator) =>
+      new TxBuilder({ params, evaluator })
+        .build({
+          parts: [scriptSpend(1)],
+          changeAddress: wallet,
+          utxos: [utxo(lovelace(ada(10)))],
+        })
+        .then(
+          () => {
+            throw new Error("expected EVALUATION_FAILED");
+          },
+          (error: unknown) => error as TxBuildError<"EVALUATION_FAILED">,
+        );
+
+    // A failure pointing at no redeemer stays on the cause only
+    const stray = failingEvaluator([failure("SPEND", 7)]);
+    const unjoined = await build(stray.evaluator);
+    expect(unjoined.code).toBe("EVALUATION_FAILED");
+    expect(unjoined.details.failures).toEqual([]);
+    expect(unjoined.cause).toBe(stray.rejection);
+    expect(unjoined.part).toBeUndefined();
+
+    // A rejection that is not a script evaluation error
+    for (const thrown of [new Error("down"), "down", { reason: "down" }]) {
+      const error = await build({
+        evaluateTx: async () => {
+          throw thrown;
+        },
+      });
+      expect(error.code).toBe("EVALUATION_FAILED");
+      expect(error.details.failures).toEqual([]);
+      expect(error.cause).toBe(thrown);
+      expect(error.message).toContain("down");
+    }
+
+    // No units for a redeemer
+    const calls: string[] = [];
+    const silent = await build({
+      evaluateTx: async (tx) => {
+        calls.push(tx);
+        return [];
+      },
     });
+    expect(silent).toMatchObject({
+      code: "EVALUATION_FAILED",
+      part: "spend",
+      label: "spend 1",
+    });
+    expect(silent.details).toEqual({ tx: calls[0], failures: [] });
+    expect(silent.cause).toBeUndefined();
   });
 
   it("reports scripts needing more than a transaction may use", async () => {
     const { evaluator } = fakeEvaluator({ mem: 9_000_000, steps: 1000 });
-    await expectBuildError(
+    const error = await expectBuildError(
       new TxBuilder({ params, evaluator }).build({
         parts: [scriptSpend(1), scriptSpend(2)],
         changeAddress: wallet,
@@ -697,6 +1211,24 @@ describe("TxBuilder: scripts", () => {
       }),
       "EXUNITS_EXCEEDED",
     );
+    expect(error.details).toEqual({ mem: 18_000_000n, steps: 2000n });
+  });
+
+  it("reports given units more than a transaction may use, before evaluating", async () => {
+    const { evaluator, calls } = fakeEvaluator();
+    const stated = { mem: 9_000_000, steps: 1000 };
+    const error = await expectBuildError(
+      new TxBuilder({ params, evaluator }).build({
+        parts: [scriptSpend(1, stated), scriptSpend(2, stated), scriptSpend(3)],
+        changeAddress: wallet,
+        utxos: [utxo(lovelace(ada(100)))],
+      }),
+      "EXUNITS_EXCEEDED",
+    );
+    expect(error.message).toContain("the given execution units are more");
+    // The totals of the given units, not what is left of the limits
+    expect(error.details).toEqual({ mem: 18_000_000n, steps: 2000n });
+    expect(calls).toHaveLength(0);
   });
 
   it("points redeemers of every purpose at their items", async () => {
@@ -811,7 +1343,9 @@ describe("TxBuilder: scripts", () => {
   });
 
   it("reports missing collateral", async () => {
-    await expectBuildError(
+    const detailsOf = (error: TxBuildError) =>
+      (error as TxBuildError<"INSUFFICIENT_COLLATERAL">).details;
+    const none = await expectBuildError(
       new TxBuilder({ params, evaluator: fakeEvaluator().evaluator }).build({
         parts: [scriptSpend(1)],
         changeAddress: wallet,
@@ -819,13 +1353,38 @@ describe("TxBuilder: scripts", () => {
       }),
       "INSUFFICIENT_COLLATERAL",
     );
-    await expectBuildError(
+    expect(detailsOf(none).available).toBe(0n);
+    expect(typeof detailsOf(none).required).toBe("bigint");
+
+    const small = await expectBuildError(
       new TxBuilder({ params, evaluator: fakeEvaluator().evaluator }).build({
         parts: [scriptSpend(1), collateral({ utxo: utxo(lovelace(100_000n)) })],
         changeAddress: wallet,
         utxos: [utxo(lovelace(ada(10)))],
       }),
       "INSUFFICIENT_COLLATERAL",
+    );
+    expect(detailsOf(small).available).toBe(100_000n);
+    expect(detailsOf(small).required).toBeGreaterThan(100_000n);
+
+    // A stated total below what the fee calls for
+    const stated = await expectBuildError(
+      new TxBuilder({ params, evaluator: fakeEvaluator().evaluator }).build({
+        parts: [
+          scriptSpend(1),
+          collateral({ utxo: utxo(lovelace(ada(5))) }),
+          collateralReturn({ address: wallet, totalCollateral: 1n }),
+        ],
+        changeAddress: wallet,
+        utxos: [utxo(lovelace(ada(10)))],
+      }),
+      "INSUFFICIENT_COLLATERAL",
+    );
+    const { required, available } = detailsOf(stated);
+    expect(available).toBe(1n);
+    expect(required).toBeGreaterThan(1n);
+    expect(stated.message).toContain(
+      `the ${required} lovelace the fee calls for`,
     );
   });
 });
@@ -1229,6 +1788,53 @@ describe("TxBuilder: reads", () => {
       await builder.build(request([scriptSpend()]));
       expect(provider[method]).toHaveBeenCalledTimes(2);
     }
+  });
+
+  it("reports a failed read with the provider's error as the cause", async () => {
+    const down = new Error("503");
+    const stake = keyHashToRewardAddress(keyHashHex(5), 0);
+
+    const outputs = mockedFetcher([keyOutput]);
+    outputs.fetchUTxOs.mockRejectedValueOnce(down);
+    const notFound = await expectBuildError(
+      new TxBuilder({ params, fetcher: outputs.fetcher }).build(
+        request([keySpend()]),
+      ),
+      "UTXO_NOT_FOUND",
+    );
+    expect(notFound.details).toEqual({
+      input: { txHash: otherHash, outputIndex: 0 },
+    });
+    expect(notFound.cause).toBe(down);
+
+    for (const [method, parameter] of [
+      ["fetchProtocolParameters", "params"],
+      ["fetchCostModels", "costModels"],
+    ] as const) {
+      const provider = mockedFetcher([locked, holdingScript]);
+      provider[method].mockRejectedValueOnce(down);
+      const error = await expectBuildError(
+        new TxBuilder({
+          fetcher: new CachedFetcher(provider.fetcher, { now: () => NOW }),
+          evaluator: fakeEvaluator().evaluator,
+        }).build(request([scriptSpend()])),
+        "MISSING_PARAMETER",
+      );
+      expect(error.details).toEqual({ parameter });
+      expect(error.cause).toBe(down);
+    }
+
+    const rewards = mockedFetcher([]);
+    rewards.fetchAccountInfo.mockRejectedValueOnce(down);
+    const failed = await expectBuildError(
+      new TxBuilder({ params, fetcher: rewards.fetcher }).build(
+        request([withdrawal.pubKey({ rewardAddress: stake, amount: "all" })]),
+      ),
+      "PROVIDER_FAILED",
+    );
+    expect(failed.details).toEqual({ operation: "fetchAccountInfo" });
+    expect(failed.cause).toBe(down);
+    expect(failed.message).toContain("503");
   });
 
   it("leaves the cached outputs as they are, out of what it builds", async () => {

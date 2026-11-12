@@ -6,6 +6,7 @@ import type {
   IMeshTxSerializer,
   Protocol,
   RedeemerTagType,
+  ScriptFailure,
   TransactionOutputPrototype,
   TransactionPrototype,
   UTxO,
@@ -16,6 +17,7 @@ import {
   DEFAULT_V1_COST_MODEL_LIST,
   DEFAULT_V2_COST_MODEL_LIST,
   DEFAULT_V3_COST_MODEL_LIST,
+  ScriptEvaluationError,
 } from "@meshsdk/common";
 import {
   OfflineEvaluatorScalus,
@@ -26,6 +28,7 @@ import {
 
 import type { AssembledRedeemer } from "./assemble";
 import type { Balanced, CollateralPlan } from "./balance";
+import type { PartFailure } from "./errors";
 import type { OutputPart, PlutusWitness, TxPart } from "./parts/types";
 import type { GovernanceDeposits } from "./resolve";
 import { balance, totalExUnits } from "./balance";
@@ -139,6 +142,33 @@ const EVALUATOR_TAGS: Record<RedeemerTagType, AssembledRedeemer["tag"]> = {
   VOTE: "VOTE",
   PROPOSE: "VOTING_PROPOSAL",
 };
+
+/**
+ * The script failures an evaluator reports, each joined to the part whose redeemer it ran, by
+ * tag and index. A failure that points at no redeemer of the transaction is left out.
+ */
+const partFailures = (
+  failures: readonly ScriptFailure[],
+  redeemers: readonly AssembledRedeemer[],
+): PartFailure[] =>
+  failures.flatMap((failure) => {
+    const redeemer = redeemers.find(
+      (r) => r.tag === EVALUATOR_TAGS[failure.tag] && r.index === failure.index,
+    );
+    if (!redeemer) return [];
+    return [
+      {
+        ...failure,
+        part: redeemer.part.kind,
+        ...(redeemer.label !== undefined && { label: redeemer.label }),
+      },
+    ];
+  });
+
+const toBudget = (units: ExUnitsPrototype): Budget => ({
+  mem: Number(units.mem),
+  steps: Number(units.steps),
+});
 
 const errorText = (error: unknown) =>
   error instanceof Error
@@ -335,7 +365,7 @@ export class TxBuilder {
             {
               part: redeemer.part.kind,
               label: redeemer.label,
-              details: { tag: redeemer.tag, index: redeemer.index },
+              details: { tx, failures: [] },
             },
           );
         const fixed = given.get(i);
@@ -347,7 +377,7 @@ export class TxBuilder {
               {
                 part: redeemer.part.kind,
                 label: redeemer.label,
-                details: { needed: result, given: fixed },
+                details: { needed: toBudget(result), given: toBudget(fixed) },
               },
             );
           continue;
@@ -380,6 +410,7 @@ export class TxBuilder {
       throw new TxBuildError(
         "MISSING_PARAMETER",
         `fetching the protocol parameters failed: ${errorText(error)}`,
+        { details: { parameter: "params" }, cause: error },
       );
     }
   }
@@ -398,6 +429,7 @@ export class TxBuilder {
       throw new TxBuildError(
         "MISSING_PARAMETER",
         `fetching the cost models failed: ${errorText(error)}`,
+        { details: { parameter: "costModels" }, cause: error },
       );
     }
   }
@@ -433,20 +465,17 @@ export class TxBuilder {
       evaluator.configure?.({ costModels });
       actions = await evaluator.evaluateTx(tx, Array.from(utxos.values()), []);
     } catch (error) {
+      const failures = ScriptEvaluationError.is(error)
+        ? partFailures(error.failures, balanced.assembled.redeemers)
+        : [];
+      const [only] = failures.length === 1 ? failures : [];
       throw new TxBuildError(
         "EVALUATION_FAILED",
         `script evaluation failed: ${errorText(error)}`,
         {
-          details: {
-            tx,
-            redeemers: balanced.assembled.redeemers.map((r) => ({
-              tag: r.tag,
-              index: r.index,
-              part: r.part.kind,
-              label: r.label,
-            })),
-            cause: error,
-          },
+          ...(only && { part: only.part, label: only.label }),
+          details: { tx, failures },
+          cause: error,
         },
       );
     }
@@ -548,6 +577,13 @@ const placeholderUnits = (
     throw new TxBuildError(
       "EXUNITS_EXCEEDED",
       "the given execution units are more than a transaction may use",
+      // The totals of the given units: the limits less what is left of them
+      {
+        details: {
+          mem: BigInt(params.maxTxExMem) - mem,
+          steps: BigInt(params.maxTxExSteps) - steps,
+        },
+      },
     );
   return {
     mem: (mem / BigInt(count)).toString(),
@@ -567,13 +603,22 @@ const withMinCoin = (part: OutputPart, params: Protocol): OutputPart => {
     throw new TxBuildError(
       "OUTPUT_BELOW_MIN_COIN",
       `the output holds ${given} lovelace, less than the ${required} it needs`,
-      { part: part.kind, label: part.label },
+      {
+        part: part.kind,
+        label: part.label,
+        details: { coin: BigInt(given), minCoin: required },
+      },
     );
-  if (valueSize(output.amount) > params.maxValSize)
+  const size = valueSize(output.amount);
+  if (size > params.maxValSize)
     throw new TxBuildError(
       "VALUE_TOO_LARGE",
       `the output's value is larger than the ${params.maxValSize} bytes allowed`,
-      { part: part.kind, label: part.label },
+      {
+        part: part.kind,
+        label: part.label,
+        details: { size, maxValSize: params.maxValSize },
+      },
     );
   return given === undefined
     ? freeze({ ...part, output: output as OutputPart["output"] })

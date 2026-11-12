@@ -39,6 +39,7 @@ import {
   vote,
   withdrawal,
 } from "../../src/tx-builder";
+import { voterKey } from "../../src/tx-builder/ordering";
 import {
   alwaysSucceedCbor,
   alwaysSucceedHash,
@@ -512,15 +513,28 @@ describe("assembleTxPrototype: errors", () => {
   });
 
   const action = { txHash: "a".repeat(64), index: 0 };
-  const twice: [string, TxPart[]][] = [
-    ["an input", [keySpend("aa".repeat(32), 0), keySpend("aa".repeat(32), 0)]],
+  const policyParts = [
+    mint.native({ script: nativeScript, assets: { "01": 1n } }),
+    mint.native({ script: nativeScript, assets: { "02": 1n } }),
+  ];
+  const voteParts = [
+    vote({
+      voter: { pool: keyHashHex(1) },
+      votes: [{ action, vote: "yes" }],
+    }),
+    vote({
+      voter: { pool: keyHashHex(1) },
+      votes: [{ action: { ...action, index: 1 }, vote: "no" }],
+    }),
+  ];
+  // The repeated key for the keyed kinds, the kind for those a transaction holds once
+  const twice: [string, TxPart[], string][] = [
     [
-      "a policy",
-      [
-        mint.native({ script: nativeScript, assets: { "01": 1n } }),
-        mint.native({ script: nativeScript, assets: { "02": 1n } }),
-      ],
+      "an input",
+      [keySpend("aa".repeat(32), 0), keySpend("aa".repeat(32), 0)],
+      `${"aa".repeat(32)}#0`,
     ],
+    ["a policy", policyParts, policyParts[0]!.policyId],
     [
       "a reward address",
       [
@@ -533,39 +547,36 @@ describe("assembleTxPrototype: errors", () => {
           amount: 1n,
         }),
       ],
+      keyHashToRewardAddress(keyHashHex(1), 0),
     ],
-    [
-      "a voter",
-      [
-        vote({
-          voter: { pool: keyHashHex(1) },
-          votes: [{ action, vote: "yes" }],
-        }),
-        vote({
-          voter: { pool: keyHashHex(1) },
-          votes: [{ action: { ...action, index: 1 }, vote: "no" }],
-        }),
-      ],
-    ],
+    ["a voter", voteParts, voterKey(voteParts[0]!.voter)],
     [
       "a collateral input",
       [
         collateral({ utxo: utxo("dd".repeat(32), 1) }),
         collateral({ utxo: utxo("dd".repeat(32), 1) }),
       ],
+      `${"dd".repeat(32)}#1`,
     ],
     [
       "a validity interval",
       [validity({ invalidBefore: 1 }), validity({ invalidHereafter: 9 })],
+      "validity",
     ],
-    ["a donation", [donation({ amount: 1n }), donation({ amount: 2n })]],
+    [
+      "a donation",
+      [donation({ amount: 1n }), donation({ amount: 2n })],
+      "donation",
+    ],
     [
       "a treasury value",
       [treasuryValue({ amount: 1n }), treasuryValue({ amount: 1n })],
+      "treasuryValue",
     ],
     [
       "a network id",
       [networkId({ network: "testnet" }), networkId({ network: "testnet" })],
+      "networkId",
     ],
     [
       "a collateral return",
@@ -573,6 +584,7 @@ describe("assembleTxPrototype: errors", () => {
         collateralReturn({ address: walletAddress, totalCollateral: 1n }),
         collateralReturn({ address: walletAddress, totalCollateral: 1n }),
       ],
+      "collateralReturn",
     ],
     [
       "a metadata label",
@@ -580,10 +592,15 @@ describe("assembleTxPrototype: errors", () => {
         metadata({ metadataLabel: 1, value: 1 }),
         metadata({ metadataLabel: 1, value: 2 }),
       ],
+      "1",
     ],
   ];
-  it.each(twice)("rejects %s given twice", (_, parts) => {
-    expectBuildError(() => assembleTxPrototype(parts, fee), "DUPLICATE_PART");
+  it.each(twice)("rejects %s given twice", (_, parts, item) => {
+    const error = expectBuildError(
+      () => assembleTxPrototype(parts, fee),
+      "DUPLICATE_PART",
+    );
+    expect(error.details).toEqual({ item });
   });
 
   it("rejects a reference input the transaction also spends", () => {
@@ -600,7 +617,7 @@ describe("assembleTxPrototype: errors", () => {
       expect(error).toMatchObject({
         part: "referenceInput",
         label: "oracle",
-        details: { key: `${"aa".repeat(32)}#3` },
+        details: { item: `${"aa".repeat(32)}#3` },
       });
       expect(error.message).toContain(
         `${"aa".repeat(32)}#3 is also spent by this transaction`,

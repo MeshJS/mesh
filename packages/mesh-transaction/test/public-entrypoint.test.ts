@@ -10,7 +10,9 @@ describe("public entrypoint", () => {
     "unresolved",
     "TxPartError",
     "assembleTxPrototype",
+    "TxError",
     "TxBuildError",
+    "TxIntentError",
     "TxBuilder",
   ])("exports %s", (name) => {
     expect(publicApi).toHaveProperty(name);

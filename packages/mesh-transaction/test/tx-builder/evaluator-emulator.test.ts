@@ -1,4 +1,10 @@
-import { IEvaluator, mConStr0, resolveScriptRef, UTxO } from "@meshsdk/core";
+import {
+  IEvaluator,
+  mConStr0,
+  resolveScriptRef,
+  ScriptEvaluationError,
+  UTxO,
+} from "@meshsdk/core";
 import { OfflineEvaluator } from "@meshsdk/core-csl";
 import {
   OfflineEvaluatorScalus,
@@ -157,19 +163,23 @@ describe("TxBuilder's evaluators on the emulator", () => {
   });
 
   it("reports a failing script, and takes stated units without evaluation after `evaluator: null`", async () => {
-    const error = await expectBuildError(
+    const error = (await expectBuildError(
       build(new TxBuilder({ fetcher: provider }), [unlockFailing()]),
       "EVALUATION_FAILED",
-    );
-    // The evaluator's own message follows the prefix, and its error is the cause
-    const { cause } = error.details as { cause: unknown };
-    expect(cause).toBeInstanceOf(Error);
+    )) as TxBuildError<"EVALUATION_FAILED">;
+    // The one failed script names the part; the evaluator's error is the cause
+    expect(error).toMatchObject({ part: "spend", label: "fails" });
+    const { cause } = error;
+    expect(ScriptEvaluationError.is(cause)).toBe(true);
     expect(error.message).toBe(
-      `script evaluation failed: ${(cause as Error).message}`,
+      `spend "fails": script evaluation failed: ${(cause as Error).message}`,
     );
     expect((cause as Error).message).toContain("failed");
-    expect(error.details).toMatchObject({
-      redeemers: [{ tag: "SPEND", part: "spend", label: "fails" }],
+    expect(error.details.failures).toHaveLength(1);
+    expect(error.details.failures[0]).toMatchObject({
+      tag: "SPEND",
+      part: "spend",
+      label: "fails",
     });
 
     const stated = { mem: 100_000, steps: 100_000_000 };
@@ -210,12 +220,10 @@ describe("TxBuilder's evaluators on the emulator", () => {
       build(new TxBuilder({ fetcher: provider }), [unlock(tooLow)]),
       "EXUNITS_TOO_LOW",
     );
-    const { needed, given } = error.details as {
-      needed: { mem: string; steps: string };
-      given: { mem: string; steps: string };
-    };
-    expect(given).toEqual({ mem: "7", steps: "7" });
-    expect(BigInt(needed.mem)).toBeGreaterThan(7n);
+    const { needed, given } = (error as TxBuildError<"EXUNITS_TOO_LOW">)
+      .details;
+    expect(given).toEqual({ mem: 7, steps: 7 });
+    expect(needed.mem).toBeGreaterThan(7);
 
     const enough = {
       mem: Number(needed.mem) + 1000,

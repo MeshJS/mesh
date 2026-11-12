@@ -229,5 +229,75 @@ describe("Plutus script code", () => {
       );
       expect(consoleError).not.toHaveBeenCalled();
     });
+
+    const holding = (scriptRef: string): UTxO => ({
+      input: { txHash: "c".repeat(64), outputIndex: 0 },
+      output: { ...scriptUtxo.output, address: baseAddress(1), scriptRef },
+    });
+    // A version no script has: the code reads, the script cannot be made
+    const v4 = (code: string) =>
+      ({ code, version: "V4" }) as unknown as PlutusScript;
+    it.each([
+      [
+        "a program of an unknown version",
+        () =>
+          spend.plutus({
+            utxo: scriptUtxo,
+            script: v3("0102003322"),
+            redeemer,
+          }),
+      ],
+      [
+        "a script of an unknown language",
+        () => spend.plutus({ utxo: scriptUtxo, script: v4(double), redeemer }),
+      ],
+      [
+        "a reference script of an unknown language",
+        () =>
+          output({
+            address: baseAddress(1),
+            value: { lovelace: 2_000_000n },
+            scriptRef: v4(double),
+          }),
+      ],
+      [
+        "an auxiliary script of an unknown language",
+        () => auxiliaryScript({ script: v4(double) }),
+      ],
+      [
+        "a native script that is not CBOR",
+        () => mint.native({ script: "ffff00", assets: { "": 1n } }),
+      ],
+      [
+        "a reference UTxO whose script is not CBOR",
+        () =>
+          spend.plutus({
+            utxo: scriptUtxo,
+            script: { reference: holding("ffff00") },
+            redeemer,
+          }),
+      ],
+      [
+        "a pool id that does not parse",
+        () =>
+          certificate.stakeDelegation({ stake: plutusStake, pool: "pool1x" }),
+        // The message names the pool id, not what the parser said
+        false,
+      ],
+    ])(
+      "keeps the error it was rejected for as the cause: %s",
+      (_, build, quotesCause = true) => {
+        try {
+          build();
+        } catch (error) {
+          expect(error).toBeInstanceOf(TxPartError);
+          const { cause, message } = error as TxPartError;
+          expect(cause).toBeInstanceOf(Error);
+          expect(message.endsWith((cause as Error).message)).toBe(quotesCause);
+          return;
+        }
+        throw new Error("expected a part error");
+      },
+    );
   });
 });
