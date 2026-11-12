@@ -20,6 +20,7 @@ describe("Certificate Adaptor - fromObj", () => {
       type: "BasicCertificate",
       certType: {
         type: "RegisterStake",
+        coin: 2000000,
         stakeKeyAddress:
           "stake_test17rvfqm99c7apyjsyq73jm2ehktyzkyanmnv3z8jzjsxuafq5a6z2j",
       },

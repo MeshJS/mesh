@@ -1186,7 +1186,9 @@ class CardanoSDKSerializerCore {
       this.txBody.certs() ??
       Serialization.CborSet.fromCore([], Serialization.Certificate.fromCore);
     let currentCertsValues = [...currentCerts.values()];
-    currentCertsValues.push(toCardanoCert(cert.certType));
+    currentCertsValues.push(
+      toCardanoCert(cert.certType, this.protocolParams.keyDeposit),
+    );
     currentCerts.setValues(currentCertsValues);
     this.txBody.setCerts(currentCerts);
 

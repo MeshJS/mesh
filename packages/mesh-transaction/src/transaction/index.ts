@@ -675,18 +675,20 @@ export class Transaction {
   /**
    * [Deprecated] - `Transaction` class is on planning for V2.
    * Use `MeshTxBuilder` instead for tx-building for now.
+   * @param coin Original deposit to refund in lovelace; defaults to keyDeposit.
    */
-  deregisterStake(rewardAddress: string): Transaction {
-    this.txBuilder.deregisterStakeCertificate(rewardAddress);
+  deregisterStake(rewardAddress: string, coin?: number): Transaction {
+    this.txBuilder.deregisterStakeCertificate(rewardAddress, coin);
     return this;
   }
 
   /**
    * [Deprecated] - `Transaction` class is on planning for V2.
    * Use `MeshTxBuilder` instead for tx-building for now.
+   * @param coin Deposit in lovelace; defaults to the keyDeposit protocol parameter.
    */
-  registerStake(rewardAddress: string): Transaction {
-    this.txBuilder.registerStakeCertificate(rewardAddress);
+  registerStake(rewardAddress: string, coin?: number): Transaction {
+    this.txBuilder.registerStakeCertificate(rewardAddress, coin);
     return this;
   }
 

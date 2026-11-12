@@ -62,6 +62,9 @@ export const baseCertFromObj = (obj: any): CertificateType => {
     return {
       type: "RegisterStake",
       stakeKeyAddress: obj.registerStake.stakeKeyAddress,
+      ...(obj.registerStake.coin !== undefined && {
+        coin: obj.registerStake.coin,
+      }),
     };
   } else if ("delegateStake" in obj) {
     return {
@@ -73,6 +76,9 @@ export const baseCertFromObj = (obj: any): CertificateType => {
     return {
       type: "DeregisterStake",
       stakeKeyAddress: obj.deregisterStake.stakeKeyAddress,
+      ...(obj.deregisterStake.coin !== undefined && {
+        coin: obj.deregisterStake.coin,
+      }),
     };
   } else if ("retirePool" in obj) {
     return {

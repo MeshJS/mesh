@@ -59,6 +59,7 @@ describe("Certificate Adaptor - toObj", () => {
     expect(certObj).toEqual({
       basicCertificate: {
         deregisterStake: {
+          coin: 2000000,
           stakeKeyAddress:
             "stake_test17rvfqm99c7apyjsyq73jm2ehktyzkyanmnv3z8jzjsxuafq5a6z2j",
         },
@@ -201,6 +202,7 @@ describe("Certificate Adaptor - toObj", () => {
       scriptCertificate: {
         cert: {
           deregisterStake: {
+            coin: 2000000,
             stakeKeyAddress:
               "stake_test17rvfqm99c7apyjsyq73jm2ehktyzkyanmnv3z8jzjsxuafq5a6z2j",
           },
