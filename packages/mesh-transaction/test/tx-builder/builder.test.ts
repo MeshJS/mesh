@@ -30,6 +30,7 @@ import {
 } from "@meshsdk/core-cst";
 
 import {
+  BuildOptions,
   BuiltTx,
   certificate,
   collateral,
@@ -195,11 +196,10 @@ const signedMinFee = (built: BuiltTx, signers: number) => {
 describe("TxBuilder: balancing", () => {
   it("pays an output, returns change and settles the fee at the minimum", async () => {
     const funds = [utxo(lovelace(ada(100)))];
-    const built = await new TxBuilder({ network, params }).build({
-      parts: [output({ address: recipient, value: { lovelace: ada(5) } })],
-      changeAddress: wallet,
-      utxos: funds,
-    });
+    const built = await new TxBuilder({ network, params }).build(
+      [output({ address: recipient, value: { lovelace: ada(5) } })],
+      { payer: { changeAddress: wallet, utxos: funds } },
+    );
 
     expect(built.selectedInputs).toEqual(funds);
     expect(built.change).toHaveLength(1);
@@ -213,11 +213,15 @@ describe("TxBuilder: balancing", () => {
 
   it("fills in the lovelace an output needs when it is left out", async () => {
     const unit = mockTokenUnit(1);
-    const built = await new TxBuilder({ network, params }).build({
-      parts: [output({ address: recipient, value: { [unit]: 1n } })],
-      changeAddress: wallet,
-      utxos: [utxo([...lovelace(ada(10)), { unit, quantity: "5" }])],
-    });
+    const built = await new TxBuilder({ network, params }).build(
+      [output({ address: recipient, value: { [unit]: 1n } })],
+      {
+        payer: {
+          changeAddress: wallet,
+          utxos: [utxo([...lovelace(ada(10)), { unit, quantity: "5" }])],
+        },
+      },
+    );
     const paid = built.prototype.body.outputs[0]!;
     expect(BigInt(paid.amount.coin)).toBeGreaterThan(ada(1));
     expect(BigInt(paid.amount.coin)).toBeLessThan(ada(2));
@@ -230,11 +234,10 @@ describe("TxBuilder: balancing", () => {
 
   it("rejects an output holding less lovelace than it needs", async () => {
     const error = await expectBuildError(
-      new TxBuilder({ network, params }).build({
-        parts: [output({ address: recipient, value: { lovelace: 100n } })],
-        changeAddress: wallet,
-        utxos: [utxo(lovelace(ada(10)))],
-      }),
+      new TxBuilder({ network, params }).build(
+        [output({ address: recipient, value: { lovelace: 100n } })],
+        { payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] } },
+      ),
       "OUTPUT_BELOW_MIN_COIN",
     );
     const { coin, minCoin } = (error as TxBuildError<"OUTPUT_BELOW_MIN_COIN">)
@@ -247,16 +250,15 @@ describe("TxBuilder: balancing", () => {
   it("rejects an output whose value is too large", async () => {
     const units = Array.from({ length: 30 }, (_, i) => mockTokenUnit(i + 1));
     const error = await expectBuildError(
-      new TxBuilder({ network, params: { ...params, maxValSize: 400 } }).build({
-        parts: [
+      new TxBuilder({ network, params: { ...params, maxValSize: 400 } }).build(
+        [
           output({
             address: recipient,
             value: Object.fromEntries(units.map((unit) => [unit, 1n])),
           }),
         ],
-        changeAddress: wallet,
-        utxos: [],
-      }),
+        { payer: { changeAddress: wallet, utxos: [] } },
+      ),
       "VALUE_TOO_LARGE",
     );
     const { size, maxValSize } = (error as TxBuildError<"VALUE_TOO_LARGE">)
@@ -268,11 +270,15 @@ describe("TxBuilder: balancing", () => {
   it("rejects change holding a token that does not fit in an output on its own", async () => {
     const unit = mockTokenUnit(1);
     const error = await expectBuildError(
-      new TxBuilder({ network, params: { ...params, maxValSize: 20 } }).build({
-        parts: [output({ address: recipient, value: { lovelace: ada(5) } })],
-        changeAddress: wallet,
-        utxos: [utxo([...lovelace(ada(100)), { unit, quantity: "1" }])],
-      }),
+      new TxBuilder({ network, params: { ...params, maxValSize: 20 } }).build(
+        [output({ address: recipient, value: { lovelace: ada(5) } })],
+        {
+          payer: {
+            changeAddress: wallet,
+            utxos: [utxo([...lovelace(ada(100)), { unit, quantity: "1" }])],
+          },
+        },
+      ),
       "VALUE_TOO_LARGE",
     );
     expect(error.message).toContain(`token ${unit} does not fit`);
@@ -285,14 +291,13 @@ describe("TxBuilder: balancing", () => {
   it("selects another input when the change would hold too little lovelace", async () => {
     const spent = utxo(lovelace(2_300_000n));
     const extra = utxo(lovelace(ada(5)));
-    const built = await new TxBuilder({ network, params }).build({
-      parts: [
+    const built = await new TxBuilder({ network, params }).build(
+      [
         spend.pubKey({ utxo: spent }),
         output({ address: recipient, value: { lovelace: ada(2) } }),
       ],
-      changeAddress: wallet,
-      utxos: [extra],
-    });
+      { payer: { changeAddress: wallet, utxos: [extra] } },
+    );
     expect(built.selectedInputs).toEqual([extra]);
     expect(BigInt(built.change[0]!.amount.coin)).toBeGreaterThan(ada(4));
     expectBalanced(built);
@@ -300,12 +305,16 @@ describe("TxBuilder: balancing", () => {
 
   it("leaves out change when nothing is left over", async () => {
     // A fixed fee that takes exactly what the output leaves
-    const built = await new TxBuilder({ network, params }).build({
-      parts: [output({ address: recipient, value: { lovelace: ada(3) } })],
-      changeAddress: wallet,
-      utxos: [utxo(lovelace(ada(3) + 200_000n))],
-      fee: 200_000n,
-    });
+    const built = await new TxBuilder({ network, params }).build(
+      [output({ address: recipient, value: { lovelace: ada(3) } })],
+      {
+        payer: {
+          changeAddress: wallet,
+          utxos: [utxo(lovelace(ada(3) + 200_000n))],
+        },
+        fee: 200_000n,
+      },
+    );
     expect(built.change).toEqual([]);
     expect(built.fee).toBe(200_000n);
     expectBalanced(built);
@@ -316,11 +325,10 @@ describe("TxBuilder: balancing", () => {
     const small = utxo([...lovelace(ada(2)), { unit, quantity: "3" }]);
     const large = utxo([...lovelace(ada(2)), { unit, quantity: "8" }]);
     const plain = utxo(lovelace(ada(50)));
-    const built = await new TxBuilder({ network, params }).build({
-      parts: [output({ address: recipient, value: { [unit]: 10n } })],
-      changeAddress: wallet,
-      utxos: [small, plain, large],
-    });
+    const built = await new TxBuilder({ network, params }).build(
+      [output({ address: recipient, value: { [unit]: 10n } })],
+      { payer: { changeAddress: wallet, utxos: [small, plain, large] } },
+    );
     expect(built.selectedInputs.slice(0, 2)).toEqual([large, small]);
     expectBalanced(built);
   });
@@ -328,16 +336,20 @@ describe("TxBuilder: balancing", () => {
   it("splits change whose tokens do not fit in one output", async () => {
     const units = Array.from({ length: 30 }, (_, i) => mockTokenUnit(i + 1));
     const small = { ...params, maxValSize: 400 };
-    const built = await new TxBuilder({ network, params: small }).build({
-      parts: [output({ address: recipient, value: { lovelace: ada(2) } })],
-      changeAddress: wallet,
-      utxos: [
-        utxo([
-          ...lovelace(ada(100)),
-          ...units.map((unit) => ({ unit, quantity: "1" })),
-        ]),
-      ],
-    });
+    const built = await new TxBuilder({ network, params: small }).build(
+      [output({ address: recipient, value: { lovelace: ada(2) } })],
+      {
+        payer: {
+          changeAddress: wallet,
+          utxos: [
+            utxo([
+              ...lovelace(ada(100)),
+              ...units.map((unit) => ({ unit, quantity: "1" })),
+            ]),
+          ],
+        },
+      },
+    );
     expect(built.change.length).toBeGreaterThan(1);
     const returned = built.change.flatMap((o) =>
       Object.entries(o.amount.multiasset ?? {}).flatMap(([policy, assets]) =>
@@ -350,11 +362,10 @@ describe("TxBuilder: balancing", () => {
 
   it("reports what is missing when the UTxOs cannot pay", async () => {
     const lovelaceShort = await expectBuildError(
-      new TxBuilder({ network, params }).build({
-        parts: [output({ address: recipient, value: { lovelace: ada(50) } })],
-        changeAddress: wallet,
-        utxos: [utxo(lovelace(ada(10)))],
-      }),
+      new TxBuilder({ network, params }).build(
+        [output({ address: recipient, value: { lovelace: ada(50) } })],
+        { payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] } },
+      ),
       "INSUFFICIENT_FUNDS",
     );
     const short = (lovelaceShort as TxBuildError<"INSUFFICIENT_FUNDS">).details;
@@ -381,11 +392,15 @@ describe("TxBuilder: balancing", () => {
 
     const unit = mockTokenUnit(3);
     const tokenShort = await expectBuildError(
-      new TxBuilder({ network, params }).build({
-        parts: [output({ address: recipient, value: { [unit]: 2n } })],
-        changeAddress: wallet,
-        utxos: [utxo([...lovelace(ada(10)), { unit, quantity: "1" }])],
-      }),
+      new TxBuilder({ network, params }).build(
+        [output({ address: recipient, value: { [unit]: 2n } })],
+        {
+          payer: {
+            changeAddress: wallet,
+            utxos: [utxo([...lovelace(ada(10)), { unit, quantity: "1" }])],
+          },
+        },
+      ),
       "INSUFFICIENT_FUNDS",
     );
     expect(tokenShort.details).toMatchObject({
@@ -402,11 +417,15 @@ describe("TxBuilder: balancing", () => {
 
   it("selects only key-locked UTxOs", async () => {
     const error = await expectBuildError(
-      new TxBuilder({ network, params }).build({
-        parts: [output({ address: recipient, value: { lovelace: ada(2) } })],
-        changeAddress: wallet,
-        utxos: [utxo(lovelace(ada(10)), {}, scriptAddress)],
-      }),
+      new TxBuilder({ network, params }).build(
+        [output({ address: recipient, value: { lovelace: ada(2) } })],
+        {
+          payer: {
+            changeAddress: wallet,
+            utxos: [utxo(lovelace(ada(10)), {}, scriptAddress)],
+          },
+        },
+      ),
       "INSUFFICIENT_FUNDS",
     );
     expect(error.details).toMatchObject({
@@ -425,10 +444,8 @@ describe("TxBuilder: balancing", () => {
   it("uses a fixed fee as is, and rejects one below the minimum", async () => {
     const funds = [utxo(lovelace(ada(10)))];
     const parts = [output({ address: recipient, value: { lovelace: ada(2) } })];
-    const built = await new TxBuilder({ network, params }).build({
-      parts,
-      changeAddress: wallet,
-      utxos: funds,
+    const built = await new TxBuilder({ network, params }).build(parts, {
+      payer: { changeAddress: wallet, utxos: funds },
       fee: ada(1),
     });
     expect(built.fee).toBe(ada(1));
@@ -436,10 +453,8 @@ describe("TxBuilder: balancing", () => {
     expectBalanced(built);
 
     const error = await expectBuildError(
-      new TxBuilder({ network, params }).build({
-        parts,
-        changeAddress: wallet,
-        utxos: funds,
+      new TxBuilder({ network, params }).build(parts, {
+        payer: { changeAddress: wallet, utxos: funds },
         fee: 1000n,
       }),
       "FEE_TOO_LOW",
@@ -451,25 +466,23 @@ describe("TxBuilder: balancing", () => {
   });
 
   it("prices extra key witnesses into the fee", async () => {
-    const request = {
-      parts: [output({ address: recipient, value: { lovelace: ada(2) } })],
-      changeAddress: wallet,
-      utxos: [utxo(lovelace(ada(10)))],
-    };
-    const one = await new TxBuilder({ network, params }).build(request);
-    const three = await new TxBuilder({ network, params }).build({
-      ...request,
+    const parts = [output({ address: recipient, value: { lovelace: ada(2) } })];
+    const payer = { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] };
+    const one = await new TxBuilder({ network, params }).build(parts, {
+      payer,
+    });
+    const three = await new TxBuilder({ network, params }).build(parts, {
+      payer,
       extraKeyWitnesses: 2,
     });
     expect(three.fee - one.fee).toBe(2n * 101n * 44n);
   });
 
   it("donates to the treasury out of the inputs", async () => {
-    const built = await new TxBuilder({ network, params }).build({
-      parts: [donation({ amount: ada(7) })],
-      changeAddress: wallet,
-      utxos: [utxo(lovelace(ada(10)))],
-    });
+    const built = await new TxBuilder({ network, params }).build(
+      [donation({ amount: ada(7) })],
+      { payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] } },
+    );
     expect(built.prototype.body.donation).toBe("7000000");
     expectBalanced(built);
   });
@@ -479,12 +492,19 @@ describe("TxBuilder: what INSUFFICIENT_FUNDS reports", () => {
   const pay = (n: number) =>
     output({ address: recipient, value: { lovelace: ada(n) } });
   const fundsShort = async (
-    request: Omit<Parameters<TxBuilder["build"]>[0], "changeAddress">,
+    {
+      parts,
+      utxos = [],
+      ...options
+    }: { parts: TxPart[]; utxos?: UTxO[] } & BuildOptions,
     builder = new TxBuilder({ network, params }),
   ) =>
     (
       (await expectBuildError(
-        builder.build({ ...request, changeAddress: wallet }),
+        builder.build(parts, {
+          ...options,
+          payer: { changeAddress: wallet, utxos },
+        }),
         "INSUFFICIENT_FUNDS",
       )) as TxBuildError<"INSUFFICIENT_FUNDS">
     ).details;
@@ -511,10 +531,8 @@ describe("TxBuilder: what INSUFFICIENT_FUNDS reports", () => {
       const topUp = (by: bigint) =>
         utxos.map((u, i) => (i === last ? raised(u, by) : u));
 
-      const built = await new TxBuilder({ network, params }).build({
-        parts,
-        changeAddress: wallet,
-        utxos: topUp(short.missing),
+      const built = await new TxBuilder({ network, params }).build(parts, {
+        payer: { changeAddress: wallet, utxos: topUp(short.missing) },
       });
       expect(built.selectedInputs).toHaveLength(holdings.length);
       expect(built.fee).toBe(short.feeEstimate);
@@ -542,10 +560,8 @@ describe("TxBuilder: what INSUFFICIENT_FUNDS reports", () => {
     });
     expect(short.changeMinimum).toBeGreaterThan(lovelaceOnly!);
 
-    const built = await new TxBuilder({ network, params }).build({
-      parts: [pay(50)],
-      changeAddress: wallet,
-      utxos: [raised(funds, short.missing)],
+    const built = await new TxBuilder({ network, params }).build([pay(50)], {
+      payer: { changeAddress: wallet, utxos: [raised(funds, short.missing)] },
     });
     expect(built.fee).toBe(short.feeEstimate);
     expect(built.change).toHaveLength(1);
@@ -588,10 +604,8 @@ describe("TxBuilder: what INSUFFICIENT_FUNDS reports", () => {
     );
     expect(short.missing).toBe(short.required - short.available);
 
-    const built = await new TxBuilder({ network, params }).build({
-      parts: [pay(50)],
-      changeAddress: wallet,
-      utxos: [raised(funds, short.missing)],
+    const built = await new TxBuilder({ network, params }).build([pay(50)], {
+      payer: { changeAddress: wallet, utxos: [raised(funds, short.missing)] },
     });
     expect(built.fee).toBe(short.feeEstimate);
     await fundsShort({
@@ -603,7 +617,7 @@ describe("TxBuilder: what INSUFFICIENT_FUNDS reports", () => {
   it("names the payer when no UTxOs are given at all", async () => {
     const builder = new TxBuilder({ network, params });
     const error = await expectBuildError(
-      builder.build({ parts: [pay(5)], changeAddress: wallet, utxos: [] }),
+      builder.build([pay(5)], { payer: { changeAddress: wallet, utxos: [] } }),
       "INSUFFICIENT_FUNDS",
     );
     expect(error.details).toMatchObject({
@@ -657,10 +671,8 @@ describe("TxBuilder: what INSUFFICIENT_FUNDS reports", () => {
     expect(short.missing).toBe(100_000n);
     expect(short.required).toBe(ada(3) + 200_000n);
 
-    const built = await new TxBuilder({ network, params }).build({
-      parts: [pay(3)],
-      changeAddress: wallet,
-      utxos: [raised(funds, short.missing)],
+    const built = await new TxBuilder({ network, params }).build([pay(3)], {
+      payer: { changeAddress: wallet, utxos: [raised(funds, short.missing)] },
       fee: 200_000n,
     });
     expect(built.change).toEqual([]);
@@ -689,14 +701,14 @@ describe("TxBuilder: what INSUFFICIENT_FUNDS reports", () => {
       evaluator: fakeEvaluator(units).evaluator,
     });
     const funds = [utxo(lovelace(ada(3)))];
-    const passing = await builder.build({
-      parts: parts(units),
-      changeAddress: wallet,
-      utxos: funds,
+    const passing = await builder.build(parts(units), {
+      payer: { changeAddress: wallet, utxos: funds },
     });
 
     const error = await expectBuildError(
-      builder.build({ parts: parts(), changeAddress: wallet, utxos: funds }),
+      builder.build(parts(), {
+        payer: { changeAddress: wallet, utxos: funds },
+      }),
       "INSUFFICIENT_FUNDS",
     );
     const short = (error as TxBuildError<"INSUFFICIENT_FUNDS">).details;
@@ -731,10 +743,8 @@ describe("TxBuilder: deposits and refunds", () => {
     }),
     extra: { registeredPools?: string[] } = {},
   ) =>
-    builder.build({
-      parts,
-      changeAddress: wallet,
-      utxos: [utxo(lovelace(ada(5000)))],
+    builder.build(parts, {
+      payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(5000)))] },
       ...extra,
     });
 
@@ -855,38 +865,34 @@ describe("TxBuilder: resolution", () => {
       network,
       params,
       provider: fetcher,
-    }).build({
-      parts: [
+    }).build(
+      [
         spend.pubKey({ utxo: { txHash, outputIndex: 0 } }),
         spend.pubKey({ utxo: { txHash, outputIndex: 1 } }),
         spend.pubKey({ utxo: known.input }),
         output({ address: recipient, value: { lovelace: ada(8) } }),
       ],
-      changeAddress: wallet,
-      utxos: [known],
-    });
+      { payer: { changeAddress: wallet, utxos: [known] } },
+    );
     expect(calls).toEqual({ fetchUTxOs: 1 });
     expect(built.inputs).toHaveLength(3);
   });
 
   it("fetches the protocol parameters, and cost models only for Plutus scripts", async () => {
     const { fetcher, calls } = fakeFetcher([]);
-    await new TxBuilder({ network, provider: fetcher }).build({
-      parts: [output({ address: recipient, value: { lovelace: ada(2) } })],
-      changeAddress: wallet,
-      utxos: [utxo(lovelace(ada(10)))],
-    });
+    await new TxBuilder({ network, provider: fetcher }).build(
+      [output({ address: recipient, value: { lovelace: ada(2) } })],
+      { payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] } },
+    );
     expect(calls).toEqual({ fetchProtocolParameters: 1 });
   });
 
   it("needs a fetcher for outputs given by reference", async () => {
     await expectBuildError(
-      new TxBuilder({ network, params }).build({
-        parts: [
-          spend.pubKey({ utxo: { txHash: "ee".repeat(32), outputIndex: 0 } }),
-        ],
-        changeAddress: wallet,
-      }),
+      new TxBuilder({ network, params }).build(
+        [spend.pubKey({ utxo: { txHash: "ee".repeat(32), outputIndex: 0 } })],
+        { payer: { changeAddress: wallet, utxos: [] } },
+      ),
       "MISSING_FETCHER",
     );
   });
@@ -897,12 +903,10 @@ describe("TxBuilder: resolution", () => {
         network,
         params,
         provider: fakeFetcher([]).fetcher,
-      }).build({
-        parts: [
-          spend.pubKey({ utxo: { txHash: "ee".repeat(32), outputIndex: 3 } }),
-        ],
-        changeAddress: wallet,
-      }),
+      }).build(
+        [spend.pubKey({ utxo: { txHash: "ee".repeat(32), outputIndex: 3 } })],
+        { payer: { changeAddress: wallet, utxos: [] } },
+      ),
       "UTXO_NOT_FOUND",
     );
     expect(error.message).toContain(`${"ee".repeat(32)}#3`);
@@ -926,17 +930,16 @@ describe("TxBuilder: resolution", () => {
       params,
       provider: fakeFetcher([locked]).fetcher,
       evaluator: fakeEvaluator().evaluator,
-    }).build({
-      parts: [
+    }).build(
+      [
         spend.plutus({
           utxo: locked.input,
           script: plutusScript,
           redeemer: { data: mConStr0([]) },
         }),
       ],
-      changeAddress: wallet,
-      utxos: [utxo(lovelace(ada(10)))],
-    });
+      { payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] } },
+    );
     const part = built.parts.find(
       (p) => p.kind === "spend" && p.witness.type === "plutus",
     );
@@ -968,10 +971,8 @@ describe("TxBuilder: scripts", () => {
       costModels,
       params,
       evaluator,
-    }).build({
-      parts: [scriptSpend(2), scriptSpend(1)],
-      changeAddress: wallet,
-      utxos: [utxo(lovelace(ada(10)))],
+    }).build([scriptSpend(2), scriptSpend(1)], {
+      payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] },
     });
 
     // Placeholders, then the evaluated units, which the second evaluation confirms
@@ -999,19 +1000,16 @@ describe("TxBuilder: scripts", () => {
       costModels,
       params,
       evaluator,
-    }).build({
-      parts: [scriptSpend(1, { mem: 6000, steps: 8000 })],
-      changeAddress: wallet,
-      utxos: [utxo(lovelace(ada(10)))],
+    }).build([scriptSpend(1, { mem: 6000, steps: 8000 })], {
+      payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] },
     });
     expect(built.redeemers[0]!.exUnits).toEqual({ mem: 6000, steps: 8000 });
 
     const error = await expectBuildError(
-      new TxBuilder({ network, costModels, params, evaluator }).build({
-        parts: [scriptSpend(1, { mem: 4000, steps: 8000 })],
-        changeAddress: wallet,
-        utxos: [utxo(lovelace(ada(10)))],
-      }),
+      new TxBuilder({ network, costModels, params, evaluator }).build(
+        [scriptSpend(1, { mem: 4000, steps: 8000 })],
+        { payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] } },
+      ),
       "EXUNITS_TOO_LOW",
     );
     expect(error.label).toBe("spend 1");
@@ -1027,21 +1025,18 @@ describe("TxBuilder: scripts", () => {
       costModels,
       evaluator: null,
       params,
-    }).build({
-      parts: [scriptSpend(1, { mem: 6000, steps: 8000 })],
-      changeAddress: wallet,
-      utxos: [utxo(lovelace(ada(10)))],
+    }).build([scriptSpend(1, { mem: 6000, steps: 8000 })], {
+      payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] },
     });
     expect(built.redeemers[0]!.exUnits).toEqual({ mem: 6000, steps: 8000 });
   });
 
   it("needs an evaluator for redeemers without units", async () => {
     await expectBuildError(
-      new TxBuilder({ network, costModels, evaluator: null, params }).build({
-        parts: [scriptSpend(1)],
-        changeAddress: wallet,
-        utxos: [utxo(lovelace(ada(10)))],
-      }),
+      new TxBuilder({ network, costModels, evaluator: null, params }).build(
+        [scriptSpend(1)],
+        { payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] } },
+      ),
       "MISSING_EVALUATOR",
     );
   });
@@ -1077,11 +1072,12 @@ describe("TxBuilder: scripts", () => {
     ]);
     const error = evaluationError(
       await expectBuildError(
-        new TxBuilder({ network, costModels, params, evaluator }).build({
-          parts: [scriptSpend(1)],
-          changeAddress: wallet,
-          utxos: [utxo(lovelace(ada(10)))],
-        }),
+        new TxBuilder({ network, costModels, params, evaluator }).build(
+          [scriptSpend(1)],
+          {
+            payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] },
+          },
+        ),
         "EVALUATION_FAILED",
       ),
     );
@@ -1107,10 +1103,8 @@ describe("TxBuilder: scripts", () => {
           costModels,
           params,
           evaluator: two.evaluator,
-        }).build({
-          parts: [scriptSpend(1), scriptSpend(2)],
-          changeAddress: wallet,
-          utxos: [utxo(lovelace(ada(10)))],
+        }).build([scriptSpend(1), scriptSpend(2)], {
+          payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] },
         }),
         "EVALUATION_FAILED",
       ),
@@ -1143,8 +1137,8 @@ describe("TxBuilder: scripts", () => {
           params,
           evaluator: every.evaluator,
           deposits: { govActionDeposit: ada(10) },
-        }).build({
-          parts: [
+        }).build(
+          [
             scriptSpend(3),
             mint.plutus({
               script: plutusScript,
@@ -1177,9 +1171,10 @@ describe("TxBuilder: scripts", () => {
               label: "propose",
             }),
           ],
-          changeAddress: wallet,
-          utxos: [utxo(lovelace(ada(100)))],
-        }),
+          {
+            payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(100)))] },
+          },
+        ),
         "EVALUATION_FAILED",
       ),
     );
@@ -1197,10 +1192,8 @@ describe("TxBuilder: scripts", () => {
   it("makes up no failure the evaluator did not join to a redeemer", async () => {
     const build = (evaluator: IEvaluator) =>
       new TxBuilder({ network, costModels, params, evaluator })
-        .build({
-          parts: [scriptSpend(1)],
-          changeAddress: wallet,
-          utxos: [utxo(lovelace(ada(10)))],
+        .build([scriptSpend(1)], {
+          payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] },
         })
         .then(
           () => {
@@ -1250,11 +1243,10 @@ describe("TxBuilder: scripts", () => {
   it("reports scripts needing more than a transaction may use", async () => {
     const { evaluator } = fakeEvaluator({ mem: 9_000_000, steps: 1000 });
     const error = await expectBuildError(
-      new TxBuilder({ network, costModels, params, evaluator }).build({
-        parts: [scriptSpend(1), scriptSpend(2)],
-        changeAddress: wallet,
-        utxos: [utxo(lovelace(ada(100)))],
-      }),
+      new TxBuilder({ network, costModels, params, evaluator }).build(
+        [scriptSpend(1), scriptSpend(2)],
+        { payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(100)))] } },
+      ),
       "EXUNITS_EXCEEDED",
     );
     expect(error.details).toEqual({ mem: 18_000_000n, steps: 2000n });
@@ -1264,11 +1256,10 @@ describe("TxBuilder: scripts", () => {
     const { evaluator, calls } = fakeEvaluator();
     const stated = { mem: 9_000_000, steps: 1000 };
     const error = await expectBuildError(
-      new TxBuilder({ network, costModels, params, evaluator }).build({
-        parts: [scriptSpend(1, stated), scriptSpend(2, stated), scriptSpend(3)],
-        changeAddress: wallet,
-        utxos: [utxo(lovelace(ada(100)))],
-      }),
+      new TxBuilder({ network, costModels, params, evaluator }).build(
+        [scriptSpend(1, stated), scriptSpend(2, stated), scriptSpend(3)],
+        { payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(100)))] } },
+      ),
       "EXUNITS_EXCEEDED",
     );
     expect(error.message).toContain("the given execution units are more");
@@ -1287,8 +1278,8 @@ describe("TxBuilder: scripts", () => {
       params,
       evaluator,
       deposits: { govActionDeposit: ada(10) },
-    }).build({
-      parts: [
+    }).build(
+      [
         scriptSpend(3),
         mint.plutus({
           script: plutusScript,
@@ -1325,9 +1316,8 @@ describe("TxBuilder: scripts", () => {
           label: "propose",
         }),
       ],
-      changeAddress: wallet,
-      utxos: [utxo(lovelace(ada(100)))],
-    });
+      { payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(100)))] } },
+    );
     // The wallet input sorts before the script input
     expect(built.redeemers.map((r) => [r.tag, r.index, r.label])).toEqual([
       ["SPEND", 1, "spend 3"],
@@ -1346,15 +1336,14 @@ describe("TxBuilder: scripts", () => {
       costModels,
       params,
       evaluator: fakeEvaluator().evaluator,
-    }).build({
-      parts: [
+    }).build(
+      [
         scriptSpend(1),
         collateral({ utxo: held }),
         collateralReturn({ address: returnTo }),
       ],
-      changeAddress: wallet,
-      utxos: [utxo(lovelace(ada(10)))],
-    });
+      { payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] } },
+    );
     expect(built.collateral!.inputs).toEqual([held]);
     expect(built.prototype.body.collateral_return).toMatchObject({
       address: returnTo,
@@ -1369,10 +1358,8 @@ describe("TxBuilder: scripts", () => {
       costModels,
       params,
       evaluator: fakeEvaluator().evaluator,
-    }).build({
-      parts: [scriptSpend(1), collateral({ utxo: tight })],
-      changeAddress: wallet,
-      utxos: [utxo(lovelace(ada(10)))],
+    }).build([scriptSpend(1), collateral({ utxo: tight })], {
+      payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] },
     });
     expect(built.collateral).toEqual({ inputs: [tight], total: ada(1) });
     expect(built.prototype.body.total_collateral).toBe(String(ada(1)));
@@ -1387,10 +1374,11 @@ describe("TxBuilder: scripts", () => {
       costModels,
       params,
       evaluator: fakeEvaluator().evaluator,
-    }).build({
-      parts: [scriptSpend(1)],
-      changeAddress: wallet,
-      utxos: [utxo(lovelace(ada(10))), tight, roomy],
+    }).build([scriptSpend(1)], {
+      payer: {
+        changeAddress: wallet,
+        utxos: [utxo(lovelace(ada(10))), tight, roomy],
+      },
     });
     expect(built.collateral!.inputs).toEqual([roomy]);
     expect(built.collateral!.return).toBeDefined();
@@ -1405,10 +1393,8 @@ describe("TxBuilder: scripts", () => {
         costModels,
         params,
         evaluator: fakeEvaluator().evaluator,
-      }).build({
-        parts: [scriptSpend(1)],
-        changeAddress: wallet,
-        utxos: [],
+      }).build([scriptSpend(1)], {
+        payer: { changeAddress: wallet, utxos: [] },
       }),
       "INSUFFICIENT_COLLATERAL",
     );
@@ -1421,11 +1407,10 @@ describe("TxBuilder: scripts", () => {
         costModels,
         params,
         evaluator: fakeEvaluator().evaluator,
-      }).build({
-        parts: [scriptSpend(1), collateral({ utxo: utxo(lovelace(100_000n)) })],
-        changeAddress: wallet,
-        utxos: [utxo(lovelace(ada(10)))],
-      }),
+      }).build(
+        [scriptSpend(1), collateral({ utxo: utxo(lovelace(100_000n)) })],
+        { payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] } },
+      ),
       "INSUFFICIENT_COLLATERAL",
     );
     expect(detailsOf(small).available).toBe(100_000n);
@@ -1438,15 +1423,14 @@ describe("TxBuilder: scripts", () => {
         costModels,
         params,
         evaluator: fakeEvaluator().evaluator,
-      }).build({
-        parts: [
+      }).build(
+        [
           scriptSpend(1),
           collateral({ utxo: utxo(lovelace(ada(5))) }),
           collateralReturn({ address: wallet, totalCollateral: 1n }),
         ],
-        changeAddress: wallet,
-        utxos: [utxo(lovelace(ada(10)))],
-      }),
+        { payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] } },
+      ),
       "INSUFFICIENT_COLLATERAL",
     );
     const { required, available } = detailsOf(stated);
@@ -1480,11 +1464,7 @@ describe("TxBuilder: UTxOs left out of selection", () => {
       costModels,
       params,
       evaluator: fakeEvaluator().evaluator,
-    }).build({
-      parts,
-      changeAddress: wallet,
-      utxos,
-    });
+    }).build(parts, { payer: { changeAddress: wallet, utxos } });
 
   it("does not spend a UTxO a reference input reads", async () => {
     const plain = utxo(lovelace(ada(40)));
@@ -1600,10 +1580,8 @@ describe("TxBuilder: a given fee with scripts", () => {
       costModels,
       params,
       evaluator,
-    }).build({
-      parts: [scriptSpend(), pay(5)],
-      changeAddress: wallet,
-      utxos: [utxo(lovelace(ada(10)))],
+    }).build([scriptSpend(), pay(5)], {
+      payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] },
       fee: 1_000_000n,
     });
 
@@ -1624,10 +1602,8 @@ describe("TxBuilder: a given fee with scripts", () => {
         costModels,
         params,
         evaluator: fakeEvaluator().evaluator,
-      }).build({
-        parts: [scriptSpend(), pay(5)],
-        changeAddress: wallet,
-        utxos: [utxo(lovelace(ada(10)))],
+      }).build([scriptSpend(), pay(5)], {
+        payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] },
         fee: 100_000n,
       }),
       "FEE_TOO_LOW",
@@ -1644,10 +1620,8 @@ describe("TxBuilder: a given fee with scripts", () => {
       costModels,
       params,
       evaluator: fakeEvaluator().evaluator,
-    }).build({
-      parts: [scriptSpend(), pay(10)],
-      changeAddress: wallet,
-      utxos: [utxo(lovelace(ada(2)))],
+    }).build([scriptSpend(), pay(10)], {
+      payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(2)))] },
       fee: 300_000n,
     });
     expect(built.fee).toBe(300_000n);
@@ -1657,21 +1631,24 @@ describe("TxBuilder: a given fee with scripts", () => {
 
   it("judges the fee in the first round when every redeemer states its units", async () => {
     const units = { mem: 1000, steps: 2000 };
-    const request = {
-      parts: [scriptSpend(units), pay(5)],
-      changeAddress: wallet,
-      utxos: [utxo(lovelace(ada(10)))],
+    const parts = [scriptSpend(units), pay(5)];
+    const options = {
+      payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] },
       fee: 1000n,
     };
     await expectBuildError(
       new TxBuilder({ network, costModels, params, evaluator: null }).build(
-        request,
+        parts,
+        options,
       ),
       "FEE_TOO_LOW",
     );
     const { evaluator, calls } = fakeEvaluator();
     await expectBuildError(
-      new TxBuilder({ network, costModels, params, evaluator }).build(request),
+      new TxBuilder({ network, costModels, params, evaluator }).build(
+        parts,
+        options,
+      ),
       "FEE_TOO_LOW",
     );
     expect(calls).toEqual([]);
@@ -1683,14 +1660,13 @@ describe("TxBuilder: addresses in hex", () => {
     const stake = keyHashToRewardAddress(keyHashHex(5), 0);
     const hexOf = (address: string) =>
       Address.fromString(address)!.toBytes().toString();
-    const built = await new TxBuilder({ network, params }).build({
-      parts: [
+    const built = await new TxBuilder({ network, params }).build(
+      [
         output({ address: hexOf(recipient), value: { lovelace: ada(2) } }),
         withdrawal.pubKey({ rewardAddress: hexOf(stake), amount: 0n }),
       ],
-      changeAddress: wallet,
-      utxos: [utxo(lovelace(ada(10)))],
-    });
+      { payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] } },
+    );
     expect(built.prototype.body.outputs[0]!.address).toBe(recipient);
     expect(built.prototype.body.withdrawals).toEqual({ [stake]: "0" });
   });
@@ -1788,11 +1764,11 @@ describe("TxBuilder: reads", () => {
       label: "unlock",
     });
   const keySpend = () => spend.pubKey({ utxo: keyOutput.input });
-  const request = (parts: TxPart[], changeAddress = wallet) => ({
-    parts,
-    changeAddress,
-    utxos: [utxo(lovelace(ada(10)))],
-  });
+  const request = (parts: TxPart[], changeAddress = wallet) =>
+    [
+      parts,
+      { payer: { changeAddress, utxos: [utxo(lovelace(ada(10)))] } },
+    ] as const;
 
   it("goes through the shared cache, each value fetched once across builds", async () => {
     const provider = mockedFetcher([locked, holdingScript, keyOutput]);
@@ -1801,8 +1777,8 @@ describe("TxBuilder: reads", () => {
       provider: new CachedFetcher(provider.fetcher, { now: () => NOW }),
       evaluator: fakeEvaluator().evaluator,
     });
-    await builder.build(request([scriptSpend()]));
-    await builder.build(request([scriptSpend(), keySpend()]));
+    await builder.build(...request([scriptSpend()]));
+    await builder.build(...request([scriptSpend(), keySpend()]));
 
     expect(provider.fetchProtocolParameters).toHaveBeenCalledTimes(1);
     expect(provider.fetchCostModels).toHaveBeenCalledTimes(1);
@@ -1824,7 +1800,7 @@ describe("TxBuilder: reads", () => {
         }),
     );
     for (const builder of builders)
-      await builder.build(request([scriptSpend()]));
+      await builder.build(...request([scriptSpend()]));
     expect(provider.fetchUTxOs.mock.calls.map(([hash]) => hash).sort()).toEqual(
       [scriptHash, refHash].sort(),
     );
@@ -1834,7 +1810,7 @@ describe("TxBuilder: reads", () => {
     const other = mockedFetcher([keyOutput]);
     await CachedFetcher.wrap(other.fetcher).fetchUTxOs(otherHash);
     await new TxBuilder({ network, params, provider: other.fetcher }).build(
-      request([keySpend()]),
+      ...request([keySpend()]),
     );
     expect(other.fetchUTxOs).toHaveBeenCalledTimes(1);
   });
@@ -1845,8 +1821,12 @@ describe("TxBuilder: reads", () => {
     const cache = new CachedFetcher(provider.fetcher, { network: "testnet" });
     const builder = new TxBuilder({ network, provider: cache });
     expect(builder.provider).toBe(cache);
-    await builder.build(request([output({ address: recipient, value: {} })]));
-    await builder.build(request([output({ address: recipient, value: {} })]));
+    await builder.build(
+      ...request([output({ address: recipient, value: {} })]),
+    );
+    await builder.build(
+      ...request([output({ address: recipient, value: {} })]),
+    );
     expect(provider.fetchProtocolParameters).toHaveBeenCalledTimes(2);
   });
 
@@ -1859,15 +1839,15 @@ describe("TxBuilder: reads", () => {
     });
     provider.fetchUTxOs.mockRejectedValueOnce(new Error("offline"));
     await expectBuildError(
-      builder.build(request([keySpend()])),
+      builder.build(...request([keySpend()])),
       "UTXO_NOT_FOUND",
     );
     provider.fetchUTxOs.mockResolvedValueOnce([]);
     await expectBuildError(
-      builder.build(request([keySpend()])),
+      builder.build(...request([keySpend()])),
       "UTXO_NOT_FOUND",
     );
-    const built = await builder.build(request([keySpend()]));
+    const built = await builder.build(...request([keySpend()]));
     expect(built.inputs).toContainEqual(keyOutput);
     expect(provider.fetchUTxOs).toHaveBeenCalledTimes(3);
   });
@@ -1885,10 +1865,10 @@ describe("TxBuilder: reads", () => {
       });
       provider[method].mockRejectedValueOnce(new Error("down"));
       await expectBuildError(
-        builder.build(request([scriptSpend()])),
+        builder.build(...request([scriptSpend()])),
         "MISSING_PARAMETER",
       );
-      await builder.build(request([scriptSpend()]));
+      await builder.build(...request([scriptSpend()]));
       expect(provider[method]).toHaveBeenCalledTimes(2);
     }
   });
@@ -1901,7 +1881,7 @@ describe("TxBuilder: reads", () => {
     outputs.fetchUTxOs.mockRejectedValueOnce(down);
     const notFound = await expectBuildError(
       new TxBuilder({ network, params, provider: outputs.fetcher }).build(
-        request([keySpend()]),
+        ...request([keySpend()]),
       ),
       "UTXO_NOT_FOUND",
     );
@@ -1921,7 +1901,7 @@ describe("TxBuilder: reads", () => {
           network,
           provider: new CachedFetcher(provider.fetcher, { now: () => NOW }),
           evaluator: fakeEvaluator().evaluator,
-        }).build(request([scriptSpend()])),
+        }).build(...request([scriptSpend()])),
         "MISSING_PARAMETER",
       );
       expect(error.details).toEqual({ parameter });
@@ -1942,7 +1922,9 @@ describe("TxBuilder: reads", () => {
     rewards.fetchAccountInfo.mockRejectedValueOnce(down);
     const failed = await expectBuildError(
       new TxBuilder({ network, params, provider: rewards.fetcher }).build(
-        request([withdrawal.pubKey({ rewardAddress: stake, amount: "all" })]),
+        ...request([
+          withdrawal.pubKey({ rewardAddress: stake, amount: "all" }),
+        ]),
       ),
       "PROVIDER_FAILED",
     );
@@ -1959,7 +1941,7 @@ describe("TxBuilder: reads", () => {
       params,
       provider: provider.fetcher,
     }).build(
-      request([keySpend(), referenceInput({ utxo: holdingScript.input })]),
+      ...request([keySpend(), referenceInput({ utxo: holdingScript.input })]),
     );
 
     const cache = CachedFetcher.wrap(provider.fetcher);
@@ -1990,7 +1972,9 @@ describe("TxBuilder: reads", () => {
     });
     const withdraw = () =>
       builder.build(
-        request([withdrawal.pubKey({ rewardAddress: stake, amount: "all" })]),
+        ...request([
+          withdrawal.pubKey({ rewardAddress: stake, amount: "all" }),
+        ]),
       );
     const [first, second] = [await withdraw(), await withdraw()];
     expect(provider.fetchAccountInfo).toHaveBeenCalledTimes(1);
@@ -2010,7 +1994,7 @@ describe("TxBuilder: reads", () => {
         evaluator: fakeEvaluator().evaluator,
       });
       expect(cache.network).toBeUndefined();
-      await builder.build(request([scriptSpend()]));
+      await builder.build(...request([scriptSpend()]));
       await builder.chain();
       expect(cache.network).toBeUndefined();
       expect(clear).not.toHaveBeenCalled();
@@ -2046,11 +2030,8 @@ describe("TxBuilder: evaluator", () => {
       label: "unlock",
     });
   const funds = utxo(lovelace(ada(10)));
-  const request = (parts: TxPart[]) => ({
-    parts,
-    changeAddress: wallet,
-    utxos: [funds],
-  });
+  const request = (parts: TxPart[]) =>
+    [parts, { payer: { changeAddress: wallet, utxos: [funds] } }] as const;
   const scalusEvaluateTx = () =>
     jest.spyOn(OfflineEvaluatorScalus.prototype, "evaluateTx");
   /** What a preprod builder tells its evaluator */
@@ -2068,7 +2049,7 @@ describe("TxBuilder: evaluator", () => {
       network,
       provider: mockedFetcher([locked, holdingScript]).fetcher,
       evaluator,
-    }).build(request([scriptSpend()]));
+    }).build(...request([scriptSpend()]));
     expect(evaluateTx).toHaveBeenCalledTimes(2);
     for (const args of evaluateTx.mock.calls) {
       expect(args).toHaveLength(3);
@@ -2082,7 +2063,7 @@ describe("TxBuilder: evaluator", () => {
       network,
       provider: mockedFetcher([locked, holdingScript]).fetcher,
       evaluator: local.evaluator,
-    }).build(request([scriptSpend()]));
+    }).build(...request([scriptSpend()]));
     expect(local.evaluateTx.mock.calls.length).toBeGreaterThan(0);
     for (const [tx, utxos] of local.evaluateTx.mock.calls) {
       const refs = utxos!.map(
@@ -2104,7 +2085,7 @@ describe("TxBuilder: evaluator", () => {
       network,
       provider: mockedFetcher([locked, holdingScript]).fetcher,
       evaluator: remote.evaluator,
-    }).build(request([scriptSpend()]));
+    }).build(...request([scriptSpend()]));
     expect(remote.evaluateTx.mock.calls.length).toBeGreaterThan(0);
     for (const [, utxos] of remote.evaluateTx.mock.calls)
       expect(utxos).toEqual([]);
@@ -2120,7 +2101,7 @@ describe("TxBuilder: evaluator", () => {
       provider: mockedFetcher([locked, holdingScript], { costModels: fetched })
         .fetcher,
       evaluator,
-    }).build(request([scriptSpend()]));
+    }).build(...request([scriptSpend()]));
     expect(configure).toHaveBeenCalledTimes(evaluateTx.mock.calls.length);
     configure.mock.calls.forEach(([context], i) => {
       expect(context).toStrictEqual(contextOf(fetched));
@@ -2137,7 +2118,7 @@ describe("TxBuilder: evaluator", () => {
         .fetcher,
       costModels: given,
       evaluator: other.evaluator,
-    }).build(request([scriptSpend()]));
+    }).build(...request([scriptSpend()]));
     expect(other.configure.mock.calls.length).toBeGreaterThan(0);
     for (const [context] of other.configure.mock.calls)
       expect(context).toStrictEqual(contextOf(given));
@@ -2148,7 +2129,7 @@ describe("TxBuilder: evaluator", () => {
       network,
       provider: mockedFetcher([locked, holdingScript]).fetcher,
       evaluator: plain.evaluator,
-    }).build(request([scriptSpend()]));
+    }).build(...request([scriptSpend()]));
     expect(plain.evaluateTx).toHaveBeenCalled();
 
     // The builder's own evaluator is configured the same way
@@ -2165,7 +2146,7 @@ describe("TxBuilder: evaluator", () => {
         .fetcher,
     });
     expect(own.evaluator).toBeInstanceOf(OfflineEvaluatorScalus);
-    await own.build(request([scriptSpend()]));
+    await own.build(...request([scriptSpend()]));
     expect(ownEvaluateTx.mock.calls.length).toBeGreaterThan(0);
     expect(ownConfigure).toHaveBeenCalledTimes(ownEvaluateTx.mock.calls.length);
     ownConfigure.mock.calls.forEach(([context], i) => {
@@ -2211,11 +2192,11 @@ describe("TxBuilder: evaluator", () => {
       evaluator: null,
     });
     const built = await builder.build(
-      request([scriptSpend({ mem: 6000, steps: 8000 })]),
+      ...request([scriptSpend({ mem: 6000, steps: 8000 })]),
     );
     expect(built.redeemers[0]!.exUnits).toEqual({ mem: 6000, steps: 8000 });
     await expectBuildError(
-      builder.build(request([scriptSpend()])),
+      builder.build(...request([scriptSpend()])),
       "MISSING_EVALUATOR",
     );
     expect(evaluateTx).not.toHaveBeenCalled();
@@ -2229,7 +2210,7 @@ describe("TxBuilder: evaluator", () => {
     });
     expect(builder.evaluator).toBeInstanceOf(OfflineEvaluatorScalus);
     await builder.build(
-      request([output({ address: recipient, value: { lovelace: ada(2) } })]),
+      ...request([output({ address: recipient, value: { lovelace: ada(2) } })]),
     );
     expect(evaluateTx).not.toHaveBeenCalled();
   });
@@ -2237,17 +2218,16 @@ describe("TxBuilder: evaluator", () => {
 
 describe("TxBuilder: serialization", () => {
   it("serializes with a given serializer", async () => {
-    const request = {
-      parts: [output({ address: recipient, value: { lovelace: ada(2) } })],
-      changeAddress: wallet,
-      utxos: [utxo(lovelace(ada(10)))],
+    const parts = [output({ address: recipient, value: { lovelace: ada(2) } })];
+    const options = {
+      payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] },
     };
-    const cst = await new TxBuilder({ network, params }).build(request);
+    const cst = await new TxBuilder({ network, params }).build(parts, options);
     const csl = await new TxBuilder({
       network,
       params,
       serializer: new CSLSerializer(),
-    }).build(request);
+    }).build(parts, options);
     expect(csl.prototype).toEqual(cst.prototype);
     expect(csl.txHash).toBe(cst.txHash);
   });

@@ -38,6 +38,7 @@ import type {
   PlutusWitness,
   TxPart,
 } from "./parts/types";
+import type { Payer, PayerSnapshot, PayerSource } from "./payer";
 import type { GovernanceDeposits } from "./resolve";
 import { balance, totalExUnits } from "./balance";
 import { TxBuildError } from "./errors";
@@ -51,9 +52,9 @@ import {
   resolveNetwork,
   rewardAddressOn,
   scriptAddressOn,
-  utxoEntry,
 } from "./network";
 import { freeze } from "./parts/normalize";
+import { givenPayerEntries, readPayerSource, toPayerSource } from "./payer";
 import { resolveParts, utxoKey } from "./resolve";
 
 /**
@@ -121,31 +122,147 @@ export type TxBuilderOptions = {
   deposits?: GovernanceDeposits;
 };
 
-export type BuildTxRequest = {
-  /** The transaction's parts, from the part builders */
-  parts: readonly TxPart[];
-  /** Where change, and by default the collateral return, goes */
-  changeAddress: string;
+/** One entry of a parts list: a part, a nested list of parts, or a value that is skipped */
+export type PartEntry =
+  TxPart | false | null | undefined | readonly PartEntry[];
+
+/**
+ * Parts as `build` takes them: one part, or a list. Nested lists (fragments) are flattened and
+ * `false`, `null`, `undefined` dropped, keeping the order of outputs, certificates and proposals.
+ */
+export type PartsInput = TxPart | readonly PartEntry[];
+
+/** Per-build options */
+export type BuildOptions = {
+  /** Who pays and gets the change; a build without one is MISSING_PAYER */
+  payer?: Payer;
   /**
-   * UTxOs to pay for the transaction and put up collateral from, typically the wallet's. Parts
-   * may also reference them by out ref alone. Only key-locked ones are selected; those the parts
-   * read (reference inputs, reference scripts) are never selected, and one named by a collateral
-   * part is never selected as an input.
-   */
-  utxos?: readonly UTxO[];
-  /**
-   * A fee that goes into the body as given, instead of the minimum fee. FEE_TOO_LOW
-   * `{ fee, minFee }` when the minimum fee of the final transaction is higher; the build never
-   * raises it.
+   * A fee that goes into the body as given; FEE_TOO_LOW `{ fee, minFee }` when the final
+   * transaction's minimum fee is higher
    */
   fee?: bigint;
-  /**
-   * Operator key hashes of pools that are already registered, so that registering them again
-   * (updating them) takes no deposit
-   */
+  /** Operator key hashes of pools already registered (registering again is an update) */
   registeredPools?: readonly string[];
-  /** Key witnesses expected beyond those the parts call for, e.g. by a multi-signature wallet */
+  /** Key witnesses expected beyond those the parts call for */
   extraKeyWitnesses?: number;
+};
+
+/** Every part kind, once: the compiler checks the list against `TxPart` */
+const PART_KINDS: ReadonlySet<string> = new Set(
+  Object.keys({
+    spend: true,
+    referenceInput: true,
+    collateral: true,
+    collateralReturn: true,
+    output: true,
+    mint: true,
+    withdrawal: true,
+    requiredSigner: true,
+    validity: true,
+    metadata: true,
+    auxiliaryScript: true,
+    donation: true,
+    treasuryValue: true,
+    networkId: true,
+    certificate: true,
+    vote: true,
+    proposal: true,
+  } satisfies Record<TxPart["kind"], true>),
+);
+
+const isPart = (value: unknown): value is TxPart =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  PART_KINDS.has((value as { kind?: unknown }).kind as string);
+
+const PARTS_ALLOWED =
+  "a part, or a list of parts, nested lists, false, null and undefined";
+
+const invalidParts = (entry: unknown, reason: string) =>
+  new TxBuildError("INVALID_OPTION", `invalid parts: ${reason}`, {
+    details: { option: "parts", value: entry, allowed: PARTS_ALLOWED },
+  });
+
+/**
+ * The parts of a `PartsInput`, in order: nested lists flattened depth first, `false`, `null` and
+ * `undefined` dropped
+ * @throws TxBuildError INVALID_OPTION for an entry that is none of these
+ */
+export const flattenParts = (input: unknown): TxPart[] => {
+  if (!Array.isArray(input)) {
+    if (isPart(input)) return [input];
+    throw invalidParts(
+      input,
+      `expected ${PARTS_ALLOWED}; got ${describe(input)}`,
+    );
+  }
+  const parts: TxPart[] = [];
+  const open = new Set<unknown>();
+  const visit = (entry: unknown) => {
+    if (entry === false || entry === null || entry === undefined) return;
+    if (Array.isArray(entry)) {
+      if (open.has(entry)) throw invalidParts(entry, "a list holds itself");
+      open.add(entry);
+      for (const nested of entry) visit(nested);
+      open.delete(entry);
+      return;
+    }
+    if (!isPart(entry))
+      throw invalidParts(
+        entry,
+        `an entry is neither a part nor a list: ${describe(entry)}; give parts made by the part builders`,
+      );
+    parts.push(entry);
+  };
+  visit(input);
+  return parts;
+};
+
+const describe = (value: unknown): string => {
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "bigint") return `${value}n`;
+  if (typeof value === "object" && value !== null)
+    return Array.isArray(value) ? "a list" : "an object";
+  return String(value);
+};
+
+const invalidOption = (option: string, value: unknown, allowed: string) =>
+  new TxBuildError(
+    "INVALID_OPTION",
+    `invalid ${option}: expected ${allowed}; got ${describe(value)}`,
+    { details: { option, value, allowed } },
+  );
+
+/**
+ * Checks the type of every option of a build but `payer`
+ * @throws TxBuildError INVALID_OPTION naming the first option that is not of its type
+ */
+const checkBuildOptions = (options: BuildOptions) => {
+  const { fee, registeredPools, extraKeyWitnesses } = options;
+  if (fee !== undefined && !(typeof fee === "bigint" && fee >= 0n))
+    throw invalidOption("fee", fee, "a bigint of lovelace, 0 or more");
+  if (
+    registeredPools !== undefined &&
+    !(
+      Array.isArray(registeredPools) &&
+      registeredPools.every((pool) => typeof pool === "string")
+    )
+  )
+    throw invalidOption(
+      "registeredPools",
+      registeredPools,
+      "a list of pool operator key hashes, as strings",
+    );
+  if (
+    extraKeyWitnesses !== undefined &&
+    !(Number.isInteger(extraKeyWitnesses) && extraKeyWitnesses >= 0)
+  )
+    throw invalidOption(
+      "extraKeyWitnesses",
+      extraKeyWitnesses,
+      "a whole number, 0 or more",
+    );
 };
 
 export type BuiltRedeemer = {
@@ -284,11 +401,10 @@ const maxUnits = (
  *
  * ```ts
  * const builder = new TxBuilder({ network: "preprod", provider });
- * const { tx, fee } = await builder.build({
- *   parts: [output({ address, value: { lovelace: 5_000_000n } })],
- *   changeAddress: walletAddress,
- *   utxos: walletUtxos,
- * });
+ * const { tx, fee } = await builder.build(
+ *   output({ address, value: { lovelace: 5_000_000n } }),
+ *   { payer: wallet },
+ * );
  * ```
  */
 export class TxBuilder {
@@ -465,16 +581,25 @@ export class TxBuilder {
   }
 
   /**
-   * Builds a balanced, unsigned transaction from parts.
+   * Builds a balanced, unsigned transaction.
    *
-   * 1. Checks that every address it is given is of the builder's network. Looks up, all at once
-   *    and once each, the outputs the parts reference, the reward balances they withdraw in full,
-   *    the protocol parameters and (when Plutus scripts run) the cost models, through the
-   *    provider's shared cache, which answers from what it holds; the outputs looked up are
-   *    checked for their network too.
+   * Before anything is selected the builder reads the payer once (a wallet's change address,
+   * UTxOs and network id, concurrently) and checks the network of every address it is given or
+   * finds.
+   *
+   * With a payer given as a snapshot, explicit `params` and `costModels`, and a local evaluator,
+   * the build does no I/O but the lookups its parts ask for, and the same arguments give the
+   * same bytes and `txHash`.
+   *
+   * 1. Checks that every address it is given is of the builder's network. Reads the payer and
+   *    looks up, all at once and once each, the outputs the parts reference, the reward balances
+   *    they withdraw in full, the protocol parameters and (when Plutus scripts run) the cost
+   *    models. Lookups go through the provider's shared cache, which answers from what it holds;
+   *    the payer's UTxOs are always read past it. What is read and looked up is checked for its
+   *    network too.
    * 2. Fills in what the parts leave open: reference scripts, datums, deposits, output lovelace.
-   * 3. Balances: selects inputs from `utxos`, returns change, puts up collateral with a
-   *    collateral return, and settles the fee.
+   * 3. Balances: selects inputs from the payer's UTxOs, returns change to its change address,
+   *    puts up collateral with a collateral return, and settles the fee.
    * 4. Evaluates the scripts with the builder's evaluator, configured with its network, slot
    *    clock and the cost models of step 1, and balances again with their execution units,
    *    until they settle. A local evaluator gets every UTxO the build knows for the
@@ -485,45 +610,57 @@ export class TxBuilder {
    * Redeemer indices follow from where each item ends up in the ledger's order, assigned once
    * by `assembleTxPrototype`; evaluation results are matched back to their parts through them.
    *
-   * @throws TxBuildError when the transaction cannot be built (NETWORK_MISMATCH for an address
-   *   of another network, before anything is selected); TxPartError when what is looked
-   *   up does not fit a part (e.g. a reference output holding a different script)
+   * @throws TxBuildError with a `code`; TxPartError when what is looked up does not fit a part
+   *   (e.g. a reference output holding a different script)
    */
-  async build(request: BuildTxRequest): Promise<BuiltTx> {
-    // What the build is given is checked before any request; what is looked up, once found
+  async build(parts: PartsInput, options?: BuildOptions): Promise<BuiltTx> {
+    // Nothing can be read without a payer: that comes first, then the options' types, then the
+    // network of what the build is given, all before any request
+    const source = toPayerSource(options?.payer);
+    const flat = flattenParts(parts);
+    checkBuildOptions(options ?? {});
+    // What is read and looked up is checked once found
     checkNetworks(this.network, [
-      { role: "payer", address: request.changeAddress },
-      ...(request.utxos ?? []).map((utxo) => utxoEntry(utxo)),
-      ...request.parts.flatMap(partEntries),
+      ...givenPayerEntries(source),
+      ...flat.flatMap(partEntries),
     ]);
+    const { fee, registeredPools, extraKeyWitnesses } = options ?? {};
     const known = new Map<string, UTxO>();
-    for (const utxo of request.utxos ?? []) known.set(utxoKey(utxo), utxo);
-    const plutus = request.parts.some(runsPlutus);
+    // A snapshot's UTxOs are known before the lookups start, so a part may name one by out ref
+    if (source.form === "snapshot")
+      for (const utxo of source.snapshot.utxos) known.set(utxoKey(utxo), utxo);
+    const plutus = flat.some(runsPlutus);
 
-    const [params, costModels] = await Promise.all([
-      this.loadParams(),
+    // Every read starts at once, and none waits for another
+    const paramsRead = this.loadParams();
+    const [params, costModels, payer, resolved] = await Promise.all([
+      paramsRead,
       plutus
         ? this.loadCostModels().then((models) => models ?? [])
         : Promise.resolve([]),
+      this.readSource(source),
+      resolveParts(flat, {
+        network: this.network,
+        ...(this.cache && { provider: this.cache }),
+        params: paramsRead,
+        deposits: this.deposits,
+        known,
+      }),
     ]);
-    const resolved = await resolveParts(request.parts, {
-      network: this.network,
-      ...(this.cache && { provider: this.cache }),
-      params,
-      deposits: this.deposits,
-      known,
-    });
-    const parts = resolved.map((part) =>
+    // The copy a part was checked against stays the one the build knows
+    for (const utxo of payer.utxos)
+      if (!known.has(utxoKey(utxo))) known.set(utxoKey(utxo), utxo);
+    const filled = resolved.map((part) =>
       part.kind === "output" ? withMinCoin(part, params) : part,
     );
 
     // Execution units: as given, or placeholders until evaluation fills them in
-    const redeemerParts = parts.flatMap((part, i) =>
+    const redeemerParts = filled.flatMap((part, i) =>
       runsPlutus(part) ? [i] : [],
     );
     const given = new Map<number, ExUnitsPrototype>();
     for (const i of redeemerParts) {
-      const { witness } = parts[i] as { witness: PlutusWitness };
+      const { witness } = filled[i] as { witness: PlutusWitness };
       if (witness.redeemer.exUnits) given.set(i, witness.redeemer.exUnits);
     }
     const open = redeemerParts.filter((i) => !given.has(i));
@@ -540,17 +677,17 @@ export class TxBuilder {
     const context = {
       params,
       costModels,
-      changeAddress: request.changeAddress,
-      utxos: request.utxos ?? [],
+      changeAddress: payer.changeAddress,
+      utxos: payer.utxos,
       known,
-      ...(request.fee !== undefined && { fee: request.fee }),
-      registeredPools: new Set(request.registeredPools ?? []),
-      extraKeyWitnesses: request.extraKeyWitnesses ?? 0,
+      ...(fee !== undefined && { fee }),
+      registeredPools: new Set(registeredPools ?? []),
+      extraKeyWitnesses: extraKeyWitnesses ?? 0,
       serialize: (prototype: TransactionPrototype) => this.serialize(prototype),
     };
 
     for (let round = 0; round < MAX_EVALUATION_ROUNDS; round++) {
-      const roundParts = parts.map((part, i) => {
+      const roundParts = filled.map((part, i) => {
         const exUnits = units.get(i);
         return exUnits ? withExUnits(part, exUnits) : part;
       });
@@ -610,6 +747,28 @@ export class TxBuilder {
       "EVALUATION_NOT_CONVERGED",
       `execution units did not settle within ${MAX_EVALUATION_ROUNDS} evaluation rounds`,
     );
+  }
+
+  /**
+   * Reads a payer once, checking its network, and returns it as data: a wallet, an address (its
+   * UTxOs through the provider), or a snapshot, which is converted without any request. For many
+   * builds on one read.
+   * @throws TxBuildError NETWORK_MISMATCH, MISSING_PAYER, INVALID_OPTION, WALLET_FAILED,
+   *   PROVIDER_FAILED; MISSING_FETCHER when the UTxOs have to be read through a provider and
+   *   there is none
+   */
+  async readPayer(payer: Payer): Promise<PayerSnapshot> {
+    const source = toPayerSource(payer);
+    checkNetworks(this.network, givenPayerEntries(source));
+    return this.readSource(source);
+  }
+
+  /** Reads a payer whose given data was checked; its UTxOs from the provider past the cache */
+  private readSource(source: PayerSource): Promise<PayerSnapshot> {
+    return readPayerSource(source, {
+      network: this.network,
+      ...(this.cache && { provider: this.cache.fetcher }),
+    });
   }
 
   /** The `params` option, else the provider's parameters */

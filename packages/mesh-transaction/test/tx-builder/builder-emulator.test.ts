@@ -129,17 +129,16 @@ describe("TxBuilder on the emulator", () => {
   });
 
   it("sends lovelace, returning change", async () => {
-    const built = await builder.build({
-      parts: [
+    const built = await builder.build(
+      [
         output({
           address: scriptAddress,
           value: { lovelace: 5_000_000n },
           label: "pay",
         }),
       ],
-      changeAddress: address,
-      utxos: await utxos(),
-    });
+      { payer: { changeAddress: address, utxos: await utxos() } },
+    );
 
     expect(built.selectedInputs).toHaveLength(1);
     expect(built.change).toHaveLength(1);
@@ -151,21 +150,19 @@ describe("TxBuilder on the emulator", () => {
     const keyHash = deserializeAddress(address).pubKeyHash;
     const policy: NativeScript = { type: "sig", keyHash };
     const unit = `${resolveNativeScriptHash(policy)}0001`;
-    const minted = await builder.build({
-      parts: [
+    const minted = await builder.build(
+      [
         mint.native({ script: policy, assets: { "0001": 1000n } }),
         output({ address, value: { [unit]: 1000n } }),
       ],
-      changeAddress: address,
-      utxos: await utxos(),
-    });
+      { payer: { changeAddress: address, utxos: await utxos() } },
+    );
     await submit(minted);
 
-    const sent = await builder.build({
-      parts: [output({ address: scriptAddress, value: { [unit]: 10n } })],
-      changeAddress: address,
-      utxos: await utxos(),
-    });
+    const sent = await builder.build(
+      [output({ address: scriptAddress, value: { [unit]: 10n } })],
+      { payer: { changeAddress: address, utxos: await utxos() } },
+    );
     // The tokens left over come back as change
     expect(sent.change.map((o) => o.amount.multiasset)).toContainEqual({
       [unit.slice(0, 56)]: { "0001": "990" },
@@ -174,8 +171,8 @@ describe("TxBuilder on the emulator", () => {
   });
 
   it("spends from a script by out ref alone, with a reference script and a collateral return", async () => {
-    const setup = await builder.build({
-      parts: [
+    const setup = await builder.build(
+      [
         output({
           address: scriptAddress,
           value: { lovelace: 10_000_000n },
@@ -187,13 +184,12 @@ describe("TxBuilder on the emulator", () => {
           scriptRef: plutusScript,
         }),
       ],
-      changeAddress: address,
-      utxos: await utxos(),
-    });
+      { payer: { changeAddress: address, utxos: await utxos() } },
+    );
     const setupHash = await submit(setup);
 
-    const built = await builder.build({
-      parts: [
+    const built = await builder.build(
+      [
         spend.plutus({
           utxo: { txHash: setupHash, outputIndex: 0 },
           script: { reference: { txHash: setupHash, outputIndex: 1 } },
@@ -201,9 +197,8 @@ describe("TxBuilder on the emulator", () => {
           label: "unlock",
         }),
       ],
-      changeAddress: address,
-      utxos: await utxos(),
-    });
+      { payer: { changeAddress: address, utxos: await utxos() } },
+    );
 
     expect(built.redeemers).toEqual([
       expect.objectContaining({ tag: "SPEND", label: "unlock" }),
@@ -224,30 +219,28 @@ describe("TxBuilder on the emulator", () => {
     const units = policies.map(
       ({ script }) => `${resolveScriptHash(script.code, "V3")}01`,
     );
-    const minted = await builder.build({
-      parts: policies.map(({ script, n }) =>
+    const minted = await builder.build(
+      policies.map(({ script, n }) =>
         mint.plutus({
           script,
           redeemer: { data: n },
           assets: { "01": 5n },
         }),
       ),
-      changeAddress: address,
-      utxos: await utxos(),
-    });
+      { payer: { changeAddress: address, utxos: await utxos() } },
+    );
     await submit(minted);
 
-    const burnt = await builder.build({
-      parts: policies.map(({ script, n }) =>
+    const burnt = await builder.build(
+      policies.map(({ script, n }) =>
         mint.plutus({
           script,
           redeemer: { data: n },
           assets: { "01": -5n },
         }),
       ),
-      changeAddress: address,
-      utxos: await utxos(),
-    });
+      { payer: { changeAddress: address, utxos: await utxos() } },
+    );
     expect(
       burnt.change.some((o) =>
         units.some((u) => o.amount.multiasset?.[u.slice(0, 56)]),
@@ -257,8 +250,8 @@ describe("TxBuilder on the emulator", () => {
   });
 
   it("registers stake credentials, withdraws from script and key accounts in one transaction, and deregisters", async () => {
-    const register = await builder.build({
-      parts: [
+    const register = await builder.build(
+      [
         certificate.stakeRegistration({ stake: stakeAddress }),
         // Key accounts withdraw only once delegated to a DRep
         certificate.voteDelegation({
@@ -270,14 +263,13 @@ describe("TxBuilder on the emulator", () => {
           witness: plutusWitness,
         }),
       ],
-      changeAddress: address,
-      utxos: await utxos(),
-    });
+      { payer: { changeAddress: address, utxos: await utxos() } },
+    );
     await submit(register, ["payment", "stake"]);
 
     // Script accounts come before key accounts in the ledger's order, whatever the hashes
-    const withdraw = await builder.build({
-      parts: [
+    const withdraw = await builder.build(
+      [
         withdrawal.pubKey({ rewardAddress: stakeAddress, amount: 0n }),
         withdrawal.plutus({
           rewardAddress: scriptRewardAddress,
@@ -287,9 +279,8 @@ describe("TxBuilder on the emulator", () => {
           label: "script",
         }),
       ],
-      changeAddress: address,
-      utxos: await utxos(),
-    });
+      { payer: { changeAddress: address, utxos: await utxos() } },
+    );
     expect(Object.keys(withdraw.prototype.body.withdrawals!)).toEqual([
       scriptRewardAddress,
       stakeAddress,
@@ -300,17 +291,16 @@ describe("TxBuilder on the emulator", () => {
     await submit(withdraw, ["payment", "stake"]);
 
     const before = await utxos();
-    const deregister = await builder.build({
-      parts: [
+    const deregister = await builder.build(
+      [
         certificate.stakeDeregistration({ stake: stakeAddress }),
         certificate.stakeDeregistration({
           stake: scriptRewardAddress,
           witness: plutusWitness,
         }),
       ],
-      changeAddress: address,
-      utxos: before,
-    });
+      { payer: { changeAddress: address, utxos: before } },
+    );
     // Both deposits come back with the change
     const spent = deregister.inputs.reduce(
       (sum, u) => sum + BigInt(u.output.amount[0]!.quantity),
@@ -339,47 +329,43 @@ describe("TxBuilder on the emulator", () => {
       return submitSigned(built, tx);
     };
 
-    const register = await builder.build({
-      parts: [
+    const register = await builder.build(
+      [
         certificate.stakeRegistration({ stake: stakeAddress }),
         certificate.voteDelegation({
           stake: stakeAddress,
           drep: "alwaysAbstain",
         }),
       ],
-      changeAddress: address,
-      utxos: await utxos(),
-    });
+      { payer: { changeAddress: address, utxos: await utxos() } },
+    );
     await signOnce(register);
 
-    const withdraw = await builder.build({
-      parts: [withdrawal.pubKey({ rewardAddress: stakeAddress, amount: 0n })],
-      changeAddress: address,
-      utxos: await utxos(),
-    });
+    const withdraw = await builder.build(
+      [withdrawal.pubKey({ rewardAddress: stakeAddress, amount: 0n })],
+      { payer: { changeAddress: address, utxos: await utxos() } },
+    );
     await signOnce(withdraw);
 
-    const deregister = await builder.build({
-      parts: [certificate.stakeDeregistration({ stake: stakeAddress })],
-      changeAddress: address,
-      utxos: await utxos(),
-    });
+    const deregister = await builder.build(
+      [certificate.stakeDeregistration({ stake: stakeAddress })],
+      { payer: { changeAddress: address, utxos: await utxos() } },
+    );
     await signOnce(deregister);
   });
 
   it("rejects a stake registration signed with the payment key alone", async () => {
     const { pubKeyHash } = deserializeAddress(address);
-    const register = await builder.build({
-      parts: [
+    const register = await builder.build(
+      [
         certificate.stakeRegistration({ stake: stakeAddress }),
         certificate.voteDelegation({
           stake: stakeAddress,
           drep: "alwaysAbstain",
         }),
       ],
-      changeAddress: address,
-      utxos: await utxos(),
-    });
+      { payer: { changeAddress: address, utxos: await utxos() } },
+    );
     const witnessSet = await wallets.payment.signTxWitnesses(register.tx, [
       pubKeyHash,
     ]);
@@ -390,8 +376,8 @@ describe("TxBuilder on the emulator", () => {
   it("registers DReps, proposes, and votes as script and key DReps in one transaction", async () => {
     const drep = (await wallets.payment.getDRep())!;
     const scriptDRep = { type: "SCRIPT" as const, value: alwaysSucceedHash };
-    const register = await builder.build({
-      parts: [
+    const register = await builder.build(
+      [
         // A proposal's deposit returns to a registered stake address
         certificate.stakeRegistration({ stake: stakeAddress }),
         certificate.drepRegistration({ drep: drep.dRepIDCip105 }),
@@ -401,9 +387,8 @@ describe("TxBuilder on the emulator", () => {
         }),
         proposal.info({ rewardAccount: stakeAddress, anchor }),
       ],
-      changeAddress: address,
-      utxos: await utxos(),
-    });
+      { payer: { changeAddress: address, utxos: await utxos() } },
+    );
     expect(register.prototype.body.voting_proposals![0]!.deposit).toBe(
       "1000000000",
     );
@@ -412,8 +397,8 @@ describe("TxBuilder on the emulator", () => {
     const votes = [
       { action: { txHash: registerHash, index: 0 }, vote: "yes" as const },
     ];
-    const voted = await builder.build({
-      parts: [
+    const voted = await builder.build(
+      [
         vote({ voter: { drep: drep.dRepIDCip105 }, votes }),
         vote({
           voter: { drep: scriptDRep },
@@ -422,9 +407,8 @@ describe("TxBuilder on the emulator", () => {
           label: "script DRep",
         }),
       ],
-      changeAddress: address,
-      utxos: await utxos(),
-    });
+      { payer: { changeAddress: address, utxos: await utxos() } },
+    );
     expect(voted.redeemers).toEqual([
       expect.objectContaining({ tag: "VOTE", index: 0, label: "script DRep" }),
     ]);
@@ -432,10 +416,8 @@ describe("TxBuilder on the emulator", () => {
   });
 
   it("donates to the treasury", async () => {
-    const built = await builder.build({
-      parts: [donation({ amount: 1_000_000n })],
-      changeAddress: address,
-      utxos: await utxos(),
+    const built = await builder.build([donation({ amount: 1_000_000n })], {
+      payer: { changeAddress: address, utxos: await utxos() },
     });
     expect(built.prototype.body.donation).toBe("1000000");
     await submit(built);

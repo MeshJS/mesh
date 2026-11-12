@@ -67,53 +67,63 @@ describe("TxBuilder's network and chain on the emulator", () => {
     const fromSnapshot = new TxBuilder({ ...snapshot, evaluator: null });
     expect(fromSnapshot.provider).toBeUndefined();
 
-    const request = {
-      parts: [
-        spend.plutus({
-          utxo: locked,
-          script: plutusScript,
-          redeemer: { data: mConStr0([]), exUnits: units },
-        }),
-      ],
-      changeAddress: address,
-      utxos: await provider.fetchAddressUTxOs(address),
+    const parts = [
+      spend.plutus({
+        utxo: locked,
+        script: plutusScript,
+        redeemer: { data: mConStr0([]), exUnits: units },
+      }),
+    ];
+    const options = {
+      payer: {
+        changeAddress: address,
+        utxos: await provider.fetchAddressUTxOs(address),
+      },
     };
-    const built = await fromSnapshot.build(request);
-    expect(built.tx).toBe((await live.build(request)).tx);
+    const built = await fromSnapshot.build(parts, options);
+    expect(built.tx).toBe((await live.build(parts, options)).tx);
     await submit(built);
   });
 
   it("unlocks what it locks at the script address it gives", async () => {
     const builder = new TxBuilder({ network: "preview", provider });
     const scriptAddress = builder.scriptAddress(blueprintScript);
-    const lock = await builder.build({
-      parts: [
+    const lock = await builder.build(
+      [
         output({
           address: scriptAddress,
           value: { lovelace: 15_000_000n },
           datum: { type: "inline", data: mConStr0([]) },
         }),
       ],
-      changeAddress: address,
-      utxos: await provider.fetchAddressUTxOs(address),
-    });
+      {
+        payer: {
+          changeAddress: address,
+          utxos: await provider.fetchAddressUTxOs(address),
+        },
+      },
+    );
     await submit(lock);
 
     const [lockedHere] = (await provider.fetchUTxOs(lock.txHash)).filter(
       (utxo) => utxo.output.address === scriptAddress,
     );
     expect(lockedHere).toBeDefined();
-    const unlock = await builder.build({
-      parts: [
+    const unlock = await builder.build(
+      [
         spend.plutus({
           utxo: lockedHere!,
           script: blueprintScript,
           redeemer: { data: mConStr0([]) },
         }),
       ],
-      changeAddress: address,
-      utxos: await provider.fetchAddressUTxOs(address),
-    });
+      {
+        payer: {
+          changeAddress: address,
+          utxos: await provider.fetchAddressUTxOs(address),
+        },
+      },
+    );
     await submit(unlock);
   });
 });

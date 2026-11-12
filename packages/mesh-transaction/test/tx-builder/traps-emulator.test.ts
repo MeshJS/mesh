@@ -64,12 +64,16 @@ describe("TxBuilder's input traps on the emulator", () => {
     parts: TxPart[],
     fee?: bigint,
   ) =>
-    new TxBuilder({ network, provider: emulator, evaluator: emulator }).build({
+    new TxBuilder({ network, provider: emulator, evaluator: emulator }).build(
       parts,
-      changeAddress: address,
-      utxos: await emulator.fetchAddressUTxOs(address),
-      ...(fee !== undefined && { fee }),
-    });
+      {
+        payer: {
+          changeAddress: address,
+          utxos: await emulator.fetchAddressUTxOs(address),
+        },
+        ...(fee !== undefined && { fee }),
+      },
+    );
   // The ledger accepts the signed transaction under the hash the builder gave it
   const submit = async (emulator: ScalusEmulator, built: BuiltTx) =>
     expect(await emulator.submitTx(await wallet.signTx(built.tx))).toBe(

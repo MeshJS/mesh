@@ -72,7 +72,9 @@ describe("TxBuilder's evaluators on the emulator", () => {
       label: "fails",
     });
   const build = (builder: TxBuilder, parts: TxPart[]) =>
-    builder.build({ parts, changeAddress: address, utxos: walletUtxos });
+    builder.build(parts, {
+      payer: { changeAddress: address, utxos: walletUtxos },
+    });
 
   beforeEach(async () => {
     wallet = new MeshWallet({

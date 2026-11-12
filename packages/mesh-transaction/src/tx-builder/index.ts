@@ -29,9 +29,20 @@ export {
   type TxBuilderOptions,
   type Provider,
   type ChainSnapshot,
-  type BuildTxRequest,
+  type BuildOptions,
+  type PartEntry,
+  type PartsInput,
   type BuiltTx,
   type BuiltRedeemer,
 } from "./builder";
+export {
+  canSubmit,
+  type MeshFormatWallet,
+  type Payer,
+  type PayerSnapshot,
+  type PayerSnapshotInput,
+  type RequiredKeys,
+  type TxWallet,
+} from "./payer";
 export type { CollateralPlan } from "./balance";
 export type { GovernanceDeposits } from "./resolve";

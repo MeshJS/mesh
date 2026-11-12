@@ -84,7 +84,10 @@ const inputsOf = (part: TxPart): TransactionInputPrototype[] => {
  * Looks up every output the parts read and the builder does not know yet: once per transaction
  * hash, all hashes at once.
  */
-const fetchMissing = async (parts: readonly TxPart[], ctx: ResolveContext) => {
+const fetchMissing = async (
+  parts: readonly TxPart[],
+  ctx: Pick<ResolveContext, "known" | "provider">,
+) => {
   const missing = new Map<string, TransactionInputPrototype[]>();
   for (const part of parts) {
     for (const input of inputsOf(part)) {
@@ -259,7 +262,7 @@ const resolveProposal = (
 /** The reward balances of the stake addresses whose whole balance is withdrawn */
 const fetchRewardBalances = async (
   parts: readonly TxPart[],
-  ctx: ResolveContext,
+  ctx: Pick<ResolveContext, "provider">,
 ): Promise<Map<string, string>> => {
   const addresses = new Set<string>();
   for (const part of parts)
@@ -316,15 +319,20 @@ const fetchedEntries = (parts: readonly TxPart[], ctx: ResolveContext) =>
  */
 export const resolveParts = async (
   parts: readonly TxPart[],
-  ctx: ResolveContext,
+  context: Omit<ResolveContext, "params"> & {
+    /** The parameters, or their read: the lookups do not wait for it */
+    params: Protocol | Promise<Protocol>;
+  },
 ): Promise<TxPart[]> => {
   for (const part of parts)
     if ("utxo" in part && part.utxo)
-      ctx.known.set(utxoKey(part.utxo), part.utxo);
-  const [, balances] = await Promise.all([
-    fetchMissing(parts, ctx),
-    fetchRewardBalances(parts, ctx),
+      context.known.set(utxoKey(part.utxo), part.utxo);
+  const [, balances, params] = await Promise.all([
+    fetchMissing(parts, context),
+    fetchRewardBalances(parts, context),
+    context.params,
   ]);
+  const ctx: ResolveContext = { ...context, params };
   checkNetworks(ctx.network, fetchedEntries(parts, ctx));
 
   return parts.map((part): TxPart => {

@@ -177,13 +177,10 @@ const offline = (options: object = {}) =>
 const buildWith = (
   builder: TxBuilder,
   parts: TxPart[],
-  request: { changeAddress?: string; utxos?: UTxO[] } = {},
+  payer: { changeAddress?: string; utxos?: UTxO[] } = {},
 ) =>
-  builder.build({
-    parts,
-    changeAddress: wallet,
-    utxos: [utxo()],
-    ...request,
+  builder.build(parts, {
+    payer: { changeAddress: wallet, utxos: [utxo()], ...payer },
   });
 
 describe("TxBuilder: construction", () => {
@@ -688,13 +685,19 @@ describe("TxBuilder: network checks", () => {
     expect(calls).toEqual([]);
   });
 
-  it("passes over a change address that is not an address", async () => {
-    const error = await mismatch([pay(onMainnet(recipient))], {
-      changeAddress: "not an address",
+  it("refuses a change address that is not an address before the network check", async () => {
+    const error = expectCode(
+      await caught(() =>
+        buildWith(offline(), [pay(onMainnet(recipient))], {
+          changeAddress: "not an address",
+        }),
+      ),
+      "INVALID_OPTION",
+    );
+    expect(error.details).toMatchObject({
+      option: "payer",
+      value: "not an address",
     });
-    expect(error.details.found).toEqual([
-      found("output", onMainnet(recipient), "output"),
-    ]);
   });
 
   it("compares only network ids", async () => {
