@@ -418,8 +418,9 @@ describe("MeshTxBuilder transactions", () => {
   });
 
   it("Build tx to register script stake should succeed", async () => {
-    const { wallet, address, provider, params, utxos } =
-      await createTestSetup({ includeCollateral: true });
+    const { wallet, address, provider, params, utxos } = await createTestSetup({
+      includeCollateral: true,
+    });
     const collateralHash = "1".repeat(64);
 
     const txHex = await new MeshTxBuilder({
@@ -464,9 +465,9 @@ describe("MeshTxBuilder transactions", () => {
       .registerStakeCertificate(serializeRewardAddress(alwaysSucceedHash, true))
       .complete();
 
-    await expect(
-      provider.submitTx(await wallet.signTx(txHex)),
-    ).rejects.toThrow("MissingOrExtraScriptHashes");
+    await expect(provider.submitTx(await wallet.signTx(txHex))).rejects.toThrow(
+      "MissingOrExtraScriptHashes",
+    );
   });
 
   it("Build tx to register stake should need the stake key signature", async () => {
