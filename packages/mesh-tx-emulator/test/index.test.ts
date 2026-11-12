@@ -1006,7 +1006,7 @@ describe.each(["scalus", "cquisitor"] as const)(
       );
     });
 
-    it("withdraws the rewards and deregisters in one transaction, unless Scalus checks it", async () => {
+    it("withdraws the rewards and deregisters in one transaction", async () => {
       const { emulator } = await setup(validator, {
         accounts: [{ rewardAddress: openStake, rewards: "7000000" }],
       });
@@ -1024,10 +1024,8 @@ describe.each(["scalus", "cquisitor"] as const)(
           },
         }),
       );
-      // The ledger takes the withdrawal first; Scalus checks the deregistration against the
-      // rewards before it (see the README)
-      if (validator === "cquisitor") expectAccepted(result);
-      else expect(rules(result)).toEqual(["StakeCertificates"]);
+      // The ledger takes the withdrawal first, so the deregistration finds no rewards left
+      expectAccepted(result);
     });
 
     it("applies only the collateral of a transaction marked invalid, not its certificates", async () => {
@@ -1088,7 +1086,7 @@ describe.each(["scalus", "cquisitor"] as const)(
       );
     });
 
-    it("re-registers a pool without another deposit, unless Scalus checks it", async () => {
+    it("re-registers a pool without another deposit", async () => {
       const { emulator, pubKeyHash, sign } = await setup(validator, {
         accounts: [{ rewardAddress: openStake }],
       });
@@ -1129,14 +1127,8 @@ describe.each(["scalus", "cquisitor"] as const)(
       const paying = await emulator.simulate(
         await registration("400000000", 500_000_000n),
       );
-      // Scalus charges a re-registration another deposit (see the README)
-      if (validator === "cquisitor") {
-        expectAccepted(update);
-        expect(paying.accepted).toBe(false);
-      } else {
-        expect(update.accepted).toBe(false);
-        expectAccepted(paying);
-      }
+      expectAccepted(update);
+      expect(paying.accepted).toBe(false);
     });
 
     it("refuses a withdrawal to a key-hash stake address delegating its vote to no DRep, unless Scalus checks it", async () => {

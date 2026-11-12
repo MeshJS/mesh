@@ -65,12 +65,6 @@ each key still to sign.
   key-hash stake address that delegates its vote to no DRep, which the ledger refuses.
 - A stake address's deposit is taken to be the current protocol parameter, so a deregistration
   must claim that as its refund, whatever was paid when the address was registered.
-- Withdrawing a stake address's rewards and deregistering it in one transaction is rejected, as
-  the deregistration is checked against the rewards before the withdrawal; the ledger takes the
-  withdrawal first. Withdrawing in an earlier transaction works.
-- Re-registering a registered pool, to change its parameters, is charged another pool deposit:
-  the update is rejected unless it pays one, and that deposit is not paid back when the pool
-  retires.
 - Only the first broken rule is reported, with no hints or locations, and no warnings besides
   `NotChecked`.
 - Signatures are always checked: `{ requireSignatures: false }` throws.
@@ -87,9 +81,9 @@ each key still to sign.
 
 - `"scalus"` for payments, scripts and staking, when the first broken rule is enough, with
   nothing more to install.
-- `"cquisitor"` for governance transactions, for unsigned transactions, for pool updates and
-  deregistrations of stake addresses registered under another deposit, and to see every problem
-  with a transaction at once, with hints on fixing them.
+- `"cquisitor"` for governance transactions, for unsigned transactions, for deregistrations of
+  stake addresses registered under another deposit, and to see every problem with a transaction
+  at once, with hints on fixing them.
 
 Both check a simple transaction in a few milliseconds. The rule names differ between them (a
 missing signature is `MissingKeyHashes` for Scalus and `MissingVKeyWitnesses` for cquisitor), so
