@@ -325,6 +325,8 @@ describe("TxBuilder on the emulator", () => {
     const scriptDRep = { type: "SCRIPT" as const, value: alwaysSucceedHash };
     const register = await builder.build({
       parts: [
+        // A proposal's deposit returns to a registered stake address
+        certificate.stakeRegistration({ stake: stakeAddress }),
         certificate.drepRegistration({ drep: drep.dRepIDCip105 }),
         certificate.drepRegistration({
           drep: scriptDRep,
@@ -338,7 +340,7 @@ describe("TxBuilder on the emulator", () => {
     expect(register.prototype.body.voting_proposals![0]!.deposit).toBe(
       "1000000000",
     );
-    const registerHash = await submit(register, ["payment", "drep"]);
+    const registerHash = await submit(register, ["payment", "stake", "drep"]);
 
     const votes = [
       { action: { txHash: registerHash, index: 0 }, vote: "yes" as const },
