@@ -105,10 +105,9 @@ const fetchMissing = async (parts: readonly TxPart[], ctx: ResolveContext) => {
         );
       }
       for (const utxo of utxos ?? []) {
-        const normalized = {
-          ...utxo,
-          input: { ...utxo.input, txHash: utxo.input.txHash.toLowerCase() },
-        };
+        // A copy: the answer may be shared through a cache, and parts freeze what they hold
+        const normalized = structuredClone(utxo);
+        normalized.input.txHash = normalized.input.txHash.toLowerCase();
         ctx.known.set(utxoKey(normalized), normalized);
       }
     }),

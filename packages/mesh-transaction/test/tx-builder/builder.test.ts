@@ -1,15 +1,20 @@
+import { bech32 } from "bech32";
+
 import {
   Action,
+  CachedFetcher,
   DEFAULT_PROTOCOL_PARAMETERS,
   IEvaluator,
   IFetcher,
   mConStr0,
   Protocol,
+  resolveScriptRef,
   UTxO,
 } from "@meshsdk/core";
 import { CSLSerializer } from "@meshsdk/core-csl";
 import {
   keyHashToRewardAddress,
+  OfflineEvaluatorScalus,
   resolvePlutusScriptAddress,
   scriptHashToRewardAddress,
   Transaction,
@@ -25,6 +30,7 @@ import {
   mint,
   output,
   proposal,
+  referenceInput,
   spend,
   TxBuilder,
   TxBuildError,
@@ -819,6 +825,439 @@ describe("TxBuilder: scripts", () => {
       }),
       "INSUFFICIENT_COLLATERAL",
     );
+  });
+});
+
+/** `fakeFetcher` with jest mocks for methods, so its calls can be read by argument */
+const mockedFetcher = (
+  utxos: UTxO[],
+  { rewards = {}, costModels = [] as number[][] } = {},
+) => {
+  const { fetcher } = fakeFetcher(utxos, rewards);
+  const mocks = {
+    fetchUTxOs: jest.fn(fetcher.fetchUTxOs),
+    fetchAccountInfo: jest.fn(fetcher.fetchAccountInfo),
+    fetchProtocolParameters: jest.fn(fetcher.fetchProtocolParameters),
+    fetchCostModels: jest.fn(async (): Promise<number[][]> => costModels),
+  };
+  return { ...mocks, fetcher: mocks as unknown as IFetcher };
+};
+
+/** `fakeEvaluator` with jest mocks, the flag and `configure` only when asked for */
+const mockedEvaluator = ({
+  acceptsKnownUtxos = false,
+  configurable = false,
+} = {}) => {
+  const evaluateTx = jest.fn(fakeEvaluator().evaluator.evaluateTx);
+  const configure = jest.fn();
+  const evaluator: IEvaluator = {
+    evaluateTx,
+    ...(acceptsKnownUtxos && { acceptsKnownUtxos }),
+    ...(configurable && { configure }),
+  };
+  return { evaluator, evaluateTx, configure };
+};
+
+/** Out refs of the inputs, reference inputs and collateral of a transaction */
+const outRefsOf = (tx: string) => {
+  const body = Transaction.fromCbor(TxCBOR(tx)).body();
+  return [
+    ...body.inputs().values(),
+    ...(body.referenceInputs()?.values() ?? []),
+    ...(body.collateral()?.values() ?? []),
+  ]
+    .map((input) => `${input.transactionId()}#${input.index()}`)
+    .sort();
+};
+
+const isFrozenAnywhere = (value: unknown): boolean =>
+  typeof value === "object" &&
+  value !== null &&
+  (Object.isFrozen(value) || Object.values(value).some(isFrozenAnywhere));
+
+// 2026-10-12, mid mainnet epoch 661 and mid preview/preprod day: clear of an epoch boundary
+const NOW = 1791816751000;
+
+describe("TxBuilder: reads", () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  const scriptHash = "c1".repeat(32);
+  const refHash = "c2".repeat(32);
+  const otherHash = "c3".repeat(32);
+  const locked: UTxO = {
+    input: { txHash: scriptHash, outputIndex: 0 },
+    output: {
+      address: scriptAddress,
+      amount: lovelace(ada(10)),
+      plutusData: "d87980",
+    },
+  };
+  const holdingScript: UTxO = {
+    input: { txHash: refHash, outputIndex: 0 },
+    output: {
+      address: wallet,
+      amount: lovelace(ada(20)),
+      scriptRef: resolveScriptRef(plutusScript),
+    },
+  };
+  const keyOutput: UTxO = {
+    input: { txHash: otherHash, outputIndex: 0 },
+    output: { address: wallet, amount: lovelace(ada(3)) },
+  };
+  const scriptSpend = () =>
+    spend.plutus({
+      utxo: locked.input,
+      script: { reference: holdingScript.input },
+      redeemer: { data: mConStr0([]) },
+      label: "unlock",
+    });
+  const keySpend = () => spend.pubKey({ utxo: keyOutput.input });
+  const request = (parts: TxPart[], changeAddress = wallet) => ({
+    parts,
+    changeAddress,
+    utxos: [utxo(lovelace(ada(10)))],
+  });
+
+  it("goes through the shared cache, each value fetched once across builds", async () => {
+    const provider = mockedFetcher([locked, holdingScript, keyOutput]);
+    const builder = new TxBuilder({
+      fetcher: new CachedFetcher(provider.fetcher, { now: () => NOW }),
+      evaluator: fakeEvaluator().evaluator,
+    });
+    await builder.build(request([scriptSpend()]));
+    await builder.build(request([scriptSpend(), keySpend()]));
+
+    expect(provider.fetchProtocolParameters).toHaveBeenCalledTimes(1);
+    expect(provider.fetchCostModels).toHaveBeenCalledTimes(1);
+    expect(provider.fetchUTxOs.mock.calls.map(([hash]) => hash).sort()).toEqual(
+      [scriptHash, refHash, otherHash].sort(),
+    );
+  });
+
+  it("shares the cache with every user of the same fetcher", async () => {
+    // The clock of the cache the first builder makes
+    jest.spyOn(Date, "now").mockReturnValue(NOW);
+    const provider = mockedFetcher([locked, holdingScript]);
+    const builders = [0, 1].map(
+      () =>
+        new TxBuilder({
+          fetcher: provider.fetcher,
+          evaluator: fakeEvaluator().evaluator,
+        }),
+    );
+    for (const builder of builders)
+      await builder.build(request([scriptSpend()]));
+    expect(provider.fetchUTxOs.mock.calls.map(([hash]) => hash).sort()).toEqual(
+      [scriptHash, refHash].sort(),
+    );
+    expect(provider.fetchProtocolParameters).toHaveBeenCalledTimes(1);
+    expect(provider.fetchCostModels).toHaveBeenCalledTimes(1);
+
+    const other = mockedFetcher([keyOutput]);
+    await CachedFetcher.wrap(other.fetcher).fetchUTxOs(otherHash);
+    await new TxBuilder({ params, fetcher: other.fetcher }).build(
+      request([keySpend()]),
+    );
+    expect(other.fetchUTxOs).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses a CachedFetcher it is given as it is", async () => {
+    const provider = mockedFetcher([]);
+    // Keeps no parameters, as for a custom network
+    const cache = new CachedFetcher(provider.fetcher, { network: "testnet" });
+    const builder = new TxBuilder({ fetcher: cache });
+    expect(builder.fetcher).toBe(cache);
+    await builder.build(request([output({ address: recipient, value: {} })]));
+    await builder.build(request([output({ address: recipient, value: {} })]));
+    expect(provider.fetchProtocolParameters).toHaveBeenCalledTimes(2);
+  });
+
+  it("asks again after a failed or empty answer", async () => {
+    const provider = mockedFetcher([keyOutput]);
+    const builder = new TxBuilder({ params, fetcher: provider.fetcher });
+    provider.fetchUTxOs.mockRejectedValueOnce(new Error("offline"));
+    await expectBuildError(
+      builder.build(request([keySpend()])),
+      "UTXO_NOT_FOUND",
+    );
+    provider.fetchUTxOs.mockResolvedValueOnce([]);
+    await expectBuildError(
+      builder.build(request([keySpend()])),
+      "UTXO_NOT_FOUND",
+    );
+    const built = await builder.build(request([keySpend()]));
+    expect(built.inputs).toContainEqual(keyOutput);
+    expect(provider.fetchUTxOs).toHaveBeenCalledTimes(3);
+  });
+
+  it("asks again for parameters and cost models it failed to fetch", async () => {
+    for (const method of [
+      "fetchProtocolParameters",
+      "fetchCostModels",
+    ] as const) {
+      const provider = mockedFetcher([locked, holdingScript]);
+      const builder = new TxBuilder({
+        fetcher: new CachedFetcher(provider.fetcher, { now: () => NOW }),
+        evaluator: fakeEvaluator().evaluator,
+      });
+      provider[method].mockRejectedValueOnce(new Error("down"));
+      await expectBuildError(
+        builder.build(request([scriptSpend()])),
+        "MISSING_PARAMETER",
+      );
+      await builder.build(request([scriptSpend()]));
+      expect(provider[method]).toHaveBeenCalledTimes(2);
+    }
+  });
+
+  it("leaves the cached outputs as they are, out of what it builds", async () => {
+    const original = structuredClone([keyOutput, holdingScript]);
+    const provider = mockedFetcher([keyOutput, holdingScript]);
+    const built = await new TxBuilder({
+      params,
+      fetcher: provider.fetcher,
+    }).build(
+      request([keySpend(), referenceInput({ utxo: holdingScript.input })]),
+    );
+
+    const cache = CachedFetcher.wrap(provider.fetcher);
+    const cached = [
+      ...(await cache.fetchUTxOs(otherHash)),
+      ...(await cache.fetchUTxOs(refHash)),
+    ];
+    expect(cached).toEqual(original);
+    for (const utxo of cached) {
+      expect(isFrozenAnywhere(utxo)).toBe(false);
+      for (const input of built.inputs) {
+        expect(input).not.toBe(utxo);
+        expect(input.output).not.toBe(utxo.output);
+      }
+    }
+    expect(built.inputs).toContainEqual(keyOutput);
+  });
+
+  it("withdraws a whole balance read within the cache's lifetime once", async () => {
+    const stake = keyHashToRewardAddress(keyHashHex(5), 0);
+    // The clock of the cache the builder makes
+    jest.spyOn(Date, "now").mockReturnValue(NOW);
+    const provider = mockedFetcher([], { rewards: { [stake]: "4200000" } });
+    const builder = new TxBuilder({ params, fetcher: provider.fetcher });
+    const withdraw = () =>
+      builder.build(
+        request([withdrawal.pubKey({ rewardAddress: stake, amount: "all" })]),
+      );
+    const [first, second] = [await withdraw(), await withdraw()];
+    expect(provider.fetchAccountInfo).toHaveBeenCalledTimes(1);
+    expect(first.prototype.body.withdrawals).toEqual({ [stake]: "4200000" });
+    expect(second.prototype.body.withdrawals).toEqual({ [stake]: "4200000" });
+  });
+
+  it("neither clears the cache nor sets its network", async () => {
+    // A mainnet change address
+    const bytes = bech32.fromWords(bech32.decode(wallet, 200).words);
+    bytes[0] = 0x01;
+    const mainnet = bech32.encode("addr", bech32.toWords(bytes), 200);
+    const provider = mockedFetcher([locked, holdingScript]);
+    const cache = CachedFetcher.wrap(provider.fetcher);
+    const clear = jest.spyOn(cache, "clear");
+    const clearVolatile = jest.spyOn(cache, "clearVolatile");
+    await new TxBuilder({
+      fetcher: provider.fetcher,
+      evaluator: fakeEvaluator().evaluator,
+    }).build(request([scriptSpend()], mainnet));
+    expect(cache.network).toBeUndefined();
+    expect(clear).not.toHaveBeenCalled();
+    expect(clearVolatile).not.toHaveBeenCalled();
+  });
+});
+
+describe("TxBuilder: evaluator", () => {
+  const scriptHash = "d1".repeat(32);
+  const refHash = "d2".repeat(32);
+  const locked: UTxO = {
+    input: { txHash: scriptHash, outputIndex: 0 },
+    output: {
+      address: scriptAddress,
+      amount: lovelace(ada(10)),
+      plutusData: "d87980",
+    },
+  };
+  const holdingScript: UTxO = {
+    input: { txHash: refHash, outputIndex: 0 },
+    output: {
+      address: wallet,
+      amount: lovelace(ada(20)),
+      scriptRef: resolveScriptRef(plutusScript),
+    },
+  };
+  const scriptSpend = (exUnits?: { mem: number; steps: number }) =>
+    spend.plutus({
+      utxo: locked.input,
+      script: { reference: holdingScript.input },
+      redeemer: { data: mConStr0([]), ...(exUnits && { exUnits }) },
+      label: "unlock",
+    });
+  const funds = utxo(lovelace(ada(10)));
+  const request = (parts: TxPart[]) => ({
+    parts,
+    changeAddress: wallet,
+    utxos: [funds],
+  });
+  const scalusEvaluateTx = () =>
+    jest.spyOn(OfflineEvaluatorScalus.prototype, "evaluateTx");
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it("calls the evaluator with outputs only, never transactions", async () => {
+    const { evaluator, evaluateTx } = mockedEvaluator();
+    await new TxBuilder({
+      fetcher: mockedFetcher([locked, holdingScript]).fetcher,
+      evaluator,
+    }).build(request([scriptSpend()]));
+    expect(evaluateTx).toHaveBeenCalledTimes(2);
+    for (const args of evaluateTx.mock.calls) {
+      expect(args).toHaveLength(3);
+      expect(args[2]).toEqual([]);
+    }
+  });
+
+  it("gives every known UTxO only to an evaluator that accepts them", async () => {
+    const local = mockedEvaluator({ acceptsKnownUtxos: true });
+    await new TxBuilder({
+      fetcher: mockedFetcher([locked, holdingScript]).fetcher,
+      evaluator: local.evaluator,
+    }).build(request([scriptSpend()]));
+    expect(local.evaluateTx.mock.calls.length).toBeGreaterThan(0);
+    for (const [tx, utxos] of local.evaluateTx.mock.calls) {
+      const refs = utxos!.map(
+        (u) => `${u.input.txHash}#${u.input.outputIndex}`,
+      );
+      // Inputs, the looked-up script input among them, the reference input and the collateral
+      expect(refs.sort()).toEqual(outRefsOf(tx));
+      expect(refs).toEqual(
+        expect.arrayContaining([
+          `${scriptHash}#0`,
+          `${refHash}#0`,
+          `${funds.input.txHash}#0`,
+        ]),
+      );
+    }
+
+    const remote = mockedEvaluator();
+    await new TxBuilder({
+      fetcher: mockedFetcher([locked, holdingScript]).fetcher,
+      evaluator: remote.evaluator,
+    }).build(request([scriptSpend()]));
+    expect(remote.evaluateTx.mock.calls.length).toBeGreaterThan(0);
+    for (const [, utxos] of remote.evaluateTx.mock.calls)
+      expect(utxos).toEqual([]);
+  });
+
+  it("configures the evaluator with the build's cost models before each evaluation", async () => {
+    const fetched = [[1, 2], [3], [4, 5, 6]];
+    const { evaluator, evaluateTx, configure } = mockedEvaluator({
+      configurable: true,
+    });
+    await new TxBuilder({
+      fetcher: mockedFetcher([locked, holdingScript], { costModels: fetched })
+        .fetcher,
+      evaluator,
+    }).build(request([scriptSpend()]));
+    expect(configure).toHaveBeenCalledTimes(evaluateTx.mock.calls.length);
+    configure.mock.calls.forEach(([context], i) => {
+      expect(context).toStrictEqual({ costModels: fetched });
+      expect(configure.mock.invocationCallOrder[i]).toBeLessThan(
+        evaluateTx.mock.invocationCallOrder[i]!,
+      );
+    });
+
+    const given = [[7], [8], [9]];
+    const other = mockedEvaluator({ configurable: true });
+    await new TxBuilder({
+      fetcher: mockedFetcher([locked, holdingScript], { costModels: fetched })
+        .fetcher,
+      costModels: given,
+      evaluator: other.evaluator,
+    }).build(request([scriptSpend()]));
+    expect(other.configure.mock.calls.length).toBeGreaterThan(0);
+    for (const [context] of other.configure.mock.calls)
+      expect(context).toStrictEqual({ costModels: given });
+
+    // An evaluator without configure is evaluated with all the same
+    const plain = mockedEvaluator();
+    await new TxBuilder({
+      fetcher: mockedFetcher([locked, holdingScript]).fetcher,
+      evaluator: plain.evaluator,
+    }).build(request([scriptSpend()]));
+    expect(plain.evaluateTx).toHaveBeenCalled();
+
+    // The builder's own evaluator is configured the same way
+    const ownConfigure = jest.spyOn(
+      OfflineEvaluatorScalus.prototype,
+      "configure",
+    );
+    const ownEvaluateTx = scalusEvaluateTx().mockImplementation(
+      fakeEvaluator().evaluator.evaluateTx,
+    );
+    const own = new TxBuilder({
+      fetcher: mockedFetcher([locked, holdingScript], { costModels: fetched })
+        .fetcher,
+    });
+    expect(own.evaluator).toBeInstanceOf(OfflineEvaluatorScalus);
+    await own.build(request([scriptSpend()]));
+    expect(ownEvaluateTx.mock.calls.length).toBeGreaterThan(0);
+    expect(ownConfigure).toHaveBeenCalledTimes(ownEvaluateTx.mock.calls.length);
+    ownConfigure.mock.calls.forEach(([context], i) => {
+      expect(context).toStrictEqual({ costModels: fetched });
+      expect(ownConfigure.mock.invocationCallOrder[i]).toBeLessThan(
+        ownEvaluateTx.mock.invocationCallOrder[i]!,
+      );
+    });
+  });
+
+  it("is a Scalus evaluator of its own, given a fetcher and no evaluator", () => {
+    const { fetcher } = fakeFetcher([]);
+    const builder = new TxBuilder({ fetcher });
+    expect(builder.evaluator).toBeInstanceOf(OfflineEvaluatorScalus);
+    expect(builder.fetcher).toBe(fetcher);
+    expect(
+      new TxBuilder({ fetcher, evaluator: undefined }).evaluator,
+    ).toBeInstanceOf(OfflineEvaluatorScalus);
+    expect(new TxBuilder({ fetcher }).evaluator).not.toBe(builder.evaluator);
+
+    const { evaluator } = fakeEvaluator();
+    expect(new TxBuilder({ fetcher, evaluator }).evaluator).toBe(evaluator);
+    expect(new TxBuilder({ params }).evaluator).toBeUndefined();
+    expect(
+      new TxBuilder({ fetcher, evaluator: null }).evaluator,
+    ).toBeUndefined();
+  });
+
+  it("evaluates nothing after `evaluator: null`", async () => {
+    const evaluateTx = scalusEvaluateTx();
+    const builder = new TxBuilder({
+      fetcher: mockedFetcher([locked, holdingScript]).fetcher,
+      evaluator: null,
+    });
+    const built = await builder.build(
+      request([scriptSpend({ mem: 6000, steps: 8000 })]),
+    );
+    expect(built.redeemers[0]!.exUnits).toEqual({ mem: 6000, steps: 8000 });
+    await expectBuildError(
+      builder.build(request([scriptSpend()])),
+      "MISSING_EVALUATOR",
+    );
+    expect(evaluateTx).not.toHaveBeenCalled();
+  });
+
+  it("does not run the default evaluator for a transaction without Plutus scripts", async () => {
+    const evaluateTx = scalusEvaluateTx();
+    const builder = new TxBuilder({ fetcher: mockedFetcher([]).fetcher });
+    expect(builder.evaluator).toBeInstanceOf(OfflineEvaluatorScalus);
+    await builder.build(
+      request([output({ address: recipient, value: { lovelace: ada(2) } })]),
+    );
+    expect(evaluateTx).not.toHaveBeenCalled();
   });
 });
 

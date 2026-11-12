@@ -13,7 +13,7 @@ export type TxBuildErrorCode =
   | "UTXO_NOT_FOUND"
   /** A protocol parameter the transaction needs is not known */
   | "MISSING_PARAMETER"
-  /** Execution units have to be worked out, and no evaluator is given */
+  /** Execution units have to be worked out, and the builder has no evaluator */
   | "MISSING_EVALUATOR"
   /** The evaluator failed, or did not price every redeemer */
   | "EVALUATION_FAILED"

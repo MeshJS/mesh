@@ -116,11 +116,8 @@ describe("TxBuilder on the emulator", () => {
       })),
     ]);
     params = await provider.fetchProtocolParameters();
-    builder = new TxBuilder({
-      fetcher: provider,
-      evaluator: provider,
-      deposits,
-    });
+    // Scripts are evaluated by the builder's default evaluator
+    builder = new TxBuilder({ fetcher: provider, deposits });
   });
 
   it("sends lovelace, returning change", async () => {

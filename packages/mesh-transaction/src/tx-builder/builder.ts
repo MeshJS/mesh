@@ -11,12 +11,14 @@ import type {
   UTxO,
 } from "@meshsdk/common";
 import {
+  CachedFetcher,
   DEFAULT_PROTOCOL_PARAMETERS,
   DEFAULT_V1_COST_MODEL_LIST,
   DEFAULT_V2_COST_MODEL_LIST,
   DEFAULT_V3_COST_MODEL_LIST,
 } from "@meshsdk/common";
 import {
+  OfflineEvaluatorScalus,
   Transaction,
   transactionPrototypeToHex,
   TxCBOR,
@@ -34,10 +36,20 @@ import { freeze } from "./parts/normalize";
 import { resolveParts, utxoKey } from "./resolve";
 
 export type TxBuilderOptions = {
-  /** Looks up outputs given by reference, reward balances, and the parameters below */
+  /**
+   * Looks up outputs given by reference, reward balances, and the parameters below, through the
+   * `CachedFetcher` shared by everything using this fetcher
+   */
   fetcher?: IFetcher;
-  /** Works out the execution units of redeemers given without them */
-  evaluator?: IEvaluator;
+  /**
+   * Works out execution units. By default a local evaluator made for this builder
+   * (`OfflineEvaluatorScalus` over the fetcher), configured before each evaluation with the
+   * build's cost models, and loaded only when a Plutus script runs. It is made only when a
+   * fetcher is given, and for no network: a transaction with a validity interval needs an
+   * evaluator built for its network. An evaluator given here is configured the same way when it
+   * has `configure`. `null`: no evaluation (every redeemer then needs its execution units).
+   */
+  evaluator?: IEvaluator | null;
   /**
    * Serializes the transaction; must implement `serializeTxPrototype`. The prototype encoder of
    * `@meshsdk/core-cst` when omitted.
@@ -157,10 +169,12 @@ const maxUnits = (
  * execution units of their scripts, and serializes the result.
  *
  * A builder holds only its providers and settings, so one builder can build any number of
- * transactions, concurrently included.
+ * transactions, concurrently included. It reads through the `CachedFetcher` of its fetcher,
+ * shared with every builder, wallet and evaluator over the same fetcher. Given a fetcher, it
+ * evaluates scripts locally unless given another evaluator.
  *
  * ```ts
- * const builder = new TxBuilder({ fetcher: provider, evaluator: provider });
+ * const builder = new TxBuilder({ fetcher: provider });
  * const { tx, fee } = await builder.build({
  *   parts: [output({ address, value: { lovelace: 5_000_000n } })],
  *   changeAddress: walletAddress,
@@ -169,16 +183,29 @@ const maxUnits = (
  * ```
  */
 export class TxBuilder {
+  /** The fetcher as given */
   readonly fetcher?: IFetcher;
+  /**
+   * The evaluator in effect: the one given, or the default made over the fetcher; none after
+   * `evaluator: null` or without a fetcher
+   */
   readonly evaluator?: IEvaluator;
   readonly serializer?: IMeshTxSerializer;
   readonly params?: Protocol;
   readonly costModels?: number[][];
   readonly deposits: GovernanceDeposits;
+  /** The shared cache of the fetcher; every read goes through it */
+  private readonly cache?: CachedFetcher;
 
   constructor(options: TxBuilderOptions = {}) {
-    if (options.fetcher) this.fetcher = options.fetcher;
+    if (options.fetcher) {
+      this.fetcher = options.fetcher;
+      this.cache = CachedFetcher.wrap(options.fetcher);
+    }
     if (options.evaluator) this.evaluator = options.evaluator;
+    // The default: local evaluation with Scalus, which reads the same shared cache
+    else if (options.evaluator === undefined && options.fetcher)
+      this.evaluator = new OfflineEvaluatorScalus(options.fetcher);
     if (options.serializer) {
       if (!options.serializer.serializeTxPrototype)
         throw new TxBuildError(
@@ -207,11 +234,15 @@ export class TxBuilder {
    *
    * 1. Looks up, all at once and once each, the outputs the parts reference, the reward
    *    balances they withdraw in full, the protocol parameters and (when Plutus scripts run) the
-   *    cost models.
+   *    cost models, through the fetcher's shared cache, which answers from what it holds.
    * 2. Fills in what the parts leave open: reference scripts, datums, deposits, output lovelace.
    * 3. Balances: selects inputs from `utxos`, returns change, puts up collateral with a
    *    collateral return, and settles the fee.
-   * 4. Evaluates the scripts and balances again with their execution units, until they settle.
+   * 4. Evaluates the scripts with the builder's evaluator, configured with the cost models of
+   *    step 1, and balances again with their execution units, until they settle. A local
+   *    evaluator gets every UTxO the build knows for the transaction's inputs; any other
+   *    resolves them from its chain. Units stated on a redeemer are checked, not replaced,
+   *    when the builder has an evaluator; without one they are taken as stated.
    *
    * Redeemer indices follow from where each item ends up in the ledger's order, assigned once
    * by `assembleTxPrototype`; evaluation results are matched back to their parts through them.
@@ -229,7 +260,7 @@ export class TxBuilder {
       plutus ? this.loadCostModels() : Promise.resolve([]),
     ]);
     const resolved = await resolveParts(request.parts, {
-      ...(this.fetcher && { fetcher: this.fetcher }),
+      ...(this.cache && { fetcher: this.cache }),
       params,
       deposits: this.deposits,
       known,
@@ -251,7 +282,7 @@ export class TxBuilder {
     if (open.length > 0 && !this.evaluator)
       throw new TxBuildError(
         "MISSING_EVALUATOR",
-        `${open.length} redeemer(s) have no execution units, and no evaluator is given`,
+        `${open.length} redeemer(s) have no execution units, and the builder has no evaluator`,
       );
     const units = new Map<number, ExUnitsPrototype>(
       open.map((i) => [i, placeholderUnits(params, given, open.length)]),
@@ -283,7 +314,7 @@ export class TxBuilder {
         return this.finish(balanced, params, costModels);
 
       const tx = this.serialize(balanced.assembled.prototype);
-      const results = await this.evaluate(tx, balanced, known);
+      const results = await this.evaluate(tx, balanced, known, costModels);
       // Redeemers belong to the very part objects given to balancing
       const position = new Map(roundParts.map((part, i) => [part, i]));
 
@@ -335,10 +366,10 @@ export class TxBuilder {
 
   private async loadParams(): Promise<Protocol> {
     if (this.params) return this.params;
-    if (!this.fetcher) return DEFAULT_PROTOCOL_PARAMETERS;
+    if (!this.cache) return DEFAULT_PROTOCOL_PARAMETERS;
     try {
       // NaN asks providers for the latest epoch's parameters
-      return await this.fetcher.fetchProtocolParameters(Number.NaN);
+      return await this.cache.fetchProtocolParameters(Number.NaN);
     } catch (error) {
       throw new TxBuildError(
         "MISSING_PARAMETER",
@@ -349,14 +380,14 @@ export class TxBuilder {
 
   private async loadCostModels(): Promise<number[][]> {
     if (this.costModels) return this.costModels;
-    if (!this.fetcher)
+    if (!this.cache)
       return [
         DEFAULT_V1_COST_MODEL_LIST,
         DEFAULT_V2_COST_MODEL_LIST,
         DEFAULT_V3_COST_MODEL_LIST,
       ];
     try {
-      return await this.fetcher.fetchCostModels();
+      return await this.cache.fetchCostModels();
     } catch (error) {
       throw new TxBuildError(
         "MISSING_PARAMETER",
@@ -365,29 +396,36 @@ export class TxBuilder {
     }
   }
 
-  /** Evaluates a transaction, keyed by redeemer pointer */
+  /**
+   * Evaluates a transaction, keyed by redeemer pointer. The evaluator is first given the cost
+   * models the script data hash is made from.
+   */
   private async evaluate(
     tx: string,
     balanced: Balanced,
     known: ReadonlyMap<string, UTxO>,
+    costModels: number[][],
   ): Promise<Map<string, ExUnitsPrototype>> {
-    const { body } = balanced.assembled.prototype;
+    const evaluator = this.evaluator!;
+    // A local evaluator takes every UTxO the build knows; any other resolves the inputs from
+    // its chain, since a remote one may reject UTxOs that also exist there
     const utxos = new Map<string, UTxO>();
-    for (const input of [
-      ...body.inputs,
-      ...(body.reference_inputs ?? []),
-      ...(body.collateral ?? []),
-    ]) {
-      const key = `${input.transaction_id}#${input.index}`;
-      const utxo = known.get(key);
-      if (utxo) utxos.set(key, utxo);
+    if (evaluator.acceptsKnownUtxos) {
+      const { body } = balanced.assembled.prototype;
+      for (const input of [
+        ...body.inputs,
+        ...(body.reference_inputs ?? []),
+        ...(body.collateral ?? []),
+      ]) {
+        const key = `${input.transaction_id}#${input.index}`;
+        const utxo = known.get(key);
+        if (utxo) utxos.set(key, utxo);
+      }
     }
     let actions;
     try {
-      actions = await this.evaluator!.evaluateTx(
-        tx,
-        Array.from(utxos.values()),
-      );
+      evaluator.configure?.({ costModels });
+      actions = await evaluator.evaluateTx(tx, Array.from(utxos.values()), []);
     } catch (error) {
       throw new TxBuildError(
         "EVALUATION_FAILED",
