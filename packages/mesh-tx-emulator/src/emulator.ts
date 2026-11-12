@@ -5,7 +5,6 @@ import type {
   DatumEntry,
   DRepRegistration,
   Emulator,
-  PoolRegistration,
   ProtocolParams,
   StakeRegistration,
   Utxo,
@@ -482,7 +481,7 @@ const scalusLedger = (
     utxos: input.utxos,
     ...(input.slot !== undefined && { slot: input.slot }),
     stakeRegistrations,
-    poolRegistrations: poolHashes.map((poolHash): PoolRegistration => ({
+    poolRegistrations: poolHashes.map((poolHash) => ({
       params: poolCertificate(
         poolHash,
         state.pools.get(poolHash)?.rewardAddress ??
