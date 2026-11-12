@@ -1164,6 +1164,35 @@ describe.each(["scalus", "cquisitor"] as const)(
       expectAccepted(await emulator.simulate(withdrawal));
     });
 
+    it("refuses delegating to a pool or a DRep that is not registered", async () => {
+      const { emulator, fromOpen } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake }],
+      });
+
+      const toPool = await emulator.simulate(
+        await fromOpen()
+          .delegateStakeCertificate(openStake, poolHash)
+          .certificateScript(openScriptHex)
+          .complete(),
+      );
+      // Scalus names every broken rule of a stake certificate alike
+      expect(rules(toPool)).toContain(
+        validator === "scalus" ? "StakeCertificates" : "StakePoolNotRegistered",
+      );
+
+      const toDRep = await emulator.simulate(
+        await fromOpen()
+          .voteDelegationCertificate({ dRepId: openDRep }, openStake)
+          .certificateScript(openScriptHex)
+          .complete(),
+      );
+      expect(rules(toDRep)).toContain(
+        validator === "scalus"
+          ? "StakeCertificates"
+          : "DelegateeDRepNotRegistered",
+      );
+    });
+
     it("registers pools and DReps without a transaction", async () => {
       const operator = await walletKeyHash;
       const { emulator, sign } = await setup(validator);
@@ -1288,28 +1317,6 @@ describe.each(["scalus", "cquisitor"] as const)(
 );
 
 describe("TxEmulator (cquisitor) ledger rules", () => {
-  it("checks what Scalus does not: the pools and DReps delegated to exist", async () => {
-    const { emulator, fromOpen } = await setup("cquisitor", {
-      accounts: [{ rewardAddress: openStake }],
-    });
-
-    const toPool = await emulator.simulate(
-      await fromOpen()
-        .delegateStakeCertificate(openStake, poolHash)
-        .certificateScript(openScriptHex)
-        .complete(),
-    );
-    expect(rules(toPool)).toContain("StakePoolNotRegistered");
-
-    const toDRep = await emulator.simulate(
-      await fromOpen()
-        .voteDelegationCertificate({ dRepId: openDRep }, openStake)
-        .certificateScript(openScriptHex)
-        .complete(),
-    );
-    expect(rules(toDRep)).toContain("DelegateeDRepNotRegistered");
-  });
-
   it("delegates votes to AlwaysAbstain and AlwaysNoConfidence", async () => {
     const { emulator } = await setup("cquisitor", {
       accounts: [{ rewardAddress: openStake }],

@@ -42,14 +42,13 @@ The `validator` option is required: it picks what decides whether a transaction 
 check the ledger rules for payments, scripts and staking, and run Plutus scripts, but for the
 limits listed below; they differ in what else they check and in how they report problems.
 
-|                                    | `"scalus"`            | `"cquisitor"`                                                   |
-| ---------------------------------- | --------------------- | --------------------------------------------------------------- |
-| Problems reported                  | the first broken rule | every problem, with hints and locations, and warnings           |
-| Signatures                         | required              | required; `{ requireSignatures: false }` checks unsigned txs    |
-| Governance rules                   | not checked           | checked: proposals, votes, deposits, guardrails, committee      |
-| Pools and DReps delegated to exist | not checked           | checked                                                         |
-| Refund of a stake address deposit  | the current deposit   | the deposit paid                                                |
-| Package                            | built in              | install `@cardananium/cquisitor-lib` (optional peer dependency) |
+|                                   | `"scalus"`            | `"cquisitor"`                                                   |
+| --------------------------------- | --------------------- | --------------------------------------------------------------- |
+| Problems reported                 | the first broken rule | every problem, with hints and locations, and warnings           |
+| Signatures                        | required              | required; `{ requireSignatures: false }` checks unsigned txs    |
+| Governance rules                  | not checked           | checked: proposals, votes, deposits, guardrails, committee      |
+| Refund of a stake address deposit | the current deposit   | the deposit paid                                                |
+| Package                           | built in              | install `@cardananium/cquisitor-lib` (optional peer dependency) |
 
 With `{ requireSignatures: false }`, missing key witnesses are not reported, and a native script
 passes if it would once every key it names has signed; its time locks still apply. The fee and
@@ -61,8 +60,8 @@ each key still to sign.
 - Governance is not checked: votes, proposals and their deposits, the guardrail script,
   committee certificates and the treasury value a transaction states. Their effects on the
   state are still applied.
-- Delegating to a pool or a DRep that is not registered is not caught, nor is withdrawing to a
-  key-hash stake address that delegates its vote to no DRep, which the ledger refuses.
+- Withdrawing to a key-hash stake address that delegates its vote to no DRep is not caught,
+  which the ledger refuses.
 - A stake address's deposit is taken to be the current protocol parameter, so a deregistration
   must claim that as its refund, whatever was paid when the address was registered.
 - Only the first broken rule is reported, with no hints or locations, and no warnings besides
