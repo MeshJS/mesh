@@ -5,5 +5,6 @@ export * from "./data";
 export * from "./utils";
 export * from "./utxo-selection";
 export * from "./tx-tester";
+export * from "./errors";
 
 export { generateMnemonic, mnemonicToEntropy } from "bip39";

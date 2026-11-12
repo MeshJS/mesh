@@ -53,6 +53,15 @@ export interface IFetcher {
     certIndex: number,
   ): Promise<GovernanceProposalInfo>;
   get(url: string): Promise<any>;
+  /**
+   * The public network the provider serves, when it knows it. A builder compares it with its
+   * own network when it is `"mainnet"`, `"preprod"` or `"preview"`; any other value is not
+   * compared. A class with a member of its own named `network` fits `IFetcher` only when that
+   * member is public and a string.
+   */
+  readonly network?: string;
+  /** The latest block of the chain */
+  fetchLatestBlock?(): Promise<BlockInfo>;
 }
 
 /**

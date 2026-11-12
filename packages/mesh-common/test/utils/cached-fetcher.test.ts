@@ -1,4 +1,5 @@
 import {
+  BlockInfo,
   CachedFetcher,
   IFetcher,
   resolveEpochEnd,
@@ -235,6 +236,59 @@ describe("CachedFetcher", () => {
       await cached.fetchAddressUTxOs("addr");
       expect(fetcher.fetchAddressUTxOs).toHaveBeenCalledTimes(2);
     });
+  });
+
+  describe("fetchLatestBlock", () => {
+    const block = (slot: string) =>
+      ({ slot, height: Number(slot) }) as BlockInfo;
+
+    it("forwards every call without caching", async () => {
+      const now = NOW;
+      const fetchLatestBlock = jest
+        .fn()
+        .mockResolvedValueOnce(block("1"))
+        .mockResolvedValueOnce(block("2"))
+        .mockRejectedValueOnce(new Error("down"));
+      const fetcher = { ...mockFetcher(), fetchLatestBlock } as IFetcher;
+      const cached = new CachedFetcher(fetcher, { now: () => now });
+
+      expect(await cached.fetchLatestBlock!()).toEqual(block("1"));
+      expect(await cached.fetchLatestBlock!()).toEqual(block("2"));
+      await expect(cached.fetchLatestBlock!()).rejects.toThrow("down");
+      expect(fetchLatestBlock).toHaveBeenCalledTimes(3);
+      expect(CachedFetcher.wrap(fetcher).fetchLatestBlock).toBeInstanceOf(
+        Function,
+      );
+    });
+
+    it("is absent when the wrapped fetcher has none", () => {
+      for (const cached of [
+        new CachedFetcher(mockFetcher()),
+        CachedFetcher.wrap(mockFetcher()),
+      ]) {
+        expect(cached.fetchLatestBlock).toBeUndefined();
+        expect("fetchLatestBlock" in cached).toBe(false);
+      }
+    });
+
+    it("calls the wrapped fetcher as its this", async () => {
+      class Tip {
+        private readonly tip = block("42");
+        async fetchLatestBlock() {
+          return this.tip;
+        }
+      }
+      const fetcher = Object.assign(new Tip(), mockFetcher()) as Tip & IFetcher;
+      expect(await new CachedFetcher(fetcher).fetchLatestBlock!()).toEqual(
+        block("42"),
+      );
+    });
+  });
+
+  it("keeps its own network, not the wrapped fetcher's", () => {
+    const fetcher = { ...mockFetcher(), network: "preprod" } as IFetcher;
+    expect(new CachedFetcher(fetcher).network).toBeUndefined();
+    expect(CachedFetcher.wrap(fetcher).network).toBeUndefined();
   });
 
   it("shares one cache per fetcher", () => {

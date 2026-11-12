@@ -14,4 +14,6 @@ export type BlockInfo = {
   confirmations: number;
   operationalCertificate: string;
   VRFKey: string;
+  /** The block number, an integer from 0; left out by a provider that does not report it */
+  height?: number;
 };

@@ -1,8 +1,18 @@
 import {
+  customNetwork,
+  networkConfig,
+  NetworkConfig,
+  NetworkInput,
+  SLOT_CONFIG_NETWORK,
+  slotAt,
+  timeAt,
+} from "@meshsdk/common";
+import {
   BlockfrostProvider,
   resolveEpochEnd,
   resolveEpochNo,
   resolveSlotNo,
+  slotAt as slotAtFromCore,
   // SLOT_CONFIG_NETWORK,
   // unixTimeToEnclosingSlot,
 } from "@meshsdk/core";
@@ -196,6 +206,206 @@ describe("Time", () => {
     });
     it("should reject a network without known epochs", () => {
       expect(() => resolveEpochEnd("testnet")).toThrow();
+    });
+  });
+
+  describe("networkConfig", () => {
+    it("gives the name, id, slot clock and magic of each public network", () => {
+      expect(networkConfig("mainnet")).toEqual({
+        name: "mainnet",
+        networkId: 1,
+        slotConfig: SLOT_CONFIG_NETWORK.mainnet,
+        magic: 764824073,
+      });
+      expect(networkConfig("preprod")).toEqual({
+        name: "preprod",
+        networkId: 0,
+        slotConfig: SLOT_CONFIG_NETWORK.preprod,
+        magic: 1,
+      });
+      expect(networkConfig("preview")).toEqual({
+        name: "preview",
+        networkId: 0,
+        slotConfig: SLOT_CONFIG_NETWORK.preview,
+        magic: 2,
+      });
+    });
+    it("gives a copy of the shared slot clock", () => {
+      for (const name of ["mainnet", "preprod", "preview"] as const) {
+        const config = networkConfig(name);
+        expect(config.slotConfig).not.toBe(SLOT_CONFIG_NETWORK[name]);
+        expect(config.slotConfig).toEqual(SLOT_CONFIG_NETWORK[name]);
+      }
+      const zeroSlot = SLOT_CONFIG_NETWORK.preprod.zeroSlot;
+      networkConfig("preprod").slotConfig.zeroSlot += 1;
+      expect(SLOT_CONFIG_NETWORK.preprod.zeroSlot).toBe(zeroSlot);
+      expect(networkConfig("preprod").slotConfig.zeroSlot).toBe(zeroSlot);
+    });
+    it("returns a given config as it is", () => {
+      const config = customNetwork({
+        systemStart: 0,
+        slotLengthMs: 1000,
+        epochLength: 500,
+      });
+      expect(networkConfig(config)).toBe(config);
+    });
+    it("does not check a given config", () => {
+      const config: NetworkConfig = {
+        name: "broken",
+        networkId: 0,
+        slotConfig: {
+          zeroTime: 0,
+          zeroSlot: 0,
+          slotLength: 0,
+          startEpoch: 0,
+          epochLength: 0,
+        },
+      };
+      expect(networkConfig(config)).toBe(config);
+    });
+    it("rejects testnet and unknown names", () => {
+      expect(() => networkConfig("testnet" as "mainnet")).toThrow(
+        /customNetwork/,
+      );
+      expect(() => networkConfig("sanchonet" as "mainnet")).toThrow(
+        /"mainnet", "preprod", "preview"/,
+      );
+      expect(() => slotAt("testnet" as "mainnet", 0)).toThrow();
+      expect(() => timeAt("testnet" as "mainnet", 0)).toThrow();
+    });
+  });
+
+  describe("customNetwork", () => {
+    const start = "2026-01-01T00:00:00Z";
+    const startMs = Date.UTC(2026, 0, 1);
+
+    it("reads the system start from ISO text, POSIX ms and a Date alike", () => {
+      for (const systemStart of [start, startMs, new Date(startMs)]) {
+        expect(
+          customNetwork({ systemStart, slotLengthMs: 100, epochLength: 500 })
+            .slotConfig.zeroTime,
+        ).toBe(startMs);
+      }
+    });
+    it("keeps what is given", () => {
+      expect(
+        customNetwork({
+          name: "devnet",
+          networkId: 1,
+          magic: 42,
+          systemStart: start,
+          slotLengthMs: 100,
+          epochLength: 500,
+          zeroSlot: 7,
+        }),
+      ).toEqual({
+        name: "devnet",
+        networkId: 1,
+        magic: 42,
+        slotConfig: {
+          zeroTime: startMs,
+          zeroSlot: 7,
+          slotLength: 100,
+          startEpoch: 0,
+          epochLength: 500,
+        },
+      });
+    });
+    it("names an unnamed network custom, gives it id 0 and no magic", () => {
+      const config = customNetwork({
+        systemStart: start,
+        slotLengthMs: 1000,
+        epochLength: 500,
+      });
+      expect(config.name).toBe("custom");
+      expect(config.networkId).toBe(0);
+      expect("magic" in config).toBe(false);
+      expect(config.slotConfig.zeroSlot).toBe(0);
+      expect(config.slotConfig.startEpoch).toBe(0);
+    });
+    it("rejects a slot length that is not a positive integer", () => {
+      for (const slotLengthMs of [0, -1000, 1.5, NaN]) {
+        expect(() =>
+          customNetwork({ systemStart: start, slotLengthMs, epochLength: 500 }),
+        ).toThrow(/slot length/);
+      }
+    });
+    it("rejects a system start that gives no finite time", () => {
+      for (const systemStart of ["not a time", NaN, Infinity, new Date(NaN)]) {
+        expect(() =>
+          customNetwork({ systemStart, slotLengthMs: 1000, epochLength: 500 }),
+        ).toThrow(/system start/);
+      }
+    });
+  });
+
+  describe("slotAt and timeAt", () => {
+    const devnet: NetworkConfig = customNetwork({
+      systemStart: 1_000_000,
+      slotLengthMs: 100,
+      epochLength: 500,
+      zeroSlot: 10,
+    });
+
+    it("give the slots resolveSlotNo gives", () => {
+      expect(slotAt("mainnet", 1723003026421)).toBe(131436735);
+      expect(slotAt("preprod", 1723003026421)).toBe(67319826);
+      expect(slotAtFromCore("preview", 1723003026421)).toBe(56347026);
+    });
+    it("round down and up on slot boundaries", () => {
+      const cases: [NetworkInput, number][] = [
+        ["mainnet", 1000],
+        ["preview", 1000],
+        [devnet, 100],
+      ];
+      for (const [network, length] of cases) {
+        const slot = slotAt(network, 1723003026421) + 3;
+        const begin = timeAt(network, slot);
+        expect(slotAt(network, begin, "down")).toBe(slot);
+        expect(slotAt(network, begin, "up")).toBe(slot);
+        expect(slotAt(network, begin + 1, "down")).toBe(slot);
+        expect(slotAt(network, begin + 1, "up")).toBe(slot + 1);
+        expect(slotAt(network, begin + length - 1, "down")).toBe(slot);
+        expect(slotAt(network, begin + length - 1, "up")).toBe(slot + 1);
+        expect(slotAt(network, begin + 1)).toBe(slot);
+      }
+    });
+    it("takes a Date as its time", () => {
+      const t = 1723003026421;
+      expect(slotAt("preprod", new Date(t))).toBe(slotAt("preprod", t));
+      expect(slotAt(devnet, new Date(1_000_250), "up")).toBe(13);
+    });
+    it("give the first millisecond of a slot, from a number or a bigint", () => {
+      expect(timeAt("preview", 56347026)).toBe(1723003026000);
+      expect(timeAt("preview", 56347026n)).toBe(1723003026000);
+      expect(timeAt(devnet, 10)).toBe(1_000_000);
+      expect(timeAt(devnet, 13n)).toBe(1_000_300);
+    });
+    it("are plain arithmetic and check nothing", () => {
+      expect(slotAt(devnet, NaN)).toBeNaN();
+      expect(slotAt(devnet, NaN, "up")).toBeNaN();
+      expect(slotAt(devnet, new Date(NaN))).toBeNaN();
+      expect(timeAt(devnet, NaN)).toBeNaN();
+      // Before zeroTime: a slot before zeroSlot (10)
+      expect(slotAt(devnet, 1_000_000 - 100)).toBe(9);
+      expect(slotAt(devnet, 1_000_000 - 150)).toBe(8);
+      expect(slotAt(devnet, 1_000_000 - 150, "up")).toBe(9);
+      expect(timeAt(devnet, 9)).toBe(1_000_000 - 100);
+      expect(timeAt(devnet, -1)).toBe(1_000_000 - 1100);
+    });
+    it("are inverse of each other", () => {
+      for (const network of ["mainnet", "preprod", devnet] as NetworkInput[]) {
+        for (const t of [1723003026421, 1723003026000, 1790000000999]) {
+          const down = slotAt(network, t);
+          expect(timeAt(network, down)).toBeLessThanOrEqual(t);
+          expect(timeAt(network, down + 1)).toBeGreaterThan(t);
+          expect(
+            timeAt(network, slotAt(network, t, "up")),
+          ).toBeGreaterThanOrEqual(t);
+          expect(slotAt(network, timeAt(network, down))).toBe(down);
+          expect(slotAt(network, timeAt(network, down), "up")).toBe(down);
+        }
+      }
     });
   });
 });
