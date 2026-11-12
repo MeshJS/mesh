@@ -176,7 +176,8 @@ async function setup(
   const builder = ({ evaluate = true } = {}) =>
     new MeshTxBuilder({
       fetcher: emulator,
-      ...(evaluate && { evaluator: emulator }),
+      // `null` turns evaluation off: a builder with a fetcher evaluates locally by default
+      evaluator: evaluate ? emulator : null,
       params,
     });
   const send = (quantity = "2000000") =>
