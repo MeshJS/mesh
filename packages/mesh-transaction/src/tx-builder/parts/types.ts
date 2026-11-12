@@ -36,7 +36,8 @@ import type {
  * Parts are shaped after `TransactionPrototype`, so turning them into one is mostly a matter of
  * collecting them. What a part cannot know when it is built is left out and listed by
  * `unresolved()`: the contents of an input given by reference only, script execution units,
- * the lovelace an output needs to hold. Those are filled in before assembly.
+ * the lovelace an output needs to hold, the slot of a validity bound given as a time. Those are
+ * filled in before assembly.
  *
  * Redeemers carry no index. The index depends on where the item they witness ends up once the
  * transaction is sorted, so it is assigned once, at assembly, from what the redeemer belongs to.
@@ -330,12 +331,23 @@ export type RequiredSignerPart = PartBase & {
 };
 
 /** The slots between which the transaction is valid */
-export type ValidityPart = PartBase & {
+export type SlotValidityPart = PartBase & {
   readonly kind: "validity";
   /** First slot the transaction is valid in (`validity_start_interval`) */
   readonly invalidBefore?: string;
   /** First slot the transaction is no longer valid in (`ttl`) */
   readonly invalidHereafter?: string;
+};
+
+/**
+ * When the transaction is valid. A bound may be a POSIX time, converted to a slot when the
+ * transaction is built, with the builder's network
+ */
+export type ValidityPart = SlotValidityPart & {
+  /** Earliest time the transaction is valid at, in POSIX ms, until converted */
+  readonly from?: number;
+  /** Latest time the transaction is valid at, in POSIX ms, until converted */
+  readonly until?: number;
 };
 
 /** One metadata entry */
@@ -477,6 +489,8 @@ export type Unresolved =
   | { readonly type: "minCoin" }
   /** The lovelace forfeited on script failure */
   | { readonly type: "totalCollateral" }
+  /** The slot of a validity bound given as a time */
+  | { readonly type: "slot" }
   /** The reward balance of a stake address, to withdraw in full */
   | { readonly type: "rewardBalance"; readonly rewardAddress: string }
   /** A deposit or refund, from a protocol parameter */

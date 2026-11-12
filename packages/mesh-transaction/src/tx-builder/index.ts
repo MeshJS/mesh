@@ -35,6 +35,7 @@ export {
   type PartsInput,
   type BuiltTx,
   type BuiltRedeemer,
+  type BuildWarning,
 } from "./builder";
 export {
   canSubmit,

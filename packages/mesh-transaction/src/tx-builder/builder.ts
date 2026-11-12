@@ -82,7 +82,7 @@ import {
   toPayerSource,
   toUtxo,
 } from "./payer";
-import { resolveParts, utxoKey } from "./resolve";
+import { resolveParts, resolveValidity, utxoKey } from "./resolve";
 
 /**
  * What the builder reads the chain through: every read, the tip and the search; submits when it
@@ -423,6 +423,20 @@ export type BuiltRedeemer = {
   label?: string;
 };
 
+/** Something worth knowing that did not stop the build */
+export type BuildWarning = {
+  /**
+   * `VALID_FROM_FUTURE`: the slot of the transaction's lower bound starts after the current time
+   * of the local clock
+   */
+  code: "VALID_FROM_FUTURE";
+  message: string;
+  /** The kind of the part it is about */
+  part?: TxPart["kind"];
+  /** The label of that part, when it has one */
+  label?: string;
+};
+
 /** A transaction built and balanced, ready to sign */
 export type BuiltTx = {
   /** The unsigned transaction, in CBOR hex */
@@ -444,6 +458,8 @@ export type BuiltTx = {
   collateral?: CollateralPlan;
   /** Every part of the transaction, resolved, the ones added by balancing included */
   parts: TxPart[];
+  /** What is worth knowing about the transaction and did not stop the build; often empty */
+  warnings: BuildWarning[];
 };
 
 /**
@@ -652,20 +668,26 @@ export class TxBuilder {
   /**
    * The slot containing a POSIX time on the builder's network (`"down"`, the default), or the
    * first slot starting at or after it (`"up"`)
-   * @param time POSIX time in milliseconds, or a Date
-   * @throws TxBuildError INVALID_OPTION for a time that is not finite, or another `round`
+   * @param time POSIX time in milliseconds, as a number or a bigint (e.g. a deadline decoded from
+   *   a datum), or a Date
+   * @throws TxBuildError INVALID_OPTION for a time that is not finite, a bigint that is not a safe
+   *   integer, or another `round`
    */
-  slotAt(time: number | Date, round?: "down" | "up"): number {
+  slotAt(time: number | bigint | Date, round?: "down" | "up"): number {
     const ms = time instanceof Date ? time.getTime() : time;
-    if (!(typeof ms === "number" && Number.isFinite(ms)))
+    if (!(
+      typeof ms === "bigint" ||
+      (typeof ms === "number" && Number.isFinite(ms))
+    ))
       throw new TxBuildError(
         "INVALID_OPTION",
-        `invalid time ${String(time)}: expected POSIX milliseconds or a Date, finite`,
+        `invalid time ${String(time)}: expected POSIX milliseconds as a finite number or a bigint, or a valid Date`,
         {
           details: {
             option: "time",
             value: time,
-            allowed: "a finite number of POSIX milliseconds, or a valid Date",
+            allowed:
+              "a finite number or a bigint of POSIX milliseconds, or a valid Date",
           },
         },
       );
@@ -677,7 +699,17 @@ export class TxBuilder {
           details: { option: "round", value: round, allowed: '"down" or "up"' },
         },
       );
-    return slotAt(this.network, ms, round);
+    try {
+      return slotAt(this.network, ms, round);
+    } catch (error) {
+      // The network is resolved, so only a bigint out of range is refused
+      throw invalidOption(
+        "time",
+        time,
+        `a bigint from -${Number.MAX_SAFE_INTEGER} to ${Number.MAX_SAFE_INTEGER}`,
+        error,
+      );
+    }
   }
 
   /**
@@ -751,7 +783,10 @@ export class TxBuilder {
    * the build does no I/O but the lookups its parts ask for, and the same arguments give the
    * same bytes and `txHash`.
    *
-   * 1. Checks that every address it is given is of the builder's network. Reads the payer and
+   * 1. Checks that every address it is given is of the builder's network, and converts time
+   *    bounds to slots on its slot clock: `from` to the first slot starting at or after it,
+   *    `until` to the slot containing it. A lower bound whose slot starts after the current time
+   *    of the local clock is reported in `warnings` as VALID_FROM_FUTURE. Reads the payer and
    *    looks up, all at once and once each, the outputs the parts reference, the reward balances
    *    they withdraw in full, the protocol parameters and (when Plutus scripts run) the cost
    *    models. Lookups go through the provider's shared cache, which answers from what it holds;
@@ -776,7 +811,9 @@ export class TxBuilder {
    * by `assembleTxPrototype`; evaluation results are matched back to their parts through them.
    *
    * @throws TxBuildError with a `code`; TxPartError when what is looked up does not fit a part
-   *   (e.g. a reference output holding a different script)
+   *   (e.g. a reference output holding a different script), and INVALID_DATA for a validity
+   *   part whose time bound is before the network's slot clock starts, or whose interval holds
+   *   no slot once converted
    */
   async build(parts: PartsInput, options?: BuildOptions): Promise<BuiltTx> {
     // Nothing can be read without a payer: that comes first, then the options' types, then the
@@ -792,6 +829,8 @@ export class TxBuilder {
         : [{ role: "output" as const, address: sendAllTo }]),
       ...flat.flatMap(partEntries),
     ]);
+    // Time bounds become slots before any request, so a wrong interval costs no I/O
+    const { parts: timed, warnings } = this.convertTimes(flat);
     const { fee, registeredPools, extraKeyWitnesses } = options ?? {};
     const { canSelect, coinSelection, signal } = options ?? {};
     throwIfAborted(signal);
@@ -800,7 +839,7 @@ export class TxBuilder {
     // A snapshot's UTxOs are known before the lookups start, so a part may name one by out ref
     if (source.form === "snapshot")
       for (const utxo of source.snapshot.utxos) known.set(utxoKey(utxo), utxo);
-    const plutus = flat.some(runsPlutus);
+    const plutus = timed.some(runsPlutus);
 
     // Every read starts at once, and none waits for another
     const paramsRead = this.loadParams();
@@ -812,7 +851,7 @@ export class TxBuilder {
           ? this.loadCostModels().then((models) => models ?? [])
           : Promise.resolve([]),
         this.readSource(source, signal),
-        resolveParts(flat, {
+        resolveParts(timed, {
           network: this.network,
           ...(this.cache && { provider: this.cache }),
           params: paramsRead,
@@ -918,7 +957,7 @@ export class TxBuilder {
         evaluated.size < open.length,
       );
       if (redeemerParts.length === 0 || !this.evaluator)
-        return this.finish(balanced, params, costModels);
+        return this.finish(balanced, params, costModels, warnings);
 
       const tx = this.serialize(balanced.assembled.prototype);
       throwIfAborted(signal);
@@ -985,7 +1024,7 @@ export class TxBuilder {
           settled = false;
         }
       }
-      if (settled) return this.finish(balanced, params, costModels);
+      if (settled) return this.finish(balanced, params, costModels, warnings);
     }
     throw new TxBuildError(
       "EVALUATION_NOT_CONVERGED",
@@ -1203,10 +1242,40 @@ export class TxBuilder {
     return results;
   }
 
+  /**
+   * The parts with the time bounds of validity parts converted to slots on the builder's
+   * network, and the warning for a lower bound whose slot starts after the current time of the
+   * local clock, which is read once, here, and only when there is a lower bound
+   */
+  private convertTimes(parts: readonly TxPart[]): {
+    parts: TxPart[];
+    warnings: BuildWarning[];
+  } {
+    const warnings: BuildWarning[] = [];
+    let now: number | undefined;
+    const converted = parts.map((part) => {
+      if (part.kind !== "validity") return part;
+      const resolved = resolveValidity(part, this.network);
+      if (resolved.invalidBefore === undefined) return resolved;
+      now ??= Date.now();
+      const start = timeAt(this.network, BigInt(resolved.invalidBefore));
+      if (start > now)
+        warnings.push({
+          code: "VALID_FROM_FUTURE",
+          message: `the transaction is valid from slot ${resolved.invalidBefore}, which starts in ${start - now} ms by the local clock; nodes refuse it until their tip reaches that slot`,
+          part: "validity",
+          ...(part.label !== undefined && { label: part.label }),
+        });
+      return resolved;
+    });
+    return { parts: converted, warnings };
+  }
+
   private finish(
     balanced: Balanced,
     params: Protocol,
     costModels: number[][],
+    warnings: BuildWarning[],
   ): BuiltTx {
     const { assembled } = balanced;
     const total = totalExUnits(assembled);
@@ -1267,6 +1336,7 @@ export class TxBuilder {
       change: balanced.change,
       ...(balanced.collateral && { collateral: balanced.collateral }),
       parts: balanced.parts,
+      warnings,
     };
   }
 }

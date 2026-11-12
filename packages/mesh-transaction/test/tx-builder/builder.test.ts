@@ -30,6 +30,7 @@ import {
 } from "@meshsdk/core-cst";
 
 import {
+  BuildEvent,
   BuildOptions,
   BuiltTx,
   certificate,
@@ -44,9 +45,13 @@ import {
   TxBuilder,
   TxBuildError,
   TxPart,
+  TxPartError,
+  unresolved,
+  validity,
   withdrawal,
 } from "../../src/tx-builder";
 import { minFee, refScriptFee } from "../../src/tx-builder/fee";
+import { resolveParts } from "../../src/tx-builder/resolve";
 import {
   alwaysSucceedCbor,
   alwaysSucceedHash,
@@ -2244,6 +2249,312 @@ describe("TxBuilder: serialization", () => {
           new TxBuilder({ ...options, serializer: serializer as never }))(),
         "UNSUPPORTED_SERIALIZER",
       );
+  });
+});
+
+describe("TxBuilder: validity in POSIX time", () => {
+  // Slot S of preprod starts at T
+  const S = 100000000;
+  const T = 1755683200000;
+  const { zeroTime, zeroSlot } = networkConfig("preprod").slotConfig;
+  const pay = output({ address: recipient, value: { lovelace: ada(2) } });
+  const payer = () => ({
+    changeAddress: wallet,
+    utxos: [utxo(lovelace(ada(100)))],
+  });
+  const devnet = (systemStart: number) =>
+    customNetwork({ systemStart, slotLengthMs: 100, epochLength: 500 });
+  const buildOn = (
+    network: NetworkInput,
+    part: TxPart,
+    options: Omit<BuildOptions, "payer"> = {},
+  ) =>
+    new TxBuilder({ network, params }).build([pay, part], {
+      payer: payer(),
+      ...options,
+    });
+  const bodyOf = async (part: TxPart, on: NetworkInput = network) => {
+    const { body } = (await buildOn(on, part)).prototype;
+    return { from: body.validity_start_interval, until: body.ttl };
+  };
+  const expectPartError = async (build: Promise<unknown>, label?: string) => {
+    try {
+      await build;
+    } catch (error) {
+      expect(error).toBeInstanceOf(TxPartError);
+      expect((error as TxPartError).code).toBe("INVALID_DATA");
+      expect((error as TxPartError).part).toBe("validity");
+      expect((error as TxPartError).label).toBe(label);
+      return error as TxPartError;
+    }
+    throw new Error("expected an INVALID_DATA error");
+  };
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it.each([
+    [{ from: T }, { from: String(S) }],
+    [{ from: T + 1 }, { from: String(S + 1) }],
+    [{ from: T + 999 }, { from: String(S + 1) }],
+    [{ from: T - 1 }, { from: String(S) }],
+    [{ until: T }, { until: String(S) }],
+    [{ until: T + 999 }, { until: String(S) }],
+    [{ until: T - 1 }, { until: String(S - 1) }],
+  ])(
+    "converts %j to the slots of the rounding rule on preprod",
+    async (bounds, slots) => {
+      expect(await bodyOf(validity(bounds))).toEqual({
+        from: undefined,
+        until: undefined,
+        ...slots,
+      });
+    },
+  );
+
+  it("converts with a devnet's 100 ms slots", async () => {
+    const start = 1_700_000_000_000;
+    const on = devnet(start);
+    const cases: [Parameters<typeof validity>[0], string, string][] = [
+      [{ from: start + 1 }, "from", "1"],
+      [{ from: start + 100 }, "from", "1"],
+      [{ from: start + 101 }, "from", "2"],
+      [{ until: start + 199 }, "until", "1"],
+      [{ until: start + 200 }, "until", "2"],
+    ];
+    for (const [bounds, bound, slot] of cases)
+      expect((await bodyOf(validity(bounds), on))[bound as "from"]).toBe(slot);
+  });
+
+  it("gives one part each builder's own slots", async () => {
+    const t = T + 400;
+    const part = validity({ from: t, until: t + 600000 });
+    const given = { ...part };
+    const builders = [
+      new TxBuilder({ network, params }),
+      new TxBuilder({ network: devnet(T - 50), params }),
+    ];
+    const pairs: unknown[] = [];
+    for (const builder of builders) {
+      const { body } = (await builder.build([pay, part], { payer: payer() }))
+        .prototype;
+      expect(body.validity_start_interval).toBe(
+        String(builder.slotAt(t, "up")),
+      );
+      expect(body.ttl).toBe(String(builder.slotAt(t + 600000)));
+      pairs.push([body.validity_start_interval, body.ttl]);
+    }
+    expect(pairs[0]).not.toEqual(pairs[1]);
+    expect(part).toStrictEqual(given);
+    expect(Object.isFrozen(part)).toBe(true);
+  });
+
+  it("converts a time bound next to a slot bound", async () => {
+    expect(
+      await bodyOf(validity({ invalidBefore: S, until: T + 600000 })),
+    ).toEqual({ from: String(S), until: String(S + 600) });
+  });
+
+  it("holds the slots in the part it returns", async () => {
+    const built = await buildOn(
+      network,
+      validity({ from: T + 1, until: T + 600000, label: "window" }),
+    );
+    const part = built.parts.find((p) => p.kind === "validity")!;
+    expect(part).toStrictEqual({
+      kind: "validity",
+      invalidBefore: "100000001",
+      invalidHereafter: "100000600",
+      label: "window",
+    });
+    expect(Object.isFrozen(part)).toBe(true);
+    expect(unresolved(part)).toEqual([]);
+  });
+
+  it("refuses an interval that holds no slot once converted", async () => {
+    await expectPartError(
+      buildOn(
+        network,
+        validity({ from: T + 1, until: T + 999, label: "window" }),
+      ),
+      "window",
+    );
+    const error = await expectPartError(
+      buildOn(network, validity({ from: T, until: T + 500 })),
+    );
+    expect(error.message).toContain(`from ${T} (slot ${S})`);
+    expect(error.message).toContain(`until ${T + 500} (slot ${S})`);
+    await expectPartError(
+      buildOn(network, validity({ invalidBefore: S + 5, until: T + 1000 })),
+    );
+    expect(await bodyOf(validity({ from: T, until: T + 1000 }))).toEqual({
+      from: String(S),
+      until: String(S + 1),
+    });
+  });
+
+  it("refuses a time before the network's slot clock starts", async () => {
+    for (const bounds of [
+      { until: 1767225600 },
+      { from: 0 },
+      { from: zeroTime - 1 },
+    ]) {
+      const error = await expectPartError(buildOn(network, validity(bounds)));
+      expect(error.message).toContain("milliseconds");
+      expect(error.message).toContain(String(zeroTime));
+    }
+    expect(await bodyOf(validity({ from: zeroTime }))).toEqual({
+      from: String(zeroSlot),
+      until: undefined,
+    });
+  });
+
+  it("refuses an interval before any request", async () => {
+    const { fetcher, calls } = fakeFetcher([]);
+    await expectPartError(
+      new TxBuilder({ network, provider: fetcher }).build(
+        [
+          spend.pubKey({ utxo: { txHash: "ee".repeat(32), outputIndex: 0 } }),
+          validity({ from: T + 1, until: T + 999, label: "window" }),
+        ],
+        { payer: payer() },
+      ),
+      "window",
+    );
+    expect(calls).toEqual({});
+  });
+
+  it("adds no bound of its own, and no warning, without a validity part", async () => {
+    const built = await new TxBuilder({ network, params }).build([pay], {
+      payer: payer(),
+    });
+    expect(built.prototype.body.ttl).toBeUndefined();
+    expect(built.prototype.body.validity_start_interval).toBeUndefined();
+    expect(built.warnings).toEqual([]);
+  });
+
+  it("warns of a lower bound whose slot starts after the local clock", async () => {
+    const now = jest.spyOn(Date, "now").mockReturnValue(T + 400);
+    const events: BuildEvent[] = [];
+    const built = await buildOn(
+      network,
+      validity({ from: T + 400, label: "window" }),
+      { trace: (event) => events.push(event) },
+    );
+    expect(built.warnings).toEqual([
+      {
+        code: "VALID_FROM_FUTURE",
+        message: expect.any(String),
+        part: "validity",
+        label: "window",
+      },
+    ]);
+    // Slot S + 1 starts 600 ms after the clock
+    expect(built.warnings[0]!.message).toContain("600");
+    expect(events.map((e) => e.type)).not.toContain("warning");
+
+    expect(
+      (await buildOn(network, validity({ invalidBefore: S + 11 }))).warnings,
+    ).toStrictEqual([
+      {
+        code: "VALID_FROM_FUTURE",
+        message: expect.any(String),
+        part: "validity",
+      },
+    ]);
+    for (const bounds of [{ from: T - 5000 }, { until: T + 600000 }])
+      expect((await buildOn(network, validity(bounds))).warnings).toEqual([]);
+
+    now.mockReturnValue(T);
+    expect((await buildOn(network, validity({ from: T }))).warnings).toEqual(
+      [],
+    );
+  });
+
+  it("changes no byte with the clock", async () => {
+    const part = validity({ from: T + 400, label: "window" });
+    const funds = payer();
+    const now = jest.spyOn(Date, "now").mockReturnValue(T + 400);
+    const builder = new TxBuilder({ network, params });
+    const early = await builder.build([pay, part], { payer: funds });
+    now.mockReturnValue(T + 400 + 3_600_000);
+    const late = await builder.build([pay, part], { payer: funds });
+    expect(late.tx).toBe(early.tx);
+    expect(late.txHash).toBe(early.txHash);
+    expect(early.warnings).toHaveLength(1);
+    expect(late.warnings).toEqual([]);
+  });
+
+  it("warns on each network of a part valid from now", async () => {
+    const t = T + 400;
+    jest.spyOn(Date, "now").mockReturnValue(t);
+    const part = validity({ from: t, until: t + 600000 });
+    for (const [on, slot] of [
+      [network, String(S + 1)],
+      [devnet(T - 50), "5"],
+    ] as const) {
+      const built = await buildOn(on, part);
+      expect(built.prototype.body.validity_start_interval).toBe(slot);
+      expect(built.warnings.map((w) => w.code)).toEqual(["VALID_FROM_FUTURE"]);
+    }
+  });
+
+  it("takes a bigint time in slotAt, refusing one that is not a safe integer", () => {
+    const builder = new TxBuilder({ network, params });
+    expect(builder.slotAt(BigInt(T))).toBe(builder.slotAt(T));
+    expect(builder.slotAt(BigInt(T) + 1n, "up")).toBe(S + 1);
+    expect(builder.slotAt(new Date(T))).toBe(S);
+    expect(typeof builder.slotAt(2n ** 53n - 1n)).toBe("number");
+    for (const time of [2n ** 53n + 1n, 2n ** 53n]) {
+      let error: unknown;
+      try {
+        builder.slotAt(time);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).toBeInstanceOf(TxBuildError);
+      const built = error as TxBuildError<"INVALID_OPTION">;
+      expect(built.code).toBe("INVALID_OPTION");
+      expect(built.details.option).toBe("time");
+      expect(built.details.value).toBe(time);
+      expect(built.cause).toBeInstanceOf(Error);
+    }
+  });
+
+  it("refuses two validity parts, whatever their forms", async () => {
+    await expectBuildError(
+      new TxBuilder({ network, params }).build(
+        [pay, validity({ from: T }), validity({ until: T + 600000 })],
+        { payer: payer() },
+      ),
+      "DUPLICATE_PART",
+    );
+  });
+
+  it("takes a converted slot above 1e11", async () => {
+    expect(
+      (await bodyOf(validity({ until: T + 100_000_000_000_000 }))).until,
+    ).toBe("100100000000");
+  });
+
+  it("converts time bounds in resolveParts itself", async () => {
+    const context = {
+      network: networkConfig("preprod"),
+      params,
+      deposits: {},
+      known: new Map<string, UTxO>(),
+    };
+    const part = validity({ from: T + 1, until: T + 600000, label: "window" });
+    const [resolved] = await resolveParts([part], context);
+    expect(resolved).toStrictEqual({
+      kind: "validity",
+      invalidBefore: String(S + 1),
+      invalidHereafter: String(S + 600),
+      label: "window",
+    });
+    expect(Object.isFrozen(resolved)).toBe(true);
+    await expectPartError(
+      resolveParts([validity({ from: T + 1, until: T + 999 })], context),
+    );
   });
 });
 

@@ -104,6 +104,155 @@ describe("validity", () => {
   });
 });
 
+describe("validity in POSIX time", () => {
+  // Slot 100000000 of preprod starts at T
+  const S = 100000000;
+  const T = 1755683200000;
+
+  const partErrorOf = (build: () => unknown): TxPartError => {
+    try {
+      build();
+    } catch (error) {
+      expect(error).toBeInstanceOf(TxPartError);
+      expect((error as TxPartError).code).toBe("INVALID_DATA");
+      return error as TxPartError;
+    }
+    throw new Error("expected an INVALID_DATA error");
+  };
+
+  it("holds the time bounds as numbers, without slots", () => {
+    const part = validity({ from: T, until: T + 600000 });
+
+    expect(part).toStrictEqual({
+      kind: "validity",
+      from: T,
+      until: T + 600000,
+    });
+    expect(Object.isFrozen(part)).toBe(true);
+    expect(validity({ from: T })).toStrictEqual({ kind: "validity", from: T });
+    expect(validity({ until: T })).toStrictEqual({
+      kind: "validity",
+      until: T,
+    });
+  });
+
+  it("takes a bigint or a Date as the equal number", () => {
+    expect(
+      validity({
+        from: BigInt(T),
+        until: new Date(T + 600000),
+        label: "window",
+      }),
+    ).toStrictEqual({
+      kind: "validity",
+      from: T,
+      until: T + 600000,
+      label: "window",
+    });
+    expect(
+      validity({ from: BigInt(T), until: new Date(T + 600000) }),
+    ).toStrictEqual({ kind: "validity", from: T, until: T + 600000 });
+  });
+
+  it("takes each bound in either form", () => {
+    expect(validity({ invalidBefore: 10, until: T })).toStrictEqual({
+      kind: "validity",
+      invalidBefore: "10",
+      until: T,
+    });
+    expect(validity({ from: T, invalidHereafter: S + 600 })).toStrictEqual({
+      kind: "validity",
+      from: T,
+      invalidHereafter: "100000600",
+    });
+  });
+
+  it("refuses a time from 2^53 up", () => {
+    for (const bound of ["from", "until"] as const) {
+      partErrorOf(() => validity({ [bound]: 2n ** 53n + 1n }));
+      partErrorOf(() => validity({ [bound]: 2n ** 53n }));
+      partErrorOf(() => validity({ [bound]: 2 ** 53 }));
+      expect(validity({ [bound]: 2n ** 53n - 1n })).toStrictEqual({
+        kind: "validity",
+        [bound]: Number.MAX_SAFE_INTEGER,
+      });
+    }
+  });
+
+  it("refuses a time that is not a whole number of milliseconds, 0 or more", () => {
+    const bad = [
+      NaN,
+      Infinity,
+      1.5,
+      -1,
+      -1n,
+      new Date(NaN),
+      new Date(-1),
+      "2026-01-01" as never,
+      null as never,
+    ];
+    for (const bound of ["from", "until"] as const) {
+      for (const time of bad) partErrorOf(() => validity({ [bound]: time }));
+      for (const time of [0, 0n, new Date(0)])
+        expect(validity({ [bound]: time })).toStrictEqual({
+          kind: "validity",
+          [bound]: 0,
+        });
+    }
+  });
+
+  it("refuses a bound given both ways", () => {
+    expect(
+      partErrorOf(() => validity({ from: T, invalidBefore: S })).message,
+    ).toMatch(/lower bound is given both ways/);
+    expect(
+      partErrorOf(() => validity({ until: T, invalidHereafter: S })).message,
+    ).toMatch(/upper bound is given both ways/);
+  });
+
+  it("refuses a lower bound not before the upper one", () => {
+    partErrorOf(() => validity({ from: T, until: T }));
+    partErrorOf(() => validity({ from: T + 1, until: T }));
+  });
+
+  it("names the part and its label in what it refuses", () => {
+    const calls: (() => unknown)[] = [
+      () => validity({ from: 2n ** 53n, label: "window" }),
+      () => validity({ until: -1, label: "window" }),
+      () => validity({ from: T, invalidBefore: S, label: "window" }),
+      () => validity({ from: T, until: T, label: "window" }),
+    ];
+    for (const call of calls) {
+      const error = partErrorOf(call);
+      expect(error.part).toBe("validity");
+      expect(error.label).toBe("window");
+    }
+  });
+
+  it("leaves the slot of a time bound to be filled in", () => {
+    for (const part of [
+      validity({ from: T }),
+      validity({ until: T }),
+      validity({ from: T, until: T + 1 }),
+      validity({ invalidBefore: 10, until: T }),
+    ])
+      expect(unresolved(part)).toEqual([{ type: "slot" }]);
+    expect(
+      unresolved(validity({ invalidBefore: 10, invalidHereafter: 20 })),
+    ).toEqual([]);
+  });
+
+  it("names the time argument for a slot that looks like POSIX milliseconds", () => {
+    expect(
+      partErrorOf(() => validity({ invalidBefore: 1_793_788_355_463 })).message,
+    ).toMatch(/POSIX milliseconds.*\bfrom\b/);
+    expect(
+      partErrorOf(() => validity({ invalidHereafter: 1_793_788_355_463 }))
+        .message,
+    ).toMatch(/POSIX milliseconds.*\buntil\b/);
+  });
+});
+
 describe("metadata", () => {
   it("converts values to metadata", () => {
     const part = metadata({

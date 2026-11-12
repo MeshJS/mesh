@@ -523,6 +523,25 @@ describe("assembleTxPrototype: errors", () => {
     expect(error.message).toContain('output "min" (minCoin)');
   });
 
+  it("converts no time bound: a validity part given a time is incomplete", () => {
+    const error = expectBuildError(
+      () =>
+        assembleTxPrototype(
+          [
+            keySpend("aa".repeat(32), 0),
+            pay,
+            validity({ until: 1755683200000 }),
+          ],
+          options,
+        ),
+      "UNRESOLVED",
+    );
+    expect(error.details).toEqual([
+      { kind: "validity", gaps: [{ type: "slot" }] },
+    ]);
+    expect(error.message).toContain("validity (slot)");
+  });
+
   const action = { txHash: "a".repeat(64), index: 0 };
   const policyParts = [
     mint.native({ script: nativeScript, assets: { "01": 1n } }),

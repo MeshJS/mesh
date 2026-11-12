@@ -52,6 +52,8 @@ const toSlot = (
   ctx: PartContext,
   name: string,
   slot: bigint | number | undefined,
+  /** The argument that takes the same bound as a time */
+  timeName: string,
 ): bigint | undefined => {
   if (slot === undefined) return undefined;
   if (
@@ -64,40 +66,113 @@ const toSlot = (
     fail(
       ctx,
       "INVALID_DATA",
-      `${name} ${slot} looks like POSIX milliseconds, not a slot`,
+      `${name} ${slot} looks like POSIX milliseconds, not a slot; give a time as ${timeName}`,
     );
   return BigInt(slot);
 };
 
+/** POSIX milliseconds as a number: a safe integer, 0 or more, whichever form it is given in */
+const toTime = (
+  ctx: PartContext,
+  name: string,
+  time: number | bigint | Date | undefined,
+): number | undefined => {
+  if (time === undefined) return undefined;
+  // A bigint beyond 2^53 - 1 converts to a number that is no safe integer: refused, not rounded
+  const ms =
+    time instanceof Date
+      ? time.getTime()
+      : typeof time === "bigint"
+        ? Number(time)
+        : time;
+  if (typeof ms !== "number" || !Number.isSafeInteger(ms) || ms < 0)
+    fail(
+      ctx,
+      "INVALID_DATA",
+      `invalid ${name} ${describeTime(time)}: expected POSIX milliseconds, a whole number from 0 to ${Number.MAX_SAFE_INTEGER}, as a number, a bigint or a Date`,
+    );
+  return ms;
+};
+
+const describeTime = (time: unknown) =>
+  time instanceof Date
+    ? `Date ${Number.isNaN(time.getTime()) ? "(invalid)" : time.getTime()}`
+    : typeof time === "string"
+      ? JSON.stringify(time)
+      : String(time);
+
 /**
- * Limit the slots the transaction is valid in. Either bound may be left open.
+ * Limit when the transaction is valid, by POSIX time (`from`, `until`) or by slot
+ * (`invalidBefore`, `invalidHereafter`); each bound in either form, or left open. Times are
+ * POSIX milliseconds, given as a number, a bigint (for example a deadline decoded from a datum)
+ * or a Date, and are converted to slots when the transaction is built, with the builder's
+ * network. One rounding rule: the interval a script sees lies within [from, until]. `from`
+ * becomes the first slot starting at or after it, so the script's lower bound is >= `from`; a
+ * script that requires its lower bound to be strictly after a deadline gets
+ * `from: deadline + 1`. `until` becomes the slot containing it, so the script's (open) upper
+ * bound is <= `until`. For "valid from now" leave `from` out: `from: Date.now()` is valid from
+ * the next slot only (VALID_FROM_FUTURE), and nodes check it against their lagging tip.
+ * @param params.from Earliest time the transaction is valid at
+ * @param params.until Latest time the transaction is valid at
  * @param params.invalidBefore First slot the transaction is valid in
  * @param params.invalidHereafter First slot the transaction is no longer valid in
  * @param params.label Name echoed in errors about this part
- * @throws TxPartError INVALID_DATA for no bound given, a slot that is not a whole number from 0
- *   to 1e11 (above that it looks like POSIX milliseconds), or a lower bound not before the
- *   upper one
+ * @throws TxPartError INVALID_DATA for no bound given, a bound given both ways, a time that is
+ *   not a whole number of milliseconds from 0 to 2^53 - 1, a slot that is not a whole number
+ *   from 0 to 1e11 (above that it looks like POSIX milliseconds), or a lower bound not before
+ *   the upper one
+ * @example validity({ until: Date.now() + 10 * 60_000 })
  */
 export const validity = (params: {
+  from?: number | bigint | Date;
+  until?: number | bigint | Date;
   invalidBefore?: bigint | number;
   invalidHereafter?: bigint | number;
   label?: string;
 }): ValidityPart => {
   const ctx: PartContext = { part: "validity", label: params.label };
-  const from = toSlot(ctx, "invalidBefore", params.invalidBefore);
-  const to = toSlot(ctx, "invalidHereafter", params.invalidHereafter);
-  if (from === undefined && to === undefined)
-    fail(ctx, "INVALID_DATA", "neither bound is given");
-  if (from !== undefined && to !== undefined && from >= to)
+  const before = toSlot(ctx, "invalidBefore", params.invalidBefore, "from");
+  const hereafter = toSlot(
+    ctx,
+    "invalidHereafter",
+    params.invalidHereafter,
+    "until",
+  );
+  const from = toTime(ctx, "from", params.from);
+  const until = toTime(ctx, "until", params.until);
+  if (from !== undefined && before !== undefined)
     fail(
       ctx,
       "INVALID_DATA",
-      `invalidBefore ${from} is not before invalidHereafter ${to}`,
+      "the lower bound is given both ways: give from or invalidBefore",
     );
+  if (until !== undefined && hereafter !== undefined)
+    fail(
+      ctx,
+      "INVALID_DATA",
+      "the upper bound is given both ways: give until or invalidHereafter",
+    );
+  if (
+    from === undefined &&
+    until === undefined &&
+    before === undefined &&
+    hereafter === undefined
+  )
+    fail(ctx, "INVALID_DATA", "neither bound is given");
+  if (before !== undefined && hereafter !== undefined && before >= hereafter)
+    fail(
+      ctx,
+      "INVALID_DATA",
+      `invalidBefore ${before} is not before invalidHereafter ${hereafter}`,
+    );
+  if (from !== undefined && until !== undefined && from >= until)
+    fail(ctx, "INVALID_DATA", `from ${from} is not before until ${until}`);
   return freeze({
     kind: "validity",
-    ...(from !== undefined && { invalidBefore: from.toString() }),
-    ...(to !== undefined && { invalidHereafter: to.toString() }),
+    ...(before !== undefined && { invalidBefore: before.toString() }),
+    ...(hereafter !== undefined && { invalidHereafter: hereafter.toString() }),
+    ...(from !== undefined && { from }),
+    ...(until !== undefined && { until }),
     ...labelOf(params.label),
   });
 };

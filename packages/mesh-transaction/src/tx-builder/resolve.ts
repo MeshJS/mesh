@@ -5,6 +5,7 @@ import type {
   TransactionInputPrototype,
   UTxO,
 } from "@meshsdk/common";
+import { slotAt } from "@meshsdk/common";
 
 import type { PartContext } from "./parts/normalize";
 import type {
@@ -20,11 +21,13 @@ import type {
   ProposalPart,
   SpendPart,
   TxPart,
+  ValidityPart,
 } from "./parts/types";
 import { TxBuildError } from "./errors";
 import { checkNetworks, heldUtxos, utxoEntry } from "./network";
 import { checkLock, toSpendDatum } from "./parts/inputs";
 import {
+  fail,
   freeze,
   outRefString,
   rewardCredential,
@@ -266,6 +269,66 @@ const resolveProposal = (
   };
 };
 
+/**
+ * A validity part with its time bounds converted to slots on the network's clock: `from` to the
+ * first slot starting at or after it, `until` to the slot containing it, so that the interval a
+ * script sees lies within [from, until]. A part without time bounds is returned as it is.
+ * @throws TxPartError INVALID_DATA for a time before the network's slot clock starts, or an
+ *   interval that holds no slot once both bounds are slots
+ */
+export const resolveValidity = (
+  part: ValidityPart,
+  network: NetworkConfig,
+): ValidityPart => {
+  const { from, until, ...rest } = part;
+  if (from === undefined && until === undefined) return part;
+  const ctx = ctxOf(part);
+  const { zeroTime } = network.slotConfig;
+  const toSlot = (name: "from" | "until", time: number, slot: string) => {
+    // Below zeroTime the clock's arithmetic gives a wrong or negative slot, which is where
+    // seconds written for milliseconds, or a slot written as a time, land
+    if (time < zeroTime)
+      fail(
+        ctx,
+        "INVALID_DATA",
+        `${name} ${time} is before the slot clock of network ${network.name} starts, at ${zeroTime}: times are POSIX milliseconds; give an earlier bound as a slot (${slot})`,
+      );
+    return slotAt(network, time, name === "from" ? "up" : "down");
+  };
+  const before =
+    from === undefined
+      ? rest.invalidBefore
+      : String(toSlot("from", from, "invalidBefore"));
+  const hereafter =
+    until === undefined
+      ? rest.invalidHereafter
+      : String(toSlot("until", until, "invalidHereafter"));
+  if (
+    before !== undefined &&
+    hereafter !== undefined &&
+    BigInt(before) >= BigInt(hereafter)
+  ) {
+    const lower =
+      from === undefined
+        ? `invalidBefore ${before}`
+        : `from ${from} (slot ${before})`;
+    const upper =
+      until === undefined
+        ? `invalidHereafter ${hereafter}`
+        : `until ${until} (slot ${hereafter})`;
+    fail(
+      ctx,
+      "INVALID_DATA",
+      `the interval holds no slot on network ${network.name}: ${lower} is not before ${upper}`,
+    );
+  }
+  return freeze({
+    ...rest,
+    ...(before !== undefined && { invalidBefore: before }),
+    ...(hereafter !== undefined && { invalidHereafter: hereafter }),
+  });
+};
+
 /** The reward balances of the stake addresses whose whole balance is withdrawn */
 const fetchRewardBalances = async (
   parts: readonly TxPart[],
@@ -317,9 +380,10 @@ const fetchedEntries = (parts: readonly TxPart[], ctx: ResolveContext) =>
 
 /**
  * Fills in what parts leave open and can be found out before balancing: the outputs they
- * reference, their reference scripts, the datum of spent script outputs, deposits and reward
- * balances. Checks what is filled in against what the parts state, as the part builders would
- * have had it been given to them.
+ * reference, their reference scripts, the datum of spent script outputs, deposits, reward
+ * balances, and the slots of validity bounds given as times, on the network's clock. Checks
+ * what is filled in against what the parts state, as the part builders would have had it been
+ * given to them.
  *
  * Left open: output lovelace, total collateral and execution units, which balancing and
  * evaluation work out.
@@ -371,6 +435,8 @@ export const resolveParts = async (
         return freeze(resolveCertificate(part, ctx));
       case "proposal":
         return freeze(resolveProposal(part, ctx));
+      case "validity":
+        return resolveValidity(part, ctx.network);
       default:
         return part;
     }

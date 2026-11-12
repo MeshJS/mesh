@@ -229,15 +229,30 @@ export function customNetwork(params: {
  * The slot containing a POSIX time (`"down"`, the default), or the first slot starting at or
  * after it (`"up"`). The answer follows the network's slot clock, which holds from the config's
  * `zeroTime` on: an earlier time gives a slot before `zeroSlot`.
- * @param time POSIX time in milliseconds, or a Date
+ * @param time POSIX time in milliseconds, as a number or a bigint (e.g. a deadline decoded from a
+ *   datum), or a Date
+ * @throws Error for a bigint that is not a safe integer: it is never rounded
  */
 export function slotAt(
   network: NetworkInput,
-  time: number | Date,
+  time: number | bigint | Date,
   round: "down" | "up" = "down",
 ): number {
   const { zeroTime, zeroSlot, slotLength } = networkConfig(network).slotConfig;
-  const ms = time instanceof Date ? time.getTime() : time;
+  if (
+    typeof time === "bigint" &&
+    (time > BigInt(Number.MAX_SAFE_INTEGER) ||
+      time < -BigInt(Number.MAX_SAFE_INTEGER))
+  )
+    throw new Error(
+      `The time ${time} is not a safe integer: a bigint time must lie from -${Number.MAX_SAFE_INTEGER} to ${Number.MAX_SAFE_INTEGER}`,
+    );
+  const ms =
+    time instanceof Date
+      ? time.getTime()
+      : typeof time === "bigint"
+        ? Number(time)
+        : time;
   const slots = (ms - zeroTime) / slotLength;
   return (round === "up" ? Math.ceil(slots) : Math.floor(slots)) + zeroSlot;
 }

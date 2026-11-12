@@ -87,8 +87,11 @@ export const unresolved = (part: TxPart): Unresolved[] => {
           : []),
         ...(part.witness.type === "none" ? [] : witnessGaps(part.witness)),
       ];
-    case "requiredSigner":
     case "validity":
+      return part.from !== undefined || part.until !== undefined
+        ? [{ type: "slot" }]
+        : [];
+    case "requiredSigner":
     case "metadata":
     case "auxiliaryScript":
     case "donation":

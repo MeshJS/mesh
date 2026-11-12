@@ -375,6 +375,24 @@ describe("Time", () => {
       expect(slotAt("preprod", new Date(t))).toBe(slotAt("preprod", t));
       expect(slotAt(devnet, new Date(1_000_250), "up")).toBe(13);
     });
+    it("takes a bigint as its time, as the equal number", () => {
+      expect(slotAt("preprod", 1755683200000n)).toBe(100000000);
+      expect(slotAt("preprod", 1755683200001n, "up")).toBe(100000001);
+      expect(slotAt("preprod", 1755683200999n)).toBe(
+        slotAt("preprod", 1755683200999),
+      );
+      expect(slotAt(devnet, -100n)).toBe(slotAt(devnet, -100));
+      expect(slotAt("preprod", 2n ** 53n - 1n)).toBe(
+        slotAt("preprod", Number.MAX_SAFE_INTEGER),
+      );
+    });
+    it("refuses a bigint time that is not a safe integer", () => {
+      for (const time of [2n ** 53n, 2n ** 53n + 1n, -(2n ** 53n)])
+        expect(() => slotAt("preprod", time)).toThrow(
+          new RegExp(`^The time ${time} is not a safe integer`),
+        );
+      expect(() => slotAt("preprod", 2n ** 53n)).toThrow(Error);
+    });
     it("give the first millisecond of a slot, from a number or a bigint", () => {
       expect(timeAt("preview", 56347026)).toBe(1723003026000);
       expect(timeAt("preview", 56347026n)).toBe(1723003026000);
