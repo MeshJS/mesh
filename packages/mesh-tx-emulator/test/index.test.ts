@@ -2595,9 +2595,7 @@ describe.each(["scalus", "cquisitor"] as const)(
       expect(update.warnings).toContainEqual(
         notChecked(Cardano.PoolId.fromKeyHash(operator as never).toString()),
       );
-      // Scalus charges a re-registration another deposit (see the README)
-      if (validator === "cquisitor") expectAccepted(update);
-      else expect(update.accepted).toBe(false);
+      expectAccepted(update);
       // A registration paying the deposit, taken to be of a new pool
       expectAccepted(await check(await registration(500_000_000n)));
     });
