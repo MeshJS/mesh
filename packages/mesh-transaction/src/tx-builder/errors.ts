@@ -2,6 +2,7 @@ import type { Budget, ScriptFailure } from "@meshsdk/common";
 
 import type { TxPartError, TxPartErrorCode } from "./parts/errors";
 import type { OutRef, TxPart, Unresolved } from "./parts/types";
+import type { RequiredKey } from "./witnesses";
 
 /** Codes of a `TxBuildError`: why a transaction could not be built from its parts */
 export type TxBuildErrorCode =
@@ -319,6 +320,8 @@ export type TxIntentErrorDetails = {
     keyHash?: string;
   };
   NOT_YET_VALID: { waitMs: number };
+  /** Every key whose signature is missing, with the parts that need it */
+  MISSING_SIGNATURES: { missing: RequiredKey[] };
   /** The CIP-30 code when a wallet submitted: TxSendError Refused 1, Failure 2 */
   SUBMIT_FAILED: { walletCode?: number };
   REJECTED: { otherLive: string[]; tipAgeMs?: number };

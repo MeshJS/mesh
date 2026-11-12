@@ -496,7 +496,7 @@ describe("TxBuilder: coinSelection", () => {
     expect(refs(built.selectedInputs)).toEqual([ref(large)]);
     expect(refs(built.collateral!.inputs)).toEqual([ref(small)]);
     expect(built.collateral!.return!.address).toBe(wallet);
-    expect(built.change.map((o) => o.address)).toEqual([wallet]);
+    expect(built.change.map((o) => o.output.address)).toEqual([wallet]);
     // Once per pass, for the payment only: collateral is never asked for
     expect(calls.length).toBeGreaterThan(0);
     for (const [need, , context] of calls) {
@@ -687,7 +687,11 @@ describe("TxBuilder: sendAllTo", () => {
     for (const sendAllTo of [wallet, hexOf(wallet)]) {
       const built = await offline().build([], { payer, sendAllTo });
       expect(built.change.length).toBeGreaterThan(0);
-      expect(built.change).toEqual(built.prototype.body.outputs);
+      expect(built.change).toEqual(built.outputs);
+      for (const o of built.change) {
+        expect(o.change).toBe(true);
+        expect(o.output.address).toBe(wallet);
+      }
     }
     const elsewhere = await offline().build([], { payer, sendAllTo: vault });
     expect(elsewhere.change).toEqual([]);

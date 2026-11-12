@@ -168,6 +168,13 @@ const sum = (values: (string | number | bigint)[]) =>
   values.reduce<bigint>((a, b) => a + BigInt(b), 0n);
 const coinOf = (u: UTxO) =>
   BigInt(u.output.amount.find((a) => a.unit === "lovelace")?.quantity ?? 0);
+/** The tokens a UTxO holds, quantity by unit */
+const tokensOf = (u: UTxO) =>
+  Object.fromEntries(
+    u.output.amount.flatMap((a) =>
+      a.unit === "lovelace" ? [] : [[a.unit, a.quantity]],
+    ),
+  );
 
 /** Lovelace in = lovelace out, with the given deposits and refunds */
 const expectBalanced = (
@@ -208,7 +215,7 @@ describe("TxBuilder: balancing", () => {
 
     expect(built.selectedInputs).toEqual(funds);
     expect(built.change).toHaveLength(1);
-    expect(built.change[0]!.address).toBe(wallet);
+    expect(built.change[0]!.output.address).toBe(wallet);
     expectBalanced(built);
     // Within a byte or two of the minimum for the signed transaction
     const min = signedMinFee(built, 1);
@@ -231,9 +238,7 @@ describe("TxBuilder: balancing", () => {
     expect(BigInt(paid.amount.coin)).toBeGreaterThan(ada(1));
     expect(BigInt(paid.amount.coin)).toBeLessThan(ada(2));
     // The other 4 tokens come back
-    expect(built.change[0]!.amount.multiasset).toEqual({
-      [unit.slice(0, 56)]: { [unit.slice(56)]: "4" },
-    });
+    expect(tokensOf(built.change[0]!)).toEqual({ [unit]: "4" });
     expectBalanced(built);
   });
 
@@ -304,7 +309,7 @@ describe("TxBuilder: balancing", () => {
       { payer: { changeAddress: wallet, utxos: [extra] } },
     );
     expect(built.selectedInputs).toEqual([extra]);
-    expect(BigInt(built.change[0]!.amount.coin)).toBeGreaterThan(ada(4));
+    expect(coinOf(built.change[0]!)).toBeGreaterThan(ada(4));
     expectBalanced(built);
   });
 
@@ -356,11 +361,7 @@ describe("TxBuilder: balancing", () => {
       },
     );
     expect(built.change.length).toBeGreaterThan(1);
-    const returned = built.change.flatMap((o) =>
-      Object.entries(o.amount.multiasset ?? {}).flatMap(([policy, assets]) =>
-        Object.keys(assets).map((name) => policy + name),
-      ),
-    );
+    const returned = built.change.flatMap((o) => Object.keys(tokensOf(o)));
     expect(returned.sort()).toEqual([...units].sort());
     expectBalanced(built);
   });
@@ -541,9 +542,7 @@ describe("TxBuilder: what INSUFFICIENT_FUNDS reports", () => {
       });
       expect(built.selectedInputs).toHaveLength(holdings.length);
       expect(built.fee).toBe(short.feeEstimate);
-      expect(sum(built.change.map((o) => o.amount.coin))).toBe(
-        short.changeMinimum,
-      );
+      expect(sum(built.change.map(coinOf))).toBe(short.changeMinimum);
       expectBalanced(built);
 
       const less = await fundsShort({
@@ -570,10 +569,8 @@ describe("TxBuilder: what INSUFFICIENT_FUNDS reports", () => {
     });
     expect(built.fee).toBe(short.feeEstimate);
     expect(built.change).toHaveLength(1);
-    expect(BigInt(built.change[0]!.amount.coin)).toBe(short.changeMinimum);
-    expect(built.change[0]!.amount.multiasset).toEqual({
-      [unit.slice(0, 56)]: { [unit.slice(56)]: "5" },
-    });
+    expect(coinOf(built.change[0]!)).toBe(short.changeMinimum);
+    expect(tokensOf(built.change[0]!)).toEqual({ [unit]: "5" });
     expectBalanced(built);
     await fundsShort({
       parts: [pay(50)],
@@ -985,8 +982,8 @@ describe("TxBuilder: scripts", () => {
     expect(
       built.redeemers.map((r) => [r.tag, r.index, r.label, r.exUnits]),
     ).toEqual([
-      ["SPEND", 0, "spend 1", { mem: 5000, steps: 7000 }],
-      ["SPEND", 1, "spend 2", { mem: 5000, steps: 7000 }],
+      ["SPEND", 0, "spend 1", { mem: 5000n, steps: 7000n }],
+      ["SPEND", 1, "spend 2", { mem: 5000n, steps: 7000n }],
     ]);
     expect(built.exUnits).toEqual({ mem: 10000n, steps: 14000n });
     expect(built.prototype.body.script_data_hash).toMatch(/^[0-9a-f]{64}$/);
@@ -1008,7 +1005,7 @@ describe("TxBuilder: scripts", () => {
     }).build([scriptSpend(1, { mem: 6000, steps: 8000 })], {
       payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] },
     });
-    expect(built.redeemers[0]!.exUnits).toEqual({ mem: 6000, steps: 8000 });
+    expect(built.redeemers[0]!.exUnits).toEqual({ mem: 6000n, steps: 8000n });
 
     const error = await expectBuildError(
       new TxBuilder({ network, costModels, params, evaluator }).build(
@@ -1033,7 +1030,7 @@ describe("TxBuilder: scripts", () => {
     }).build([scriptSpend(1, { mem: 6000, steps: 8000 })], {
       payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] },
     });
-    expect(built.redeemers[0]!.exUnits).toEqual({ mem: 6000, steps: 8000 });
+    expect(built.redeemers[0]!.exUnits).toEqual({ mem: 6000n, steps: 8000n });
   });
 
   it("needs an evaluator for redeemers without units", async () => {
@@ -1630,7 +1627,7 @@ describe("TxBuilder: a given fee with scripts", () => {
       fee: 300_000n,
     });
     expect(built.fee).toBe(300_000n);
-    expect(built.change.map((o) => o.amount.coin)).toEqual(["1700000"]);
+    expect(built.change.map(coinOf)).toEqual([1_700_000n]);
     expectBalanced(built);
   });
 
@@ -2199,7 +2196,7 @@ describe("TxBuilder: evaluator", () => {
     const built = await builder.build(
       ...request([scriptSpend({ mem: 6000, steps: 8000 })]),
     );
-    expect(built.redeemers[0]!.exUnits).toEqual({ mem: 6000, steps: 8000 });
+    expect(built.redeemers[0]!.exUnits).toEqual({ mem: 6000n, steps: 8000n });
     await expectBuildError(
       builder.build(...request([scriptSpend()])),
       "MISSING_EVALUATOR",

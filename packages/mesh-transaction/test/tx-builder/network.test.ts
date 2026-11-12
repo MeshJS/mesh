@@ -1061,8 +1061,8 @@ describe("TxBuilder: its evaluator's configuration", () => {
   it("evaluates without a provider by default", async () => {
     const builder = new TxBuilder({ network: "preprod", params, costModels });
     const built = await buildWith(builder, [scriptSpend()]);
-    expect(built.redeemers[0]!.exUnits.mem).toBeGreaterThan(0);
-    expect(built.redeemers[0]!.exUnits.steps).toBeGreaterThan(0);
+    expect(built.redeemers[0]!.exUnits.mem).toBeGreaterThan(0n);
+    expect(built.redeemers[0]!.exUnits.steps).toBeGreaterThan(0n);
 
     const tooLow = { mem: 7, steps: 7 };
     expectCode(
@@ -1076,7 +1076,7 @@ describe("TxBuilder: its evaluator's configuration", () => {
       "MISSING_EVALUATOR",
     );
     const unchecked = await buildWith(none, [scriptSpend(tooLow)]);
-    expect(unchecked.redeemers[0]!.exUnits).toEqual(tooLow);
+    expect(unchecked.redeemers[0]!.exUnits).toEqual({ mem: 7n, steps: 7n });
   });
 });
 

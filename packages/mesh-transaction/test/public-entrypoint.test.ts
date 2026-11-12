@@ -15,6 +15,7 @@ describe("public entrypoint", () => {
     "TxIntentError",
     "TxBuilder",
     "canSubmit",
+    "outputOf",
   ])("exports %s", (name) => {
     expect(publicApi).toHaveProperty(name);
   });

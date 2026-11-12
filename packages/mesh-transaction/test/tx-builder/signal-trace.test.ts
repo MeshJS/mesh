@@ -411,7 +411,7 @@ describe("TxBuilder: trace", () => {
         expect.objectContaining({
           tag: "SPEND",
           index: built.redeemers[0]!.index,
-          exUnits: { mem: 1000, steps: 2000 },
+          exUnits: { mem: 1000n, steps: 2000n },
           part: expect.objectContaining({ kind: "spend" }),
         }),
       ]);

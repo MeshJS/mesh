@@ -28,154 +28,296 @@ import { nativeScriptToPrototype } from "./parts/normalize";
 /** Who has to sign a transaction: key hashes, and Byron addresses spent from */
 export type Signers = { keyHashes: Set<string>; byronAddresses: Set<string> };
 
-const addCredential = (
-  signers: Signers,
-  credential: Readonly<CredTypePrototype> | undefined,
-) => {
-  if (credential?.type === "KEY") signers.keyHashes.add(credential.value);
+/**
+ * Why a key must sign. `"guard"` is a key the transaction states as a required signer.
+ *
+ * The list is open: later ledger eras and versions of this library may add roles, so code that
+ * reads it keeps a default branch.
+ */
+export type SignerRole =
+  | "input"
+  | "collateral"
+  | "certificate"
+  | "withdrawal"
+  | "vote"
+  | "proposal"
+  | "guard"
+  | "poolOwner";
+
+/** A key the transaction needs a vkey witness of, with every part that needs it */
+export type RequiredKey = {
+  keyHash: string;
+  /** One entry per part and role that needs the key */
+  neededBy: { part: TxPart["kind"]; label?: string; role: SignerRole }[];
 };
 
-const addAddress = (signers: Signers, utxo: Readonly<UTxO> | undefined) => {
+/**
+ * Who must sign, as the builder works it out to size the fee. Keys named only by native scripts
+ * are not in `keyHashes`: which of them sign is the script's choice.
+ */
+export type TxSigners = {
+  /** Keys that must all sign, each once, in the order the parts first need them */
+  keyHashes: string[];
+  /** One entry per key of `keyHashes`, in the same order */
+  keys: RequiredKey[];
+  /** Byron addresses spent from, each needing a bootstrap witness */
+  byronAddresses: string[];
+  /** Native scripts that run, each once */
+  nativeScripts: NativeScriptPrototype[];
+};
+
+/** What the parts of a transaction need signed, as it is collected */
+type Collected = {
+  /** Keys the parts need, with the parts and roles that need them */
+  keys: Map<string, RequiredKey>;
+  /** Every key a witness is priced for: the keys above and those native scripts name */
+  priced: Set<string>;
+  byronAddresses: Set<string>;
+  /** Native scripts that run, by script hash */
+  nativeScripts: Map<string, NativeScriptPrototype>;
+  /** The keys and roles the part being walked has already recorded, as `keyHash role` */
+  partKeys: Set<string>;
+};
+
+const addKey = (
+  collected: Collected,
+  keyHash: string,
+  part: TxPart,
+  role: SignerRole,
+) => {
+  collected.priced.add(keyHash);
+  let key = collected.keys.get(keyHash);
+  if (!key) {
+    key = { keyHash, neededBy: [] };
+    collected.keys.set(keyHash, key);
+  }
+  // A part names a key once per role, however often it lists it; another part, even of the same
+  // kind and label, is another entry
+  const partKey = `${keyHash} ${role}`;
+  if (collected.partKeys.has(partKey)) return;
+  collected.partKeys.add(partKey);
+  key.neededBy.push({
+    part: part.kind,
+    ...(part.label !== undefined && { label: part.label }),
+    role,
+  });
+};
+
+const addCredential = (
+  collected: Collected,
+  credential: Readonly<CredTypePrototype> | undefined,
+  part: TxPart,
+  role: SignerRole,
+) => {
+  if (credential?.type === "KEY")
+    addKey(collected, credential.value, part, role);
+};
+
+const addAddress = (
+  collected: Collected,
+  utxo: Readonly<UTxO> | undefined,
+  part: TxPart,
+  role: SignerRole,
+) => {
   if (!utxo) return;
   const address = Address.fromString(utxo.output.address);
   if (!address) return;
   if (address.asByron()) {
-    signers.byronAddresses.add(utxo.output.address);
+    collected.byronAddresses.add(utxo.output.address);
     return;
   }
   const payment = address.getProps().paymentPart;
   if (payment?.type === CredentialType.KeyHash)
-    signers.keyHashes.add(payment.hash.toString());
+    addKey(collected, payment.hash.toString(), part, role);
 };
 
-const addNativeScript = (
-  signers: Signers,
+/** Every key a native script names, as any of them may be needed to satisfy it */
+const addNativeScriptKeys = (
+  collected: Collected,
   script: Readonly<NativeScriptPrototype>,
 ) => {
   switch (script.type) {
     case "SCRIPT_PUBKEY":
-      signers.keyHashes.add(script.value.addr_keyhash);
+      collected.priced.add(script.value.addr_keyhash);
       return;
     case "SCRIPT_ALL":
     case "SCRIPT_ANY":
     case "SCRIPT_N_OF_K":
-      script.value.native_scripts.forEach((s) => addNativeScript(signers, s));
-      return;
-    default:
-      return;
-  }
-};
-
-/** The script of a native witness, read from its reference output when it is held there */
-const nativeScriptOf = (
-  source: NativeScriptSource,
-): NativeScriptPrototype | undefined => {
-  if (source.type === "attached") return source.script as NativeScriptPrototype;
-  const scriptRef = source.utxo?.output.scriptRef;
-  const native = scriptRef && Script.fromCbor(HexBlob(scriptRef)).asNative();
-  return native
-    ? nativeScriptToPrototype(fromNativeScript(native) as NativeScript)
-    : undefined;
-};
-
-const addWitness = (
-  signers: Signers,
-  witness: KeyWitness | NativeWitness | PlutusWitness | { type: "none" },
-  credential?: Readonly<CredTypePrototype>,
-) => {
-  if (witness.type === "key") addCredential(signers, credential);
-  if (witness.type === "native") {
-    const script = nativeScriptOf(witness.script);
-    // Every key a native script names may be needed to satisfy it
-    if (script) addNativeScript(signers, script);
-  }
-};
-
-/** The keys a certificate is signed with, when it is witnessed by keys */
-const certificateKeys = (
-  signers: Signers,
-  certificate: CertificatePart["certificate"],
-) => {
-  switch (certificate.type) {
-    case "POOL_REGISTRATION":
-      signers.keyHashes.add(certificate.value.pool_params.operator);
-      certificate.value.pool_params.pool_owners.forEach((owner) =>
-        signers.keyHashes.add(owner),
+      script.value.native_scripts.forEach((s) =>
+        addNativeScriptKeys(collected, s),
       );
       return;
-    case "POOL_RETIREMENT":
-      signers.keyHashes.add(certificate.value.pool_keyhash);
-      return;
-    case "COMMITTEE_HOT_AUTH":
-    case "COMMITTEE_COLD_RESIGN":
-      addCredential(signers, certificate.value.committee_cold_credential);
-      return;
-    case "DREP_REGISTRATION":
-    case "DREP_DEREGISTRATION":
-    case "DREP_UPDATE":
-      addCredential(signers, certificate.value.voting_credential);
-      return;
     default:
-      addCredential(signers, certificate.value.stake_credential);
+      return;
   }
 };
 
 /**
- * Everyone who has to sign a transaction made of these (resolved) parts. Native scripts count
- * every key they name, as which of them sign is not known in advance; the fee is then enough for
- * any of them.
+ * The script of a native witness and its hash, the script read from its reference output when
+ * it is held there
  */
-export const requiredSigners = (parts: readonly TxPart[]): Signers => {
-  const signers: Signers = { keyHashes: new Set(), byronAddresses: new Set() };
+const nativeScriptOf = (
+  source: NativeScriptSource,
+): { script: NativeScriptPrototype; hash: string } | undefined => {
+  if (source.type === "attached")
+    return {
+      script: source.script as NativeScriptPrototype,
+      hash: source.scriptHash,
+    };
+  const scriptRef = source.utxo?.output.scriptRef;
+  const native = scriptRef && Script.fromCbor(HexBlob(scriptRef)).asNative();
+  return native
+    ? {
+        script: nativeScriptToPrototype(
+          fromNativeScript(native) as NativeScript,
+        ),
+        hash: native.hash().toString(),
+      }
+    : undefined;
+};
+
+/** A native script that runs: listed once, and every key it names priced */
+const addNativeWitness = (
+  collected: Collected,
+  witness: KeyWitness | NativeWitness | PlutusWitness | { type: "none" },
+) => {
+  if (witness.type !== "native") return;
+  const native = nativeScriptOf(witness.script);
+  if (!native) return;
+  if (!collected.nativeScripts.has(native.hash))
+    collected.nativeScripts.set(native.hash, native.script);
+  addNativeScriptKeys(collected, native.script);
+};
+
+/** The keys a certificate is signed with, when it is witnessed by keys */
+const certificateKeys = (collected: Collected, part: CertificatePart) => {
+  const { certificate } = part;
+  switch (certificate.type) {
+    case "POOL_REGISTRATION":
+      addKey(
+        collected,
+        certificate.value.pool_params.operator,
+        part,
+        "certificate",
+      );
+      certificate.value.pool_params.pool_owners.forEach((owner) =>
+        addKey(collected, owner, part, "poolOwner"),
+      );
+      return;
+    case "POOL_RETIREMENT":
+      addKey(collected, certificate.value.pool_keyhash, part, "certificate");
+      return;
+    case "COMMITTEE_HOT_AUTH":
+    case "COMMITTEE_COLD_RESIGN":
+      addCredential(
+        collected,
+        certificate.value.committee_cold_credential,
+        part,
+        "certificate",
+      );
+      return;
+    case "DREP_REGISTRATION":
+    case "DREP_DEREGISTRATION":
+    case "DREP_UPDATE":
+      addCredential(
+        collected,
+        certificate.value.voting_credential,
+        part,
+        "certificate",
+      );
+      return;
+    default:
+      addCredential(
+        collected,
+        certificate.value.stake_credential,
+        part,
+        "certificate",
+      );
+  }
+};
+
+/** Everything the parts of a transaction need signed, in the order of the parts */
+const collectSigners = (parts: readonly TxPart[]): Collected => {
+  const collected: Collected = {
+    keys: new Map(),
+    priced: new Set(),
+    byronAddresses: new Set(),
+    nativeScripts: new Map(),
+    partKeys: new Set(),
+  };
   for (const part of parts) {
+    collected.partKeys = new Set();
     switch (part.kind) {
       case "spend":
-        if (part.witness.type === "key") addAddress(signers, part.utxo);
-        else addWitness(signers, part.witness);
+        if (part.witness.type === "key")
+          addAddress(collected, part.utxo, part, "input");
+        else addNativeWitness(collected, part.witness);
         break;
       case "collateral":
-        addAddress(signers, part.utxo);
+        addAddress(collected, part.utxo, part, "collateral");
         break;
       case "requiredSigner":
-        signers.keyHashes.add(part.keyHash);
+        addKey(collected, part.keyHash, part, "guard");
         break;
       case "mint":
-        addWitness(signers, part.witness);
+        addNativeWitness(collected, part.witness);
         break;
       case "withdrawal": {
+        if (part.witness.type !== "key") {
+          addNativeWitness(collected, part.witness);
+          break;
+        }
         const credential = Address.fromString(part.rewardAddress)
           ?.asReward()
           ?.getPaymentCredential();
-        addWitness(
-          signers,
-          part.witness,
-          credential && {
-            type: credential.type === CredentialType.KeyHash ? "KEY" : "SCRIPT",
-            value: credential.hash.toString(),
-          },
-        );
+        if (credential?.type === CredentialType.KeyHash)
+          addKey(collected, credential.hash.toString(), part, "withdrawal");
         break;
       }
       case "certificate":
-        if (part.witness.type === "key")
-          certificateKeys(signers, part.certificate);
-        else addWitness(signers, part.witness);
+        if (part.witness.type === "key") certificateKeys(collected, part);
+        else addNativeWitness(collected, part.witness);
         break;
       case "vote":
         if (part.witness.type === "key") {
           if (part.voter.type === "STAKING_POOL")
-            signers.keyHashes.add(part.voter.value);
-          else addCredential(signers, part.voter.value);
-        } else addWitness(signers, part.witness);
+            addKey(collected, part.voter.value, part, "vote");
+          else addCredential(collected, part.voter.value, part, "vote");
+        } else addNativeWitness(collected, part.witness);
         break;
       case "proposal":
-        addWitness(signers, part.witness);
+        addNativeWitness(collected, part.witness);
         break;
       default:
         break;
     }
   }
-  return signers;
+  return collected;
+};
+
+/**
+ * Everyone who has to sign a transaction made of these (resolved) parts, to price their
+ * witnesses. Native scripts count every key they name, as which of them sign is not known in
+ * advance; the fee is then enough for any of them.
+ */
+export const requiredSigners = (parts: readonly TxPart[]): Signers => {
+  const { priced, byronAddresses } = collectSigners(parts);
+  return { keyHashes: priced, byronAddresses };
+};
+
+/**
+ * The keys a transaction made of these (resolved) parts needs signed, each with the parts and
+ * roles that need it; the Byron addresses it spends from; the native scripts it runs
+ */
+export const txSigners = (parts: readonly TxPart[]): TxSigners => {
+  const collected = collectSigners(parts);
+  const keys = Array.from(collected.keys.values());
+  return {
+    keyHashes: keys.map((k) => k.keyHash),
+    keys,
+    byronAddresses: Array.from(collected.byronAddresses),
+    nativeScripts: Array.from(collected.nativeScripts.values()),
+  };
 };
 
 const filler = (byte: number, bytes: number, index: number) =>

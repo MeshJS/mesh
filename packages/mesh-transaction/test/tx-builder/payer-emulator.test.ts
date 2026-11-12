@@ -59,7 +59,7 @@ describe("TxBuilder payers on the emulator", () => {
     });
     await noFetcher.init();
     const built = await builder.build(pay(), { payer: noFetcher });
-    expect(built.change.map((o) => o.address)).toEqual([address]);
+    expect(built.change.map((o) => o.output.address)).toEqual([address]);
     const txHash = await emulator.submitTx(await noFetcher.signTx(built.tx));
     expect(txHash).toBe(built.txHash);
   });
@@ -77,7 +77,7 @@ describe("TxBuilder payers on the emulator", () => {
     ];
     for (const payer of payers) {
       const built = await builder.build(pay(), { payer: await payer() });
-      expect(built.change.map((o) => o.address)).toEqual([address]);
+      expect(built.change.map((o) => o.output.address)).toEqual([address]);
       // The CIP-30 api answers with its witnesses only
       const witnesses = await api.signTx(built.tx, false);
       const tx = BrowserWallet.addBrowserWitnesses(built.tx, witnesses);

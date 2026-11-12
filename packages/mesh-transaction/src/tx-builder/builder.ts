@@ -8,6 +8,7 @@ import type {
   NativeScript,
   NetworkConfig,
   NetworkInput,
+  PlutusDataVariant,
   PlutusScript,
   Protocol,
   RedeemerTagType,
@@ -25,12 +26,13 @@ import {
 import {
   CborWriter,
   OfflineEvaluatorScalus,
+  plutusDataVariantToCardano,
   Transaction,
   transactionPrototypeToHex,
   TxCBOR,
 } from "@meshsdk/core-cst";
 
-import type { AssembledRedeemer } from "./assemble";
+import type { AssembledRedeemer, AssembledTx } from "./assemble";
 import type {
   BalanceContext,
   Balanced,
@@ -52,6 +54,7 @@ import type {
   PayerSource,
 } from "./payer";
 import type { GovernanceDeposits } from "./resolve";
+import type { TxSigners } from "./witnesses";
 import { abortable, throwIfAborted } from "./abort";
 import {
   balance,
@@ -61,6 +64,7 @@ import {
   refusedBy,
   totalExUnits,
 } from "./balance";
+import { bodyOutputs } from "./chain";
 import { TxBuildError } from "./errors";
 import { coversMinCoin, minCoin, valueSize } from "./fee";
 import { auxiliaryDataHashOf, scriptDataHashOf } from "./hashes";
@@ -74,7 +78,7 @@ import {
   scriptAddressOn,
   utxoEntry,
 } from "./network";
-import { freeze } from "./parts/normalize";
+import { freeze, outRefString } from "./parts/normalize";
 import {
   givenPayerEntries,
   readPayerSource,
@@ -83,6 +87,7 @@ import {
   toUtxo,
 } from "./payer";
 import { resolveParts, resolveValidity, utxoKey } from "./resolve";
+import { txSigners } from "./witnesses";
 
 /**
  * What the builder reads the chain through: every read, the tip and the search; submits when it
@@ -414,10 +419,14 @@ const checkBuildOptions = (options: BuildOptions): { sendAllTo?: string } => {
   }
 };
 
+/** A redeemer of a built transaction */
 export type BuiltRedeemer = {
   tag: AssembledRedeemer["tag"];
   index: number;
-  exUnits: Budget;
+  /** Execution units, as bigint like `BuiltTx.exUnits` */
+  exUnits: { mem: bigint; steps: bigint };
+  /** The redeemer data, in CBOR hex, as the transaction carries it */
+  data: string;
   /** The part the redeemer belongs to */
   part: AssembledRedeemer["part"];
   label?: string;
@@ -426,10 +435,16 @@ export type BuiltRedeemer = {
 /** Something worth knowing that did not stop the build */
 export type BuildWarning = {
   /**
-   * `VALID_FROM_FUTURE`: the slot of the transaction's lower bound starts after the current time
-   * of the local clock
+   * - `VALID_FROM_FUTURE`: the slot of the transaction's lower bound starts after the current
+   *   time of the local clock
+   * - `COLLATERAL_FORFEITED`: the transaction puts up collateral and has no collateral return:
+   *   all of the collateral is at stake
+   * - `FEE_ABOVE_MINIMUM`: the `fee` given is above the minimum fee of the transaction
+   *
+   * The list is open: later versions may add codes, so code that reads it keeps a default
+   * branch.
    */
-  code: "VALID_FROM_FUTURE";
+  code: "VALID_FROM_FUTURE" | "COLLATERAL_FORFEITED" | "FEE_ABOVE_MINIMUM";
   message: string;
   /** The kind of the part it is about */
   part?: TxPart["kind"];
@@ -437,29 +452,61 @@ export type BuildWarning = {
   label?: string;
 };
 
-/** A transaction built and balanced, ready to sign */
+/** An output of a built transaction, as the UTxO it becomes */
+export type BuiltOutput = UTxO & {
+  /** The label of the output part it comes from */
+  readonly label?: string;
+  /** Set on change outputs: those at the payer's change address that took change */
+  readonly change?: true;
+};
+
+/** A transaction built and balanced, ready to sign. Plain data. */
 export type BuiltTx = {
   /** The unsigned transaction, in CBOR hex */
   tx: string;
   txHash: string;
-  /** The transaction as a value, exactly as serialized */
+  /**
+   * The transaction as a value, exactly as serialized. It follows the transaction format of the
+   * current ledger era; code meant to outlive an era reads the other members of `BuiltTx`.
+   */
   prototype: TransactionPrototype;
   fee: bigint;
   /** Total execution units of the transaction's redeemers */
   exUnits: { mem: bigint; steps: bigint };
   redeemers: BuiltRedeemer[];
-  /** Every input spent, in the transaction's order */
+  /** Every input spent, resolved, in the transaction's order */
   inputs: UTxO[];
   /** The inputs added to pay for the transaction */
   selectedInputs: UTxO[];
-  /** The outputs returning change */
-  change: TransactionOutputPrototype[];
+  /** The reference inputs, resolved, in the transaction's order */
+  referenceInputs: UTxO[];
+  /**
+   * Every output as a UTxO of `txHash`, in body order, with its part's label. The collateral
+   * return is not among them.
+   */
+  outputs: BuiltOutput[];
+  /** The change outputs, as UTxOs of `txHash`, in body order; each is also in `outputs` */
+  change: BuiltOutput[];
   /** The collateral, when the transaction runs Plutus scripts */
   collateral?: CollateralPlan;
-  /** Every part of the transaction, resolved, the ones added by balancing included */
-  parts: TxPart[];
+  /** The keys that must sign, and why */
+  signers: TxSigners;
+  /**
+   * The validity interval, with the bounds the transaction has: in slots, and the POSIX
+   * milliseconds those slots start at on the builder's network
+   */
+  validity?: {
+    invalidBefore?: number;
+    invalidHereafter?: number;
+    from?: number;
+    until?: number;
+  };
+  /** The network the transaction was built for */
+  network: { name: string; networkId: 0 | 1 };
   /** What is worth knowing about the transaction and did not stop the build; often empty */
   warnings: BuildWarning[];
+  /** Every part of the transaction, resolved, the ones added by balancing included */
+  parts: TxPart[];
 };
 
 /**
@@ -535,6 +582,38 @@ const toBudget = (units: ExUnitsPrototype): Budget => ({
   mem: Number(units.mem),
   steps: Number(units.steps),
 });
+
+/** Plutus data in CBOR hex, encoded as the serializer encodes it */
+const dataCbor = (data: Readonly<PlutusDataVariant>): string =>
+  data.type === "CBOR"
+    ? data.hex
+    : plutusDataVariantToCardano(data).toCbor().toString();
+
+/**
+ * The redeemers of an assembled transaction as a result reports them, with the execution units
+ * `unitsOf` gives each; one it gives none for is left out
+ */
+const builtRedeemers = (
+  assembled: AssembledTx,
+  unitsOf: (redeemer: AssembledRedeemer) => ExUnitsPrototype | undefined,
+): BuiltRedeemer[] => {
+  // The witness set holds the redeemers in the same order
+  const data = assembled.prototype.witness_set.redeemers ?? [];
+  return assembled.redeemers.flatMap((r, i) => {
+    const units = unitsOf(r);
+    if (!units) return [];
+    return [
+      {
+        tag: r.tag,
+        index: r.index,
+        exUnits: { mem: BigInt(units.mem), steps: BigInt(units.steps) },
+        data: dataCbor(data[i]!.data),
+        part: r.part,
+        ...(r.label !== undefined && { label: r.label }),
+      },
+    ];
+  });
+};
 
 const errorText = (error: unknown) =>
   error instanceof Error
@@ -957,7 +1036,7 @@ export class TxBuilder {
         evaluated.size < open.length,
       );
       if (redeemerParts.length === 0 || !this.evaluator)
-        return this.finish(balanced, params, costModels, warnings);
+        return this.finish(balanced, params, costModels, warnings, fee);
 
       const tx = this.serialize(balanced.assembled.prototype);
       throwIfAborted(signal);
@@ -968,20 +1047,9 @@ export class TxBuilder {
       emit({
         type: "evaluated",
         round,
-        redeemers: balanced.assembled.redeemers.flatMap((r) => {
-          const result = results.get(`${r.tag}:${r.index}`);
-          return result
-            ? [
-                {
-                  tag: r.tag,
-                  index: r.index,
-                  exUnits: toBudget(result),
-                  part: r.part,
-                  ...(r.label !== undefined && { label: r.label }),
-                },
-              ]
-            : [];
-        }),
+        redeemers: builtRedeemers(balanced.assembled, (r) =>
+          results.get(`${r.tag}:${r.index}`),
+        ),
       });
       // Redeemers belong to the very part objects given to balancing
       const position = new Map(roundParts.map((part, i) => [part, i]));
@@ -1024,7 +1092,8 @@ export class TxBuilder {
           settled = false;
         }
       }
-      if (settled) return this.finish(balanced, params, costModels, warnings);
+      if (settled)
+        return this.finish(balanced, params, costModels, warnings, fee);
     }
     throw new TxBuildError(
       "EVALUATION_NOT_CONVERGED",
@@ -1271,11 +1340,17 @@ export class TxBuilder {
     return { parts: converted, warnings };
   }
 
+  /**
+   * The result of a build from its last balancing round: the transaction serialized, and what
+   * the build decided as data
+   * @param fee The fee the caller gave, if any
+   */
   private finish(
     balanced: Balanced,
     params: Protocol,
     costModels: number[][],
     warnings: BuildWarning[],
+    fee: bigint | undefined,
   ): BuiltTx {
     const { assembled } = balanced;
     const total = totalExUnits(assembled);
@@ -1311,32 +1386,74 @@ export class TxBuilder {
       }
     }
 
+    const { body } = prototype;
+    const txHash = Transaction.fromCbor(TxCBOR(tx)).getId().toString();
     const inputs = new Map(
       balanced.parts.flatMap((p) =>
         p.kind === "spend" ? [[utxoKey(p.utxo!), p.utxo!] as const] : [],
       ),
     );
+    const references = referencedUtxos(balanced.parts);
+
+    // Output parts become the body's outputs in their order, so the body's i-th output is made
+    // from the i-th output part
+    const outputParts = balanced.parts.filter(
+      (p): p is OutputPart => p.kind === "output",
+    );
+    const changeParts = new Set<TxPart>(balanced.change);
+    const outputs = bodyOutputs(txHash, body).map((utxo, i): BuiltOutput => {
+      const part = outputParts[i]!;
+      return {
+        ...utxo,
+        ...(part.label !== undefined && { label: part.label }),
+        ...(changeParts.has(part) && { change: true as const }),
+      };
+    });
+
+    const validity = validityOf(body, this.network);
+    // Collateral without a return is forfeited whole if a script fails
+    const forfeited =
+      (body.collateral?.length ?? 0) > 0 && !body.collateral_return;
     return {
       tx,
-      txHash: Transaction.fromCbor(TxCBOR(tx)).getId().toString(),
+      txHash,
       prototype,
       fee: balanced.fee,
       exUnits: total,
-      redeemers: assembled.redeemers.map((r) => ({
-        tag: r.tag,
-        index: r.index,
-        exUnits: { mem: Number(r.exUnits.mem), steps: Number(r.exUnits.steps) },
-        part: r.part,
-        ...(r.label !== undefined && { label: r.label }),
-      })),
-      inputs: prototype.body.inputs.map((i) =>
+      redeemers: builtRedeemers(assembled, (r) => r.exUnits),
+      inputs: body.inputs.map((i) =>
         inputs.get(`${i.transaction_id}#${i.index}`)!,
       ),
       selectedInputs: balanced.selected,
-      change: balanced.change,
+      referenceInputs: (body.reference_inputs ?? []).map((i) =>
+        references.get(outRefString(i))!,
+      ),
+      outputs,
+      change: outputs.filter((o) => o.change),
       ...(balanced.collateral && { collateral: balanced.collateral }),
+      signers: txSigners(balanced.parts),
+      ...(validity && { validity }),
+      network: { name: this.network.name, networkId: this.network.networkId },
+      warnings: [
+        ...warnings,
+        ...(forfeited
+          ? [
+              {
+                code: "COLLATERAL_FORFEITED" as const,
+                message: `the transaction has no collateral return: all of its collateral${body.total_collateral ? `, ${body.total_collateral} lovelace,` : ""} is forfeited if a script fails`,
+              },
+            ]
+          : []),
+        ...(fee !== undefined && balanced.minFee < balanced.fee
+          ? [
+              {
+                code: "FEE_ABOVE_MINIMUM" as const,
+                message: `the fee ${balanced.fee} is above the transaction's minimum fee ${balanced.minFee}; the difference is paid as fee`,
+              },
+            ]
+          : []),
+      ],
       parts: balanced.parts,
-      warnings,
     };
   }
 }
@@ -1407,4 +1524,52 @@ const withMinCoin = (part: OutputPart, params: Protocol): OutputPart => {
   return given === undefined
     ? freeze({ ...part, output: output as OutputPart["output"] })
     : part;
+};
+
+/**
+ * The UTxOs the parts read, by `txHash#index`: those of reference inputs and those reference
+ * scripts are held in
+ */
+const referencedUtxos = (parts: readonly TxPart[]): Map<string, UTxO> => {
+  const read = new Map<string, UTxO>();
+  for (const part of parts) {
+    if (part.kind === "referenceInput" && part.utxo)
+      read.set(outRefString(part.input), part.utxo);
+    if (!("witness" in part)) continue;
+    const { witness } = part;
+    if (
+      (witness.type === "native" || witness.type === "plutus") &&
+      witness.script.type === "reference" &&
+      witness.script.utxo
+    )
+      read.set(outRefString(witness.script.input), witness.script.utxo);
+  }
+  return read;
+};
+
+/**
+ * The validity interval of a transaction body, with the bounds it has, in slots and in the POSIX
+ * milliseconds those slots start at; undefined without either bound
+ */
+const validityOf = (
+  body: TransactionPrototype["body"],
+  network: NetworkConfig,
+): BuiltTx["validity"] => {
+  const before = body.validity_start_interval;
+  const hereafter = body.ttl;
+  if (
+    (before === undefined || before === null) &&
+    (hereafter === undefined || hereafter === null)
+  )
+    return undefined;
+  const validity: NonNullable<BuiltTx["validity"]> = {};
+  if (before !== undefined && before !== null) {
+    validity.invalidBefore = Number(before);
+    validity.from = timeAt(network, BigInt(before));
+  }
+  if (hereafter !== undefined && hereafter !== null) {
+    validity.invalidHereafter = Number(hereafter);
+    validity.until = timeAt(network, BigInt(hereafter));
+  }
+  return validity;
 };

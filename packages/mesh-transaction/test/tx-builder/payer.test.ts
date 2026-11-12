@@ -265,7 +265,7 @@ describe("TxBuilder: payer forms", () => {
     const second = await offline().build(pay(), { payer });
     expect(second.tx).toBe(first.tx);
     expect(second.txHash).toBe(first.txHash);
-    expect(first.change[0]!.address).toBe(wallet);
+    expect(first.change[0]!.output.address).toBe(wallet);
   });
 
   it("takes a snapshot with a hex address and CBOR UTxOs, mixed with objects", async () => {
@@ -343,7 +343,7 @@ describe("TxBuilder: payer forms", () => {
       expect(calls.filter((c) => c.method === "fetchAddressUTxOs")).toEqual([
         { method: "fetchAddressUTxOs", args: [wallet] },
       ]);
-      expect(result.change.map((o) => o.address)).toEqual([wallet]);
+      expect(result.change.map((o) => o.output.address)).toEqual([wallet]);
       built.push(result.tx);
     }
     expect(built[1]).toBe(built[0]);

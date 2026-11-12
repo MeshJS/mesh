@@ -160,8 +160,11 @@ const copyUtxo = (value: unknown): UTxO => {
     throw new Error(`invalid output index ${String(outputIndex)}`);
   if (!Array.isArray(value.output.amount))
     throw new Error("a UTxO's amount is a list of assets");
-  const utxo = structuredClone(value) as unknown as UTxO;
-  utxo.input.txHash = txHash.toLowerCase();
+  // `input` and `output` only: the `label` and `change` of a built output are not the UTxO's
+  const utxo: UTxO = {
+    input: { txHash: txHash.toLowerCase(), outputIndex },
+    output: structuredClone(value.output) as unknown as UTxO["output"],
+  };
   utxo.output.address = toAddressText(value.output.address);
   return utxo;
 };

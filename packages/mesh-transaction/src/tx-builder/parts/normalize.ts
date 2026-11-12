@@ -80,7 +80,9 @@ const isUtxo = (ref: InputRef): ref is UTxO => "input" in ref;
 
 /**
  * Normalises an input reference. A full UTxO is copied, so later changes to the caller's
- * object cannot reach the part, and the copy holds its address in canonical text.
+ * object cannot reach the part, and the copy holds its address in canonical text. The copy has
+ * `input` and `output` only: what else the object carries (the `label` and `change` of a built
+ * output) is not the UTxO's.
  */
 export const toResolvableInput = (ctx: PartContext, ref: InputRef) => {
   const { txHash, outputIndex } = isUtxo(ref) ? ref.input : ref;
@@ -93,8 +95,10 @@ export const toResolvableInput = (ctx: PartContext, ref: InputRef) => {
 
   const input = { transaction_id: transactionId, index: outputIndex };
   if (!isUtxo(ref)) return { input };
-  const utxo = structuredClone(ref);
-  utxo.input = { txHash: transactionId, outputIndex };
+  const utxo: UTxO = {
+    input: { txHash: transactionId, outputIndex },
+    output: structuredClone(ref.output),
+  };
   utxo.output.address = addressText(parseAddress(ctx, utxo.output.address));
   return { input, utxo };
 };

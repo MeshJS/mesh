@@ -28,6 +28,11 @@ const network = "preview";
 const plutusScript = { code: alwaysSucceedCbor, version: "V3" as const };
 const failingScript = { code: alwaysFailCbor, version: "V3" as const };
 const lovelace = (quantity: string) => [{ unit: "lovelace", quantity }];
+/** Execution units as a built redeemer reports them */
+const bigUnits = (units: { mem: number; steps: number }) => ({
+  mem: BigInt(units.mem),
+  steps: BigInt(units.steps),
+});
 const fundsHash = "0".repeat(64);
 const collateralHash = "1".repeat(64);
 const lockedHash = "2".repeat(64);
@@ -140,7 +145,7 @@ describe("TxBuilder's evaluators on the emulator", () => {
         new TxBuilder({ network, provider, evaluator }),
         [unlock()],
       );
-      expect(built.redeemers[0]!.exUnits.mem).toBeGreaterThan(0);
+      expect(built.redeemers[0]!.exUnits.mem).toBeGreaterThan(0n);
       expect(evaluateTx).toHaveBeenCalled();
       // One that does not take the builder's UTxOs resolves the inputs from the emulator
       for (const [, utxos, txs] of evaluateTx.mock.calls) {
@@ -191,7 +196,7 @@ describe("TxBuilder's evaluators on the emulator", () => {
       new TxBuilder({ network, provider, evaluator: null }),
       [unlockFailing(stated)],
     );
-    expect(built.redeemers[0]!.exUnits).toEqual(stated);
+    expect(built.redeemers[0]!.exUnits).toEqual(bigUnits(stated));
   });
 
   it("evaluates a transaction with a validity interval on the builder's network clock", async () => {
@@ -205,7 +210,7 @@ describe("TxBuilder's evaluators on the emulator", () => {
     const builder = new TxBuilder({ network, provider });
     expect(builder.evaluator).toBeInstanceOf(OfflineEvaluatorScalus);
     const built = await build(builder, parts);
-    expect(built.redeemers[0]!.exUnits.mem).toBeGreaterThan(0);
+    expect(built.redeemers[0]!.exUnits.mem).toBeGreaterThan(0n);
     expect(await submit(built)).toBe(built.txHash);
   });
 
@@ -227,13 +232,13 @@ describe("TxBuilder's evaluators on the emulator", () => {
     const built = await build(new TxBuilder({ network, provider }), [
       unlock(enough),
     ]);
-    expect(built.redeemers[0]!.exUnits).toEqual(enough);
+    expect(built.redeemers[0]!.exUnits).toEqual(bigUnits(enough));
 
     const unchecked = await build(
       new TxBuilder({ network, provider, evaluator: null }),
       [unlock(tooLow)],
     );
-    expect(unchecked.redeemers[0]!.exUnits).toEqual(tooLow);
+    expect(unchecked.redeemers[0]!.exUnits).toEqual(bigUnits(tooLow));
     expect(await submit(built)).toBe(built.txHash);
   });
 });

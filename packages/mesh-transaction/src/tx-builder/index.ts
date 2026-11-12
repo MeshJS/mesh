@@ -35,8 +35,10 @@ export {
   type PartsInput,
   type BuiltTx,
   type BuiltRedeemer,
+  type BuiltOutput,
   type BuildWarning,
 } from "./builder";
+export { outputOf } from "./chain";
 export {
   canSubmit,
   type MeshFormatWallet,
@@ -48,3 +50,4 @@ export {
 } from "./payer";
 export type { CollateralPlan, SelectInputs } from "./balance";
 export type { GovernanceDeposits } from "./resolve";
+export type { RequiredKey, SignerRole, TxSigners } from "./witnesses";

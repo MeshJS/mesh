@@ -164,8 +164,9 @@ describe("TxBuilder on the emulator", () => {
       { payer: { changeAddress: address, utxos: await utxos() } },
     );
     // The tokens left over come back as change
-    expect(sent.change.map((o) => o.amount.multiasset)).toContainEqual({
-      [unit.slice(0, 56)]: { "0001": "990" },
+    expect(sent.change.flatMap((o) => o.output.amount)).toContainEqual({
+      unit: `${unit.slice(0, 56)}0001`,
+      quantity: "990",
     });
     await submit(sent);
   });
@@ -203,7 +204,7 @@ describe("TxBuilder on the emulator", () => {
     expect(built.redeemers).toEqual([
       expect.objectContaining({ tag: "SPEND", label: "unlock" }),
     ]);
-    expect(built.redeemers[0]!.exUnits.mem).toBeGreaterThan(0);
+    expect(built.redeemers[0]!.exUnits.mem).toBeGreaterThan(0n);
     expect(built.collateral!.return).toBeDefined();
     expect(built.prototype.body.reference_inputs).toEqual([
       { transaction_id: setupHash, index: 1 },
@@ -243,7 +244,9 @@ describe("TxBuilder on the emulator", () => {
     );
     expect(
       burnt.change.some((o) =>
-        units.some((u) => o.amount.multiasset?.[u.slice(0, 56)]),
+        units.some((u) =>
+          o.output.amount.some((a) => a.unit.startsWith(u.slice(0, 56))),
+        ),
       ),
     ).toBe(false);
     await submit(burnt);
@@ -307,7 +310,7 @@ describe("TxBuilder on the emulator", () => {
       0n,
     );
     const change = deregister.change.reduce(
-      (sum, o) => sum + BigInt(o.amount.coin),
+      (sum, o) => sum + BigInt(o.output.amount[0]!.quantity),
       0n,
     );
     expect(change).toBe(spent + 4_000_000n - deregister.fee);

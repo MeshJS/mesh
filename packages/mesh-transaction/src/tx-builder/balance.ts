@@ -132,7 +132,13 @@ export type Balanced = {
   fee: bigint;
   /** Inputs added to pay for the transaction */
   selected: UTxO[];
-  change: TransactionOutputPrototype[];
+  /**
+   * The output parts of `parts` that return change to the payer's change address: those that
+   * took what was left, unless it was sent to another address
+   */
+  change: OutputPart[];
+  /** The minimum fee of the transaction, with a witness for every key expected to sign */
+  minFee: bigint;
   collateral?: CollateralPlan;
 };
 
@@ -803,16 +809,26 @@ export const balance = (
     }
   };
 
-  /** The collateral and collateral return parts of a plan */
+  /** The labels of the collateral parts, by out ref */
+  const collateralLabels = new Map(
+    givenCollateral.flatMap((p) =>
+      p.label === undefined ? [] : [[outRefString(p.input), p.label] as const],
+    ),
+  );
+  /** The collateral and collateral return parts of a plan, given ones keeping their labels */
   const collateralParts = (collateral: CollateralPlan): TxPart[] => [
-    ...collateral.inputs.map((utxo): CollateralPart => ({
-      kind: "collateral",
-      input: {
-        transaction_id: utxo.input.txHash,
-        index: utxo.input.outputIndex,
-      },
-      utxo,
-    })),
+    ...collateral.inputs.map((utxo): CollateralPart => {
+      const label = collateralLabels.get(utxoKey(utxo));
+      return {
+        kind: "collateral",
+        input: {
+          transaction_id: utxo.input.txHash,
+          index: utxo.input.outputIndex,
+        },
+        utxo,
+        ...(label !== undefined && { label }),
+      };
+    }),
     {
       kind: "collateralReturn",
       address: givenReturn?.address ?? ctx.changeAddress,
@@ -847,10 +863,11 @@ export const balance = (
     }
 
     const collateral = needsCollateral ? planCollateral(fee) : undefined;
+    const changeParts = change.map(outputPart);
     const all: TxPart[] = [
       ...core,
       ...selected.map(spendPart),
-      ...change.map(outputPart),
+      ...changeParts,
       ...(collateral ? collateralParts(collateral) : []),
     ];
 
@@ -891,7 +908,8 @@ export const balance = (
         fee,
         selected,
         // What is sent to another address is not the payer's change
-        change: changeTo === ctx.changeAddress ? change : [],
+        change: changeTo === ctx.changeAddress ? changeParts : [],
+        minFee: required,
         ...(collateral && { collateral }),
       };
     fee = required;
