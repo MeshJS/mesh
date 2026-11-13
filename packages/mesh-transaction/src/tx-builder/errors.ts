@@ -1,9 +1,9 @@
 import type { Budget, ScriptFailure } from "@meshsdk/common";
 
-import type { TxIntent } from "./intent/intent";
-import type { TxAttempt, TxIntentStatus } from "./intent/types";
 import type { TxPartError, TxPartErrorCode } from "./parts/errors";
 import type { OutRef, TxPart, Unresolved } from "./parts/types";
+import type { TxPlan } from "./plan/plan";
+import type { TxAttempt, TxPlanStatus } from "./plan/types";
 import type { RequiredKey } from "./witnesses";
 
 /** Codes of a `TxBuildError`: why a transaction could not be built from its parts */
@@ -49,7 +49,7 @@ export type TxBuildErrorCode =
   | "FEE_NOT_CONVERGED"
   /** The serializer cannot serialize a `TransactionPrototype` */
   | "UNSUPPORTED_SERIALIZER"
-  /** An address, wallet, provider or intent record of another network than the builder's */
+  /** An address, wallet, provider or plan record of another network than the builder's */
   | "NETWORK_MISMATCH"
   /** No `payer` says who pays */
   | "MISSING_PAYER"
@@ -159,7 +159,7 @@ export type InsufficientFundsDetails = {
   };
 };
 
-/** An address, wallet, provider or intent record of another network than the builder's */
+/** An address, wallet, provider or plan record of another network than the builder's */
 export type NetworkMismatchDetails = {
   expected: { name: string; networkId: 0 | 1 };
   found: {
@@ -172,7 +172,7 @@ export type NetworkMismatchDetails = {
       | "collateralReturn"
       | "withdrawal"
       | "rewardAccount"
-      /** The network an intent's record was written for */
+      /** The network a plan's record was written for */
       | "record";
     address?: string;
     networkId?: number;
@@ -233,10 +233,10 @@ export type TxBuildErrorDetails = {
 };
 
 /**
- * Codes of a `TxIntentError`: signing, submitting, waiting for the chain, any step of an intent,
+ * Codes of a `TxPlanError`: signing, submitting, waiting for the chain, any step of a plan,
  * and its store
  */
-export type TxIntentErrorCode =
+export type TxPlanErrorCode =
   /** The signer declined to sign */
   | "SIGN_DECLINED"
   /** The signer failed, timed out, or changed accounts */
@@ -271,29 +271,29 @@ export type TxIntentErrorCode =
   | "CANNOT_OBSERVE"
   /** An attempt is on chain */
   | "ATTEMPT_ON_CHAIN"
-  /** The call does not fit the intent's state */
+  /** The call does not fit the plan's state */
   | "INVALID_STATE"
   /** An attempt may still land */
   | "STILL_LIVE"
-  /** The payer is not the one the intent was made for */
+  /** The payer is not the one the plan was made for */
   | "PAYER_MISMATCH"
   /** Inputs the parts name explicitly are spent */
   | "INPUTS_SPENT"
-  /** An intent with this id is already stored */
-  | "INTENT_EXISTS"
-  /** No intent with this id is stored */
-  | "INTENT_NOT_FOUND"
-  /** The stored intent was changed by someone else */
+  /** A plan with this id is already stored */
+  | "PLAN_EXISTS"
+  /** No plan with this id is stored */
+  | "PLAN_NOT_FOUND"
+  /** The stored plan was changed by someone else */
   | "VERSION_CONFLICT"
   /** The store failed */
   | "STORE_FAILED"
   /** The call needs a store, and none is given */
   | "MISSING_STORE"
-  /** The call needs an intent id, and none is given */
+  /** The call needs a plan id, and none is given */
   | "MISSING_ID";
 
-/** Every intent error code, once: the compiler checks the list against `TxIntentErrorCode` */
-export const TX_INTENT_ERROR_CODES = Object.keys({
+/** Every plan error code, once: the compiler checks the list against `TxPlanErrorCode` */
+export const TX_PLAN_ERROR_CODES = Object.keys({
   SIGN_DECLINED: true,
   SIGNER_FAILED: true,
   INVALID_WITNESS: true,
@@ -312,16 +312,16 @@ export const TX_INTENT_ERROR_CODES = Object.keys({
   STILL_LIVE: true,
   PAYER_MISMATCH: true,
   INPUTS_SPENT: true,
-  INTENT_EXISTS: true,
-  INTENT_NOT_FOUND: true,
+  PLAN_EXISTS: true,
+  PLAN_NOT_FOUND: true,
   VERSION_CONFLICT: true,
   STORE_FAILED: true,
   MISSING_STORE: true,
   MISSING_ID: true,
-} satisfies Record<TxIntentErrorCode, true>) as TxIntentErrorCode[];
+} satisfies Record<TxPlanErrorCode, true>) as TxPlanErrorCode[];
 
-/** `details` of an intent error, by code; codes not listed carry none */
-export type TxIntentErrorDetails = {
+/** `details` of a plan error, by code; codes not listed carry none */
+export type TxPlanErrorDetails = {
   /** The CIP-30 code, if any; an aborted signal is ABORTED */
   SIGNER_FAILED: {
     reason: "error" | "timeout" | "accountChanged";
@@ -338,13 +338,13 @@ export type TxIntentErrorDetails = {
   /** The CIP-30 code when a wallet submitted: TxSendError Refused 1, Failure 2 */
   SUBMIT_FAILED: { walletCode?: number };
   REJECTED: { otherLive: string[]; tipAgeMs?: number };
-  /** `unsent`: the intent never sent this attempt */
+  /** `unsent`: the plan never sent this attempt */
   EXPIRED: { otherLive: string[]; unsent?: true; tipAgeMs?: number };
   ORPHANED: { otherLive: string[] };
   CONFIRM_TIMEOUT: { waitedFor: "included" | "final"; timeoutMs: number };
   /**
    * `unconfirmed`: this answer confirms nothing now (retryable); the other reasons are about the
-   * provider itself; `noDepth`: no block heights, for any intent
+   * provider itself; `noDepth`: no block heights, for any plan
    */
   CANNOT_OBSERVE: {
     reason:
@@ -356,7 +356,7 @@ export type TxIntentErrorDetails = {
       | "unconfirmed";
   };
   /**
-   * `closing`: the intent carries the closing mark; `recordVersion`: the record is of a newer
+   * `closing`: the plan carries the closing mark; `recordVersion`: the record is of a newer
    * format, another kind, or holds content this library does not know
    */
   INVALID_STATE: {
@@ -370,7 +370,7 @@ export type TxIntentErrorDetails = {
   };
   /** `safeAfter`: POSIX ms */
   STILL_LIVE: { txHashes: string[]; safeAfter: number };
-  /** The attempt in a block with `is_valid = true`; raised by closing an intent */
+  /** The attempt in a block with `is_valid = true`; raised by closing a plan */
   ATTEMPT_ON_CHAIN: { landed: TxAttempt };
   /** Change addresses; only when the recorded anchor is not among the payer's UTxOs either */
   PAYER_MISMATCH: { recorded: string; given: string };
@@ -384,14 +384,13 @@ export type DetailsOf<C extends string, D> = C extends keyof D
   : undefined;
 
 /** Every code of the error tree; a code belongs to one class only */
-export type TxErrorCode =
-  TxPartErrorCode | TxBuildErrorCode | TxIntentErrorCode;
+export type TxErrorCode = TxPartErrorCode | TxBuildErrorCode | TxPlanErrorCode;
 
 /** The error a code belongs to, with `details` of that code */
 export type TxErrorOf<C extends TxErrorCode> = C extends TxBuildErrorCode
   ? TxBuildError<C>
-  : C extends TxIntentErrorCode
-    ? TxIntentError<C>
+  : C extends TxPlanErrorCode
+    ? TxPlanError<C>
     : C extends TxPartErrorCode
       ? TxPartError & { readonly code: C }
       : never;
@@ -404,16 +403,16 @@ export type AnyTxBuildError = {
   [C in TxBuildErrorCode]: TxBuildError<C>;
 }[TxBuildErrorCode];
 
-/** Any intent error, as a union by code */
-export type AnyTxIntentError = {
-  [C in TxIntentErrorCode]: TxIntentError<C>;
-}[TxIntentErrorCode];
+/** Any plan error, as a union by code */
+export type AnyTxPlanError = {
+  [C in TxPlanErrorCode]: TxPlanError<C>;
+}[TxPlanErrorCode];
 
 /** Fails to compile when a code is in two of the unions */
 const codesAreUnique: [
   TxPartErrorCode & TxBuildErrorCode,
-  TxPartErrorCode & TxIntentErrorCode,
-  TxBuildErrorCode & TxIntentErrorCode,
+  TxPartErrorCode & TxPlanErrorCode,
+  TxBuildErrorCode & TxPlanErrorCode,
 ] extends [never, never, never]
   ? true
   : false = true;
@@ -421,13 +420,13 @@ void codesAreUnique;
 
 /** Tells the three classes apart; a `Symbol.for` key holds across copies of the package */
 const BRAND = Symbol.for("@meshsdk/transaction/TxError");
-type Brand = "part" | "build" | "intent";
+type Brand = "part" | "build" | "plan";
 
 const brandOf = (error: unknown): Brand | undefined => {
   if (typeof error !== "object" || error === null) return undefined;
   try {
     const brand = (error as Record<symbol, unknown>)[BRAND];
-    return brand === "part" || brand === "build" || brand === "intent"
+    return brand === "part" || brand === "build" || brand === "plan"
       ? brand
       : undefined;
   } catch {
@@ -569,64 +568,63 @@ export const invalidArgument = (
     details: { option, value, allowed },
   });
 
-/** The sentence every message of an intent error ends with */
+/** The sentence every message of a plan error ends with */
 export const NOT_UNPAID =
-  "This error does not mean that the payment did not go through: only an abandoned intent did not pay.";
+  "This error does not mean that the payment did not go through: only an abandoned plan did not pay.";
 
-/** Intent codes whose same call may pass when repeated */
-const RETRYABLE: ReadonlySet<string> = new Set<TxIntentErrorCode>([
+/** Plan error codes whose same call may pass when repeated */
+const RETRYABLE: ReadonlySet<string> = new Set<TxPlanErrorCode>([
   "SUBMIT_FAILED",
   "CONFIRM_TIMEOUT",
   "NOT_YET_VALID",
   "STILL_LIVE",
 ]);
 
-/** The context of an intent error with code `C` */
-export type TxIntentErrorContext<C extends TxIntentErrorCode> =
-  TxErrorContext & {
-    /** How long to wait before repeating the call; kept only on a retryable error */
-    retryAfterMs?: number;
-    /** The intent the error is raised by, kept as a property that is not enumerable */
-    intent?: TxIntent;
-    /** The intent's id */
-    intentId?: string;
-    /** The intent's status when the error was raised */
-    status?: TxIntentStatus;
-    /** The attempt the error is about */
-    txHash?: string;
-  } & (C extends keyof TxIntentErrorDetails
-      ? { details: TxIntentErrorDetails[C] }
-      : { details?: undefined });
+/** The context of a plan error with code `C` */
+export type TxPlanErrorContext<C extends TxPlanErrorCode> = TxErrorContext & {
+  /** How long to wait before repeating the call; kept only on a retryable error */
+  retryAfterMs?: number;
+  /** The plan the error is raised by, kept as a property that is not enumerable */
+  plan?: TxPlan;
+  /** The plan's id */
+  planId?: string;
+  /** The plan's status when the error was raised */
+  status?: TxPlanStatus;
+  /** The attempt the error is about */
+  txHash?: string;
+} & (C extends keyof TxPlanErrorDetails
+    ? { details: TxPlanErrorDetails[C] }
+    : { details?: undefined });
 
 /**
- * Raised by signing, submitting, waiting for and storing a transaction intent. Retryable for
+ * Raised by signing, submitting, waiting for and storing a transaction plan. Retryable for
  * `SUBMIT_FAILED`, `CONFIRM_TIMEOUT`, `NOT_YET_VALID`, `STILL_LIVE`, and `CANNOT_OBSERVE` with
  * the reason `unconfirmed`; for no other code.
  */
-export class TxIntentError<
-  C extends TxIntentErrorCode = TxIntentErrorCode,
+export class TxPlanError<
+  C extends TxPlanErrorCode = TxPlanErrorCode,
 > extends TxError {
   readonly code: C;
   /** Data of the error, typed by `code`; `undefined` for a code that carries none */
-  readonly details: DetailsOf<C, TxIntentErrorDetails>;
+  readonly details: DetailsOf<C, TxPlanErrorDetails>;
   /**
-   * The intent the error was raised by, as it is now. Not enumerable, so that a logger does not
-   * serialize it; set on every error a method of an intent throws
+   * The plan the error was raised by, as it is now. Not enumerable, so that a logger does not
+   * serialize it; set on every error a method of a plan throws
    */
-  declare readonly intent?: TxIntent;
-  /** The intent's id: plain data, safe to log */
-  declare readonly intentId?: string;
-  /** The intent's status when the error was raised; for logs only */
-  declare readonly status?: TxIntentStatus;
+  declare readonly plan?: TxPlan;
+  /** The plan's id: plain data, safe to log */
+  declare readonly planId?: string;
+  /** The plan's status when the error was raised; for logs only */
+  declare readonly status?: TxPlanStatus;
   /** The attempt the error is about */
   declare readonly txHash?: string;
 
   constructor(
     code: C,
     message: string,
-    ...[context]: C extends keyof TxIntentErrorDetails
-      ? [context: TxIntentErrorContext<C>]
-      : [context?: TxIntentErrorContext<C>]
+    ...[context]: C extends keyof TxPlanErrorDetails
+      ? [context: TxPlanErrorContext<C>]
+      : [context?: TxPlanErrorContext<C>]
   ) {
     const {
       part,
@@ -634,11 +632,11 @@ export class TxIntentError<
       cause,
       details,
       retryAfterMs,
-      intent,
-      intentId,
+      plan,
+      planId,
       status,
       txHash,
-    } = (context ?? {}) as TxIntentErrorContext<TxIntentErrorCode> & {
+    } = (context ?? {}) as TxPlanErrorContext<TxPlanErrorCode> & {
       details?: unknown;
     };
     const retryable =
@@ -652,34 +650,34 @@ export class TxIntentError<
       retryable,
       ...(retryAfterMs !== undefined && { retryAfterMs }),
     });
-    this.name = "TxIntentError";
+    this.name = "TxPlanError";
     this.code = code;
-    this.details = details as DetailsOf<C, TxIntentErrorDetails>;
+    this.details = details as DetailsOf<C, TxPlanErrorDetails>;
     const self = this as {
-      intentId?: string;
-      status?: TxIntentStatus;
+      planId?: string;
+      status?: TxPlanStatus;
       txHash?: string;
     };
-    if (intent !== undefined)
-      Object.defineProperty(this, "intent", {
-        value: intent,
+    if (plan !== undefined)
+      Object.defineProperty(this, "plan", {
+        value: plan,
         enumerable: false,
         configurable: true,
         writable: false,
       });
-    if (intentId !== undefined) self.intentId = intentId;
+    if (planId !== undefined) self.planId = planId;
     if (status !== undefined) self.status = status;
     if (txHash !== undefined) self.txHash = txHash;
   }
 
-  /** Whether a value is an intent error, and when codes are given, one with any of them */
-  static is(error: unknown): error is AnyTxIntentError;
-  static is<C extends TxIntentErrorCode>(
+  /** Whether a value is a plan error, and when codes are given, one with any of them */
+  static is(error: unknown): error is AnyTxPlanError;
+  static is<C extends TxPlanErrorCode>(
     error: unknown,
     ...codes: [C, ...C[]]
   ): error is TxErrorOf<C>;
   static is(error: unknown, ...codes: string[]): boolean {
-    return brandOf(error) === "intent" && hasCode(error, codes);
+    return brandOf(error) === "plan" && hasCode(error, codes);
   }
 }
-brandClass(TxIntentError, "intent");
+brandClass(TxPlanError, "plan");

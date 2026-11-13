@@ -265,7 +265,7 @@ describe("TxBuilder: the collateral fallback", () => {
     );
   });
 
-  it("plans collateral from the answer alone, never joined with the payer's UTxOs", async () => {
+  it("takes collateral from the answer alone, never joined with the payer's UTxOs", async () => {
     // Each is short of the collateral; the two together would cover it
     const own = utxo(200_000n);
     const given = utxo(200_000n);

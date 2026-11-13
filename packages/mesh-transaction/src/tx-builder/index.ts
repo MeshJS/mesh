@@ -9,20 +9,20 @@ export {
 export {
   TxError,
   TxBuildError,
-  TxIntentError,
+  TxPlanError,
   type TxErrorCode,
   type TxErrorOf,
   type AnyTxError,
   type AnyTxBuildError,
-  type AnyTxIntentError,
+  type AnyTxPlanError,
   type TxBuildErrorCode,
   type TxBuildErrorDetails,
   type InsufficientFundsDetails,
   type NetworkMismatchDetails,
   type PartFailure,
   type PartGaps,
-  type TxIntentErrorCode,
-  type TxIntentErrorDetails,
+  type TxPlanErrorCode,
+  type TxPlanErrorDetails,
 } from "./errors";
 export {
   TxBuilder,
@@ -49,7 +49,7 @@ export {
   type RequiredKeys,
   type TxWallet,
 } from "./payer";
-export type { CollateralPlan, SelectInputs } from "./balance";
+export type { SelectInputs, TxCollateral } from "./balance";
 export type { GovernanceDeposits } from "./resolve";
 export type { RequiredKey, SignerRole, TxSigners } from "./witnesses";
 export {
@@ -59,20 +59,20 @@ export {
   signWitnesses,
   type Signer,
 } from "./sign";
-export { TxIntent } from "./intent/intent";
-export { checkIntentStore, memoryIntentStore } from "./intent/store";
+export { TxPlan } from "./plan/plan";
+export { checkPlanStore, memoryPlanStore } from "./plan/store";
 export type {
-  IntentDeadlines,
-  IntentOptions,
+  PlanDeadlines,
+  PlanOptions,
   ResumeOptions,
   SendOptions,
   SignOptions,
-  StoredTxIntentJSON,
+  StoredTxPlanJSON,
   TxAttempt,
   TxAttemptStatus,
-  TxIntentJSON,
-  TxIntentStatus,
-  TxIntentStore,
+  TxPlanJSON,
+  TxPlanStatus,
+  TxPlanStore,
   WaitOptions,
   WaitTarget,
-} from "./intent/types";
+} from "./plan/types";

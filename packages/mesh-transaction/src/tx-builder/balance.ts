@@ -129,7 +129,7 @@ export type PricedRound = {
   selected: number;
 };
 
-export type CollateralPlan = {
+export type TxCollateral = {
   inputs: UTxO[];
   /** Lovelace forfeited if a script fails */
   total: bigint;
@@ -152,7 +152,7 @@ export type Balanced = {
   change: OutputPart[];
   /** The minimum fee of the transaction, with a witness for every key expected to sign */
   minFee: bigint;
-  collateral?: CollateralPlan;
+  collateral?: TxCollateral;
 };
 
 /** A round that settled: its parts, fee, change outputs, minimum fee and collateral */
@@ -161,7 +161,7 @@ type Settled = {
   fee: bigint;
   change: OutputPart[];
   minFee: bigint;
-  collateral: CollateralPlan | undefined;
+  collateral: TxCollateral | undefined;
 };
 
 /** Most balancing rounds; each one selects more inputs or raises the fee */
@@ -496,7 +496,7 @@ const lovelaceOf = (utxo: UTxO) => fromAssets(utxo.output.amount).coin;
  * hold their lovelace: selects inputs, makes change, puts up collateral and settles the fee.
  *
  * Each round works out what is missing with the current fee and selects inputs for it; once
- * nothing is, it makes change, plans collateral and prices the transaction with placeholder
+ * nothing is, it makes change, puts up collateral and prices the transaction with placeholder
  * witnesses. The fee only ever rises, and inputs are only ever added, so the rounds settle.
  * A transaction that settled above its minimum fee, because a later round made it smaller, is
  * priced once more at that minimum, and kept so when it still settles there.
@@ -589,7 +589,7 @@ export const balance = (
       let estimated = 0n;
       for (let round = 0; round < MAX_ROUNDS; round++) {
         const collateral = needsCollateral
-          ? planCollateral(estimated, true)
+          ? putUpCollateral(estimated, true)
           : undefined;
         const all: TxPart[] = [
           ...core,
@@ -837,11 +837,11 @@ export const balance = (
    * The collateral for a fee. Leniently, collateral that falls short is put up as given rather
    * than rejected: placeholder units overstate the fee it is worked out from
    */
-  const planCollateral = (
+  const putUpCollateral = (
     fee: bigint,
     lenient = ctx.provisional || ctx.lenientCollateral,
-  ): CollateralPlan => {
-    const plan = () =>
+  ): TxCollateral => {
+    const strict = () =>
       collateralFor(fee, {
         params,
         given: givenCollateral.map((p) => p.utxo!),
@@ -854,9 +854,9 @@ export const balance = (
         address: givenReturn?.address ?? ctx.changeAddress,
         pool: collateralPool,
       });
-    if (!lenient) return plan();
+    if (!lenient) return strict();
     try {
-      return plan();
+      return strict();
     } catch (error) {
       if (!(error instanceof TxBuildError)) throw error;
       const inputs = givenCollateral.map((p) => p.utxo!);
@@ -874,8 +874,8 @@ export const balance = (
       p.label === undefined ? [] : [[outRefString(p.input), p.label] as const],
     ),
   );
-  /** The collateral and collateral return parts of a plan, given ones keeping their labels */
-  const collateralParts = (collateral: CollateralPlan): TxPart[] => [
+  /** The collateral and collateral return parts of a round, given ones keeping their labels */
+  const collateralParts = (collateral: TxCollateral): TxPart[] => [
     ...collateral.inputs.map((utxo): CollateralPart => {
       const label = collateralLabels.get(utxoKey(utxo));
       return {
@@ -901,7 +901,7 @@ export const balance = (
   /**
    * A settled round priced again at its minimum fee, with the same inputs, the same number of
    * change outputs and the same collateral inputs; undefined when it does not settle there. The
-   * collateral is planned anew at the lower fee when that keeps its inputs and its return, else
+   * collateral is put up anew at the lower fee when that keeps its inputs and its return, else
    * kept as it was, which still covers the lower fee. Its pricing is traced as a round, kept or
    * not, as the rounds that raise the fee are.
    */
@@ -920,7 +920,7 @@ export const balance = (
       return undefined;
     let collateral = settled.collateral;
     if (collateral) {
-      const again = planCollateral(lower);
+      const again = putUpCollateral(lower);
       if (
         again.inputs.length === collateral.inputs.length &&
         again.inputs.every((u, i) => u === collateral!.inputs[i]) &&
@@ -987,7 +987,7 @@ export const balance = (
       continue;
     }
 
-    const collateral = needsCollateral ? planCollateral(fee) : undefined;
+    const collateral = needsCollateral ? putUpCollateral(fee) : undefined;
     const changeParts = change.map(outputPart);
     const all: TxPart[] = [
       ...core,
@@ -1112,7 +1112,7 @@ const collateralFor = (
     address: string;
     pool: readonly UTxO[];
   },
-): CollateralPlan => {
+): TxCollateral => {
   const { params } = ctx;
   const percent = BigInt(params.collateralPercent);
   const minimum = (fee * percent + 99n) / 100n;
@@ -1137,7 +1137,7 @@ const collateralFor = (
   const lovelaceIn = (inputs: readonly UTxO[]) =>
     inputs.reduce((total, u) => total + lovelaceOf(u), 0n);
 
-  const plan = (inputs: UTxO[]): CollateralPlan | undefined => {
+  const cover = (inputs: UTxO[]): TxCollateral | undefined => {
     const held = addValues(...inputs.map((u) => fromAssets(u.output.amount)));
     if (held.coin < required) return undefined;
     const rest = subtractValues(held, coinValue(required));
@@ -1164,7 +1164,7 @@ const collateralFor = (
     const atFault =
       ctx.givenParts?.length === 1 ? ctx.givenParts[0] : undefined;
     return (
-      plan(ctx.given) ??
+      cover(ctx.given) ??
       fail(
         `the collateral inputs cannot cover ${required} lovelace and return the rest`,
         { required, available: lovelaceIn(ctx.given) },
@@ -1182,9 +1182,9 @@ const collateralFor = (
   const withReturn = adaOnly.find(
     (u) => lovelaceOf(u) === required || lovelaceOf(u) >= required + adaOnlyMin,
   );
-  if (withReturn) return plan([withReturn])!;
+  if (withReturn) return cover([withReturn])!;
   const single = adaOnly.find((u) => lovelaceOf(u) >= required);
-  if (single) return plan([single])!;
+  if (single) return cover([single])!;
 
   const largest = [
     ...adaOnly.reverse(),
@@ -1194,7 +1194,7 @@ const collateralFor = (
   for (const utxo of largest) {
     if (inputs.length >= params.maxCollateralInputs) break;
     inputs.push(utxo);
-    const found = plan(inputs);
+    const found = cover(inputs);
     if (found) return found;
   }
   const shortfall = new TxBuildError(

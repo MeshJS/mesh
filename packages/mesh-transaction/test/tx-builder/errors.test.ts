@@ -5,16 +5,16 @@ import {
   TxBuildErrorCode,
   TxError,
   TxErrorCode,
-  TxIntentError,
-  TxIntentErrorCode,
-  TxIntentStatus,
   TxPart,
   TxPartError,
   TxPartErrorCode,
+  TxPlanError,
+  TxPlanErrorCode,
+  TxPlanStatus,
 } from "../../src/tx-builder";
 import {
   TX_BUILD_ERROR_CODES,
-  TX_INTENT_ERROR_CODES,
+  TX_PLAN_ERROR_CODES,
 } from "../../src/tx-builder/errors";
 import { TX_PART_ERROR_CODES } from "../../src/tx-builder/parts/errors";
 
@@ -23,8 +23,8 @@ const partError = (code: TxPartErrorCode, cause?: unknown) =>
 // Details as the code would carry them do not matter to the checks
 const buildError = (code: TxBuildErrorCode) =>
   new TxBuildError(code, "bad", {} as never);
-const intentError = (code: TxIntentErrorCode, details?: unknown) =>
-  new TxIntentError(code, "bad", { details } as never);
+const planError = (code: TxPlanErrorCode, details?: unknown) =>
+  new TxPlanError(code, "bad", { details } as never);
 
 type Made = { error: TxError; cls: Function; name: string };
 const make = (code: TxErrorCode): Made => {
@@ -41,16 +41,16 @@ const make = (code: TxErrorCode): Made => {
       name: "TxBuildError",
     };
   return {
-    error: intentError(code as TxIntentErrorCode),
-    cls: TxIntentError,
-    name: "TxIntentError",
+    error: planError(code as TxPlanErrorCode),
+    cls: TxPlanError,
+    name: "TxPlanError",
   };
 };
 
 const ALL: TxErrorCode[] = [
   ...TX_PART_ERROR_CODES,
   ...TX_BUILD_ERROR_CODES,
-  ...TX_INTENT_ERROR_CODES,
+  ...TX_PLAN_ERROR_CODES,
 ];
 /** A code of another class than the one `code` belongs to */
 const otherClassCode = (code: TxErrorCode): TxErrorCode =>
@@ -70,7 +70,7 @@ describe("the error tree", () => {
     expect(TxError.is(error, code)).toBe(true);
     expect(TxError.is(error, otherClassCode(code))).toBe(false);
     expect(TxBuildError.is(error)).toBe(cls === TxBuildError);
-    expect(TxIntentError.is(error)).toBe(cls === TxIntentError);
+    expect(TxPlanError.is(error)).toBe(cls === TxPlanError);
     expect(TxPartError.is(error)).toBe(true);
   });
 
@@ -82,7 +82,7 @@ describe("the error tree", () => {
     const lists = [
       TX_PART_ERROR_CODES,
       TX_BUILD_ERROR_CODES,
-      TX_INTENT_ERROR_CODES,
+      TX_PLAN_ERROR_CODES,
     ];
     expect(lists.map((list) => list.length)).toEqual([7, 30, 24]);
     for (const list of lists) expect(new Set(list).size).toBe(list.length);
@@ -110,25 +110,25 @@ describe("the error tree", () => {
       expect(TxError.is(value)).toBe(false);
       expect(TxError.is(value, "INSUFFICIENT_FUNDS", "REJECTED")).toBe(false);
       expect(TxBuildError.is(value)).toBe(false);
-      expect(TxIntentError.is(value)).toBe(false);
+      expect(TxPlanError.is(value)).toBe(false);
     }
   });
 
   it("checks several codes at once, of any classes", () => {
     for (const code of ["REJECTED", "EXPIRED"] as const)
-      expect(TxError.is(intentError(code), "REJECTED", "EXPIRED")).toBe(true);
-    expect(TxError.is(intentError("ORPHANED"), "REJECTED", "EXPIRED")).toBe(
+      expect(TxError.is(planError(code), "REJECTED", "EXPIRED")).toBe(true);
+    expect(TxError.is(planError("ORPHANED"), "REJECTED", "EXPIRED")).toBe(
       false,
     );
     expect(
       TxError.is(buildError("FEE_TOO_LOW"), "FEE_TOO_LOW", "REJECTED"),
     ).toBe(true);
-    expect(TxError.is(intentError("REJECTED"), "FEE_TOO_LOW", "REJECTED")).toBe(
+    expect(TxError.is(planError("REJECTED"), "FEE_TOO_LOW", "REJECTED")).toBe(
       true,
     );
-    expect(
-      TxIntentError.is(intentError("EXPIRED"), "REJECTED", "EXPIRED"),
-    ).toBe(true);
+    expect(TxPlanError.is(planError("EXPIRED"), "REJECTED", "EXPIRED")).toBe(
+      true,
+    );
     expect(TxBuildError.is(buildError("FEE_TOO_LOW"), "FEE_TOO_LOW")).toBe(
       true,
     );
@@ -150,7 +150,7 @@ describe("the error tree", () => {
     expect(TxError.is(other)).toBe(true);
     expect(TxError.is(other, "FEE_TOO_LOW")).toBe(true);
     expect(TxBuildError.is(other, "FEE_TOO_LOW")).toBe(true);
-    expect(TxIntentError.is(other)).toBe(false);
+    expect(TxPlanError.is(other)).toBe(false);
   });
 
   it("carries the part, label, cause and details, and is not retryable", () => {
@@ -183,29 +183,29 @@ describe("the error tree", () => {
     for (const code of ALL) expect("step" in make(code).error).toBe(false);
   });
 
-  it("decides whether an intent error is retryable by its code", () => {
+  it("decides whether a plan error is retryable by its code", () => {
     const retryable = [
       "SUBMIT_FAILED",
       "CONFIRM_TIMEOUT",
       "NOT_YET_VALID",
       "STILL_LIVE",
     ];
-    for (const code of TX_INTENT_ERROR_CODES) {
-      const error = new TxIntentError(code, "bad", {
+    for (const code of TX_PLAN_ERROR_CODES) {
+      const error = new TxPlanError(code, "bad", {
         retryAfterMs: 500,
-        intentId: "intent-1",
+        planId: "plan-1",
         txHash: "ab".repeat(32),
       } as never);
       const expected = retryable.includes(code);
       expect(error.retryable).toBe(expected);
       expect(error.retryAfterMs).toBe(expected ? 500 : undefined);
-      expect(error.intentId).toBe("intent-1");
+      expect(error.planId).toBe("plan-1");
       expect(error.txHash).toBe("ab".repeat(32));
     }
     const observe = (
-      reason: TxIntentError<"CANNOT_OBSERVE">["details"]["reason"],
+      reason: TxPlanError<"CANNOT_OBSERVE">["details"]["reason"],
     ) =>
-      new TxIntentError("CANNOT_OBSERVE", "bad", {
+      new TxPlanError("CANNOT_OBSERVE", "bad", {
         details: { reason },
         retryAfterMs: 1000,
       });
@@ -226,17 +226,17 @@ describe("the error tree", () => {
     expect(observe("noTip").message).toBe("bad");
   });
 
-  it("keeps an intent error's status as plain data", () => {
+  it("keeps a plan error's status as plain data", () => {
     const landed = {
       txHash: "ab".repeat(32),
       status: "included" as const,
       until: 1_700_000_000_000,
       sends: 1,
     };
-    const error = new TxIntentError("ATTEMPT_ON_CHAIN", "bad", {
+    const error = new TxPlanError("ATTEMPT_ON_CHAIN", "bad", {
       details: { landed },
       status: "included",
-      intentId: "intent-1",
+      planId: "plan-1",
     });
     expect(error.status).toBe("included");
     expect(error.details.landed).toBe(landed);
@@ -244,11 +244,11 @@ describe("the error tree", () => {
     expect(Object.keys(error)).toContain("status");
     expect(JSON.parse(JSON.stringify(error))).toMatchObject({
       status: "included",
-      intentId: "intent-1",
+      planId: "plan-1",
     });
     expect(
       "status" in
-        new TxIntentError("INVALID_STATE", "bad", {
+        new TxPlanError("INVALID_STATE", "bad", {
           details: { reason: "terminal" },
         }),
     ).toBe(false);
@@ -288,7 +288,7 @@ export const typeCases = (e: unknown) => {
   }
   if (TxError.is(e, "ATTEMPT_ON_CHAIN")) {
     const narrowed: Equal<typeof e.details.landed, TxAttempt> = true;
-    const status: TxIntentStatus | undefined = e.status;
+    const status: TxPlanStatus | undefined = e.status;
     void narrowed;
     void status;
   }
@@ -303,7 +303,7 @@ export const typeCases = (e: unknown) => {
   // @ts-expect-error not a code
   TxError.is(e, "NOPE");
   // @ts-expect-error a code of another class
-  TxIntentError.is(e, "INVALID_DATA");
+  TxPlanError.is(e, "INVALID_DATA");
   // @ts-expect-error details of another code
   new TxBuildError("FEE_TOO_LOW", "m", { details: { unit: "lovelace" } });
   // @ts-expect-error details its code has

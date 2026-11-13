@@ -1,16 +1,16 @@
 import type {
-  IntentDeadlines,
-  IntentOptions,
+  PlanDeadlines,
+  PlanOptions,
   RedeemerContext,
   ResumeOptions,
   SendOptions,
   SignOptions,
-  StoredTxIntentJSON,
+  StoredTxPlanJSON,
   TxAttempt,
   TxAttemptStatus,
-  TxIntentJSON,
-  TxIntentStatus,
-  TxIntentStore,
+  TxPlanJSON,
+  TxPlanStatus,
+  TxPlanStore,
   WaitOptions,
   WaitTarget,
 } from "../src";
@@ -28,7 +28,7 @@ describe("public entrypoint", () => {
     "assembleTxPrototype",
     "TxError",
     "TxBuildError",
-    "TxIntentError",
+    "TxPlanError",
     "TxBuilder",
     "canSubmit",
     "outputOf",
@@ -41,9 +41,9 @@ describe("public entrypoint", () => {
     "message",
     "minFee",
     "minCoin",
-    "TxIntent",
-    "memoryIntentStore",
-    "checkIntentStore",
+    "TxPlan",
+    "memoryPlanStore",
+    "checkPlanStore",
   ])("exports %s", (name) => {
     expect(publicApi).toHaveProperty(name);
   });
@@ -63,7 +63,7 @@ describe("public entrypoint", () => {
     expect(lookups).toHaveLength(5);
   });
 
-  it("exports the intent record types, and not the intent state machine", () => {
+  it("exports the plan record types, and not the plan state machine", () => {
     const status: TxAttemptStatus = "sent";
     const attempt: TxAttempt = {
       txHash: "ab".repeat(32),
@@ -72,12 +72,12 @@ describe("public entrypoint", () => {
       sends: 1,
       parents: [{ txHash: "cd".repeat(32), until: 1_700_000_000_000 }],
     };
-    const intentStatus: TxIntentStatus = "draft";
-    const json: TxIntentJSON = {
-      kind: "TxIntent",
+    const planStatus: TxPlanStatus = "draft";
+    const json: TxPlanJSON = {
+      kind: "TxPlan",
       version: 1,
       rev: 0,
-      status: intentStatus,
+      status: planStatus,
       network: "preprod",
       deadlines: { ttlMs: 600_000, expiryMarginMs: 120_000, confirmations: 3 },
       attempts: [attempt],
@@ -86,11 +86,11 @@ describe("public entrypoint", () => {
       options: {},
     };
     expect(json.attempts[0]?.status).toBe("sent");
-    expect(publicApi).not.toHaveProperty("advanceIntent");
+    expect(publicApi).not.toHaveProperty("advancePlan");
   });
 
   it("exports the deadline and wait types, and not the chain observer", () => {
-    const deadlines: IntentDeadlines = {
+    const deadlines: PlanDeadlines = {
       ttlMs: 600_000,
       expiryMarginMs: 0,
       confirmations: 0,
@@ -105,7 +105,7 @@ describe("public entrypoint", () => {
       "isRefusal",
       "keepsAddressCache",
       "searchThenTip",
-      "checkIntentDefaults",
+      "checkPlanDefaults",
       "effectiveDeadlines",
       "effectiveWait",
       "horizonSlot",
@@ -113,25 +113,25 @@ describe("public entrypoint", () => {
       expect(publicApi).not.toHaveProperty(name);
   });
 
-  it("exports the intent class and its option types, and not its internal functions", () => {
-    const options: IntentOptions = { id: "pay-1", ttlMs: 60_000 };
+  it("exports the plan class and its option types, and not its internal functions", () => {
+    const options: PlanOptions = { id: "pay-1", ttlMs: 60_000 };
     const send: SendOptions = { waitFor: "included", signers: [] };
     const sign: SignOptions = { signers: [] };
     expect({ ...options, ...send, ...sign }).toHaveProperty("id", "pay-1");
-    expect(typeof publicApi.TxIntent).toBe("function");
+    expect(typeof publicApi.TxPlan).toBe("function");
     for (const name of [
-      "createIntent",
-      "intentOver",
+      "createPlan",
+      "planOver",
       "recordOf",
-      "IntentLiveObjects",
+      "PlanLiveObjects",
     ])
       expect(publicApi).not.toHaveProperty(name);
   });
 
   it("exports the store types and functions, and not the record encoding", async () => {
-    const store: TxIntentStore = publicApi.memoryIntentStore();
-    const json: StoredTxIntentJSON = {
-      kind: "TxIntent",
+    const store: TxPlanStore = publicApi.memoryPlanStore();
+    const json: StoredTxPlanJSON = {
+      kind: "TxPlan",
       version: 1,
       id: "pay-1",
       rev: 1,
@@ -149,16 +149,16 @@ describe("public entrypoint", () => {
     const resume: ResumeOptions = { canSelect: () => true };
     expect(typeof resume.canSelect).toBe("function");
     expect(typeof publicApi.TxBuilder.prototype.resume).toBe("function");
-    for (const name of ["resumeIntent", "loadRecord", "readFirst"])
+    for (const name of ["resumePlan", "loadRecord", "readFirst"])
       expect(publicApi).not.toHaveProperty(name);
-    await expect(publicApi.checkIntentStore(store)).resolves.toBeUndefined();
+    await expect(publicApi.checkPlanStore(store)).resolves.toBeUndefined();
     for (const name of [
       "encodeParts",
       "decodeParts",
-      "encodeIntent",
-      "readIntent",
-      "readIntentWith",
-      "INTENT_RECORD_VERSION",
+      "encodePlan",
+      "readPlan",
+      "readPlanWith",
+      "PLAN_RECORD_VERSION",
       "migrations",
       "UnreadContent",
       "NOT_UNPAID",
@@ -186,12 +186,12 @@ export const statusCases = () => {
     | "orphaned"
     | "final"
   > = true;
-  const intentStatuses: Equal<
-    TxIntentStatus,
+  const planStatuses: Equal<
+    TxPlanStatus,
     TxAttemptStatus | "draft" | "abandoned"
   > = true;
   const waitTargets: Equal<WaitTarget, "sent" | "included" | "final"> = true;
   void attemptStatuses;
-  void intentStatuses;
+  void planStatuses;
   void waitTargets;
 };

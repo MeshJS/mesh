@@ -50,9 +50,9 @@ import {
   TxBuilder,
   TxBuildError,
   TxError,
-  TxIntentError,
-  TxIntentErrorCode,
-  TxIntentErrorDetails,
+  TxPlanError,
+  TxPlanErrorCode,
+  TxPlanErrorDetails,
   TxSigners,
   vote,
   withdrawal,
@@ -252,14 +252,14 @@ const caught = async (run: () => unknown): Promise<unknown> => {
   }
   throw new Error("expected a failure");
 };
-const intentError = async <C extends TxIntentErrorCode>(
+const planError = async <C extends TxPlanErrorCode>(
   run: () => unknown,
   code: C,
 ) => {
   const error = await caught(run);
-  expect(error).toBeInstanceOf(TxIntentError);
-  expect((error as TxIntentError).code).toBe(code);
-  return error as TxIntentError<C>;
+  expect(error).toBeInstanceOf(TxPlanError);
+  expect((error as TxPlanError).code).toBe(code);
+  return error as TxPlanError<C>;
 };
 const buildError = async <C extends "INVALID_OPTION" | "UTXO_NOT_FOUND">(
   run: () => unknown,
@@ -476,7 +476,7 @@ describe("addWitnesses", () => {
         [[good, bad()], 1],
         [[bad()], 0],
       ] as const) {
-        const error = await intentError(
+        const error = await planError(
           () => addWitnesses(tx, ...args),
           "INVALID_WITNESS",
         );
@@ -495,7 +495,7 @@ describe("addWitnesses", () => {
       [[other], 0],
       [[await stakeWitnesses(tx), other], 1],
     ] as const) {
-      const error = await intentError(
+      const error = await planError(
         () => addWitnesses(tx, ...args),
         "INVALID_WITNESS",
       );
@@ -513,7 +513,7 @@ describe("addWitnesses", () => {
     const { vkey, signature } = firstVkeyWitness(
       await paymentWitnesses((await payment(ada(6))).tx),
     );
-    const error = await intentError(
+    const error = await planError(
       () => addWitnesses(tx, good, bootstrapWitnessSet(vkey, signature)),
       "INVALID_WITNESS",
     );
@@ -524,22 +524,20 @@ describe("addWitnesses", () => {
     });
   });
 
-  it("raises an intent error, recognised by TxError.is, that is not retryable and names no intent", async () => {
+  it("raises a plan error, recognised by TxError.is, that is not retryable and names no plan", async () => {
     const { tx } = await payment();
     const error = await caught(() => addWitnesses(tx, "00"));
     expect(TxError.is(error, "INVALID_WITNESS")).toBe(true);
     if (!TxError.is(error, "INVALID_WITNESS")) throw error;
-    const reason: TxIntentErrorDetails["INVALID_WITNESS"]["reason"] =
+    const reason: TxPlanErrorDetails["INVALID_WITNESS"]["reason"] =
       error.details.reason;
     expect(reason).toBe("undecodable");
     expect(error.details.argument).toBe(0);
     expect(error.retryable).toBe(false);
     expect(error.retryAfterMs).toBeUndefined();
-    expect(error.intentId).toBeUndefined();
+    expect(error.planId).toBeUndefined();
     expect(error.txHash).toBeUndefined();
-    expect(
-      (error as unknown as Record<string, unknown>).intent,
-    ).toBeUndefined();
+    expect((error as unknown as Record<string, unknown>).plan).toBeUndefined();
     expect(
       (error as unknown as Record<string, unknown>).status,
     ).toBeUndefined();
@@ -1201,7 +1199,7 @@ describe("signWitnesses", () => {
       ["a value that is not a string", 42],
     ])("refuses %s as SIGNER_FAILED", async (_, answer) => {
       const stub = recording(["signTx"], async () => answer);
-      const error = await intentError(
+      const error = await planError(
         () => signWitnesses(stub.signer, tx),
         "SIGNER_FAILED",
       );
@@ -1295,7 +1293,7 @@ describe("signWitnesses", () => {
       ["a Mesh wallet", ["signTx"], { getUtxosHex: () => [] }],
       ["a CIP-30 api", ["signTx"], {}],
     ];
-    const failures: [string, unknown, TxIntentErrorCode, unknown][] = [
+    const failures: [string, unknown, TxPlanErrorCode, unknown][] = [
       ["UserDeclined", { code: 2, info: "no" }, "SIGN_DECLINED", undefined],
       [
         "AccountChange",
@@ -1322,7 +1320,7 @@ describe("signWitnesses", () => {
     it.each(forms)("maps the errors of %s", async (_, methods, extra) => {
       for (const [, thrown, code, details] of failures) {
         const stub = recording(methods, () => Promise.reject(thrown), extra);
-        const error = await intentError(
+        const error = await planError(
           () => signWitnesses(stub.signer, tx),
           code,
         );
@@ -1330,10 +1328,10 @@ describe("signWitnesses", () => {
         expect(error.cause).toBe(thrown);
         expect(error.details).toEqual(details);
         expect(error.retryable).toBe(false);
-        expect(error.intentId).toBeUndefined();
+        expect(error.planId).toBeUndefined();
         expect(error.txHash).toBeUndefined();
         expect(
-          (error as unknown as Record<string, unknown>).intent,
+          (error as unknown as Record<string, unknown>).plan,
         ).toBeUndefined();
         expect(
           (error as unknown as Record<string, unknown>).status,
@@ -1362,7 +1360,7 @@ describe("signWitnesses", () => {
         [{ reason: "odd" }, "SIGNER_FAILED", '{"reason":"odd"}'],
       ] as const) {
         const stub = recording(["signTx"], () => Promise.reject(thrown), {});
-        const error = await intentError(
+        const error = await planError(
           () => signWitnesses(stub.signer, tx),
           code,
         );
@@ -1388,11 +1386,11 @@ describe("types", () => {
     void [meshWallet, fromCip30, browser, withWitnesses];
 
     // @ts-expect-error: no such code
-    const noSigner: TxIntentErrorCode = "NO_SIGNER";
+    const noSigner: TxPlanErrorCode = "NO_SIGNER";
     // @ts-expect-error: no such code
-    const notWitnessSet: TxIntentErrorCode = "NOT_A_WITNESS_SET";
+    const notWitnessSet: TxPlanErrorCode = "NOT_A_WITNESS_SET";
     // @ts-expect-error: an aborted signal is ABORTED, not a reason
-    const aborted: TxIntentErrorDetails["SIGNER_FAILED"]["reason"] = "aborted";
+    const aborted: TxPlanErrorDetails["SIGNER_FAILED"]["reason"] = "aborted";
     void [noSigner, notWitnessSet, aborted];
 
     const built = await payment();

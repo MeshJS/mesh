@@ -8,7 +8,7 @@ import { MeshWallet } from "@meshsdk/wallet";
 import { output, TxBuilder } from "../src";
 import {
   TX_BUILD_ERROR_CODES,
-  TX_INTENT_ERROR_CODES,
+  TX_PLAN_ERROR_CODES,
 } from "../src/tx-builder/errors";
 import { TX_PART_ERROR_CODES } from "../src/tx-builder/parts/errors";
 import { baseAddress } from "./test-util";
@@ -33,7 +33,7 @@ const lineStarting = (lines: string[], start: string) =>
 const taskLines = (): string => {
   const lines = firstBlock();
   const from = lineStarting(lines, "const builder = new TxBuilder(");
-  const to = lineStarting(lines, "console.log(intent.txHash);");
+  const to = lineStarting(lines, "console.log(plan.txHash);");
   if (from < 0 || to < from)
     throw new Error("the first ts block of README.md has no task lines");
   return lines.slice(from, to + 1).join("\n");
@@ -50,7 +50,7 @@ describe("README.md", () => {
     const provider = lineStarting(lines, "const provider = ");
     const wallet = lineStarting(lines, "const wallet = ");
     const builder = lineStarting(lines, "const builder = new TxBuilder(");
-    const log = lineStarting(lines, "console.log(intent.txHash);");
+    const log = lineStarting(lines, "console.log(plan.txHash);");
     expect(provider).toBeGreaterThanOrEqual(0);
     expect(wallet).toBeGreaterThanOrEqual(0);
     expect(builder).toBeGreaterThan(Math.max(provider, wallet));
@@ -77,33 +77,31 @@ describe("README.md", () => {
       "provider",
       "wallet",
       "recipient",
-      `${taskLines()}\nreturn intent;`,
+      `${taskLines()}\nreturn plan;`,
     );
     const log = jest.spyOn(console, "log").mockImplementation(() => {});
-    let intent: { status: string; txHash?: string };
+    let plan: { status: string; txHash?: string };
     try {
-      intent = (await run(
+      plan = (await run(
         TxBuilder,
         output,
         emulator,
         wallet,
         recipient,
-      )) as typeof intent;
+      )) as typeof plan;
       expect(log).toHaveBeenCalledTimes(1);
-      expect(log).toHaveBeenCalledWith(intent.txHash);
+      expect(log).toHaveBeenCalledWith(plan.txHash);
     } finally {
       log.mockRestore();
     }
 
-    expect(intent.status).toBe("included");
-    expect((await emulator.fetchTxInfo(intent.txHash!)).hash).toBe(
-      intent.txHash,
-    );
+    expect(plan.status).toBe("included");
+    expect((await emulator.fetchTxInfo(plan.txHash!)).hash).toBe(plan.txHash);
     const received = await emulator.fetchAddressUTxOs(recipient);
     expect(
       received.some(
         (utxo) =>
-          utxo.input.txHash === intent.txHash &&
+          utxo.input.txHash === plan.txHash &&
           utxo.output.amount.length === 1 &&
           utxo.output.amount[0]!.unit === "lovelace" &&
           utxo.output.amount[0]!.quantity === "2000000",
@@ -121,7 +119,7 @@ describe("README.md", () => {
     const missing = [
       ...TX_PART_ERROR_CODES,
       ...TX_BUILD_ERROR_CODES,
-      ...TX_INTENT_ERROR_CODES,
+      ...TX_PLAN_ERROR_CODES,
     ].filter((code) => !table.includes(`\`${code}\``));
     expect(missing).toEqual([]);
   });

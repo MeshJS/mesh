@@ -1,7 +1,7 @@
 # Design: `TxBuilder`
 
 **Status:** implemented in `packages/mesh-transaction/src/tx-builder/`: `assembleTxPrototype`,
-`TxBuilder`, `TxIntent` with its stores (`TxIntentStore`, `memoryIntentStore`, `checkIntentStore`),
+`TxBuilder`, `TxPlan` with its stores (`TxPlanStore`, `memoryPlanStore`, `checkPlanStore`),
 and the free signing functions. `MeshTxBuilder` is `@deprecated` and builds on `TxBuilder`. This
 document is the design record for that work; the [package README][readme] holds the recipes.
 
@@ -33,7 +33,7 @@ part builders  ──►  parts  ──►  TxBuilder.build  ──►  assemble
    per piece)        may have      look up, balance,     index, hash)
                      gaps)         evaluate)
 
-TxBuilder.intent ──► TxIntent ──► attempts on one anchor: build, sign, submit, observe ──► final
+TxBuilder.plan ──► TxPlan ──► attempts on one anchor: build, sign, submit, observe ──► final
 ```
 
 Three layers, usable separately:
@@ -45,7 +45,7 @@ Three layers, usable separately:
   or nested lists, where `false`, `null` and `undefined` are skipped), reads the payer, fills in
   what the parts leave open, balances, evaluates, and returns a `BuiltTx`: the unsigned
   transaction with everything the build decided, as plain data, with no deadline and no anchor.
-- **`builder.intent(parts?, options?)`** — a `TxIntent`: one payment, carried to a final state
+- **`builder.plan(parts?, options?)`** — a `TxPlan`: one payment, carried to a final state
   through attempts that all spend one common input, so at most one lands. Signing, submission and
   waiting are its steps.
 
@@ -58,22 +58,22 @@ built.tx; // unsigned CBOR
 built.prototype; // the TransactionPrototype it was serialized from
 built.fee; // and exUnits, redeemers, inputs, outputs, change, collateral, signers, parts, ...
 
-const intent = builder.intent(parts, { payer: wallet });
-await intent.send({ waitFor: "included" }); // builds, signs with the payer, submits, waits
-intent.txHash; // the attempt that landed
+const plan = builder.plan(parts, { payer: wallet });
+await plan.send({ waitFor: "included" }); // builds, signs with the payer, submits, waits
+plan.txHash; // the attempt that landed
 ```
 
 A builder holds its network, its provider and that provider's shared cache, its settings, and the
 parts added with `add(...parts)`, which returns a new builder. It holds no wallet, no payer and no
 state of a transaction, so one builder can build many transactions, concurrently included; the
-state of a payment lives in its `TxIntent`, and with a `store` in the store's record.
+state of a payment lives in its `TxPlan`, and with a `store` in the store's record.
 
 ### Non-goals
 
-- **No wallet in the builder.** Who pays is the `payer` of each build or intent; who signs is the
-  call's `signers`, else the intent's payer; who submits is the call's `submitter`, else the
+- **No wallet in the builder.** Who pays is the `payer` of each build or plan; who signs is the
+  call's `signers`, else the plan's payer; who submits is the call's `submitter`, else the
   builder's, else the provider. `build` returns an unsigned transaction: signing, submission and
-  waiting are steps of a `TxIntent`, or of the free signing functions.
+  waiting are steps of a `TxPlan`, or of the free signing functions.
 - **No built-in protocol parameters.** `params` is used whole, else the provider is read; with
   neither, the constructor throws `MISSING_PARAMETER`.
 - **No second builder beside `MeshTxBuilder`.** `MeshTxBuilder` is `@deprecated` and keeps its
@@ -140,18 +140,18 @@ is `INVALID_REDEEMER`.
 
 ### Options
 
-| `TxBuilderOptions` |                                                                                                          |
-| ------------------ | -------------------------------------------------------------------------------------------------------- |
-| `network`          | required: `"mainnet"`, `"preprod"`, `"preview"` or a `NetworkConfig` (a devnet: `customNetwork`)         |
-| `provider?`        | every read; for intents also the chain's tip and the search for a transaction                            |
-| `submitter?`       | submits in place of the provider                                                                         |
-| `evaluator?`       | an `OfflineEvaluatorScalus` made for this builder by default; `null` turns evaluation off                |
-| `serializer?`      | must implement `serializeTxPrototype`; the `@meshsdk/core-cst` encoder otherwise                         |
-| `params?`          | a whole `Protocol`, used instead of reading the provider's                                               |
-| `costModels?`      | by Plutus language number, V1 first, used instead of reading the provider's                              |
-| `deposits?`        | `drepDeposit`, `govActionDeposit` — `Protocol` does not carry them                                       |
-| `intentDefaults?`  | `ttlMs`, `expiryMarginMs`, `confirmations` copied into each intent when it is made; `pollMs`, `resendMs` |
-| `store?`           | a `TxIntentStore`, where the records of this builder's intents are kept                                  |
+| `TxBuilderOptions` |                                                                                                        |
+| ------------------ | ------------------------------------------------------------------------------------------------------ |
+| `network`          | required: `"mainnet"`, `"preprod"`, `"preview"` or a `NetworkConfig` (a devnet: `customNetwork`)       |
+| `provider?`        | every read; for plans also the chain's tip and the search for a transaction                            |
+| `submitter?`       | submits in place of the provider                                                                       |
+| `evaluator?`       | an `OfflineEvaluatorScalus` made for this builder by default; `null` turns evaluation off              |
+| `serializer?`      | must implement `serializeTxPrototype`; the `@meshsdk/core-cst` encoder otherwise                       |
+| `params?`          | a whole `Protocol`, used instead of reading the provider's                                             |
+| `costModels?`      | by Plutus language number, V1 first, used instead of reading the provider's                            |
+| `deposits?`        | `drepDeposit`, `govActionDeposit` — `Protocol` does not carry them                                     |
+| `planDefaults?`    | `ttlMs`, `expiryMarginMs`, `confirmations` copied into each plan when it is made; `pollMs`, `resendMs` |
+| `store?`           | a `TxPlanStore`, where the records of this builder's plans are kept                                    |
 
 | `BuildOptions`       |                                                                                                   |
 | -------------------- | ------------------------------------------------------------------------------------------------- |
@@ -159,7 +159,7 @@ is `INVALID_REDEEMER`.
 | `canSelect?`         | which of the payer's UTxOs may be selected, for payment and for collateral                        |
 | `coinSelection?`     | a `SelectInputs` function in place of the built-in selection; change stays with the built-in rule |
 | `sendAllTo?`         | spend every selectable UTxO and send what is left to this address                                 |
-| `after?`             | `BuiltTx` or `TxIntent` (its current attempt), or a list: transactions the provider has not seen  |
+| `after?`             | `BuiltTx` or `TxPlan` (its current attempt), or a list: transactions the provider has not seen    |
 | `knownUtxos?`        | outputs the parts may name by out ref that the provider may not know yet                          |
 | `fee?`               | goes into the body as given; `FEE_TOO_LOW { fee, minFee }` when the final minimum is higher       |
 | `registeredPools?`   | operators whose pool registration is an update, taking no deposit                                 |
@@ -292,18 +292,18 @@ starts, or an interval with no slot, is `INVALID_DATA`. `build` sets no `until`.
 
 `after` builds on transactions the provider has not seen: their inputs are not selected, their
 change at this build's change address is, and every output they make can be named by out ref
-without a lookup. `utxosAfter(utxos, built)` folds them into a UTxO list for the next build. An
-intent names its parent intents in `after` and is built after their current attempts; see
+without a lookup. `utxosAfter(utxos, built)` folds them into a UTxO list for the next build. A
+plan names its parent plans in `after` and is built after their current attempts; see
 [Chains][r-chains].
 
-## Intents: `TxIntent`
+## Plans: `TxPlan`
 
-`builder.intent(parts, options)` is the only way to make an intent, and makes no request: the
-intent is `draft` until its first attempt is built. Its options are the build options without
-`signal`, with parent intents in `after`, an `id`, and the deadlines `ttlMs`, `expiryMarginMs` and
-`confirmations`, written into the intent when it is made and never read from the builder again.
+`builder.plan(parts, options)` is the only way to make a plan, and makes no request: the
+plan is `draft` until its first attempt is built. Its options are the build options without
+`signal`, with parent plans in `after`, an `id`, and the deadlines `ttlMs`, `expiryMarginMs` and
+`confirmations`, written into the plan when it is made and never read from the builder again.
 
-- **Attempts and the anchor.** Every attempt is a `BuiltTx` of the intent's parts, and all of them
+- **Attempts and the anchor.** Every attempt is a `BuiltTx` of the plan's parts, and all of them
   spend one common input, the anchor, so at most one can land. In `draft`, `send()` and
   `advance()` build the first attempt; after that only `build()`, or `advance()` with a signer
   where `send()` would throw `EXPIRED` or `ORPHANED` and no other attempt is live, makes a new
@@ -321,18 +321,18 @@ intent is `draft` until its first attempt is built. Its options are the build op
 - **Steps.** `sign()`, `send()` and `advance()` sign with the call's `signers`, else the payer,
   checking every witness against the body; `send()` builds in `draft` only, submits and waits for
   `waitFor`, and in `sent` sends the same bytes again. `abandon()` records the closing mark and
-  closes the intent once no attempt can land.
-- **The store.** `TxIntentStore` is `load(id)` and a compare-and-set `save(json, expectedRev)`.
+  closes the plan once no attempt can land.
+- **The store.** `TxPlanStore` is `load(id)` and a compare-and-set `save(json, expectedRev)`.
   Every change is saved before the method returns; the record holds data only, never a wallet,
-  signer, submitter or function, and `resume(id, options)` restores the intent with those given
-  again. `memoryIntentStore()` serves tests; `checkIntentStore(store)` checks one's own store
+  signer, submitter or function, and `resume(id, options)` restores the plan with those given
+  again. `memoryPlanStore()` serves tests; `checkPlanStore(store)` checks one's own store
   ([Storage][r-storage]).
 
-The rules for a lost answer, a refusal, reconciliation, chains and a new intent in place of an old
-one are in the README: [Intents][r-intents], [Servers][r-servers],
-[Deadlines and waiting][r-deadlines] and [New intent instead of an old one][r-new-intent].
+The rules for a lost answer, a refusal, reconciliation, chains and a new plan in place of an old
+one are in the README: [Plans][r-plans], [Servers][r-servers],
+[Deadlines and waiting][r-deadlines] and [New plan instead of an old one][r-new-plan].
 
-## Signing without an intent
+## Signing without a plan
 
 ```ts
 import type { UTxO } from "@meshsdk/common";
@@ -368,15 +368,15 @@ Every error is a `TxError`, with `code`, `message`, `retryable` and, where they 
 `label`, `details` (typed by `code`), `cause` and `retryAfterMs`. `retryable: true` means only that
 the same call, repeated no earlier than `retryAfterMs`, is safe and may pass. `TxError.is(error)`
 and `TxError.is(error, ...codes)` cover the whole tree, across copies of the package, and narrow
-`details`; `TxBuildError.is(error, code)` and `TxIntentError.is(error, ...codes)` check one class.
+`details`; `TxBuildError.is(error, code)` and `TxPlanError.is(error, ...codes)` check one class.
 
 - `TxPartError` stays the error of a part builder call, and is also raised while resolving when
   what was looked up does not fit a part.
 - `TxBuildError`, never retryable, comes from the options, the payer, assembly, resolution,
   balancing, evaluation and serialization; `EVALUATION_FAILED` maps each failure to its part and
   label.
-- `TxIntentError` comes from signing, sending, observing, the lifecycle and the store, and also
-  carries `intentId`, `status`, `txHash` and, not enumerable, `intent`. Retryable:
+- `TxPlanError` comes from signing, sending, observing, the lifecycle and the store, and also
+  carries `planId`, `status`, `txHash` and, not enumerable, `plan`. Retryable:
   `SUBMIT_FAILED`, `CONFIRM_TIMEOUT`, `NOT_YET_VALID`, `STILL_LIVE` and `CANNOT_OBSERVE` with
   `unconfirmed`.
 
@@ -399,8 +399,8 @@ rule.
   `evaluator-emulator`, `network-emulator`, `payer-emulator`, `selection-emulator`,
   `traps-emulator`.
 - On `TxEmulator` of `@meshsdk/tx-emulator`: `add-emulator`, `chain-emulator`, `finalize-emulator`,
-  `redeemer-emulator`, `script-witness-emulator`, `sign-emulator`, `validity-emulator`; the intent
-  tests under `intent/` that need a chain, beside the state machine's own tests (`state-table`,
+  `redeemer-emulator`, `script-witness-emulator`, `sign-emulator`, `validity-emulator`; the plan
+  tests under `plan/` that need a chain, beside the state machine's own tests (`state-table`,
   `state-rules`, `state-random`) and those of the record and stores (`json`, `store`); the old
   `MeshTxBuilder`'s adapter tests (`test/mesh-tx-builder/legacy-adapter-*`); and the README
   doc-test, `test/readme.test.ts`, which runs the task lines of the README's first example as they
@@ -414,7 +414,7 @@ rule.
 - Whether a pool registration is an update is not looked up; `registeredPools` says so.
 - Change that cannot reach its minimum lovelace with the UTxOs available is an error; there is
   no option to leave the remainder to the fee.
-- Automatic collateral may take a UTxO the transaction also spends, an intent's anchor included.
+- Automatic collateral may take a UTxO the transaction also spends, a plan's anchor included.
 - An orphaned child of two parents can come back to life by the other parent's attempt, since the
   record does not keep which parent orphaned it; no money can move by it.
 
@@ -426,11 +426,11 @@ rule.
 [r-result]: ../../packages/mesh-transaction/README.md#the-result
 [r-time]: ../../packages/mesh-transaction/README.md#time
 [r-chains]: ../../packages/mesh-transaction/README.md#chains
-[r-intents]: ../../packages/mesh-transaction/README.md#intents
+[r-plans]: ../../packages/mesh-transaction/README.md#plans
 [r-servers]: ../../packages/mesh-transaction/README.md#servers
 [r-storage]: ../../packages/mesh-transaction/README.md#storage
 [r-testing]: ../../packages/mesh-transaction/README.md#testing-on-the-emulator
 [r-deadlines]: ../../packages/mesh-transaction/README.md#deadlines-and-waiting
-[r-new-intent]: ../../packages/mesh-transaction/README.md#new-intent-instead-of-an-old-one
+[r-new-plan]: ../../packages/mesh-transaction/README.md#new-plan-instead-of-an-old-one
 [r-no-lifecycle]: ../../packages/mesh-transaction/README.md#the-path-without-a-lifecycle
 [r-errors]: ../../packages/mesh-transaction/README.md#errors

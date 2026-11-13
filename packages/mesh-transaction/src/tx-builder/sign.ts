@@ -13,7 +13,7 @@ import {
 
 import type { RequiredKeys } from "./payer";
 import type { Collected, PartRef, SignerRole, TxSigners } from "./witnesses";
-import { TxBuildError, TxIntentError } from "./errors";
+import { TxBuildError, TxPlanError } from "./errors";
 import { errorText } from "./parts/normalize";
 import { copyUtxo, walletCodeOf } from "./payer";
 import {
@@ -501,12 +501,12 @@ const ACCOUNT_CHANGE = -4;
 const signerError = (error: unknown) => {
   const walletCode = walletCodeOf(error);
   if (walletCode === USER_DECLINED)
-    return new TxIntentError(
+    return new TxPlanError(
       "SIGN_DECLINED",
       `the signer declined to sign: ${errorText(error)}`,
       { cause: error },
     );
-  return new TxIntentError(
+  return new TxPlanError(
     "SIGNER_FAILED",
     `the signer failed: ${errorText(error)}`,
     {
@@ -573,7 +573,7 @@ const answerWitnessSet = (answer: unknown, raw: RawTx): string => {
  * @param keyHashes The keys asked for. Only a signer with `signTxWitnesses` is handed the list;
  *   any other signer chooses its keys itself. The answer is returned whole and is not filtered
  *   by the list
- * @throws TxIntentError SIGN_DECLINED when the user declines; SIGNER_FAILED when the signer fails
+ * @throws TxPlanError SIGN_DECLINED when the user declines; SIGNER_FAILED when the signer fails
  *   otherwise, or answers with something that is neither a witness set nor a transaction. The
  *   signer's own error is the `cause`.
  * @throws TxBuildError INVALID_OPTION for a `signer` with neither `signTxWitnesses` nor `signTx`,
@@ -610,7 +610,7 @@ export async function signWitnesses(
   try {
     return answerWitnessSet(answer, raw);
   } catch (error) {
-    throw new TxIntentError(
+    throw new TxPlanError(
       "SIGNER_FAILED",
       `the signer answered with neither a witness set nor a transaction: ${errorText(error)}`,
       { details: { reason: "error" }, cause: error },
@@ -624,7 +624,7 @@ const invalidWitness = (
   message: string,
   extra: { keyHash?: string; cause?: unknown } = {},
 ) =>
-  new TxIntentError("INVALID_WITNESS", message, {
+  new TxPlanError("INVALID_WITNESS", message, {
     details: {
       reason,
       argument,
@@ -637,7 +637,7 @@ const invalidWitness = (
  * The witnesses of the arguments that a transaction does not hold yet, each once, every one
  * checked against its body
  * @param raw The transaction, as `readTransaction` reads it
- * @throws TxIntentError INVALID_WITNESS for the first argument that cannot be read, or holds a
+ * @throws TxPlanError INVALID_WITNESS for the first argument that cannot be read, or holds a
  *   witness that does not verify; `details.argument` is its index in `witnesses`
  */
 export const witnessesToAdd = async (
@@ -678,7 +678,7 @@ export const witnessesToAdd = async (
 /**
  * Adds the vkey and bootstrap witnesses of each witness set or full transaction once. Only the
  * transaction's own witness set changes; every other element stays byte for byte.
- * @throws TxIntentError INVALID_WITNESS for an argument that cannot be decoded, or holding a
+ * @throws TxPlanError INVALID_WITNESS for an argument that cannot be decoded, or holding a
  *   witness that does not verify against the body; `details.argument` is the index of that
  *   argument among `witnesses`, counted from 0
  * @throws TxBuildError INVALID_OPTION for a `tx` that is not a transaction

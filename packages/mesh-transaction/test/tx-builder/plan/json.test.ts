@@ -1,0 +1,1112 @@
+import type { IEvaluator, NativeScript, PoolParams, UTxO } from "@meshsdk/core";
+import {
+  Action,
+  DEFAULT_PROTOCOL_PARAMETERS,
+  DEFAULT_V1_COST_MODEL_LIST,
+  DEFAULT_V2_COST_MODEL_LIST,
+  DEFAULT_V3_COST_MODEL_LIST,
+  mConStr,
+  mConStr0,
+  resolveDataHash,
+  resolveNativeScriptAddress,
+  resolveNativeScriptHash,
+  resolveScriptRef,
+} from "@meshsdk/core";
+import {
+  Cardano,
+  resolvePlutusScriptAddress,
+  scriptHashToRewardAddress,
+  Transaction,
+  TxCBOR,
+} from "@meshsdk/core-cst";
+
+import type {
+  BuiltTx,
+  TxPart,
+  TxPlanError,
+  TxPlanJSON,
+} from "../../../src/tx-builder";
+import type { PlanRecord } from "../../../src/tx-builder/plan/core";
+import {
+  auxiliaryScript,
+  certificate,
+  collateral,
+  collateralReturn,
+  donation,
+  guard,
+  message,
+  metadata,
+  mint,
+  networkId,
+  output,
+  proposal,
+  referenceInput,
+  spend,
+  treasuryValue,
+  TxBuilder,
+  TxBuildError,
+  TxError,
+  validity,
+  vote,
+  withdrawal,
+} from "../../../src/tx-builder";
+import { draftPlan } from "../../../src/tx-builder/plan/core";
+import {
+  decodeParts,
+  encodeParts,
+  encodePlan,
+  PLAN_RECORD_VERSION,
+  readPlan,
+  readPlanWith,
+  UnreadContent,
+} from "../../../src/tx-builder/plan/json";
+import {
+  alwaysSucceedCbor,
+  alwaysSucceedHash,
+  baseAddress,
+  drepBech32,
+  keyHashHex,
+  rewardAddress,
+} from "../../test-util";
+import { accept, acceptAll, hash } from "./plan-util";
+
+/* ---------------------------------------------------------------------------------------------
+ * Fixtures
+ * ------------------------------------------------------------------------------------------- */
+
+const wallet = baseAddress(1);
+const recipient = baseAddress(2);
+const plutus = { code: alwaysSucceedCbor, version: "V3" as const };
+const plutusAddress = resolvePlutusScriptAddress(plutus, 0);
+const plutusStake = scriptHashToRewardAddress(alwaysSucceedHash, 0);
+/** A native script with a threshold, whose `n` is a bigint in its prototype */
+const nOfK: NativeScript = {
+  type: "atLeast",
+  required: 1,
+  scripts: [{ type: "sig", keyHash: keyHashHex(1) }],
+};
+const nOfKAddress = resolveNativeScriptAddress(nOfK, 0);
+const nativeAll: NativeScript = { type: "all", scripts: [] };
+const nativeStake = scriptHashToRewardAddress(
+  resolveNativeScriptHash(nativeAll),
+  0,
+);
+const keyStake = rewardAddress(1);
+const keyStakeHash = Cardano.Address.fromBech32(keyStake)
+  .asReward()!
+  .getPaymentCredential()
+  .hash.toString();
+const poolHash = keyHashHex(7);
+const poolId = Cardano.PoolId.fromKeyHash(poolHash as never).toString();
+const drep = drepBech32(3);
+const anchor = { url: "https://example.com/a.json", dataHash: "ab".repeat(32) };
+const action = { txHash: "a".repeat(64), index: 0 };
+const common = { rewardAccount: keyStake, anchor };
+const redeemer = { data: mConStr0([]) };
+const plutusWitness = { plutus, redeemer };
+/** Plutus data with an integer above 2^53 and a large constructor index */
+const bigData = mConStr(123_456, [2n ** 70n, "cafe", [1, 2n ** 60n]]);
+const bigDataHash = resolveDataHash(bigData);
+const unit = `${"c".repeat(56)}0102`;
+
+const utxoAt = (
+  outputIndex: number,
+  address: string,
+  extra: Partial<UTxO["output"]> = {},
+  txHash = "a".repeat(64),
+): UTxO => ({
+  input: { txHash, outputIndex },
+  output: {
+    address,
+    amount: [{ unit: "lovelace", quantity: "5000000" }],
+    ...extra,
+  },
+});
+
+const poolParams: PoolParams = {
+  operator: poolId,
+  vrfKeyHash: "cd".repeat(32),
+  pledge: "1000000000",
+  cost: "340000000",
+  margin: [1, 100],
+  owners: [keyStakeHash],
+  rewardAddress: keyStake,
+  relays: [
+    { type: "SingleHostAddr", IPV4: "10.0.0.1", port: 3001 },
+    { type: "SingleHostName", domainName: "relay.example.com", port: 3001 },
+  ],
+  metadata: { URL: "https://example.com/p.json", hash: "ef".repeat(32) },
+};
+
+/** A part with Plutus data in the tagged form, as no part builder makes it */
+const taggedData = {
+  kind: "output",
+  output: {
+    address: recipient,
+    amount: { coin: "2000000" },
+    plutus_data: {
+      type: "DATA",
+      value: {
+        type: "MANUAL",
+        data: {
+          type: "CONSTR",
+          alternative: 2n ** 64n - 1n,
+          fields: [
+            { type: "INTEGER", value: -(2n ** 70n) },
+            { type: "BYTES", value: "cafe" },
+            {
+              type: "MAP",
+              value: [
+                [
+                  { type: "INTEGER", value: 0n },
+                  {
+                    type: "LIST",
+                    value: [{ type: "INTEGER", value: 2n ** 53n + 1n }],
+                  },
+                ],
+              ],
+            },
+          ],
+        },
+      },
+    },
+  },
+  label: "tagged",
+} as unknown as TxPart;
+
+/** One part of every kind and form */
+const everyPart = (): TxPart[] => [
+  spend.pubKey({ utxo: utxoAt(0, wallet), label: "key" }),
+  spend.pubKey({ utxo: { txHash: "b".repeat(64), outputIndex: 3 } }),
+  spend.native({ utxo: utxoAt(1, nOfKAddress), script: nOfK }),
+  spend.native({
+    utxo: { txHash: "b".repeat(64), outputIndex: 4 },
+    script: {
+      reference: utxoAt(9, wallet, { scriptRef: resolveScriptRef(nOfK) }),
+    },
+  }),
+  spend.plutus({
+    utxo: utxoAt(2, plutusAddress, { plutusData: "d87980" }),
+    script: plutus,
+    redeemer: { data: bigData, exUnits: { mem: 1000, steps: 2000 } },
+  }),
+  spend.plutus({
+    utxo: utxoAt(3, plutusAddress, { dataHash: bigDataHash }),
+    script: plutus,
+    redeemer,
+    datum: { data: bigData },
+  }),
+  spend.plutus({
+    utxo: utxoAt(4, plutusAddress),
+    script: plutus,
+    redeemer,
+    datum: "none",
+  }),
+  spend.plutus({
+    utxo: { txHash: "b".repeat(64), outputIndex: 5 },
+    script: { reference: { txHash: "d".repeat(64), outputIndex: 0 } },
+    redeemer,
+  }),
+  referenceInput({
+    utxo: utxoAt(5, wallet, { scriptRef: resolveScriptRef(plutus) }),
+  }),
+  referenceInput({ utxo: { txHash: "b".repeat(64), outputIndex: 6 } }),
+  collateral({ utxo: utxoAt(6, wallet), label: "collateral" }),
+  collateralReturn({ address: wallet, totalCollateral: 5_000_000n }),
+  collateralReturn({ address: wallet }),
+  output({ address: recipient, value: { lovelace: 2_000_000n, [unit]: 5n } }),
+  output({ address: recipient, value: { [unit]: 1n } }),
+  output({
+    address: plutusAddress,
+    value: { lovelace: 2_000_000n },
+    datum: { type: "inline", data: bigData },
+  }),
+  output({
+    address: plutusAddress,
+    value: { lovelace: 2_000_000n },
+    datum: { type: "hash", data: bigData, embed: true },
+  }),
+  output({
+    address: plutusAddress,
+    value: { lovelace: 2_000_000n },
+    datum: { type: "hash", hash: bigDataHash },
+  }),
+  output({
+    address: wallet,
+    value: { lovelace: 9_000_000n },
+    scriptRef: plutus,
+  }),
+  output({ address: wallet, value: { lovelace: 9_000_000n }, scriptRef: nOfK }),
+  taggedData,
+  mint.native({ script: nOfK, assets: { "": 1n, abcd: -2n } }),
+  mint.plutus({ script: plutus, redeemer, assets: { "01": 5n } }),
+  withdrawal.pubKey({ rewardAddress: keyStake, amount: 0n }),
+  withdrawal.pubKey({ rewardAddress: keyStake, amount: "all" }),
+  withdrawal.plutus({ script: plutus, redeemer, amount: 1_000n }),
+  withdrawal.native({ script: nativeAll, amount: "all" }),
+  guard.pubKey({ keyHash: keyHashHex(1), label: "approver" }),
+  message({ text: ["Invoice #42 paid", "Zahlung für Bestellung — 東京 ✓"] }),
+  validity({ from: 1_700_000_000_000, until: 1_800_000_000_000 }),
+  validity({ invalidBefore: 10n, invalidHereafter: 20n }),
+  metadata({
+    metadataLabel: 2n ** 63n,
+    value: {
+      big: 2n ** 60n,
+      negative: -(2n ** 63n),
+      bytes: new Uint8Array([0, 1, 254, 255]),
+      list: [1, "a", [2]],
+      map: new Map<bigint | string, string>([
+        [2n ** 55n, "x"],
+        ["k", "y"],
+      ]),
+    },
+  }),
+  auxiliaryScript({ script: nOfK }),
+  auxiliaryScript({ script: plutus }),
+  donation({ amount: 1_000_000n }),
+  treasuryValue({ amount: 0n }),
+  networkId({ network: "testnet" }),
+  certificate.stakeRegistration({ stake: keyStake, deposit: 2_000_000n }),
+  certificate.stakeRegistration({ stake: keyStake }),
+  certificate.stakeRegistration({
+    stake: plutusStake,
+    deposit: 2_000_000n,
+    witness: plutusWitness,
+  }),
+  certificate.legacyStakeRegistration({ stake: keyStake }),
+  certificate.stakeDeregistration({ stake: keyStake, refund: 2_000_000n }),
+  certificate.legacyStakeDeregistration({ stake: keyStake }),
+  certificate.stakeDelegation({ stake: keyStake, pool: poolId }),
+  certificate.stakeDelegation({
+    stake: nativeStake,
+    pool: poolId,
+    witness: { native: nativeAll },
+  }),
+  certificate.voteDelegation({ stake: keyStake, drep }),
+  certificate.stakeAndVoteDelegation({
+    stake: keyStake,
+    pool: poolId,
+    drep: "alwaysAbstain",
+  }),
+  certificate.stakeRegistrationAndDelegation({
+    stake: keyStake,
+    pool: poolId,
+    deposit: 2_000_000n,
+  }),
+  certificate.voteRegistrationAndDelegation({
+    stake: keyStake,
+    drep: "alwaysNoConfidence",
+    deposit: 2_000_000n,
+  }),
+  certificate.stakeVoteRegistrationAndDelegation({
+    stake: keyStake,
+    pool: poolId,
+    drep,
+    deposit: 2_000_000n,
+  }),
+  certificate.poolRegistration({ params: poolParams }),
+  certificate.poolRetirement({ pool: poolId, epoch: 2n ** 60n }),
+  certificate.committeeHotAuth({ cold: keyStake, hot: keyStake }),
+  certificate.committeeColdResign({ cold: keyStake, anchor }),
+  certificate.drepRegistration({ drep, deposit: 500_000_000n, anchor }),
+  certificate.drepRegistration({ drep }),
+  certificate.drepDeregistration({ drep, refund: 500_000_000n }),
+  certificate.drepUpdate({ drep }),
+  vote({
+    voter: { drep },
+    votes: [
+      { action, vote: "yes" },
+      { action: { txHash: "b".repeat(64), index: 2 }, vote: "abstain", anchor },
+    ],
+    label: "ballot",
+  }),
+  vote({
+    voter: { committee: { type: "SCRIPT", value: alwaysSucceedHash } },
+    votes: [{ action, vote: "no" }],
+    witness: plutusWitness,
+  }),
+  vote({ voter: { pool: poolHash }, votes: [{ action, vote: "yes" }] }),
+  proposal.info(common),
+  proposal.info({ ...common, deposit: 100_000_000_000n }),
+  proposal.parameterChange({
+    ...common,
+    updates: {
+      max_tx_size: 16384,
+      key_deposit: "2000000",
+      ref_script_coins_per_byte: { numerator: "15", denominator: "1" },
+    },
+    previous: action,
+    guardrail: plutusWitness,
+  }),
+  proposal.treasuryWithdrawals({
+    ...common,
+    withdrawals: { [keyStake]: 1n },
+    guardrail: { native: nativeAll },
+  }),
+  proposal.hardForkInitiation({
+    ...common,
+    protocolVersion: { major: 11, minor: 0 },
+  }),
+  proposal.noConfidence({ ...common, previous: action }),
+  proposal.updateCommittee({
+    ...common,
+    remove: [{ type: "KEY", value: keyHashHex(1) }],
+    add: [
+      {
+        credential: { type: "SCRIPT", value: alwaysSucceedHash },
+        termLimit: 2n ** 60n,
+      },
+    ],
+    quorum: { numerator: 2, denominator: 3 },
+  }),
+  proposal.newConstitution({
+    ...common,
+    constitution: { anchor, scriptHash: alwaysSucceedHash },
+  }),
+];
+
+/* A builder over a fake fetcher and evaluator, for real built transactions */
+
+const params = { ...DEFAULT_PROTOCOL_PARAMETERS };
+const costModels = [
+  DEFAULT_V1_COST_MODEL_LIST,
+  DEFAULT_V2_COST_MODEL_LIST,
+  DEFAULT_V3_COST_MODEL_LIST,
+];
+const TAGS: Action["tag"][] = [
+  "SPEND",
+  "MINT",
+  "CERT",
+  "REWARD",
+  "VOTE",
+  "PROPOSE",
+];
+const evaluator: IEvaluator = {
+  evaluateTx: async (tx) =>
+    (
+      Transaction.fromCbor(TxCBOR(tx)).witnessSet().redeemers()?.values() ?? []
+    ).map((r) => ({
+      tag: TAGS[r.tag()]!,
+      index: Number(r.index()),
+      budget: { mem: 5000, steps: 7000 },
+    })),
+};
+const builder = new TxBuilder({
+  network: "preprod",
+  params,
+  costModels,
+  evaluator,
+});
+
+const UNTIL = 1_800_000_000_000;
+let nextHash = 0x500;
+const funds = (lovelace: bigint) =>
+  utxoAt(
+    0,
+    wallet,
+    { amount: [{ unit: "lovelace", quantity: String(lovelace) }] },
+    hash(++nextHash),
+  );
+
+/** A Plutus spend and a native n-of-k spend, paid from `payer`: collateral, a native signer */
+const scriptTx = (payer: UTxO) =>
+  builder.build(
+    [
+      spend.plutus({
+        utxo: utxoAt(0, plutusAddress, { plutusData: "d87980" }, hash(0x400)),
+        script: plutus,
+        redeemer: { data: bigData },
+        label: "unlock",
+      }),
+      spend.native({
+        utxo: utxoAt(1, nOfKAddress, {}, hash(0x400)),
+        script: nOfK,
+      }),
+      output({ address: recipient, value: { lovelace: 12_000_000n } }),
+      validity({ until: UNTIL }),
+    ],
+    { payer: { changeAddress: wallet, utxos: [payer] } },
+  );
+
+const expectUnread = (run: () => unknown, message: RegExp) => {
+  let error: unknown;
+  try {
+    run();
+  } catch (caught) {
+    error = caught;
+  }
+  expect(TxError.is(error, "INVALID_STATE")).toBe(true);
+  const planError = error as TxPlanError<"INVALID_STATE">;
+  expect(planError.details.reason).toBe("recordVersion");
+  expect(planError.retryable).toBe(false);
+  expect(planError.message).toMatch(message);
+  expect(planError.message).toContain("only an abandoned plan did not pay");
+  return planError;
+};
+
+/* ---------------------------------------------------------------------------------------------
+ * Parts
+ * ------------------------------------------------------------------------------------------- */
+
+describe("the encoding of parts", () => {
+  it("gives back every part kind and form, as plain JSON data", () => {
+    const parts = everyPart();
+    const kinds = new Set(parts.map((part) => part.kind));
+    expect(kinds.size).toBe(17);
+    const encoded = encodeParts(parts);
+    // Plain JSON data: a JSON round trip changes nothing
+    expect(JSON.parse(JSON.stringify(encoded))).toStrictEqual(encoded);
+    const decoded = decodeParts(encoded);
+    expect(decoded).toEqual(parts);
+    // Encoding what was decoded gives the same data
+    expect(encodeParts(decoded)).toStrictEqual(encoded);
+    // Decoded parts are frozen, as the part builders make them
+    expect(Object.isFrozen(decoded[0])).toBe(true);
+    expect(Object.isFrozen((decoded[0] as { input: object }).input)).toBe(true);
+  });
+
+  it("writes each bigint as its decimal string at its own field, and reads it back as a bigint", () => {
+    const [nativeSpend, retirement, committee, meta] = [
+      spend.native({ utxo: utxoAt(1, nOfKAddress), script: nOfK }),
+      certificate.poolRetirement({ pool: poolId, epoch: 2n ** 60n }),
+      proposal.updateCommittee({
+        ...common,
+        remove: [],
+        add: [
+          {
+            credential: { type: "KEY", value: keyHashHex(2) },
+            termLimit: 2n ** 60n,
+          },
+        ],
+        quorum: { numerator: 1, denominator: 2 },
+      }),
+      metadata({ metadataLabel: 1, value: [2n ** 60n] }),
+    ];
+    const encoded = encodeParts([
+      nativeSpend,
+      retirement,
+      committee,
+      meta,
+      taggedData,
+    ]) as any[];
+    expect(encoded[0].witness.script.script.value.n).toBe("1");
+    expect(encoded[1].certificate.value.epoch).toBe(String(2n ** 60n));
+    expect(
+      encoded[2].proposal.governance_action.value.committee.members[0]
+        .term_limit,
+    ).toBe(String(2n ** 60n));
+    expect(encoded[3].value.value[0]).toEqual({
+      type: "INT",
+      value: String(2n ** 60n),
+    });
+    const data = encoded[4].output.plutus_data.value.data;
+    expect(data.alternative).toBe(String(2n ** 64n - 1n));
+    expect(data.fields[0].value).toBe(String(-(2n ** 70n)));
+    expect(data.fields[2].value[0][1].value[0].value).toBe(
+      String(2n ** 53n + 1n),
+    );
+
+    const decoded = decodeParts(encoded) as any[];
+    expect(decoded[0].witness.script.script.value.n).toBe(1n);
+    expect(decoded[1].certificate.value.epoch).toBe(2n ** 60n);
+    expect(
+      decoded[2].proposal.governance_action.value.committee.members[0]
+        .term_limit,
+    ).toBe(2n ** 60n);
+    expect(decoded[3].value.value[0].value).toBe(2n ** 60n);
+    expect(decoded[4].output.plutus_data.value.data.alternative).toBe(
+      2n ** 64n - 1n,
+    );
+  });
+
+  it("keeps a datum given in CBOR as the same hex", () => {
+    const part = output({
+      address: plutusAddress,
+      value: { lovelace: 2_000_000n },
+      datum: {
+        type: "inline",
+        data: { type: "CBOR", content: "d8799f1903e8ff" },
+      },
+    });
+    const [encoded] = encodeParts([part]) as any[];
+    expect(encoded.output.plutus_data.value).toEqual({
+      type: "CBOR",
+      hex: "d8799f1903e8ff",
+    });
+    expect(decodeParts([encoded])).toEqual([part]);
+  });
+
+  it("refuses a text that is not a decimal integer where a bigint stands", () => {
+    const [encoded] = encodeParts([
+      certificate.poolRetirement({ pool: poolId, epoch: 600 }),
+    ]) as any[];
+    for (const epoch of ["1.5", "0x10", "01", "", "-0", " 1", "1e3", 600])
+      expect(() =>
+        decodeParts([
+          {
+            ...encoded,
+            certificate: {
+              ...encoded.certificate,
+              value: { ...encoded.certificate.value, epoch },
+            },
+          },
+        ]),
+      ).toThrow(UnreadContent);
+    expect(() => decodeParts([encoded])).not.toThrow();
+  });
+
+  it("refuses a part kind, a member or a form it does not know, naming it", () => {
+    const [out, plutusSpend] = encodeParts([
+      output({ address: recipient, value: { lovelace: 2_000_000n } }),
+      spend.plutus({
+        utxo: utxoAt(2, plutusAddress, { plutusData: "d87980" }),
+        script: plutus,
+        redeemer,
+      }),
+    ]) as any[];
+    expect(() => decodeParts([{ ...out, kind: "split" }])).toThrow(
+      /parts\[0\]: the part kind "split"/,
+    );
+    expect(() => decodeParts([{ ...out, change: true }])).toThrow(
+      /parts\[0\]\.change, a member this library does not know/,
+    );
+    expect(() => decodeParts([{ kind: "output" }])).toThrow(
+      /parts\[0\]\.output is missing/,
+    );
+    expect(() =>
+      decodeParts([
+        {
+          ...plutusSpend,
+          witness: {
+            ...plutusSpend.witness,
+            redeemer: { data: { type: "deferred" } },
+          },
+        },
+      ]),
+    ).toThrow(
+      /parts\[0\]\.witness\.redeemer\.data: data of the form "deferred"/,
+    );
+    expect(() =>
+      decodeParts([{ ...plutusSpend, witness: { type: "guardian" } }]),
+    ).toThrow(/a witness of the type "guardian"/);
+  });
+
+  it("is NOT_SERIALIZABLE for a redeemer function, naming the part and its label", () => {
+    const parts = [
+      output({ address: recipient, value: { lovelace: 2_000_000n } }),
+      spend.plutus({
+        utxo: utxoAt(2, plutusAddress, { plutusData: "d87980" }),
+        script: plutus,
+        redeemer: { data: (tx) => tx.self },
+        label: "unlock",
+      }),
+    ];
+    let error: unknown;
+    try {
+      encodeParts(parts);
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(TxBuildError);
+    expect(TxError.is(error, "NOT_SERIALIZABLE")).toBe(true);
+    expect((error as TxBuildError).part).toBe("spend");
+    expect((error as TxBuildError).label).toBe("unlock");
+    expect((error as TxBuildError).details).toBeUndefined();
+    expect((error as Error).message).toMatch(/^spend "unlock": /);
+    // Every kind that takes a Plutus witness
+    for (const part of [
+      mint.plutus({
+        script: plutus,
+        redeemer: { data: () => 0 },
+        assets: { "01": 1n },
+      }),
+      withdrawal.plutus({
+        script: plutus,
+        redeemer: { data: () => 0 },
+        amount: 0n,
+      }),
+      certificate.stakeRegistration({
+        stake: plutusStake,
+        deposit: 2_000_000n,
+        witness: { plutus, redeemer: { data: () => 0 } },
+      }),
+      vote({
+        voter: { committee: { type: "SCRIPT", value: alwaysSucceedHash } },
+        votes: [{ action, vote: "no" }],
+        witness: { plutus, redeemer: { data: () => 0 } },
+      }),
+      proposal.parameterChange({
+        ...common,
+        updates: { max_tx_size: 16384 },
+        guardrail: { plutus, redeemer: { data: () => 0 } },
+      }),
+    ])
+      expect(() => encodeParts([part])).toThrow(
+        expect.objectContaining({ code: "NOT_SERIALIZABLE", part: part.kind }),
+      );
+  });
+});
+
+describe("the encoding of a built transaction", () => {
+  it("gives back a BuiltTx with a Plutus script, collateral and a native signer, bigints as bigints", async () => {
+    const built = await scriptTx(funds(50_000_000n));
+    expect(built.collateral).toBeDefined();
+    expect(built.signers.nativeScripts).toHaveLength(1);
+    expect(built.redeemers).toHaveLength(1);
+    const record = recordWith([built]);
+    const encoded = encodePlan(record) as any;
+    const json = encoded.attempts[0].built;
+    expect(json.fee).toBe(String(built.fee));
+    expect(json.exUnits).toEqual({ mem: "5000", steps: "7000" });
+    expect(json.redeemers[0].exUnits).toEqual({ mem: "5000", steps: "7000" });
+    expect(json.collateral.total).toBe(String(built.collateral!.total));
+    expect(json.signers.nativeScripts[0].value.n).toBe("1");
+    expect(JSON.parse(JSON.stringify(encoded))).toStrictEqual(encoded);
+
+    const read = readPlan(encoded).attempts[0]!.built as BuiltTx;
+    expect(read).toEqual(built);
+    expect(read.fee).toBe(built.fee);
+    expect(read.exUnits.mem).toBe(5000n);
+    expect(read.redeemers[0]!.exUnits.steps).toBe(7000n);
+    expect(read.collateral!.total).toBe(built.collateral!.total);
+    expect((read.signers.nativeScripts[0] as any).value.n).toBe(1n);
+    // The bigints inside the prototype and the parts
+    const witness = read.prototype.witness_set;
+    expect((witness.native_scripts![0] as any).value.n).toBe(1n);
+    const spent = read.parts.find(
+      (part) => part.kind === "spend" && part.witness.type === "native",
+    ) as any;
+    expect(spent.witness.script.script.value.n).toBe(1n);
+  });
+});
+
+/* ---------------------------------------------------------------------------------------------
+ * Records
+ * ------------------------------------------------------------------------------------------- */
+
+const PARTS = (): TxPart[] => [
+  output({ address: recipient, value: { lovelace: 3_000_000n } }),
+  metadata({ metadataLabel: 674, value: { n: 2n ** 60n } }),
+];
+
+/** A draft with parts and data options, and a build event for each transaction */
+const recordWith = (builts: readonly BuiltTx[]): PlanRecord => {
+  const start = draftPlan({
+    id: "pay-1",
+    network: "preprod",
+    deadlines: { ttlMs: 600_000, expiryMarginMs: 60_000, confirmations: 3 },
+    parts: PARTS(),
+    options: {
+      fee: 400_000n,
+      sendAllTo: recipient,
+      knownUtxos: [utxoAt(7, wallet)],
+      registeredPools: [poolHash],
+      extraKeyWitnesses: 1,
+      changeAddress: wallet,
+    },
+  });
+  return builts.reduce(
+    (json, built) =>
+      accept(json, {
+        type: "build",
+        built,
+        anchors: [{ utxo: built.selectedInputs[0]!, kind: "payer" }],
+      }),
+    start,
+  );
+};
+
+/** A record that went through an anchor change, signatures, a refusal and the closing mark */
+const replacedRecord = async () => {
+  const first = await scriptTx(funds(50_000_000n));
+  const second = await scriptTx(funds(60_000_000n));
+  const keys = first.signers.keyHashes;
+  expect(keys.length).toBeGreaterThan(0);
+  const start = recordWith([first]);
+  return acceptAll(
+    start,
+    {
+      type: "signature",
+      txHash: first.txHash,
+      witnesses: keys.map((keyHash) => ({ keyHash, witness: `w-${keyHash}` })),
+    },
+    { type: "delivery", txHash: first.txHash },
+    { type: "answer", txHash: first.txHash, refused: true },
+    {
+      type: "observation",
+      tip: { slot: 100, timeMs: UNTIL + 60_000, height: 100 },
+      attempts: [{ txHash: first.txHash, found: false }],
+    },
+    {
+      type: "build",
+      built: second,
+      anchors: [{ utxo: second.selectedInputs[0]!, kind: "payer" }],
+      tipTimeMs: UNTIL + 60_000,
+    },
+    { type: "closing" },
+  );
+};
+
+/** A child whose attempt spends its parent's output, delivered, answered and found */
+const childRecord = async () => {
+  const parentHash = hash(0x700);
+  const parentOutput = utxoAt(1, wallet, {}, parentHash);
+  const built = await builder.build(
+    [
+      spend.pubKey({ utxo: parentOutput }),
+      output({ address: recipient, value: { lovelace: 2_000_000n } }),
+      validity({ until: UNTIL }),
+    ],
+    { payer: { changeAddress: wallet, utxos: [funds(10_000_000n)] } },
+  );
+  const start = draftPlan({
+    id: "child-1",
+    network: "preprod",
+    deadlines: { ttlMs: 600_000, expiryMarginMs: 0, confirmations: 2 },
+    parts: PARTS(),
+    options: { changeAddress: wallet },
+  });
+  return acceptAll(
+    start,
+    {
+      type: "build",
+      built,
+      anchors: [{ utxo: parentOutput, kind: "parent" }],
+      parents: [{ txHash: parentHash, until: UNTIL - 1, planId: "parent-1" }],
+    },
+    {
+      type: "signature",
+      txHash: built.txHash,
+      witnesses: built.signers.keyHashes.map((keyHash) => ({
+        keyHash,
+        witness: `w-${keyHash}`,
+      })),
+    },
+    { type: "delivery", txHash: built.txHash },
+    {
+      type: "answer",
+      txHash: built.txHash,
+      refused: false,
+      reportedHash: hash(0x701),
+    },
+    {
+      type: "observation",
+      tip: { slot: 210, timeMs: 210_000, height: 11 },
+      attempts: [
+        {
+          txHash: built.txHash,
+          found: true,
+          slot: 200,
+          block: "bb".repeat(32),
+          blockHeight: 10,
+        },
+      ],
+    },
+  );
+};
+
+const expectWritten = (json: TxPlanJSON) => {
+  expect(json.version).toBe(1);
+  expect(json.kind).toBe("TxPlan");
+  expect(Object.keys(json.deadlines).sort()).toEqual([
+    "confirmations",
+    "expiryMarginMs",
+    "ttlMs",
+  ]);
+  for (const value of Object.values(json.deadlines))
+    expect(typeof value).toBe("number");
+  expect([undefined, true]).toContain(json.closing);
+  expect(JSON.parse(JSON.stringify(json))).toStrictEqual(json);
+};
+
+describe("the encoding of a record", () => {
+  it("gives back a record with attempts, signatures, an anchor change and the closing mark", async () => {
+    const record = await replacedRecord();
+    expect(record.attempts.map((a) => a.status)).toEqual(["expired", "built"]);
+    expect(record.anchor.anchors).toHaveLength(2);
+    expect(record.closing).toBe(true);
+    const encoded = encodePlan(record);
+    expectWritten(encoded);
+    expect(encoded.options.fee).toBe("400000");
+    expect(readPlan(encoded)).toEqual(record);
+    expect(readPlan(encoded, "pay-1")).toEqual(record);
+    expect(encodePlan(readPlan(encoded))).toStrictEqual(encoded);
+  });
+
+  it("gives back a child's record with parents, a reported hash and a sighting", async () => {
+    const record = await childRecord();
+    expect(record.status).toBe("included");
+    expect(record.attempts[0]!.parents).toEqual([
+      { txHash: hash(0x700), until: UNTIL - 1, planId: "parent-1" },
+    ]);
+    expect(record.attempts[0]!.dependsOn).toEqual([hash(0x700)]);
+    const encoded = encodePlan(record);
+    expectWritten(encoded);
+    expect(encoded.closing).toBeUndefined();
+    expect(readPlan(encoded)).toEqual(record);
+  });
+
+  it("writes a draft with revision 0 and no id when it has none, and reads it back", () => {
+    const record = draftPlan({
+      network: "preprod",
+      deadlines: { ttlMs: 1, expiryMarginMs: 0, confirmations: 0 },
+      parts: PARTS(),
+      options: {},
+    });
+    const encoded = encodePlan(record);
+    expectWritten(encoded);
+    expect(encoded).not.toHaveProperty("id");
+    expect(encoded.rev).toBe(0);
+    expect(readPlan(encoded)).toEqual(record);
+    // An abandoned draft carries the mark and no attempts
+    const closed = accept(record, { type: "closing" });
+    expect(encodePlan(closed)).toMatchObject({
+      status: "abandoned",
+      closing: true,
+      rev: 1,
+      attempts: [],
+    });
+    expect(readPlan(encodePlan(closed))).toEqual(closed);
+    // The mark is never removed: an abandoned record without it is not read
+    const unmarked: any = encodePlan(closed);
+    delete unmarked.closing;
+    expectUnread(
+      () => readPlan(unmarked),
+      /closing is missing on an abandoned plan/,
+    );
+  });
+
+  it("writes a custom network as its whole configuration", () => {
+    const network = {
+      name: "devnet",
+      networkId: 0 as const,
+      slotConfig: {
+        zeroTime: 1_700_000_000_000,
+        zeroSlot: 0,
+        slotLength: 1000,
+        startEpoch: 0,
+        epochLength: 500,
+      },
+    };
+    const record = draftPlan({
+      id: "pay-2",
+      network,
+      deadlines: { ttlMs: 1, expiryMarginMs: 0, confirmations: 0 },
+      parts: [],
+      options: {},
+    });
+    const encoded = encodePlan(record);
+    expect(encoded.network).toEqual(network);
+    expect(readPlan(encoded)).toEqual(record);
+  });
+});
+
+/* ---------------------------------------------------------------------------------------------
+ * The reader
+ * ------------------------------------------------------------------------------------------- */
+
+describe("readPlan", () => {
+  let base: any;
+  beforeAll(async () => {
+    base = encodePlan(await replacedRecord());
+  });
+  /** The base record with a change made to a copy of it */
+  const changed = (change: (json: any) => void) => {
+    const json = JSON.parse(JSON.stringify(base));
+    change(json);
+    return json;
+  };
+
+  it("refuses a version it does not read, naming the value", () => {
+    expect(PLAN_RECORD_VERSION).toBe(1);
+    expectUnread(
+      () => readPlan(changed((json) => (json.version = 2))),
+      /the version 2, newer than 1/,
+    );
+    for (const [version, shown] of [
+      [0, "0"],
+      [-1, "-1"],
+      [1.5, "1.5"],
+      ["1", '"1"'],
+      [undefined, "none"],
+    ] as const)
+      expectUnread(
+        () => readPlan(changed((json) => (json.version = version))),
+        new RegExp(
+          `the version ${shown.replace(/[.]/g, "\\.")}: a record version is a whole number from 1`,
+        ),
+      );
+    // A record written now is in version 1
+    expect(base.version).toBe(1);
+  });
+
+  it("migrates an older version through its steps and refuses one it has no step for", () => {
+    const steps = new Map([
+      [
+        1,
+        (json: Record<string, unknown>) => ({
+          ...json,
+          options: { ...(json.options as object), extraKeyWitnesses: 7 },
+        }),
+      ],
+    ]);
+    const read = readPlanWith(base, { migrations: steps, version: 2 });
+    expect(read.version).toBe(2);
+    expect(read.options.extraKeyWitnesses).toBe(7);
+    expectUnread(
+      () => readPlanWith(base, { migrations: steps, version: 3 }),
+      /the version 2: this library has no step from it to 3/,
+    );
+    // A record of the newest version is not migrated
+    expect(
+      readPlanWith({ ...base, version: 2 }, { migrations: steps, version: 2 })
+        .options.extraKeyWitnesses,
+    ).toBe(1);
+  });
+
+  it("refuses another kind, a part kind and a status it does not know, naming them", () => {
+    expectUnread(
+      () => readPlan(changed((json) => (json.kind = "Other"))),
+      /the kind "Other"/,
+    );
+    expectUnread(
+      () => readPlan(changed((json) => (json.parts[0].kind = "split"))),
+      /parts\[0\]: the part kind "split"/,
+    );
+    expectUnread(
+      () => readPlan(changed((json) => (json.attempts[0].status = "pending"))),
+      /attempts\[0\]\.status: the attempt status "pending"/,
+    );
+    expectUnread(
+      () => readPlan(changed((json) => (json.status = "paused"))),
+      /status: the plan status "paused"/,
+    );
+    expectUnread(
+      () => readPlan(changed((json) => (json.status = "sent"))),
+      /the plan status "sent", which its attempts do not give/,
+    );
+    expectUnread(
+      () =>
+        readPlan(
+          changed((json) => (json.attempts[0].built.parts[0].kind = "split")),
+        ),
+      /attempts\[0\]\.built\.parts\[0\]: the part kind "split"/,
+    );
+    expectUnread(() => readPlan("text"), /the record is "text", not an object/);
+    expectUnread(() => readPlan(null), /the record is null, not an object/);
+  });
+
+  it("refuses a broken shape, naming the member", () => {
+    const cases: [(json: any) => void, RegExp][] = [
+      [
+        (json) => delete json.deadlines.ttlMs,
+        /deadlines\.ttlMs is none, not a number/,
+      ],
+      [(json) => (json.rev = "3"), /rev is "3", not a whole number/],
+      [
+        (json) => delete json.attempts[0].txHash,
+        /attempts\[0\]\.txHash is none, not a text/,
+      ],
+      [
+        (json) => (json.options.fee = "1.5"),
+        /options\.fee is "1\.5", not a decimal integer/,
+      ],
+      [
+        (json) => delete json.attempts[1].built,
+        /attempts\[1\]\.built is missing on the current attempt/,
+      ],
+      [
+        (json) => (json.attempts[0].built.fee = 7),
+        /attempts\[0\]\.built\.fee is 7, not a decimal integer/,
+      ],
+      [
+        (json) => (json.anchor.anchors[0].kind = "loan"),
+        /anchor\.anchors\[0\]\.kind: the anchor kind "loan"/,
+      ],
+      [(json) => (json.closing = false), /closing is false, not true/],
+      [(json) => (json.rev = 0), /rev is 0: a draft has revision 0/],
+      // Members this library does not know
+      [
+        (json) => (json.storedAt = 1),
+        /storedAt, a member this library does not know/,
+      ],
+      [
+        (json) => (json.deadlines.graceMs = 1),
+        /deadlines\.graceMs, a member this library does not know/,
+      ],
+      [
+        (json) => (json.attempts[0].level = 1),
+        /attempts\[0\]\.level, a member this library does not know/,
+      ],
+      [
+        (json) => (json.attempts[0].built.level = "dijkstra"),
+        /attempts\[0\]\.built\.level, a member this library does not know/,
+      ],
+      [
+        (json) => (json.anchor.general = 1),
+        /anchor\.general, a member this library does not know/,
+      ],
+      [
+        (json) => (json.anchor.anchors[0].note = 1),
+        /anchor\.anchors\[0\]\.note, a member this library does not know/,
+      ],
+      [
+        (json) => (json.options.changeSelection = { name: "x" }),
+        /options\.changeSelection, a member this library does not know/,
+      ],
+      [
+        (json) => (json.parts[0].change = true),
+        /parts\[0\]\.change, a member this library does not know/,
+      ],
+    ];
+    for (const [change, message] of cases)
+      expectUnread(() => readPlan(changed(change)), message);
+    // An id other than the one asked for
+    expectUnread(
+      () => readPlan(base, "pay-2"),
+      /id is "pay-1", where "pay-2" was asked for/,
+    );
+    expectUnread(
+      () =>
+        readPlan(
+          changed((json) => delete json.id),
+          "pay-1",
+        ),
+      /id is none, where "pay-1" was asked for/,
+    );
+    const error = expectUnread(
+      () => readPlan(changed((json) => (json.version = 2))),
+      /newer/,
+    );
+    expect(error.planId).toBe("pay-1");
+  });
+
+  it("refuses a record that is not plain JSON data", () => {
+    expectUnread(
+      () => readPlan(changed((json) => (json.options.fee = 400_000n))),
+      /the record is not JSON data/,
+    );
+  });
+
+  it("takes a terminal record without the bodies of its replaced attempts", () => {
+    const json = changed((record) => {
+      // Abandoned: only the current attempt keeps its body
+      record.status = "abandoned";
+      delete record.attempts[0].built;
+      record.attempts[1].status = "expired";
+    });
+    expect(readPlan(json).status).toBe("abandoned");
+    // Final: only the landed attempt keeps its body, also when it is not the current one
+    const final = changed((record) => {
+      record.status = "final";
+      record.attempts[0].status = "final";
+      record.attempts[0].seen = { slot: 900 };
+      delete record.attempts[1].built;
+      record.attempts[1].status = "expired";
+    });
+    const read = readPlan(final);
+    expect(read.status).toBe("final");
+    expect(read.attempts[0]!.built).toBeDefined();
+    expect(read.attempts[1]!.built).toBeUndefined();
+  });
+});

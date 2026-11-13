@@ -39,17 +39,11 @@ import type { AssembledRedeemer, AssembledTx, RedeemerPart } from "./assemble";
 import type {
   BalanceContext,
   Balanced,
-  CollateralPlan,
   SelectInputs,
+  TxCollateral,
 } from "./balance";
 import type { ChainedTx } from "./chain";
 import type { PartFailure } from "./errors";
-import type {
-  IntentDeadlines,
-  IntentOptions,
-  ResumeOptions,
-  TxIntentStore,
-} from "./intent/types";
 import type {
   CredentialInput,
   OutputPart,
@@ -63,6 +57,12 @@ import type {
   PayerSnapshot,
   PayerSource,
 } from "./payer";
+import type {
+  PlanDeadlines,
+  PlanOptions,
+  ResumeOptions,
+  TxPlanStore,
+} from "./plan/types";
 import type { GovernanceDeposits } from "./resolve";
 import type { TxSigners } from "./witnesses";
 import { abortable, throwIfAborted } from "./abort";
@@ -93,8 +93,6 @@ import {
   valueSize,
 } from "./fee";
 import { auxiliaryDataHashOf, scriptDataHashOf } from "./hashes";
-import { checkIntentDefaults } from "./intent/deadlines";
-import { createIntent, resumeIntent, TxIntent } from "./intent/intent";
 import {
   checkNetworks,
   checkProviderNetwork,
@@ -119,6 +117,8 @@ import {
   toPayerSource,
   toUtxo,
 } from "./payer";
+import { checkPlanDefaults } from "./plan/deadlines";
+import { createPlan, resumePlan, TxPlan } from "./plan/plan";
 import { resolveParts, resolveValidity, utxoKey } from "./resolve";
 import { bodySigners, readTransaction } from "./sign";
 import { fromAssets } from "./value";
@@ -188,23 +188,23 @@ export type TxBuilderOptions = {
   /** The governance deposits, which `Protocol` does not carry */
   deposits?: GovernanceDeposits;
   /**
-   * The defaults of this builder's intents. The deadlines (`ttlMs`, `expiryMarginMs`,
-   * `confirmations`) are copied into an intent when it is made, where its own options do not
+   * The defaults of this builder's plans. The deadlines (`ttlMs`, `expiryMarginMs`,
+   * `confirmations`) are copied into a plan when it is made, where its own options do not
    * give them, and never read again. `pollMs` (above 0; 5 000 when not given) is the pause
    * between two looks at the chain while a call waits, where the call gives none; `resendMs`
-   * (at least `pollMs`; 120 000 when not given) how often the same bytes go again while an
-   * intent is sent. Neither is written into an intent. Checked by the constructor.
+   * (at least `pollMs`; 120 000 when not given) how often the same bytes go again while a
+   * plan is sent. Neither is written into a plan. Checked by the constructor.
    */
-  intentDefaults?: IntentDeadlines & { pollMs?: number; resendMs?: number };
+  planDefaults?: PlanDeadlines & { pollMs?: number; resendMs?: number };
   /**
-   * Where the records of this builder's intents are kept, so that they survive the process:
-   * every change of an intent is written before the call returns, a new attempt before it is
-   * handed out, a first delivery before the bytes leave. With a store every intent needs an
+   * Where the records of this builder's plans are kept, so that they survive the process:
+   * every change of a plan is written before the call returns, a new attempt before it is
+   * handed out, a first delivery before the bytes leave. With a store every plan needs an
    * `id`, its parts must be data (no redeemer function), and `resume(id)` restores it. Builders
    * made by `add` keep the same store. An object with `load` and `save` functions; checked by
    * the constructor.
    */
-  store?: TxIntentStore;
+  store?: TxPlanStore;
 };
 
 /** One entry of a parts list: a part, a nested list of parts, or a value that is skipped */
@@ -233,7 +233,7 @@ export type BuildEvent =
     }
   /** An evaluation, with the execution units it gave each redeemer */
   | { type: "evaluated"; round: number; redeemers: readonly BuiltRedeemer[] }
-  /** A submitter answered with another hash than the transaction's; sent by an intent, never by a build */
+  /** A submitter answered with another hash than the transaction's; sent by a plan, never by a build */
   | {
       type: "warning";
       code: "HASH_MISMATCH";
@@ -273,11 +273,11 @@ export type BuildOptions = {
    * of their change, only the outputs at this build's change address are selected. A part that
    * names an output they spend is refused with UTXO_NOT_FOUND. Their collateral inputs stay
    * selectable, since a valid transaction does not spend them. The build keeps nothing of them:
-   * a transaction not given here is not known to it. An intent stands for its current attempt,
-   * `intent.built`; one without an attempt is INVALID_OPTION. Their outputs and `knownUtxos`,
+   * a transaction not given here is not known to it. A plan stands for its current attempt,
+   * `plan.built`; one without an attempt is INVALID_OPTION. Their outputs and `knownUtxos`,
    * not the payer's UTxOs, are what an evaluator without `acceptsKnownUtxos` is handed.
    */
-  after?: BuiltTx | TxIntent | readonly (BuiltTx | TxIntent)[];
+  after?: BuiltTx | TxPlan | readonly (BuiltTx | TxPlan)[];
   /**
    * Outputs the parts may name by out ref that the provider may not know yet; never selected.
    * Being listed here makes no UTxO selectable and takes none out of selection: one the payer
@@ -467,7 +467,7 @@ const unsupportedSerializer = (reason: string, cause?: unknown) =>
 const SEND_ALL_TO_ALLOWED = "a payment address, in bech32 or hex";
 const PARAMS_ALLOWED = "a whole Protocol";
 const AFTER_ALLOWED =
-  "a transaction built by TxBuilder.build (txHash, inputs, outputs, change), an intent with an attempt, or a list of them";
+  "a transaction built by TxBuilder.build (txHash, inputs, outputs, change), a plan with an attempt, or a list of them";
 const KNOWN_UTXOS_ALLOWED =
   "a list of UTxOs { input: { txHash, outputIndex }, output: { address, amount } }";
 
@@ -499,15 +499,15 @@ const toAfter = (after: unknown): AfterTx[] => {
   const entries: unknown[] = Array.isArray(after) ? after : [after];
   return entries.map((given, i) => {
     const where = Array.isArray(after) ? `entry ${i}` : "the transaction";
-    // An intent stands for its current attempt; without one it stands for nothing
+    // A plan stands for its current attempt; without one it stands for nothing
     let entry = given;
-    if (given instanceof TxIntent) {
+    if (given instanceof TxPlan) {
       if (given.built === undefined)
         throw invalidEntry(
           "after",
           given.status,
           AFTER_ALLOWED,
-          `${where} is an intent without an attempt (${given.status}): it stands for no transaction`,
+          `${where} is a plan without an attempt (${given.status}): it stands for no transaction`,
         );
       entry = given.built;
     }
@@ -752,7 +752,7 @@ export type BuiltTx = {
    * The collateral, when the transaction runs Plutus scripts; of a transaction completed by
    * `finalize`, whenever the body has collateral inputs
    */
-  collateral?: CollateralPlan;
+  collateral?: TxCollateral;
   /** The keys that must sign, and why */
   signers: TxSigners;
   /**
@@ -999,12 +999,12 @@ export class TxBuilder {
   /** The `costModels` option; never what was read from the provider */
   readonly costModels?: number[][];
   readonly deposits: GovernanceDeposits;
-  /** The `intentDefaults` option, checked; only the members it knows, as given */
-  readonly intentDefaults?: Readonly<
-    IntentDeadlines & { pollMs?: number; resendMs?: number }
+  /** The `planDefaults` option, checked; only the members it knows, as given */
+  readonly planDefaults?: Readonly<
+    PlanDeadlines & { pollMs?: number; resendMs?: number }
   >;
-  /** The `store` option: where the records of this builder's intents are kept */
-  readonly store?: TxIntentStore;
+  /** The `store` option: where the records of this builder's plans are kept */
+  readonly store?: TxPlanStore;
   /** The shared cache of the provider; every read goes through it */
   private readonly cache?: CachedFetcher;
   /** The parts added with `add`, flat and in order, as they were given; `build` takes them first */
@@ -1017,15 +1017,15 @@ export class TxBuilder {
    *   INVALID_OPTION for `params` that lack a field a build reads, or hold one that is not a
    *   number (`keyDeposit` and `poolDeposit` may be missing);
    *   NETWORK_MISMATCH when the provider states another network;
-   *   INVALID_OPTION for an `intentDefaults` that is not an object, or names the first of its
+   *   INVALID_OPTION for a `planDefaults` that is not an object, or names the first of its
    *   members out of range: `ttlMs` or `pollMs` not above 0, `expiryMarginMs` below 0,
    *   `confirmations` not a whole number 0 or more, `resendMs` below the builder's `pollMs`;
    *   INVALID_OPTION for a `store` without `load` and `save` functions
    */
   constructor(options: TxBuilderOptions) {
     this.network = resolveNetwork(options?.network);
-    const intentDefaults = checkIntentDefaults(options.intentDefaults);
-    if (intentDefaults) this.intentDefaults = intentDefaults;
+    const planDefaults = checkPlanDefaults(options.planDefaults);
+    if (planDefaults) this.planDefaults = planDefaults;
     if (options.store !== undefined) {
       const store = options.store as unknown;
       const has = (name: string) =>
@@ -1605,41 +1605,41 @@ export class TxBuilder {
   }
 
   /**
-   * A payment as an intent: the parts added with `add`, then `parts` (none when omitted), carried
-   * from building to a final state by the `TxIntent` it returns. It is the only way to make an
-   * intent, and it makes no request: the intent is `draft` until its first attempt is built.
+   * A payment as a plan: the parts added with `add`, then `parts` (none when omitted), carried
+   * from building to a final state by the `TxPlan` it returns. It is the only way to make a
+   * plan, and it makes no request: the plan is `draft` until its first attempt is built.
    *
    * ```ts
-   * const intent = builder.intent(output({ address, value }), { payer: wallet });
-   * await intent.send({ waitFor: "included" });
+   * const plan = builder.plan(output({ address, value }), { payer: wallet });
+   * await plan.send({ waitFor: "included" });
    * ```
    *
-   * The intent's deadlines are its own options, else this builder's `intentDefaults`, else the
+   * The plan's deadlines are its own options, else this builder's `planDefaults`, else the
    * built-in values, written into it now and never read from the builder again. Its parts are
-   * fixed: a later `add` does not change them, and so are its parents, the intents of `after`.
+   * fixed: a later `add` does not change them, and so are its parents, the plans of `after`.
    *
-   * With a `store` the intent is kept under its `id`, and creation stays synchronous: the first
-   * awaited method (`build`, `send`, `refresh`, …) reads the record, and until then the intent
+   * With a `store` the plan is kept under its `id`, and creation stays synchronous: the first
+   * awaited method (`build`, `send`, `refresh`, …) reads the record, and until then the plan
    * shows a draft, whatever the store holds. So read the status after the first `await`; for a
-   * known id there is `await builder.resume(id)`. An id already recorded is the same intent: with
+   * known id there is `await builder.resume(id)`. An id already recorded is the same plan: with
    * the same parts `build()` returns its current attempt, and other parts, an explicit deadline
    * or data option other than the recorded one, or an `after` naming other parents is
-   * INTENT_EXISTS from that first method. A repeated request handler is safe this way.
+   * PLAN_EXISTS from that first method. A repeated request handler is safe this way.
    * @throws TxBuildError INVALID_OPTION for a parts entry that is not a part, for an `after` that
-   *   holds anything but intents, for an `id` that is not a string (without a store), for a
+   *   holds anything but plans, for an `id` that is not a string (without a store), for a
    *   deadline out of range,
    *   and with a store for a parent made by a builder without one; NOT_SERIALIZABLE with a store,
    *   for a part that holds a redeemer function
-   * @throws TxIntentError CANNOT_OBSERVE (`noTip`) when the builder has no provider that reads
+   * @throws TxPlanError CANNOT_OBSERVE (`noTip`) when the builder has no provider that reads
    *   the chain's tip; (`addressCache`) when its provider keeps a cache of address UTxOs;
    *   MISSING_ID with a store, without an id that is a non-empty string
    */
-  intent(parts: PartsInput = [], options?: IntentOptions): TxIntent {
-    return createIntent(this, this.withAdded(parts), options ?? {});
+  plan(parts: PartsInput = [], options?: PlanOptions): TxPlan {
+    return createPlan(this, this.withAdded(parts), options ?? {});
   }
 
   /**
-   * The intent recorded under `id` in this builder's store, as the record holds it, with the live
+   * The plan recorded under `id` in this builder's store, as the record holds it, with the live
    * objects given again: the reconcile step after a restart is `resume(id, { payer })`, then
    * `advance()`. It reads the store only: it makes no request to the chain and does not call the
    * payer, which is compared with the record when a new attempt is built (PAYER_MISMATCH). The
@@ -1647,20 +1647,20 @@ export class TxBuilder {
    * are not read.
    *
    * ```ts
-   * const intent = await builder.resume(orderId, { payer: wallet });
-   * await intent.advance();
+   * const plan = await builder.resume(orderId, { payer: wallet });
+   * await plan.advance();
    * ```
-   * @throws TxIntentError MISSING_STORE without a store; MISSING_ID for an id that is not a
-   *   non-empty string; CANNOT_OBSERVE (`noTip`, `addressCache`) for a provider no intent can run
-   *   on; STORE_FAILED when the store throws; INTENT_NOT_FOUND without a record (`intentId` is
-   *   `id`), and for a parent not in the store or without the recorded attempt (`intentId` is the
+   * @throws TxPlanError MISSING_STORE without a store; MISSING_ID for an id that is not a
+   *   non-empty string; CANNOT_OBSERVE (`noTip`, `addressCache`) for a provider no plan can run
+   *   on; STORE_FAILED when the store throws; PLAN_NOT_FOUND without a record (`planId` is
+   *   `id`), and for a parent not in the store or without the recorded attempt (`planId` is the
    *   parent's): give that parent in `after`; INVALID_STATE (`recordVersion`) for a record this
    *   library does not read
    * @throws TxBuildError NETWORK_MISMATCH for a record of another network; INVALID_OPTION
    *   (`after`) for parents other than the recorded ones
    */
-  resume(id: string, options?: ResumeOptions): Promise<TxIntent> {
-    return resumeIntent(this, id, options);
+  resume(id: string, options?: ResumeOptions): Promise<TxPlan> {
+    return resumePlan(this, id, options);
   }
 
   /**
