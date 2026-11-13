@@ -151,8 +151,11 @@ const duplicate = (part: TxPart, message: string, item: string): never => {
   });
 };
 
-/** The single part of a kind a transaction holds at most one of */
-const atMostOne = <P extends TxPart>(
+/**
+ * The single part of a kind a transaction holds at most one of
+ * @throws TxBuildError DUPLICATE_PART for the second part
+ */
+export const atMostOne = <P extends TxPart>(
   parts: P[],
   what: string,
 ): P | undefined => {

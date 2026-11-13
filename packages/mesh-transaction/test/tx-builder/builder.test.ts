@@ -1358,6 +1358,62 @@ describe("TxBuilder: scripts", () => {
     });
   });
 
+  it("rejects a second collateral return, whether collateral is put up or not", async () => {
+    const builder = new TxBuilder({
+      network,
+      costModels,
+      params,
+      evaluator: fakeEvaluator().evaluator,
+    });
+    const payer = { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] };
+    const pay = output({ address: recipient, value: { lovelace: ada(2) } });
+    const returns = [
+      collateralReturn({ address: baseAddress(8) }),
+      collateralReturn({ address: baseAddress(9), label: "second" }),
+    ];
+    const expectSecondRefused = (error: TxBuildError) => {
+      expect(error.message).toBe(
+        'collateralReturn "second": a transaction holds a single collateral return',
+      );
+      expect(error).toMatchObject({
+        part: "collateralReturn",
+        label: "second",
+        details: { item: "collateralReturn" },
+      });
+    };
+
+    // Collateral is put up: the first return must not win silently
+    expectSecondRefused(
+      await expectBuildError(
+        builder.build(
+          [
+            scriptSpend(1),
+            collateral({ utxo: utxo(lovelace(ada(20))) }),
+            returns[0]!,
+            pay,
+            returns[1]!,
+          ],
+          { payer },
+        ),
+        "DUPLICATE_PART",
+      ),
+    );
+    // No collateral part and no script: both returns would be left out
+    expectSecondRefused(
+      await expectBuildError(
+        builder.build([returns[0]!, pay, returns[1]!], { payer }),
+        "DUPLICATE_PART",
+      ),
+    );
+    // Sending everything to one address balances too
+    expectSecondRefused(
+      await expectBuildError(
+        builder.build(returns, { payer, sendAllTo: recipient }),
+        "DUPLICATE_PART",
+      ),
+    );
+  });
+
   it("forfeits the whole collateral when what is left is too little to return", async () => {
     const tight = utxo(lovelace(ada(1)));
     const built = await new TxBuilder({

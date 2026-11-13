@@ -16,7 +16,7 @@ import type {
   TxPart,
 } from "./parts/types";
 import type { Value } from "./value";
-import { assembleTxPrototype } from "./assemble";
+import { assembleTxPrototype, atMostOne } from "./assemble";
 import { TxBuildError } from "./errors";
 import { coversMinCoin, minCoin, minFee, valueSize } from "./fee";
 import { outRefString } from "./parts/normalize";
@@ -490,8 +490,13 @@ export const balance = (
   const givenCollateral = parts.filter(
     (p): p is CollateralPart => p.kind === "collateral",
   );
-  const givenReturn = parts.find(
-    (p): p is CollateralReturnPart => p.kind === "collateralReturn",
+  // Every given return is checked, not the first taken: a second one would be left out
+  // unseen, whether or not collateral is put up
+  const givenReturn = atMostOne(
+    parts.filter(
+      (p): p is CollateralReturnPart => p.kind === "collateralReturn",
+    ),
+    "collateral return",
   );
   const core = parts.filter(
     (p) => p.kind !== "collateral" && p.kind !== "collateralReturn",
