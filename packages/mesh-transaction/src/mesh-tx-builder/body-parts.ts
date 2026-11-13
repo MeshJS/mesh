@@ -180,6 +180,17 @@ type MeshCredential = Extract<
   { type: "ConstitutionalCommittee" }
 >["hotCred"];
 
+/** A voter as an error names it: its DRep id, credential hash or pool key hash */
+const describeVoter = (voter: Voter): string => {
+  if (voter.type === "DRep") return voter.drepId;
+  if (voter.type === "StakingPool") return voter.keyHash;
+  const { hotCred } = voter;
+  return hotCred.type === "KeyHash" ? hotCred.keyHash : hotCred.scriptHash;
+};
+
+/** What a Plutus script part that holds no redeemer is refused with */
+type MissingRedeemer = { part: TxPart["kind"]; message: string };
+
 const toCredentialInput = (credential: MeshCredential): CredentialInput =>
   credential.type === "KeyHash"
     ? { type: "KEY", value: credential.keyHash }
@@ -213,10 +224,22 @@ export const bodyToParts = (
     return utxo?.output.scriptRef ? utxo : undefined;
   };
 
-  const toRedeemerInput = (redeemer: Redeemer | undefined): RedeemerInput => ({
-    data: (redeemer?.data ?? { type: "Mesh", content: "" }) as BuilderData,
-    ...(outputs.keepExUnits && redeemer && { exUnits: redeemer.exUnits }),
-  });
+  /**
+   * The redeemer of a Plutus script part, as the body holds it; none is made up for a part
+   * that has none
+   * @throws TxPartError WITNESS_MISMATCH with the message given, when the body holds none
+   */
+  const toRedeemerInput = (
+    redeemer: Redeemer | undefined,
+    missing: MissingRedeemer,
+  ): RedeemerInput => {
+    if (!redeemer)
+      return fail({ part: missing.part }, "WITNESS_MISMATCH", missing.message);
+    return {
+      data: redeemer.data as BuilderData,
+      ...(outputs.keepExUnits && { exUnits: redeemer.exUnits }),
+    };
+  };
 
   /** A Plutus script: attached, or by reference with the declared hints when not known */
   const toPlutusScript = (source: ScriptSource): PlutusScriptInput => {
@@ -278,20 +301,27 @@ export const bodyToParts = (
     return part;
   };
 
-  /** A witness for a certificate, vote or proposal credential */
-  const credentialWitness = (
-    native?: SimpleScriptSourceInfo,
-    plutus?: ScriptSource,
-    redeemer?: Redeemer,
-  ): CredentialWitnessInput | undefined => {
-    if (native) return { native: toNativeScript(native) };
-    if (plutus)
-      return {
-        plutus: toPlutusScript(plutus),
-        redeemer: toRedeemerInput(redeemer),
-      };
-    return undefined;
-  };
+  /** A native script witness for a certificate, vote or proposal credential */
+  const nativeWitness = (
+    native: SimpleScriptSourceInfo | undefined,
+  ): CredentialWitnessInput | undefined =>
+    native ? { native: toNativeScript(native) } : undefined;
+
+  /**
+   * A Plutus script witness for a certificate, vote or proposal credential; `missing` is what
+   * the script without its redeemer is refused with
+   */
+  const plutusWitness = (
+    plutus: ScriptSource | undefined,
+    redeemer: Redeemer | undefined,
+    missing: MissingRedeemer,
+  ): CredentialWitnessInput | undefined =>
+    plutus
+      ? {
+          plutus: toPlutusScript(plutus),
+          redeemer: toRedeemerInput(redeemer, missing),
+        }
+      : undefined;
 
   // Inputs: exact repeats merge, others are the builder's to refuse
   const spent = new Set<string>();
@@ -344,7 +374,10 @@ export const bodyToParts = (
           : undefined;
     const params = {
       script: toPlutusScript(scriptSource!),
-      redeemer: toRedeemerInput(redeemer),
+      redeemer: toRedeemerInput(redeemer, {
+        part: "spend",
+        message: `A script input had no redeemer: ${txHash}#${txIndex}`,
+      }),
       ...(datum !== undefined && { datum }),
     };
     if (!built) return spend.plutus({ utxo: utxo ?? ref, ...params });
@@ -458,7 +491,10 @@ export const bodyToParts = (
       });
     return mint.plutus({
       script: toPlutusScript(item.scriptSource as ScriptSource),
-      redeemer: toRedeemerInput(item.redeemer),
+      redeemer: toRedeemerInput(item.redeemer, {
+        part: "mint",
+        message: `A redeemer was not provided for a plutus mint: policy ${item.policyId}`,
+      }),
       assets,
       policyId: item.policyId,
     });
@@ -481,22 +517,28 @@ export const bodyToParts = (
     return withdrawal.plutus({
       ...params,
       script: toPlutusScript(item.scriptSource!),
-      redeemer: toRedeemerInput(item.redeemer),
+      redeemer: toRedeemerInput(item.redeemer, {
+        part: "withdrawal",
+        message: `A redeemer was not provided for a plutus withdrawal: ${item.address}`,
+      }),
     });
   }
 
   body.certificates.forEach((item, i) => {
-    add(certificatePart(item));
+    add(certificatePart(item, i));
     if (item.type === "ScriptCertificate")
       addRedeemer(`CERT:${i}`, item.redeemer);
   });
 
-  function certificatePart(item: Certificate) {
+  function certificatePart(item: Certificate, index: number) {
     const witness =
       item.type === "SimpleScriptCertificate"
-        ? credentialWitness(item.simpleScriptSource)
+        ? nativeWitness(item.simpleScriptSource)
         : item.type === "ScriptCertificate"
-          ? credentialWitness(undefined, item.scriptSource, item.redeemer)
+          ? plutusWitness(item.scriptSource, item.redeemer, {
+              part: "certificate",
+              message: `A redeemer was not provided for a plutus certificate: ${item.certType.type} at index ${index}`,
+            })
           : undefined;
     const w = witness ? { witness } : {};
     const cert = item.certType;
@@ -600,11 +642,19 @@ export const bodyToParts = (
   }
   for (const group of byVoter.values()) {
     const first = group[0]!;
+    const missing: MissingRedeemer = {
+      part: "vote",
+      message: `A redeemer was not provided for a plutus vote: voter ${describeVoter(first.vote.voter)}`,
+    };
+    // Every script vote of the voter has its redeemer, though the part takes the first one
+    for (const item of group)
+      if (item.type === "ScriptVote" && !item.redeemer)
+        fail({ part: missing.part }, "WITNESS_MISMATCH", missing.message);
     const witness =
       first.type === "SimpleScriptVote"
-        ? credentialWitness(first.simpleScriptSource)
+        ? nativeWitness(first.simpleScriptSource)
         : first.type === "ScriptVote"
-          ? credentialWitness(undefined, first.scriptSource, first.redeemer)
+          ? plutusWitness(first.scriptSource, first.redeemer, missing)
           : undefined;
     const part = add(
       vote({
@@ -629,7 +679,7 @@ export const bodyToParts = (
   }
 
   body.proposals.forEach((item, i) => {
-    add(proposalPart(item));
+    add(proposalPart(item, i));
     if (item.type === "ScriptProposal")
       addRedeemer(`VOTING_PROPOSAL:${i}`, item.redeemer);
   });
@@ -678,7 +728,7 @@ export const bodyToParts = (
     ),
   };
 
-  function proposalPart(item: Proposal) {
+  function proposalPart(item: Proposal, index: number) {
     const { governanceAction, anchor, rewardAccount, deposit } =
       item.proposalType;
     const base = {
@@ -688,9 +738,12 @@ export const bodyToParts = (
     };
     const guardrail =
       item.type === "SimpleScriptProposal"
-        ? credentialWitness(item.simpleScriptSource)
+        ? nativeWitness(item.simpleScriptSource)
         : item.type === "ScriptProposal"
-          ? credentialWitness(undefined, item.scriptSource, item.redeemer)
+          ? plutusWitness(item.scriptSource, item.redeemer, {
+              part: "proposal",
+              message: `A redeemer was not provided for a plutus proposal: ${governanceAction.kind} at index ${index}`,
+            })
           : undefined;
     return governanceProposal(governanceAction, base, guardrail);
   }
