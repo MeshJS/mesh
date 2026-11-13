@@ -144,7 +144,7 @@ async function spendScript(options: SpendOptions = {}) {
       collateral.output.address,
     )
     .changeAddress(address)
-    // Coin selection runs, and evaluates, on clones of the builder, so this also covers clone()
+    // The build selects from these and evaluates the balanced transaction, up to five rounds
     .selectUtxosFrom(walletUtxos.filter((utxo) => utxo !== collateral));
   if (options.invalidHereafter !== undefined)
     builder.invalidHereafter(options.invalidHereafter);
@@ -196,10 +196,20 @@ describe("MeshTxBuilder's default evaluator", () => {
     expect(new MeshTxBuilderV2().evaluator).toBeUndefined();
   });
 
-  it("is shared with the clones coin selection evaluates on", async () => {
-    const { builder } = await spendScript();
-    const clone = (builder as unknown as { clone(): MeshTxBuilder }).clone();
-    expect(clone.evaluator).toBe(builder.evaluator);
+  it("is the one every evaluation round of the build calls", async () => {
+    let evaluateTx!: jest.SpyInstance;
+    const { builder, units } = await spendScript({
+      configure: (builder) => {
+        evaluateTx = jest.spyOn(builder.evaluator!, "evaluateTx");
+      },
+    });
+    expect(builder.evaluator).toBeInstanceOf(OfflineEvaluatorScalus);
+    expect(evaluateTx).toHaveBeenCalled();
+    // The transaction carries what it answered
+    const answers = await Promise.all(
+      evaluateTx.mock.results.map((result) => result.value),
+    );
+    expect(answers.at(-1)[0].budget).toEqual(units);
   });
 
   it("is turned off by `evaluator: null`: the declared units stay, also across clones", async () => {
@@ -219,8 +229,8 @@ describe("MeshTxBuilder's default evaluator", () => {
     });
 
     expect(builder.evaluator).toBeUndefined();
-    // A clone made for a coin-selection round that got an evaluator would have replaced these
-    // with evaluated units
+    // No evaluator is made for the build, so every round of it keeps the declared units; an
+    // evaluation would have replaced them
     expect(units).toEqual(declaredUnits);
     // Only what the builder needs to complete the transaction
     expect(fetchUTxOs.mock.calls.map(([hash]) => hash)).toEqual([scriptTxHash]);
@@ -418,11 +428,8 @@ describe("MeshTxBuilder's default evaluator", () => {
         configure: spendKeyInput(0),
       });
       expect(units).not.toEqual(declaredUnits);
-      // Coin selection evaluates on clones, once per round. The chain is asked once per
-      // complete(), not per round: a further round must not ask again.
-      await (builder as unknown as { clone(): MeshTxBuilder })
-        .clone()
-        .evaluateRedeemers();
+      expect(builder.evaluator).toBeInstanceOf(OfflineEvaluatorScalus);
+      // The chain is asked once per complete(), not once per evaluation round
       expect(
         fetchUTxOs.mock.calls.filter(([hash]) => hash === keyTxHash),
       ).toHaveLength(1);

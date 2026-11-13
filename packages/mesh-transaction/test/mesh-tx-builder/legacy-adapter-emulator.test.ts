@@ -15,8 +15,10 @@ import { CSLSerializer } from "@meshsdk/core-csl";
 import {
   CardanoSDKSerializer,
   resolvePlutusScriptAddress,
+  resolveScriptHashDRepId,
   resolveScriptRef,
   Serialization,
+  transactionPrototypeFromHex,
 } from "@meshsdk/core-cst";
 import { TxEmulator } from "@meshsdk/tx-emulator";
 import { MeshWallet } from "@meshsdk/wallet";
@@ -25,12 +27,25 @@ import {
   LargestFirstInputSelector,
   MeshTxBuilder,
   MeshTxBuilderOptions,
+  MeshTxBuilderV2,
+  Transaction,
   utxoToTxIn,
 } from "../../src";
 import { IInputSelector } from "../../src/mesh-tx-builder/coin-selection/coin-selection-interface";
 import { resetWarnings } from "../../src/mesh-tx-builder/warnings";
-import { addWitnesses, signWitnesses } from "../../src/tx-builder";
-import { alwaysSucceedCbor, alwaysSucceedHash } from "../test-util";
+import {
+  addWitnesses,
+  minCoin,
+  minFee,
+  output,
+  signWitnesses,
+} from "../../src/tx-builder";
+import { exUnitsFee, refScriptFee } from "../../src/tx-builder/fee";
+import {
+  alwaysSucceedCbor,
+  alwaysSucceedHash,
+  baseAddress,
+} from "../test-util";
 
 const words = Array(24).fill("solution");
 const lovelace = (quantity: bigint | number) => [
@@ -231,6 +246,507 @@ describe("MeshTxBuilder options", () => {
 
   it("keeps the network's maxTxExMem in the built-in parameters", () => {
     expect(DEFAULT_PROTOCOL_PARAMETERS.maxTxExMem).toBe("16500000");
+  });
+});
+
+describe("MeshTxBuilder's synchronous methods and body queries", () => {
+  const address = baseAddress(0);
+
+  describe.each([
+    ["CardanoSDKSerializer", () => new CardanoSDKSerializer()],
+    ["CSLSerializer", () => new CSLSerializer()],
+  ] as const)("with %s", (_, serializer) => {
+    const builder = () => new MeshTxBuilder({ serializer: serializer() });
+
+    it("refuses an input without amount and a reference script without size: UNRESOLVED naming each", () => {
+      const noAmount = builder()
+        .txIn("c".repeat(64), 1)
+        .txOut(address, lovelace(2_000_000))
+        .changeAddress(address);
+      expect(() => noAmount.completeSync()).toThrow(
+        expect.objectContaining({
+          code: "UNRESOLVED",
+          details: [
+            {
+              kind: "spend",
+              gaps: [
+                {
+                  type: "utxo",
+                  input: { transaction_id: "c".repeat(64), index: 1 },
+                },
+              ],
+            },
+          ],
+        }),
+      );
+
+      const noSize = builder()
+        .spendingPlutusScriptV3()
+        .txIn("c".repeat(64), 0, lovelace(20_000_000), scriptAddress, 0)
+        .txInInlineDatumPresent()
+        .txInRedeemerValue(mConStr0([]), "Mesh", enoughUnits)
+        .spendingTxInReference("d".repeat(64), 2, undefined, alwaysSucceedHash)
+        .changeAddress(address);
+      expect(() => noSize.completeSync()).toThrow(
+        expect.objectContaining({
+          code: "UNRESOLVED",
+          details: [
+            expect.objectContaining({
+              kind: "spend",
+              gaps: [
+                {
+                  type: "scriptReference",
+                  input: { transaction_id: "d".repeat(64), index: 2 },
+                },
+              ],
+            }),
+          ],
+        }),
+      );
+    });
+
+    it("refuses a collateral without amount or address: UNRESOLVED naming it", () => {
+      const noAmount = builder()
+        .spendingPlutusScriptV3()
+        .txIn("c".repeat(64), 0, lovelace(20_000_000), scriptAddress, 0)
+        .txInInlineDatumPresent()
+        .txInRedeemerValue(mConStr0([]), "Mesh", enoughUnits)
+        .txInScript(alwaysSucceedCbor)
+        .txInCollateral("e".repeat(64), 1)
+        .changeAddress(address);
+      expect(() => noAmount.completeSync()).toThrow(
+        expect.objectContaining({
+          code: "UNRESOLVED",
+          details: [
+            {
+              kind: "collateral",
+              gaps: [
+                {
+                  type: "utxo",
+                  input: { transaction_id: "e".repeat(64), index: 1 },
+                },
+              ],
+            },
+          ],
+        }),
+      );
+    });
+
+    it("assembles a read-only reference given by out ref alone", () => {
+      const txHex = builder()
+        .txIn("c".repeat(64), 0, lovelace(20_000_000), address, 0)
+        .readOnlyTxInReference("d".repeat(64), 3)
+        .txOut(address, lovelace(2_000_000))
+        .changeAddress(address)
+        .completeSync();
+      const refs = parse(txHex).body().referenceInputs()!.values();
+      expect(
+        refs.map((r) => [r.transactionId().toString(), r.index()]),
+      ).toEqual([["d".repeat(64), 3n]]);
+    });
+  });
+
+  it("completeUnbalanced() and completeUnbalancedSync() build the body as given", () => {
+    const build = (complete: "completeUnbalanced" | "completeUnbalancedSync") =>
+      new MeshTxBuilder()
+        .txIn("c".repeat(64), 0, lovelace(20_000_000), address, 0)
+        .txOut(address, lovelace(2_000_000))
+        .txOut(address, [])
+        .setFee("200000")
+        .changeAddress(address)
+        [complete]();
+    for (const complete of [
+      "completeUnbalanced",
+      "completeUnbalancedSync",
+    ] as const) {
+      const body = parse(build(complete)).body();
+      expect(body.fee()).toBe(200_000n);
+      // No change is made; an output without lovelace holds its minimum
+      expect(body.outputs()).toHaveLength(2);
+      expect(body.outputs()[1]!.amount().coin()).toBe(
+        minCoin(output({ address, value: {} }), DEFAULT_PROTOCOL_PARAMETERS),
+      );
+    }
+  });
+
+  describe("a body given to them", () => {
+    /** A body other code made: a payment, its fee set by hand */
+    const madeElsewhere = () => {
+      const builder = new MeshTxBuilder()
+        .txIn("c".repeat(64), 0, lovelace(20_000_000), address, 0)
+        .txOut(address, lovelace(2_000_000))
+        .setFee("200000")
+        .changeAddress(address);
+      const txHex = builder.completeSync();
+      return { body: builder.meshTxBuilderBody, txHex };
+    };
+
+    it("is built in place of the builder's own", () => {
+      const { body, txHex } = madeElsewhere();
+      for (const complete of [
+        "completeSync",
+        "completeUnbalanced",
+        "completeUnbalancedSync",
+      ] as const)
+        expect(new MeshTxBuilder()[complete]({ ...body })).toBe(txHex);
+    });
+
+    it("sets the fee it holds by hand in completeUnbalancedSync(), but not a fee of 0", () => {
+      const { body } = madeElsewhere();
+      const given = new MeshTxBuilder();
+      const txHex = given.completeUnbalancedSync({ ...body, fee: "300000" });
+      expect(parse(txHex).body().fee()).toBe(300_000n);
+      expect(given.getActualFee()).toBe(300_000n);
+
+      // "0" is the fee of an empty or parsed body, not one set by hand
+      const parsed = new MeshTxBuilder();
+      expect(
+        parse(parsed.completeUnbalancedSync({ ...body, fee: "0" }))
+          .body()
+          .fee(),
+      ).toBe(0n);
+      expect(parsed.getActualFee()).toBe(parsed.calculateFee());
+      expect(parsed.getActualFee()).toBeGreaterThan(0n);
+    });
+  });
+
+  describe("outputs the builder holds", () => {
+    const held = utxoAt("f".repeat(64), address, 30_000_000n);
+    const holder = utxoAt("b".repeat(64), address, 30_000_000n, { scriptRef });
+
+    it("stand in for an input given by out ref alone", () => {
+      const byOutRef = () =>
+        new MeshTxBuilder()
+          .txIn(held.input.txHash, 0)
+          .txOut(address, lovelace(2_000_000))
+          .changeAddress(address);
+      expect(() => byOutRef().completeSync()).toThrow(
+        expect.objectContaining({ code: "UNRESOLVED" }),
+      );
+      for (const hold of [
+        (b: MeshTxBuilder) => b.inputForEvaluation(held),
+        (b: MeshTxBuilder) => b.selectUtxosFrom([held]),
+      ]) {
+        const builder = hold(byOutRef());
+        const tx = parse(builder.completeSync());
+        expect(
+          tx
+            .body()
+            .inputs()
+            .values()
+            .map((i) => i.transactionId().toString()),
+        ).toEqual([held.input.txHash]);
+        // The fee sizes the input's key witness: the address is the held output's
+        expect(builder.calculateFee()).toBeGreaterThan(0n);
+        expect(builder.meshTxBuilderBody.expectedNumberKeyWitnesses).toBe(1);
+      }
+    });
+
+    it("price the reference script they hold, and a declared size for them is not added", () => {
+      const price = DEFAULT_PROTOCOL_PARAMETERS.minFeeRefScriptCostPerByte;
+      const reading = (size?: number) => {
+        const builder = new MeshTxBuilder()
+          .txIn("c".repeat(64), 0, lovelace(100_000_000), address, 0)
+          .readOnlyTxInReference(holder.input.txHash, 0, size)
+          .txOut(address, lovelace(2_000_000))
+          .changeAddress(address)
+          .inputForEvaluation(holder);
+        builder.completeSync();
+        return builder;
+      };
+      const heldFee = refScriptFee(BigInt(scriptRef.length / 2), price);
+      expect(heldFee).toBeGreaterThan(0n);
+      expect(reading().calculateRefScriptFee()).toBe(heldFee);
+      expect(reading(5000).calculateRefScriptFee()).toBe(heldFee);
+    });
+  });
+
+  it("assembles a stake and a pool registration, their deposits not stated by the calls", () => {
+    const rewardAddress =
+      "stake_test1uzw5mnt7g4xjgdqkfa80hrk7kdvds6sa4k0vvgjvlj7w8eskffj2n";
+    const txHex = new MeshTxBuilder()
+      .txIn("c".repeat(64), 0, lovelace(1_000_000_000), address, 0)
+      .registerStakeCertificate(rewardAddress)
+      .registerPoolCertificate({
+        vrfKeyHash: "11".repeat(32),
+        operator: "22".repeat(28),
+        pledge: "0",
+        cost: "340000000",
+        margin: [1, 100],
+        relays: [],
+        owners: ["22".repeat(28)],
+        rewardAddress,
+      })
+      .changeAddress(address)
+      .completeSync();
+    const certificates = parse(txHex).body().certs()!.values();
+    expect(certificates).toHaveLength(2);
+    expect(certificates[0]!.asStakeRegistration()).toBeDefined();
+    expect(certificates[1]!.asPoolRegistration()).toBeDefined();
+  });
+
+  it("voteTxInReference records the version of the vote script", () => {
+    const voter = { type: "DRep" as const, drepId: "drep1" };
+    const builder = new MeshTxBuilder()
+      .votePlutusScriptV3()
+      .vote(voter, { txHash: "c".repeat(64), txIndex: 0 }, { voteKind: "Yes" })
+      .voteTxInReference("d".repeat(64), 0, "100", alwaysSucceedHash)
+      .voteRedeemerValue(mConStr0([]));
+    // A second vote queues the first
+    builder.vote(
+      voter,
+      { txHash: "c".repeat(64), txIndex: 1 },
+      { voteKind: "No" },
+    );
+    const [first] = builder.meshTxBuilderBody.votes;
+    expect(first!.type === "ScriptVote" && first!.scriptSource).toMatchObject({
+      type: "Inline",
+      version: "V3",
+    });
+  });
+
+  describe("queries", () => {
+    /** A payment from a declared input with a token output, and a Plutus mint */
+    const body = () =>
+      new MeshTxBuilder()
+        .txIn("c".repeat(64), 0, lovelace(100_000_000), address, 0)
+        .txOut(address, [
+          ...lovelace(2_000_000),
+          { unit: alwaysSucceedHash + "aa", quantity: "1" },
+        ])
+        .mintPlutusScriptV3()
+        .mint("1", alwaysSucceedHash, "aa")
+        .mintingScript(alwaysSucceedCbor)
+        .mintRedeemerValue(mConStr0([]), "Mesh", enoughUnits)
+        .txInCollateral("e".repeat(64), 0, lovelace(10_000_000), address)
+        .changeAddress(address);
+
+    it("calculateMinLovelaceForOutput() is minCoin of the output", () => {
+      const out = {
+        address: scriptAddress,
+        amount: [{ unit: alwaysSucceedHash + "aa", quantity: "5" }],
+        datum: {
+          type: "Inline" as const,
+          data: { type: "Mesh" as const, content: mConStr0([]) },
+        },
+      };
+      const part = output({
+        address: scriptAddress,
+        value: { [alwaysSucceedHash + "aa"]: 5n },
+        datum: { type: "inline", data: mConStr0([]) },
+      });
+      const builder = new MeshTxBuilder();
+      expect(builder.calculateMinLovelaceForOutput(out)).toBe(
+        minCoin(part, DEFAULT_PROTOCOL_PARAMETERS),
+      );
+      const hydra = new MeshTxBuilder({ isHydra: true });
+      expect(hydra.calculateMinLovelaceForOutput(out)).toBe(0n);
+    });
+
+    it("sizes and prices the body once signed", () => {
+      const builder = body();
+      // The queries see the body as the calls left it
+      builder.completeSync();
+      const mock = builder.serializeMockTx();
+      expect(builder.getSerializedSize() * 2).toBe(mock.length);
+      const tx = parse(mock);
+      // A key for the input, the collateral being the same address
+      expect(builder.meshTxBuilderBody.expectedNumberKeyWitnesses).toBe(1);
+      expect(tx.witnessSet().vkeys()?.size()).toBe(1);
+
+      const params = DEFAULT_PROTOCOL_PARAMETERS;
+      expect(builder.calculateFee()).toBe(
+        minFee(transactionPrototypeFromHex(mock), {
+          params,
+          vkeyWitnesses: builder.meshTxBuilderBody.expectedNumberKeyWitnesses,
+        }),
+      );
+      // The ledger's minimum for the encoded transaction: size, then the units rounded up once
+      expect(builder.calculateFee()).toBe(
+        BigInt(params.minFeeA) * BigInt(mock.length / 2) +
+          BigInt(params.minFeeB) +
+          exUnitsFee(
+            BigInt(enoughUnits.mem),
+            BigInt(enoughUnits.steps),
+            params,
+          ),
+      );
+      expect(builder.calculateFee()).toBe(
+        builder.calculateFeeForSerializedTx(builder.getSerializedSize()),
+      );
+      expect(builder.getTotalExecutionUnits()).toEqual({
+        memUnits: BigInt(enoughUnits.mem),
+        stepUnits: BigInt(enoughUnits.steps),
+      });
+      expect(builder.calculateRedeemersFee()).toBe(
+        exUnitsFee(BigInt(enoughUnits.mem), BigInt(enoughUnits.steps), params),
+      );
+      expect(builder.calculateRefScriptFee()).toBe(0n);
+      expect(builder.getActualFee()).toBe(builder.calculateFee());
+      builder.setFee("1234567");
+      expect(builder.getActualFee()).toBe(1_234_567n);
+    });
+
+    it("prices the redeemers of the transaction: an exact repeat and the votes of one voter share one", () => {
+      const params = DEFAULT_PROTOCOL_PARAMETERS;
+      const units = { mem: 1_000_000, steps: 500_000_000 };
+      const oneRedeemer = exUnitsFee(
+        BigInt(units.mem),
+        BigInt(units.steps),
+        params,
+      );
+      const spend = (builder: MeshTxBuilder) =>
+        builder
+          .spendingPlutusScriptV3()
+          .txIn("c".repeat(64), 0, lovelace(20_000_000), scriptAddress, 0)
+          .txInInlineDatumPresent()
+          .txInRedeemerValue(mConStr0([]), "Mesh", units)
+          .txInScript(alwaysSucceedCbor);
+      const drep = {
+        type: "DRep" as const,
+        drepId: resolveScriptHashDRepId(alwaysSucceedHash),
+      };
+      const vote = (builder: MeshTxBuilder, index: number) =>
+        builder
+          .votePlutusScriptV3()
+          .vote(
+            drep,
+            { txHash: "a".repeat(64), txIndex: index },
+            { voteKind: "Yes" },
+          )
+          .voteScript(alwaysSucceedCbor)
+          .voteRedeemerValue(mConStr0([]), "Mesh", units);
+      const finish = (builder: MeshTxBuilder) =>
+        builder
+          .txIn("d".repeat(64), 0, lovelace(100_000_000), address, 0)
+          .txOut(address, lovelace(2_000_000))
+          .txInCollateral("e".repeat(64), 0, lovelace(10_000_000), address)
+          .setFee("1000000")
+          .changeAddress(address);
+
+      const repeated = finish(spend(spend(new MeshTxBuilder())));
+      const votes = finish(vote(vote(new MeshTxBuilder(), 0), 1));
+      for (const builder of [repeated, votes]) {
+        const tx = parse(builder.completeSync());
+        expect(tx.witnessSet().redeemers()!.size()).toBe(1);
+        // The body holds two, and the query adds both up
+        expect(builder.getTotalExecutionUnits()).toEqual({
+          memUnits: 2n * BigInt(units.mem),
+          stepUnits: 2n * BigInt(units.steps),
+        });
+        expect(builder.calculateRedeemersFee()).toBe(oneRedeemer);
+        const mock = builder.serializeMockTx();
+        expect(builder.calculateFee()).toBe(
+          minFee(transactionPrototypeFromHex(mock), {
+            params,
+            vkeyWitnesses: builder.meshTxBuilderBody.expectedNumberKeyWitnesses,
+          }),
+        );
+      }
+    });
+
+    it("prices the reference-script sizes the calls declare", () => {
+      const sized = (inputSize: number, readSize: number) => {
+        const builder = new MeshTxBuilder()
+          .txIn("c".repeat(64), 0, lovelace(100_000_000), address, inputSize)
+          .readOnlyTxInReference("d".repeat(64), 0, readSize)
+          .txOut(address, lovelace(2_000_000))
+          .changeAddress(address);
+        builder.completeSync();
+        return builder;
+      };
+      const price = DEFAULT_PROTOCOL_PARAMETERS.minFeeRefScriptCostPerByte;
+      expect(sized(500, 300).calculateRefScriptFee()).toBe(
+        refScriptFee(800n, price),
+      );
+      expect(sized(500, 300).calculateFee() - sized(0, 0).calculateFee()).toBe(
+        refScriptFee(800n, price),
+      );
+    });
+
+    it("refuses an input without amount: UNRESOLVED", () => {
+      // The second input queues the first, which has no amount
+      const builder = new MeshTxBuilder()
+        .txIn("c".repeat(64), 0)
+        .txIn("d".repeat(64), 0, lovelace(20_000_000), address, 0)
+        .changeAddress(address);
+      for (const query of [
+        () => builder.serializeMockTx(),
+        () => builder.calculateFee(),
+        () => builder.calculateRefScriptFee(),
+      ])
+        expect(query).toThrow(expect.objectContaining({ code: "UNRESOLVED" }));
+    });
+  });
+
+  it("keeps every public member but the old assembly steps", () => {
+    const builder = new MeshTxBuilder({
+      fetcher: {} as IFetcher,
+      submitter: { submitTx: async () => "" },
+      evaluator: { evaluateTx: async () => [] },
+    });
+    const kept = [
+      // fluent methods
+      ..."txIn txInScript txInDatumValue txInInlineDatumPresent simpleScriptTxInReference txInRedeemerValue txOut txOutDatumHashValue txOutInlineDatumValue txOutDatumEmbedValue txOutReferenceScript spendingPlutusScript spendingPlutusScriptV1 spendingPlutusScriptV2 spendingPlutusScriptV3 spendingTxInReference spendingReferenceTxInInlineDatumPresent spendingReferenceTxInRedeemerValue readOnlyTxInReference mintPlutusScript mintPlutusScriptV1 mintPlutusScriptV2 mintPlutusScriptV3 mint mintingScript mintTxInReference mintReferenceTxInRedeemerValue mintRedeemerValue requiredSignerHash txInCollateral withdrawalPlutusScript withdrawalPlutusScriptV1 withdrawalPlutusScriptV2 withdrawalPlutusScriptV3 withdrawal withdrawalScript withdrawalTxInReference withdrawalRedeemerValue votePlutusScript votePlutusScriptV1 votePlutusScriptV2 votePlutusScriptV3 vote voteScript voteTxInReference voteRedeemerValue proposal proposalScript proposalTxInReference proposalRedeemerValue registerPoolCertificate registerStakeCertificate delegateStakeCertificate deregisterStakeCertificate retirePoolCertificate drepRegistrationCertificate drepDeregistrationCertificate drepUpdateCertificate voteDelegationCertificate certificateScript certificateTxInReference certificateRedeemerValue changeAddress invalidBefore invalidHereafter metadataValue metadataScript signingKey selectUtxosFrom protocolParams setFee setTotalCollateral setCollateralReturnAddress setDonation setNetwork setCostModels chainTx inputForEvaluation".split(
+        " ",
+      ),
+      // building
+      "complete",
+      "completeSync",
+      "completeUnbalanced",
+      "completeUnbalancedSync",
+      "completeSigning",
+      "submitTx",
+      "reset",
+      "removeDuplicateInputs",
+      "removeDuplicateRefInputs",
+      "emptyTxBuilderBody",
+      "queueAllLastItem",
+      // the queries
+      "calculateMinLovelaceForOutput",
+      "calculateFee",
+      "getActualFee",
+      "calculateFeeForSerializedTx",
+      "calculateRefScriptFee",
+      "calculateRedeemersFee",
+      "getTotalExecutionUnits",
+      "getSerializedSize",
+      "serializeMockTx",
+      // fields
+      "meshTxBuilderBody",
+      "txHex",
+      "fetcher",
+      "submitter",
+      "evaluator",
+      "serializer",
+      "selector",
+      "verbose",
+      "network",
+      "txEvaluationMultiplier",
+    ];
+    for (const name of kept) expect(name in builder).toBe(true);
+    const removed = [
+      "selectUtxos",
+      "updateByTxPrototype",
+      "getUtxosForSelection",
+      "completeCostModels",
+      "evaluateRedeemers",
+      "sortTxParts",
+      "sortInputs",
+      "sortMints",
+      "sortWithdrawals",
+      "sortVotes",
+      "sortProposals",
+      // protected ones of the old assembly
+      "queriedUTxOs",
+      "completeTxParts",
+      "settleFeeAndChange",
+      "collectAllRequiredSignatures",
+      "clone",
+      "updateRedeemer",
+      "_cloneCore",
+    ];
+    for (const name of removed) expect(name in builder).toBe(false);
   });
 });
 
@@ -1336,6 +1852,366 @@ describe.each(["scalus", "cquisitor"] as const)(
         ).toBe(4999n * pricePerByte);
         expect(await fee(5000, 1, held)).toBe(await fee(1, 1, held));
       });
+    });
+
+    describe("synchronous methods", () => {
+      /** A locked output of the always-succeeding script, added to the emulator */
+      const lockedAt = (emulator: TxEmulator, txHash: string) => {
+        const utxo = utxoAt(txHash, scriptAddress, 20_000_000n, {
+          plutusData: "d87980",
+        });
+        emulator.addUtxos([utxo]);
+        return utxo;
+      };
+      /** Spends a locked output as declared, with a redeemer of its own */
+      const spendDeclared = (
+        builder: MeshTxBuilder,
+        utxo: UTxO,
+        redeemer: number,
+        at = scriptAddress,
+      ) =>
+        builder
+          .spendingPlutusScriptV3()
+          .txIn(utxo.input.txHash, 0, utxo.output.amount, at, 0)
+          .txInInlineDatumPresent()
+          .txInRedeemerValue(mConStr0([redeemer]), "Mesh", enoughUnits)
+          .txInScript(alwaysSucceedCbor);
+
+      it("orders the inputs and points each redeemer at its input: accepted", async () => {
+        const context = await setup(validator, {
+          costModels: DEFAULT_COST_MODELS,
+        });
+        const { emulator, address, funds } = context;
+        const low = lockedAt(emulator, "3".repeat(64));
+        const high = lockedAt(emulator, "4".repeat(64));
+        const fee = 1_000_000n;
+        const builder = new MeshTxBuilder();
+        // Given in reverse ledger order
+        spendDeclared(builder, high, 4);
+        spendDeclared(builder, low, 3);
+        const txHex = builder
+          .txInCollateral(funds.input.txHash, 0, funds.output.amount, address)
+          .txOut(address, lovelace(40_000_000n - fee))
+          .setFee(fee.toString())
+          .changeAddress(address)
+          .completeSync();
+
+        const tx = parse(txHex);
+        expect(
+          tx
+            .body()
+            .inputs()
+            .values()
+            .map((i) => i.transactionId().toString()),
+        ).toEqual(["3".repeat(64), "4".repeat(64)]);
+        const redeemers = tx.witnessSet().redeemers()!.values();
+        // The redeemer for "3…" is at index 0, whatever the order of the calls
+        expect(
+          redeemers.map((r) => [Number(r.index()), r.data().toCbor()]).sort(),
+        ).toEqual(
+          [
+            [
+              0,
+              Serialization.PlutusData.fromCore({
+                constructor: 0n,
+                fields: { items: [3n] },
+              }).toCbor(),
+            ],
+            [
+              1,
+              Serialization.PlutusData.fromCore({
+                constructor: 0n,
+                fields: { items: [4n] },
+              }).toCbor(),
+            ],
+          ].sort(),
+        );
+        expect(tx.body().fee()).toBe(fee);
+        await accept(context, txHex);
+      });
+
+      it("merge exact repeats, refuse contradictory ones, and drop a reference to a spent out ref", async () => {
+        const { address, locked, funds } = await setup(validator);
+        const repeated = new MeshTxBuilder()
+          .txIn(...utxoToTxIn(funds))
+          .txIn(...utxoToTxIn(funds))
+          .readOnlyTxInReference(funds.input.txHash, 0)
+          .txOut(address, lovelace(5_000_000))
+          .changeAddress(address)
+          .completeSync();
+        expect(parse(repeated).body().inputs().size()).toBe(1);
+        expect(parse(repeated).body().referenceInputs()).toBeUndefined();
+
+        const contradictory = new MeshTxBuilder();
+        spendDeclared(contradictory, locked, 1);
+        spendDeclared(contradictory, locked, 2);
+        expect(() =>
+          contradictory.changeAddress(address).completeSync(),
+        ).toThrow(expect.objectContaining({ code: "DUPLICATE_PART" }));
+      });
+
+      it("take the datum a declared Plutus input names, and check its lock", async () => {
+        const { address, locked } = await setup(validator);
+        const declared = (at: string) =>
+          spendDeclared(new MeshTxBuilder(), locked, 0, at)
+            .changeAddress(address)
+            .completeSync();
+        expect(declared(scriptAddress)).toMatch(/^[0-9a-f]+$/);
+        expect(() => declared(address)).toThrow(
+          expect.objectContaining({ code: "WITNESS_MISMATCH" }),
+        );
+      });
+
+      it("need the amount and address MeshTxBuilderV2's script spend leaves out, which complete() reads", async () => {
+        const context = await setup(validator);
+        const { emulator, address, funds, locked } = context;
+        const spend = () => {
+          const builder = new MeshTxBuilderV2({ fetcher: emulator });
+          builder
+            .spendPlutusV3(locked.input.txHash, 0)
+            .script(alwaysSucceedCbor)
+            .redeemerCbor("d87980")
+            .txOut(address, lovelace(5_000_000));
+          return (builder as unknown as MeshTxBuilder)
+            .changeAddress(address)
+            .selectUtxosFrom([funds]);
+        };
+        expect(() => spend().completeSync()).toThrow(
+          expect.objectContaining({ code: "UNRESOLVED" }),
+        );
+        await accept(context, await spend().complete());
+      });
+
+      it("serve Transaction.build(false) with a read-only reference by out ref", async () => {
+        const { emulator, address, holder } = await setup(validator);
+        const wallet = new MeshWallet({
+          networkId: 0,
+          key: { type: "mnemonic", words },
+          fetcher: emulator,
+        });
+        await wallet.init();
+        const txHex = await new Transaction({ initiator: wallet })
+          .setTxRefInputs([holder])
+          .sendLovelace(address, "5000000")
+          .build(false);
+        const body = parse(txHex).body();
+        expect(
+          body
+            .referenceInputs()
+            ?.values()
+            .map((i) => i.transactionId().toString()),
+        ).toEqual([holder.input.txHash]);
+        expect(body.outputs()[0]!.amount().coin()).toBe(5_000_000n);
+      });
+
+      it("hash with the cost models of setCostModels() or of an array given to setNetwork()", async () => {
+        const costModels = DEFAULT_COST_MODELS.map((model, i) =>
+          i === 2 ? [model[0]! + 1, ...model.slice(1)] : model,
+        );
+        const context = await setup(validator, { costModels });
+        const { emulator, address, funds, locked } = context;
+        const built = await unlock(
+          new MeshTxBuilder({ fetcher: emulator, evaluator: null }),
+          locked,
+          enoughUnits,
+        )
+          .changeAddress(address)
+          .selectUtxosFrom([funds])
+          .complete();
+        const hashOf = (txHex: string) =>
+          parse(txHex).body().scriptDataHash()?.toString();
+        // Builders without a fetcher, which never read any models
+        const sync = (set?: (builder: MeshTxBuilder) => void) => {
+          const builder = new MeshTxBuilder();
+          set?.(builder);
+          // The redeemer of `unlock`, the input declared
+          return builder
+            .spendingPlutusScriptV3()
+            .txIn(
+              locked.input.txHash,
+              0,
+              locked.output.amount,
+              scriptAddress,
+              0,
+            )
+            .txInInlineDatumPresent()
+            .txInRedeemerValue(mConStr0([]), "Mesh", enoughUnits)
+            .txInScript(alwaysSucceedCbor)
+            .txOut(address, [])
+            .changeAddress(address)
+            .completeSync();
+        };
+        const builtin = sync();
+        expect(hashOf(builtin)).not.toBe(hashOf(built));
+        expect(hashOf(sync((b) => b.setCostModels(costModels)))).toBe(
+          hashOf(built),
+        );
+        expect(hashOf(sync((b) => b.setNetwork(costModels)))).toBe(
+          hashOf(built),
+        );
+      });
+
+      it("build on what an earlier complete() read, after reset(): parameters and cost models", async () => {
+        const costModels = DEFAULT_COST_MODELS.map((model, i) =>
+          i === 2 ? [model[0]! + 1, ...model.slice(1)] : model,
+        );
+        const context = await setup(validator, {
+          params: { coinsPerUtxoSize: 9000 },
+          costModels,
+        });
+        const { emulator, address, funds, locked } = context;
+        const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+        try {
+          const builder = new MeshTxBuilder({
+            fetcher: emulator,
+            evaluator: null,
+          });
+          const built = await unlock(builder, locked, enoughUnits)
+            .changeAddress(address)
+            .selectUtxosFrom([funds])
+            .complete();
+          expect(builder.meshTxBuilderBody.network).toEqual(costModels);
+
+          builder.reset();
+          // The body is empty again, and the builder keeps what it read
+          expect(builder.meshTxBuilderBody.network).toBe("mainnet");
+          const sync = builder
+            .spendingPlutusScriptV3()
+            .txIn(
+              locked.input.txHash,
+              0,
+              locked.output.amount,
+              scriptAddress,
+              0,
+            )
+            .txInInlineDatumPresent()
+            .txInRedeemerValue(mConStr0([]), "Mesh", enoughUnits)
+            .txInScript(alwaysSucceedCbor)
+            .txOut(address, [])
+            .changeAddress(address)
+            .completeSync();
+          const hashOf = (txHex: string) =>
+            parse(txHex).body().scriptDataHash()?.toString();
+          expect(hashOf(sync)).toBe(hashOf(built));
+          // On the built-in models the hash differs
+          const builtin = spendDeclared(new MeshTxBuilder(), locked, 0)
+            .changeAddress(address)
+            .completeSync();
+          expect(hashOf(builtin)).not.toBe(hashOf(built));
+          // An output without lovelace gets the minimum on the parameters read
+          expect(parse(sync).body().outputs()[0]!.amount().coin()).toBe(
+            minCoin(output({ address, value: {} }), { coinsPerUtxoSize: 9000 }),
+          );
+          expect(warn).not.toHaveBeenCalled();
+        } finally {
+          warn.mockRestore();
+        }
+      });
+    });
+
+    describe("reset()", () => {
+      it("clears a fee set by hand", async () => {
+        const context = await setup(validator);
+        const { emulator, address, funds } = context;
+        const builder = new MeshTxBuilder({ fetcher: emulator });
+        const payment = () =>
+          builder
+            .txOut(address, lovelace(5_000_000))
+            .changeAddress(address)
+            .selectUtxosFrom([funds])
+            .complete();
+        builder.setFee("2000000");
+        expect(
+          parse(await payment())
+            .body()
+            .fee(),
+        ).toBe(2_000_000n);
+        builder.reset();
+        const computed = await payment();
+        expect(parse(computed).body().fee()).toBeLessThan(2_000_000n);
+        await accept(context, computed);
+      });
+
+      it("keeps the consumer's parameter fields, laid in call order, and the zeros of isHydra", async () => {
+        const context = await setup(validator, { params: { minFeeA: 50 } });
+        const { emulator, wallet, address, funds } = context;
+        const builder = new MeshTxBuilder({
+          fetcher: emulator,
+          params: { minFeeB: 1 },
+        })
+          .protocolParams({ minFeeA: 60 })
+          .protocolParams({ maxTxSize: 20000 });
+        const payment = (b: MeshTxBuilder) =>
+          b
+            .txOut(address, lovelace(5_000_000))
+            .changeAddress(address)
+            .selectUtxosFrom([funds])
+            .complete();
+        await payment(builder);
+        builder.reset();
+        expect(protocolOf(builder)).toMatchObject({
+          minFeeA: 60,
+          minFeeB: 1,
+          maxTxSize: 20000,
+        });
+        const txHex = await payment(builder);
+        const signed = await wallet.signTx(txHex);
+        expect(parse(txHex).body().fee()).toBe(
+          60n * BigInt(signed.length / 2) + 1n,
+        );
+
+        const hydra = new MeshTxBuilder({
+          fetcher: emulator,
+          isHydra: true,
+        }).protocolParams({ minFeeA: 44 });
+        await payment(hydra);
+        hydra.reset();
+        expect(
+          parse(await payment(hydra))
+            .body()
+            .fee(),
+        ).toBe(0n);
+      });
+    });
+
+    it("txEvaluationMultiplier multiplies nothing, and complete() warns of it once", async () => {
+      const context = await setup(validator);
+      const { emulator, address, funds, locked } = context;
+      const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const spend = (builder: MeshTxBuilder) => {
+          builder.txEvaluationMultiplier = 1.5;
+          return unlock(builder, locked)
+            .changeAddress(address)
+            .selectUtxosFrom([funds]);
+        };
+        // The synchronous methods never evaluated: no warning
+        const sync = new MeshTxBuilder();
+        sync.txEvaluationMultiplier = 1.5;
+        sync
+          .txIn(...utxoToTxIn(funds))
+          .txOut(address, lovelace(5_000_000))
+          .changeAddress(address)
+          .completeSync();
+        expect(warn).not.toHaveBeenCalled();
+
+        const first = new MeshTxBuilder({ fetcher: emulator });
+        const txHex = await spend(first).complete();
+        expect(unitsOf(txHex)).toEqual(
+          (await emulator.evaluateTx(txHex)).map((a) => a.budget),
+        );
+        first.reset();
+        // reset() puts the multiplier back to 1, as before
+        expect(first.txEvaluationMultiplier).toBe(1);
+        await spend(first).complete();
+        await spend(new MeshTxBuilder({ fetcher: emulator })).complete();
+        const multiplierWarnings = warn.mock.calls.filter(([message]) =>
+          /txEvaluationMultiplier/.test(String(message)),
+        );
+        expect(multiplierWarnings).toHaveLength(1);
+      } finally {
+        warn.mockRestore();
+      }
     });
   },
 );

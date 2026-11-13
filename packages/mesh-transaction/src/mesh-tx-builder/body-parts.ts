@@ -13,6 +13,7 @@ import type {
   NativeScript,
   Output,
   Proposal,
+  Protocol,
   ProtocolParamUpdate,
   ProtocolParamUpdatePrototype,
   PubKeyTxIn,
@@ -40,6 +41,7 @@ import type {
   DRepInput,
   NativeScriptInput,
   OutputDatumInput,
+  OutputPart,
   PlutusScriptInput,
   RedeemerInput,
   SpendDatumInput,
@@ -47,6 +49,7 @@ import type {
   TxPart,
   VoterInput,
 } from "../tx-builder/parts/types";
+import { minCoin } from "../tx-builder/fee";
 import { voterKey } from "../tx-builder/ordering";
 import { certificate } from "../tx-builder/parts/certificates";
 import { proposal, vote } from "../tx-builder/parts/governance";
@@ -93,6 +96,12 @@ export type BodyOutputs = {
   needsScriptSize: boolean;
   /** Whether redeemers keep the execution units of the calls; else evaluation decides them */
   keepExUnits: boolean;
+  /**
+   * Given for parts assembled as they are, without balancing: an output without lovelace gets
+   * the minimum on this `coinsPerUtxoSize`, and a collateral return is made only for a total
+   * collateral given
+   */
+  unbalanced?: Pick<Protocol, "coinsPerUtxoSize">;
 };
 
 /** The body as parts, with what the build must know of the outputs it has no data for */
@@ -373,7 +382,24 @@ export const bodyToParts = (
     );
   }
 
-  for (const out of body.outputs) add(outputPart(out));
+  for (const out of body.outputs) {
+    const part = toOutputPart(out);
+    // Assembled without balancing, an output without lovelace holds its minimum
+    add(
+      outputs.unbalanced && part.output.amount.coin === undefined
+        ? freeze({
+            ...part,
+            output: {
+              ...part.output,
+              amount: {
+                ...part.output.amount,
+                coin: minCoin(part, outputs.unbalanced).toString(),
+              },
+            },
+          })
+        : part,
+    );
+  }
 
   for (const input of body.collaterals) add(collateralPart(input));
 
@@ -397,7 +423,11 @@ export const bodyToParts = (
     });
   }
 
-  if (body.totalCollateral !== undefined || body.collateralReturnAddress)
+  // Without balancing, a return is made only for a total given
+  if (
+    body.totalCollateral !== undefined ||
+    (body.collateralReturnAddress && !outputs.unbalanced)
+  )
     add(
       collateralReturn({
         address: body.collateralReturnAddress || body.changeAddress,
@@ -646,35 +676,6 @@ export const bodyToParts = (
     ),
   };
 
-  function outputPart(out: Output) {
-    const value = toValue(out.amount);
-    const zeroCoin = out.amount.some(
-      (a) =>
-        (a.unit === "lovelace" || a.unit === "") && BigInt(a.quantity) === 0n,
-    );
-    const datum: OutputDatumInput | undefined = out.datum
-      ? out.datum.type === "Inline"
-        ? { type: "inline", data: out.datum.data }
-        : {
-            type: "hash",
-            data: out.datum.data,
-            embed: out.datum.type === "Embedded",
-          }
-      : undefined;
-    const part = output({
-      address: out.address,
-      value,
-      ...(datum && { datum }),
-      ...(out.referenceScript && { scriptRef: out.referenceScript }),
-    });
-    // A lovelace of 0 is kept as given: enough where storage is free, else below the minimum
-    if (!zeroCoin || value.lovelace !== undefined) return part;
-    return freeze({
-      ...part,
-      output: { ...part.output, amount: { ...part.output.amount, coin: "0" } },
-    });
-  }
-
   function proposalPart(item: Proposal) {
     const { governanceAction, anchor, rewardAccount, deposit } =
       item.proposalType;
@@ -691,6 +692,39 @@ export const bodyToParts = (
           : undefined;
     return governanceProposal(governanceAction, base, guardrail);
   }
+};
+
+/**
+ * An output of the old API as an output part: its datum hash, inline or embedded datum and
+ * reference script; a lovelace of 0 is kept as given, enough where storage is free and else
+ * below the minimum. Without lovelace the coin is left to fill.
+ */
+export const toOutputPart = (out: Output): OutputPart => {
+  const value = toValue(out.amount);
+  const zeroCoin = out.amount.some(
+    (a) =>
+      (a.unit === "lovelace" || a.unit === "") && BigInt(a.quantity) === 0n,
+  );
+  const datum: OutputDatumInput | undefined = out.datum
+    ? out.datum.type === "Inline"
+      ? { type: "inline", data: out.datum.data }
+      : {
+          type: "hash",
+          data: out.datum.data,
+          embed: out.datum.type === "Embedded",
+        }
+    : undefined;
+  const part = output({
+    address: out.address,
+    value,
+    ...(datum && { datum }),
+    ...(out.referenceScript && { scriptRef: out.referenceScript }),
+  });
+  if (!zeroCoin || value.lovelace !== undefined) return part;
+  return freeze({
+    ...part,
+    output: { ...part.output, amount: { ...part.output.amount, coin: "0" } },
+  });
 };
 
 /** The voter of a body's vote as the vote part takes it */

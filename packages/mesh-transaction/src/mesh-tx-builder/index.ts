@@ -1,11 +1,7 @@
-import BigNumber from "bignumber.js";
 import JSONBig from "json-bigint";
 
 import {
-  Action,
-  Asset,
   CachedFetcher,
-  Certificate,
   DEFAULT_PROTOCOL_PARAMETERS,
   DEFAULT_V1_COST_MODEL_LIST,
   DEFAULT_V2_COST_MODEL_LIST,
@@ -16,8 +12,6 @@ import {
   IMeshTxSerializer,
   ISubmitter,
   MeshTxBuilderBody,
-  MintItem,
-  MintParam,
   Network,
   NetworkConfig,
   NetworkInput,
@@ -27,23 +21,15 @@ import {
   SimpleScriptSourceInfo,
   TxIn,
   UTxO,
-  Vote,
-  Voter,
-  Withdrawal,
 } from "@meshsdk/common";
 import {
   CardanoSDKSerializer,
   CardanoSDKUtil,
-  toDRep as coreToCstDRep,
   Address as CstAddress,
-  AddressType as CstAddressType,
-  CredentialCore as CstCredential,
-  CredentialType as CstCredentialType,
-  NativeScript as CstNativeScript,
   Script as CstScript,
-  getTransactionInputs,
   getTransactionOutputs,
   OfflineEvaluatorScalus,
+  transactionPrototypeToHex,
 } from "@meshsdk/core-cst";
 
 import type {
@@ -52,25 +38,23 @@ import type {
   DeclaredOutputs,
 } from "../tx-builder/builder";
 import type { BodyParts } from "./body-parts";
+import type { IInputSelector } from "./coin-selection/coin-selection-interface";
+import { assembleTxPrototype } from "../tx-builder/assemble";
+import { refScriptSize } from "../tx-builder/balance";
 import { DECLARED_OUTPUTS, TxBuilder } from "../tx-builder/builder";
 import { TxBuildError } from "../tx-builder/errors";
+import {
+  exUnitsFee,
+  minCoin,
+  prototypeExUnits,
+  refScriptFee,
+} from "../tx-builder/fee";
 import { voterKey } from "../tx-builder/ordering";
-import { pricedSigners } from "../tx-builder/witnesses";
-import { bodyToParts } from "./body-parts";
-import {
-  CoinSelectionInterface,
-  LargestFirstInputSelector,
-} from "./coin-selection";
-import {
-  IInputSelector,
-  TransactionCost,
-  TransactionPrototype,
-} from "./coin-selection/coin-selection-interface";
+import { placeholderWitnesses, pricedSigners } from "../tx-builder/witnesses";
+import { bodyToParts, toOutputPart } from "./body-parts";
+import { LargestFirstInputSelector } from "./coin-selection";
 import { MeshTxBuilderCore } from "./tx-builder-core";
 import { warnOnce } from "./warnings";
-
-/** How many times `complete()` evaluates the final transaction before giving up on a fixed point */
-const MAX_BALANCING_PASSES = 20;
 
 export interface MeshTxBuilderOptions {
   fetcher?: IFetcher;
@@ -139,11 +123,6 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   /** The network the transaction is for, if given or set; see `MeshTxBuilderOptions.network` */
   network?: Network;
   verbose: boolean;
-  protected queriedTxHashes: Set<string> = new Set();
-  protected queriedUTxOs: { [x: string]: UTxO[] } = {};
-  protected utxosWithRefScripts: UTxO[] = [];
-  /** UTxOs already known to the builder (selection pool, evaluation inputs, chained txs), keyed by `txHash#index` */
-  protected knownUTxOs: Map<string, UTxO> = new Map();
   /** The constructor's `network` option, which `setNetwork()` does not replace */
   private readonly networkOption?: Network;
   /** The protocol parameters the last `complete()` read from the fetcher */
@@ -212,46 +191,25 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     this.verbose = verbose;
   }
 
-  serializeMockTx = () => {
-    const builderBody = this.meshTxBuilderBody;
-    const { keyHashes, byronAddresses } = this.collectAllRequiredSignatures();
-    builderBody.expectedNumberKeyWitnesses = keyHashes.size;
-    builderBody.expectedByronAddressWitnesses = Array.from(byronAddresses);
-    return this.serializer.serializeTxBodyWithMockSignatures(
-      this.meshTxBuilderBody,
-      this._protocolParams,
-    );
-  };
-
-  completeCostModels = async () => {
-    if (Array.isArray(this.meshTxBuilderBody.network)) {
-      return;
-    }
-    if (this.fetcher) {
-      try {
-        const costModels = await this.cachedFetcher()!.fetchCostModels();
-        if (Array.isArray(costModels) && costModels.length > 0) {
-          this.meshTxBuilderBody.network = costModels;
-          return;
-        }
-        console.warn(
-          "fetchCostModels returned an invalid value, using default cost models:",
-          costModels,
-        );
-      } catch (error) {
-        console.warn(
-          "Failed to fetch cost models, using default cost models. Error: ",
-          error,
-        );
-      }
-    }
-    this.meshTxBuilderBody.network = [...DEFAULT_COST_MODELS];
+  /**
+   * Also the network the transaction is for, as `MeshTxBuilderOptions.network`: an evaluator
+   * that takes a context gets it. The body keeps it only until the cost models are fetched in
+   * its place. Like the option, and unlike the body, it is kept across `reset()`.
+   */
+  override setNetwork = (network: Network | number[][]) => {
+    if (typeof network === "string") this.network = network;
+    this.meshTxBuilderBody.network = network;
+    return this;
   };
 
   /**
-   * It builds the transaction query the blockchain for missing information
-   * @param customizedTx The optional customized transaction body
+   * Builds the transaction as the body describes it, without a request; see
+   * `completeUnbalancedSync`
+   * @param customizedTx The optional customized transaction body, used in place of the builder's
    * @returns The transaction in hex, unbalanced
+   * @throws TxBuildError UNRESOLVED when an input or collateral has no amount or address, or a
+   *   reference script no size; DUPLICATE_PART for contradictory repeats of an input or a
+   *   withdrawal
    */
   completeUnbalanced = (customizedTx?: MeshTxBuilderBody): string => {
     if (customizedTx) {
@@ -259,26 +217,27 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     } else {
       this.queueAllLastItem();
     }
-    this.removeDuplicateInputs();
     this.removeDuplicateRefInputs();
-    return this.serializer.serializeTxBody(
-      this.meshTxBuilderBody,
-      this._protocolParams,
-    );
+    return transactionPrototypeToHex(this.assembleBody().assembled.prototype);
   };
 
+  /**
+   * Builds the transaction as the body describes it, without a request; see
+   * `completeUnbalancedSync`
+   * @param customizedTx The optional customized transaction body, used in place of the builder's
+   * @returns The transaction in hex
+   * @throws TxBuildError UNRESOLVED when an input or collateral has no amount or address, or a
+   *   reference script no size; DUPLICATE_PART for contradictory repeats of an input or a
+   *   withdrawal
+   */
   completeSync = (customizedTx?: MeshTxBuilderBody) => {
     if (customizedTx) {
       this.meshTxBuilderBody = customizedTx;
     } else {
       this.queueAllLastItem();
     }
-    this.removeDuplicateInputs();
     this.removeDuplicateRefInputs();
-    return this.serializer.serializeTxBody(
-      this.meshTxBuilderBody,
-      this._protocolParams,
-    );
+    return transactionPrototypeToHex(this.assembleBody().assembled.prototype);
   };
 
   /**
@@ -303,6 +262,12 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
     this.queueAllLastItem();
     this.removeDuplicateRefInputs();
+    if (this.txEvaluationMultiplier !== 1)
+      warnOnce(
+        "txEvaluationMultiplier",
+        "MeshTxBuilder.txEvaluationMultiplier multiplies nothing: redeemers carry the execution " +
+          "units of the final transaction's evaluation",
+      );
 
     if (this.verbose) {
       console.log(
@@ -465,6 +430,14 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         );
       }
     }
+    return this.costModelsOf(models);
+  };
+
+  /**
+   * The cost models given, else those the last `complete()` read, else the built-in lists; a
+   * version left out or empty is filled from those last read, else from the built-in list
+   */
+  private costModelsOf = (models: number[][] | undefined): number[][] => {
     const source = models ?? this.lastCostModels ?? DEFAULT_COST_MODELS;
     const length = Math.max(source.length, DEFAULT_COST_MODELS.length);
     return Array.from({ length }, (_, i) => {
@@ -490,15 +463,11 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     knownUtxos: UTxO[];
   }> => {
     const body = this.meshTxBuilderBody;
-    const keyOf = (utxo: UTxO) =>
-      `${utxo.input.txHash.toLowerCase()}#${utxo.input.outputIndex}`;
     const given = Object.values(body.inputsForEvaluation);
     const chained = body.chainedTxs.flatMap((txHex) =>
       getTransactionOutputs(txHex),
     );
-    const known = new Map<string, UTxO>();
-    for (const utxo of [...body.extraInputs, ...given, ...chained])
-      known.set(keyOf(utxo), utxo);
+    const known = this.heldOutputs(given, chained);
 
     const { outRefs, scriptRefs } = namedOutRefs(body);
     // A script reference whose held copy carries no script is read: the copy may lack it
@@ -545,6 +514,28 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   /**
+   * The outputs the builder holds, by `txHash#index` (the hash in lower case): the UTxOs of
+   * `selectUtxosFrom` and `inputForEvaluation`, and the outputs of the `chainTx` transactions
+   */
+  private heldOutputs = (
+    given: readonly UTxO[] = Object.values(
+      this.meshTxBuilderBody.inputsForEvaluation,
+    ),
+    chained: readonly UTxO[] = this.meshTxBuilderBody.chainedTxs.flatMap(
+      (txHex) => getTransactionOutputs(txHex),
+    ),
+  ): Map<string, UTxO> => {
+    const known = new Map<string, UTxO>();
+    for (const utxo of [
+      ...this.meshTxBuilderBody.extraInputs,
+      ...given,
+      ...chained,
+    ])
+      known.set(keyOf(utxo), utxo);
+    return known;
+  };
+
+  /**
    * The network of a build: the constructor's option, else the network the fetcher states, else
    * a `setNetwork()` string of the change address's network id, else mainnet for a mainnet
    * change address; a test network nobody named is not known, and gets no slot clock. The
@@ -584,16 +575,16 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   ) => {
     const body = this.meshTxBuilderBody;
     completeScriptSources(body, known);
-    const keyOf = (txHash: string, index: number) =>
+    const outRefOf = (txHash: string, index: number) =>
       `${txHash.toLowerCase()}#${index}`;
 
     const inputs = new Map<string, TxIn>();
     for (const input of body.inputs) {
-      const key = keyOf(input.txIn.txHash, input.txIn.txIndex);
+      const key = outRefOf(input.txIn.txHash, input.txIn.txIndex);
       if (!inputs.has(key)) inputs.set(key, input);
     }
     body.inputs = built.inputs.map((utxo) => {
-      const key = keyOf(utxo.input.txHash, utxo.input.outputIndex);
+      const key = outRefOf(utxo.input.txHash, utxo.input.outputIndex);
       const input: TxIn = inputs.get(key) ?? {
         type: "PubKey",
         txIn: { txHash: utxo.input.txHash, txIndex: utxo.input.outputIndex },
@@ -655,616 +646,28 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     if (costModels) body.network = costModels;
   };
 
-  selectUtxos =
-    async (): Promise<CoinSelectionInterface.TransactionPrototype> => {
-      const currentInputs = this.meshTxBuilderBody.inputs;
-      const currentOutputs = this.meshTxBuilderBody.outputs;
-      const changeAddress = this.meshTxBuilderBody.changeAddress;
-      const utxosForSelection = await this.getUtxosForSelection();
-      const implicitValue = {
-        withdrawals: this.getTotalWithdrawal(),
-        deposit: this.getTotalDeposit() + this.getDonation(),
-        reclaimDeposit: this.getTotalRefund(),
-        mint: this.getTotalMint(),
-      };
-
-      const selectionCallbacks: CoinSelectionInterface.BuilderCallbacks = {
-        computeMinimumCost: async (
-          selectionSkeleton: TransactionPrototype,
-        ): Promise<TransactionCost> => {
-          const clonedBuilder = this.clone();
-          if (this.manualFee) {
-            const newSelectionSkeleton = {
-              ...selectionSkeleton,
-              fee: BigInt(this.manualFee),
-            };
-            await clonedBuilder.updateByTxPrototype(newSelectionSkeleton);
-          } else {
-            await clonedBuilder.updateByTxPrototype(selectionSkeleton);
-          }
-
-          try {
-            await clonedBuilder.evaluateRedeemers();
-          } catch (error) {
-            if (error instanceof Error) {
-              throw new Error(`Evaluate redeemers failed: ${error.message}`);
-            } else if (typeof error === "string") {
-              throw new Error(`Evaluate redeemers failed: ${error}`);
-            } else if (typeof error === "object") {
-              throw new Error(
-                `Evaluate redeemers failed: ${JSON.stringify(error)}`,
-              );
-            } else {
-              throw new Error(`Evaluate redeemers failed: ${String(error)}`);
-            }
-          }
-          const fee = clonedBuilder.getActualFee();
-          const redeemers = clonedBuilder.getRedeemerCosts();
-          return {
-            fee,
-            redeemers,
-          };
-        },
-        tokenBundleSizeExceedsLimit: (tokenBundle) => {
-          const maxValueSize = this._protocolParams.maxValSize;
-          if (tokenBundle) {
-            const valueSize =
-              this.serializer.serializeValue(tokenBundle).length / 2;
-            return valueSize > maxValueSize;
-          }
-          return false;
-        },
-        computeMinimumCoinQuantity: (output) => {
-          return this.calculateMinLovelaceForOutput(output);
-        },
-        maxSizeExceed: async (selectionSkeleton) => {
-          const clonedBuilder = this.clone();
-          await clonedBuilder.updateByTxPrototype(selectionSkeleton);
-          const maxTxSize = this._protocolParams.maxTxSize;
-          const txSize = clonedBuilder.getSerializedSize();
-          return txSize > maxTxSize;
-        },
-      };
-
-      return await this.selector.select(
-        currentInputs,
-        currentOutputs,
-        implicitValue,
-        utxosForSelection,
-        changeAddress,
-        selectionCallbacks,
-      );
-    };
-
   /**
-   * Coin selection prices the redeemers on a skeleton, whose fee and change differ from the
-   * final transaction's. A script that reads the fee or the outputs can then need other units
-   * than the skeleton's. So evaluate the final transaction, recompute the fee, move the
-   * difference into the change output and repeat, until one more pass changes nothing.
-   * The first pass sets the fee to the minimum, which may refund the selection's estimate to
-   * the change. After that the fee only rises: a script that is cheaper with a higher fee
-   * could otherwise flip between two fees forever. Paying more than the minimum is valid.
-   * When the selection already priced the final transaction, this costs one evaluation.
-   * @param changeOutputCount How many outputs at the end are change added by coin selection
-   */
-  protected settleFeeAndChange = async (changeOutputCount: number) => {
-    if (!this.evaluator || !this.hasPlutusScriptWitness()) return;
-    const body = this.meshTxBuilderBody;
-    // The change output with the most lovelace absorbs the fee difference. When the change
-    // is split, the others usually hold just their minimum.
-    const change = body.outputs
-      .slice(body.outputs.length - changeOutputCount)
-      .reduce<Output | undefined>(
-        (best, output) =>
-          best && getLovelace(best) >= getLovelace(output) ? best : output,
-        undefined,
-      );
-    for (let pass = 1; ; pass++) {
-      if (pass > MAX_BALANCING_PASSES) {
-        throw new Error(
-          `Fee and execution units did not settle after ${MAX_BALANCING_PASSES} evaluations of the final transaction`,
-        );
-      }
-      const unitsBefore = JSON.stringify(this.getRedeemerCosts());
-      const feeBefore = BigInt(body.fee);
-      await this.evaluateRedeemers().catch((error) => {
-        throw new Error(
-          `Evaluate redeemers failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      });
-      const minFee = this.getActualFee();
-      // Without a change output there is nothing to refund the excess to
-      const fee =
-        (pass === 1 && change) || minFee > feeBefore ? minFee : feeBefore;
-      if (fee === feeBefore) {
-        if (JSON.stringify(this.getRedeemerCosts()) === unitsBefore) break;
-        continue;
-      }
-      if (!change) {
-        throw new Error(
-          `Fee changed from ${feeBefore} to ${fee} after evaluating the final transaction, but there is no change output to absorb the difference`,
-        );
-      }
-      const newChange = getLovelace(change) + feeBefore - fee;
-      const minChange = this.calculateMinLovelaceForOutput(
-        setLoveLace(cloneOutput(change), newChange),
-      );
-      if (newChange < minChange) {
-        throw new Error(
-          `Fee changed from ${feeBefore} to ${fee} after evaluating the final transaction, which leaves ${newChange} lovelace in the change output, below its minimum of ${minChange}`,
-        );
-      }
-      setLoveLace(change, newChange);
-      body.fee = fee.toString();
-    }
-    this.checkSettledCollateral();
-  };
-
-  /**
-   * Settling can raise the fee. Check once that the collateral still covers it.
-   */
-  protected checkSettledCollateral = () => {
-    const { collateralPercent } = this._protocolParams;
-    const { collaterals, totalCollateral, fee } = this.meshTxBuilderBody;
-    const collateralAmounts = collaterals.map(
-      (collateral) => collateral.txIn.amount,
-    );
-    // Without a total collateral there is no collateral return, so the inputs are the collateral
-    const collateral = totalCollateral
-      ? BigInt(totalCollateral)
-      : collaterals.length > 0 && collateralAmounts.every((amount) => amount)
-        ? collateralAmounts.reduce(
-            (sum, amount) =>
-              sum + getLovelace({ address: "", amount: amount! }),
-            0n,
-          )
-        : undefined;
-    // The ledger rule: collateral * 100 >= fee * collateralPercent
-    if (
-      collateral !== undefined &&
-      collateral * 100n < BigInt(fee) * BigInt(collateralPercent)
-    ) {
-      throw new Error(
-        `Collateral of ${collateral} lovelace does not cover ${collateralPercent}% of the fee ${fee}`,
-      );
-    }
-  };
-
-  updateByTxPrototype = async (
-    selectionSkeleton: CoinSelectionInterface.TransactionPrototype,
-    final = false,
-  ) => {
-    for (let utxo of selectionSkeleton.newInputs) {
-      this.txIn(
-        utxo.input.txHash,
-        utxo.input.outputIndex,
-        utxo.output.amount,
-        utxo.output.address,
-        utxo.output.scriptRef ? utxo.output.scriptRef.length / 2 : 0,
-      );
-    }
-
-    for (let output of selectionSkeleton.newOutputs) {
-      this.txOut(output.address, output.amount);
-    }
-
-    for (let change of selectionSkeleton.change) {
-      this.txOut(change.address, change.amount);
-    }
-
-    this.meshTxBuilderBody.fee = selectionSkeleton.fee.toString();
-    this.queueAllLastItem();
-    this.removeDuplicateInputs();
-    this.sortTxParts();
-    this.updateRedeemer(
-      this.meshTxBuilderBody,
-      selectionSkeleton.redeemers ?? [],
-      final,
-    );
-  };
-
-  getUtxosForSelection = async () => {
-    const utxos = this.meshTxBuilderBody.extraInputs;
-    const usedUtxos = new Set(
-      this.meshTxBuilderBody.inputs.map(
-        (input) => `${input.txIn.txHash}${input.txIn.txIndex}`,
-      ),
-    );
-    return utxos.filter(
-      (utxo) => !usedUtxos.has(`${utxo.input.txHash}${utxo.input.outputIndex}`),
-    );
-  };
-
-  sortTxParts = () => {
-    this.sortInputs();
-    this.sortMints();
-    this.sortWithdrawals();
-    this.sortVotes();
-    this.sortProposals();
-  };
-
-  sortInputs = () => {
-    // Sort inputs based on txHash and txIndex
-    this.meshTxBuilderBody.inputs.sort((a, b) => {
-      if (a.txIn.txHash < b.txIn.txHash) return -1;
-      if (a.txIn.txHash > b.txIn.txHash) return 1;
-      if (a.txIn.txIndex < b.txIn.txIndex) return -1;
-      if (a.txIn.txIndex > b.txIn.txIndex) return 1;
-      return 0;
-    });
-  };
-
-  sortMints = () => {
-    // Sort mints based on policy id
-    this.meshTxBuilderBody.mints.sort((a, b) => {
-      if (a.policyId < b.policyId) return -1;
-      if (a.policyId > b.policyId) return 1;
-      return 0;
-    });
-  };
-
-  protected compareCredentials = (
-    credentialA: CstCredential,
-    credentialB: CstCredential,
-  ): number => {
-    // Script credentials come before Key credentials
-    if (
-      credentialA.type === CstCredentialType.ScriptHash &&
-      credentialB.type === CstCredentialType.KeyHash
-    ) {
-      return -1;
-    }
-    if (
-      credentialA.type === CstCredentialType.KeyHash &&
-      credentialB.type === CstCredentialType.ScriptHash
-    ) {
-      return 1;
-    }
-    // If same type, compare the hashes
-    if (credentialA.type === credentialB.type) {
-      if (credentialA.hash < credentialB.hash) return -1;
-      if (credentialA.hash > credentialB.hash) return 1;
-      return 0;
-    }
-    return 0;
-  };
-
-  sortWithdrawals = () => {
-    this.meshTxBuilderBody.withdrawals.sort((a, b) => {
-      const credentialA = CstAddress.fromString(a.address)
-        ?.asReward()
-        ?.getPaymentCredential();
-      const credentialB = CstAddress.fromString(b.address)
-        ?.asReward()
-        ?.getPaymentCredential();
-      if (credentialA && credentialB) {
-        return this.compareCredentials(credentialA, credentialB);
-      }
-      return 0;
-    });
-  };
-
-  sortVotes = () => {
-    const variantOrder: Record<Voter["type"], number> = {
-      ConstitutionalCommittee: 0,
-      DRep: 1,
-      StakingPool: 2,
-    };
-    this.meshTxBuilderBody.votes.sort((a, b) => {
-      const voterA = a.vote.voter;
-      const voterB = b.vote.voter;
-      const orderA = variantOrder[voterA.type];
-      const orderB = variantOrder[voterB.type];
-      if (orderA !== orderB) return orderA - orderB;
-
-      // Same variant, compare inner values
-      if (
-        voterA.type === "ConstitutionalCommittee" &&
-        voterB.type === "ConstitutionalCommittee"
-      ) {
-        const credA = voterA.hotCred;
-        const credB = voterB.hotCred;
-        // Script credentials come before Key credentials
-        if (credA.type === "ScriptHash" && credB.type === "KeyHash") {
-          return -1;
-        }
-        if (credA.type === "KeyHash" && credB.type === "ScriptHash") {
-          return 1;
-        }
-        // If same type, compare the hashes
-        if (credA.type === credB.type) {
-          const hashA =
-            credA.type === "KeyHash" ? credA.keyHash : credA.scriptHash;
-          const hashB =
-            credB.type === "KeyHash" ? credB.keyHash : credB.scriptHash;
-          if (hashA < hashB) return -1;
-          if (hashA > hashB) return 1;
-          return 0;
-        }
-        return 0;
-      }
-      if (voterA.type === "DRep" && voterB.type === "DRep") {
-        const drepA = coreToCstDRep(voterA.drepId);
-        const drepB = coreToCstDRep(voterB.drepId);
-        const scriptHashA = drepA.toScriptHash();
-        const scriptHashB = drepB.toScriptHash();
-        const keyHashA = drepA.toKeyHash();
-        const keyHashB = drepB.toKeyHash();
-
-        // Script hashes come before key hashes
-        if (scriptHashA != null && scriptHashB != null) {
-          if (scriptHashA < scriptHashB) return -1;
-          if (scriptHashA > scriptHashB) return 1;
-          return 0;
-        }
-        if (scriptHashA != null) return -1;
-        if (scriptHashB != null) return 1;
-        // If both are key hashes, compare them
-        if (keyHashA != null && keyHashB != null) {
-          if (keyHashA < keyHashB) return -1;
-          if (keyHashA > keyHashB) return 1;
-          return 0;
-        }
-        return 0;
-      }
-      if (voterA.type === "StakingPool" && voterB.type === "StakingPool") {
-        if (voterA.keyHash < voterB.keyHash) return -1;
-        if (voterA.keyHash > voterB.keyHash) return 1;
-        return 0;
-      }
-      return 0;
-    });
-  };
-
-  sortProposals = () => {
-    // Proposals are sorted by their order in the transaction body
-    // According to CIP-1694, proposals should maintain insertion order
-    // No additional sorting is needed as they're already in the correct order
-  };
-
-  evaluateRedeemers = async () => {
-    if (this.evaluator && this.hasPlutusScriptWitness()) {
-      const txHex = this.serializer.serializeTxBody(
-        this.meshTxBuilderBody,
-        this._protocolParams,
-      );
-      const evaluator = this.evaluator;
-      evaluator.configure?.(this.evaluationContext());
-      const txEvaluation = await evaluator
-        .evaluateTx(
-          txHex,
-          // A local evaluator can take every UTxO the builder holds. Others get only those
-          // given for evaluation: a remote one may reject UTxOs that also exist on chain.
-          evaluator.acceptsKnownUtxos
-            ? this.utxosForLocalEvaluator(txHex)
-            : this.utxosForEvaluation(),
-          this.meshTxBuilderBody.chainedTxs,
-        )
-        .catch((error) => {
-          if (error instanceof Error) {
-            throw new Error(
-              `Tx evaluation failed: ${error.message} \n For txHex: ${txHex}`,
-            );
-          } else if (typeof error === "string") {
-            throw new Error(
-              `Tx evaluation failed: ${error} \n For txHex: ${txHex}`,
-            );
-          } else if (typeof error === "object") {
-            throw new Error(
-              `Tx evaluation failed: ${JSON.stringify(error)} \n For txHex: ${txHex}`,
-            );
-          } else {
-            throw new Error(
-              `Tx evaluation failed: ${String(error)} \n For txHex: ${txHex}`,
-            );
-          }
-        });
-      this.updateRedeemer(this.meshTxBuilderBody, txEvaluation);
-    }
-  };
-
-  /**
-   * The network the transaction is for, if known: the `network` option or `setNetwork`, else
-   * mainnet for a mainnet change address. Not read from the fetcher cache, where any builder
-   * sharing the fetcher may have left a guess.
-   */
-  protected networkForEvaluation = (): Network | undefined => {
-    if (this.network) return this.network;
-    // Only a mainnet address pins the network; testnet ones fit preprod and preview alike
-    if (this.meshTxBuilderBody.changeAddress.startsWith("addr1"))
-      return "mainnet";
-    return undefined;
-  };
-
-  /** What the builder learned while completing the transaction, for `IEvaluator.configure` */
-  protected evaluationContext = (): EvaluationContext => {
-    const fetched = this.meshTxBuilderBody.network;
-    return {
-      network: this.networkForEvaluation(),
-      costModels: Array.isArray(fetched) ? fetched : undefined,
-    };
-  };
-
-  /**
-   * Key inputs given only by address and value (`txIn(hash, index, amount, address, 0)`), as
-   * UTxOs. They lack any datum, so a local evaluator gets their chain UTxO when the chain has
-   * it. Only non-Plutus inputs that declare no reference script (`scriptSize` 0) qualify.
-   */
-  protected declaredKeyInputs = (): Map<string, UTxO> => {
-    const { inputs, collaterals } = this.meshTxBuilderBody;
-    const declared = new Map<string, UTxO>();
-    for (const { type, txIn } of [...inputs, ...collaterals]) {
-      const { txHash, txIndex, address, amount, scriptSize } = txIn;
-      if (type !== "Script" && address && amount && scriptSize === 0)
-        declared.set(this.makeTxId(txHash, txIndex), {
-          input: { txHash, outputIndex: txIndex },
-          output: { address, amount },
-        });
-    }
-    return declared;
-  };
-
-  /**
-   * Fetch, once per `complete()`, the chain UTxOs of the declared key inputs the builder does
-   * not hold, for a local evaluator. One the fetcher does not have yet (an empty answer or
-   * a "not found" error) keeps its declared data; any other failure is thrown, since declared
-   * data could lack a datum or reference script the chain UTxO holds.
-   */
-  protected fetchDeclaredKeyInputs = async (): Promise<void> => {
-    const fetcher = this.cachedFetcher();
-    if (
-      !fetcher ||
-      !this.evaluator?.acceptsKnownUtxos ||
-      !this.hasPlutusScriptWitness()
-    )
-      return;
-    const txHashes = new Set<string>();
-    for (const { input } of this.declaredKeyInputs().values())
-      if (!this.findUTxO(input.txHash, input.outputIndex))
-        txHashes.add(input.txHash);
-    await Promise.all(
-      Array.from(txHashes, async (txHash) => {
-        const utxos = await fetcher.fetchUTxOs(txHash).catch((error) => {
-          if (isNotFound(error)) return [];
-          throw error;
-        });
-        if (utxos.length > 0) this.queriedUTxOs[txHash] = utxos;
-      }),
-    );
-  };
-
-  /**
-   * The UTxOs given for evaluation, each replaced by its fetched copy when the builder has one:
-   * a given copy may lack the script bytes the chain UTxO holds.
-   */
-  protected utxosForEvaluation = (): UTxO[] =>
-    Object.values(this.meshTxBuilderBody.inputsForEvaluation).map(
-      (utxo) =>
-        this.findUTxO(utxo.input.txHash, utxo.input.outputIndex) ?? utxo,
-    );
-
-  /**
-   * The UTxOs a local evaluator needs for the inputs, collateral and reference inputs of a
-   * transaction, so it need not fetch them (and can evaluate before an indexer sees them): the
-   * ones the builder holds, fetched first as in `findUTxO`, else the declared key inputs.
-   * Anything else is left for the evaluator to fetch.
-   */
-  protected utxosForLocalEvaluator = (txHex: string): UTxO[] => {
-    const declared = this.declaredKeyInputs();
-    return getTransactionInputs(txHex).flatMap(
-      ({ txHash, outputIndex }) =>
-        this.findUTxO(txHash, outputIndex) ??
-        declared.get(this.makeTxId(txHash, outputIndex)) ??
-        [],
-    );
-  };
-
-  /**
-   * Also the network the transaction is for, as `MeshTxBuilderOptions.network`: an evaluator
-   * that takes a context gets it. The body keeps it only until the cost models are fetched in
-   * its place. Like the option, and unlike the body, it is kept across `reset()`.
-   */
-  override setNetwork = (network: Network | number[][]) => {
-    if (typeof network === "string") this.network = network;
-    this.meshTxBuilderBody.network = network;
-    return this;
-  };
-
-  /**
-   * Whether any part of the transaction is witnessed by a Plutus script, i.e. whether
-   * there are redeemers for an evaluator to price
-   */
-  protected hasPlutusScriptWitness = (): boolean => {
-    const { inputs, mints, certificates, withdrawals, votes, proposals } =
-      this.meshTxBuilderBody;
-    return (
-      inputs.some((input) => input.type === "Script") ||
-      mints.some((mint) => mint.type === "Plutus") ||
-      certificates.some((cert) => cert.type === "ScriptCertificate") ||
-      withdrawals.some(
-        (withdrawal) => withdrawal.type === "ScriptWithdrawal",
-      ) ||
-      votes.some((vote) => vote.type === "ScriptVote") ||
-      proposals.some((proposal) => proposal.type === "ScriptProposal")
-    );
-  };
-
-  protected getRedeemerCosts = () => {
-    const meshTxBuilderBody = this.meshTxBuilderBody;
-    const redeemers: Omit<Action, "data">[] = [];
-    for (let i = 0; i < meshTxBuilderBody.inputs.length; i++) {
-      const input = meshTxBuilderBody.inputs[i]!;
-      if (input.type == "Script" && input.scriptTxIn.redeemer) {
-        redeemers.push({
-          tag: "SPEND",
-          index: i,
-          budget: structuredClone(input.scriptTxIn.redeemer.exUnits),
-        });
-      }
-    }
-    for (let i = 0; i < meshTxBuilderBody.mints.length; i++) {
-      const mint = meshTxBuilderBody.mints[i]!;
-      if (mint.type == "Plutus" && mint.redeemer) {
-        redeemers.push({
-          tag: "MINT",
-          index: i,
-          budget: structuredClone(mint.redeemer.exUnits),
-        });
-      }
-    }
-    for (let i = 0; i < meshTxBuilderBody.certificates.length; i++) {
-      const cert = meshTxBuilderBody.certificates[i]!;
-      if (cert.type === "ScriptCertificate" && cert.redeemer) {
-        redeemers.push({
-          tag: "CERT",
-          index: i,
-          budget: structuredClone(cert.redeemer.exUnits),
-        });
-      }
-    }
-    for (let i = 0; i < meshTxBuilderBody.withdrawals.length; i++) {
-      const withdrawal = meshTxBuilderBody.withdrawals[i]!;
-      if (withdrawal.type === "ScriptWithdrawal" && withdrawal.redeemer) {
-        redeemers.push({
-          tag: "REWARD",
-          index: i,
-          budget: structuredClone(withdrawal.redeemer.exUnits),
-        });
-      }
-    }
-    for (let i = 0; i < meshTxBuilderBody.votes.length; i++) {
-      const vote = meshTxBuilderBody.votes[i]!;
-      if (vote.type === "ScriptVote" && vote.redeemer) {
-        redeemers.push({
-          tag: "VOTE",
-          index: i,
-          budget: structuredClone(vote.redeemer.exUnits),
-        });
-      }
-    }
-    return redeemers;
-  };
-
-  /**
-   * It builds the transaction without dependencies
-   * @param customizedTx The optional customized transaction body
+   * Builds the transaction as the body describes it, without a request: no input is selected,
+   * no change made and no script evaluated. The fee is the body's (`setFee()`, else 0), and an
+   * output without lovelace gets its minimum.
+   * @param customizedTx The optional customized transaction body, used in place of the builder's
    * @returns The transaction in hex, unbalanced
+   * @throws TxBuildError UNRESOLVED when an input or collateral has no amount or address, or a
+   *   reference script no size; DUPLICATE_PART for contradictory repeats of an input or a
+   *   withdrawal
    */
   completeUnbalancedSync = (customizedTx?: MeshTxBuilderBody) => {
     if (customizedTx) {
       this.meshTxBuilderBody = customizedTx;
-      if (customizedTx.fee) {
+      // "0" is the fee of an empty or parsed body, not one set by hand
+      if (customizedTx.fee && customizedTx.fee !== "0") {
         this.setFee(customizedTx.fee);
       }
     } else {
       this.queueAllLastItem();
     }
-    this.removeDuplicateInputs();
     this.removeDuplicateRefInputs();
-    return this.serializer.serializeTxBody(
-      this.meshTxBuilderBody,
-      this._protocolParams,
-    );
+    return transactionPrototypeToHex(this.assembleBody().assembled.prototype);
   };
 
   /**
@@ -1290,1177 +693,111 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       return await this.submitter?.submitTx(txHex);
     } finally {
       // Address UTxOs and the like change once the tx lands; don't serve them from cache
-      this.cachedFetcher()?.clearVolatile();
+      if (this.fetcher) CachedFetcher.wrap(this.fetcher).clearVolatile();
     }
   };
 
   /**
-   * The fetcher behind a cache shared by every builder and evaluator using it: transaction
-   * outputs are fetched once per hash, and cost models once per epoch
+   * The body as parts, assembled as it is: nothing is read, selected, balanced or evaluated.
+   * Outputs it holds (`selectUtxosFrom`, `inputForEvaluation`, `chainTx`) are used; any other
+   * input and collateral is built from the amount and address the call declared, and a
+   * reference script taken as declared. Redeemers carry the units of the calls; the parameters
+   * and cost models are those the builder has (the values the last `complete()` read, else the
+   * built-in ones, with the consumer's fields over them).
+   * @param placeholders Whether to add stand-in witnesses for every key expected to sign, to size
+   *   the transaction once signed
+   * @throws TxBuildError UNRESOLVED for an input or collateral without amount or address, or a
+   *   reference script without size; DUPLICATE_PART for contradictory repeats
    */
-  protected cachedFetcher = (): CachedFetcher | undefined => {
-    if (!this.fetcher) return undefined;
-    const cachedFetcher = CachedFetcher.wrap(this.fetcher);
-    if (!cachedFetcher.network) {
-      const changeAddress = this.meshTxBuilderBody.changeAddress;
-      // Only a mainnet address pins the network; testnet ones fit preprod and preview alike
-      if (changeAddress.startsWith("addr1")) cachedFetcher.network = "mainnet";
-    }
-    return cachedFetcher;
+  private assembleBody = (placeholders = false) => {
+    const body = this.meshTxBuilderBody;
+    const params = this._protocolParams;
+    const known = this.heldOutputs();
+    const translated = bodyToParts(body, {
+      known,
+      declaredStandsIn: () => true,
+      needsScriptSize: false,
+      keepExUnits: true,
+      unbalanced: params,
+    });
+    const signers = pricedSigners(translated.parts);
+    const witnesses = placeholders ? placeholderWitnesses(signers) : undefined;
+    const assembled = assembleTxPrototype(translated.parts, {
+      fee: BigInt(body.fee || "0"),
+      ...(translated.plutus && {
+        costModels: this.costModelsOf(
+          Array.isArray(body.network) ? body.network : undefined,
+        ),
+      }),
+      ...(witnesses && {
+        vkeyWitnesses: witnesses.vkeyWitnesses,
+        bootstrapWitnesses: witnesses.bootstrapWitnesses,
+      }),
+    });
+    return { assembled, translated, known, signers };
   };
 
   /**
-   * Get the UTxO information from the blockchain.
-   * A failed or empty response is not remembered, so a later `complete()` can retry it.
-   * @param txHash The hash of the transaction whose outputs are needed
+   * The body as a transaction with stand-in witnesses for every key expected to sign, the size
+   * of the signed one; records the expected key and Byron witnesses in the body
+   * @returns The transaction in hex
+   * @throws TxBuildError UNRESOLVED when an input has no amount or address
    */
-  protected getUTxOInfo = async (txHash: string): Promise<void> => {
-    if (this.queriedTxHashes.has(txHash)) return;
-    const utxos = (await this.cachedFetcher()?.fetchUTxOs(txHash)) || [];
-    this.queriedUTxOs[txHash] = utxos;
-    if (utxos.length > 0) this.queriedTxHashes.add(txHash);
+  serializeMockTx = () => {
+    const { assembled, signers } = this.assembleBody(true);
+    const body = this.meshTxBuilderBody;
+    body.expectedNumberKeyWitnesses = signers.keyHashes.size;
+    body.expectedByronAddressWitnesses = Array.from(signers.byronAddresses);
+    return transactionPrototypeToHex(assembled.prototype);
   };
 
-  /**
-   * Index the UTxOs the builder already holds - the selection pool, the inputs given
-   * for evaluation and the outputs of chained transactions - so they need not be fetched
-   */
-  protected indexKnownUTxOs = () => {
-    const { extraInputs, inputsForEvaluation, chainedTxs } =
-      this.meshTxBuilderBody;
-    const known = new Map<string, UTxO>();
-    const add = (utxo: UTxO) =>
-      known.set(this.makeTxId(utxo.input.txHash, utxo.input.outputIndex), utxo);
-    extraInputs.forEach(add);
-    Object.values(inputsForEvaluation).forEach(add);
-    chainedTxs.forEach((txHex) => getTransactionOutputs(txHex).forEach(add));
-    this.knownUTxOs = known;
-  };
-
-  /**
-   * Look up a UTxO among the fetched ones and the ones the builder already holds
-   */
-  protected findUTxO = (txHash: string, index: number): UTxO | undefined => {
-    return (
-      this.queriedUTxOs[txHash]?.find(
-        (utxo) => utxo.input.outputIndex === index,
-      ) ?? this.knownUTxOs.get(this.makeTxId(txHash, index))
-    );
-  };
-
-  protected queryAllTxInfo = (
-    incompleteTxIns: TxIn[],
-    incompleteScriptSources: ScriptSource[],
-    incompleteSimpleScriptSources: SimpleScriptSourceInfo[],
-  ) => {
-    const txHashesToQuery = new Set<string>();
-    const queryIfUnknown = (
-      txHash: string,
-      index: number,
-      needsScriptRef = false,
-    ) => {
-      const utxo = this.findUTxO(txHash, index);
-      // Locally supplied UTxOs may omit script bytes even when their hash is known.
-      if (!utxo || (needsScriptRef && !utxo.output.scriptRef))
-        txHashesToQuery.add(txHash);
-    };
-    for (let i = 0; i < incompleteTxIns.length; i++) {
-      const currentTxIn = incompleteTxIns[i]!;
-      if (!this.isInputInfoComplete(currentTxIn)) {
-        queryIfUnknown(currentTxIn.txIn.txHash, currentTxIn.txIn.txIndex);
-      }
-    }
-    for (let i = 0; i < incompleteScriptSources.length; i++) {
-      const scriptSource = incompleteScriptSources[i]!;
-      if (scriptSource.type === "Inline") {
-        queryIfUnknown(scriptSource.txHash, scriptSource.txIndex, true);
-      }
-    }
-    for (let i = 0; i < incompleteSimpleScriptSources.length; i++) {
-      const simpleScriptSource = incompleteSimpleScriptSources[i]!;
-      if (simpleScriptSource.type === "Inline") {
-        queryIfUnknown(
-          simpleScriptSource.txHash,
-          simpleScriptSource.txIndex,
-          true,
-        );
-      }
-    }
-    if (txHashesToQuery.size > 0 && !this.fetcher)
-      throw Error(
-        "Transaction information is incomplete while no fetcher instance is provided. Provide a `fetcher`.",
-      );
-    return Promise.all(
-      Array.from(txHashesToQuery, (txHash) => this.getUTxOInfo(txHash)),
-    );
-  };
-
-  protected completeTxInformation = (input: TxIn) => {
-    // Adding value and address information for inputs if missing
-    if (!this.isInputInfoComplete(input)) {
-      this.completeInputInfo(input);
-    }
-    // Adding spendingScriptHash for script inputs' scriptSource if missing
-    if (
-      input.type === "Script" &&
-      !this.isRefScriptInfoComplete(input.scriptTxIn.scriptSource!)
-    ) {
-      const scriptSource = input.scriptTxIn.scriptSource;
-      this.completeScriptInfo(scriptSource!);
-    }
-  };
-
-  protected completeInputInfo = (input: TxIn) => {
-    const utxo = this.findUTxO(input.txIn.txHash, input.txIn.txIndex);
-    const amount = utxo?.output.amount;
-    const address = utxo?.output.address;
-    if (!amount || amount.length === 0)
-      throw Error(
-        `Couldn't find value information for ${input.txIn.txHash}#${input.txIn.txIndex}`,
-      );
-    input.txIn.amount = amount;
-
-    if (!address || address === "")
-      throw Error(
-        `Couldn't find address information for ${input.txIn.txHash}#${input.txIn.txIndex}`,
-      );
-    input.txIn.address = address;
-
-    if (utxo?.output.scriptRef) {
-      input.txIn.scriptSize = utxo.output.scriptRef.length / 2;
-    } else {
-      input.txIn.scriptSize = 0;
-    }
-  };
-
-  /**
-   * Find the UTxO holding a reference script, with the script's hash filled in
-   * even when the source of the UTxO did not provide it
-   */
-  protected findScriptRefUTxO = (
-    txHash: string,
-    index: number,
-  ): { scriptRef: string; scriptHash: string } => {
-    const utxo = this.findUTxO(txHash, index);
-    if (!utxo)
-      throw Error(`Couldn't find script reference utxo for ${txHash}#${index}`);
-    const { scriptRef, scriptHash } = utxo.output;
-    if (!scriptRef)
-      throw Error(`Utxo ${txHash}#${index} does not hold a reference script`);
-    return {
-      scriptRef,
-      scriptHash:
-        scriptHash ??
-        CstScript.fromCbor(<CardanoSDKUtil.HexBlob>scriptRef)
-          .hash()
-          .toString(),
-    };
-  };
-
-  protected completeScriptInfo = (scriptSource: ScriptSource) => {
-    if (scriptSource?.type != "Inline") return;
-    const { scriptRef, scriptHash } = this.findScriptRefUTxO(
-      scriptSource.txHash,
-      scriptSource.txIndex,
-    );
-    scriptSource.scriptHash = scriptHash;
-    scriptSource.scriptSize = (scriptRef.length / 2).toString();
-  };
-
-  protected completeSimpleScriptInfo = (
-    simpleScript: SimpleScriptSourceInfo,
-  ) => {
-    if (simpleScript.type !== "Inline") return;
-    const { scriptRef, scriptHash } = this.findScriptRefUTxO(
-      simpleScript.txHash,
-      simpleScript.txIndex,
-    );
-    simpleScript.simpleScriptHash = scriptHash;
-    simpleScript.scriptSize = (scriptRef.length / 2).toString();
-  };
-
-  protected isInputComplete = (txIn: TxIn): boolean => {
-    if (txIn.type === "PubKey" || txIn.type === "SimpleScript")
-      return this.isInputInfoComplete(txIn);
-    if (txIn.type === "Script") {
-      const { scriptSource } = txIn.scriptTxIn;
-      return (
-        this.isInputInfoComplete(txIn) &&
-        this.isRefScriptInfoComplete(scriptSource!)
-      );
-    }
-    return true;
-  };
-
-  protected isInputInfoComplete = (txIn: TxIn): boolean => {
-    const { amount, address, scriptSize } = txIn.txIn;
-    if (!amount || !address || scriptSize === undefined) return false;
-    return true;
-  };
-
-  protected isMintComplete = (mint: MintItem): boolean => {
-    if (mint.type === "Plutus") {
-      const scriptSource = mint.scriptSource as ScriptSource;
-      return this.isRefScriptInfoComplete(scriptSource);
-    }
-    if (mint.type === "Native") {
-      const scriptSource = mint.scriptSource as SimpleScriptSourceInfo;
-      if (scriptSource.type === "Inline") {
-        if (!scriptSource?.simpleScriptHash) return false;
-      }
-    }
-    return true;
-  };
-
-  protected isRefScriptInfoComplete = (scriptSource: ScriptSource): boolean => {
-    if (scriptSource?.type === "Inline") {
-      if (!scriptSource?.scriptHash || !scriptSource?.scriptSize) return false;
-    }
-    return true;
-  };
-
-  protected isSimpleRefScriptInfoComplete = (
-    simpleScriptSource: SimpleScriptSourceInfo,
-  ): boolean => {
-    if (simpleScriptSource.type === "Inline") {
-      if (
-        !simpleScriptSource.simpleScriptHash ||
-        !simpleScriptSource.scriptSize
-      )
-        return false;
-    }
-    return true;
-  };
-
-  protected completeSerialization = async (
-    customizedTx?: Partial<MeshTxBuilderBody>,
-  ) => {
-    if (customizedTx) {
-      this.meshTxBuilderBody = { ...this.meshTxBuilderBody, ...customizedTx };
-    } else {
-      this.queueAllLastItem();
-    }
-    this.removeDuplicateInputs();
-    this.removeDuplicateRefInputs();
-
-    // We can set scriptSize of collaterals as 0, because the ledger ignores this for fee calculations
-    for (let collateral of this.meshTxBuilderBody.collaterals) {
-      collateral.txIn.scriptSize = 0;
-    }
-
-    await this.completeTxParts();
-
-    let txHex = this.serializer.serializeTxBody(
-      this.meshTxBuilderBody,
-      this._protocolParams,
-    );
-
-    // Evaluating the transaction
-    if (this.evaluator) {
-      const txEvaluation = await this.evaluator
-        .evaluateTx(
-          txHex,
-          Object.values(this.meshTxBuilderBody.inputsForEvaluation) as UTxO[],
-          this.meshTxBuilderBody.chainedTxs,
-        )
-        .catch((error) => {
-          throw new Error(
-            `Tx evaluation failed: ${JSON.stringify(error)} \n For txHex: ${txHex}`,
-          );
-        });
-      this.updateRedeemer(this.meshTxBuilderBody, txEvaluation);
-      txHex = this.serializer.serializeTxBody(
-        this.meshTxBuilderBody,
-        this._protocolParams,
-      );
-    }
-
-    this.txHex = txHex;
-    return txHex;
-  };
-
-  protected completeTxParts = async (): Promise<void> => {
-    this.indexKnownUTxOs();
-    // Checking if all inputs are complete
-    const { inputs, collaterals, mints, withdrawals, votes, certificates } =
-      this.meshTxBuilderBody;
-    const incompleteTxIns = [...inputs, ...collaterals].filter(
-      (txIn) => !this.isInputComplete(txIn),
-    );
-    let incompleteScriptSources: ScriptSource[] = [];
-    let incompleteSimpleScriptSources: SimpleScriptSourceInfo[] = [];
-
-    // Get incomplete script sources for inputs
-    inputs.forEach((txIn) => {
-      if (
-        txIn.type === "Script" &&
-        txIn.scriptTxIn.scriptSource?.type === "Inline"
-      ) {
-        if (!this.isRefScriptInfoComplete(txIn.scriptTxIn.scriptSource!)) {
-          incompleteScriptSources.push(txIn.scriptTxIn.scriptSource);
-        }
-      } else if (
-        txIn.type === "SimpleScript" &&
-        txIn.simpleScriptTxIn?.scriptSource?.type === "Inline"
-      ) {
-        if (
-          !this.isSimpleRefScriptInfoComplete(
-            txIn.simpleScriptTxIn.scriptSource!,
-          )
-        ) {
-          incompleteSimpleScriptSources.push(
-            txIn.simpleScriptTxIn.scriptSource,
-          );
-        }
-      }
-    });
-
-    // Get incomplete script sources for mints
-    mints.forEach((mint) => {
-      if (mint.type === "Plutus") {
-        const scriptSource = mint.scriptSource as ScriptSource;
-        if (!this.isRefScriptInfoComplete(scriptSource)) {
-          incompleteScriptSources.push(scriptSource);
-        }
-      } else if (mint.type === "Native") {
-        const scriptSource = mint.scriptSource as SimpleScriptSourceInfo;
-        if (!this.isSimpleRefScriptInfoComplete(scriptSource)) {
-          incompleteSimpleScriptSources.push(scriptSource);
-        }
-      }
-    });
-
-    // Get incomplete script sources for withdrawals
-    withdrawals.forEach((withdrawal) => {
-      if (withdrawal.type === "ScriptWithdrawal") {
-        const scriptSource = withdrawal.scriptSource as ScriptSource;
-        if (!this.isRefScriptInfoComplete(scriptSource)) {
-          incompleteScriptSources.push(scriptSource);
-        }
-      } else if (withdrawal.type === "SimpleScriptWithdrawal") {
-        const scriptSource = withdrawal.scriptSource as SimpleScriptSourceInfo;
-        if (!this.isSimpleRefScriptInfoComplete(scriptSource)) {
-          incompleteSimpleScriptSources.push(scriptSource);
-        }
-      }
-    });
-
-    // Get incomplete script sources for votes
-    votes.forEach((vote) => {
-      if (vote.type === "ScriptVote") {
-        const scriptSource = vote.scriptSource as ScriptSource;
-        if (!this.isRefScriptInfoComplete(scriptSource)) {
-          incompleteScriptSources.push(scriptSource);
-        }
-      } else if (vote.type === "SimpleScriptVote") {
-        const scriptSource = vote.simpleScriptSource as SimpleScriptSourceInfo;
-        if (!this.isSimpleRefScriptInfoComplete(scriptSource)) {
-          incompleteSimpleScriptSources.push(scriptSource);
-        }
-      }
-    });
-
-    // Get incomplete script sources for certificates
-    certificates.forEach((certificate) => {
-      if (certificate.type === "ScriptCertificate") {
-        const scriptSource = certificate.scriptSource as ScriptSource;
-        if (!this.isRefScriptInfoComplete(scriptSource)) {
-          incompleteScriptSources.push(scriptSource);
-        }
-      } else if (certificate.type === "SimpleScriptCertificate") {
-        const scriptSource =
-          certificate.simpleScriptSource as SimpleScriptSourceInfo;
-        if (!this.isSimpleRefScriptInfoComplete(scriptSource)) {
-          incompleteSimpleScriptSources.push(scriptSource);
-        }
-      }
-    });
-
-    // Getting all missing utxo information
-    await Promise.all([
-      this.queryAllTxInfo(
-        incompleteTxIns,
-        incompleteScriptSources,
-        incompleteSimpleScriptSources,
-      ),
-      this.fetchDeclaredKeyInputs(),
-    ]);
-    // Completing all inputs
-    incompleteTxIns.forEach((txIn) => {
-      this.completeTxInformation(txIn);
-    });
-
-    // Completing all script sources
-    incompleteScriptSources.forEach((scriptSource) => {
-      this.completeScriptInfo(scriptSource);
-    });
-
-    // Completing all simple script sources
-    incompleteSimpleScriptSources.forEach((simpleScriptSource) => {
-      this.completeSimpleScriptInfo(simpleScriptSource);
-    });
-
-    this.meshTxBuilderBody.inputs.forEach((input) => {
-      if (input.txIn.scriptSize && input.txIn.scriptSize > 0) {
-        if (
-          this.meshTxBuilderBody.referenceInputs.find((refTxIn) => {
-            refTxIn.txHash === input.txIn.txHash &&
-              refTxIn.txIndex === input.txIn.txIndex;
-          }) === undefined
-        ) {
-          this.meshTxBuilderBody.referenceInputs.push({
-            txHash: input.txIn.txHash,
-            txIndex: input.txIn.txIndex,
-            scriptSize: input.txIn.scriptSize,
-          });
-        }
-      }
-    });
-    // Sort inputs based on txHash and txIndex
-    this.sortTxParts();
-  };
-
-  protected sanitizeOutputs = async () => {
-    this.meshTxBuilderBody.outputs.forEach((output) => {
-      let lovelaceFound = false;
-      output.amount.forEach((asset) => {
-        if (asset.unit === "lovelace" || asset.unit === "") {
-          lovelaceFound = true;
-        }
-      });
-      if (!lovelaceFound) {
-        const minAda = this.calculateMinLovelaceForOutput(output);
-        output.amount.push({
-          unit: "lovelace",
-          quantity: minAda.toString(),
-        });
-      }
-    });
-  };
-
-  protected collectAllRequiredSignatures = (): {
-    keyHashes: Set<string>;
-    byronAddresses: Set<string>;
-  } => {
-    const { paymentCreds, byronAddresses } = this.getInputsRequiredSignatures();
-    const { collateralPaymentCreds, collateralByronAddresses } =
-      this.getCollateralRequiredSignatures();
-    const withdrawalCreds = this.getWithdrawalRequiredSignatures();
-    const certCreds = this.getCertificatesRequiredSignatures();
-    const voteCreds = this.getVoteRequiredSignatures();
-    const mintCreds = this.getMintRequiredSignatures();
-    const requiredSignatures = this.meshTxBuilderBody.requiredSignatures;
-    const allCreds = new Set([
-      ...paymentCreds,
-      ...withdrawalCreds,
-      ...collateralPaymentCreds,
-      ...certCreds,
-      ...voteCreds,
-      ...requiredSignatures,
-      ...mintCreds,
-    ]);
-    const allByronAddresses = new Set([
-      ...byronAddresses,
-      ...collateralByronAddresses,
-    ]);
-    return { keyHashes: allCreds, byronAddresses: allByronAddresses };
-  };
-
-  protected getInputsRequiredSignatures(): {
-    paymentCreds: Set<string>;
-    byronAddresses: Set<string>;
-  } {
-    const byronAddresses = new Set<string>();
-    const paymentCreds = new Set<string>();
-    for (let input of this.meshTxBuilderBody.inputs) {
-      if (input.type === "PubKey") {
-        if (input.txIn.address) {
-          const address = CstAddress.fromString(input.txIn.address);
-          if (!address) {
-            continue;
-          }
-          const addressDetails = address.getProps();
-          const paymentCred = addressDetails.paymentPart;
-          if (paymentCred?.type === CstCredentialType.KeyHash) {
-            paymentCreds.add(paymentCred.hash);
-          }
-          if (addressDetails.type === CstAddressType.Byron) {
-            byronAddresses.add(input.txIn.address);
-          }
-        }
-      } else if (input.type === "SimpleScript") {
-        const nativeScript = this.getInputNativeScript(input);
-        if (nativeScript) {
-          let pubKeys = this.getNativeScriptPubKeys(nativeScript);
-          for (let pubKey of pubKeys) {
-            paymentCreds.add(pubKey);
-          }
-        }
-      }
-    }
-    return { paymentCreds, byronAddresses };
-  }
-
-  protected getCollateralRequiredSignatures(): {
-    collateralPaymentCreds: Set<string>;
-    collateralByronAddresses: Set<string>;
-  } {
-    const collateralByronAddresses = new Set<string>();
-    const collateralPaymentCreds = new Set<string>();
-    for (let collateral of this.meshTxBuilderBody.collaterals) {
-      if (collateral.type === "PubKey") {
-        if (collateral.txIn.address) {
-          const address = CstAddress.fromString(collateral.txIn.address);
-          if (!address) {
-            continue;
-          }
-          const addressDetails = address.getProps();
-          const paymentCred = addressDetails.paymentPart;
-          if (paymentCred?.type === CstCredentialType.KeyHash) {
-            collateralPaymentCreds.add(paymentCred.hash);
-          }
-          if (addressDetails.type === CstAddressType.Byron) {
-            collateralByronAddresses.add(collateral.txIn.address);
-          }
-        }
-      }
-    }
-    return { collateralPaymentCreds, collateralByronAddresses };
-  }
-
-  protected getWithdrawalRequiredSignatures(): Set<string> {
-    const withdrawalCreds = new Set<string>();
-    for (let withdrawal of this.meshTxBuilderBody.withdrawals) {
-      if (withdrawal.type === "PubKeyWithdrawal") {
-        const address = CstAddress.fromBech32(withdrawal.address);
-        const addressDetails = address.getProps();
-        const paymentCred = addressDetails.paymentPart;
-        if (paymentCred?.type === CstCredentialType.KeyHash) {
-          withdrawalCreds.add(paymentCred.hash);
-        }
-      }
-      if (withdrawal.type === "SimpleScriptWithdrawal") {
-        const nativeScript = this.getWithdrawalNativeScript(withdrawal);
-        if (nativeScript) {
-          let pubKeys = this.getNativeScriptPubKeys(nativeScript);
-          for (let pubKey of pubKeys) {
-            withdrawalCreds.add(pubKey);
-          }
-        }
-      }
-    }
-    return withdrawalCreds;
-  }
-
-  protected getCertificatesRequiredSignatures(): Set<string> {
-    const certCreds = new Set<string>();
-    for (let cert of this.meshTxBuilderBody.certificates) {
-      if (
-        cert.type !== "BasicCertificate" &&
-        cert.type !== "SimpleScriptCertificate"
-      ) {
-        continue;
-      }
-
-      const certNativeScript = this.getCertificateNativeScript(cert);
-
-      const certType = cert.certType;
-
-      if (certType.type === "RegisterPool") {
-        certCreds.add(certType.poolParams.operator);
-        for (let owner of certType.poolParams.owners) {
-          certCreds.add(owner);
-        }
-      } else if (certType.type === "RetirePool") {
-        certCreds.add(certType.poolId);
-      } else if (
-        certType.type === "DRepRegistration" ||
-        certType.type === "DRepDeregistration" ||
-        certType.type === "DRepUpdate"
-      ) {
-        if (cert.type === "BasicCertificate") {
-          const cstDrep = coreToCstDRep(certType.drepId);
-          const keyHash = cstDrep.toKeyHash();
-          if (keyHash) {
-            certCreds.add(keyHash);
-          }
-        } else if (certNativeScript) {
-          let pubKeys = this.getNativeScriptPubKeys(certNativeScript);
-          for (let pubKey of pubKeys) {
-            certCreds.add(pubKey);
-          }
-        }
-      } else if (
-        certType.type === "StakeRegistrationAndDelegation" ||
-        certType.type === "VoteRegistrationAndDelegation" ||
-        certType.type === "StakeVoteRegistrationAndDelegation" ||
-        certType.type === "VoteDelegation" ||
-        certType.type === "RegisterStake" ||
-        certType.type === "StakeAndVoteDelegation" ||
-        certType.type === "DelegateStake" ||
-        certType.type === "DeregisterStake"
-      ) {
-        if (cert.type === "BasicCertificate") {
-          const address = CstAddress.fromString(certType.stakeKeyAddress);
-          if (address) {
-            const addressDetails = address.getProps();
-            const paymentCred = addressDetails.paymentPart;
-            if (paymentCred?.type === CstCredentialType.KeyHash) {
-              certCreds.add(paymentCred.hash);
-            }
-          }
-        } else if (certNativeScript) {
-          let pubKeys = this.getNativeScriptPubKeys(certNativeScript);
-          for (let pubKey of pubKeys) {
-            certCreds.add(pubKey);
-          }
-        }
-      } else if (
-        certType.type === "CommitteeHotAuth" ||
-        certType.type === "CommitteeColdResign"
-      ) {
-        if (cert.type === "BasicCertificate") {
-          const address = CstAddress.fromString(
-            certType.committeeColdKeyAddress,
-          );
-          if (address) {
-            const addressDetails = address.getProps();
-            const paymentCred = addressDetails.paymentPart;
-            if (paymentCred?.type === CstCredentialType.KeyHash) {
-              certCreds.add(paymentCred.hash);
-            }
-          }
-        } else if (certNativeScript) {
-          let pubKeys = this.getNativeScriptPubKeys(certNativeScript);
-          for (let pubKey of pubKeys) {
-            certCreds.add(pubKey);
-          }
-        }
-      }
-    }
-    return certCreds;
-  }
-
-  protected getVoteRequiredSignatures(): Set<string> {
-    const voteCreds = new Set<string>();
-    for (let vote of this.meshTxBuilderBody.votes) {
-      if (vote.type === "SimpleScriptVote") {
-        const nativeScript = this.getVoteNativeScript(vote);
-        if (nativeScript) {
-          let pubKeys = this.getNativeScriptPubKeys(nativeScript);
-          for (let pubKey of pubKeys) {
-            voteCreds.add(pubKey);
-          }
-        }
-      } else if (vote.type === "BasicVote") {
-        const voter = vote.vote.voter;
-        if (voter.type === "DRep") {
-          const drep = coreToCstDRep(voter.drepId);
-          const keyHash = drep.toKeyHash();
-          if (keyHash) {
-            voteCreds.add(keyHash);
-          }
-        } else if (voter.type === "StakingPool") {
-          voteCreds.add(voter.keyHash);
-        } else if (voter.type === "ConstitutionalCommittee") {
-          const hotCred = voter.hotCred;
-          if (hotCred.type === "KeyHash") {
-            voteCreds.add(hotCred.keyHash);
-          }
-        }
-      }
-    }
-    return voteCreds;
-  }
-
-  protected getMintRequiredSignatures = (): Set<string> => {
-    const mintCreds = new Set<string>();
-    for (let mint of this.meshTxBuilderBody.mints) {
-      if (mint.type === "Native") {
-        const nativeScript = this.getMintNativeScript(mint);
-        if (nativeScript) {
-          let pubKeys = this.getNativeScriptPubKeys(nativeScript);
-          for (let pubKey of pubKeys) {
-            mintCreds.add(pubKey);
-          }
-        }
-      }
-    }
-    return mintCreds;
-  };
-
-  protected getTotalWithdrawal = (): bigint => {
-    let accum = 0n;
-    for (let withdrawal of this.meshTxBuilderBody.withdrawals) {
-      accum += BigInt(withdrawal.coin);
-    }
-    return accum;
-  };
-
-  protected getTotalDeposit = () => {
-    let accum = 0n;
-    for (let cert of this.meshTxBuilderBody.certificates) {
-      const certType = cert.certType;
-      if (certType.type === "RegisterStake") {
-        if (cert.certType) {
-          accum += BigInt(this._protocolParams.keyDeposit);
-        }
-      } else if (certType.type === "RegisterPool") {
-        accum += BigInt(this._protocolParams.poolDeposit);
-      } else if (certType.type === "DRepRegistration") {
-        accum += BigInt(certType.coin);
-      } else if (certType.type === "StakeRegistrationAndDelegation") {
-        accum += BigInt(certType.coin);
-      } else if (certType.type === "VoteRegistrationAndDelegation") {
-        accum += BigInt(certType.coin);
-      } else if (certType.type === "StakeVoteRegistrationAndDelegation") {
-        accum += BigInt(certType.coin);
-      }
-    }
-    for (let proposal of this.meshTxBuilderBody.proposals) {
-      accum += BigInt(proposal.proposalType.deposit);
-    }
-    return accum;
-  };
-
-  protected getDonation = (): bigint => {
-    return BigInt(this.meshTxBuilderBody.donation ?? 0);
-  };
-
-  protected getTotalRefund = (): bigint => {
-    let accum = 0n;
-    for (let cert of this.meshTxBuilderBody.certificates) {
-      const certType = cert.certType;
-      if (certType.type === "DeregisterStake") {
-        if (cert.certType) {
-          accum += BigInt(this._protocolParams.keyDeposit);
-        }
-      } else if (certType.type === "DRepDeregistration") {
-        accum += BigInt(certType.coin);
-      }
-    }
-    return accum;
-  };
-
-  protected getTotalMint = (): Asset[] => {
-    const assets = new Map<string, bigint>();
-    for (let mint of this.meshTxBuilderBody.mints) {
-      for (let assetValue of mint.mintValue) {
-        const assetId = `${mint.policyId}${assetValue.assetName}`;
-        let amount = assets.get(assetId) ?? 0n;
-        amount += BigInt(assetValue.amount);
-        assets.set(assetId, amount);
-      }
-    }
-    return Array.from(assets).map(([assetId, amount]) => ({
-      unit: assetId,
-      quantity: amount.toString(),
-    }));
-  };
-
-  protected getNativeScriptPubKeys = (
-    nativeScript: CstNativeScript,
-  ): Set<string> => {
-    const pubKeys = new Set<string>();
-    const nativeScriptStack = [];
-    nativeScriptStack.push(nativeScript);
-    while (nativeScriptStack.length > 0) {
-      const script = nativeScriptStack.pop();
-      if (script === undefined) {
-        continue;
-      }
-      const nOfK = script.asScriptNOfK();
-      if (nOfK) {
-        for (let script of nOfK.nativeScripts()) {
-          nativeScriptStack.push(script);
-        }
-      }
-      const scriptAll = script.asScriptAll();
-      if (scriptAll) {
-        for (let script of scriptAll.nativeScripts()) {
-          nativeScriptStack.push(script);
-        }
-      }
-      const scriptAny = script.asScriptAny();
-      if (scriptAny) {
-        for (let script of scriptAny.nativeScripts()) {
-          nativeScriptStack.push(script);
-        }
-      }
-      const scriptPubkey = script.asScriptPubkey();
-      if (scriptPubkey) {
-        pubKeys.add(scriptPubkey.keyHash());
-      }
-    }
-    return pubKeys;
-  };
-
-  protected getVoteNativeScript = (cert: Vote): CstNativeScript | undefined => {
-    if (cert.type !== "SimpleScriptVote") {
-      return undefined;
-    }
-
-    const scriptSource = cert.simpleScriptSource;
-    if (scriptSource === undefined) {
-      return undefined;
-    }
-
-    if (scriptSource.type === "Inline") {
-      return this.getInlinedNativeScript(
-        scriptSource.txHash,
-        scriptSource.txIndex,
-      );
-    }
-    if (scriptSource.type === "Provided") {
-      return CstNativeScript.fromCbor(
-        <CardanoSDKUtil.HexBlob>scriptSource.scriptCode,
-      );
-    }
-  };
-
-  protected getCertificateNativeScript = (
-    cert: Certificate,
-  ): CstNativeScript | undefined => {
-    if (cert.type !== "SimpleScriptCertificate") {
-      return undefined;
-    }
-
-    const scriptSource = cert.simpleScriptSource;
-    if (scriptSource === undefined) {
-      return undefined;
-    }
-
-    if (scriptSource.type === "Inline") {
-      return this.getInlinedNativeScript(
-        scriptSource.txHash,
-        scriptSource.txIndex,
-      );
-    }
-    if (scriptSource.type === "Provided") {
-      return CstNativeScript.fromCbor(
-        <CardanoSDKUtil.HexBlob>scriptSource.scriptCode,
-      );
-    }
-  };
-
-  protected getMintNativeScript = (
-    mint: MintParam,
-  ): CstNativeScript | undefined => {
-    if (mint.type !== "Native") {
-      return undefined;
-    }
-
-    const scriptSource = mint.scriptSource as SimpleScriptSourceInfo;
-    const scriptSourceAlternative = mint.scriptSource as ScriptSource;
-    if (scriptSource === undefined) {
-      return undefined;
-    }
-
-    if (scriptSource.type === "Inline") {
-      return this.getInlinedNativeScript(
-        scriptSource.txHash,
-        scriptSource.txIndex,
-      );
-    }
-    if (scriptSource.type === "Provided") {
-      if (scriptSource.scriptCode != undefined) {
-        return CstNativeScript.fromCbor(
-          <CardanoSDKUtil.HexBlob>scriptSource.scriptCode,
-        );
-      }
-    }
-
-    if (scriptSourceAlternative.type === "Provided") {
-      if (scriptSourceAlternative.script != undefined) {
-        return CstNativeScript.fromCbor(
-          <CardanoSDKUtil.HexBlob>scriptSourceAlternative.script.code,
-        );
-      }
-    }
-  };
-
-  protected getWithdrawalNativeScript = (
-    withdrawal: Withdrawal,
-  ): CstNativeScript | undefined => {
-    if (withdrawal.type !== "SimpleScriptWithdrawal") {
-      return undefined;
-    }
-
-    const scriptSource = withdrawal.scriptSource;
-    if (scriptSource === undefined) {
-      return undefined;
-    }
-
-    if (scriptSource.type === "Inline") {
-      return this.getInlinedNativeScript(
-        scriptSource.txHash,
-        scriptSource.txIndex,
-      );
-    }
-    if (scriptSource.type === "Provided") {
-      return CstNativeScript.fromCbor(
-        <CardanoSDKUtil.HexBlob>scriptSource.scriptCode,
-      );
-    }
-  };
-
-  protected getInputNativeScript(txIn: TxIn): CstNativeScript | undefined {
-    if (txIn.type !== "SimpleScript") {
-      return undefined;
-    }
-
-    const scriptSource = txIn.simpleScriptTxIn.scriptSource;
-    if (scriptSource === undefined) {
-      return undefined;
-    }
-
-    if (scriptSource.type === "Inline") {
-      return this.getInlinedNativeScript(
-        scriptSource.txHash,
-        scriptSource.txIndex,
-      );
-    }
-    if (scriptSource.type === "Provided") {
-      return CstNativeScript.fromCbor(
-        <CardanoSDKUtil.HexBlob>scriptSource.scriptCode,
-      );
-    }
-  }
-
-  protected getInlinedNativeScript = (
-    txHash: string,
-    index: number,
-  ): CstNativeScript | undefined => {
-    const utxo = this.findUTxO(txHash, index);
-    if (utxo?.output.scriptRef) {
-      const script = CstScript.fromCbor(
-        <CardanoSDKUtil.HexBlob>utxo.output.scriptRef,
-      );
-      return script.asNative();
-    }
-    return undefined;
-  };
-
-  protected makeTxId = (txHash: string, index: number): string => {
-    return `${txHash}-${index}`;
-  };
-
-  protected getTotalReferenceInputsSize = (): bigint => {
-    let accum = 0n;
-    const allReferenceInputs = this.getAllReferenceInputsSizes();
-    for (const [_, scriptSize] of allReferenceInputs) {
-      accum += scriptSize;
-    }
-    return accum;
-  };
-
-  protected getAllReferenceInputsSizes = (): Map<string, bigint> => {
-    const referenceInputs = new Map<string, bigint>();
-    const bodyReferenceInputs = this.getBodyReferenceInputsSizes();
-    for (const [txId, scriptSize] of bodyReferenceInputs) {
-      referenceInputs.set(txId, scriptSize);
-    }
-    const inputsReferenceInputs = this.getInputsReferenceInputsSizes();
-    for (const [txId, scriptSize] of inputsReferenceInputs) {
-      referenceInputs.set(txId, scriptSize);
-    }
-    const mintsReferenceInputs = this.getMintsReferenceInputsSizes();
-    for (const [txId, scriptSize] of mintsReferenceInputs) {
-      referenceInputs.set(txId, scriptSize);
-    }
-    const withdrawalsReferenceInputs =
-      this.getWithdrawalsReferenceInputsSizes();
-    for (const [txId, scriptSize] of withdrawalsReferenceInputs) {
-      referenceInputs.set(txId, scriptSize);
-    }
-    const votesReferenceInputs = this.getVotesReferenceInputsSizes();
-    for (const [txId, scriptSize] of votesReferenceInputs) {
-      referenceInputs.set(txId, scriptSize);
-    }
-    const certificatesReferenceInputs =
-      this.getCertificatesReferenceInputsSizes();
-    for (const [txId, scriptSize] of certificatesReferenceInputs) {
-      referenceInputs.set(txId, scriptSize);
-    }
-    return referenceInputs;
-  };
-
-  protected getBodyReferenceInputsSizes = (): [string, bigint][] => {
-    const referenceInputs: [string, bigint][] = [];
-    for (const refTxIn of this.meshTxBuilderBody.referenceInputs) {
-      referenceInputs.push([
-        this.makeTxId(refTxIn.txHash, refTxIn.txIndex),
-        BigInt(refTxIn.scriptSize ?? 0),
-      ]);
-    }
-    return referenceInputs;
-  };
-
-  protected getInputsReferenceInputsSizes = (): [string, bigint][] => {
-    const referenceInputs: [string, bigint][] = [];
-    for (const input of this.meshTxBuilderBody.inputs) {
-      if (input.type === "Script") {
-        const scriptSource = input.scriptTxIn.scriptSource;
-        if (scriptSource?.type === "Inline") {
-          referenceInputs.push([
-            this.makeTxId(scriptSource.txHash, scriptSource.txIndex),
-            BigInt(scriptSource.scriptSize ?? 0),
-          ]);
-        }
-      } else if (input.type === "SimpleScript") {
-        const scriptSource = input.simpleScriptTxIn.scriptSource;
-        if (scriptSource?.type === "Inline") {
-          referenceInputs.push([
-            this.makeTxId(scriptSource.txHash, scriptSource.txIndex),
-            BigInt(scriptSource.scriptSize ?? 0),
-          ]);
-        }
-      }
-    }
-    return referenceInputs;
-  };
-
-  protected getMintsReferenceInputsSizes = (): [string, bigint][] => {
-    const referenceInputs: [string, bigint][] = [];
-    for (const mint of this.meshTxBuilderBody.mints) {
-      if (mint.type === "Plutus" || mint.type === "Native") {
-        const scriptSource = mint.scriptSource;
-        if (scriptSource?.type == "Inline") {
-          referenceInputs.push([
-            this.makeTxId(scriptSource.txHash, scriptSource.txIndex),
-            BigInt(scriptSource.scriptSize ?? 0),
-          ]);
-        }
-      }
-    }
-    return referenceInputs;
-  };
-
-  protected getWithdrawalsReferenceInputsSizes = (): [string, bigint][] => {
-    const referenceInputs: [string, bigint][] = [];
-    for (const withdrawal of this.meshTxBuilderBody.withdrawals) {
-      if (
-        withdrawal.type === "SimpleScriptWithdrawal" ||
-        withdrawal.type === "ScriptWithdrawal"
-      ) {
-        const scriptSource = withdrawal.scriptSource;
-        if (scriptSource?.type === "Inline") {
-          referenceInputs.push([
-            this.makeTxId(scriptSource.txHash, scriptSource.txIndex),
-            BigInt(scriptSource.scriptSize ?? 0),
-          ]);
-        }
-      }
-    }
-    return referenceInputs;
-  };
-
-  protected getVotesReferenceInputsSizes = (): [string, bigint][] => {
-    const referenceInputs: [string, bigint][] = [];
-    for (const vote of this.meshTxBuilderBody.votes) {
-      if (vote.type === "SimpleScriptVote") {
-        const scriptSource = vote.simpleScriptSource;
-        if (scriptSource?.type === "Inline") {
-          referenceInputs.push([
-            this.makeTxId(scriptSource.txHash, scriptSource.txIndex),
-            BigInt(scriptSource.scriptSize ?? 0),
-          ]);
-        }
-      } else if (vote.type === "ScriptVote") {
-        const scriptSource = vote.scriptSource;
-        if (scriptSource?.type === "Inline") {
-          referenceInputs.push([
-            this.makeTxId(scriptSource.txHash, scriptSource.txIndex),
-            BigInt(scriptSource.scriptSize ?? 0),
-          ]);
-        }
-      }
-    }
-    return referenceInputs;
-  };
-
-  protected getCertificatesReferenceInputsSizes = (): [string, bigint][] => {
-    const referenceInputs: [string, bigint][] = [];
-    for (const cert of this.meshTxBuilderBody.certificates) {
-      if (cert.type === "SimpleScriptCertificate") {
-        const scriptSource = cert.simpleScriptSource;
-        if (scriptSource?.type === "Inline") {
-          referenceInputs.push([
-            this.makeTxId(scriptSource.txHash, scriptSource.txIndex),
-            BigInt(scriptSource.scriptSize ?? 0),
-          ]);
-        }
-      } else if (cert.type === "ScriptCertificate") {
-        const scriptSource = cert.scriptSource;
-        if (scriptSource?.type === "Inline") {
-          referenceInputs.push([
-            this.makeTxId(scriptSource.txHash, scriptSource.txIndex),
-            BigInt(scriptSource.scriptSize ?? 0),
-          ]);
-        }
-      }
-    }
-    return referenceInputs;
-  };
-
+  /** The execution units of the body's redeemers, added up */
   getTotalExecutionUnits = (): {
     memUnits: bigint;
     stepUnits: bigint;
   } => {
+    const body = this.meshTxBuilderBody;
+    const redeemers = [
+      ...body.inputs.map((input) =>
+        input.type === "Script" ? input.scriptTxIn.redeemer : undefined,
+      ),
+      ...body.mints.map((mint) =>
+        mint.type === "Plutus" ? mint.redeemer : undefined,
+      ),
+      ...body.certificates.map((cert) =>
+        cert.type === "ScriptCertificate" ? cert.redeemer : undefined,
+      ),
+      ...body.withdrawals.map((withdrawal) =>
+        withdrawal.type === "ScriptWithdrawal"
+          ? withdrawal.redeemer
+          : undefined,
+      ),
+      ...body.votes.map((vote) =>
+        vote.type === "ScriptVote" ? vote.redeemer : undefined,
+      ),
+      ...body.proposals.map((proposal) =>
+        proposal.type === "ScriptProposal" ? proposal.redeemer : undefined,
+      ),
+    ];
     let memUnits = 0n;
     let stepUnits = 0n;
-    for (let input of this.meshTxBuilderBody.inputs) {
-      if (input.type === "Script" && input.scriptTxIn.redeemer) {
-        memUnits += BigInt(input.scriptTxIn.redeemer.exUnits.mem);
-        stepUnits += BigInt(input.scriptTxIn.redeemer.exUnits.steps);
-      }
+    for (const redeemer of redeemers) {
+      if (!redeemer) continue;
+      memUnits += BigInt(redeemer.exUnits.mem);
+      stepUnits += BigInt(redeemer.exUnits.steps);
     }
-    for (let mint of this.meshTxBuilderBody.mints) {
-      if (mint.type === "Plutus" && mint.redeemer) {
-        memUnits += BigInt(mint.redeemer.exUnits.mem);
-        stepUnits += BigInt(mint.redeemer.exUnits.steps);
-      }
-    }
-    for (let cert of this.meshTxBuilderBody.certificates) {
-      if (cert.type === "ScriptCertificate" && cert.redeemer) {
-        memUnits += BigInt(cert.redeemer.exUnits.mem);
-        stepUnits += BigInt(cert.redeemer.exUnits.steps);
-      }
-    }
-    for (let withdrawal of this.meshTxBuilderBody.withdrawals) {
-      if (withdrawal.type === "ScriptWithdrawal" && withdrawal.redeemer) {
-        memUnits += BigInt(withdrawal.redeemer.exUnits.mem);
-        stepUnits += BigInt(withdrawal.redeemer.exUnits.steps);
-      }
-    }
-    for (let vote of this.meshTxBuilderBody.votes) {
-      if (vote.type === "ScriptVote" && vote.redeemer) {
-        memUnits += BigInt(vote.redeemer.exUnits.mem);
-        stepUnits += BigInt(vote.redeemer.exUnits.steps);
-      }
-    }
-    for (let proposal of this.meshTxBuilderBody.proposals) {
-      if (proposal.type === "ScriptProposal" && proposal.redeemer) {
-        memUnits += BigInt(proposal.redeemer.exUnits.mem);
-        stepUnits += BigInt(proposal.redeemer.exUnits.steps);
-      }
-    }
-    memUnits = BigInt(
-      new BigNumber(memUnits).integerValue(BigNumber.ROUND_CEIL).toString(),
-    );
-    stepUnits = BigInt(
-      new BigNumber(stepUnits).integerValue(BigNumber.ROUND_CEIL).toString(),
-    );
-    return {
-      memUnits,
-      stepUnits,
-    };
+    return { memUnits, stepUnits };
   };
 
+  /**
+   * The size of the transaction once signed, in bytes
+   * @throws TxBuildError UNRESOLVED when an input has no amount or address
+   */
   getSerializedSize = (): number => {
     return this.serializeMockTx().length / 2;
   };
 
+  /** The fee set with `setFee()`, else the minimum fee of the body */
   getActualFee = (): bigint => {
     if (this.manualFee) {
       return BigInt(this.manualFee);
@@ -2469,11 +806,20 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
   };
 
+  /**
+   * The minimum fee of the body once signed: its size, its reference scripts and the execution
+   * units of its redeemers, on the builder's parameters
+   * @throws TxBuildError UNRESOLVED when an input has no amount or address
+   */
   calculateFee = (): bigint => {
     const txSize = this.getSerializedSize();
     return this.calculateFeeForSerializedTx(txSize);
   };
 
+  /**
+   * The minimum fee of the body for a transaction of the given size
+   * @param txSize The size of the signed transaction, in bytes
+   */
   calculateFeeForSerializedTx = (txSize: number): bigint => {
     const refScriptFee = this.calculateRefScriptFee();
     const redeemersFee = this.calculateRedeemersFee();
@@ -2483,53 +829,39 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     return minFee + refScriptFee + redeemersFee;
   };
 
+  /**
+   * The fee for the reference scripts the body's inputs and reference inputs hold: those of the
+   * outputs the builder holds, else the sizes the calls declared
+   */
   calculateRefScriptFee = (): bigint => {
-    const refSize = this.getTotalReferenceInputsSize();
-    const refScriptFee = this._protocolParams.minFeeRefScriptCostPerByte;
-    return minRefScriptFee(refSize, refScriptFee);
-  };
-
-  calculateRedeemersFee = (): bigint => {
-    const { memUnits, stepUnits } = this.getTotalExecutionUnits();
-    const stepPrice = BigNumber(this._protocolParams.priceStep);
-    const memPrice = BigNumber(this._protocolParams.priceMem);
-    const stepFee = stepPrice.multipliedBy(BigNumber(stepUnits.toString()));
-    const memFee = memPrice.multipliedBy(BigNumber(memUnits.toString()));
-    return BigInt(
-      stepFee.plus(memFee).integerValue(BigNumber.ROUND_CEIL).toString(),
+    const { assembled, translated, known } = this.assembleBody();
+    return refScriptFee(
+      refScriptSize(assembled, known, translated.scriptSizes),
+      this._protocolParams.minFeeRefScriptCostPerByte,
     );
   };
 
-  calculateMinLovelaceForOutput = (output: Output): bigint => {
-    return getOutputMinLovelace(output, this._protocolParams.coinsPerUtxoSize);
+  /**
+   * The fee for the execution units of the transaction's redeemers: those of the body as it
+   * assembles, where exact repeats are merged and the votes of one voter share one redeemer
+   * @throws TxBuildError UNRESOLVED when an input has no amount or address
+   */
+  calculateRedeemersFee = (): bigint => {
+    const { mem, steps } = prototypeExUnits(
+      this.assembleBody().assembled.prototype,
+    );
+    return exUnitsFee(mem, steps, this._protocolParams);
   };
 
-  protected clone(): MeshTxBuilder {
-    const newBuilder = super._cloneCore<MeshTxBuilder>(() => {
-      return new MeshTxBuilder({
-        serializer: this.serializer,
-        fetcher: this.fetcher,
-        submitter: this.submitter,
-        // A clone never makes a default of its own
-        evaluator: this.evaluator ?? null,
-        network: this.network,
-        verbose: this.verbose,
-        params: { ...this._protocolParams },
-      });
-    });
-
-    newBuilder.txHex = this.txHex;
-
-    // Fetched and known UTxOs are only ever added to, never edited, so clones made
-    // during coin selection can share them instead of deep-copying every script
-    newBuilder.queriedTxHashes = this.queriedTxHashes;
-    newBuilder.queriedUTxOs = this.queriedUTxOs;
-    newBuilder.knownUTxOs = this.knownUTxOs;
-    newBuilder.utxosWithRefScripts = structuredClone(this.utxosWithRefScripts);
-
-    return newBuilder;
-  }
+  /** The least lovelace the output must hold, on the builder's `coinsPerUtxoSize` */
+  calculateMinLovelaceForOutput = (output: Output): bigint => {
+    return minCoin(toOutputPart(output), this._protocolParams);
+  };
 }
+
+/** The out ref of a UTxO as `txHash#index`, the hash in lower case */
+const keyOf = (utxo: UTxO) =>
+  `${utxo.input.txHash.toLowerCase()}#${utxo.input.outputIndex}`;
 
 /** Whether a body runs a Plutus script, and so has redeemers */
 const runsPlutus = (body: MeshTxBuilderBody): boolean =>
@@ -2733,55 +1065,6 @@ const isNotFound = (error: unknown): boolean => {
   if (status !== undefined) return status === 404;
   return typeof message === "string" && NOT_FOUND.test(message);
 };
-
-function minRefScriptFee(
-  totalRefScriptsSize: bigint,
-  refScriptCoinsPerByte: number,
-): bigint {
-  const multiplier = new BigNumber(12).dividedBy(new BigNumber(10)); // 1.2
-  const sizeIncrement = new BigNumber(25600);
-  const baseFee = new BigNumber(refScriptCoinsPerByte);
-
-  const totalSize = new BigNumber(totalRefScriptsSize.toString());
-
-  return tierRefScriptFee(multiplier, sizeIncrement, baseFee, totalSize);
-}
-
-function tierRefScriptFee(
-  multiplier: BigNumber,
-  sizeIncrement: BigNumber,
-  baseFee: BigNumber,
-  totalSize: BigNumber,
-): bigint {
-  if (multiplier.lte(0) || sizeIncrement.eq(0)) {
-    throw new Error("Size increment and multiplier must be positive");
-  }
-
-  const fullTiers = totalSize.dividedToIntegerBy(sizeIncrement);
-  const partialTierSize = totalSize.mod(sizeIncrement);
-
-  const tierPrice = baseFee.multipliedBy(sizeIncrement);
-  let acc = new BigNumber(0);
-  const one = new BigNumber(1);
-
-  if (fullTiers.gt(0)) {
-    const multiplierPow = multiplier.pow(fullTiers.toNumber());
-    const progressionEnumerator = one.minus(multiplierPow);
-    const progressionDenom = one.minus(multiplier);
-    const tierProgressionSum =
-      progressionEnumerator.dividedBy(progressionDenom);
-    acc = acc.plus(tierPrice.multipliedBy(tierProgressionSum));
-  }
-
-  if (partialTierSize.gt(0)) {
-    const multiplierPow = multiplier.pow(fullTiers.toNumber());
-    const lastTierPrice = baseFee.multipliedBy(multiplierPow);
-    const partialTierFee = lastTierPrice.multipliedBy(partialTierSize);
-    acc = acc.plus(partialTierFee);
-  }
-
-  return BigInt(acc.integerValue(BigNumber.ROUND_FLOOR).toString());
-}
 
 export const cloneOutput = (output: Output): Output => {
   // structuredClone preserves Map, bigint and nested Mesh Data objects, which a

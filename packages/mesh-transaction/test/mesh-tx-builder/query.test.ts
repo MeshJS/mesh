@@ -1,109 +1,96 @@
-import {
-  AccountInfo,
-  IFetcher,
-  MintItem,
-  ScriptSource,
-  TransactionInfo,
-  TxIn,
-  UTxO,
-} from "@meshsdk/common";
+import { IFetcher, mConStr0, UTxO } from "@meshsdk/common";
+import { resolveScriptRef, serializePlutusScript } from "@meshsdk/core";
+import { OfflineFetcher } from "@meshsdk/provider";
 import { MeshTxBuilder } from "@meshsdk/transaction";
 
-class MockTxBuilder extends MeshTxBuilder {
-  constructor() {
-    super();
-    this.queriedTxHashes = new Set();
-    this.queriedUTxOs = {};
-    this.fetcher = {
-      fetchUTxOs: jest.fn().mockResolvedValue([]),
-      fetchAccountInfo: jest.fn().mockResolvedValue({} as AccountInfo),
-      fetchAddressUTxOs: jest.fn().mockResolvedValue([]),
-      fetchProtocolParameters: jest.fn().mockResolvedValue({}),
-      fetchTxInfo: jest.fn().mockResolvedValue({} as TransactionInfo),
-      fetchNetworkInfo: jest.fn().mockResolvedValue({}),
-      fetchAssetInfo: jest.fn().mockResolvedValue({}),
-      fetchStakePoolInfo: jest.fn().mockResolvedValue({}),
-      fetchDelegationInfo: jest.fn().mockResolvedValue({}),
-    } as unknown as IFetcher;
-  }
+import {
+  alwaysSucceedCbor,
+  alwaysSucceedHash,
+  baseAddress,
+  txHash,
+} from "../test-util";
 
-  getUTxOInfoExtended = this.getUTxOInfo;
-  queryAllTxInfoExtended = this.queryAllTxInfo;
-}
+const lovelace = (quantity: string) => [{ unit: "lovelace", quantity }];
+const script = { code: alwaysSucceedCbor, version: "V3" as const };
+
+/** A key-locked input, a locked script output, a reference script holder and a collateral */
+const chain: UTxO[] = [
+  {
+    input: { txHash: txHash("tx1"), outputIndex: 0 },
+    output: { address: baseAddress(0), amount: lovelace("30000000") },
+  },
+  {
+    input: { txHash: txHash("tx2"), outputIndex: 1 },
+    output: {
+      address: serializePlutusScript(script).address,
+      amount: lovelace("20000000"),
+      plutusData: "d87980",
+    },
+  },
+  {
+    input: { txHash: txHash("tx3"), outputIndex: 2 },
+    output: {
+      address: baseAddress(1),
+      amount: lovelace("30000000"),
+      scriptRef: resolveScriptRef(script),
+    },
+  },
+  {
+    input: { txHash: txHash("tx4"), outputIndex: 0 },
+    output: { address: baseAddress(2), amount: lovelace("10000000") },
+  },
+];
+
+/** A builder over an offline fetcher holding `chain`, and its `fetchUTxOs` calls */
+const builderOverChain = () => {
+  const fetcher = new OfflineFetcher();
+  fetcher.addUTxOs(chain);
+  const fetchUTxOs = jest.spyOn(fetcher, "fetchUTxOs");
+  const builder = new MeshTxBuilder({
+    fetcher: fetcher as unknown as IFetcher,
+    evaluator: null,
+  });
+  const hashesRead = () =>
+    fetchUTxOs.mock.calls.map(([hash]) => hash as string).sort();
+  return { builder, hashesRead };
+};
 
 describe("MeshTxBuilder", () => {
-  let txBuilder: MockTxBuilder;
+  describe("complete() reads what the body names by out ref alone", () => {
+    it("reads the transaction of each input and of a spending script's reference", async () => {
+      const { builder, hashesRead } = builderOverChain();
+      await builder
+        .txIn(txHash("tx1"), 0)
+        .spendingPlutusScriptV3()
+        .txIn(txHash("tx2"), 1)
+        .txInInlineDatumPresent()
+        .txInRedeemerValue(mConStr0([]))
+        .spendingTxInReference(txHash("tx3"), 2)
+        .txInCollateral(txHash("tx4"), 0)
+        .changeAddress(baseAddress(0))
+        .complete();
 
-  beforeEach(() => {
-    txBuilder = new MockTxBuilder();
-  });
-
-  describe("queryAllTxInfo", () => {
-    it("should call getUTxOInfo for incomplete TxIns", async () => {
-      const incompleteTxIns: TxIn[] = [
-        {
-          type: "PubKey",
-          txIn: { txHash: "txHash1", txIndex: 0 },
-        },
-        {
-          type: "Script",
-          txIn: { txHash: "txHash2", txIndex: 1 },
-          scriptTxIn: {
-            scriptSource: {
-              type: "Inline",
-              txHash: "txHash3",
-              txIndex: 2,
-            },
-          },
-        },
-      ];
-
-      const getUTxOInfoMock = jest
-        .spyOn(txBuilder as any, "getUTxOInfo")
-        .mockResolvedValue({} as UTxO);
-
-      await txBuilder.queryAllTxInfoExtended(
-        incompleteTxIns,
-        [
-          {
-            type: "Inline",
-            txHash: "txHash3",
-            txIndex: 2,
-          },
-        ],
-        [],
+      expect(hashesRead()).toEqual(
+        [txHash("tx1"), txHash("tx2"), txHash("tx3"), txHash("tx4")].sort(),
       );
-      expect(getUTxOInfoMock).toHaveBeenCalledWith("txHash1");
-      expect(getUTxOInfoMock).toHaveBeenCalledWith("txHash2");
-      expect(getUTxOInfoMock).toHaveBeenCalledWith("txHash3");
     });
 
-    it("should call getUTxOInfo for incomplete Mints", async () => {
-      const incompleteMints: MintItem[] = [
-        {
-          type: "Plutus",
-          policyId: "policyId1",
-          assetName: "assetName1",
-          amount: "100",
-          scriptSource: {
-            type: "Inline",
-            txHash: "txHash4",
-            txIndex: 3,
-          },
-        },
-      ];
+    it("reads the transaction of a minting script's reference", async () => {
+      const { builder, hashesRead } = builderOverChain();
+      await builder
+        .txIn(txHash("tx1"), 0)
+        .mintPlutusScriptV3()
+        .mint("100", alwaysSucceedHash, "61737365744e616d6531")
+        .mintRedeemerValue(mConStr0([]))
+        .mintTxInReference(txHash("tx3"), 2)
+        .txInCollateral(txHash("tx4"), 0)
+        .changeAddress(baseAddress(0))
+        .complete();
 
-      const getUTxOInfoMock = jest
-        .spyOn(txBuilder as any, "getUTxOInfo")
-        .mockResolvedValue({} as UTxO);
-
-      await txBuilder.queryAllTxInfoExtended(
-        [],
-        incompleteMints.map((m) => m.scriptSource as ScriptSource),
-        [],
+      expect(hashesRead()).toContain(txHash("tx3"));
+      expect(hashesRead()).toEqual(
+        [txHash("tx1"), txHash("tx3"), txHash("tx4")].sort(),
       );
-
-      expect(getUTxOInfoMock).toHaveBeenCalledWith("txHash4");
     });
   });
 });
