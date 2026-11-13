@@ -1,6 +1,8 @@
-import type { ISubmitter, NetworkConfig } from "@meshsdk/common";
+import type { ISubmitter, NetworkConfig, UTxO } from "@meshsdk/common";
 
-import type { BuildOptions } from "../builder";
+import type { SelectInputs } from "../balance";
+import type { BuildEvent, BuildOptions } from "../builder";
+import type { Payer } from "../payer";
 import type { Signer } from "../sign";
 import type { TxIntent } from "./intent";
 
@@ -70,7 +72,12 @@ export type WaitOptions = {
  */
 export type IntentOptions = Omit<BuildOptions, "signal" | "after"> &
   IntentDeadlines & {
-    /** The application's id of the intent, shown as `intent.id`; none is made up */
+    /**
+     * The application's id of the intent, shown as `intent.id`; none is made up. Required on a
+     * builder with a store, where it is the key of the record: an id already recorded is the
+     * same intent, and its parts, explicit deadlines, data options and `after` must be the
+     * recorded ones (INTENT_EXISTS)
+     */
     id?: string;
     /**
      * The parent intents, kept by the object: each attempt stands on the current attempt of each
@@ -78,10 +85,46 @@ export type IntentOptions = Omit<BuildOptions, "signal" | "after"> &
      * address when its parts and selection spend none. When no parent attempt has such an output
      * (key-locked change at this intent's change address that `canSelect` takes), the attempt
      * takes a general anchor, does not depend on the parent attempt and is never orphaned.
-     * Intents only; anything else is INVALID_OPTION. The parents are fixed by the first attempt
+     * Intents only; anything else is INVALID_OPTION. The parents are fixed by the first attempt.
+     * On a builder with a store: intents of a builder with a store only, so that a restart can
+     * find them; for a recorded id, the recorded parents (an empty list names none), else
+     * INTENT_EXISTS; not given, they are taken from the record
      */
     after?: TxIntent | readonly TxIntent[];
   };
+
+/**
+ * The options of `builder.resume(id, options)`: the live objects of an intent, given again after
+ * a restart; none of them is written into the record. The deadlines and the data options stay as
+ * recorded.
+ *
+ * The payer is not called and not compared here: it is compared with the record when the intent
+ * builds a new attempt (PAYER_MISMATCH), so never on an intent with the closing mark nor on a
+ * terminal one, and never for a resend of the same bytes. Without a payer the intent goes on
+ * with its current attempt, and a new attempt is MISSING_PAYER: the recorded change address is
+ * not a payer. Nothing about `canSelect` and `coinSelection` is recorded: not given again, a new
+ * attempt is built without the filter and with the builder's strategy, and spends the same
+ * anchor.
+ */
+export type ResumeOptions = {
+  /** The payer of new attempts; checked against the record when one is built */
+  payer?: Payer;
+  /**
+   * The recorded parents, as intents: each with the recorded id and holding the recorded parent
+   * attempt; all of them and no others, in any order. Any other set, an empty list for a record
+   * that names parents too, is INVALID_OPTION. Omitted:
+   * each parent is loaded from the store by its id (not found, or found without the recorded
+   * attempt: INTENT_NOT_FOUND with the parent's id in `error.intentId`), and read again before
+   * every new attempt
+   */
+  after?: TxIntent | readonly TxIntent[];
+  /** The filter of the payer's UTxOs for new attempts */
+  canSelect?: (utxo: UTxO) => boolean;
+  /** The selection of the payer's UTxOs for new attempts */
+  coinSelection?: SelectInputs;
+  /** Gets the build events of new attempts and the warnings of the intent; never recorded */
+  trace?: (event: BuildEvent) => void;
+};
 
 /**
  * The options of one call of `send()` or `advance()`: its waiting, who signs and who submits;

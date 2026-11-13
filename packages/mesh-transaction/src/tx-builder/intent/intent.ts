@@ -27,11 +27,14 @@ import type { EffectiveWait } from "./deadlines";
 import type { ChainObserver, ObservedTip, TxSearch } from "./observer";
 import type {
   IntentOptions,
+  ResumeOptions,
   SendOptions,
   SignOptions,
+  StoredTxIntentJSON,
   TxAttempt,
   TxIntentJSON,
   TxIntentStatus,
+  TxIntentStore,
 } from "./types";
 import { abortable, abortedError, throwIfAborted } from "../abort";
 import { isKeyLocked } from "../balance";
@@ -65,7 +68,13 @@ import {
   effectiveWait,
   horizonSlot,
 } from "./deadlines";
-import { encodeIntent } from "./json";
+import {
+  encodeIntent,
+  encodeParts,
+  encodeValue,
+  readIntent,
+  sameJson,
+} from "./json";
 import {
   chainObserver,
   isRefusal,
@@ -117,12 +126,49 @@ type DataOptions = {
   changeAddress?: string;
 };
 
+/** What `builder.intent` was given besides its parts, compared with a record met later */
+type Given = {
+  /** The deadlines given explicitly; the builder's defaults are not compared */
+  readonly deadlines: Partial<Record<DeadlineKey, number>>;
+  /** The data options given */
+  readonly data: DataOptions;
+  /** The parents given, when `after` was given: an empty list names no parent */
+  readonly after?: readonly TxIntent[];
+};
+
+type DeadlineKey = "ttlMs" | "expiryMarginMs" | "confirmations";
+
+const DEADLINE_KEYS: readonly DeadlineKey[] = [
+  "ttlMs",
+  "expiryMarginMs",
+  "confirmations",
+];
+
+const DATA_KEYS = [
+  "sendAllTo",
+  "knownUtxos",
+  "fee",
+  "registeredPools",
+  "extraKeyWitnesses",
+] as const;
+
+/** How an object over a store starts */
+type StoreStart = {
+  /** `owed`: the object has not read its id's record yet; its first method reads it */
+  readonly read: "owed" | "done";
+  /** The object holds a record the store has: it read it or wrote it */
+  readonly met: boolean;
+  /** The parents were loaded from the store, and are read again before every new attempt */
+  readonly storedParents: boolean;
+  readonly given?: Given;
+};
+
 /** What an intent object holds besides its record */
 type IntentState = {
   readonly builder: TxBuilder;
   record: IntentRecord;
   /** The parts every attempt is built from, as the record holds them */
-  readonly parts: readonly TxPart[];
+  parts: readonly TxPart[];
   /** The payer as given; checked by the first build that reads it */
   payer?: Payer;
   /** An attempt was built from the payer, given as a snapshot, which serves one attempt */
@@ -130,8 +176,11 @@ type IntentState = {
   readonly canSelect?: (utxo: UTxO) => boolean;
   readonly coinSelection?: SelectInputs;
   readonly trace?: (event: BuildEvent) => void;
-  /** The parent intents, in the order given; every attempt stands on their current attempts */
-  readonly parents: readonly TxIntent[];
+  /**
+   * The parent intents, in the order given, or in the recorded order once a record names them;
+   * every attempt stands on their current attempts
+   */
+  parents: readonly TxIntent[];
   /**
    * Parent attempts this object knows to be in a block: its own search found them, or found an
    * attempt of this intent that spends their output
@@ -152,6 +201,29 @@ type IntentState = {
    * step ends with rather than its first record
    */
   closingSteps: number;
+  /** The store the record is kept in; without one the object alone holds it */
+  readonly store?: TxIntentStore;
+  /** With a store: whether the object has read its id's record, or learned there is none */
+  read: "owed" | "done";
+  /** The first read under way, shared by the calls that wait for it */
+  reading?: Promise<void>;
+  /**
+   * With a store: the object holds a record the store has, read or written; until then its first
+   * write is the first of its id (`expectedRev` 0), and a record met is compared with what it
+   * was given
+   */
+  met: boolean;
+  /** The parents came from the store: they are read again before every new attempt */
+  storedParents: boolean;
+  /** What `builder.intent` was given, for the comparisons with a record met later */
+  readonly given?: Given;
+  /** The writes of the object, made one at a time */
+  writing: Promise<unknown>;
+  /**
+   * How often a record read from the store replaced the one the object held: a change of it
+   * since a call decided tells that call another writer's record is shown, not its own
+   */
+  storeReads: number;
 };
 
 const STATE = new WeakMap<TxIntent, IntentState>();
@@ -246,6 +318,12 @@ const checkCallOptions = (options: {
 const commit = (state: IntentState, record: IntentRecord) => {
   state.record = record;
   if (state.closingSteps === 0) wakeAll(state);
+};
+
+/** Takes a record read from the store as the object's own */
+const commitStored = (state: IntentState, record: IntentRecord) => {
+  state.storeReads += 1;
+  commit(state, record);
 };
 
 /** Wakes the waits of the calls on an object */
@@ -503,6 +581,28 @@ const generalAnchor = (record: IntentRecord) =>
 /** The longest chain of parents followed up */
 const MAX_CHAIN = 64;
 
+/** How often one change is applied again to a record read again after a refused write */
+const MAX_REPEATS = 3;
+
+/** What a write does with the record it is shown */
+type WritePlan =
+  /** Apply the event; `then` completes the next record; `refused` maps a refusal to the error */
+  | {
+      readonly event: TxIntentEvent;
+      readonly then?: (json: IntentRecord) => IntentRecord;
+      /** The error to throw for a refusal, or undefined to drop it */
+      readonly refused: (refusal: {
+        reason: string;
+        message: string;
+      }) => unknown;
+    }
+  /** Throw this, applying nothing */
+  | { readonly stop: unknown }
+  /** Apply nothing: the caller goes on from the record as it is now */
+  | { readonly skip: true };
+
+type WriteOutcome = "written" | "unchanged" | "skipped";
+
 /**
  * The attempt of a parent intent (or of its parents, and so on up the chain) with this hash, with
  * the state of the object that holds it; a parent's record is read, never changed
@@ -568,7 +668,7 @@ const explicitInputs = (parts: readonly TxPart[]): OutRef[] => {
 
 /**
  * One payment, carried from its parts to a final state. `builder.intent(parts, options)` makes
- * it; it is the only way to make one.
+ * it, and `builder.resume(id)` restores a recorded one; these are the only ways to get one.
  *
  * An intent holds its parts, its options and deadlines, and its attempts: an attempt is one
  * transaction body with one hash. Every attempt spends one common input, the anchor, so at most
@@ -582,9 +682,24 @@ const explicitInputs = (parts: readonly TxPart[]): OutRef[] => {
  *
  * No error of an intent means that the payment did not go through: only the status
  * `abandoned` does.
+ *
+ * On a builder with a store, every change is saved before the method returns: a new attempt
+ * before it is handed out or signed, a first delivery before the bytes leave. A save over a
+ * revision another writer changed reads the record again and applies the same change to it, up
+ * to three times; a refusal of the fresh record is the method's answer: what it gives on a
+ * terminal intent, INVALID_STATE (`closing`) after another writer's closing mark, INVALID_WITNESS
+ * (`staleAttempt`) for signatures of a replaced attempt, VERSION_CONFLICT for a new attempt or a
+ * first delivery another writer overtook. `send()` and `advance()` read the record before each
+ * resend. Every method of such an intent may throw TxIntentError VERSION_CONFLICT, STORE_FAILED
+ * (the store threw; a write may have passed), INTENT_NOT_FOUND (the record is gone) and
+ * INVALID_STATE (`recordVersion`) for a record this library does not read; after any of them
+ * nothing more is handed out or sent, and the intent goes on through `builder.resume(id)`. The
+ * first method of an intent made by `builder.intent` reads its id's record first, and for a
+ * recorded id also throws INTENT_EXISTS (other parts, deadlines, data options or parents) and
+ * TxBuildError NETWORK_MISMATCH (a record of another network).
  */
 export class TxIntent {
-  /** Made by `builder.intent()` only */
+  /** Made by `builder.intent()` and `builder.resume()` only */
   private constructor() {}
 
   /** The application's id of the intent, when it was given one */
@@ -820,6 +935,7 @@ export class TxIntent {
     return this.#run(async (state) => {
       this.#refuseClosed(state);
       this.#refuseUnsignable(state);
+      const since = state.storeReads;
       const attempt = currentAttempt(state.record)!;
       const built = attempt.built!;
       const raw = readTransaction(
@@ -831,7 +947,7 @@ export class TxIntent {
       } catch (error) {
         throw this.#staleOrSame(state, error, witnesses);
       }
-      this.#record(state, attempt, offered);
+      await this.#record(state, attempt, offered, since);
       return this;
     });
   }
@@ -997,23 +1113,49 @@ export class TxIntent {
     return this.#run(async (state) => {
       state.closingSteps += 1;
       try {
-        const status = intentStatus(state.record);
-        if (status === "abandoned") return this;
-        if (status === "final") throw this.#onChain(state);
-        if (status === "draft") {
-          this.#apply(state, { type: "closing" });
+        for (;;) {
+          const status = intentStatus(state.record);
+          if (status === "abandoned") return this;
+          if (status === "final") throw this.#onChain(state);
+          if (status === "draft") {
+            // With a store, `abandoned` is the first record of the id; a record that appeared
+            // meanwhile is gone by as usual
+            const closed = await this.#write(state, (record) =>
+              intentStatus(record) === "draft"
+                ? {
+                    event: { type: "closing" },
+                    refused: (refusal) => this.#refused(state, refusal),
+                  }
+                : { skip: true },
+            );
+            if (closed === "skipped") continue;
+            return this;
+          }
+          const seen = await this.#observe(state, "live", undefined);
+          const now = intentStatus(state.record);
+          if (now === "abandoned") return this;
+          if (now === "final" || now === "included") throw this.#onChain(state);
+          if (seen.noValidity)
+            this.#refuseUnobservable({ ...seen, noDepth: false });
+          // The mark goes in first; the waits of other calls learn of it once this step ends.
+          // Over a record that is closed or landed by then, also through another call's write
+          // queued before this one, nothing is marked
+          const marked = await this.#write(state, (record) => {
+            const at = intentStatus(record);
+            if (at === "abandoned" || at === "final" || at === "included")
+              return { skip: true };
+            return {
+              event: { type: "closing" },
+              refused: (refusal) => this.#refused(state, refusal),
+            };
+          });
+          if (marked === "skipped") {
+            if (intentStatus(state.record) === "abandoned") return this;
+            throw this.#onChain(state);
+          }
+          await this.#close(state, seen.tip, "abandon", undefined);
           return this;
         }
-        const seen = await this.#observe(state, "live", undefined);
-        const now = intentStatus(state.record);
-        if (now === "abandoned") return this;
-        if (now === "final" || now === "included") throw this.#onChain(state);
-        if (seen.noValidity)
-          this.#refuseUnobservable({ ...seen, noDepth: false });
-        // The mark goes in first; the waits of other calls learn of it once this step ends
-        this.#apply(state, { type: "closing" });
-        await this.#close(state, seen.tip, "abandon", undefined);
-        return this;
       } finally {
         state.closingSteps -= 1;
         if (state.closingSteps === 0) wakeAll(state);
@@ -1025,10 +1167,14 @@ export class TxIntent {
    * Errors
    * ----------------------------------------------------------------------------------------- */
 
-  /** Runs a method; every intent error it throws gets the intent, its id, status and attempt */
+  /**
+   * Runs a method; every intent error it throws gets the intent, its id, status and attempt. With
+   * a store, the object's first method reads its id's record before anything else
+   */
   async #run<T>(body: (state: IntentState) => Promise<T>): Promise<T> {
     const state = stateOf(this);
     try {
+      if (state.store !== undefined) await readFirst(state);
       return await body(state);
     } catch (error) {
       throw this.#withIntent(state, error);
@@ -1050,7 +1196,9 @@ export class TxIntent {
       txHash?: string;
     };
     const { record } = state;
-    if (record.id !== undefined) fields.intentId = record.id;
+    // An error about a parent names the parent's id
+    if (fields.intentId === undefined && record.id !== undefined)
+      fields.intentId = record.id;
     fields.status = intentStatus(record);
     const txHash = shownAttempt(record)?.txHash;
     if (fields.txHash === undefined && txHash !== undefined)
@@ -1174,11 +1322,139 @@ export class TxIntent {
     });
   }
 
-  /** Applies an event to the record as it is now */
+  /** Applies an event to the record as it is now, and writes it; a refusal is the method's error */
   #apply(state: IntentState, event: TxIntentEvent, witness?: number) {
-    const result = advanceIntent(state.record, event);
-    if (!result.ok) throw this.#refused(state, result, witness);
-    commit(state, result.json);
+    return this.#write(state, () => ({
+      event,
+      refused: (refusal) => this.#refused(state, refusal, witness),
+    }));
+  }
+
+  /**
+   * One change of the record: the plan gives the event for the record it is shown, and the
+   * object takes the next record only once it is written. Without a store the change is made at
+   * once. With one, the record is saved over the revision the object holds; on `false` the
+   * record is read again and the plan is shown the fresh record (`fresh`), at most three times
+   * more. The writes of one object are made one at a time. `fresh` is also true when a record
+   * read from the store replaced the object's since `since`, the count of such reads when the
+   * call decided on its change: the plan is then shown another writer's record.
+   * @returns `written`, `unchanged` (the event changed nothing, or its refusal was dropped), or
+   *   `skipped` (the plan applied nothing)
+   * @throws TxIntentError VERSION_CONFLICT after the fourth `false`; STORE_FAILED when the store
+   *   throws; INTENT_NOT_FOUND when the record is gone; INVALID_STATE (`recordVersion`) for a
+   *   record read again that this library does not read; what the plan stops with
+   */
+  #write(
+    state: IntentState,
+    plan: (record: IntentRecord, fresh: boolean) => WritePlan,
+    since = state.storeReads,
+  ): Promise<WriteOutcome> {
+    const run = async (): Promise<WriteOutcome> => {
+      let record = state.record;
+      let fresh = state.storeReads !== since;
+      for (let saves = 0; ;) {
+        const step = plan(record, fresh);
+        if ("stop" in step) throw step.stop;
+        if ("skip" in step) return "skipped";
+        const result = advanceIntent(record, step.event);
+        if (!result.ok) {
+          const error = step.refused(result);
+          if (error !== undefined) throw error;
+          return "unchanged";
+        }
+        if (result.json === record) return "unchanged";
+        const next = step.then ? step.then(result.json) : result.json;
+        if (state.store === undefined) {
+          commit(state, next);
+          return "written";
+        }
+        if (await this.#save(state, next, record.rev)) {
+          state.met = true;
+          commit(state, next);
+          return "written";
+        }
+        saves += 1;
+        if (saves > MAX_REPEATS)
+          throw this.#error(
+            "VERSION_CONFLICT",
+            `the store holds another revision of the intent's record at each of ${saves} writes of one change: nothing was handed out or sent; continue through builder.resume(id)`,
+            {},
+          );
+        record = await this.#reread(state);
+        fresh = true;
+      }
+    };
+    // Without a store nothing waits: the change is made before the first pause
+    if (state.store === undefined) return run();
+    const mine = state.writing.then(run, run);
+    state.writing = mine.then(
+      () => undefined,
+      () => undefined,
+    );
+    return mine;
+  }
+
+  /**
+   * Saves the next record over the revision the object holds
+   * @returns whether the store wrote it; any answer but `true` is taken as another revision
+   * @throws TxIntentError STORE_FAILED when the store throws: the write may have passed
+   */
+  async #save(
+    state: IntentState,
+    next: IntentRecord,
+    expectedRev: number,
+  ): Promise<boolean> {
+    const json = encodeIntent(next) as StoredTxIntentJSON;
+    try {
+      return (await state.store!.save(json, expectedRev)) === true;
+    } catch (error) {
+      throw this.#error(
+        "STORE_FAILED",
+        "the store failed to write the intent's record, and the write may have passed: nothing was handed out or sent; continue through builder.resume(id)",
+        { cause: error },
+      );
+    }
+  }
+
+  /**
+   * The record read again after a write the store refused, taken as the object's own; a record
+   * met for the first time is compared with what `builder.intent` was given
+   * @throws TxIntentError INTENT_NOT_FOUND when the record is gone: it is never written anew;
+   *   STORE_FAILED; INVALID_STATE (`recordVersion`); INTENT_EXISTS
+   * @throws TxBuildError NETWORK_MISMATCH
+   */
+  async #reread(state: IntentState): Promise<IntentRecord> {
+    const record = await loadRecord(state.store!, state.record.id!);
+    if (record === undefined) throw this.#gone();
+    if (state.met) commitStored(state, record);
+    else {
+      try {
+        await adopt(state, record);
+      } catch (error) {
+        // The comparison failed: the object took no record, and its next method reads again
+        state.read = "owed";
+        throw error;
+      }
+    }
+    return state.record;
+  }
+
+  /** INTENT_NOT_FOUND for the object's own record, gone from the store */
+  #gone() {
+    return this.#error(
+      "INTENT_NOT_FOUND",
+      "the intent's record is gone from the store: nothing was handed out, sent or written, and the record is not written anew, since another instance may have closed it",
+      {},
+    );
+  }
+
+  /** VERSION_CONFLICT for a new attempt or a first delivery another writer overtook */
+  #overtaken(what: string) {
+    return this.#error(
+      "VERSION_CONFLICT",
+      `another writer changed the intent's record first, and ${what}: nothing was handed out or sent; the record read again is the object's now`,
+      {},
+    );
   }
 
   /** ATTEMPT_ON_CHAIN: an attempt landed, so the intent paid and is not closed */
@@ -1210,19 +1486,26 @@ export class TxIntent {
 
   /** INVALID_STATE for a closed intent and for one with the closing mark */
   #refuseClosed(state: IntentState) {
-    const status = intentStatus(state.record);
+    const error = this.#closedError(state.record);
+    if (error !== undefined) throw error;
+  }
+
+  /** The INVALID_STATE of a closed record, or of one with the closing mark; else undefined */
+  #closedError(record: IntentRecord) {
+    const status = intentStatus(record);
     if (status === "final" || status === "abandoned")
-      throw this.#error(
+      return this.#error(
         "INVALID_STATE",
         `the intent is ${status}: nothing more is done with it`,
         { details: { reason: "terminal" } },
       );
-    if (state.record.closing === true)
-      throw this.#error(
+    if (record.closing === true)
+      return this.#error(
         "INVALID_STATE",
         "the decision to close the intent is recorded: it builds, signs and sends nothing more; advance() finishes the closing",
         { details: { reason: "closing" } },
       );
+    return undefined;
   }
 
   /** INVALID_STATE (`status`) where an attempt takes no signatures */
@@ -1425,16 +1708,15 @@ export class TxIntent {
    * Records what an observation showed; a record closed meanwhile takes nothing. The builder's
    * cache is cleared when it shows a landing it did not show before
    */
-  #recordObservation(
+  async #recordObservation(
     state: IntentState,
     event: Omit<Extract<TxIntentEvent, { type: "observation" }>, "type">,
   ) {
     const before = landedAttempt(state.record)?.txHash;
-    const result = advanceIntent(state.record, {
-      type: "observation",
-      ...event,
-    });
-    if (result.ok) commit(state, result.json);
+    await this.#write(state, () => ({
+      event: { type: "observation", ...event },
+      refused: () => undefined,
+    }));
     const after = landedAttempt(state.record)?.txHash;
     if (after !== undefined && after !== before) this.#clearVolatile(state);
   }
@@ -1494,7 +1776,7 @@ export class TxIntent {
     }
 
     const parents = this.#parentSightings(state, parentSearches);
-    this.#recordObservation(state, {
+    await this.#recordObservation(state, {
       ...(tip !== undefined && { tip }),
       attempts: read.sightings,
       ...(parents.length > 0 && { parents }),
@@ -1606,13 +1888,26 @@ export class TxIntent {
         "a parent attempt is found again, so an attempt that stands on it may land",
       );
     }
-    const result = advanceIntent(state.record, { type: "closed" });
-    if (!result.ok)
-      throw this.#unconfirmed(
-        state,
-        "an attempt of the intent is not known to be dead yet",
-      );
-    commit(state, result.json);
+    // Over a record that is closed or landed by then, also through another call's write queued
+    // before this one, nothing is written
+    const closed = await this.#write(state, (record) =>
+      isTerminal(record) || landedAttempt(record) !== undefined
+        ? { skip: true }
+        : {
+            event: { type: "closed" },
+            refused: () =>
+              this.#unconfirmed(
+                state,
+                "an attempt of the intent is not known to be dead yet",
+              ),
+          },
+    );
+    if (
+      closed === "skipped" &&
+      landedAttempt(state.record) !== undefined &&
+      mode === "abandon"
+    )
+      throw this.#onChain(state);
   }
 
   /**
@@ -1736,7 +2031,7 @@ export class TxIntent {
       signal,
     );
     const parents = this.#parentSightings(state, parentSearches);
-    this.#recordObservation(state, {
+    await this.#recordObservation(state, {
       ...(tip !== undefined && { tip }),
       attempts: read.sightings,
       ...(parents.length > 0 && { parents }),
@@ -1837,8 +2132,10 @@ export class TxIntent {
     signal: AbortSignal | undefined,
     knownTip?: Tip,
   ): Promise<BuiltTx> {
-    const startCount = state.record.attempts.length;
-    const first = startCount === 0;
+    // The record the call starts from: one read from the store after this is another writer's
+    const since = state.storeReads;
+    const started = currentAttempt(state.record)?.txHash;
+    const first = started === undefined;
     let tip: Tip | undefined;
     if (first) tip = knownTip ?? (await this.#readTip(state, signal));
     else {
@@ -1855,9 +2152,18 @@ export class TxIntent {
         "the tip cannot be read, or is older than one already read: a new attempt needs it for its deadline",
       );
 
+    // Another writer's record, read from the store by another call meanwhile, holds another
+    // attempt: the step starts again from it
+    const changed =
+      state.storeReads !== since &&
+      currentAttempt(state.record)?.txHash !== started;
     const record = state.record;
     const status = intentStatus(record);
+    // A record read again meanwhile may be closed or carry the closing mark: no body then
+    if (status !== "final") this.#refuseClosed(state);
+    if (changed) return this.#buildStep(state, signal);
     const current = currentAttempt(record);
+    const startCount = record.attempts.length;
     const mayBuild =
       status === "draft" ||
       status === "rejected" ||
@@ -1867,7 +2173,9 @@ export class TxIntent {
         tip.timeMs >= current!.until);
     if (!mayBuild) return shownAttempt(record)!.built!;
 
-    // A child stands on the current attempt of each parent
+    // A child stands on the current attempt of each parent, read again from the store where it
+    // came from there
+    await this.#freshParents(state);
     const bases = await this.#parentBases(state, tip, signal);
     if (first) {
       const stale = this.#staleParentRefs(state, bases);
@@ -2038,10 +2346,7 @@ export class TxIntent {
         signal,
       );
 
-    // Another call recorded an attempt meanwhile: this body is dropped, never handed out
-    if (state.record.attempts.length !== startCount)
-      return shownAttempt(state.record)!.built!;
-    const result = advanceIntent(state.record, {
+    const event: TxIntentEvent = {
       type: "build",
       built,
       anchors,
@@ -2053,25 +2358,63 @@ export class TxIntent {
         })),
       }),
       tipTimeMs: tip.timeMs,
-    });
-    if (!result.ok) {
-      if (result.reason === "attempt")
-        throw this.#error(
-          "INVALID_STATE",
-          `the parts give the same body again: the intent already has the attempt ${built.txHash}, with these parts and this payer it has no other body; start a new intent once this one is abandoned, or build again once the payer's UTxOs have changed`,
-          { details: { reason: "status" }, txHash: built.txHash },
-        );
-      throw this.#refused(state, result);
-    }
-    commit(
+    };
+    // The attempt this one replaces; none for the first
+    const replaced = current?.txHash;
+    // The first attempt records the change address of every attempt
+    const then = first
+      ? (json: IntentRecord): IntentRecord => ({
+          ...json,
+          options: { ...json.options, changeAddress },
+        })
+      : undefined;
+    const written = await this.#write(
       state,
-      first
-        ? {
-            ...result.json,
-            options: { ...result.json.options, changeAddress },
+      (now, fresh) => {
+        if (!fresh) {
+          // Another call on this object closed it, marked it or recorded an attempt meanwhile:
+          // this body is dropped, never handed out
+          if (intentStatus(now) !== "final") {
+            const closed = this.#closedError(now);
+            if (closed !== undefined) return { stop: closed };
           }
-        : result.json,
+          if (now.attempts.length !== startCount) return { skip: true };
+          return {
+            event,
+            ...(then && { then }),
+            refused: (refusal) =>
+              refusal.reason === "attempt"
+                ? this.#error(
+                    "INVALID_STATE",
+                    `the parts give the same body again: the intent already has the attempt ${built.txHash}, with these parts and this payer it has no other body; start a new intent once this one is abandoned, or build again once the payer's UTxOs have changed`,
+                    { details: { reason: "status" }, txHash: built.txHash },
+                  )
+                : this.#refused(state, refusal),
+          };
+        }
+        // The record read again after another writer's change: a landed attempt is returned, and
+        // the attempt is applied only while the one it replaces is still the current one
+        if (intentStatus(now) === "final") return { skip: true };
+        const closed = this.#closedError(now);
+        if (closed !== undefined) return { stop: closed };
+        if (currentAttempt(now)?.txHash !== replaced)
+          return {
+            stop: this.#overtaken(
+              replaced === undefined
+                ? "the record holds an attempt this call did not build: build() again returns it"
+                : "the attempt this one was built to replace is no longer the current one",
+            ),
+          };
+        return {
+          event,
+          ...(then && { then }),
+          refused: () =>
+            this.#overtaken("the record no longer takes this attempt"),
+        };
+      },
+      since,
     );
+    if (written === "skipped") return shownAttempt(state.record)!.built!;
     // A snapshot serves one attempt; a payer given meanwhile by build({ payer }) is a fresh one
     if (state.payer === given && toPayerSource(given).form === "snapshot")
       state.snapshotUsed = true;
@@ -2088,6 +2431,24 @@ export class TxIntent {
     if (state.record.attempts.some((attempt) => attempt.status === "failed"))
       throw this.#error("SCRIPT_FAILED", this.#scriptFailedText(), {});
     return undefined;
+  }
+
+  /**
+   * Before a child's new attempt: the parents that came from the store are read from it again,
+   * since nothing else tells this object of their new attempts; a parent given in `after` makes
+   * its own first read of the store, if it has not
+   * @throws TxIntentError INTENT_NOT_FOUND with the parent's id, STORE_FAILED, INVALID_STATE
+   *   (`recordVersion`), as at `resume`
+   */
+  async #freshParents(state: IntentState) {
+    if (state.storedParents) {
+      state.parents = await restoredParents(state.builder, state.record, 0);
+      return;
+    }
+    for (const parent of state.parents) {
+      const held = stateOf(parent);
+      if (held.store !== undefined) await readFirst(held);
+    }
   }
 
   /**
@@ -2638,6 +2999,7 @@ export class TxIntent {
     tip: Tip | undefined,
     signal: AbortSignal | undefined,
   ) {
+    const since = state.storeReads;
     const attempt = currentAttempt(state.record)!;
     const built = attempt.built!;
     const keys = [
@@ -2674,7 +3036,7 @@ export class TxIntent {
           { details: { reason: "error" }, cause: error },
         );
       }
-      this.#record(state, attempt, offered);
+      await this.#record(state, attempt, offered, since);
     }
   }
 
@@ -2687,7 +3049,50 @@ export class TxIntent {
     state: IntentState,
     attempt: AttemptRecord,
     offered: readonly KeyWitness[],
+    since = state.storeReads,
   ) {
+    return this.#write(
+      state,
+      (record, fresh) => {
+        // Another writer's record: a closed or marked one, or one that replaced the attempt, is
+        // answered before the witnesses it may already hold are counted
+        if (fresh) {
+          const closed = this.#closedError(record);
+          if (closed !== undefined) return { stop: closed };
+          if (currentAttempt(record)?.txHash !== attempt.txHash)
+            return {
+              stop: this.#refused(
+                state,
+                {
+                  reason: "staleAttempt",
+                  message: `the attempt ${attempt.txHash} was replaced by another writer`,
+                },
+                0,
+              ),
+            };
+        }
+        const kept = this.#kept(state, record, attempt, offered);
+        if (kept.length === 0) return { skip: true };
+        return {
+          event: {
+            type: "signature",
+            txHash: attempt.txHash,
+            witnesses: kept,
+          },
+          refused: (refusal) => this.#refused(state, refusal, 0),
+        };
+      },
+      since,
+    );
+  }
+
+  /** The offered witnesses an attempt keeps, counted against the record it is applied to */
+  #kept(
+    state: IntentState,
+    record: IntentRecord,
+    attempt: AttemptRecord,
+    offered: readonly KeyWitness[],
+  ): Witness[] {
     const built = attempt.built!;
     const priced = new Set([
       ...built.signers.keyHashes,
@@ -2695,13 +3100,13 @@ export class TxIntent {
     ]);
     // Counted against the record as it is now, which may hold more than when the call started
     const now =
-      state.record.attempts.find((a) => a.txHash === attempt.txHash) ?? attempt;
+      record.attempts.find((a) => a.txHash === attempt.txHash) ?? attempt;
     const held = recordedWitnesses(now);
     let others = held.filter(
       (w) => w.kind === "vkey" && !priced.has(w.keyHash),
     ).length;
     let bootstraps = held.filter((w) => w.kind === "bootstrap").length;
-    const extra = dataOptions(state.record).extraKeyWitnesses ?? 0;
+    const extra = dataOptions(record).extraKeyWitnesses ?? 0;
     const kept: Witness[] = [];
     const seen = new Set(now.witnesses.map((w) => w.keyHash));
     for (const witness of offered) {
@@ -2719,12 +3124,7 @@ export class TxIntent {
         witness: writeWitnessSet([witness], false),
       });
     }
-    if (kept.length === 0) return;
-    this.#apply(
-      state,
-      { type: "signature", txHash: attempt.txHash, witnesses: kept },
-      0,
-    );
+    return kept;
   }
 
   /**
@@ -2913,6 +3313,8 @@ export class TxIntent {
     attempt: AttemptRecord,
     call: Call,
   ): Promise<"answered" | "moved" | "movedAfterSending"> {
+    // The record the step decided on: one read from the store after this is another writer's
+    const since = state.storeReads;
     const submitter = this.#submitter(state, call.submitter);
     if (submitter === undefined)
       throw this.#error(
@@ -2929,9 +3331,41 @@ export class TxIntent {
       if (now?.txHash !== attempt.txHash || now.status !== "signed")
         return "moved";
     }
-    const tx = signedTxOf(attempt)!;
     throwIfAborted(call.signal, CALL);
-    this.#apply(state, { type: "delivery", txHash: attempt.txHash });
+    const delivered = await this.#write(
+      state,
+      (record, fresh) => {
+        const now = currentAttempt(record);
+        const same = now?.txHash === attempt.txHash && now.status === "signed";
+        // Another call on this object changed the record meanwhile: on from it
+        if (!fresh)
+          return same
+            ? {
+                event: { type: "delivery", txHash: attempt.txHash },
+                refused: (refusal) => this.#refused(state, refusal),
+              }
+            : { skip: true };
+        // The record read again: a closed or marked one is answered by the step; one that took
+        // another attempt or this delivery was overtaken
+        if (isTerminal(record) || record.closing === true)
+          return { skip: true };
+        if (!same)
+          return {
+            stop: this.#overtaken(
+              "the attempt is no longer the current one, or its first delivery is recorded",
+            ),
+          };
+        return {
+          event: { type: "delivery", txHash: attempt.txHash },
+          refused: () =>
+            this.#overtaken("the record no longer takes this delivery"),
+        };
+      },
+      since,
+    );
+    if (delivered === "skipped") return "moved";
+    // The bytes of the attempt as recorded: a record read again may hold more witnesses
+    const tx = signedTxOf(currentAttempt(state.record)!)!;
     let answer: unknown;
     try {
       answer = await this.#submit(submitter, tx, call.signal);
@@ -2947,7 +3381,7 @@ export class TxIntent {
       if (failure === undefined) return "movedAfterSending";
       throw failure;
     }
-    this.#answered(state, attempt, answer, true);
+    await this.#answered(state, attempt, answer, true);
     return "answered";
   }
 
@@ -3006,7 +3440,7 @@ export class TxIntent {
           return isFound(search);
         });
       }
-      this.#apply(state, {
+      await this.#apply(state, {
         type: "answer",
         txHash: attempt.txHash,
         refused: true,
@@ -3040,7 +3474,7 @@ export class TxIntent {
   }
 
   /** An accepted answer: another hash in it is kept and traced, never an error */
-  #answered(
+  async #answered(
     state: IntentState,
     attempt: AttemptRecord,
     answer: unknown,
@@ -3048,20 +3482,22 @@ export class TxIntent {
   ) {
     const reportedHash = answeredHash(answer);
     if (reportedHash === undefined || reportedHash === attempt.txHash) return;
-    const now = state.record.attempts.find((a) => a.txHash === attempt.txHash);
-    if (
-      now !== undefined &&
-      now.reportedHash === undefined &&
-      (recorded || now.refused < now.sends)
-    ) {
-      const result = advanceIntent(state.record, {
-        type: "answer",
-        txHash: attempt.txHash,
-        refused: false,
-        reportedHash,
-      });
-      if (result.ok) commit(state, result.json);
-    }
+    await this.#write(state, (record) => {
+      const now = record.attempts.find((a) => a.txHash === attempt.txHash);
+      return now !== undefined &&
+        now.reportedHash === undefined &&
+        (recorded || now.refused < now.sends)
+        ? {
+            event: {
+              type: "answer",
+              txHash: attempt.txHash,
+              refused: false,
+              reportedHash,
+            },
+            refused: () => undefined,
+          }
+        : { skip: true };
+    });
     emit(state.trace, {
       type: "warning",
       code: "HASH_MISMATCH",
@@ -3084,6 +3520,13 @@ export class TxIntent {
     const tx = signedTxOf(attempt);
     if (tx === undefined) return {};
     if (await this.#landedOnEarlierAnchor(state, call.signal)) return {};
+    // With a store, the stored record decides: another instance may have replaced the attempt,
+    // closed the intent or recorded the closing mark
+    if (state.store !== undefined) {
+      const stored = await loadRecord(state.store, state.record.id!);
+      if (stored === undefined) throw this.#gone();
+      if (stored.rev > state.record.rev) commitStored(state, stored);
+    }
     // Another call may have changed the record during that search: read it again
     const now = currentAttempt(state.record);
     if (
@@ -3102,9 +3545,11 @@ export class TxIntent {
           {},
         ),
       };
+    // The bytes of the attempt as the record holds it now, which may carry more witnesses
+    const bytes = signedTxOf(now) ?? tx;
     try {
-      const answer = await this.#submit(submitter, tx, call.signal);
-      this.#answered(state, attempt, answer, false);
+      const answer = await this.#submit(submitter, bytes, call.signal);
+      await this.#answered(state, attempt, answer, false);
       return {};
     } catch (error) {
       if (TxBuildError.is(error, "ABORTED")) throw error;
@@ -3227,9 +3672,11 @@ const makeIntent = (
   builder: TxBuilder,
   record: IntentRecord,
   live: IntentLiveObjects,
+  start: StoreStart = { read: "done", met: true, storedParents: false },
 ): TxIntent => {
   const intent = new (TxIntent as unknown as new () => TxIntent)();
   const payer = live.payer;
+  const { store } = builder;
   // The payer is taken as given: the build that reads it checks it
   STATE.set(intent, {
     builder,
@@ -3251,6 +3698,13 @@ const makeIntent = (
     probe: "owed",
     watchers: new Set(),
     closingSteps: 0,
+    ...(store !== undefined && { store }),
+    read: store === undefined ? "done" : start.read,
+    met: start.met,
+    storedParents: start.storedParents,
+    ...(start.given !== undefined && { given: start.given }),
+    writing: Promise.resolve(),
+    storeReads: 0,
   });
   return intent;
 };
@@ -3265,40 +3719,29 @@ const recordNetwork = (builder: TxBuilder) => {
     : network;
 };
 
+/** A new intent error of the store or of creation; its message says that it means no "not paid" */
+const intentError = <C extends TxIntentErrorCode>(
+  code: C,
+  message: string,
+  context: { intentId?: string; cause?: unknown },
+): TxIntentError<C> => {
+  const make = TxIntentError as new (
+    code: C,
+    message: string,
+    context: object,
+  ) => TxIntentError<C>;
+  return new make(code, `${message}. ${NOT_UNPAID}`, {
+    ...(context.intentId !== undefined && { intentId: context.intentId }),
+    ...(context.cause !== undefined && { cause: context.cause }),
+  });
+};
+
 /**
- * A new intent in `draft` over the parts of a builder, held ones first; no request is made.
- * `TxBuilder.intent` calls it.
- * @throws TxBuildError INVALID_OPTION for an `after` that holds anything but intents, an id that
- *   is not a string, or a deadline out of range
- * @throws TxIntentError CANNOT_OBSERVE (`noTip`) without a provider that reads the tip,
- *   (`addressCache`) for a provider that keeps a cache of address UTxOs
+ * The two checks of the provider that every intent needs, made before any request: its tip, and
+ * no cache of address UTxOs
+ * @throws TxIntentError CANNOT_OBSERVE (`noTip`), (`addressCache`)
  */
-export const createIntent = (
-  builder: TxBuilder,
-  parts: readonly TxPart[],
-  options: IntentOptions,
-): TxIntent => {
-  const after = (options as { after?: unknown }).after;
-  const parents: unknown[] =
-    after === undefined ? [] : Array.isArray(after) ? after : [after];
-  // A parent is an intent, never a built transaction: its attempts may change
-  if (!parents.every((parent) => parent instanceof TxIntent))
-    throw invalidOption("after", after, "an intent, or a list of intents");
-  if (options.id !== undefined && typeof options.id !== "string")
-    throw invalidOption("id", options.id, "a string");
-  const deadlines = effectiveDeadlines(
-    {
-      ...(options.ttlMs !== undefined && { ttlMs: options.ttlMs }),
-      ...(options.expiryMarginMs !== undefined && {
-        expiryMarginMs: options.expiryMarginMs,
-      }),
-      ...(options.confirmations !== undefined && {
-        confirmations: options.confirmations,
-      }),
-    },
-    builder.intentDefaults,
-  );
-  const intentId = options.id;
+const checkObservable = (builder: TxBuilder, intentId: string | undefined) => {
   const { provider } = builder;
   if (
     provider === undefined ||
@@ -3321,6 +3764,333 @@ export const createIntent = (
         ...(intentId !== undefined && { intentId }),
       },
     );
+};
+
+/** The parents of `after` as a list; INVALID_OPTION for anything but intents */
+const parentsOf = (after: unknown): TxIntent[] => {
+  const parents: unknown[] =
+    after === undefined ? [] : Array.isArray(after) ? after : [after];
+  // A parent is an intent, never a built transaction: its attempts may change
+  if (!parents.every((parent) => parent instanceof TxIntent))
+    throw invalidOption("after", after, "an intent, or a list of intents");
+  return parents as TxIntent[];
+};
+
+/** The ids of intents, for an error that must not hold the objects */
+const idsOf = (intents: readonly TxIntent[]) =>
+  intents.map((intent) => stateOf(intent).record.id ?? null);
+
+/* ---------------------------------------------------------------------------------------------
+ * Records in a store
+ * ------------------------------------------------------------------------------------------- */
+
+/**
+ * The record of an id, read from a store and checked; undefined when there is none
+ * @throws TxIntentError STORE_FAILED when the store throws; INVALID_STATE (`recordVersion`) for
+ *   a record this library does not read
+ */
+const loadRecord = async (
+  store: TxIntentStore,
+  id: string,
+): Promise<IntentRecord | undefined> => {
+  let json: unknown;
+  try {
+    json = await store.load(id);
+  } catch (error) {
+    throw intentError(
+      "STORE_FAILED",
+      `the store failed to read the record of the intent ${id}: nothing was built, signed, written or sent`,
+      { intentId: id, cause: error },
+    );
+  }
+  // Only `undefined` says that there is no record; anything else is read as one
+  if (json === undefined) return undefined;
+  return readIntent(json, id);
+};
+
+/**
+ * The record's network against the builder's: the name, and for a recorded configuration also
+ * the network id and the slot clock, by which the intent's time is counted
+ * @throws TxBuildError NETWORK_MISMATCH with the role `record`
+ */
+const checkRecordNetwork = (builder: TxBuilder, record: IntentRecord) => {
+  const own = builder.network;
+  const recorded = record.network;
+  const name = typeof recorded === "string" ? recorded : recorded.name;
+  let differs: string | undefined;
+  if (name !== own.name) differs = "the name";
+  else if (typeof recorded !== "string") {
+    const a = recorded.slotConfig;
+    const b = own.slotConfig;
+    if (recorded.networkId !== own.networkId) differs = "the network id";
+    else if (
+      a.zeroTime !== b.zeroTime ||
+      a.zeroSlot !== b.zeroSlot ||
+      a.slotLength !== b.slotLength
+    )
+      differs = "the slot clock (zeroTime, zeroSlot, slotLength)";
+  }
+  if (differs === undefined) return;
+  throw new TxBuildError(
+    "NETWORK_MISMATCH",
+    `the intent's record ${record.id ?? ""} was written for the network ${name}${typeof recorded === "string" ? "" : ` (network id ${recorded.networkId})`}, and the builder is for ${own.name} (network id ${own.networkId}): ${differs} differs. Restore it with a builder of its network`,
+    {
+      details: {
+        expected: { name: own.name, networkId: own.networkId },
+        found: [
+          {
+            role: "record",
+            network: name,
+            ...(typeof recorded !== "string" && {
+              networkId: recorded.networkId,
+            }),
+          },
+        ],
+      },
+    },
+  );
+};
+
+/** The parent attempts the record's current attempt stands on; none without attempts */
+const recordedParents = (record: IntentRecord) =>
+  currentAttempt(record)?.parents ?? [];
+
+type ParentEntry = ReturnType<typeof recordedParents>[number];
+
+/** Whether an intent is the recorded parent: the recorded id, holding the recorded attempt */
+const isRecordedParent = (intent: TxIntent, entry: ParentEntry) => {
+  const held = stateOf(intent).record;
+  const hash = entry.txHash.toLowerCase();
+  return (
+    entry.intentId !== undefined &&
+    held.id === entry.intentId &&
+    held.attempts.some((attempt) => attempt.txHash.toLowerCase() === hash)
+  );
+};
+
+/**
+ * The given parents in the recorded order, when they are exactly the recorded ones: all of them
+ * and no others. A parent that has not read its store yet reads it first; its errors are thrown
+ * as they are
+ */
+const matchParents = async (
+  record: IntentRecord,
+  given: readonly TxIntent[],
+): Promise<TxIntent[] | undefined> => {
+  for (const parent of given) {
+    const held = stateOf(parent);
+    if (held.store !== undefined) await readFirst(held);
+  }
+  const entries = recordedParents(record);
+  if (entries.length !== given.length) return undefined;
+  const left = [...given];
+  const ordered: TxIntent[] = [];
+  for (const entry of entries) {
+    const at = left.findIndex((parent) => isRecordedParent(parent, entry));
+    if (at < 0) return undefined;
+    ordered.push(left.splice(at, 1)[0]!);
+  }
+  return ordered;
+};
+
+/**
+ * The parents a record names, each loaded from the builder's store by its id and restored as by
+ * `resume` without options: it builds nothing and is only the source of its current attempt
+ * @throws TxIntentError INTENT_NOT_FOUND with the parent's id when it is not in the store, or is
+ *   there without the recorded attempt; STORE_FAILED; INVALID_STATE (`recordVersion`)
+ */
+const restoredParents = async (
+  builder: TxBuilder,
+  record: IntentRecord,
+  depth: number,
+): Promise<TxIntent[]> => {
+  const parents: TxIntent[] = [];
+  for (const entry of recordedParents(record))
+    parents.push(await restoredParent(builder, entry, depth));
+  return parents;
+};
+
+const restoredParent = async (
+  builder: TxBuilder,
+  entry: ParentEntry,
+  depth: number,
+): Promise<TxIntent> => {
+  const id = entry.intentId;
+  if (id === undefined)
+    throw intentError(
+      "INTENT_NOT_FOUND",
+      `the record names the parent attempt ${entry.txHash} without the id of its intent: give the parent in after`,
+      {},
+    );
+  if (depth > MAX_CHAIN)
+    throw intentError(
+      "INTENT_NOT_FOUND",
+      `the chain of parents is longer than the ${MAX_CHAIN} intents this library follows up, and the parent intent ${id} is not read: give the parent in after`,
+      { intentId: id },
+    );
+  const record = await loadRecord(builder.store!, id);
+  const hash = entry.txHash.toLowerCase();
+  if (record === undefined)
+    throw intentError(
+      "INTENT_NOT_FOUND",
+      `the parent intent ${id} is not in the builder's store: give it in after, restored by a builder over its own store`,
+      { intentId: id },
+    );
+  if (!record.attempts.some((attempt) => attempt.txHash.toLowerCase() === hash))
+    throw intentError(
+      "INTENT_NOT_FOUND",
+      `the parent intent ${id} in the builder's store does not hold the attempt ${entry.txHash} the child stands on: give the parent in after, restored by a builder over its own store`,
+      { intentId: id },
+    );
+  const parents = await restoredParents(builder, record, depth + 1);
+  return makeIntent(
+    builder,
+    record,
+    { ...(parents.length > 0 && { after: parents }) },
+    { read: "done", met: true, storedParents: parents.length > 0 },
+  );
+};
+
+/**
+ * The first read of an object made by `builder.intent` on a builder with a store: its id's
+ * record, compared with what the object was given and taken as its own; no record, and the
+ * object goes on as a new intent. Concurrent calls share one read; a read that failed is made
+ * again by the next call
+ */
+const readFirst = (state: IntentState): Promise<void> => {
+  if (state.read === "done") return Promise.resolve();
+  state.reading ??= (async () => {
+    try {
+      const record = await loadRecord(state.store!, state.record.id!);
+      if (record !== undefined) await adopt(state, record);
+      state.read = "done";
+    } finally {
+      state.reading = undefined;
+    }
+  })();
+  return state.reading;
+};
+
+/**
+ * Takes a record met for the first time as the object's own, once it is the same intent: the
+ * record's network, the same parts in their encoding and in their order, the explicit deadlines
+ * and data options, and the parents. Without `after` the parents are loaded from the store
+ * @throws TxIntentError INTENT_EXISTS for other parts, deadlines, data options or parents;
+ *   INTENT_NOT_FOUND, STORE_FAILED, INVALID_STATE (`recordVersion`) for a parent loaded
+ * @throws TxBuildError NETWORK_MISMATCH
+ */
+const adopt = async (state: IntentState, record: IntentRecord) => {
+  checkRecordNetwork(state.builder, record);
+  const id = record.id!;
+  const given = state.given ?? { deadlines: {}, data: {} };
+  const exists = (what: string) =>
+    intentError(
+      "INTENT_EXISTS",
+      `the store holds the intent ${id} with ${what}: an id names one intent, whose parts and options never change; nothing was built or written. Give a new intent a new id`,
+      { intentId: id },
+    );
+  if (
+    !sameJson(encodeParts(state.parts), encodeParts(record.parts as TxPart[]))
+  )
+    throw exists("other parts, or the same parts in another order");
+  for (const key of DEADLINE_KEYS) {
+    const value = given.deadlines[key];
+    if (value !== undefined && value !== record.deadlines[key])
+      throw exists(`${key} ${record.deadlines[key]}, not ${value}`);
+  }
+  const options = dataOptions(record);
+  for (const key of DATA_KEYS) {
+    const value = given.data[key];
+    if (value === undefined) continue;
+    const recorded = options[key];
+    if (
+      recorded === undefined ||
+      !sameJson(encodeValue(value), encodeValue(recorded))
+    )
+      throw exists(`another ${key}`);
+  }
+  // The parents are fixed by the first attempt; a record without attempts has none to compare
+  let parents = state.parents;
+  let stored = false;
+  if (record.attempts.length > 0) {
+    if (given.after !== undefined) {
+      const matched = await matchParents(record, given.after);
+      if (matched === undefined)
+        throw exists("other parents than the after given");
+      parents = matched;
+    } else {
+      parents = await restoredParents(state.builder, record, 0);
+      stored = parents.length > 0;
+    }
+  }
+  state.parts = record.parts as TxPart[];
+  state.parents = parents;
+  state.storedParents = stored;
+  state.met = true;
+  commitStored(state, record);
+};
+
+/**
+ * A new intent in `draft` over the parts of a builder, held ones first; no request is made.
+ * `TxBuilder.intent` calls it. With a store, its first method reads its id's record.
+ * @throws TxBuildError INVALID_OPTION for an `after` that holds anything but intents, an id that
+ *   is not a string (without a store), a deadline out of range, and on a builder with a store a
+ *   parent of a builder without one; NOT_SERIALIZABLE on a builder with a store, for a part
+ *   that holds a redeemer function
+ * @throws TxIntentError CANNOT_OBSERVE (`noTip`) without a provider that reads the tip,
+ *   (`addressCache`) for a provider that keeps a cache of address UTxOs; MISSING_ID on a builder
+ *   with a store, without an id that is a non-empty string
+ */
+export const createIntent = (
+  builder: TxBuilder,
+  parts: readonly TxPart[],
+  options: IntentOptions,
+): TxIntent => {
+  const parents = parentsOf((options as { after?: unknown }).after);
+  const { store } = builder;
+  if (
+    store === undefined &&
+    options.id !== undefined &&
+    typeof options.id !== "string"
+  )
+    throw invalidOption("id", options.id, "a string");
+  const explicit = {
+    ...(options.ttlMs !== undefined && { ttlMs: options.ttlMs }),
+    ...(options.expiryMarginMs !== undefined && {
+      expiryMarginMs: options.expiryMarginMs,
+    }),
+    ...(options.confirmations !== undefined && {
+      confirmations: options.confirmations,
+    }),
+  };
+  const deadlines = effectiveDeadlines(explicit, builder.intentDefaults);
+  const intentId = typeof options.id === "string" ? options.id : undefined;
+  checkObservable(builder, intentId);
+  if (store !== undefined) {
+    // The record is written before an attempt is handed out, so all of it must be data
+    if (intentId === undefined || intentId === "")
+      throw intentError(
+        "MISSING_ID",
+        "a builder with a store keeps every intent under its id: give options.id, a non-empty string, such as the key of the order",
+        {},
+      );
+    encodeParts(parts);
+    const unstored = parents.filter(
+      (parent) => stateOf(parent).store === undefined,
+    );
+    if (unstored.length > 0)
+      throw new TxBuildError(
+        "INVALID_OPTION",
+        "invalid after: on a builder with a store a parent must be an intent of a builder with a store, so that a restart finds its record",
+        {
+          details: {
+            option: "after",
+            value: idsOf(unstored),
+            allowed: "intents of a builder with a store",
+          },
+        },
+      );
+  }
   const data: DataOptions = {
     ...(options.sendAllTo !== undefined && { sendAllTo: options.sendAllTo }),
     ...(options.knownUtxos !== undefined && {
@@ -3341,13 +4111,107 @@ export const createIntent = (
     parts: [...parts],
     options: data,
   });
-  return makeIntent(builder, record, {
-    ...(parents.length > 0 && { after: parents as TxIntent[] }),
-    ...(options.payer !== undefined && { payer: options.payer }),
-    ...(options.canSelect && { canSelect: options.canSelect }),
-    ...(options.coinSelection && { coinSelection: options.coinSelection }),
-    ...(options.trace && { trace: options.trace }),
-  });
+  return makeIntent(
+    builder,
+    record,
+    {
+      ...(parents.length > 0 && { after: parents }),
+      ...(options.payer !== undefined && { payer: options.payer }),
+      ...(options.canSelect && { canSelect: options.canSelect }),
+      ...(options.coinSelection && { coinSelection: options.coinSelection }),
+      ...(options.trace && { trace: options.trace }),
+    },
+    store === undefined
+      ? undefined
+      : {
+          read: "owed",
+          met: false,
+          storedParents: false,
+          given: {
+            deadlines: explicit,
+            data: { ...data },
+            ...(options.after !== undefined && { after: parents }),
+          },
+        },
+  );
+};
+
+/**
+ * The intent recorded under `id` in the builder's store, with the live objects given again. It
+ * makes no request to the chain and does not call the payer. `TxBuilder.resume` calls it.
+ * @throws TxIntentError MISSING_STORE without a store; MISSING_ID for an id that is not a
+ *   non-empty string; CANNOT_OBSERVE (`noTip`, `addressCache`); STORE_FAILED; INTENT_NOT_FOUND
+ *   with `id`, or with a parent's id; INVALID_STATE (`recordVersion`)
+ * @throws TxBuildError NETWORK_MISMATCH; INVALID_OPTION (`after`) for anything but the recorded
+ *   parents
+ */
+export const resumeIntent = async (
+  builder: TxBuilder,
+  id: string,
+  options: ResumeOptions = {},
+): Promise<TxIntent> => {
+  const { store } = builder;
+  if (store === undefined)
+    throw intentError(
+      "MISSING_STORE",
+      "the builder has no store to resume an intent from: give the builder the store the intent was recorded in",
+      {},
+    );
+  if (typeof id !== "string" || id === "")
+    throw intentError(
+      "MISSING_ID",
+      "an intent is resumed by its id, a non-empty string",
+      {},
+    );
+  const given = parentsOf(options.after);
+  checkObservable(builder, id);
+  const record = await loadRecord(store, id);
+  if (record === undefined)
+    throw intentError("INTENT_NOT_FOUND", `the store holds no intent ${id}`, {
+      intentId: id,
+    });
+  checkRecordNetwork(builder, record);
+  // The parents are fixed by the first attempt; a record without attempts has none to compare
+  let parents: TxIntent[] = [];
+  let stored = false;
+  if (record.attempts.length > 0) {
+    // An `after` given, even an empty one, must name the recorded parents
+    if (options.after !== undefined) {
+      const matched = await matchParents(record, given);
+      if (matched === undefined)
+        throw new TxBuildError(
+          "INVALID_OPTION",
+          "invalid after: it must name exactly the recorded parents, each an intent with the recorded id holding the recorded attempt; restore a parent that is behind with builder.resume(its id)",
+          {
+            details: {
+              option: "after",
+              value: idsOf(given),
+              allowed: `the recorded parents: ${
+                recordedParents(record)
+                  .map((entry) => entry.intentId ?? entry.txHash)
+                  .join(", ") || "none"
+              }`,
+            },
+          },
+        );
+      parents = matched;
+    } else {
+      parents = await restoredParents(builder, record, 0);
+      stored = parents.length > 0;
+    }
+  } else if (given.length > 0) parents = given;
+  return makeIntent(
+    builder,
+    record,
+    {
+      ...(parents.length > 0 && { after: parents }),
+      ...(options.payer !== undefined && { payer: options.payer }),
+      ...(options.canSelect && { canSelect: options.canSelect }),
+      ...(options.coinSelection && { coinSelection: options.coinSelection }),
+      ...(options.trace && { trace: options.trace }),
+    },
+    { read: "done", met: true, storedParents: stored },
+  );
 };
 
 /**

@@ -152,6 +152,38 @@ export const encodeIntent = (record: IntentRecord): TxIntentJSON => ({
   options: plain(record.options, "options") as Record<string, unknown>,
 });
 
+/** A value as a record holds it: plain JSON data, every `bigint` as its decimal string */
+export const encodeValue = (value: unknown): unknown => plain(value, "value");
+
+/**
+ * Whether two values of JSON data are equal: lists member by member in their order, objects by
+ * their members whatever their order
+ */
+export const sameJson = (a: unknown, b: unknown): boolean => {
+  if (a === b) return true;
+  if (
+    typeof a !== "object" ||
+    typeof b !== "object" ||
+    a === null ||
+    b === null
+  )
+    return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length)
+      return false;
+    return a.every((item, i) => sameJson(item, b[i]));
+  }
+  const left = a as Record<string, unknown>;
+  const right = b as Record<string, unknown>;
+  const keys = Object.keys(left);
+  if (keys.length !== Object.keys(right).length) return false;
+  return keys.every(
+    (key) =>
+      Object.prototype.hasOwnProperty.call(right, key) &&
+      sameJson(left[key], right[key]),
+  );
+};
+
 /* ---------------------------------------------------------------------------------------------
  * Reading: small checks
  * ------------------------------------------------------------------------------------------- */

@@ -44,7 +44,12 @@ import type {
 } from "./balance";
 import type { ChainedTx } from "./chain";
 import type { PartFailure } from "./errors";
-import type { IntentDeadlines, IntentOptions } from "./intent/types";
+import type {
+  IntentDeadlines,
+  IntentOptions,
+  ResumeOptions,
+  TxIntentStore,
+} from "./intent/types";
 import type {
   CredentialInput,
   OutputPart,
@@ -87,7 +92,7 @@ import {
 } from "./fee";
 import { auxiliaryDataHashOf, scriptDataHashOf } from "./hashes";
 import { checkIntentDefaults } from "./intent/deadlines";
-import { createIntent, TxIntent } from "./intent/intent";
+import { createIntent, resumeIntent, TxIntent } from "./intent/intent";
 import {
   checkNetworks,
   checkProviderNetwork,
@@ -184,6 +189,15 @@ export type TxBuilderOptions = {
    * intent is sent. Neither is written into an intent. Checked by the constructor.
    */
   intentDefaults?: IntentDeadlines & { pollMs?: number; resendMs?: number };
+  /**
+   * Where the records of this builder's intents are kept, so that they survive the process:
+   * every change of an intent is written before the call returns, a new attempt before it is
+   * handed out, a first delivery before the bytes leave. With a store every intent needs an
+   * `id`, its parts must be data (no redeemer function), and `resume(id)` restores it. Builders
+   * made by `add` keep the same store. An object with `load` and `save` functions; checked by
+   * the constructor.
+   */
+  store?: TxIntentStore;
 };
 
 /** One entry of a parts list: a part, a nested list of parts, or a value that is skipped */
@@ -909,6 +923,8 @@ export class TxBuilder {
   readonly intentDefaults?: Readonly<
     IntentDeadlines & { pollMs?: number; resendMs?: number }
   >;
+  /** The `store` option: where the records of this builder's intents are kept */
+  readonly store?: TxIntentStore;
   /** The shared cache of the provider; every read goes through it */
   private readonly cache?: CachedFetcher;
   /** The parts added with `add`, flat and in order, as they were given; `build` takes them first */
@@ -921,12 +937,41 @@ export class TxBuilder {
    *   NETWORK_MISMATCH when the provider states another network;
    *   INVALID_OPTION for an `intentDefaults` that is not an object, or names the first of its
    *   members out of range: `ttlMs` or `pollMs` not above 0, `expiryMarginMs` below 0,
-   *   `confirmations` not a whole number 0 or more, `resendMs` below the builder's `pollMs`
+   *   `confirmations` not a whole number 0 or more, `resendMs` below the builder's `pollMs`;
+   *   INVALID_OPTION for a `store` without `load` and `save` functions
    */
   constructor(options: TxBuilderOptions) {
     this.network = resolveNetwork(options?.network);
     const intentDefaults = checkIntentDefaults(options.intentDefaults);
     if (intentDefaults) this.intentDefaults = intentDefaults;
+    if (options.store !== undefined) {
+      const store = options.store as unknown;
+      const has = (name: string) =>
+        typeof store === "object" &&
+        store !== null &&
+        typeof (store as Record<string, unknown>)[name] === "function";
+      if (!has("load") || !has("save"))
+        throw new TxBuildError(
+          "INVALID_OPTION",
+          "invalid store: expected an object with load and save functions",
+          {
+            details: {
+              option: "store",
+              // The type only: a store may hold a database handle, and errors get logged
+              value:
+                store === null
+                  ? "null"
+                  : Array.isArray(store)
+                    ? "a list"
+                    : typeof store === "object"
+                      ? "an object without load and save functions"
+                      : typeof store,
+              allowed: "an object with load and save functions",
+            },
+          },
+        );
+      this.store = options.store;
+    }
     if (options.serializer) {
       if (!options.serializer.serializeTxPrototype)
         throw new TxBuildError(
@@ -1423,14 +1468,50 @@ export class TxBuilder {
    * The intent's deadlines are its own options, else this builder's `intentDefaults`, else the
    * built-in values, written into it now and never read from the builder again. Its parts are
    * fixed: a later `add` does not change them, and so are its parents, the intents of `after`.
+   *
+   * With a `store` the intent is kept under its `id`, and creation stays synchronous: the first
+   * awaited method (`build`, `send`, `refresh`, …) reads the record, and until then the intent
+   * shows a draft, whatever the store holds. So read the status after the first `await`; for a
+   * known id there is `await builder.resume(id)`. An id already recorded is the same intent: with
+   * the same parts `build()` returns its current attempt, and other parts, an explicit deadline
+   * or data option other than the recorded one, or an `after` naming other parents is
+   * INTENT_EXISTS from that first method. A repeated request handler is safe this way.
    * @throws TxBuildError INVALID_OPTION for a parts entry that is not a part, for an `after` that
-   *   holds anything but intents, for an `id` that is not a string, and for a deadline out of
-   *   range
+   *   holds anything but intents, for an `id` that is not a string (without a store), for a
+   *   deadline out of range,
+   *   and with a store for a parent made by a builder without one; NOT_SERIALIZABLE with a store,
+   *   for a part that holds a redeemer function
    * @throws TxIntentError CANNOT_OBSERVE (`noTip`) when the builder has no provider that reads
-   *   the chain's tip; (`addressCache`) when its provider keeps a cache of address UTxOs
+   *   the chain's tip; (`addressCache`) when its provider keeps a cache of address UTxOs;
+   *   MISSING_ID with a store, without an id that is a non-empty string
    */
   intent(parts: PartsInput = [], options?: IntentOptions): TxIntent {
     return createIntent(this, this.withAdded(parts), options ?? {});
+  }
+
+  /**
+   * The intent recorded under `id` in this builder's store, as the record holds it, with the live
+   * objects given again: the reconcile step after a restart is `resume(id, { payer })`, then
+   * `advance()`. It reads the store only: it makes no request to the chain and does not call the
+   * payer, which is compared with the record when a new attempt is built (PAYER_MISMATCH). The
+   * deadlines, data options and parts stay as recorded; the parts this builder holds from `add`
+   * are not read.
+   *
+   * ```ts
+   * const intent = await builder.resume(orderId, { payer: wallet });
+   * await intent.advance();
+   * ```
+   * @throws TxIntentError MISSING_STORE without a store; MISSING_ID for an id that is not a
+   *   non-empty string; CANNOT_OBSERVE (`noTip`, `addressCache`) for a provider no intent can run
+   *   on; STORE_FAILED when the store throws; INTENT_NOT_FOUND without a record (`intentId` is
+   *   `id`), and for a parent not in the store or without the recorded attempt (`intentId` is the
+   *   parent's): give that parent in `after`; INVALID_STATE (`recordVersion`) for a record this
+   *   library does not read
+   * @throws TxBuildError NETWORK_MISMATCH for a record of another network; INVALID_OPTION
+   *   (`after`) for parents other than the recorded ones
+   */
+  resume(id: string, options?: ResumeOptions): Promise<TxIntent> {
+    return resumeIntent(this, id, options);
   }
 
   /**

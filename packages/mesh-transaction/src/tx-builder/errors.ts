@@ -49,7 +49,7 @@ export type TxBuildErrorCode =
   | "FEE_NOT_CONVERGED"
   /** The serializer cannot serialize a `TransactionPrototype` */
   | "UNSUPPORTED_SERIALIZER"
-  /** An address, wallet or provider of another network than the builder's */
+  /** An address, wallet, provider or intent record of another network than the builder's */
   | "NETWORK_MISMATCH"
   /** No `payer` says who pays */
   | "MISSING_PAYER"
@@ -159,7 +159,7 @@ export type InsufficientFundsDetails = {
   };
 };
 
-/** An address, wallet or provider of another network than the builder's */
+/** An address, wallet, provider or intent record of another network than the builder's */
 export type NetworkMismatchDetails = {
   expected: { name: string; networkId: 0 | 1 };
   found: {
@@ -171,7 +171,9 @@ export type NetworkMismatchDetails = {
       | "output"
       | "collateralReturn"
       | "withdrawal"
-      | "rewardAccount";
+      | "rewardAccount"
+      /** The network an intent's record was written for */
+      | "record";
     address?: string;
     networkId?: number;
     network?: string;

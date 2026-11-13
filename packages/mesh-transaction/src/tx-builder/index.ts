@@ -64,6 +64,7 @@ export { checkIntentStore, memoryIntentStore } from "./intent/store";
 export type {
   IntentDeadlines,
   IntentOptions,
+  ResumeOptions,
   SendOptions,
   SignOptions,
   StoredTxIntentJSON,

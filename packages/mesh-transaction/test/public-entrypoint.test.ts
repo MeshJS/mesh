@@ -2,6 +2,7 @@ import type {
   IntentDeadlines,
   IntentOptions,
   RedeemerContext,
+  ResumeOptions,
   SendOptions,
   SignOptions,
   StoredTxIntentJSON,
@@ -145,6 +146,11 @@ describe("public entrypoint", () => {
     };
     expect(await store.save(json, 0)).toBe(true);
     expect(await store.load("pay-1")).toEqual(json);
+    const resume: ResumeOptions = { canSelect: () => true };
+    expect(typeof resume.canSelect).toBe("function");
+    expect(typeof publicApi.TxBuilder.prototype.resume).toBe("function");
+    for (const name of ["resumeIntent", "loadRecord", "readFirst"])
+      expect(publicApi).not.toHaveProperty(name);
     await expect(publicApi.checkIntentStore(store)).resolves.toBeUndefined();
     for (const name of [
       "encodeParts",
