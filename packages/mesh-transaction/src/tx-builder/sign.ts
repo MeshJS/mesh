@@ -525,6 +525,63 @@ const isFunction = (value: unknown, name: string) =>
   value !== null &&
   typeof (value as Record<string, unknown>)[name] === "function";
 
+/** A signer by its shape: it has `signTxWitnesses` or `signTx` */
+export const canSign = (value: unknown): value is Signer =>
+  isFunction(value, "signTxWitnesses") || isFunction(value, "signTx");
+
+const SIGNER_ALLOWED = "an object with signTxWitnesses or signTx";
+const SIGNERS_ALLOWED =
+  "a signer (signTxWitnesses or signTx), or a list of them";
+
+/** The JavaScript type of a value, with `null` told apart */
+const typeOf = (value: unknown) => (value === null ? "null" : typeof value);
+
+/** What a value given as a signer is, named by its type only */
+const signerKind = (value: unknown) => {
+  const type = typeOf(value);
+  return type === "object" ? "an object without either" : type;
+};
+
+/**
+ * The error for a value given where a signer goes. Something given as a signer may be or hold a
+ * key, so the message and `details.value` name only its JavaScript type, never the value
+ * @param option `signer` for one signer, `signers` for one signer or a list of them
+ * @param entry Of a list given as `signers`: the index of the entry that cannot sign
+ */
+export const invalidSigner = (
+  option: "signer" | "signers",
+  value: unknown,
+  entry?: number,
+) => {
+  const allowed = option === "signer" ? SIGNER_ALLOWED : SIGNERS_ALLOWED;
+  const got =
+    entry === undefined
+      ? signerKind(value)
+      : `a list whose entry ${entry} is ${signerKind((value as unknown[])[entry])}`;
+  return new TxBuildError(
+    "INVALID_OPTION",
+    `invalid ${option}: expected ${allowed}; got ${got}`,
+    { details: { option, value: typeOf(value), allowed } },
+  );
+};
+
+/**
+ * The signers a call gives, one or a list, checked by their shape
+ * @returns The signers in order; undefined for none (undefined or an empty list)
+ * @throws TxBuildError INVALID_OPTION (`signers`) for a value or an entry that cannot sign
+ */
+export const toSigners = (signers: unknown): Signer[] | undefined => {
+  if (signers === undefined) return undefined;
+  if (!Array.isArray(signers)) {
+    if (!canSign(signers)) throw invalidSigner("signers", signers);
+    return [signers];
+  }
+  const entry = signers.findIndex((value) => !canSign(value));
+  if (entry !== -1) throw invalidSigner("signers", signers, entry);
+  // An empty list gives no signer
+  return signers.length === 0 ? undefined : (signers as Signer[]);
+};
+
 /** A wallet of the Mesh 1.9 kind: `getUtxosHex` of `MeshWallet`, `_walletInstance` of `BrowserWallet` */
 const isMeshWallet = (signer: object) =>
   "getUtxosHex" in signer || "_walletInstance" in signer;
@@ -587,20 +644,7 @@ export async function signWitnesses(
   tx: string,
   keyHashes?: RequiredKeys,
 ): Promise<string> {
-  if (!isFunction(signer, "signTxWitnesses") && !isFunction(signer, "signTx")) {
-    const type = signer === null ? "null" : typeof signer;
-    throw new TxBuildError(
-      "INVALID_OPTION",
-      `invalid signer: expected an object with signTxWitnesses or signTx; got ${type === "object" ? "an object without either" : type}`,
-      {
-        details: {
-          option: "signer",
-          value: type,
-          allowed: "an object with signTxWitnesses or signTx",
-        },
-      },
-    );
-  }
+  if (!canSign(signer)) throw invalidSigner("signer", signer);
   const raw = readTransaction(tx);
   let answer: unknown;
   try {

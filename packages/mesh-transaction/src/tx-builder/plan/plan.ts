@@ -44,9 +44,11 @@ import { collateral, spend, validity } from "../parts";
 import { outRefOf, plainUtxo, utxoKey } from "../parts/utxo";
 import { toPayerSource } from "../payer";
 import {
+  canSign,
   readTransaction,
   readWitnessArgument,
   signWitnesses,
+  toSigners,
   verifies,
   withWitnesses,
   witnessesToAdd,
@@ -259,10 +261,6 @@ const isFunction = (value: unknown, name: string) =>
   value !== null &&
   typeof (value as Record<string, unknown>)[name] === "function";
 
-/** A signer by its shape: it has `signTxWitnesses` or `signTx` */
-const canSign = (value: unknown): value is Signer =>
-  isFunction(value, "signTxWitnesses") || isFunction(value, "signTx");
-
 /** A wallet given as a submitter: its errors are never refusals of the ledger */
 const isWallet = (value: object) =>
   isFunction(value, "getChangeAddress") || canSign(value);
@@ -273,22 +271,6 @@ const isAbortSignal = (value: unknown): value is AbortSignal =>
   typeof (value as { aborted?: unknown }).aborted === "boolean" &&
   typeof (value as { addEventListener?: unknown }).addEventListener ===
     "function";
-
-const SIGNERS_ALLOWED =
-  "a signer (signTxWitnesses or signTx), or a list of them";
-
-/**
- * The signers a call gives, checked by their shape
- * @throws TxBuildError INVALID_OPTION for an entry that cannot sign
- */
-const callSigners = (signers: unknown): Signer[] | undefined => {
-  if (signers === undefined) return undefined;
-  const list: unknown[] = Array.isArray(signers) ? signers : [signers];
-  if (!list.every(canSign))
-    throw invalidOption("signers", signers, SIGNERS_ALLOWED);
-  // An empty list gives no signer: the payer signs, else nobody can
-  return list.length === 0 ? undefined : (list as Signer[]);
-};
 
 /**
  * The submitter and the signal of a call, checked by their shape
@@ -908,7 +890,7 @@ export class TxPlan {
     return this.#run(async (state) => {
       const { signal } = options ?? {};
       checkCallOptions({ signal });
-      const given = callSigners(options?.signers);
+      const given = toSigners(options?.signers);
       this.#refuseClosed(state);
       this.#refuseUnsignable(state);
       throwIfAborted(signal, CALL);
@@ -988,7 +970,7 @@ export class TxPlan {
         state.builder.planDefaults,
       );
       checkCallOptions(opts);
-      const signers = callSigners(opts.signers);
+      const signers = toSigners(opts.signers);
       const { signal } = opts;
       if (planStatus(state.record) === "final") return this;
       this.#refuseClosed(state);
@@ -1051,7 +1033,7 @@ export class TxPlan {
         state.builder.planDefaults,
       );
       checkCallOptions(opts);
-      const signers = callSigners(opts.signers);
+      const signers = toSigners(opts.signers);
       const { signal } = opts;
       if (isTerminal(state.record)) return this;
       throwIfAborted(signal, CALL);

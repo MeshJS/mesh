@@ -1,3 +1,7 @@
+import { randomBytes } from "node:crypto";
+import { inspect } from "node:util";
+import { bech32 } from "bech32";
+
 import type { IFetcher } from "@meshsdk/common";
 import { DEFAULT_PROTOCOL_PARAMETERS } from "@meshsdk/core";
 
@@ -311,6 +315,88 @@ describe("TxBuilder.plan", () => {
       }
     expect(calls).toEqual([]);
     expect(plan.status).toBe("draft");
+  });
+
+  describe("a value given as signers that cannot sign", () => {
+    // Keys made for this test only; a failed check prints booleans, never a key
+    const key = randomBytes(32).toString("hex");
+    const bech32Key = bech32.encode(
+      "ed25519_sk",
+      bech32.toWords(Buffer.from(key, "hex")),
+    );
+    const marker = `source-${randomBytes(8).toString("hex")}`;
+    // A function whose source text holds the marker and the key
+    const sourceHolder = new Function(`return "${marker} ${key}";`);
+    const cases: [string, unknown, string, string[]][] = [
+      ["a key in hex", key, "string", [key, key.toUpperCase()]],
+      ["a key in bech32", bech32Key, "string", [bech32Key]],
+      ["a list holding a key", [key], "object", [key]],
+      ["an object holding a key", { privateKey: key }, "object", [key]],
+      ["a function", sourceHolder, "function", [marker, key]],
+    ];
+
+    /** Every text an error shows: its message, stack, details and cause, as printed and as JSON */
+    const textsOf = (error: TxBuildError) => [
+      error.message,
+      String(error.stack),
+      JSON.stringify(error.details),
+      JSON.stringify(error),
+      inspect(error, { depth: Infinity, showHidden: true }),
+    ];
+
+    it.each(cases)(
+      "refuses %s in sign(), send() and advance(), naming only its type",
+      async (_, signers, type, secrets) => {
+        const { provider, calls } = countingProvider();
+        const builder = new TxBuilder({ network: "preprod", provider });
+        const plan = builder.plan(pay(), { payer: baseAddress(9) });
+        for (const method of ["sign", "send", "advance"] as const) {
+          const error = await invalidOption(() =>
+            plan[method]({ signers } as never),
+          );
+          expect(error.details.option).toBe("signers");
+          expect(error.details.allowed).toBe(
+            "a signer (signTxWitnesses or signTx), or a list of them",
+          );
+          // Compared as a boolean: on a failure the value given is not printed
+          expect(error.details.value === type).toBe(true);
+          expect(error.cause).toBeUndefined();
+          const shown = textsOf(error).filter((text) =>
+            secrets.some((secret) => text.includes(secret)),
+          );
+          expect(shown.length).toBe(0);
+        }
+        expect(calls).toEqual([]);
+        expect(plan.status).toBe("draft");
+      },
+    );
+
+    it("names the type of the entry of a list that cannot sign", async () => {
+      const { provider } = countingProvider();
+      const builder = new TxBuilder({ network: "preprod", provider });
+      const plan = builder.plan(pay(), { payer: baseAddress(9) });
+      const wallet = { signTxWitnesses: async () => "a0" };
+      const error = await invalidOption(() =>
+        plan.sign({ signers: [wallet, key] as never }),
+      );
+      expect(error.message.includes("a list whose entry 1 is string")).toBe(
+        true,
+      );
+      expect(error.details.value === "object").toBe(true);
+      expect(error.message.includes(key)).toBe(false);
+    });
+
+    it("takes a function that has a wallet method as a signer", async () => {
+      const { provider } = countingProvider();
+      const builder = new TxBuilder({ network: "preprod", provider });
+      const plan = builder.plan(pay(), { payer: baseAddress(9) });
+      const signer = Object.assign(() => undefined, {
+        signTx: async () => "",
+      });
+      // The signer is taken: the call goes on to the draft, which has no attempt to sign
+      const error = await caught(plan.sign({ signers: signer }));
+      expect(TxError.is(error, "INVALID_STATE")).toBe(true);
+    });
   });
 
   it("closes a draft at once, without a request", async () => {
