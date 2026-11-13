@@ -1,6 +1,9 @@
 import type {
   IntentDeadlines,
+  IntentOptions,
   RedeemerContext,
+  SendOptions,
+  SignOptions,
   TxAttempt,
   TxAttemptStatus,
   TxIntentJSON,
@@ -35,6 +38,7 @@ describe("public entrypoint", () => {
     "message",
     "minFee",
     "minCoin",
+    "TxIntent",
   ])("exports %s", (name) => {
     expect(publicApi).toHaveProperty(name);
   });
@@ -100,6 +104,21 @@ describe("public entrypoint", () => {
       "effectiveDeadlines",
       "effectiveWait",
       "horizonSlot",
+    ])
+      expect(publicApi).not.toHaveProperty(name);
+  });
+
+  it("exports the intent class and its option types, and not its internal functions", () => {
+    const options: IntentOptions = { id: "pay-1", ttlMs: 60_000 };
+    const send: SendOptions = { waitFor: "included", signers: [] };
+    const sign: SignOptions = { signers: [] };
+    expect({ ...options, ...send, ...sign }).toHaveProperty("id", "pay-1");
+    expect(typeof publicApi.TxIntent).toBe("function");
+    for (const name of [
+      "createIntent",
+      "intentOver",
+      "recordOf",
+      "IntentLiveObjects",
     ])
       expect(publicApi).not.toHaveProperty(name);
   });

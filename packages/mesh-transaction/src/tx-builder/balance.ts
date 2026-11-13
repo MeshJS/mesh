@@ -184,7 +184,8 @@ const putUpByParts = (parts: readonly TxPart[]): Set<string> =>
     ),
   );
 
-const isKeyLocked = (utxo: UTxO) => {
+/** Whether a UTxO is locked by a key: a key payment credential, or a Byron address */
+export const isKeyLocked = (utxo: UTxO) => {
   const address = Address.fromString(utxo.output.address);
   if (!address) return false;
   if (address.asByron()) return true;

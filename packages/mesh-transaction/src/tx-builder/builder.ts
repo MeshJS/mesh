@@ -44,7 +44,8 @@ import type {
 } from "./balance";
 import type { ChainedTx } from "./chain";
 import type { PartFailure } from "./errors";
-import type { IntentDeadlines } from "./intent/types";
+import type { TxIntent } from "./intent/intent";
+import type { IntentDeadlines, IntentOptions } from "./intent/types";
 import type {
   CredentialInput,
   OutputPart,
@@ -87,6 +88,7 @@ import {
 } from "./fee";
 import { auxiliaryDataHashOf, scriptDataHashOf } from "./hashes";
 import { checkIntentDefaults } from "./intent/deadlines";
+import { createIntent } from "./intent/intent";
 import {
   checkNetworks,
   checkProviderNetwork,
@@ -1397,6 +1399,28 @@ export class TxBuilder {
   }
 
   /**
+   * A payment as an intent: the parts added with `add`, then `parts` (none when omitted), carried
+   * from building to a final state by the `TxIntent` it returns. It is the only way to make an
+   * intent, and it makes no request: the intent is `draft` until its first attempt is built.
+   *
+   * ```ts
+   * const intent = builder.intent(output({ address, value }), { payer: wallet });
+   * await intent.send({ waitFor: "included" });
+   * ```
+   *
+   * The intent's deadlines are its own options, else this builder's `intentDefaults`, else the
+   * built-in values, written into it now and never read from the builder again. Its parts are
+   * fixed: a later `add` does not change them.
+   * @throws TxBuildError INVALID_OPTION for a parts entry that is not a part, for `after`, for an
+   *   `id` that is not a string, and for a deadline out of range
+   * @throws TxIntentError CANNOT_OBSERVE (`noTip`) when the builder has no provider that reads
+   *   the chain's tip; (`addressCache`) when its provider keeps a cache of address UTxOs
+   */
+  intent(parts: PartsInput = [], options?: IntentOptions): TxIntent {
+    return createIntent(this, this.withAdded(parts), options ?? {});
+  }
+
+  /**
    * A new builder with this builder's settings, providers and cache, and these parts added after
    * the ones it already holds. This builder is not changed, so keep the builder that is
    * returned: a call whose result is dropped adds nothing.
@@ -1696,9 +1720,20 @@ export class TxBuilder {
    *   there is none
    */
   async readPayer(payer: Payer): Promise<PayerSnapshot> {
+    return (await this.readGivenPayer(payer)).snapshot;
+  }
+
+  /**
+   * `readPayer` with all a read gives: the snapshot, and for a CIP-30 api its collateral
+   * fallback, which a build from that snapshot keeps
+   */
+  private async readGivenPayer(
+    payer: Payer,
+    signal?: AbortSignal,
+  ): Promise<PayerRead> {
     const source = toPayerSource(payer);
     checkNetworks(this.network, givenPayerEntries(source));
-    return (await this.readSource(source)).snapshot;
+    return this.readSource(source, signal);
   }
 
   /** Reads a payer whose given data was checked; its UTxOs from the provider past the cache */

@@ -1,5 +1,6 @@
 import type { Budget, ScriptFailure } from "@meshsdk/common";
 
+import type { TxIntent } from "./intent/intent";
 import type { TxAttempt, TxIntentStatus } from "./intent/types";
 import type { TxPartError, TxPartErrorCode } from "./parts/errors";
 import type { OutRef, TxPart, Unresolved } from "./parts/types";
@@ -563,6 +564,8 @@ export type TxIntentErrorContext<C extends TxIntentErrorCode> =
   TxErrorContext & {
     /** How long to wait before repeating the call; kept only on a retryable error */
     retryAfterMs?: number;
+    /** The intent the error is raised by, kept as a property that is not enumerable */
+    intent?: TxIntent;
     /** The intent's id */
     intentId?: string;
     /** The intent's status when the error was raised */
@@ -584,6 +587,11 @@ export class TxIntentError<
   readonly code: C;
   /** Data of the error, typed by `code`; `undefined` for a code that carries none */
   readonly details: DetailsOf<C, TxIntentErrorDetails>;
+  /**
+   * The intent the error was raised by, as it is now. Not enumerable, so that a logger does not
+   * serialize it; set on every error a method of an intent throws
+   */
+  declare readonly intent?: TxIntent;
   /** The intent's id: plain data, safe to log */
   declare readonly intentId?: string;
   /** The intent's status when the error was raised; for logs only */
@@ -604,6 +612,7 @@ export class TxIntentError<
       cause,
       details,
       retryAfterMs,
+      intent,
       intentId,
       status,
       txHash,
@@ -629,6 +638,13 @@ export class TxIntentError<
       status?: TxIntentStatus;
       txHash?: string;
     };
+    if (intent !== undefined)
+      Object.defineProperty(this, "intent", {
+        value: intent,
+        enumerable: false,
+        configurable: true,
+        writable: false,
+      });
     if (intentId !== undefined) self.intentId = intentId;
     if (status !== undefined) self.status = status;
     if (txHash !== undefined) self.txHash = txHash;

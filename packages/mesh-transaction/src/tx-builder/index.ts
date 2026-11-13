@@ -59,8 +59,12 @@ export {
   signWitnesses,
   type Signer,
 } from "./sign";
+export { TxIntent } from "./intent/intent";
 export type {
   IntentDeadlines,
+  IntentOptions,
+  SendOptions,
+  SignOptions,
   TxAttempt,
   TxAttemptStatus,
   TxIntentJSON,

@@ -84,9 +84,16 @@ export function canSubmit<W extends object>(
   );
 }
 
-/** A payer as given, checked and converted as far as that needs no request */
+/**
+ * A payer as given, checked and converted as far as that needs no request. A snapshot made from
+ * a CIP-30 payer already read carries that payer's collateral fallback.
+ */
 export type PayerSource =
-  | { readonly form: "snapshot"; readonly snapshot: PayerSnapshot }
+  | {
+      readonly form: "snapshot";
+      readonly snapshot: PayerSnapshot;
+      readonly getCollateral?: GetCollateral;
+    }
   | { readonly form: "address"; readonly address: string }
   | { readonly form: "wallet"; readonly wallet: TxWallet };
 
@@ -452,7 +459,10 @@ export const readPayerSource = async (
   source: PayerSource,
   ctx: PayerReadContext,
 ): Promise<PayerRead> => {
-  if (source.form === "snapshot") return { snapshot: source.snapshot };
+  if (source.form === "snapshot")
+    return source.getCollateral
+      ? { snapshot: source.snapshot, getCollateral: source.getCollateral }
+      : { snapshot: source.snapshot };
   if (source.form === "wallet") return readWallet(source.wallet, ctx);
   const utxos = await fetchPayerUtxos(source.address, ctx);
   checkNetworks(

@@ -1,4 +1,7 @@
-import type { NetworkConfig } from "@meshsdk/common";
+import type { ISubmitter, NetworkConfig } from "@meshsdk/common";
+
+import type { BuildOptions } from "../builder";
+import type { Signer } from "../sign";
 
 /**
  * The deadlines of an intent. The builder's `intentDefaults` and an intent's own options give
@@ -47,6 +50,44 @@ export type WaitOptions = {
   /** The pause between two looks at the chain, in ms; above 0; the builder's, else 5 000 */
   pollMs?: number;
   /** Aborts the whole call with ABORTED */
+  signal?: AbortSignal;
+};
+
+/**
+ * The options of an intent, given to `builder.intent(parts, options)`. Every attempt is built
+ * with the same build options. The data options (`sendAllTo`, `knownUtxos`, `fee`,
+ * `registeredPools`, `extraKeyWitnesses`) and the three deadlines are written into the intent;
+ * the live objects (`payer`, `canSelect`, `coinSelection`, `trace`) are kept by the object only.
+ * Signers and the submitter are not options of an intent: they belong to the call that signs or
+ * sends (`SignOptions`, `SendOptions`).
+ *
+ * `payer` is the payer of the first attempt and of later ones; a snapshot serves one attempt, and
+ * `build({ payer })` gives a new one. `fee` goes into every attempt as given: an attempt whose
+ * minimum fee is above it is FEE_TOO_LOW. `trace` gets the build events of every attempt and the
+ * `warning` of a submitter that answered with another hash.
+ */
+export type IntentOptions = Omit<BuildOptions, "signal" | "after"> &
+  IntentDeadlines & {
+    /** The application's id of the intent, shown as `intent.id`; none is made up */
+    id?: string;
+  };
+
+/** The options of one call of `send()`: its waiting, who signs and who submits; never written */
+export type SendOptions = WaitOptions & {
+  /** Who signs an attempt that still needs signatures; else the intent's payer, if it can sign */
+  signers?: Signer | readonly Signer[];
+  /**
+   * Who submits; else the builder's submitter, else the provider. A wallet submits only when it
+   * is given here, in each call that should go through it
+   */
+  submitter?: ISubmitter;
+};
+
+/** The options of one call of `sign()` */
+export type SignOptions = {
+  /** Who signs; else the intent's payer, if it can sign */
+  signers?: Signer | readonly Signer[];
+  /** Aborts the call with ABORTED; signatures already recorded stay */
   signal?: AbortSignal;
 };
 

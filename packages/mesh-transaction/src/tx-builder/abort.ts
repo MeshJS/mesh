@@ -1,16 +1,22 @@
 import { TxBuildError } from "./errors";
 
-/** The error of a call whose signal aborted it, with the signal's reason as the cause */
-export const abortedError = (signal: AbortSignal) =>
+/**
+ * The error of a call whose signal aborted it, with the signal's reason as the cause
+ * @param what The call, as the message names it
+ */
+export const abortedError = (signal: AbortSignal, what = "the build") =>
   new TxBuildError(
     "ABORTED",
-    "the build was aborted by its signal",
+    `${what} was aborted by its signal`,
     signal.reason === undefined ? undefined : { cause: signal.reason },
   );
 
 /** @throws TxBuildError ABORTED when the signal is aborted */
-export const throwIfAborted = (signal: AbortSignal | undefined) => {
-  if (signal?.aborted) throw abortedError(signal);
+export const throwIfAborted = (
+  signal: AbortSignal | undefined,
+  what?: string,
+) => {
+  if (signal?.aborted) throw abortedError(signal, what);
 };
 
 /**
@@ -20,10 +26,11 @@ export const throwIfAborted = (signal: AbortSignal | undefined) => {
 export const abortable = <T>(
   promise: Promise<T>,
   signal: AbortSignal | undefined,
+  what?: string,
 ): Promise<T> => {
   if (!signal) return promise;
   return new Promise<T>((resolve, reject) => {
-    const onAbort = () => reject(abortedError(signal));
+    const onAbort = () => reject(abortedError(signal, what));
     const done = () => {
       if (typeof signal.removeEventListener === "function")
         signal.removeEventListener("abort", onAbort);
