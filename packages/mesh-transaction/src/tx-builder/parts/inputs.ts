@@ -1,4 +1,4 @@
-import type { LanguageVersion, UTxO } from "@meshsdk/common";
+import type { LanguageVersion } from "@meshsdk/common";
 
 import type { PartContext } from "./normalize";
 import type {
@@ -12,6 +12,7 @@ import type {
   SpendDatum,
   SpendDatumInput,
   SpendPart,
+  Utxo,
 } from "./types";
 import {
   addressText,
@@ -29,6 +30,7 @@ import {
   toResolvableInput,
   withKnownHash,
 } from "./normalize";
+import { utxoKey } from "./utxo";
 
 /**
  * Checks that a known output is locked the way its witness expects: by a key, or by the script
@@ -36,15 +38,15 @@ import {
  */
 export const checkLock = (
   ctx: PartContext,
-  utxo: UTxO | undefined,
+  utxo: Utxo | undefined,
   expected: { type: "key" } | { type: "script"; hash?: string },
 ) => {
   if (!utxo) return undefined;
   // Byron addresses carry no payment credential and are always key-locked
-  const credential = paymentCredential(
-    parseAddress(ctx, utxo.output.address),
-  ) ?? { type: "key" as const };
-  const outRef = `${utxo.input.txHash}#${utxo.input.outputIndex}`;
+  const credential = paymentCredential(parseAddress(ctx, utxo.address)) ?? {
+    type: "key" as const,
+  };
+  const outRef = utxoKey(utxo);
   checkCredential(ctx, outRef, credential, expected);
   return credential;
 };
@@ -56,12 +58,12 @@ export const checkLock = (
 export const toSpendDatum = (
   ctx: PartContext,
   datum: SpendDatumInput | undefined,
-  utxo: UTxO | undefined,
+  utxo: Utxo | undefined,
   version: LanguageVersion | undefined,
 ): SpendDatum | undefined => {
-  const outRef = utxo && `${utxo.input.txHash}#${utxo.input.outputIndex}`;
-  const inlineDatum = utxo?.output.plutusData;
-  const datumHash = utxo?.output.dataHash;
+  const outRef = utxo && utxoKey(utxo);
+  const inlineDatum = utxo?.datum?.type === "inline";
+  const datumHash = utxo?.datum?.type === "hash" ? utxo.datum.hash : undefined;
   const requireV3 = () => {
     if (version !== undefined && version !== "V3")
       fail(

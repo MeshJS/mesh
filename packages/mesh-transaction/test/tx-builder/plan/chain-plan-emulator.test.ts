@@ -1,7 +1,7 @@
 import type { UTxO } from "@meshsdk/common";
 import { mConStr0, ProviderError } from "@meshsdk/core";
 
-import type { TxPlan, TxPlanError } from "../../../src/tx-builder";
+import type { OutRef, TxPlan, TxPlanError } from "../../../src/tx-builder";
 import {
   collateral,
   output,
@@ -10,6 +10,7 @@ import {
   TxError,
   validity,
 } from "../../../src/tx-builder";
+import { outRefOf } from "../../../src/tx-builder/parts/utxo";
 import { planOver, recordOf } from "../../../src/tx-builder/plan/plan";
 import { alwaysSucceedCbor } from "../../test-util";
 import {
@@ -34,8 +35,11 @@ const expectCode = (error: unknown, code: string) => {
   expect((error as TxError).code).toBe(code);
 };
 
-const key = (utxo: Pick<UTxO, "input">) =>
-  `${utxo.input.txHash}#${utxo.input.outputIndex}`;
+/** `txHash#index` of a UTxO given in the Mesh form or returned in the builder's */
+const key = (utxo: Pick<UTxO, "input"> | OutRef) => {
+  const { txHash, outputIndex } = "input" in utxo ? utxo.input : utxo;
+  return `${txHash}#${outputIndex}`;
+};
 
 /** The anchors of a plan's record, as the kinds and out refs they are */
 const anchorsOf = (plan: TxPlan) =>
@@ -54,9 +58,7 @@ describe("Chains of plans on TxEmulator", () => {
       after: parent,
     });
     const built = await child.build();
-    const change = parent.built!.change.find(
-      (c) => c.output.address === address,
-    )!;
+    const change = parent.built!.change.find((c) => c.address === address)!;
     // The payer has UTxOs enough of its own, and the child still spends the parent's change
     expect(built.inputs.map(key)).toContain(key(change));
     expect(anchorsOf(child)).toEqual([{ kind: "parent", ref: key(change) }]);
@@ -197,9 +199,7 @@ describe("Chains of plans on TxEmulator", () => {
     const first = await child.build();
     const anchors = anchorsOf(child);
     expect(anchors).toEqual([{ kind: "payer", ref: anchors[0]!.ref }]);
-    const paid = parent.built!.outputs.find(
-      (o) => o.output.address === otherAddress,
-    )!;
+    const paid = parent.built!.outputs.find((o) => o.address === otherAddress)!;
     expect(paid.change).toBeUndefined();
     expect(first.inputs.map(key)).not.toContain(key(paid));
     // Its deadline is still the parent attempt's, which is not in a block
@@ -257,10 +257,10 @@ describe("Chains of plans on TxEmulator", () => {
     const child = builder.plan([pay(3_000_000n), validity({ until })], {
       payer: wallet,
       after: parent,
-      canSelect: (utxo) => utxo.input.txHash !== parentTx,
+      canSelect: (utxo) => utxo.txHash !== parentTx,
     });
     const built = await child.build();
-    expect(built.inputs.some((u) => u.input.txHash === parentTx)).toBe(false);
+    expect(built.inputs.some((u) => u.txHash === parentTx)).toBe(false);
     expect(anchorsOf(child).map((a) => a.kind)).toEqual(["payer"]);
     await child.sign();
     await child.send({ submitter: swallowing() });
@@ -332,7 +332,7 @@ describe("Chains of plans on TxEmulator", () => {
     provider.control.hooks.fetchAddressUTxOs = async () => [];
     const error = (await caught(child.build())) as TxPlanError<"INPUTS_SPENT">;
     expectCode(error, "INPUTS_SPENT");
-    expect(error.details.inputs).toEqual([seed.input]);
+    expect(error.details.inputs).toEqual([outRefOf(seed)]);
     expect(child.attempts).toHaveLength(1);
   });
 
@@ -375,7 +375,7 @@ describe("Chains of plans on TxEmulator", () => {
       const { emulator, builder, wallet, provider } = await setup();
       const parent = builder.plan(pay(), { payer: wallet });
       await parent.send({ submitter: swallowing() });
-      const witness = recordOf(parent).anchor.anchors[0]!.utxo.input.txHash;
+      const witness = recordOf(parent).anchor.anchors[0]!.utxo.txHash;
       const child = builder.plan(pay(3_000_000n), {
         payer: wallet,
         after: parent,
@@ -398,7 +398,7 @@ describe("Chains of plans on TxEmulator", () => {
       const { emulator, builder, wallet, provider } = await setup();
       const parent = builder.plan(pay(), { payer: wallet });
       await parent.send({ submitter: swallowing() });
-      const witness = recordOf(parent).anchor.anchors[0]!.utxo.input.txHash;
+      const witness = recordOf(parent).anchor.anchors[0]!.utxo.txHash;
       const child = builder.plan(pay(3_000_000n), {
         payer: wallet,
         after: parent,
@@ -606,7 +606,7 @@ describe("Chains of plans with several parents, failed parents and pinned select
         payer: wallet,
         after: [first, second],
         expiryMarginMs: 5_000,
-        canSelect: (utxo) => utxo.input.txHash === second.txHash,
+        canSelect: (utxo) => utxo.txHash === second.txHash,
       },
     );
     await child.build();
@@ -653,7 +653,7 @@ describe("Chains of plans with several parents, failed parents and pinned select
       after: parent,
       ttlMs: 60_000,
       expiryMarginMs: 5_000,
-      canSelect: (utxo) => !skipParent || utxo.input.txHash !== parentTx,
+      canSelect: (utxo) => !skipParent || utxo.txHash !== parentTx,
     });
     await child.build();
     await child.sign();
@@ -717,12 +717,10 @@ describe("Chains of plans with several parents, failed parents and pinned select
     const child = builder.plan(pay(3_000_000n), {
       payer: wallet,
       after: [first, second],
-      canSelect: (utxo) => utxo.input.txHash !== firstTx,
+      canSelect: (utxo) => utxo.txHash !== firstTx,
     });
     const built = await child.build();
-    const change = second.built!.change.find(
-      (c) => c.output.address === address,
-    )!;
+    const change = second.built!.change.find((c) => c.address === address)!;
     expect(built.inputs.map(key)).toContain(key(change));
     expect(anchorsOf(child)).toEqual([{ kind: "parent", ref: key(change) }]);
     expect(child.attempts[0]!.parents!.map((p) => p.txHash)).toEqual([
@@ -735,9 +733,7 @@ describe("Chains of plans with several parents, failed parents and pinned select
     const { builder, wallet, address } = await setup();
     const parent = builder.plan(pay(), { payer: wallet });
     await parent.send({ submitter: swallowing() });
-    const change = parent.built!.change.find(
-      (c) => c.output.address === address,
-    )!;
+    const change = parent.built!.change.find((c) => c.address === address)!;
     const child = builder.plan(
       [pay(3_000_000n), collateral({ utxo: change })],
       {
@@ -841,11 +837,9 @@ describe("Chains of plans with several parents, failed parents and pinned select
     await parent.build();
 
     const second = await child.build();
-    const change = parent.built!.change.find(
-      (c) => c.output.address === address,
-    )!;
+    const change = parent.built!.change.find((c) => c.address === address)!;
     expect(second.inputs.map(key)).toEqual([key(change)]);
-    expect(second.outputs.some((o) => o.output.address === to)).toBe(true);
+    expect(second.outputs.some((o) => o.address === to)).toBe(true);
     expect(child.attempts).toHaveLength(2);
   });
 });
@@ -882,9 +876,7 @@ describe("A child on a parent attempt its parent's object has not observed", () 
     const built = await child.build();
     expect(child.attempts).toHaveLength(2);
     expect(child.attempts[1]!.parents![0]!.txHash).toBe(parent.txHash);
-    expect(built.inputs.map((utxo) => utxo.input.txHash)).toContain(
-      parent.txHash,
-    );
+    expect(built.inputs.map((utxo) => utxo.txHash)).toContain(parent.txHash);
   });
 
   it("is ORPHANED, not INVALID_STATE, from build() on a parent attempt its search finds with is_valid = false", async () => {
@@ -1032,11 +1024,11 @@ describe("builder.build with after: a plan", () => {
       payer: wallet,
       after: plan,
     });
-    expect(built.inputs.map((u) => u.input.txHash)).toEqual([plan.txHash]);
+    expect(built.inputs.map((u) => u.txHash)).toEqual([plan.txHash]);
     const listed = await builder.build(pay(3_000_000n), {
       payer: wallet,
       after: [plan],
     });
-    expect(listed.inputs.map((u) => u.input.txHash)).toEqual([plan.txHash]);
+    expect(listed.inputs.map((u) => u.txHash)).toEqual([plan.txHash]);
   });
 });

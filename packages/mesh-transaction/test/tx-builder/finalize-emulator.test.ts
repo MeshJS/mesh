@@ -1,4 +1,4 @@
-import { deserializeAddress, mConStr0, UTxO } from "@meshsdk/core";
+import { deserializeAddress, mConStr0 } from "@meshsdk/core";
 import { TxEmulator } from "@meshsdk/tx-emulator";
 import { MeshWallet } from "@meshsdk/wallet";
 
@@ -14,6 +14,7 @@ import {
   TxBuilder,
   TxBuildError,
   TxError,
+  Utxo,
 } from "../../src/tx-builder";
 import { alwaysSucceedCbor, baseAddress } from "../test-util";
 
@@ -193,7 +194,7 @@ describe.each(["scalus", "cquisitor"] as const)(
         }),
         { payer: address },
       );
-      const named: UTxO[] = [
+      const named: Utxo[] = [
         ...built.inputs,
         ...built.referenceInputs,
         ...(built.collateral?.inputs ?? []),

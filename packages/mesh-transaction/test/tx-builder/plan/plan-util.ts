@@ -1,6 +1,4 @@
-import type { UTxO } from "@meshsdk/common";
-
-import type { BuiltTx } from "../../../src/tx-builder";
+import type { BuiltTx, Utxo } from "../../../src/tx-builder";
 import {
   Advanced,
   advancePlan,
@@ -20,12 +18,11 @@ const ADDRESS =
   "addr_test1qpq6xvp5y4fw0wfgxfqmn78qqagkpv4q7qpqyz8s8x3snp5n0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgsc3xk2w";
 
 /** An output of `txHash` at `outputIndex`, holding some ada */
-export const utxo = (txHash: string, outputIndex = 0): UTxO => ({
-  input: { txHash, outputIndex },
-  output: {
-    address: ADDRESS,
-    amount: [{ unit: "lovelace", quantity: "5000000" }],
-  },
+export const utxo = (txHash: string, outputIndex = 0): Utxo => ({
+  txHash,
+  outputIndex,
+  address: ADDRESS,
+  value: { lovelace: 5_000_000n },
 });
 
 /**
@@ -34,7 +31,7 @@ export const utxo = (txHash: string, outputIndex = 0): UTxO => ({
  */
 export const builtTx = (spec: {
   txHash: string;
-  inputs: readonly UTxO[];
+  inputs: readonly Utxo[];
   keys?: readonly string[];
   until?: number;
   plutus?: boolean;
@@ -66,8 +63,8 @@ export const builtTx = (spec: {
 /** A build event spending `anchors` (and `extra` inputs) */
 export const buildEvent = (spec: {
   txHash: string;
-  anchors: readonly { utxo: UTxO; kind: AnchorKind }[];
-  extra?: readonly UTxO[];
+  anchors: readonly { utxo: Utxo; kind: AnchorKind }[];
+  extra?: readonly Utxo[];
   keys?: readonly string[];
   until?: number;
   plutus?: boolean;

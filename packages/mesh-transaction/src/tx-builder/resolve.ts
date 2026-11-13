@@ -3,7 +3,6 @@ import type {
   NetworkConfig,
   Protocol,
   TransactionInputPrototype,
-  UTxO,
 } from "@meshsdk/common";
 import { slotAt } from "@meshsdk/common";
 import { scriptHashToRewardAddress } from "@meshsdk/core-cst";
@@ -22,6 +21,7 @@ import type {
   ProposalPart,
   SpendPart,
   TxPart,
+  Utxo,
   ValidityPart,
   WithdrawalPart,
 } from "./parts/types";
@@ -39,7 +39,7 @@ import {
   toPlutusScriptSource,
   withKnownHash,
 } from "./parts/normalize";
-import { copyUtxo } from "./payer";
+import { readUtxo, utxoKey } from "./parts/utxo";
 
 /** Deposits the protocol parameters on `Protocol` leave out */
 export type GovernanceDeposits = {
@@ -57,7 +57,7 @@ export type ResolveContext = {
   params: Protocol;
   deposits: GovernanceDeposits;
   /** UTxOs already known, keyed by `txHash#index`; fetched ones are added */
-  known: Map<string, UTxO>;
+  known: Map<string, Utxo>;
   /** Told of the out refs looked up through the provider, as `txHash#index`, when asked for */
   onFetch?: (outRefs: string[]) => void;
   /**
@@ -66,9 +66,6 @@ export type ResolveContext = {
    */
   unread?: ReadonlySet<string>;
 };
-
-export const utxoKey = (utxo: Readonly<UTxO>) =>
-  `${utxo.input.txHash}#${utxo.input.outputIndex}`;
 
 const ctxOf = (part: TxPart): PartContext => ({
   part: part.kind,
@@ -172,7 +169,7 @@ const fetchMissing = async (
         );
       const utxos = answer.map((entry: unknown, i) => {
         try {
-          return copyUtxo(entry);
+          return readUtxo(entry);
         } catch (error) {
           throw notFound(
             `entry ${i} of the answer is not a UTxO: ${errorText(error)}`,

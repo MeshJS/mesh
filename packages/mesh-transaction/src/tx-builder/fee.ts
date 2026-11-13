@@ -3,7 +3,6 @@ import type {
   TransactionBodyPrototype,
   TransactionOutputPrototype,
   TransactionPrototype,
-  UTxO,
   ValuePrototype,
 } from "@meshsdk/common";
 import {
@@ -12,9 +11,10 @@ import {
   valuePrototypeToCardano,
 } from "@meshsdk/core-cst";
 
-import type { OutputPart } from "./parts/types";
+import type { OutputPart, Utxo, UtxoInput } from "./parts/types";
 import { invalidArgument, TxBuildError } from "./errors";
 import { errorText, isObject, isWholeNumber } from "./parts/normalize";
+import { readUtxo, scriptSize, utxoKey } from "./parts/utxo";
 import { placeholderWitnesses } from "./witnesses";
 
 /** A non-negative rational number */
@@ -245,20 +245,15 @@ export const coversMinCoin = (
 /** The total size of the reference scripts held by the UTxOs a transaction body spends or reads */
 export const bodyRefScriptSize = (
   body: Readonly<TransactionBodyPrototype>,
-  utxos: readonly UTxO[],
+  utxos: readonly Utxo[],
 ): bigint => {
-  const byOutRef = new Map(
-    utxos.map((utxo) => [
-      `${utxo.input.txHash.toLowerCase()}#${utxo.input.outputIndex}`,
-      utxo,
-    ]),
-  );
+  const byOutRef = new Map(utxos.map((utxo) => [utxoKey(utxo), utxo]));
   let size = 0n;
   for (const input of [...body.inputs, ...(body.reference_inputs ?? [])]) {
-    const scriptRef = byOutRef.get(
+    const script = byOutRef.get(
       `${input.transaction_id.toLowerCase()}#${input.index}`,
-    )?.output.scriptRef;
-    if (scriptRef) size += BigInt(scriptRef.length / 2);
+    )?.script;
+    if (script) size += BigInt(scriptSize(script));
   }
   return size;
 };
@@ -293,17 +288,18 @@ export const prototypeExUnits = (
  * @param context.params The protocol parameters
  * @param context.vkeyWitnesses How many key witnesses the signed transaction carries
  * @param context.inputs UTxOs of the body's inputs and reference inputs, for their reference
- *   scripts
+ *   scripts, in any form the builder takes a UTxO in
  * @throws TxBuildError INVALID_OPTION for a prototype without `body` and `witness_set`, a
- *   `vkeyWitnesses` that is not a whole number of 0 or more, `inputs` that is not a list, and
- *   `params` lacking a field the fee is worked out from, or holding one that is not a number
+ *   `vkeyWitnesses` that is not a whole number of 0 or more, `inputs` that is not a list or holds
+ *   an entry that is not a UTxO, and `params` lacking a field the fee is worked out from, or
+ *   holding one that is not a number
  */
 export const minFee = (
   prototype: TransactionPrototype,
   context: {
     params: Protocol;
     vkeyWitnesses: number;
-    inputs?: readonly UTxO[];
+    inputs?: readonly UtxoInput[];
   },
 ): bigint => {
   if (
@@ -332,6 +328,20 @@ export const minFee = (
     );
   if (!Array.isArray(inputs))
     throw invalidArgument("inputs", inputs, "a list of UTxOs");
+  const utxos = (inputs as unknown[]).map((entry, i) => {
+    try {
+      return readUtxo(entry);
+    } catch (error) {
+      throw new TxBuildError(
+        "INVALID_OPTION",
+        `invalid inputs: entry ${i} is not a UTxO: ${errorText(error)}`,
+        {
+          details: { option: "inputs", value: entry, allowed: "a UTxO" },
+          cause: error,
+        },
+      );
+    }
+  });
   const { vkeyWitnesses: vkeys } = placeholderWitnesses(
     { keyHashes: new Set(), byronAddresses: new Set() },
     vkeyWitnesses,
@@ -343,7 +353,7 @@ export const minFee = (
   const signed = { ...prototype, witness_set: witnessSet };
   return feeForSize(
     transactionPrototypeToHex(signed).length / 2,
-    bodyRefScriptSize(prototype.body, inputs),
+    bodyRefScriptSize(prototype.body, utxos),
     prototypeExUnits(prototype),
     params,
   );

@@ -34,6 +34,7 @@ import {
   output,
   referenceInput,
   spend,
+  toUtxo,
   TxBuilder,
   TxBuildError,
   TxPart,
@@ -331,8 +332,8 @@ describe("TxBuilder.add", () => {
     const b3 = b2.add(A);
     expect(calls).toEqual({});
 
-    expect((await b2.build([], o)).referenceInputs).toEqual([read]);
-    expect((await b3.build([], o)).referenceInputs).toEqual([read]);
+    expect((await b2.build([], o)).referenceInputs).toEqual([toUtxo(read)]);
+    expect((await b3.build([], o)).referenceInputs).toEqual([toUtxo(read)]);
     expect(calls).toEqual({ fetchUTxOs: 1 });
   });
 
@@ -419,7 +420,7 @@ describe("TxBuilder.add", () => {
       const built = await builder()
         .add(...parts)
         .build(parts, o);
-      expect(built.referenceInputs).toEqual([read]);
+      expect(built.referenceInputs).toEqual([toUtxo(read)]);
       expect(built.prototype.body.reference_inputs).toEqual([
         { transaction_id: read.input.txHash, index: read.input.outputIndex },
       ]);

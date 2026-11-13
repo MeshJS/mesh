@@ -15,8 +15,6 @@ import {
 } from "@meshsdk/core";
 import {
   Address,
-  deserializeTxUnspentOutput,
-  fromTxUnspentOutput,
   resolvePlutusScriptAddress,
   toTxUnspentOutput,
   TransactionInput,
@@ -33,6 +31,8 @@ import {
   PayerSnapshot,
   RequiredKeys,
   spend,
+  toMeshUtxo,
+  toUtxo,
   TxBuilder,
   TxBuilderOptions,
   TxBuildError,
@@ -265,7 +265,7 @@ describe("TxBuilder: payer forms", () => {
     const second = await offline().build(pay(), { payer });
     expect(second.tx).toBe(first.tx);
     expect(second.txHash).toBe(first.txHash);
-    expect(first.change[0]!.output.address).toBe(wallet);
+    expect(first.change[0]!.address).toBe(wallet);
   });
 
   it("takes a snapshot with a hex address and CBOR UTxOs, mixed with objects", async () => {
@@ -343,7 +343,7 @@ describe("TxBuilder: payer forms", () => {
       expect(calls.filter((c) => c.method === "fetchAddressUTxOs")).toEqual([
         { method: "fetchAddressUTxOs", args: [wallet] },
       ]);
-      expect(result.change.map((o) => o.output.address)).toEqual([wallet]);
+      expect(result.change.map((o) => o.address)).toEqual([wallet]);
       built.push(result.tx);
     }
     expect(built[1]).toBe(built[0]);
@@ -362,7 +362,7 @@ describe("TxBuilder: payer forms", () => {
       expect(fake.count("fetchAddressUTxOs")).toBe(2);
       expect(fake.count("fetchProtocolParameters")).toBe(1);
       expect(first.inputs).not.toContainEqual(gained);
-      expect(second.inputs).toContainEqual(gained);
+      expect(second.inputs).toContainEqual(toUtxo(gained));
     } finally {
       jest.restoreAllMocks();
     }
@@ -558,14 +558,19 @@ describe("TxBuilder: payer forms", () => {
       changeAddress: wallet,
       utxos: [inline, hashed, withScript].map(cborOf),
     });
+    // The same UTxOs as their objects give
     expect(snapshot.utxos).toEqual(
-      [inline, hashed, withScript].map((u) =>
-        fromTxUnspentOutput(deserializeTxUnspentOutput(cborOf(u))),
-      ),
+      [inline, hashed, withScript].map((u) => toUtxo(u)),
     );
-    expect(snapshot.utxos[0]!.output.plutusData).toBe("d87980");
-    expect(snapshot.utxos[0]!.output.dataHash).toBeDefined();
-    expect(snapshot.utxos[2]!.output.scriptRef).toBe(script);
+    expect(snapshot.utxos[0]!.datum).toEqual({
+      type: "inline",
+      data: { type: "CBOR", content: "d87980" },
+    });
+    expect(snapshot.utxos[1]!.datum).toEqual({
+      type: "hash",
+      hash: "ab".repeat(32),
+    });
+    expect(toMeshUtxo(snapshot.utxos[2]!).output.scriptRef).toBe(script);
 
     // Byron addresses in base58, on a mainnet builder
     const mainnet = new TxBuilder({ network: "mainnet", params });
@@ -581,7 +586,7 @@ describe("TxBuilder: payer forms", () => {
       utxos: [atByron.toCbor().toString()],
     });
     expect(byronSnapshot.changeAddress).toBe(byron);
-    expect(byronSnapshot.utxos[0]!.output.address).toBe(byron);
+    expect(byronSnapshot.utxos[0]!.address).toBe(byron);
   });
 
   it("matches a payer UTxO written with an upper-case hash to a part naming it in lower case", async () => {
@@ -595,14 +600,17 @@ describe("TxBuilder: payer forms", () => {
       [spend.pubKey({ utxo: own.input }), pay()],
       { payer: { changeAddress: wallet, utxos: [upper] } },
     );
-    expect(built.inputs).toEqual([own]);
+    expect(built.inputs).toEqual([toUtxo(own)]);
     expect(built.selectedInputs).toEqual([]);
   });
 
   it("reads every form with readPayer into bech32 and UTxO objects", async () => {
     const fake = fakeProvider();
     const builder = new TxBuilder({ network, params, provider: fake.provider });
-    const expected: PayerSnapshot = { changeAddress: wallet, utxos: funds };
+    const expected: PayerSnapshot = {
+      changeAddress: wallet,
+      utxos: funds.map((u) => toUtxo(u)),
+    };
     expect(await builder.readPayer(cip30())).toEqual(expected);
     expect(await builder.readPayer(meshFormat().wallet)).toEqual(expected);
     expect(await builder.readPayer(hexOf(wallet))).toEqual(expected);
@@ -634,7 +642,7 @@ describe("TxBuilder: payer forms", () => {
     }).build([spend.pubKey({ utxo: funds[1]!.input }), pay()], {
       payer: { changeAddress: wallet, utxos: funds },
     });
-    expect(built.inputs).toContainEqual(funds[1]);
+    expect(built.inputs).toContainEqual(toUtxo(funds[1]!));
     expect(fake.count("fetchUTxOs")).toBe(0);
   });
 });
@@ -674,7 +682,7 @@ describe("TxBuilder: the payer read and the other reads", () => {
       "getUtxos",
     ]);
     open();
-    expect((await building).inputs).toContainEqual(other);
+    expect((await building).inputs).toContainEqual(toUtxo(other));
   });
 
   it("looks up a wallet payer's UTxO a part names by out ref", async () => {
@@ -718,11 +726,12 @@ describe("TxBuilder: the payer read and the other reads", () => {
       [spend.plutus({ utxo: locked, script, redeemer: { data: 0 } })],
       { payer: meshFormat({ utxos: [...funds, listed] }).wallet },
     );
-    expect(built.inputs).toContainEqual(locked);
+    expect(built.inputs).toContainEqual(toUtxo(locked));
     expect(seen.length).toBeGreaterThan(0);
     for (const utxos of seen) {
-      expect(utxos).toContainEqual(locked);
-      expect(utxos).not.toContainEqual(listed);
+      // Handed as Mesh UTxOs, written from the part's copy
+      expect(utxos).toContainEqual(toMeshUtxo(locked));
+      expect(utxos).not.toContainEqual(toMeshUtxo(listed));
     }
   });
 });

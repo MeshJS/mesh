@@ -25,14 +25,18 @@ import {
   BuildOptions,
   BuiltTx,
   output,
+  OutRef,
   PartsInput,
   referenceInput,
   SelectInputs,
   spend,
+  toUtxo,
   TxBuilder,
   TxBuildError,
   TxBuildErrorCode,
   TxError,
+  Utxo,
+  UtxoInput,
   withdrawal,
 } from "../../src/tx-builder";
 import { valueSize } from "../../src/tx-builder/fee";
@@ -90,10 +94,18 @@ const utxo = (
     ],
   },
 });
-const ref = (u: UTxO) => `${u.input.txHash}#${u.input.outputIndex}`;
-const refs = (utxos: readonly UTxO[]) => utxos.map(ref);
-const quantityOf = (u: UTxO, unit: string) =>
-  BigInt(u.output.amount.find((a) => a.unit === unit)?.quantity ?? 0);
+/** The out ref of a UTxO given in the Mesh form or returned in the builder's */
+const ref = (u: UtxoInput) => {
+  const { txHash, outputIndex } = toUtxo(u);
+  return `${txHash}#${outputIndex}`;
+};
+const refs = (utxos: readonly UtxoInput[]) => utxos.map(ref);
+/** The out ref of a UTxO, as `coinSelection` answers with it */
+const outRef = (u: UtxoInput): OutRef => {
+  const { txHash, outputIndex } = toUtxo(u);
+  return { txHash, outputIndex };
+};
+const quantityOf = (u: UtxoInput, unit: string) => toUtxo(u).value[unit] ?? 0n;
 
 const pay = (lovelace: bigint, tokens: Record<string, bigint> = {}) =>
   output({ address: recipient, value: { lovelace, ...tokens } });
@@ -102,7 +114,7 @@ const offline = (
   extra: Partial<ConstructorParameters<typeof TxBuilder>[0]> = {},
 ) => new TxBuilder({ network, params, ...extra });
 
-const snapshot = (utxos: UTxO[]) => ({ changeAddress: wallet, utxos });
+const snapshot = (utxos: UtxoInput[]) => ({ changeAddress: wallet, utxos });
 
 const caught = async (run: () => unknown): Promise<unknown> => {
   try {
@@ -169,7 +181,7 @@ const scriptSpend = (lovelace = ada(10)) =>
 
 /** A `coinSelection` recording each call, answering with `answer` */
 const recording = (
-  answer: (...args: Parameters<SelectInputs>) => readonly UTxO[] = (
+  answer: (...args: Parameters<SelectInputs>) => readonly OutRef[] = (
     _,
     candidates,
   ) => candidates.slice(0, 1),
@@ -197,7 +209,7 @@ const tokensOf = (outputs: BuiltTx["prototype"]["body"]["outputs"]) => {
 };
 const lovelaceIn = (outputs: BuiltTx["prototype"]["body"]["outputs"]) =>
   outputs.reduce((total, o) => total + BigInt(o.amount.coin), 0n);
-const sumOf = (utxos: readonly UTxO[], unit = "lovelace") =>
+const sumOf = (utxos: readonly UtxoInput[], unit = "lovelace") =>
   utxos.reduce((total, u) => total + quantityOf(u, unit), 0n);
 
 describe("TxBuilder: canSelect", () => {
@@ -212,30 +224,28 @@ describe("TxBuilder: canSelect", () => {
 
     const built = await offline().build(parts, {
       payer,
-      canSelect: (u) => !u.output.amount.some((a) => a.unit === protectedUnit),
+      canSelect: (u) => u.value[protectedUnit] === undefined,
     });
     expect(refs(built.inputs)).not.toContain(ref(guarded));
     expect(refs(built.selectedInputs)).toContain(ref(other));
   });
 
-  it("is asked about UTxO objects when the payer gives CBOR", async () => {
+  it("is asked about UTxOs in the builder's form when the payer gives CBOR", async () => {
     const guarded = utxo(ada(100), { [protectedUnit]: 1n });
     const other = utxo(ada(10));
     const cborOf = (u: UTxO) => toTxUnspentOutput(u).toCbor().toString();
-    const asked: UTxO[] = [];
+    const asked: Utxo[] = [];
     const built = await offline().build(pay(ada(2)), {
       payer: { changeAddress: wallet, utxos: [guarded, other].map(cborOf) },
       canSelect: (u) => {
         asked.push(u);
-        return !u.output.amount.some((a) => a.unit === protectedUnit);
+        return u.value[protectedUnit] === undefined;
       },
     });
-    expect(asked.map((u) => u.input.txHash)).toEqual(
+    expect(asked.map((u) => u.txHash)).toEqual(
       [guarded, other].map((u) => u.input.txHash),
     );
-    expect(asked.map((u) => u.output.amount)).toEqual(
-      [guarded, other].map((u) => u.output.amount),
-    );
+    expect(asked).toEqual([guarded, other].map((u) => toUtxo(u)));
     expect(refs(built.inputs)).toEqual([ref(other)]);
   });
 
@@ -314,7 +324,7 @@ describe("TxBuilder: coinSelection", () => {
       spend.pubKey({ utxo: spent }),
       referenceInput({ utxo: read }),
     ];
-    const canSelect = (u: UTxO) => ref(u) !== ref(refused);
+    const canSelect = (u: Utxo) => ref(u) !== ref(refused);
 
     // The built-in choice takes the token holder and then the largest plain UTxO
     const builtIn = await offline().build(parts, { payer, canSelect });
@@ -335,8 +345,7 @@ describe("TxBuilder: coinSelection", () => {
     expect(calls).toHaveLength(1);
     const [need, candidates, context] = calls[0]!;
     // The output less the spent UTxO, before any fee
-    expect(need.lovelace).toBe(ada(18));
-    expect(Array.from(need.assets)).toEqual([[paidUnit, 5n]]);
+    expect(need).toStrictEqual({ lovelace: ada(18), [paidUnit]: 5n });
     expect(refs(candidates)).toEqual(refs([big, tokens, middle]));
     expect(context).toEqual({ round: 0, selected: [], fee: 0n, params });
   });
@@ -377,16 +386,13 @@ describe("TxBuilder: coinSelection", () => {
       payer: snapshot([a, b]),
       coinSelection: (_, candidates) => [
         {
-          ...candidates[1]!,
-          input: {
-            ...candidates[1]!.input,
-            txHash: candidates[1]!.input.txHash.toUpperCase(),
-          },
+          txHash: candidates[1]!.txHash.toUpperCase(),
+          outputIndex: candidates[1]!.outputIndex,
         },
       ],
     });
-    expect(built.selectedInputs).toEqual([b]);
-    expect(built.selectedInputs[0]!.input.txHash).toBe(b.input.txHash);
+    expect(built.selectedInputs).toEqual([toUtxo(b)]);
+    expect(built.selectedInputs[0]!.txHash).toBe(b.input.txHash);
   });
 
   it("is called again while something is missing, with what it picked as selected", async () => {
@@ -409,19 +415,20 @@ describe("TxBuilder: coinSelection", () => {
     const locked = utxo(ada(50), {}, scriptAddress);
     const refused = utxo(ada(40));
     const payer = snapshot([a, b, locked, refused]);
-    const canSelect = (u: UTxO) => ref(u) !== ref(refused);
+    const canSelect = (u: Utxo) => ref(u) !== ref(refused);
     const foreign = utxo(ada(1000));
     let first = true;
+    // Answered as bare out refs, or as UTxOs in full: either names the UTxO by its out ref
     const cases: [string, SelectInputs, UTxO][] = [
-      ["foreign", () => [foreign], foreign],
-      ["script-locked", () => [locked], locked],
-      ["rejected by canSelect", () => [refused], refused],
+      ["foreign", () => [outRef(foreign)], foreign],
+      ["script-locked", () => [toUtxo(locked)], locked],
+      ["rejected by canSelect", () => [outRef(refused)], refused],
       [
         "already selected",
         () => {
           const answer = first ? [a] : [b, a];
           first = false;
-          return answer;
+          return answer.map((u) => toUtxo(u));
         },
         a,
       ],
@@ -432,12 +439,12 @@ describe("TxBuilder: coinSelection", () => {
           offline().build(pay(ada(12)), { payer, canSelect, coinSelection }),
         "INVALID_SELECTION",
       );
-      expect(error.details.utxo).toEqual(named.input);
+      expect(error.details.utxo).toStrictEqual(named.input);
       expect(error.retryable).toBe(false);
     }
   });
 
-  it("is INVALID_OPTION when it answers with something that is not a list of UTxOs", async () => {
+  it("is INVALID_OPTION when it answers with something that is not a list of out refs", async () => {
     const error = await expectCode(
       () =>
         offline().build(pay(ada(2)), {
@@ -456,6 +463,18 @@ describe("TxBuilder: coinSelection", () => {
       "INVALID_OPTION",
     );
     expect(entry.details.value).toEqual({});
+    // A Mesh UTxO names no out ref by txHash and outputIndex: it is not an answer
+    const given = utxo(ada(50));
+    const mesh = await expectCode(
+      () =>
+        offline().build(pay(ada(2)), {
+          payer: snapshot([given]),
+          coinSelection: (() => [given]) as unknown as SelectInputs,
+        }),
+      "INVALID_OPTION",
+    );
+    expect(mesh.details.option).toBe("coinSelection");
+    expect(mesh.details.value).toBe(given);
   });
 
   it("lets what canSelect or coinSelection throws out of build as it is", async () => {
@@ -504,7 +523,7 @@ describe("TxBuilder: coinSelection", () => {
       () =>
         offline().build(pay(ada(2)), {
           payer: snapshot([small, utxo(ada(50))]),
-          coinSelection: () => (calls++ === 0 ? [small] : []),
+          coinSelection: () => (calls++ === 0 ? [outRef(small)] : []),
         }),
       "INSUFFICIENT_FUNDS",
     );
@@ -519,7 +538,7 @@ describe("TxBuilder: coinSelection", () => {
   it("leaves change and collateral to the builder", async () => {
     const small = utxo(ada(5));
     const large = utxo(ada(40));
-    const { coinSelection, calls } = recording(() => [large]);
+    const { coinSelection, calls } = recording(() => [outRef(large)]);
     const built = await scripted().build([scriptSpend(), pay(ada(30))], {
       payer: snapshot([small, large]),
       coinSelection,
@@ -527,7 +546,7 @@ describe("TxBuilder: coinSelection", () => {
     expect(refs(built.selectedInputs)).toEqual([ref(large)]);
     expect(refs(built.collateral!.inputs)).toEqual([ref(small)]);
     expect(built.collateral!.return!.address).toBe(wallet);
-    expect(built.change.map((o) => o.output.address)).toEqual([wallet]);
+    expect(built.change.map((o) => o.address)).toEqual([wallet]);
     // Once per pass, for the payment only: collateral is never asked for
     expect(calls.length).toBeGreaterThan(0);
     for (const [need, , context] of calls) {
@@ -550,9 +569,25 @@ describe("TxBuilder: coinSelection", () => {
       { payer: snapshot([a, b]), coinSelection },
     );
     expect(calls).toHaveLength(1);
-    expect(calls[0]![0].lovelace).toBe(1n);
-    expect(calls[0]![0].assets.size).toBe(0);
+    expect(calls[0]![0]).toStrictEqual({ lovelace: 1n });
     expect(refs(built.inputs)).toEqual([ref(b)]);
+  });
+
+  it("is asked with zero lovelace when only tokens are short", async () => {
+    const spent = utxo(ada(50));
+    const holder = utxo(ada(2), { [paidUnit]: 7n });
+    const { coinSelection, calls } = recording((_, candidates) =>
+      candidates.filter((u) => u.value[paidUnit] !== undefined),
+    );
+    const built = await offline().build(
+      [spend.pubKey({ utxo: spent }), pay(ada(2), { [paidUnit]: 5n })],
+      { payer: snapshot([utxo(ada(10)), holder]), coinSelection },
+    );
+    expect(calls.length).toBeGreaterThan(0);
+    // The spent UTxO covers the lovelace, before any fee: only the tokens are asked for
+    expect(calls[0]![0]).toStrictEqual({ lovelace: 0n, [paidUnit]: 5n });
+    expect(calls[0]![2].fee).toBe(0n);
+    expect(refs(built.selectedInputs)).toEqual([ref(holder)]);
   });
 
   it("is not called with no candidate left: INSUFFICIENT_FUNDS", async () => {
@@ -721,7 +756,7 @@ describe("TxBuilder: sendAllTo", () => {
       expect(built.change).toEqual(built.outputs);
       for (const o of built.change) {
         expect(o.change).toBe(true);
-        expect(o.output.address).toBe(wallet);
+        expect(o.address).toBe(wallet);
       }
     }
     const elsewhere = await offline().build([], { payer, sendAllTo: vault });

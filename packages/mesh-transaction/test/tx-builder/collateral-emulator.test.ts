@@ -73,9 +73,7 @@ describe("TxBuilder collateral fallback on the emulator", () => {
 
     const built = await builder.build(unlock(), { payer: api });
     expect(asked).toHaveLength(1);
-    expect(built.collateral!.inputs.map((u) => u.input.outputIndex)).toEqual([
-      0,
-    ]);
+    expect(built.collateral!.inputs.map((u) => u.outputIndex)).toEqual([0]);
     expect(built.selectedInputs).toEqual([]);
 
     // Signed by the payment key alone, whose UTxO is the collateral

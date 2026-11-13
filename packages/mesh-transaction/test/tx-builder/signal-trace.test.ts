@@ -32,6 +32,7 @@ import {
   TxBuildError,
   TxBuildErrorCode,
   TxError,
+  Utxo,
 } from "../../src/tx-builder";
 import { alwaysSucceedCbor, baseAddress } from "../test-util";
 
@@ -71,7 +72,10 @@ const utxo = (lovelace: bigint, extra: Partial<UTxO["output"]> = {}): UTxO => ({
     ...extra,
   },
 });
-const ref = (u: UTxO) => `${u.input.txHash}#${u.input.outputIndex}`;
+const ref = (u: UTxO | Utxo) => {
+  const { txHash, outputIndex } = "input" in u ? u.input : u;
+  return `${txHash}#${outputIndex}`;
+};
 const pay = (n = 2) =>
   output({ address: recipient, value: { lovelace: ada(n) } });
 

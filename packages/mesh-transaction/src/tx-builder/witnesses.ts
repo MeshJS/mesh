@@ -3,7 +3,6 @@ import type {
   CredTypePrototype,
   NativeScript,
   NativeScriptPrototype,
-  UTxO,
   VkeywitnessPrototype,
 } from "@meshsdk/common";
 import {
@@ -12,7 +11,6 @@ import {
   CredentialType,
   fromNativeScript,
   HexBlob,
-  Script,
   Serialization,
 } from "@meshsdk/core-cst";
 
@@ -23,6 +21,7 @@ import type {
   NativeWitness,
   PlutusWitness,
   TxPart,
+  Utxo,
 } from "./parts/types";
 import { nativeScriptToPrototype } from "./parts/normalize";
 
@@ -131,15 +130,15 @@ export const addCredential = (
 
 export const addAddress = (
   collected: Collected,
-  utxo: Readonly<UTxO> | undefined,
+  utxo: Readonly<Utxo> | undefined,
   part: PartRef,
   role: SignerRole,
 ) => {
   if (!utxo) return;
-  const address = Address.fromString(utxo.output.address);
+  const address = Address.fromString(utxo.address);
   if (!address) return;
   if (address.asByron()) {
-    collected.byronAddresses.add(utxo.output.address);
+    collected.byronAddresses.add(utxo.address);
     return;
   }
   const payment = address.getProps().paymentPart;
@@ -178,12 +177,13 @@ export const nativeScriptEntry = (
 
 /** The native script a UTxO holds as its reference script, if it holds one */
 export const nativeScriptRef = (
-  utxo: Readonly<UTxO> | undefined,
-): { script: NativeScriptPrototype; hash: string } | undefined => {
-  const scriptRef = utxo?.output.scriptRef;
-  const native = scriptRef && Script.fromCbor(HexBlob(scriptRef)).asNative();
-  return native ? nativeScriptEntry(native) : undefined;
-};
+  utxo: Readonly<Utxo> | undefined,
+): { script: NativeScriptPrototype; hash: string } | undefined =>
+  utxo?.script?.type === "native"
+    ? nativeScriptEntry(
+        Serialization.NativeScript.fromCbor(HexBlob(utxo.script.cbor)),
+      )
+    : undefined;
 
 /**
  * The script of a native witness and its hash, the script read from its reference output when

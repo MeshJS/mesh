@@ -50,6 +50,7 @@ import {
   refScriptFee,
 } from "../tx-builder/fee";
 import { voterKey } from "../tx-builder/ordering";
+import { readUtxo, toMeshUtxo } from "../tx-builder/parts/utxo";
 import { placeholderWitnesses, pricedSigners } from "../tx-builder/witnesses";
 import { bodyToParts, toOutputPart } from "./body-parts";
 import { LargestFirstInputSelector } from "./coin-selection";
@@ -327,7 +328,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       this.readOutputs(cache),
     ]);
     const translated = bodyToParts(body, {
-      known: outputs.known,
+      known: readMap(outputs.known),
       declaredStandsIn: (outRef, entry) => {
         const absence = outputs.absent.get(outRef);
         if (!handsUtxos) return true;
@@ -349,14 +350,19 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       ...(costModels && { costModels }),
       // Without an evaluator the redeemers keep the units of the calls; TxBuilder would
       // otherwise make a default one
-      evaluator: evaluator ? configuredAs(evaluator, evaluatorNetwork) : null,
+      evaluator: evaluator
+        ? configuredAs(evaluator, evaluatorNetwork, outputs.known)
+        : null,
     });
     const options: BuildOptions & { [DECLARED_OUTPUTS]: DeclaredOutputs } = {
       ...(body.changeAddress && {
-        payer: { changeAddress: body.changeAddress, utxos: body.extraInputs },
+        payer: {
+          changeAddress: body.changeAddress,
+          utxos: body.extraInputs.map(asRead),
+        },
       }),
       ...(this.manualFee && { fee: BigInt(this.manualFee) }),
-      knownUtxos: outputs.knownUtxos,
+      knownUtxos: outputs.knownUtxos.map(asRead),
       [DECLARED_OUTPUTS]: {
         unread: translated.unread,
         scriptSizes: translated.scriptSizes,
@@ -599,8 +605,12 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       const key = outRefOf(input.txIn.txHash, input.txIn.txIndex);
       if (!inputs.has(key)) inputs.set(key, input);
     }
-    body.inputs = built.inputs.map((utxo) => {
-      const key = outRefOf(utxo.input.txHash, utxo.input.outputIndex);
+    // The built transaction's UTxOs are written back as Mesh UTxOs, the form of this API: those
+    // the calls gave or the fetcher read as they were given, the others written from the
+    // builder's copies
+    body.inputs = built.inputs.map((built) => {
+      const key = outRefOf(built.txHash, built.outputIndex);
+      const utxo = known.get(key) ?? toMeshUtxo(built);
       const input: TxIn = inputs.get(key) ?? {
         type: "PubKey",
         txIn: { txHash: utxo.input.txHash, txIndex: utxo.input.outputIndex },
@@ -618,16 +628,14 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
     // The outputs of the body come first, in order; change follows
     body.outputs.forEach((out, i) => {
-      const lovelace = built.outputs[i]?.output.amount.find(
-        (a) => a.unit === "lovelace",
-      );
+      const lovelace = built.outputs[i]?.value.lovelace;
       if (
-        lovelace &&
+        lovelace !== undefined &&
         !out.amount.some((a) => a.unit === "lovelace" || a.unit === "")
       )
-        out.amount.push({ ...lovelace });
+        out.amount.push({ unit: "lovelace", quantity: lovelace.toString() });
     });
-    for (const change of built.change)
+    for (const change of built.change.map(toMeshUtxo))
       body.outputs.push({
         address: change.output.address,
         amount: change.output.amount,
@@ -730,7 +738,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   private assembleBody = (placeholders = false) => {
     const body = this.meshTxBuilderBody;
     const params = this._protocolParams;
-    const known = this.heldOutputs();
+    const known = readMap(this.heldOutputs());
     const translated = bodyToParts(body, {
       known,
       declaredStandsIn: () => true,
@@ -861,8 +869,18 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
    */
   calculateRefScriptFee = (): bigint => {
     const { assembled, translated, known } = this.assembleBody();
+    // The held outputs the body spends or reads, in the builder's form: each went into a part,
+    // through the same reading
+    const { body } = assembled.prototype;
+    const read = new Map(
+      [...body.inputs, ...(body.reference_inputs ?? [])].flatMap((input) => {
+        const key = `${input.transaction_id}#${input.index}`;
+        const utxo = known.get(key);
+        return utxo ? [[key, readUtxo(utxo)] as const] : [];
+      }),
+    );
     return refScriptFee(
-      refScriptSize(assembled, known, translated.scriptSizes),
+      refScriptSize(assembled, read, translated.scriptSizes),
       this._protocolParams.minFeeRefScriptCostPerByte,
     );
   };
@@ -890,6 +908,29 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 /** The out ref of a UTxO as `txHash#index`, the hash in lower case */
 const keyOf = (utxo: UTxO) =>
   `${utxo.input.txHash.toLowerCase()}#${utxo.input.outputIndex}`;
+
+/**
+ * A Mesh UTxO as this API has always read it, for the builder, which reads more of it: the
+ * builder takes the hash of a reference script from `scriptRef`, and `plutusData` as the inline
+ * datum, so a `scriptHash`, and a `dataHash` beside `plutusData`, which this API never read, are
+ * left out, and cannot refuse the UTxO. Any other UTxO is returned as it is.
+ */
+const asRead = (utxo: UTxO): UTxO => {
+  const output: unknown = utxo?.output;
+  if (typeof output !== "object" || output === null) return utxo;
+  const { scriptHash, dataHash, ...rest } = output as UTxO["output"];
+  const keepsDataHash = dataHash !== undefined && !rest.plutusData;
+  if (scriptHash === undefined && (dataHash === undefined || keepsDataHash))
+    return utxo;
+  return {
+    ...utxo,
+    output: { ...rest, ...(keepsDataHash && { dataHash }) },
+  };
+};
+
+/** The outputs of a map of held ones, each as this API has always read it */
+const readMap = (known: ReadonlyMap<string, UTxO>): Map<string, UTxO> =>
+  new Map(Array.from(known, ([key, utxo]) => [key, asRead(utxo)]));
 
 /** Whether a body runs a Plutus script, and so has redeemers */
 const runsPlutus = (body: MeshTxBuilderBody): boolean =>
@@ -1053,8 +1094,17 @@ const UNKNOWN_TEST_NETWORK: NetworkConfig = {
 const configuredAs = (
   evaluator: IEvaluator,
   network: Network | undefined,
+  known: ReadonlyMap<string, UTxO>,
 ): IEvaluator => ({
-  evaluateTx: (tx, utxos, txs) => evaluator.evaluateTx(tx, utxos, txs),
+  // The UTxOs the builder hands over are its own copies written as Mesh UTxOs, which may hold
+  // members the given ones leave out (the hash of an inline datum): those the calls gave or the
+  // fetcher read go to the evaluator as they were given
+  evaluateTx: (tx, utxos, txs) =>
+    evaluator.evaluateTx(
+      tx,
+      utxos?.map((utxo) => known.get(keyOf(utxo)) ?? utxo),
+      txs,
+    ),
   ...(evaluator.acceptsKnownUtxos && { acceptsKnownUtxos: true }),
   ...(evaluator.configure && {
     configure: ({ costModels }: EvaluationContext) =>

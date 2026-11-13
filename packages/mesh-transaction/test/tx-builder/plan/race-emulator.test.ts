@@ -1,4 +1,3 @@
-import type { UTxO } from "@meshsdk/common";
 import type { TxEmulator } from "@meshsdk/tx-emulator";
 import type { MeshWallet } from "@meshsdk/wallet";
 
@@ -6,8 +5,10 @@ import type {
   StoredTxPlanJSON,
   TxPlan,
   TxPlanStore,
+  Utxo,
 } from "../../../src/tx-builder";
 import { memoryPlanStore } from "../../../src/tx-builder";
+import { outRefOf } from "../../../src/tx-builder/parts/utxo";
 import { recordOf } from "../../../src/tx-builder/plan/plan";
 import {
   builderOf,
@@ -203,10 +204,7 @@ const run = async (seed: number) => {
     },
   }) as MeshWallet;
   // Y does not select the payer's largest UTxOs, so its bodies differ from X's
-  const ySelects = ({ output }: UTxO) =>
-    BigInt(
-      output.amount.find((asset) => asset.unit === "lovelace")?.quantity ?? 0,
-    ) < 32_000_000n;
+  const ySelects = ({ value }: Utxo) => value.lovelace < 32_000_000n;
 
   const held: string[] = [];
   const submitter = (kind: Kind, id: string) =>
@@ -316,7 +314,7 @@ const run = async (seed: number) => {
         .anchor.anchors.filter((entry) => entry.kind !== "parent")
         .at(-1);
       if (!anchor) return;
-      const { input } = anchor.utxo;
+      const input = outRefOf(anchor.utxo);
       // Spent already
       if (
         !main
@@ -326,7 +324,7 @@ const run = async (seed: number) => {
         return;
       main.removeUtxos([input]);
       reached.foreignSpends += 1;
-      log(`someone else spent the anchor ${short(anchor.utxo.input.txHash)}`);
+      log(`someone else spent the anchor ${short(anchor.utxo.txHash)}`);
     });
   const forkPoint = () =>
     idle(() => {

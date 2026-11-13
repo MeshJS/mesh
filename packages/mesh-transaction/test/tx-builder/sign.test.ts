@@ -47,6 +47,7 @@ import {
   Signer,
   signWitnesses,
   spend,
+  toUtxo,
   TxBuilder,
   TxBuildError,
   TxError,
@@ -54,10 +55,12 @@ import {
   TxPlanErrorCode,
   TxPlanErrorDetails,
   TxSigners,
+  UtxoInput,
   vote,
   withdrawal,
 } from "../../src/tx-builder";
 import { feeForSize } from "../../src/tx-builder/fee";
+import { outRefOf } from "../../src/tx-builder/parts/utxo";
 import {
   alwaysSucceedCbor,
   baseAddress,
@@ -957,7 +960,7 @@ describe("requiredSigners", () => {
     // An address that cannot be read would drop the key that signs for the input
     for (const address of ["nope", 5]) {
       const [first, ...rest] = built.inputs;
-      const mangled = { ...first!, output: { ...first!.output, address } };
+      const mangled = { ...first!, address };
       const error = thrown([mangled, ...rest]);
       expect(error.details.value).toBe(mangled);
       expect(error.cause).toBeInstanceOf(Error);
@@ -992,7 +995,10 @@ describe("requiredSigners", () => {
         { payer: payer(utxo(lovelace(ada(50))), utxo(lovelace(ada(6)))) },
       );
       expectAgrees(built);
-      const outRef = (u: UTxO) => `${u.input.txHash}#${u.input.outputIndex}`;
+      const outRef = (u: UtxoInput) => {
+        const { txHash, outputIndex } = toUtxo(u);
+        return `${txHash}#${outputIndex}`;
+      };
       for (const missing of [built.inputs[0]!, built.collateral!.inputs[0]!]) {
         const spent = spentBy(built).filter(
           (u) => outRef(u) !== outRef(missing),
@@ -1001,7 +1007,7 @@ describe("requiredSigners", () => {
           () => requiredSigners(built.tx, spent),
           "UTXO_NOT_FOUND",
         );
-        expect(error.details).toEqual({ input: missing.input });
+        expect(error.details).toEqual({ input: outRefOf(missing) });
       }
     });
 

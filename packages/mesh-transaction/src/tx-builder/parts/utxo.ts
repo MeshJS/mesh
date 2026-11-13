@@ -151,7 +151,7 @@ const normalValue = (
 };
 
 /** Whether `hex` is exactly one CBOR item, with no bytes after it */
-const isOneItem = (hex: string) => {
+export const isOneItem = (hex: string) => {
   const reader = new CborReader(HexBlob(hex));
   reader.skipValue();
   return reader.getBytesRemaining() === 0;

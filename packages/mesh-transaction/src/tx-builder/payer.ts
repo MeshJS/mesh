@@ -3,32 +3,24 @@ import type {
   IFetcher,
   ISubmitter,
   NetworkConfig,
-  UTxO,
 } from "@meshsdk/common";
-import {
-  Address,
-  deserializeTxUnspentOutput,
-  fromValue,
-  resolveDataHash,
-} from "@meshsdk/core-cst";
+import { Address } from "@meshsdk/core-cst";
 
 import type { NetworkEntry } from "./network";
+import type { Utxo, UtxoInput } from "./parts/types";
 import { throwIfAborted } from "./abort";
 import { TxBuildError } from "./errors";
 import { checkNetworks, utxoEntry } from "./network";
-import {
-  addressText,
-  errorText,
-  isObject,
-  utxoAmountProblem,
-} from "./parts/normalize";
+import { addressText, errorText, isObject } from "./parts/normalize";
+import { readUtxo } from "./parts/utxo";
 
 /** The vkey witnesses a transaction needs, as key hashes */
 export type RequiredKeys = readonly string[];
 
 /**
  * A wallet in the Mesh format: bech32 addresses and UTxO objects, as `MeshWallet` and
- * `BrowserWallet` give them. `getChangeAddress` and `getUtxos` make it a payer.
+ * `BrowserWallet` give them. `getChangeAddress` and `getUtxos` make it a payer; its UTxOs may be
+ * in any form the builder takes one.
  */
 export type MeshFormatWallet = {
   getChangeAddress(): Promise<string>;
@@ -37,7 +29,7 @@ export type MeshFormatWallet = {
    * (its error has `code: "FETCHER_REQUIRED"`), is read at its change address through the
    * builder's provider.
    */
-  getUtxos?(): Promise<UTxO[]>;
+  getUtxos?(): Promise<readonly UtxoInput[]>;
   /** Checked against the builder's network before anything is selected */
   getNetworkId?(): Promise<number>;
   /** Signs with the keys of the given hashes, answering with a witness set */
@@ -58,16 +50,17 @@ export type TxWallet = Cip30WalletApi | MeshFormatWallet;
 /** A payer read once, as data: its change address in bech32 and its UTxOs */
 export type PayerSnapshot = {
   readonly changeAddress: string;
-  readonly utxos: readonly UTxO[];
+  readonly utxos: readonly Utxo[];
 };
 
 /**
- * A payer given as data. The address may be bech32 or hex, and each UTxO an object or the CBOR
- * of a transaction unspent output, so what a CIP-30 wallet returns can be passed as it is.
+ * A payer given as data. The address may be bech32 or hex, and each UTxO in any form the builder
+ * takes one, the CBOR of a transaction unspent output among them, so what a CIP-30 wallet
+ * returns can be passed as it is.
  */
 export type PayerSnapshotInput = {
   readonly changeAddress: string;
-  readonly utxos: readonly (UTxO | string)[];
+  readonly utxos: readonly UtxoInput[];
 };
 
 /**
@@ -105,8 +98,6 @@ export type PayerSource =
 const PAYER_FORMS =
   "a wallet (a CIP-30 api, or an object with getChangeAddress), an address in bech32 or hex, or a snapshot { changeAddress, utxos }";
 
-const HASH_32_ANY_CASE = /^[0-9a-f]{64}$/i;
-
 /** An address text in canonical form, bech32 or base58 for Byron; throws for any other text */
 export const toAddressText = (text: unknown): string => {
   if (typeof text !== "string") throw new Error("an address must be a string");
@@ -122,70 +113,6 @@ export const toAddressText = (text: unknown): string => {
     throw new Error(`${text} is a reward address, not a payment address`);
   return addressText(parsed);
 };
-
-/**
- * A UTxO from the CBOR of a transaction unspent output: the object core-cst's converter gives,
- * with a Byron address in base58 and the transaction hash in lower case
- */
-const decodeUtxo = (cbor: string): UTxO => {
-  const unspent = deserializeTxUnspentOutput(cbor);
-  const output = unspent.output();
-  const datum = output.datum();
-  const plutusData = datum?.asInlineData()?.toCbor().toString();
-  const dataHash =
-    datum?.asDataHash()?.toString() ??
-    (plutusData ? resolveDataHash(plutusData, "CBOR") : undefined);
-  const scriptRef = output.scriptRef()?.toCbor().toString();
-  return {
-    input: {
-      txHash: unspent.input().transactionId().toString().toLowerCase(),
-      outputIndex: Number(unspent.input().index()),
-    },
-    output: {
-      address: addressText(output.address()),
-      amount: fromValue(output.amount()),
-      ...(dataHash !== undefined && { dataHash }),
-      ...(plutusData !== undefined && { plutusData }),
-      ...(scriptRef !== undefined && { scriptRef }),
-    },
-  };
-};
-
-/**
- * A copy of a UTxO object, its transaction hash in lower case and its address in canonical
- * form, so that out refs and addresses compare as the parts store them. Throws for a value that
- * is not a UTxO: a bad hash or index, an amount that is not a list of assets with a unit and a
- * quantity in decimal digits each, an address that does not parse or is a reward address.
- */
-export const copyUtxo = (value: unknown): UTxO => {
-  if (!isObject(value) || !isObject(value.input) || !isObject(value.output))
-    throw new Error("a UTxO is an object { input, output }");
-  const { txHash, outputIndex } = value.input;
-  if (typeof txHash !== "string" || !HASH_32_ANY_CASE.test(txHash))
-    throw new Error(`invalid transaction hash ${String(txHash)}`);
-  if (
-    typeof outputIndex !== "number" ||
-    !Number.isInteger(outputIndex) ||
-    outputIndex < 0
-  )
-    throw new Error(`invalid output index ${String(outputIndex)}`);
-  const amountProblem = utxoAmountProblem(value.output.amount);
-  if (amountProblem !== undefined)
-    throw new Error(
-      `the UTxO ${txHash.toLowerCase()}#${outputIndex}: ${amountProblem}`,
-    );
-  // `input` and `output` only: the `label` and `change` of a built output are not the UTxO's
-  const utxo: UTxO = {
-    input: { txHash: txHash.toLowerCase(), outputIndex },
-    output: structuredClone(value.output) as unknown as UTxO["output"],
-  };
-  utxo.output.address = toAddressText(value.output.address);
-  return utxo;
-};
-
-/** A UTxO given as an object or as CBOR, converted */
-export const toUtxo = (entry: unknown): UTxO =>
-  typeof entry === "string" ? decodeUtxo(entry) : copyUtxo(entry);
 
 const invalidPayer = (value: unknown, reason: string, cause?: unknown) =>
   new TxBuildError("INVALID_OPTION", `invalid payer: ${reason}`, {
@@ -229,7 +156,7 @@ export const toPayerSource = (payer: unknown): PayerSource => {
     }
     const utxos = (payer.utxos as unknown[]).map((entry, i) => {
       try {
-        return toUtxo(entry);
+        return readUtxo(entry);
       } catch (error) {
         throw invalidPayer(
           entry,
@@ -331,7 +258,7 @@ const attempt = <T>(call: () => Promise<T>): Promise<T> => {
 const fetchPayerUtxos = async (
   address: string,
   ctx: PayerReadContext,
-): Promise<UTxO[]> => {
+): Promise<Utxo[]> => {
   const { provider } = ctx;
   if (!provider)
     throw new TxBuildError(
@@ -347,7 +274,7 @@ const fetchPayerUtxos = async (
   try {
     if (utxos === undefined || utxos === null) return [];
     if (!Array.isArray(utxos)) throw new Error("the answer is not a list");
-    return utxos.map(copyUtxo);
+    return utxos.map(readUtxo);
   } catch (error) {
     throw providerFailed(address, error);
   }
@@ -403,7 +330,7 @@ const readWallet = async (
       : []),
     { role: "payer", address: changeAddress },
   ]);
-  let read: UTxO[];
+  let read: Utxo[];
   if (!ownUtxos) {
     throwIfAborted(ctx.signal);
     read = await fetchPayerUtxos(changeAddress, ctx);
@@ -418,7 +345,7 @@ const readWallet = async (
       if (answer === undefined || answer === null) read = [];
       else if (!Array.isArray(answer))
         throw new Error("getUtxos answered with something that is not a list");
-      else read = answer.map(toUtxo);
+      else read = answer.map(readUtxo);
     } catch (error) {
       throw walletFailed("its UTxOs", error, true);
     }

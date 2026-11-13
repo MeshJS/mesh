@@ -9,6 +9,7 @@ import {
   TxPlan,
   validity,
 } from "../../../src/tx-builder";
+import { outRefOf } from "../../../src/tx-builder/parts/utxo";
 import { planOver, recordOf } from "../../../src/tx-builder/plan/plan";
 import { baseAddress } from "../../test-util";
 import {
@@ -59,9 +60,7 @@ describe("TxPlan.send on TxEmulator", () => {
     const plan = builder.add(first).plan(pay(3_000_000n), { payer: wallet });
     const built = await plan.build();
     expect(built.outputs[0]?.label).toBe("held");
-    expect(built.outputs[1]?.output.amount).toEqual([
-      { unit: "lovelace", quantity: "3000000" },
-    ]);
+    expect(built.outputs[1]?.value).toEqual({ lovelace: 3_000_000n });
   });
 
   it("finds the attempt of a lost answer and sends nothing again", async () => {
@@ -156,7 +155,7 @@ describe("TxPlan.send on TxEmulator", () => {
     expect(first.inputs).toHaveLength(2);
     const [anchor] = recordOf(plan).anchor.anchors;
     const other = first.inputs.find(
-      (utxo) => utxo.input.txHash !== anchor!.utxo.input.txHash,
+      (utxo) => utxo.txHash !== anchor!.utxo.txHash,
     )!;
     const spender = await builder.build(
       [spend.pubKey({ utxo: other }), pay(2_000_000n, address)],
@@ -175,9 +174,7 @@ describe("TxPlan.send on TxEmulator", () => {
 
     const second = await plan.build();
     expect(second.txHash).not.toBe(first.txHash);
-    expect(second.inputs.map((u) => u.input)).toContainEqual(
-      anchor!.utxo.input,
-    );
+    expect(second.inputs.map(outRefOf)).toContainEqual(outRefOf(anchor!.utxo));
     await plan.send({ waitFor: "included" });
     expect(plan.status).toBe("final");
     expect(plan.attempts.map((a) => a.status)).toEqual(["rejected", "final"]);
@@ -345,9 +342,7 @@ describe("TxPlan.send on TxEmulator", () => {
     const second = await plan.build();
     const [anchor] = recordOf(plan).anchor.anchors;
     expect(recordOf(plan).anchor.anchors).toHaveLength(1);
-    expect(second.inputs.map((u) => u.input)).toContainEqual(
-      anchor!.utxo.input,
-    );
+    expect(second.inputs.map(outRefOf)).toContainEqual(outRefOf(anchor!.utxo));
     await plan.send({ waitFor: "included" });
     expect(plan.attempts.map((a) => a.status)).toEqual(["expired", "final"]);
   });
@@ -592,7 +587,7 @@ describe("TxPlan.send on TxEmulator", () => {
     const provider = wrap(emulator);
     const restored = planOver(builderOf(provider), recordOf(made));
     const attempt = restored.txHash!;
-    const anchor = recordOf(restored).anchor.anchors[0]!.utxo.input.txHash;
+    const anchor = recordOf(restored).anchor.anchors[0]!.utxo.txHash;
     let probed = false;
     provider.control.hooks.fetchTxInfo = async (forward, hash: string) => {
       if (hash === attempt && !probed) throw { kind: "notFound", status: 404 };

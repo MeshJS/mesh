@@ -24,6 +24,7 @@ import {
   toPlutusData,
   toPlutusScriptCode,
 } from "./normalize";
+import { isOneItem } from "./utxo";
 
 /** Asset names are at most 32 bytes */
 const MAX_ASSET_NAME_HEX = 64;
@@ -93,10 +94,17 @@ const toDatum = (
       "INVALID_DATA",
       `invalid datum ${String(datum)}: expected { type: "inline" | "hash", ... }`,
     );
-  if (datum.type === "inline")
-    return {
-      plutus_data: { type: "DATA", value: toPlutusData(ctx, datum.data).data },
-    };
+  if (datum.type === "inline") {
+    const { data } = toPlutusData(ctx, datum.data);
+    // The output's UTxO holds these bytes: they are read back as one item of data
+    if (data.type === "CBOR" && !isOneItem(data.hex))
+      fail(
+        ctx,
+        "INVALID_DATA",
+        `invalid inline datum ${data.hex}: bytes follow the Plutus data`,
+      );
+    return { plutus_data: { type: "DATA", value: data } };
+  }
   if ("hash" in datum) {
     const hash =
       typeof datum.hash === "string" ? datum.hash.toLowerCase() : datum.hash;
@@ -132,7 +140,8 @@ const toScriptReference = (
  * @param params.address The address receiving the output, in bech32, base58 (Byron) or hex
  * @param params.value Lovelace and assets; without lovelace, the output holds the minimum it
  *   needs
- * @param params.datum A datum held inline, or as a hash
+ * @param params.datum A datum held inline, or as a hash; an inline datum given as CBOR is one
+ *   item of Plutus data, with no bytes after it
  * @param params.scriptRef A Plutus or native script made available as a reference script; a
  *   Plutus script's code flat or in one or two CBOR wrappings
  * @param params.label Name echoed in errors about this part

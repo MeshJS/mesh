@@ -1,9 +1,9 @@
-import type { CachedFetcher, ISubmitter, UTxO } from "@meshsdk/common";
+import type { CachedFetcher, ISubmitter } from "@meshsdk/common";
 
 import type { SelectInputs } from "../balance";
 import type { BuildEvent, BuildOptions, BuiltTx, TxBuilder } from "../builder";
 import type { TxPlanErrorCode, TxPlanErrorDetails } from "../errors";
-import type { OutRef, TxPart } from "../parts/types";
+import type { OutRef, TxPart, Utxo } from "../parts/types";
 import type {
   Payer,
   PayerRead,
@@ -38,11 +38,11 @@ import type {
 } from "./types";
 import { abortable, abortedError, throwIfAborted } from "../abort";
 import { isKeyLocked } from "../balance";
-import { plainUtxo } from "../chain";
+import { toKnownUtxos } from "../chain";
 import { NOT_UNPAID, TxBuildError, TxPlanError } from "../errors";
 import { collateral, spend, validity } from "../parts";
+import { outRefOf, plainUtxo, utxoKey } from "../parts/utxo";
 import { toPayerSource } from "../payer";
-import { utxoKey } from "../resolve";
 import {
   readTransaction,
   readWitnessArgument,
@@ -110,7 +110,7 @@ const internals = (builder: TxBuilder) =>
 export type PlanLiveObjects = {
   payer?: Payer;
   after?: TxPlan | readonly TxPlan[];
-  canSelect?: (utxo: UTxO) => boolean;
+  canSelect?: (utxo: Utxo) => boolean;
   coinSelection?: SelectInputs;
   trace?: (event: BuildEvent) => void;
 };
@@ -118,7 +118,7 @@ export type PlanLiveObjects = {
 /** The data options of a plan, as its record holds them */
 type DataOptions = {
   sendAllTo?: string;
-  knownUtxos?: readonly UTxO[];
+  knownUtxos?: readonly Utxo[];
   fee?: bigint;
   registeredPools?: readonly string[];
   extraKeyWitnesses?: number;
@@ -173,7 +173,7 @@ type PlanState = {
   payer?: Payer;
   /** An attempt was built from the payer, given as a snapshot, which serves one attempt */
   snapshotUsed: boolean;
-  readonly canSelect?: (utxo: UTxO) => boolean;
+  readonly canSelect?: (utxo: Utxo) => boolean;
   readonly coinSelection?: SelectInputs;
   readonly trace?: (event: BuildEvent) => void;
   /**
@@ -619,7 +619,7 @@ const parentAttempt = (
 
 /** The UTxO of an anchor out ref, as the record holds it */
 const anchorUtxo = (record: PlanRecord, ref: OutRef) =>
-  record.anchor.anchors.find((entry) => sameRef(entry.utxo.input, ref))?.utxo;
+  record.anchor.anchors.find((entry) => sameRef(entry.utxo, ref))?.utxo;
 
 const runsPlutus = (part: TxPart) =>
   "witness" in part && part.witness.type === "plutus";
@@ -1695,7 +1695,7 @@ export class TxPlan {
     skip: ReadonlySet<string>,
     signal: AbortSignal | undefined,
   ): Promise<OutRef[]> {
-    const refs = new Map<string, UTxO>();
+    const refs = new Map<string, Utxo>();
     for (const attempt of attempts)
       for (const ref of attempt.anchors) {
         if (skip.has(refKey(ref))) continue;
@@ -1704,19 +1704,15 @@ export class TxPlan {
       }
     const reads = new Map<string, Promise<readonly OutRef[] | undefined>>();
     for (const utxo of refs.values()) {
-      const address = utxo.output.address;
+      const address = utxo.address;
       if (!reads.has(address))
         reads.set(address, state.observer.utxosAt(address));
     }
     const inPlace: OutRef[] = [];
     for (const utxo of refs.values()) {
-      const listed = await abortable(
-        reads.get(utxo.output.address)!,
-        signal,
-        CALL,
-      );
-      if (listed?.some((held) => sameRef(held, utxo.input)))
-        inPlace.push({ ...utxo.input });
+      const listed = await abortable(reads.get(utxo.address)!, signal, CALL);
+      if (listed?.some((held) => sameRef(held, utxo)))
+        inPlace.push(outRefOf(utxo));
     }
     return inPlace;
   }
@@ -1959,7 +1955,7 @@ export class TxPlan {
       if (anchor === undefined) break;
       chain.push(anchor.txHash);
       const entry = holder.record.anchor.anchors.find((each) =>
-        sameRef(each.utxo.input, anchor),
+        sameRef(each.utxo, anchor),
       );
       if (entry?.kind !== "parent") break;
       const found = parentAttempt(holder, anchor.txHash);
@@ -1986,7 +1982,7 @@ export class TxPlan {
     state: PlanState,
     purpose: "close" | "anchor",
     signal: AbortSignal | undefined,
-    gone?: UTxO,
+    gone?: Utxo,
   ): Promise<"negative" | "landed" | "live"> {
     const pauseMs = Math.min(60_000, state.record.deadlines.expiryMarginMs);
     for (let poll = 0; poll < 2; poll++) {
@@ -2002,7 +1998,7 @@ export class TxPlan {
     state: PlanState,
     purpose: "close" | "anchor",
     signal: AbortSignal | undefined,
-    gone: UTxO | undefined,
+    gone: Utxo | undefined,
   ): Promise<"negative" | "landed" | "live"> {
     const unknown = (what: string) =>
       this.#unconfirmed(
@@ -2012,14 +2008,11 @@ export class TxPlan {
     // The anchor that is to change is read first: the searches come after the read
     if (gone !== undefined) {
       const listed = await abortable(
-        state.observer.utxosAt(gone.output.address),
+        state.observer.utxosAt(gone.address),
         signal,
         CALL,
       );
-      if (
-        listed === undefined ||
-        listed.some((held) => sameRef(held, gone.input))
-      )
+      if (listed === undefined || listed.some((held) => sameRef(held, gone)))
         throw unknown(
           "a fresh read of its address does not show the anchor spent",
         );
@@ -2239,7 +2232,7 @@ export class TxPlan {
     const changeAddress = this.#checkPayer(state, payer);
 
     // With sendAllTo the inputs are the amount paid: only those the replaced attempt used
-    let utxos: readonly UTxO[] = payer.utxos;
+    let utxos: readonly Utxo[] = payer.utxos;
     const extra: TxPart[] = [];
     const pinned = !first && options.sendAllTo !== undefined;
     if (pinned) {
@@ -2255,12 +2248,7 @@ export class TxPlan {
           this.#parentChange(state, bases, changeAddress) === undefined)
       ) {
         const required = kept.used.reduce(
-          (total, utxo) =>
-            total +
-            BigInt(
-              utxo.output.amount.find((a) => a.unit === "lovelace")?.quantity ??
-                "0",
-            ),
+          (total, utxo) => total + utxo.value.lovelace,
           0n,
         );
         throw new TxBuildError(
@@ -2334,7 +2322,7 @@ export class TxPlan {
         built,
         bases,
         signal,
-        new Set((options.knownUtxos ?? []).map((utxo) => lowKey(utxo.input))),
+        new Set((options.knownUtxos ?? []).map((utxo) => lowKey(utxo))),
       );
       if (landed) return landed;
     }
@@ -2351,7 +2339,7 @@ export class TxPlan {
     const fresh = anchors.some(
       (anchor) =>
         !record.attempts.some((attempt) =>
-          attempt.anchors.some((ref) => sameRef(anchor.utxo.input, ref)),
+          attempt.anchors.some((ref) => sameRef(anchor.utxo, ref)),
         ),
     );
     if (!first && bases.length > 0 && fresh) {
@@ -2376,7 +2364,7 @@ export class TxPlan {
     if (state.probe === "owed")
       await this.#probe(
         state,
-        anchors[0]!.utxo.input,
+        outRefOf(anchors[0]!.utxo),
         built.redeemers.length > 0,
         signal,
       );
@@ -2614,7 +2602,7 @@ export class TxPlan {
     return this.#error(
       "INPUTS_SPENT",
       `${spent.map(refKey).join(", ")}, named by the parts, ${spent.length === 1 ? "is" : "are"} spent, and no attempt of the plan is found: a new attempt cannot spend ${spent.length === 1 ? "it" : "them"}. This is a hint only: it does not make a new plan safe`,
-      { details: { inputs: [...spent] } },
+      { details: { inputs: spent.map(outRefOf) } },
     );
   }
 
@@ -2653,8 +2641,7 @@ export class TxPlan {
     for (const ref of explicitInputs(state.parts)) {
       if (staleKeys.has(lowKey(ref)) || unread.has(lowKey(ref))) continue;
       if (standing.has(ref.txHash.toLowerCase())) continue;
-      const address = known.find((utxo) => sameRef(utxo.input, ref))?.output
-        .address;
+      const address = known.find((utxo) => sameRef(utxo, ref))?.address;
       // Not in the body: nothing to compare with, unknown
       if (address === undefined) continue;
       checked.push({ ref, address });
@@ -2701,14 +2688,14 @@ export class TxPlan {
     const anchor = generalAnchor(state.record);
     if (anchor?.kind !== "payer") return false;
     const listed = await abortable(
-      state.observer.utxosAt(anchor.utxo.output.address),
+      state.observer.utxosAt(anchor.utxo.address),
       signal,
       CALL,
     );
     // Unknown, or still there: the anchor stays, and the node judges a body that spends it
     if (
       listed === undefined ||
-      listed.some((held) => sameRef(held, anchor.utxo.input))
+      listed.some((held) => sameRef(held, anchor.utxo))
     )
       return false;
     const margin = state.record.deadlines.expiryMarginMs;
@@ -2722,7 +2709,7 @@ export class TxPlan {
           .map((attempt) => attempt.txHash),
         latest,
         tip,
-        `the payer's anchor ${refKey(anchor.utxo.input)} is spent, and the anchor changes only once no earlier attempt can land`,
+        `the payer's anchor ${refKey(anchor.utxo)} is spent, and the anchor changes only once no earlier attempt can land`,
       );
     const outcome = await this.#doubleCheck(
       state,
@@ -2745,7 +2732,7 @@ export class TxPlan {
     state: PlanState,
     replaced: AttemptRecord,
     signal: AbortSignal | undefined,
-  ): Promise<{ utxos: UTxO[]; collateral: UTxO[]; used: UTxO[] }> {
+  ): Promise<{ utxos: Utxo[]; collateral: Utxo[]; used: Utxo[] }> {
     const built = replaced.built;
     if (built === undefined) return { utxos: [], collateral: [], used: [] };
     const explicit = new Set(explicitInputs(state.parts).map(lowKey));
@@ -2756,33 +2743,22 @@ export class TxPlan {
         ),
       ),
     );
-    const payers = (utxo: UTxO) =>
-      !explicit.has(lowKey(utxo.input)) &&
-      !parentTxs.has(utxo.input.txHash.toLowerCase());
+    const payers = (utxo: Utxo) =>
+      !explicit.has(lowKey(utxo)) && !parentTxs.has(utxo.txHash.toLowerCase());
     const inputs = built.inputs.filter(payers);
-    const spent = new Set(inputs.map((utxo) => lowKey(utxo.input)));
+    const spent = new Set(inputs.map((utxo) => lowKey(utxo)));
     const collateralOnly = (built.collateral?.inputs ?? []).filter(
-      (utxo) => payers(utxo) && !spent.has(lowKey(utxo.input)),
+      (utxo) => payers(utxo) && !spent.has(lowKey(utxo)),
     );
     const reads = new Map<string, Promise<readonly OutRef[] | undefined>>();
     for (const utxo of [...inputs, ...collateralOnly])
-      if (!reads.has(utxo.output.address))
-        reads.set(
-          utxo.output.address,
-          state.observer.utxosAt(utxo.output.address),
-        );
-    const unspent = async (list: readonly UTxO[]) => {
-      const kept: UTxO[] = [];
+      if (!reads.has(utxo.address))
+        reads.set(utxo.address, state.observer.utxosAt(utxo.address));
+    const unspent = async (list: readonly Utxo[]) => {
+      const kept: Utxo[] = [];
       for (const utxo of list) {
-        const listed = await abortable(
-          reads.get(utxo.output.address)!,
-          signal,
-          CALL,
-        );
-        if (
-          listed === undefined ||
-          listed.some((held) => sameRef(held, utxo.input))
-        )
+        const listed = await abortable(reads.get(utxo.address)!, signal, CALL);
+        if (listed === undefined || listed.some((held) => sameRef(held, utxo)))
           kept.push(plainUtxo(utxo));
       }
       return kept;
@@ -2807,7 +2783,7 @@ export class TxPlan {
     const anchor = generalAnchor(state.record);
     const holds =
       anchor?.kind === "payer" &&
-      payer.utxos.some((utxo) => sameRef(utxo.input, anchor.utxo.input));
+      payer.utxos.some((utxo) => sameRef(utxo, anchor.utxo));
     if (!holds)
       throw this.#error(
         "PAYER_MISMATCH",
@@ -2818,7 +2794,7 @@ export class TxPlan {
   }
 
   /** Whether the object's `canSelect` takes a UTxO; one it throws for is not taken */
-  #selectable(state: PlanState, utxo: UTxO): boolean {
+  #selectable(state: PlanState, utxo: Utxo): boolean {
     if (state.canSelect === undefined) return true;
     try {
       return state.canSelect(plainUtxo(utxo)) === true;
@@ -2894,13 +2870,13 @@ export class TxPlan {
         );
     }
 
-    const spends = (utxo: UTxO) =>
+    const spends = (utxo: Utxo) =>
       parts.some(
         (part) =>
           part.kind === "spend" &&
           part.input.transaction_id.toLowerCase() ===
-            utxo.input.txHash.toLowerCase() &&
-          part.input.index === utxo.input.outputIndex,
+            utxo.txHash.toLowerCase() &&
+          part.input.index === utxo.outputIndex,
       );
     const anchor = generalAnchor(state.record);
     if (opts.keepAnchor && anchor?.kind === "payer" && !spends(anchor.utxo))
@@ -2940,7 +2916,7 @@ export class TxPlan {
     state: PlanState,
     bases: readonly ParentBase[],
     changeAddress: string,
-  ): UTxO | undefined {
+  ): Utxo | undefined {
     const putUp = new Set(
       state.parts.flatMap((part) =>
         part.kind === "collateral"
@@ -2956,9 +2932,9 @@ export class TxPlan {
     for (const base of bases) {
       const change = base.built.change.find(
         (output) =>
-          output.output.address === changeAddress &&
+          output.address === changeAddress &&
           isKeyLocked(output) &&
-          !putUp.has(lowKey(output.input)) &&
+          !putUp.has(lowKey(output)) &&
           this.#selectable(state, output),
       );
       if (change) return plainUtxo(change);
@@ -2976,16 +2952,16 @@ export class TxPlan {
   async #anchorsOf(
     state: PlanState,
     built: BuiltTx,
-    utxos: readonly UTxO[],
+    utxos: readonly Utxo[],
     bases: readonly ParentBase[],
     newAnchor: boolean,
     signal: AbortSignal | undefined,
-  ): Promise<{ utxo: UTxO; kind: AnchorKind }[]> {
-    const anchors: { utxo: UTxO; kind: AnchorKind }[] = [];
+  ): Promise<{ utxo: Utxo; kind: AnchorKind }[]> {
+    const anchors: { utxo: Utxo; kind: AnchorKind }[] = [];
     for (const base of bases) {
       const hash = base.attempt.txHash.toLowerCase();
       const output = built.inputs.find(
-        (utxo) => utxo.input.txHash.toLowerCase() === hash,
+        (utxo) => utxo.txHash.toLowerCase() === hash,
       );
       if (output) {
         anchors.push({ utxo: plainUtxo(output), kind: "parent" });
@@ -3009,9 +2985,9 @@ export class TxPlan {
   async #firstAnchor(
     state: PlanState,
     built: BuiltTx,
-    utxos: readonly UTxO[],
+    utxos: readonly Utxo[],
     signal: AbortSignal | undefined,
-  ): Promise<{ utxo: UTxO; kind: AnchorKind }> {
+  ): Promise<{ utxo: Utxo; kind: AnchorKind }> {
     const payers = new Set(utxos.map(utxoKey));
     let kind: AnchorKind = "payer";
     let candidates = built.inputs.filter(
@@ -3023,24 +2999,21 @@ export class TxPlan {
         if (part.kind !== "spend") return [];
         const utxo = built.inputs.find(
           (input) =>
-            input.input.txHash.toLowerCase() ===
+            input.txHash.toLowerCase() ===
               part.input.transaction_id.toLowerCase() &&
-            input.input.outputIndex === part.input.index,
+            input.outputIndex === part.input.index,
         );
         return utxo ? [utxo] : [];
       });
     }
     const reads = new Map<string, Promise<readonly OutRef[] | undefined>>();
     for (const utxo of candidates) {
-      const address = utxo.output.address;
+      const address = utxo.address;
       if (!reads.has(address))
         reads.set(address, state.observer.utxosAt(address));
       const listed = await abortable(reads.get(address)!, signal, CALL);
       // Dropped only by a read that answered and does not show it
-      if (
-        listed === undefined ||
-        listed.some((held) => sameRef(held, utxo.input))
-      )
+      if (listed === undefined || listed.some((held) => sameRef(held, utxo)))
         return { utxo, kind };
     }
     throw this.#unconfirmed(
@@ -4129,9 +4102,10 @@ const adopt = async (state: PlanState, record: PlanRecord) => {
  * A new plan in `draft` over the parts of a builder, held ones first; no request is made.
  * `TxBuilder.plan` calls it. With a store, its first method reads its id's record.
  * @throws TxBuildError INVALID_OPTION for an `after` that holds anything but plans, an id that
- *   is not a string (without a store), a deadline out of range, and on a builder with a store a
- *   parent of a builder without one; NOT_SERIALIZABLE on a builder with a store, for a part
- *   that holds a redeemer function
+ *   is not a string (without a store), a deadline out of range, a `knownUtxos` that is not a
+ *   list of UTxOs or holds an entry that is not one, and on a builder with a store a parent of a
+ *   builder without one; NOT_SERIALIZABLE on a builder with a store, for a part that holds a
+ *   redeemer function
  * @throws TxPlanError CANNOT_OBSERVE (`noTip`) without a provider that reads the tip,
  *   (`addressCache`) for a provider that keeps a cache of address UTxOs; MISSING_ID on a builder
  *   with a store, without an id that is a non-empty string
@@ -4188,8 +4162,9 @@ export const createPlan = (
   }
   const data: DataOptions = {
     ...(options.sendAllTo !== undefined && { sendAllTo: options.sendAllTo }),
+    // In the builder's form, so that the record and a later comparison see one form
     ...(options.knownUtxos !== undefined && {
-      knownUtxos: options.knownUtxos,
+      knownUtxos: toKnownUtxos(options.knownUtxos),
     }),
     ...(options.fee !== undefined && { fee: options.fee }),
     ...(options.registeredPools !== undefined && {

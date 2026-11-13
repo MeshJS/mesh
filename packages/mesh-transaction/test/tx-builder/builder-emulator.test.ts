@@ -164,10 +164,9 @@ describe("TxBuilder on the emulator", () => {
       { payer: { changeAddress: address, utxos: await utxos() } },
     );
     // The tokens left over come back as change
-    expect(sent.change.flatMap((o) => o.output.amount)).toContainEqual({
-      unit: `${unit.slice(0, 56)}0001`,
-      quantity: "990",
-    });
+    expect(
+      sent.change.map((o) => o.value[`${unit.slice(0, 56)}0001`]),
+    ).toContain(990n);
     await submit(sent);
   });
 
@@ -245,7 +244,7 @@ describe("TxBuilder on the emulator", () => {
     expect(
       burnt.change.some((o) =>
         units.some((u) =>
-          o.output.amount.some((a) => a.unit.startsWith(u.slice(0, 56))),
+          Object.keys(o.value).some((key) => key.startsWith(u.slice(0, 56))),
         ),
       ),
     ).toBe(false);
@@ -306,11 +305,11 @@ describe("TxBuilder on the emulator", () => {
     );
     // Both deposits come back with the change
     const spent = deregister.inputs.reduce(
-      (sum, u) => sum + BigInt(u.output.amount[0]!.quantity),
+      (sum, u) => sum + u.value.lovelace,
       0n,
     );
     const change = deregister.change.reduce(
-      (sum, o) => sum + BigInt(o.output.amount[0]!.quantity),
+      (sum, o) => sum + o.value.lovelace,
       0n,
     );
     expect(change).toBe(spent + 4_000_000n - deregister.fee);

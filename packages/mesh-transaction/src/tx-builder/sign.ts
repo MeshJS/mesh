@@ -1,4 +1,3 @@
-import type { UTxO } from "@meshsdk/common";
 import {
   Address,
   CborReader,
@@ -11,11 +10,13 @@ import {
   transactionPrototypeFromCardano,
 } from "@meshsdk/core-cst";
 
+import type { Utxo, UtxoInput } from "./parts/types";
 import type { RequiredKeys } from "./payer";
 import type { Collected, PartRef, SignerRole, TxSigners } from "./witnesses";
 import { TxBuildError, TxPlanError } from "./errors";
 import { errorText } from "./parts/normalize";
-import { copyUtxo, walletCodeOf } from "./payer";
+import { readUtxo } from "./parts/utxo";
+import { walletCodeOf } from "./payer";
 import {
   addAddress,
   addCredential,
@@ -734,14 +735,17 @@ const certificateCredential = (
 /**
  * The signatures a serialized transaction needs, given the UTxOs it spends: for a co-signer or a
  * server checking a transaction it did not build
- * @param spent The UTxO of every input and collateral input. UTxOs of reference inputs may be
- *   given too: only then is a native script the transaction runs from one of them listed in
- *   `nativeScripts`
+ * @param spent The UTxO of every input and collateral input, each in any form the builder takes
+ *   a UTxO in. UTxOs of reference inputs may be given too: only then is a native script the
+ *   transaction runs from one of them listed in `nativeScripts`
  * @throws TxBuildError UTXO_NOT_FOUND for an input or collateral input whose UTxO is not in
  *   `spent`; INVALID_OPTION for a `tx` that is not a transaction, and for a `spent` that is not
  *   a list or holds an entry that is not a UTxO (an address that does not parse among them)
  */
-export function requiredSigners(tx: string, spent: readonly UTxO[]): TxSigners {
+export function requiredSigners(
+  tx: string,
+  spent: readonly UtxoInput[],
+): TxSigners {
   const raw = readTransaction(tx);
   if (!Array.isArray(spent))
     throw new TxBuildError(
@@ -751,11 +755,11 @@ export function requiredSigners(tx: string, spent: readonly UTxO[]): TxSigners {
         details: { option: "spent", value: spent, allowed: "a list of UTxOs" },
       },
     );
-  // Each entry copied as a payer's UTxO is: an entry whose address cannot be read would
+  // Each entry read as a payer's UTxO is: an entry whose address cannot be read would
   // otherwise drop the key that signs for it, an answer that is silently short
   const utxos = (spent as readonly unknown[]).map((entry) => {
     try {
-      return copyUtxo(entry);
+      return readUtxo(entry);
     } catch (error) {
       throw new TxBuildError(
         "INVALID_OPTION",
@@ -784,7 +788,7 @@ export function requiredSigners(tx: string, spent: readonly UTxO[]): TxSigners {
  */
 export const bodySigners = (
   raw: RawTx,
-  spent: readonly UTxO[],
+  spent: readonly Utxo[],
 ): { collected: Collected; scripts: Set<string> } => {
   const tx = raw.hex;
   // Only the body is decoded, and without its proposals: of those only the policy hash is
@@ -802,9 +806,9 @@ export const bodySigners = (
   } catch (error) {
     throw invalidTx(tx, error);
   }
-  const given = new Map<string, UTxO>();
+  const given = new Map<string, Utxo>();
   for (const utxo of spent)
-    given.set(outRefKey(utxo.input.txHash, utxo.input.outputIndex), utxo);
+    given.set(outRefKey(utxo.txHash, utxo.outputIndex), utxo);
   const utxoOf = (input: { transaction_id: string; index: number }) => {
     const utxo = given.get(outRefKey(input.transaction_id, input.index));
     if (utxo) return utxo;
@@ -840,8 +844,7 @@ export const bodySigners = (
 
   for (const utxo of inputs) {
     addAddress(collected, utxo, item("spend"), "input");
-    const payment = Address.fromString(utxo.output.address)?.getProps()
-      .paymentPart;
+    const payment = Address.fromString(utxo.address)?.getProps().paymentPart;
     if (payment?.type === CredentialType.ScriptHash)
       scripts.add(payment.hash.toString());
   }

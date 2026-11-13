@@ -1,59 +1,57 @@
-import type {
-  Protocol,
-  TransactionOutputPrototype,
-  UTxO,
-} from "@meshsdk/common";
+import type { Protocol, TransactionOutputPrototype } from "@meshsdk/common";
 import { Address, CredentialType } from "@meshsdk/core-cst";
 
 import type { AssembledTx } from "./assemble";
 import type { InsufficientFundsDetails } from "./errors";
 import type {
+  Assets,
   CollateralPart,
   CollateralReturnPart,
   OutputPart,
   OutRef,
   SpendPart,
   TxPart,
+  Utxo,
 } from "./parts/types";
 import type { Value } from "./value";
 import { assembleTxPrototype, atMostOne } from "./assemble";
 import { TxBuildError } from "./errors";
 import { coversMinCoin, feeForSize, outputMinCoin, valueSize } from "./fee";
 import { outRefString } from "./parts/normalize";
-import { utxoKey } from "./resolve";
+import { scriptSize, utxoKey } from "./parts/utxo";
 import {
   addValues,
   coinValue,
   emptyValue,
-  fromAssets,
   fromMultiAsset,
   subtractValues,
+  toAssets,
   toMultiAsset,
   toValuePrototype,
+  valueOf,
 } from "./value";
 import { placeholderWitnesses, pricedSigners } from "./witnesses";
 
 /**
- * Replaces input selection. Called whenever something is missing; every UTxO returned must be
- * among `candidates` (else INVALID_SELECTION), and a non-empty need must get at least one
- * (else INSUFFICIENT_FUNDS). Until the scripts are evaluated, `context.fee` is an upper
- * estimate, and so is a need of lovelace.
+ * Replaces input selection. Called whenever something is missing, with what is missing written
+ * as a candidate's `value` is: `lovelace` always there (it may be `0n`), a token only when it
+ * is short. It answers with the out refs of the candidates it selects (the candidates
+ * themselves will do): each must name a candidate (else INVALID_SELECTION), and a non-empty
+ * need must get at least one (else INSUFFICIENT_FUNDS). Until the scripts are evaluated,
+ * `context.fee` is an upper estimate, and so is a need of lovelace.
  */
 export type SelectInputs = (
-  need: {
-    readonly lovelace: bigint;
-    readonly assets: ReadonlyMap<string, bigint>;
-  },
+  need: Assets,
   /** Key-locked payer UTxOs not spent, read, excluded or selected yet */
-  candidates: readonly UTxO[],
+  candidates: readonly Utxo[],
   context: {
     readonly round: number;
-    readonly selected: readonly UTxO[];
+    readonly selected: readonly Utxo[];
     readonly fee: bigint;
     /** The build's protocol parameters, as a frozen copy */
     readonly params: Protocol;
   },
-) => readonly UTxO[];
+) => readonly OutRef[];
 
 export type BalanceContext = {
   params: Protocol;
@@ -64,7 +62,7 @@ export type BalanceContext = {
    * UTxOs inputs and collateral may be selected from. Those the parts read are never selected,
    * and those named by collateral parts are never selected as inputs.
    */
-  utxos: readonly UTxO[];
+  utxos: readonly Utxo[];
   /** Out refs of the UTxOs selected neither as inputs nor as collateral: a filter refused them */
   refused?: ReadonlySet<string>;
   /**
@@ -76,7 +74,7 @@ export type BalanceContext = {
    * The UTxOs collateral is chosen from in place of the payer's, which are then still selected
    * for payment only: those a wallet gave for collateral
    */
-  collateralPool?: readonly UTxO[];
+  collateralPool?: readonly Utxo[];
   /** Selects the inputs in place of the built-in selection */
   coinSelection?: SelectInputs;
   /**
@@ -85,7 +83,7 @@ export type BalanceContext = {
    */
   sendAllTo?: string;
   /** Every UTxO known to the build, keyed by `txHash#index` */
-  known: ReadonlyMap<string, UTxO>;
+  known: ReadonlyMap<string, Utxo>;
   /** Out refs named by collateral parts that selection may still spend as inputs */
   selectableCollateral?: ReadonlySet<string>;
   /**
@@ -129,8 +127,21 @@ export type PricedRound = {
   selected: number;
 };
 
+/** The collateral of a built transaction */
 export type TxCollateral = {
-  inputs: UTxO[];
+  inputs: Utxo[];
+  /** Lovelace forfeited if a script fails */
+  total: bigint;
+  /**
+   * What is left of the collateral, returned if a script fails: the UTxO it then becomes,
+   * output number `outputs.length` of the transaction
+   */
+  return?: Utxo;
+};
+
+/** The collateral balancing puts up, its return as the body holds it */
+export type BalancedCollateral = {
+  inputs: Utxo[];
   /** Lovelace forfeited if a script fails */
   total: bigint;
   /** What is left of the collateral, returned if a script fails */
@@ -144,7 +155,7 @@ export type Balanced = {
   parts: TxPart[];
   fee: bigint;
   /** Inputs added to pay for the transaction */
-  selected: UTxO[];
+  selected: Utxo[];
   /**
    * The output parts of `parts` that return change to the payer's change address: those that
    * took what was left, unless it was sent to another address
@@ -152,7 +163,7 @@ export type Balanced = {
   change: OutputPart[];
   /** The minimum fee of the transaction, with a witness for every key expected to sign */
   minFee: bigint;
-  collateral?: TxCollateral;
+  collateral?: BalancedCollateral;
 };
 
 /** A round that settled: its parts, fee, change outputs, minimum fee and collateral */
@@ -161,7 +172,7 @@ type Settled = {
   fee: bigint;
   change: OutputPart[];
   minFee: bigint;
-  collateral: TxCollateral | undefined;
+  collateral: BalancedCollateral | undefined;
 };
 
 /** Most balancing rounds; each one selects more inputs or raises the fee */
@@ -195,8 +206,8 @@ const putUpByParts = (parts: readonly TxPart[]): Set<string> =>
   );
 
 /** Whether a UTxO is locked by a key: a key payment credential, or a Byron address */
-export const isKeyLocked = (utxo: UTxO) => {
-  const address = Address.fromString(utxo.output.address);
+export const isKeyLocked = (utxo: Utxo) => {
+  const address = Address.fromString(utxo.address);
   if (!address) return false;
   if (address.asByron()) return true;
   return address.getProps().paymentPart?.type === CredentialType.KeyHash;
@@ -209,18 +220,18 @@ export const isKeyLocked = (utxo: UTxO) => {
  */
 export const paymentPool = (
   parts: readonly TxPart[],
-  utxos: readonly UTxO[],
+  utxos: readonly Utxo[],
   refused: ReadonlySet<string> = new Set(),
   spentByAfter = 0,
   selectableCollateral: ReadonlySet<string> = new Set(),
-): { pool: UTxO[]; counts: InsufficientFundsDetails["pool"] } => {
+): { pool: Utxo[]; counts: InsufficientFundsDetails["pool"] } => {
   const spent = new Set(
     parts.flatMap((p) => (p.kind === "spend" ? [utxoKey(p.utxo!)] : [])),
   );
   const read = readByParts(parts);
   const putUp = putUpByParts(parts);
   for (const key of selectableCollateral) putUp.delete(key);
-  const pool: UTxO[] = [];
+  const pool: Utxo[] = [];
   const counts: InsufficientFundsDetails["pool"] = {
     // Those spent by `after` were given too, and are counted by that reason
     given: utxos.length + spentByAfter,
@@ -250,9 +261,9 @@ export const paymentPool = (
  */
 export const collateralCandidates = (
   parts: readonly TxPart[],
-  utxos: readonly UTxO[],
-  canSelect?: (utxo: UTxO) => boolean,
-): UTxO[] => {
+  utxos: readonly Utxo[],
+  canSelect?: (utxo: Utxo) => boolean,
+): Utxo[] => {
   const read = readByParts(parts);
   const seen = new Set<string>();
   return utxos.filter((utxo) => {
@@ -280,9 +291,9 @@ export const isPoolShortfall = (error: unknown) =>
  * is not caught.
  */
 export const refusedBy = (
-  canSelect: (utxo: UTxO) => boolean,
+  canSelect: (utxo: Utxo) => boolean,
   parts: readonly TxPart[],
-  utxos: readonly UTxO[],
+  utxos: readonly Utxo[],
 ): Set<string> => {
   const read = readByParts(parts);
   const putUp = putUpByParts(parts);
@@ -348,7 +359,7 @@ export const valueFlow = (
   for (const part of parts) {
     switch (part.kind) {
       case "spend":
-        consumed.push(fromAssets(part.utxo!.output.amount));
+        consumed.push(valueOf(part.utxo!.value));
         break;
       case "output":
         produced.push(
@@ -477,9 +488,9 @@ const makeChange = (
   return outputs;
 };
 
-const spendPart = (utxo: UTxO): SpendPart => ({
+const spendPart = (utxo: Utxo): SpendPart => ({
   kind: "spend",
-  input: { transaction_id: utxo.input.txHash, index: utxo.input.outputIndex },
+  input: { transaction_id: utxo.txHash, index: utxo.outputIndex },
   utxo,
   witness: { type: "key" },
 });
@@ -488,8 +499,6 @@ const outputPart = (output: TransactionOutputPrototype): OutputPart => ({
   kind: "output",
   output: output as OutputPart["output"],
 });
-
-const lovelaceOf = (utxo: UTxO) => fromAssets(utxo.output.amount).coin;
 
 /**
  * Balances resolved parts whose redeemers all carry execution units, and whose outputs all
@@ -540,9 +549,9 @@ export const balance = (
     ctx.spentByAfter,
     ctx.selectableCollateral,
   );
-  const selected: UTxO[] = [];
+  const selected: Utxo[] = [];
   const selectedKeys = new Set<string>();
-  const select = (utxo: UTxO) => {
+  const select = (utxo: Utxo) => {
     selected.push(utxo);
     selectedKeys.add(utxoKey(utxo));
   };
@@ -551,7 +560,7 @@ export const balance = (
 
   /** What the parts bring in and every selectable UTxO holds, selected or not */
   const everything = () =>
-    addValues(flow.consumed, ...pool.map((u) => fromAssets(u.output.amount)));
+    addValues(flow.consumed, ...pool.map((u) => valueOf(u.value)));
 
   /**
    * The fee and the change minimum of the transaction with every selectable UTxO an input and
@@ -620,10 +629,7 @@ export const balance = (
 
   /** What the transaction holds as it stands: what the parts bring in and what is selected */
   const held = () =>
-    addValues(
-      flow.consumed,
-      ...selected.map((u) => fromAssets(u.output.amount)),
-    );
+    addValues(flow.consumed, ...selected.map((u) => valueOf(u.value)));
 
   /**
    * Fails for `unit`, the first one selection cannot cover. With `unanswered`, the shortfall a
@@ -724,40 +730,42 @@ export const balance = (
   ) => {
     const candidates = pool.filter((u) => !selectedKeys.has(utxoKey(u)));
     if (candidates.length === 0) insufficient(firstUnit(shortfall));
-    const answer: unknown = coinSelection(
-      { lovelace: shortfall.coin, assets: new Map(shortfall.assets) },
-      candidates,
-      { round, selected: [...selected], fee, params: selectionParams() },
-    );
-    /** An answer that is not a list of UTxOs: the function is not a `SelectInputs` */
+    const answer: unknown = coinSelection(toAssets(shortfall), candidates, {
+      round,
+      selected: [...selected],
+      fee,
+      params: selectionParams(),
+    });
+    /** An answer that is not a list of out refs: the function is not a `SelectInputs` */
     const notAList = (value: unknown) =>
       new TxBuildError(
         "INVALID_OPTION",
-        "invalid coinSelection: it must return a list of UTxOs among its candidates",
+        "invalid coinSelection: it must return a list of the out refs of its candidates",
         {
           details: {
             option: "coinSelection",
             value,
             allowed:
-              "a function returning a list of UTxOs among its candidates",
+              "a function returning a list of the out refs of its candidates, { txHash, outputIndex } each",
           },
         },
       );
     if (!Array.isArray(answer)) throw notAList(answer);
     const byKey = new Map(candidates.map((u) => [utxoKey(u), u]));
-    const picked = new Map<string, UTxO>();
+    const picked = new Map<string, Utxo>();
     for (const entry of answer as unknown[]) {
-      const input = (
-        entry as { input?: { txHash?: unknown; outputIndex?: unknown } } | null
-      )?.input;
+      const given = entry as {
+        txHash?: unknown;
+        outputIndex?: unknown;
+      } | null;
       if (
-        typeof input?.txHash !== "string" ||
-        typeof input.outputIndex !== "number"
+        typeof given?.txHash !== "string" ||
+        typeof given.outputIndex !== "number"
       )
         throw notAList(entry);
       const ref: OutRef = {
-        txHash: input.txHash,
-        outputIndex: input.outputIndex,
+        txHash: given.txHash,
+        outputIndex: given.outputIndex,
       };
       // Out refs compare in lower case, as the payer's UTxOs are kept
       const key = `${ref.txHash.toLowerCase()}#${ref.outputIndex}`;
@@ -783,15 +791,14 @@ export const balance = (
       return selectWith(ctx.coinSelection, shortfall, round);
     // What this call has selected so far, which may already hold the next token
     let added = emptyValue();
-    const take = (utxo: UTxO) => {
+    const take = (utxo: Utxo) => {
       select(utxo);
-      added = addValues(added, fromAssets(utxo.output.amount));
+      added = addValues(added, valueOf(utxo.value));
     };
     for (const unit of Array.from(shortfall.assets.keys()).sort()) {
       let missing =
         shortfall.assets.get(unit)! - (added.assets.get(unit) ?? 0n);
-      const quantity = (u: UTxO) =>
-        fromAssets(u.output.amount).assets.get(unit) ?? 0n;
+      const quantity = (u: Utxo) => u.value[unit] ?? 0n;
       const holders = pool
         .filter((u) => !selectedKeys.has(utxoKey(u)) && quantity(u) > 0n)
         .sort((a, b) => {
@@ -808,20 +815,20 @@ export const balance = (
     let missing = shortfall.coin - added.coin;
     if (missing <= 0n) return;
     // Lovelace from plain UTxOs first: tokens and reference scripts cost more to carry along
-    const rank = (u: UTxO) =>
-      (u.output.scriptRef ? 2 : 0) + (u.output.amount.length > 1 ? 1 : 0);
+    const rank = (u: Utxo) =>
+      (u.script ? 2 : 0) + (Object.keys(u.value).length > 1 ? 1 : 0);
     const candidates = pool
       .filter((u) => !selectedKeys.has(utxoKey(u)))
       .sort((a, b) => {
         const byRank = rank(a) - rank(b);
         if (byRank !== 0) return byRank;
-        const diff = lovelaceOf(b) - lovelaceOf(a);
+        const diff = b.value.lovelace - a.value.lovelace;
         return diff !== 0n ? (diff > 0n ? 1 : -1) : 0;
       });
     for (const utxo of candidates) {
       if (missing <= 0n) break;
       select(utxo);
-      missing -= lovelaceOf(utxo);
+      missing -= utxo.value.lovelace;
     }
     if (missing > 0n) insufficient("lovelace");
   };
@@ -840,7 +847,7 @@ export const balance = (
   const putUpCollateral = (
     fee: bigint,
     lenient = ctx.provisional || ctx.lenientCollateral,
-  ): TxCollateral => {
+  ): BalancedCollateral => {
     const strict = () =>
       collateralFor(fee, {
         params,
@@ -862,8 +869,7 @@ export const balance = (
       const inputs = givenCollateral.map((p) => p.utxo!);
       return {
         inputs,
-        total: addValues(...inputs.map((u) => fromAssets(u.output.amount)))
-          .coin,
+        total: addValues(...inputs.map((u) => valueOf(u.value))).coin,
       };
     }
   };
@@ -875,15 +881,12 @@ export const balance = (
     ),
   );
   /** The collateral and collateral return parts of a round, given ones keeping their labels */
-  const collateralParts = (collateral: TxCollateral): TxPart[] => [
+  const collateralParts = (collateral: BalancedCollateral): TxPart[] => [
     ...collateral.inputs.map((utxo): CollateralPart => {
       const label = collateralLabels.get(utxoKey(utxo));
       return {
         kind: "collateral",
-        input: {
-          transaction_id: utxo.input.txHash,
-          index: utxo.input.outputIndex,
-        },
+        input: { transaction_id: utxo.txHash, index: utxo.outputIndex },
         utxo,
         ...(label !== undefined && { label }),
       };
@@ -1066,15 +1069,15 @@ export const balance = (
  */
 export const refScriptSize = (
   assembled: AssembledTx,
-  known: ReadonlyMap<string, UTxO>,
+  known: ReadonlyMap<string, Utxo>,
   stated?: ReadonlyMap<string, number>,
 ): bigint => {
   const { body } = assembled.prototype;
   let size = 0n;
   for (const input of [...body.inputs, ...(body.reference_inputs ?? [])]) {
     const key = `${input.transaction_id}#${input.index}`;
-    const scriptRef = known.get(key)?.output.scriptRef;
-    if (scriptRef) size += BigInt(scriptRef.length / 2);
+    const script = known.get(key)?.script;
+    if (script) size += BigInt(scriptSize(script));
     else size += BigInt(stated?.get(key) ?? 0);
   }
   return size;
@@ -1103,16 +1106,16 @@ const collateralFor = (
   fee: bigint,
   ctx: {
     params: Protocol;
-    given: UTxO[];
+    given: Utxo[];
     /** The collateral parts `given` comes from, for the part an error names */
     givenParts?: readonly TxPart[];
     /** The collateral return part, which states `givenTotal` when it is given */
     returnPart?: TxPart;
     givenTotal?: bigint;
     address: string;
-    pool: readonly UTxO[];
+    pool: readonly Utxo[];
   },
-): TxCollateral => {
+): BalancedCollateral => {
   const { params } = ctx;
   const percent = BigInt(params.collateralPercent);
   const minimum = (fee * percent + 99n) / 100n;
@@ -1134,11 +1137,11 @@ const collateralFor = (
       details,
     });
   };
-  const lovelaceIn = (inputs: readonly UTxO[]) =>
-    inputs.reduce((total, u) => total + lovelaceOf(u), 0n);
+  const lovelaceIn = (inputs: readonly Utxo[]) =>
+    inputs.reduce((total, u) => total + u.value.lovelace, 0n);
 
-  const cover = (inputs: UTxO[]): TxCollateral | undefined => {
-    const held = addValues(...inputs.map((u) => fromAssets(u.output.amount)));
+  const cover = (inputs: Utxo[]): BalancedCollateral | undefined => {
+    const held = addValues(...inputs.map((u) => valueOf(u.value)));
     if (held.coin < required) return undefined;
     const rest = subtractValues(held, coinValue(required));
     if (isEmpty(rest)) return { inputs, total: required };
@@ -1174,23 +1177,25 @@ const collateralFor = (
   }
 
   const adaOnly = ctx.pool
-    .filter((u) => u.output.amount.length === 1 && !u.output.scriptRef)
+    .filter((u) => Object.keys(u.value).length === 1 && !u.script)
     .sort((a, b) => {
-      const diff = lovelaceOf(a) - lovelaceOf(b);
+      const diff = a.value.lovelace - b.value.lovelace;
       return diff !== 0n ? (diff > 0n ? 1 : -1) : 0;
     });
   const withReturn = adaOnly.find(
-    (u) => lovelaceOf(u) === required || lovelaceOf(u) >= required + adaOnlyMin,
+    (u) =>
+      u.value.lovelace === required ||
+      u.value.lovelace >= required + adaOnlyMin,
   );
   if (withReturn) return cover([withReturn])!;
-  const single = adaOnly.find((u) => lovelaceOf(u) >= required);
+  const single = adaOnly.find((u) => u.value.lovelace >= required);
   if (single) return cover([single])!;
 
   const largest = [
     ...adaOnly.reverse(),
     ...ctx.pool.filter((u) => !adaOnly.includes(u)),
   ];
-  const inputs: UTxO[] = [];
+  const inputs: Utxo[] = [];
   for (const utxo of largest) {
     if (inputs.length >= params.maxCollateralInputs) break;
     inputs.push(utxo);

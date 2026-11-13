@@ -42,6 +42,7 @@ import {
   proposal,
   referenceInput,
   spend,
+  toUtxo,
   treasuryValue,
   TxBuilder,
   TxBuildError,
@@ -66,6 +67,7 @@ import {
   baseAddress,
   drepBech32,
   keyHashHex,
+  mockTokenUnit,
   rewardAddress,
 } from "../../test-util";
 import { accept, acceptAll, hash } from "./plan-util";
@@ -678,6 +680,84 @@ describe("the encoding of a built transaction", () => {
     ) as any;
     expect(spent.witness.script.script.value.n).toBe(1n);
   });
+
+  it("gives back the UTxOs of a BuiltTx with tokens, datums and scripts, quantities as bigints", async () => {
+    const unit = mockTokenUnit(1);
+    const payer = utxoAt(
+      0,
+      wallet,
+      {
+        amount: [
+          { unit: "lovelace", quantity: "80000000" },
+          { unit, quantity: "7" },
+        ],
+      },
+      hash(++nextHash),
+    );
+    const built = await builder.build(
+      [
+        output({
+          address: plutusAddress,
+          value: { lovelace: 3_000_000n, [unit]: 2n },
+          datum: { type: "inline", data: bigData },
+        }),
+        output({
+          address: plutusAddress,
+          value: { lovelace: 3_000_000n },
+          datum: { type: "hash", data: bigData },
+        }),
+        output({
+          address: recipient,
+          value: { lovelace: 20_000_000n },
+          scriptRef: plutus,
+        }),
+        output({
+          address: recipient,
+          value: { lovelace: 5_000_000n },
+          scriptRef: nOfK,
+        }),
+        validity({ until: UNTIL }),
+      ],
+      { payer: { changeAddress: wallet, utxos: [payer] } },
+    );
+    expect(built.outputs.map((o) => o.datum?.type)).toEqual([
+      "inline",
+      "hash",
+      undefined,
+      undefined,
+      undefined,
+    ]);
+    expect(built.outputs.map((o) => o.script?.type)).toEqual([
+      undefined,
+      undefined,
+      "plutus",
+      "native",
+      undefined,
+    ]);
+    const encoded = encodePlan(recordWith([built])) as any;
+    const json = encoded.attempts[0].built;
+    expect(json.outputs[0].value).toEqual({
+      lovelace: "3000000",
+      [unit]: "2",
+    });
+    expect(JSON.parse(JSON.stringify(encoded))).toStrictEqual(encoded);
+
+    const record = readPlan(encoded);
+    const read = record.attempts[0]!.built as BuiltTx;
+    expect(read).toEqual(built);
+    expect(read.outputs).toEqual(built.outputs);
+    expect(read.inputs).toEqual(built.inputs);
+    expect(read.outputs[0]!.value[unit]).toBe(2n);
+    expect(read.inputs[0]!.value.lovelace).toBe(80_000_000n);
+    expect(read.inputs[0]!.value[unit]).toBe(7n);
+    expect(read.change[0]!.value[unit]).toBe(5n);
+    expect(read.change[0]!.change).toBe(true);
+    expect(record.anchor.anchors[0]!.utxo).toEqual(built.selectedInputs[0]);
+    expect(record.anchor.anchors[0]!.utxo.value.lovelace).toBe(80_000_000n);
+    expect((record.options as any).knownUtxos[0].value.lovelace).toBe(
+      5_000_000n,
+    );
+  });
 });
 
 /* ---------------------------------------------------------------------------------------------
@@ -699,7 +779,7 @@ const recordWith = (builts: readonly BuiltTx[]): PlanRecord => {
     options: {
       fee: 400_000n,
       sendAllTo: recipient,
-      knownUtxos: [utxoAt(7, wallet)],
+      knownUtxos: [toUtxo(utxoAt(7, wallet))],
       registeredPools: [poolHash],
       extraKeyWitnesses: 1,
       changeAddress: wallet,
@@ -771,7 +851,7 @@ const childRecord = async () => {
     {
       type: "build",
       built,
-      anchors: [{ utxo: parentOutput, kind: "parent" }],
+      anchors: [{ utxo: toUtxo(parentOutput), kind: "parent" }],
       parents: [{ txHash: parentHash, until: UNTIL - 1, planId: "parent-1" }],
     },
     {
@@ -1079,6 +1159,88 @@ describe("readPlan", () => {
       /newer/,
     );
     expect(error.planId).toBe("pay-1");
+  });
+
+  it("refuses a UTxO of another shape wherever the record holds one", () => {
+    const mesh = {
+      input: { txHash: hash(1), outputIndex: 0 },
+      output: {
+        address: wallet,
+        amount: [{ unit: "lovelace", quantity: "5000000" }],
+      },
+    };
+    const cases: [(json: any) => void, RegExp][] = [
+      [
+        (json) => (json.options.knownUtxos = [mesh]),
+        /options\.knownUtxos\[0\]\.input, a member this library does not know/,
+      ],
+      [
+        (json) => (json.attempts[0].built.inputs[0] = mesh),
+        /attempts\[0\]\.built\.inputs\[0\]\.input, a member this library does not know/,
+      ],
+      [
+        (json) => (json.attempts[0].built.outputs[0] = { ...mesh, label: "x" }),
+        /attempts\[0\]\.built\.outputs\[0\]\.input, a member this library does not know/,
+      ],
+      [
+        (json) => (json.anchor.anchors[0].utxo = mesh),
+        /anchor\.anchors\[0\]\.utxo\.input, a member this library does not know/,
+      ],
+      [
+        (json) => (json.attempts[0].built.parts[0].utxo = mesh),
+        /attempts\[0\]\.built\.parts\[0\]\.utxo\.input, a member this library does not know/,
+      ],
+      [
+        (json) =>
+          (json.attempts[0].built.collateral.return = {
+            address: wallet,
+            amount: { coin: "1000000" },
+          }),
+        /attempts\[0\]\.built\.collateral\.return\.amount, a member this library does not know/,
+      ],
+      // The marks of a built output belong to outputs only
+      [
+        (json) => (json.attempts[0].built.inputs[0].change = true),
+        /attempts\[0\]\.built\.inputs\[0\]\.change, a member this library does not know/,
+      ],
+      [
+        (json) => (json.attempts[0].built.inputs[0].value.lovelace = 5),
+        /attempts\[0\]\.built\.inputs\[0\]\.value\.lovelace is 5, not a decimal integer/,
+      ],
+      [
+        (json) => delete json.attempts[0].built.inputs[0].value.lovelace,
+        /attempts\[0\]\.built\.inputs\[0\]\.value holds no lovelace/,
+      ],
+      [
+        (json) =>
+          (json.attempts[0].built.inputs[0].datum = {
+            type: "inline",
+            data: "d87980",
+          }),
+        /attempts\[0\]\.built\.inputs\[0\]\.datum\.data is "d87980", not an object/,
+      ],
+      [
+        (json) =>
+          (json.attempts[0].built.inputs[0].script = {
+            type: "plutus",
+            version: "V4",
+            code: "00",
+            hash: "00",
+          }),
+        /attempts\[0\]\.built\.inputs\[0\]\.script\.version: the Plutus version "V4"/,
+      ],
+      [
+        (json) =>
+          (json.attempts[0].built.inputs[0].script = {
+            type: "bytes",
+            cbor: "00",
+          }),
+        /attempts\[0\]\.built\.inputs\[0\]\.script: a script of the type "bytes"/,
+      ],
+    ];
+    expect(base.attempts[0].built.collateral.return).toBeDefined();
+    for (const [change, message] of cases)
+      expectUnread(() => readPlan(changed(change)), message);
   });
 
   it("refuses a record that is not plain JSON data", () => {

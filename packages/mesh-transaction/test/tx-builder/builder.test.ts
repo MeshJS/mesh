@@ -30,6 +30,7 @@ import {
   OfflineEvaluatorScalus,
   resolvePlutusScriptAddress,
   scriptHashToRewardAddress,
+  toTxUnspentOutput,
   Transaction,
   transactionOutputPrototypeToCardano,
   transactionPrototypeToHex,
@@ -58,6 +59,8 @@ import {
   RedeemerContext,
   referenceInput,
   spend,
+  toMeshUtxo,
+  toUtxo,
   TxBuilder,
   TxBuilderOptions,
   TxBuildError,
@@ -65,11 +68,14 @@ import {
   TxPart,
   TxPartError,
   unresolved,
+  Utxo,
+  UtxoInput,
   utxosAfter,
   validity,
   withdrawal,
 } from "../../src/tx-builder";
 import { exUnitsFee, feeForSize, refScriptFee } from "../../src/tx-builder/fee";
+import { outRefOf } from "../../src/tx-builder/parts/utxo";
 import { resolveParts } from "../../src/tx-builder/resolve";
 import {
   alwaysFailCbor,
@@ -113,7 +119,11 @@ const utxo = (
 });
 
 const ada = (n: number) => BigInt(n) * 1_000_000n;
-const utxoKeyOf = (u: UTxO) => `${u.input.txHash}#${u.input.outputIndex}`;
+/** `txHash#index` of a UTxO given in the Mesh form or returned in the builder's */
+const utxoKeyOf = (u: UtxoInput) => {
+  const { txHash, outputIndex } = toUtxo(u);
+  return `${txHash}#${outputIndex}`;
+};
 
 /** Redeemer tags as `IEvaluator` reports them, by the ledger's tag number */
 const TAGS: Action["tag"][] = [
@@ -187,13 +197,12 @@ const expectBuildError = async (build: Promise<unknown>, code: string) => {
 
 const sum = (values: (string | number | bigint)[]) =>
   values.reduce<bigint>((a, b) => a + BigInt(b), 0n);
-const coinOf = (u: UTxO) =>
-  BigInt(u.output.amount.find((a) => a.unit === "lovelace")?.quantity ?? 0);
+const coinOf = (u: UtxoInput) => toUtxo(u).value.lovelace;
 /** The tokens a UTxO holds, quantity by unit */
-const tokensOf = (u: UTxO) =>
+const tokensOf = (u: UtxoInput) =>
   Object.fromEntries(
-    u.output.amount.flatMap((a) =>
-      a.unit === "lovelace" ? [] : [[a.unit, a.quantity]],
+    Object.entries(toUtxo(u).value).flatMap(([unit, quantity]) =>
+      unit === "lovelace" ? [] : [[unit, String(quantity)]],
     ),
   );
 
@@ -234,9 +243,9 @@ describe("TxBuilder: balancing", () => {
       { payer: { changeAddress: wallet, utxos: funds } },
     );
 
-    expect(built.selectedInputs).toEqual(funds);
+    expect(built.selectedInputs).toEqual(funds.map((u) => toUtxo(u)));
     expect(built.change).toHaveLength(1);
-    expect(built.change[0]!.output.address).toBe(wallet);
+    expect(built.change[0]!.address).toBe(wallet);
     expectBalanced(built);
     // Within a byte or two of the minimum for the signed transaction
     const min = signedMinFee(built, 1);
@@ -329,7 +338,7 @@ describe("TxBuilder: balancing", () => {
       ],
       { payer: { changeAddress: wallet, utxos: [extra] } },
     );
-    expect(built.selectedInputs).toEqual([extra]);
+    expect(built.selectedInputs).toEqual([toUtxo(extra)]);
     expect(coinOf(built.change[0]!)).toBeGreaterThan(ada(4));
     expectBalanced(built);
   });
@@ -360,7 +369,9 @@ describe("TxBuilder: balancing", () => {
       [output({ address: recipient, value: { [unit]: 10n } })],
       { payer: { changeAddress: wallet, utxos: [small, plain, large] } },
     );
-    expect(built.selectedInputs.slice(0, 2)).toEqual([large, small]);
+    expect(built.selectedInputs.slice(0, 2)).toEqual(
+      [large, small].map((u) => toUtxo(u)),
+    );
     expectBalanced(built);
   });
 
@@ -1663,7 +1674,7 @@ describe("TxBuilder: scripts", () => {
       ],
       { payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] } },
     );
-    expect(built.collateral!.inputs).toEqual([held]);
+    expect(built.collateral!.inputs).toEqual([toUtxo(held)]);
     expect(built.prototype.body.collateral_return).toMatchObject({
       address: returnTo,
       amount: { coin: String(ada(20) - built.collateral!.total) },
@@ -1736,7 +1747,10 @@ describe("TxBuilder: scripts", () => {
     }).build([scriptSpend(1), collateral({ utxo: tight })], {
       payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] },
     });
-    expect(built.collateral).toEqual({ inputs: [tight], total: ada(1) });
+    expect(built.collateral).toEqual({
+      inputs: [toUtxo(tight)],
+      total: ada(1),
+    });
     expect(built.prototype.body.total_collateral).toBe(String(ada(1)));
     expect(built.prototype.body.collateral_return).toBeUndefined();
   });
@@ -1833,7 +1847,7 @@ describe("TxBuilder: scripts", () => {
         utxos: [utxo(lovelace(ada(10))), tight, roomy],
       },
     });
-    expect(built.collateral!.inputs).toEqual([roomy]);
+    expect(built.collateral!.inputs).toEqual([toUtxo(roomy)]);
     expect(built.collateral!.return).toBeDefined();
   });
 
@@ -1985,7 +1999,7 @@ describe("TxBuilder: UTxOs left out of selection", () => {
     output({ address: recipient, value: { lovelace: ada(n) } });
   const inputsOf = (built: BuiltTx) =>
     built.prototype.body.inputs.map((i) => `${i.transaction_id}#${i.index}`);
-  const keyOf = (u: UTxO) => `${u.input.txHash}#${u.input.outputIndex}`;
+  const keyOf = utxoKeyOf;
   const referencesOf = (built: BuiltTx) =>
     (built.prototype.body.reference_inputs ?? []).map(
       (i) => `${i.transaction_id}#${i.index}`,
@@ -2006,7 +2020,7 @@ describe("TxBuilder: UTxOs left out of selection", () => {
       [plain, oracle],
     );
 
-    expect(built.selectedInputs).toEqual([plain]);
+    expect(built.selectedInputs).toEqual([toUtxo(plain)]);
     expect(inputsOf(built)).toEqual([keyOf(plain)]);
     expect(referencesOf(built)).toEqual([keyOf(oracle)]);
   });
@@ -2052,7 +2066,7 @@ describe("TxBuilder: UTxOs left out of selection", () => {
     ];
 
     const built = await build(parts(), [oracle, withToken]);
-    expect(built.collateral!.inputs).toEqual([withToken]);
+    expect(built.collateral!.inputs).toEqual([toUtxo(withToken)]);
     expect(built.selectedInputs).toEqual([]);
 
     await expectBuildError(build(parts(), [oracle]), "INSUFFICIENT_COLLATERAL");
@@ -2075,8 +2089,8 @@ describe("TxBuilder: UTxOs left out of selection", () => {
     const parts = () => [scriptSpend(), pay(30), collateral({ utxo: putUp })];
 
     const built = await build(parts(), [plain, putUp]);
-    expect(built.collateral!.inputs).toEqual([putUp]);
-    expect(built.selectedInputs).toEqual([plain]);
+    expect(built.collateral!.inputs).toEqual([toUtxo(putUp)]);
+    expect(built.selectedInputs).toEqual([toUtxo(plain)]);
     expect(built.inputs).not.toContainEqual(putUp);
 
     await expectBuildError(build(parts(), [putUp]), "INSUFFICIENT_FUNDS");
@@ -2088,8 +2102,8 @@ describe("TxBuilder: UTxOs left out of selection", () => {
       [spend.pubKey({ utxo: both }), collateral({ utxo: both }), pay(5)],
       [],
     );
-    expect(built.inputs).toContainEqual(both);
-    expect(built.collateral!.inputs).toEqual([both]);
+    expect(built.inputs).toContainEqual(toUtxo(both));
+    expect(built.collateral!.inputs).toEqual([toUtxo(both)]);
   });
 });
 
@@ -2380,7 +2394,7 @@ describe("TxBuilder: reads", () => {
       "UTXO_NOT_FOUND",
     );
     const built = await builder.build(...request([keySpend()]));
-    expect(built.inputs).toContainEqual(keyOutput);
+    expect(built.inputs).toContainEqual(toUtxo(keyOutput));
     expect(provider.fetchUTxOs).toHaveBeenCalledTimes(3);
   });
 
@@ -2482,14 +2496,39 @@ describe("TxBuilder: reads", () => {
       ...(await cache.fetchUTxOs(refHash)),
     ];
     expect(cached).toEqual(original);
-    for (const utxo of cached) {
-      expect(isFrozenAnywhere(utxo)).toBe(false);
-      for (const input of built.inputs) {
-        expect(input).not.toBe(utxo);
-        expect(input.output).not.toBe(utxo.output);
+    for (const utxo of cached) expect(isFrozenAnywhere(utxo)).toBe(false);
+    expect(built.inputs).toContainEqual(toUtxo(keyOutput));
+  });
+
+  it("shares nothing with the UTxOs it is given in its own form", async () => {
+    const unit = `${"ab".repeat(28)}01`;
+    const spent = toUtxo(
+      utxo([...lovelace(ada(5)), { unit, quantity: "3" }], {
+        plutusData: "d87980",
+      }),
+    );
+    const paying = toUtxo(utxo(lovelace(ada(10))));
+    const given = structuredClone([spent, paying]);
+    const built = await new TxBuilder({ network, params }).build(
+      [
+        spend.pubKey({ utxo: spent }),
+        output({ address: recipient, value: { lovelace: ada(8) } }),
+      ],
+      { payer: { changeAddress: wallet, utxos: [paying] } },
+    );
+    expect(built.inputs).toHaveLength(2);
+    expect(built.inputs).toContainEqual(spent);
+    expect(built.inputs).toContainEqual(paying);
+    for (const input of built.inputs)
+      for (const source of [spent, paying]) {
+        expect(input).not.toBe(source);
+        expect(input.value).not.toBe(source.value);
+        if (input.datum) expect(input.datum).not.toBe(source.datum);
       }
-    }
-    expect(built.inputs).toContainEqual(keyOutput);
+    // What it returns is frozen, and what it was given is left as it was
+    for (const source of [spent, paying])
+      expect(isFrozenAnywhere(source)).toBe(false);
+    expect([spent, paying]).toEqual(given);
   });
 
   it("withdraws a whole balance read within the cache's lifetime once", async () => {
@@ -2989,7 +3028,7 @@ describe("TxBuilder: a fee that does not settle", () => {
         serializer: growing() as never,
       }).finalize(edited, {
         inputs: built.inputs,
-        changeAddress: change.output.address,
+        changeAddress: change.address,
       }),
       "FEE_NOT_CONVERGED",
     );
@@ -3173,8 +3212,9 @@ describe("TxBuilder: malformed values given or read", () => {
         payer: { changeAddress: wallet, utxos: [funds()] },
       });
       expect(built.inputs).toContainEqual({
-        input: ghost,
-        output: { address: wallet, amount: lovelace(ada(5)) },
+        ...ghost,
+        address: wallet,
+        value: { lovelace: ada(5) },
       });
     });
 
@@ -3343,6 +3383,98 @@ describe("TxBuilder: malformed values given or read", () => {
       invalid(() => utxosAfter([], built, 5 as never), "owns");
       expect(outputOf(built, "pay").label).toBe("pay");
       expect(utxosAfter([], built)).toHaveLength(1);
+    });
+
+    it("refuses an entry of minFee's inputs and of utxosAfter's utxos that is not a UTxO", async () => {
+      const built = await new TxBuilder({ network, params }).build([pay], {
+        payer: { changeAddress: wallet, utxos: [funds()] },
+      });
+      const held = funds();
+      const notUtxos: [string, unknown][] = [
+        [
+          "a Mesh UTxO at a reward address",
+          {
+            ...held,
+            output: {
+              ...held.output,
+              address: keyHashToRewardAddress(keyHashHex(1), 0),
+            },
+          },
+        ],
+        [
+          "a Mesh UTxO with a scriptHash and no scriptRef",
+          { ...held, output: { ...held.output, scriptHash: "ab".repeat(28) } },
+        ],
+        [
+          "a Mesh UTxO whose dataHash is not that of its plutusData",
+          {
+            ...held,
+            output: {
+              ...held.output,
+              plutusData: "d87980",
+              dataHash: "00".repeat(32),
+            },
+          },
+        ],
+        [
+          "an amount with no digits",
+          {
+            ...held,
+            output: {
+              ...held.output,
+              amount: [{ unit: "lovelace", quantity: "ten" }],
+            },
+          },
+        ],
+        [
+          "a Utxo without lovelace",
+          { ...toUtxo(held), value: { [`${"ab".repeat(28)}01`]: 1n } },
+        ],
+        ["text that is not CBOR", "zz"],
+      ];
+      const context = { params, vkeyWitnesses: 1 };
+      const refused = (call: () => unknown, option: string, entry: unknown) => {
+        let error: unknown;
+        try {
+          call();
+        } catch (thrown) {
+          error = thrown;
+        }
+        expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
+        const failed = error as TxBuildError<"INVALID_OPTION">;
+        expect(failed.details).toEqual({
+          option,
+          value: entry,
+          allowed: "a UTxO",
+        });
+        expect(failed.details.value).toBe(entry);
+        expect(failed.cause).toBeInstanceOf(Error);
+        expect(TxError.is(failed.cause)).toBe(false);
+        expect(failed.message).toContain(
+          `invalid ${option}: entry 1 is not a UTxO: `,
+        );
+      };
+      for (const [, entry] of notUtxos) {
+        refused(
+          () =>
+            minFee(built.prototype, {
+              ...context,
+              inputs: [held, entry] as never,
+            }),
+          "inputs",
+          entry,
+        );
+        refused(
+          () => utxosAfter([held, entry] as never, built),
+          "utxos",
+          entry,
+        );
+      }
+      // The same UTxOs without the entry are taken
+      expect(
+        minFee(built.prototype, { ...context, inputs: [held] }),
+      ).toBeGreaterThan(0n);
+      expect(utxosAfter([held], built)).toHaveLength(2);
     });
   });
 });
@@ -3636,7 +3768,7 @@ describe("TxBuilder: validity in POSIX time", () => {
       network: networkConfig("preprod"),
       params,
       deposits: {},
-      known: new Map<string, UTxO>(),
+      known: new Map<string, Utxo>(),
     };
     const part = validity({ from: T + 1, until: T + 600000, label: "window" });
     const [resolved] = await resolveParts([part], context);
@@ -3699,7 +3831,7 @@ describe("TxBuilder: redeemer functions", () => {
       { payer: payer(funds) },
     );
 
-    expect(built.inputs.map((u) => u.input.txHash)).toEqual([
+    expect(built.inputs.map((u) => u.txHash)).toEqual([
       funds.input.txHash,
       locked(1).input.txHash,
     ]);
@@ -3826,13 +3958,21 @@ describe("TxBuilder: redeemer functions", () => {
     );
     const tx = seen!;
 
-    expect(tx.output("pay")).toBe(outputOf(built, "pay").input.outputIndex);
+    expect(tx.output("pay")).toBe(outputOf(built, "pay").outputIndex);
     expect(tx.output("pay")).toBe(1);
-    expect(tx.output("other")).toBe(outputOf(built, "other").input.outputIndex);
+    expect(tx.output("other")).toBe(outputOf(built, "other").outputIndex);
     for (const [i, u] of built.inputs.entries()) expect(tx.input(u)).toBe(i);
     expect(built.referenceInputs).toHaveLength(2);
     for (const [i, u] of built.referenceInputs.entries())
       expect(tx.referenceInput(u)).toBe(i);
+    // Asked for by the CBOR a CIP-30 wallet gives, an input is found as in the other forms
+    const cborOf = (u: Utxo) =>
+      toTxUnspentOutput(toMeshUtxo(u)).toCbor().toString();
+    for (const [i, u] of built.inputs.entries())
+      expect(tx.input(cborOf(u))).toBe(i);
+    for (const [i, u] of built.referenceInputs.entries())
+      expect(tx.referenceInput(cborOf(u))).toBe(i);
+    expect(tx.input(cborOf(toUtxo(locked(1))))).toBe(tx.input(locked(1)));
     expect(built.redeemers[0]!.data).toBe(
       `9f01${tx.input(locked(1)).toString(16).padStart(2, "0")}ff`,
     );
@@ -3890,7 +4030,7 @@ describe("TxBuilder: redeemer functions", () => {
 
     expect(built.selectedInputs.length).toBeGreaterThan(20);
     expect(new Set(rounds).size).toBeGreaterThan(1);
-    const listed = built.inputs.map((u) => u.input.txHash);
+    const listed = built.inputs.map((u) => u.txHash);
     expect(built.redeemers[0]!.data).toBe(
       `9f${listed.map((h) => `5820${h}`).join("")}ff`,
     );
@@ -4757,18 +4897,18 @@ describe("TxBuilder: finalize", () => {
     expect(final.signers.keys[0]!.neededBy).toEqual([
       { part: "collateral", role: "collateral" },
     ]);
-    expect(final.inputs.map((u) => u.input)).toEqual(
+    expect(final.inputs.map(outRefOf)).toEqual(
       final.prototype.body.inputs.map((i) => ({
         txHash: i.transaction_id,
         outputIndex: i.index,
       })),
     );
-    expect(final.referenceInputs.map((u) => u.input)).toEqual([holder.input]);
+    expect(final.referenceInputs.map(outRefOf)).toEqual([holder.input]);
     for (const [i, o] of final.outputs.entries())
-      expect(o.input).toEqual({ txHash: final.txHash, outputIndex: i });
+      expect(outRefOf(o)).toEqual({ txHash: final.txHash, outputIndex: i });
     expect(final.change.length).toBeGreaterThan(0);
     for (const o of final.change) {
-      expect(o.output.address).toBe(wallet);
+      expect(o.address).toBe(wallet);
       expect(o.change).toBe(true);
       expect(final.outputs).toContainEqual(o);
     }
@@ -4787,18 +4927,25 @@ describe("TxBuilder: finalize", () => {
     ]);
     expect(built.redeemers[0]!.part).toBeDefined();
     expect(final.exUnits).toEqual(built.exUnits);
+    // The return as the UTxO it becomes if the script fails: the output after the body's own
+    const returned = edited.body.collateral_return!;
     expect(final.collateral).toEqual({
       inputs: built.collateral!.inputs,
       total: BigInt(edited.body.total_collateral!),
-      return: edited.body.collateral_return,
+      return: {
+        txHash: final.txHash,
+        outputIndex: final.prototype.body.outputs.length,
+        address: returned.address,
+        value: { lovelace: BigInt(returned.amount.coin) },
+      },
     });
     // The inputs gone, the change added
     const after = utxosAfter(named(built), final);
     expect(after).toContainEqual(
-      expect.objectContaining({ input: final.change[0]!.input }),
+      expect.objectContaining(outRefOf(final.change[0]!)),
     );
     for (const spent of final.inputs)
-      expect(after.map((u) => u.input)).not.toContainEqual(spent.input);
+      expect(after.map(outRefOf)).not.toContainEqual(outRefOf(spent));
 
     const unmarked = await builder().finalize(built.prototype, {
       inputs: named(built),
@@ -4812,9 +4959,7 @@ describe("TxBuilder: finalize", () => {
     const untotalled = structuredClone(built.prototype);
     delete untotalled.body.total_collateral;
     const held = built.collateral!.inputs.reduce(
-      (total, u) =>
-        total +
-        BigInt(u.output.amount.find((a) => a.unit === "lovelace")!.quantity),
+      (total, u) => total + u.value.lovelace,
       0n,
     );
     const returned = BigInt(untotalled.body.collateral_return!.amount.coin);
@@ -4844,11 +4989,12 @@ describe("TxBuilder: finalize", () => {
 
   it("looks up no UTxO: one left out of inputs is UTXO_NOT_FOUND", async () => {
     const { built, holder } = await plutusSpend();
-    const { fetcher } = fakeFetcher([...named(built)]);
+    // The provider answers in the Mesh form, as providers do
+    const { fetcher } = fakeFetcher(named(built).map((u) => toMeshUtxo(u)));
     const lookups = jest.spyOn(fetcher, "fetchUTxOs");
     const b = builder({ provider: fetcher });
     const collateralInput = built.collateral!.inputs[0]!;
-    const without = (...left: UTxO[]) =>
+    const without = (...left: UtxoInput[]) =>
       named(built).filter(
         (u) => !left.some((l) => utxoKeyOf(l) === utxoKeyOf(u)),
       );
@@ -4859,12 +5005,14 @@ describe("TxBuilder: finalize", () => {
       [[holder], holder],
       [[collateralInput], collateralInput],
       [[collateralInput, built.inputs[0]!], built.inputs[0]!],
-    ] as [UTxO[], UTxO][]) {
+    ] as [UtxoInput[], UtxoInput][]) {
       const error = await expectBuildError(
         b.finalize(built.prototype, { inputs: without(...left) }),
         "UTXO_NOT_FOUND",
       );
-      expect(error.details).toEqual({ input: reported.input });
+      expect(error.details).toStrictEqual({
+        input: outRefOf(toUtxo(reported)),
+      });
     }
     expect(lookups).not.toHaveBeenCalled();
 

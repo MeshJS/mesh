@@ -211,6 +211,29 @@ describe("output", () => {
     expect(badAddress.cause).toBeUndefined();
   });
 
+  it("holds an inline datum only as one item of Plutus data, as its UTxO is read back", () => {
+    // Non-canonical, kept byte for byte
+    const kept = output({
+      address,
+      value: [],
+      datum: { type: "inline", data: { type: "CBOR", content: "d8799fff" } },
+    });
+    expect(kept.output.plutus_data).toEqual({
+      type: "DATA",
+      value: { type: "CBOR", hex: "d8799fff" },
+    });
+    for (const content of ["d8799fff00", "d8798000", "0102"])
+      expectPartError(
+        () =>
+          output({
+            address,
+            value: [],
+            datum: { type: "inline", data: { type: "CBOR", content } },
+          }),
+        "INVALID_DATA",
+      );
+  });
+
   it("rejects a bad address, datum hash or script", () => {
     expectPartError(
       () => output({ address: "nope", value: [] }),

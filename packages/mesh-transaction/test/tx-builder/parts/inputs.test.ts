@@ -8,20 +8,26 @@ import {
   resolveScriptRef,
   UTxO,
 } from "@meshsdk/core";
-import { resolvePlutusScriptAddress } from "@meshsdk/core-cst";
+import {
+  resolvePlutusScriptAddress,
+  toTxUnspentOutput,
+} from "@meshsdk/core-cst";
 
 import {
   collateral,
   collateralReturn,
   referenceInput,
   spend,
+  toUtxo,
   TxPartError,
   unresolved,
+  UtxoInput,
 } from "../../../src/tx-builder";
 import {
   alwaysSucceedCbor,
   alwaysSucceedHash,
   baseAddress,
+  rewardAddress,
 } from "../../test-util";
 
 const keyAddress = baseAddress(1);
@@ -72,7 +78,7 @@ describe("spend.pubKey", () => {
   it("takes a full UTxO, needing nothing more", () => {
     const part = spend.pubKey({ utxo: utxo(0, keyAddress), label: "fee" });
 
-    expect(part.utxo?.output.address).toBe(keyAddress);
+    expect(part.utxo?.address).toBe(keyAddress);
     expect(part.label).toBe("fee");
     expect(unresolved(part)).toEqual([]);
   });
@@ -83,8 +89,8 @@ describe("spend.pubKey", () => {
     given.output.amount[0]!.quantity = "1";
 
     expect(Object.isFrozen(part)).toBe(true);
-    expect(Object.isFrozen(part.utxo!.output.amount[0])).toBe(true);
-    expect(part.utxo!.output.amount[0]!.quantity).toBe("5000000");
+    expect(Object.isFrozen(part.utxo!.value)).toBe(true);
+    expect(part.utxo!.value.lovelace).toBe(5_000_000n);
   });
 
   it("rejects a script-locked output", () => {
@@ -168,6 +174,129 @@ describe("spend.pubKey", () => {
         }),
       "INVALID_VALUE",
     );
+  });
+});
+
+describe("a UTxO given to a part", () => {
+  const given = utxo(1, plutusAddress, {
+    amount: [
+      { unit: `${"cd".repeat(28)}01`, quantity: "2" },
+      { unit: "lovelace", quantity: "5000000" },
+    ],
+    plutusData: unitDatumCbor,
+  });
+  const forms: [string, UtxoInput][] = [
+    ["a Utxo", toUtxo(given)],
+    ["a Mesh UTxO", given],
+    ["its CBOR", toTxUnspentOutput(given).toCbor().toString()],
+  ];
+
+  it("is stored as the same Utxo, whatever form it is given in", () => {
+    const stored = forms.map(([, form]) => referenceInput({ utxo: form }).utxo);
+    expect(stored[0]).toStrictEqual({
+      txHash: "a".repeat(64),
+      outputIndex: 1,
+      address: plutusAddress,
+      value: { lovelace: 5_000_000n, [`${"cd".repeat(28)}01`]: 2n },
+      datum: { type: "inline", data: { type: "CBOR", content: unitDatumCbor } },
+    });
+    for (const utxo of stored) expect(utxo).toStrictEqual(stored[0]);
+    const unlock = (form: UtxoInput) =>
+      spend.plutus({
+        utxo: form,
+        script: { code: alwaysSucceedCbor, version: "V3" },
+        redeemer: { data: unitDatum },
+      });
+    for (const [, form] of forms)
+      expect(unlock(form)).toStrictEqual(unlock(forms[0]![1]));
+  });
+
+  it("is not looked up when given in full; its out ref alone is", () => {
+    const owned = utxo(2, keyAddress);
+    for (const form of [
+      toUtxo(owned),
+      owned,
+      toTxUnspentOutput(owned).toCbor().toString(),
+    ])
+      expect(unresolved(spend.pubKey({ utxo: form }))).toEqual([]);
+    const byRef = spend.pubKey({
+      utxo: { txHash: "a".repeat(64), outputIndex: 2 },
+    });
+    expect(byRef.utxo).toBeUndefined();
+    expect(unresolved(byRef)).toEqual([
+      { type: "utxo", input: { transaction_id: "a".repeat(64), index: 2 } },
+    ]);
+    // The out ref of a Utxo, its other members dropped, is a reference again
+    const { address, value, ...bare } = toUtxo(owned);
+    expect(address && value).toBeTruthy();
+    expect(unresolved(spend.pubKey({ utxo: bare }))).toEqual(unresolved(byRef));
+  });
+
+  it("is INVALID_VALUE as an object with an address and no value", () => {
+    const error = expectPartError(
+      () =>
+        spend.pubKey({
+          utxo: { txHash: "a".repeat(64), outputIndex: 0, address: keyAddress },
+        } as never),
+      "INVALID_VALUE",
+    );
+    expect(error.message).toContain(`${"a".repeat(64)}#0`);
+  });
+
+  it("is refused when it cannot be held as a Utxo, with the code of the member at fault", () => {
+    const own = toUtxo(utxo(0, keyAddress));
+    const cases: [string, unknown, string][] = [
+      [
+        "a Mesh UTxO whose dataHash is not the hash of its plutusData",
+        utxo(0, keyAddress, {
+          plutusData: unitDatumCbor,
+          dataHash: "ab".repeat(32),
+        }),
+        "INVALID_DATA",
+      ],
+      [
+        "a Mesh UTxO stating a script hash without its script",
+        utxo(0, keyAddress, { scriptHash: alwaysSucceedHash }),
+        "INVALID_SCRIPT",
+      ],
+      [
+        "a Utxo whose script hash is not its script's",
+        {
+          ...own,
+          script: {
+            type: "plutus",
+            version: "V3",
+            code: alwaysSucceedCbor,
+            hash: "ab".repeat(28),
+          },
+        },
+        "INVALID_SCRIPT",
+      ],
+      [
+        "a Utxo with a value without lovelace",
+        { ...own, value: { [`${"cd".repeat(28)}01`]: 1n } },
+        "INVALID_VALUE",
+      ],
+      [
+        "a Utxo at a reward address",
+        { ...own, address: rewardAddress(1) },
+        "INVALID_ADDRESS",
+      ],
+      ["text that is not CBOR", "8200", "INVALID_OUT_REF"],
+      [
+        "an object with the members of both forms",
+        { ...utxo(0, keyAddress), txHash: "a".repeat(64), outputIndex: 0 },
+        "INVALID_OUT_REF",
+      ],
+    ];
+    for (const [, utxo, code] of cases) {
+      const error = expectPartError(
+        () => spend.pubKey({ utxo: utxo as never, label: "given" }),
+        code,
+      );
+      expect(error).toMatchObject({ part: "spend", label: "given" });
+      expect(error.cause).toBeInstanceOf(Error);
+    }
   });
 });
 

@@ -2,17 +2,14 @@ import type {
   Budget,
   BuilderData,
   ExUnitsPrototype,
-  LanguageVersion,
   NativeScript,
   NativeScriptPrototype,
   PlutusDataVariant,
-  UTxO,
 } from "@meshsdk/common";
 import {
   Address,
   CredentialType,
   NativeScript as CstNativeScript,
-  Script as CstScript,
   deserializePlutusScript,
   fromBuilderToPlutusData,
   fromNativeScript,
@@ -27,14 +24,19 @@ import type {
   InputRef,
   NativeScriptInput,
   NativeScriptSource,
+  OutputScript,
+  OutRef,
   PartRedeemer,
   PlutusDataInput,
   PlutusScriptInput,
   PlutusScriptSource,
   RedeemerInput,
   TxPart,
+  Utxo,
 } from "./types";
+import type { UtxoProblem } from "./utxo";
 import { TxPartError } from "./errors";
+import { readUtxo, scriptSize, UtxoError, utxoKey } from "./utxo";
 
 /** Reports problems found while building one part */
 export type PartContext = {
@@ -76,8 +78,6 @@ export const isHash32 = (value: string) => HASH_32.test(value);
 export const isHash28 = (value: string) => HASH_28.test(value);
 export const isHex = (value: string) => HEX.test(value);
 
-const isUtxo = (ref: InputRef): ref is UTxO => "input" in ref;
-
 /** Whether a value is an object, not null */
 export const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -87,30 +87,6 @@ export const isWholeNumber = (value: unknown): boolean =>
   (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) ||
   (typeof value === "string" && /^\d+$/.test(value)) ||
   (typeof value === "bigint" && value >= 0n);
-
-/**
- * A unit of a UTxO's amount: `lovelace` (or the empty unit, read as lovelace across the
- * repository), or a policy id and an asset name of up to 32 bytes
- */
-const UTXO_UNIT = /^(?:lovelace|[0-9a-fA-F]{56}(?:[0-9a-fA-F]{2}){0,32})?$/;
-
-/**
- * What is wrong with the amount of a UTxO, or undefined when it is a list of assets, each with
- * a unit (`lovelace` or a policy id and asset name in hex) and a quantity in decimal digits
- */
-export const utxoAmountProblem = (amount: unknown): string | undefined => {
-  if (!Array.isArray(amount)) return "the amount is not a list of assets";
-  for (const asset of amount as unknown[]) {
-    if (!isObject(asset))
-      return `an asset of the amount is not an object { unit, quantity }: ${String(asset)}`;
-    const { unit, quantity } = asset;
-    if (typeof unit !== "string" || !UTXO_UNIT.test(unit))
-      return `invalid unit ${String(unit)}: expected lovelace or a policy id and an asset name in hex`;
-    if (typeof quantity !== "string" || !/^\d+$/.test(quantity))
-      return `invalid quantity ${String(quantity)} of ${unit}: expected decimal digits`;
-  }
-  return undefined;
-};
 
 /**
  * The context of a part builder's call, after checking its parameters: an object, with a label
@@ -136,53 +112,66 @@ export const partContext = (
   return { part, label: label as string | undefined };
 };
 
+/** The error code of a part for what is wrong with a UTxO it is given */
+const UTXO_PROBLEM_CODE: Record<UtxoProblem, TxPartErrorCode> = {
+  outRef: "INVALID_OUT_REF",
+  address: "INVALID_ADDRESS",
+  value: "INVALID_VALUE",
+  datum: "INVALID_DATA",
+  script: "INVALID_SCRIPT",
+};
+
 /**
- * Normalises an input reference. A full UTxO is copied, so later changes to the caller's
- * object cannot reach the part, and the copy holds its address in canonical text and an amount
- * checked as a payer's UTxO is. The copy has `input` and `output` only: what else the object
- * carries (the `label` and `change` of a built output) is not the UTxO's.
+ * Whether an input reference is the UTxO in full: its CBOR, a Mesh `UTxO`, or an object with
+ * an `address` or a `value` beside its out ref
  */
-export const toResolvableInput = (ctx: PartContext, ref: InputRef) => {
-  if (!isObject(ref) || (isUtxo(ref) && !isObject(ref.input)))
+const isFullUtxo = (ref: object | string) =>
+  typeof ref === "string" ||
+  "input" in ref ||
+  "output" in ref ||
+  "address" in ref ||
+  "value" in ref;
+
+/**
+ * Normalises an input reference. A full UTxO, in any form the builder takes one, is checked
+ * and copied into a `Utxo`, so later changes to the caller's object cannot reach the part; what
+ * else the object carries (the `label` and `change` of a built output) is not the UTxO's.
+ */
+export const toResolvableInput = (
+  ctx: PartContext,
+  ref: InputRef,
+): { input: { transaction_id: string; index: number }; utxo?: Utxo } => {
+  if (typeof ref !== "string" && !isObject(ref))
     fail(
       ctx,
       "INVALID_OUT_REF",
-      `expected an out ref { txHash, outputIndex } or a UTxO { input, output }; got ${ref === null ? "null" : typeof ref}`,
+      `expected an out ref { txHash, outputIndex } or a UTxO; got ${ref === null ? "null" : typeof ref}`,
     );
-  const { txHash, outputIndex } = isUtxo(ref) ? ref.input : ref;
-  const transactionId =
-    typeof txHash === "string" ? txHash.toLowerCase() : txHash;
-  if (typeof transactionId !== "string" || !isHash32(transactionId))
-    fail(ctx, "INVALID_OUT_REF", `invalid transaction hash ${txHash}`);
-  if (!Number.isInteger(outputIndex) || outputIndex < 0 || outputIndex > 0xffff)
-    fail(ctx, "INVALID_OUT_REF", `invalid output index ${outputIndex}`);
-
-  const input = { transaction_id: transactionId, index: outputIndex };
-  if (!isUtxo(ref)) return { input };
-  const outRef = `${transactionId}#${outputIndex}`;
-  if (!isObject(ref.output))
-    fail(
-      ctx,
-      "INVALID_VALUE",
-      `the UTxO ${outRef} has no output { address, amount }`,
-    );
-  const amountProblem = utxoAmountProblem(ref.output.amount);
-  if (amountProblem !== undefined)
-    fail(ctx, "INVALID_VALUE", `the UTxO ${outRef}: ${amountProblem}`);
-  let output: UTxO["output"];
-  try {
-    output = structuredClone(ref.output);
-  } catch (error) {
-    return fail(
-      ctx,
-      "INVALID_VALUE",
-      `the UTxO ${outRef} cannot be copied: ${errorText(error)}`,
-      error,
-    );
+  if (!isFullUtxo(ref)) {
+    const { txHash, outputIndex } = ref as OutRef;
+    const transactionId =
+      typeof txHash === "string" ? txHash.toLowerCase() : txHash;
+    if (typeof transactionId !== "string" || !isHash32(transactionId))
+      fail(ctx, "INVALID_OUT_REF", `invalid transaction hash ${txHash}`);
+    if (
+      !Number.isInteger(outputIndex) ||
+      outputIndex < 0 ||
+      outputIndex > 0xffff
+    )
+      fail(ctx, "INVALID_OUT_REF", `invalid output index ${outputIndex}`);
+    return { input: { transaction_id: transactionId, index: outputIndex } };
   }
-  const utxo: UTxO = { input: { txHash: transactionId, outputIndex }, output };
-  utxo.output.address = addressText(parseAddress(ctx, utxo.output.address));
-  return { input, utxo };
+  let utxo: Utxo;
+  try {
+    utxo = readUtxo(ref);
+  } catch (error) {
+    if (!(error instanceof UtxoError)) throw error;
+    return fail(ctx, UTXO_PROBLEM_CODE[error.kind], error.message, error);
+  }
+  return {
+    input: { transaction_id: utxo.txHash, index: utxo.outputIndex },
+    utxo,
+  };
 };
 
 export const outRefString = (input: {
@@ -375,37 +364,28 @@ export const withKnownHash = <
     ? { ...source, scriptHash: credential.hash }
     : source;
 
-/** A script held in a reference output, read from the output's script reference */
+/**
+ * The script a reference output holds, as the UTxO describes it; one this library cannot read
+ * cannot be used as a script
+ */
 const readScriptReference = (
   ctx: PartContext,
-  utxo: UTxO,
-): { script: CstScript; scriptHash: string; scriptSize: number } => {
-  const { scriptRef } = utxo.output;
-  const outRef = `${utxo.input.txHash}#${utxo.input.outputIndex}`;
-  if (!scriptRef)
+  utxo: Utxo,
+): {
+  script: Exclude<OutputScript, { type: "unknown" }>;
+  scriptSize: number;
+} => {
+  const { script } = utxo;
+  const outRef = utxoKey(utxo);
+  if (!script)
     return fail(ctx, "INVALID_SCRIPT", `${outRef} holds no reference script`);
-  try {
-    const script = CstScript.fromCbor(HexBlob(scriptRef));
-    return {
-      script,
-      scriptHash: script.hash().toString(),
-      scriptSize: scriptRef.length / 2,
-    };
-  } catch (error) {
+  if (script.type === "unknown")
     return fail(
       ctx,
       "INVALID_SCRIPT",
-      `${outRef} holds an invalid reference script: ${errorText(error)}`,
-      error,
+      `${outRef} holds a reference script this library cannot read`,
     );
-  }
-};
-
-const plutusVersionOf = (script: CstScript): LanguageVersion | undefined => {
-  if (script.asPlutusV1()) return "V1";
-  if (script.asPlutusV2()) return "V2";
-  if (script.asPlutusV3()) return "V3";
-  return undefined;
+  return { script, scriptSize: scriptSize(script) };
 };
 
 /** Checks a value given for a script in a reference output against the output itself */
@@ -509,21 +489,20 @@ export const toPlutusScriptSource = (
     };
 
   const held = readScriptReference(ctx, resolvable.utxo);
-  const heldVersion = plutusVersionOf(held.script);
-  if (!heldVersion)
-    fail(
+  if (held.script.type !== "plutus")
+    return fail(
       ctx,
       "INVALID_SCRIPT",
       `${outRefString(resolvable.input)} holds a native script, not a Plutus one`,
     );
-  agree(ctx, "version", version, heldVersion!);
-  agree(ctx, "script hash", scriptHash, held.scriptHash);
+  agree(ctx, "version", version, held.script.version);
+  agree(ctx, "script hash", scriptHash, held.script.hash);
   agree(ctx, "script size", scriptSize, held.scriptSize);
   return {
     type: "reference",
     ...resolvable,
-    version: heldVersion,
-    scriptHash: held.scriptHash,
+    version: held.script.version,
+    scriptHash: held.script.hash,
     scriptSize: held.scriptSize,
   };
 };
@@ -578,18 +557,18 @@ export const toNativeScriptSource = (
     return { type: "reference", ...resolvable, scriptHash, scriptSize };
 
   const held = readScriptReference(ctx, resolvable.utxo);
-  if (!held.script.asNative())
-    fail(
+  if (held.script.type !== "native")
+    return fail(
       ctx,
       "INVALID_SCRIPT",
       `${outRefString(resolvable.input)} holds a Plutus script, not a native one`,
     );
-  agree(ctx, "script hash", scriptHash, held.scriptHash);
+  agree(ctx, "script hash", scriptHash, held.script.hash);
   agree(ctx, "script size", scriptSize, held.scriptSize);
   return {
     type: "reference",
     ...resolvable,
-    scriptHash: held.scriptHash,
+    scriptHash: held.script.hash,
     scriptSize: held.scriptSize,
   };
 };

@@ -1,80 +1,130 @@
 import type {
-  Asset,
   TransactionBodyPrototype,
   TransactionOutputPrototype,
-  UTxO,
 } from "@meshsdk/common";
-import { plutusDataVariantToCardano, resolveDataHash } from "@meshsdk/core-cst";
+import { Address, plutusDataVariantToCardano } from "@meshsdk/core-cst";
 
 import type { BuiltOutput, BuiltTx } from "./builder";
-import type { TxPart } from "./parts/types";
+import type { OutputDatum, TxPart, Utxo, UtxoInput } from "./parts/types";
 import { invalidArgument, TxBuildError } from "./errors";
-import { isObject, outRefString } from "./parts/normalize";
+import {
+  addressText,
+  errorText,
+  isObject,
+  outRefString,
+} from "./parts/normalize";
+import { describeScriptRef, plainUtxo, readUtxo } from "./parts/utxo";
 import { inputsOf } from "./resolve";
+import { fromValuePrototype, toAssets } from "./value";
 
 /**
- * An output of a transaction as the UTxO it becomes, with the members a provider reports: the
- * address as the body holds it, lovelace first and then each token, an inline datum in CBOR
- * with its hash, a datum hash, a reference script in CBOR. Members without a value are left out.
+ * An output of a transaction as the UTxO it becomes, in normal form: the address in bech32
+ * (base58 for Byron), lovelace first and then each token, an inline datum in CBOR as the output
+ * holds it, a datum hash, a reference script described with its hash.
  */
-const outputUtxo = (
+export const outputUtxo = (
   txHash: string,
   outputIndex: number,
   output: Readonly<TransactionOutputPrototype>,
-): UTxO => {
-  const amount: Asset[] = [{ unit: "lovelace", quantity: output.amount.coin }];
-  for (const [policyId, assets] of Object.entries(
-    output.amount.multiasset ?? {},
-  ))
-    for (const [assetName, quantity] of Object.entries(assets))
-      amount.push({ unit: policyId + assetName, quantity });
-  const utxo: UTxO = {
-    input: { txHash, outputIndex },
-    output: { address: output.address, amount },
-  };
+): Utxo => {
   const datum = output.plutus_data;
-  if (datum?.type === "DATA_HASH") utxo.output.dataHash = datum.value;
-  if (datum?.type === "DATA") {
-    // Encoded as the serializer encodes it, so the hash is of the bytes the output holds
-    const plutusData =
-      datum.value.type === "CBOR"
-        ? datum.value.hex
-        : plutusDataVariantToCardano(datum.value).toCbor().toString();
-    utxo.output.plutusData = plutusData;
-    utxo.output.dataHash = resolveDataHash(plutusData, "CBOR");
-  }
-  if (output.script_ref) utxo.output.scriptRef = output.script_ref;
-  return utxo;
+  let held: OutputDatum | undefined;
+  if (datum?.type === "DATA_HASH")
+    held = { type: "hash", hash: datum.value.toLowerCase() };
+  if (datum?.type === "DATA")
+    held = {
+      type: "inline",
+      data: {
+        type: "CBOR",
+        // Encoded as the serializer encodes it: the bytes the output holds
+        content:
+          datum.value.type === "CBOR"
+            ? datum.value.hex.toLowerCase()
+            : plutusDataVariantToCardano(datum.value).toCbor().toString(),
+      },
+    };
+  const address = Address.fromString(output.address);
+  return {
+    txHash: txHash.toLowerCase(),
+    outputIndex,
+    address: address ? addressText(address) : output.address,
+    value: toAssets(fromValuePrototype(output.amount)),
+    ...(held && { datum: held }),
+    ...(output.script_ref && {
+      script: describeScriptRef(output.script_ref),
+    }),
+  };
 };
 
 /** The outputs of a transaction body as the UTxOs of the transaction they become, in body order */
 export const bodyOutputs = (
   txHash: string,
   body: Readonly<TransactionBodyPrototype>,
-): UTxO[] =>
+): Utxo[] =>
   body.outputs.map((output, outputIndex) =>
     outputUtxo(txHash, outputIndex, output),
   );
 
 /** What folding transactions into a list of UTxOs reads of each */
 export type ChainedTx = {
-  readonly inputs: readonly UTxO[];
+  readonly inputs: readonly Utxo[];
   readonly outputs: readonly BuiltOutput[];
 };
 
-/** Whether a value has the members a fold reads of a UTxO: an `input` and an `output` */
+/** Whether a value has the members a fold reads of a UTxO: its out ref and its value */
 const isUtxoShape = (value: unknown) =>
   isObject(value) &&
-  isObject(value.input) &&
-  typeof value.input.txHash === "string" &&
-  isObject(value.output);
+  typeof value.txHash === "string" &&
+  typeof value.outputIndex === "number" &&
+  isObject(value.value);
+
+const KNOWN_UTXOS_ALLOWED =
+  "a list of UTxOs: Utxo { txHash, outputIndex, address, value }, Mesh UTxO { input, output }, or the CBOR of a transaction unspent output";
+
+/**
+ * The UTxOs of a `knownUtxos` option, checked and copied into the builder's form
+ * @throws TxBuildError INVALID_OPTION for what is not a list, or an entry that is not a UTxO
+ */
+export const toKnownUtxos = (knownUtxos: unknown): Utxo[] => {
+  if (knownUtxos === undefined) return [];
+  if (!Array.isArray(knownUtxos))
+    throw new TxBuildError(
+      "INVALID_OPTION",
+      `invalid knownUtxos: expected ${KNOWN_UTXOS_ALLOWED}`,
+      {
+        details: {
+          option: "knownUtxos",
+          value: knownUtxos,
+          allowed: KNOWN_UTXOS_ALLOWED,
+        },
+      },
+    );
+  return knownUtxos.map((entry: unknown, i) => {
+    try {
+      return readUtxo(entry);
+    } catch (error) {
+      throw new TxBuildError(
+        "INVALID_OPTION",
+        `invalid knownUtxos: entry ${i} is not a UTxO: ${errorText(error)}`,
+        {
+          details: {
+            option: "knownUtxos",
+            value: entry,
+            allowed: KNOWN_UTXOS_ALLOWED,
+          },
+          cause: error,
+        },
+      );
+    }
+  });
+};
 
 const BUILT_ALLOWED =
   "a transaction built by TxBuilder.build, or a list of them";
 
 /** An out ref as `txHash#index`, its hash in lower case */
-const outRefKey = (input: Readonly<UTxO["input"]>) =>
-  `${input.txHash.toLowerCase()}#${input.outputIndex}`;
+const outRefKey = (ref: Readonly<{ txHash: string; outputIndex: number }>) =>
+  `${ref.txHash.toLowerCase()}#${ref.outputIndex}`;
 
 /** The out refs transactions spend, each with the hash of the first transaction spending it */
 export const spentByTransactions = (
@@ -83,8 +133,7 @@ export const spentByTransactions = (
   const spent = new Map<string, string>();
   for (const tx of txs)
     for (const utxo of tx.inputs)
-      if (!spent.has(outRefKey(utxo.input)))
-        spent.set(outRefKey(utxo.input), tx.txHash);
+      if (!spent.has(outRefKey(utxo))) spent.set(outRefKey(utxo), tx.txHash);
   return spent;
 };
 
@@ -123,31 +172,25 @@ export const refuseSpentOutRefs = (
  * `utxos` nor an earlier transaction lists, in the order of the transactions and their bodies
  */
 export const foldTransactions = (
-  utxos: readonly UTxO[],
+  utxos: readonly Utxo[],
   txs: readonly ChainedTx[],
   owns: (output: BuiltOutput) => boolean,
-): { kept: UTxO[]; added: BuiltOutput[] } => {
+): { kept: Utxo[]; added: BuiltOutput[] } => {
   const spent = new Set<string>();
   for (const tx of txs)
-    for (const utxo of tx.inputs) spent.add(outRefKey(utxo.input));
-  const kept = utxos.filter((utxo) => !spent.has(outRefKey(utxo.input)));
-  const listed = new Set(utxos.map((utxo) => outRefKey(utxo.input)));
+    for (const utxo of tx.inputs) spent.add(outRefKey(utxo));
+  const kept = utxos.filter((utxo) => !spent.has(outRefKey(utxo)));
+  const listed = new Set(utxos.map((utxo) => outRefKey(utxo)));
   const added: BuiltOutput[] = [];
   for (const tx of txs)
     for (const output of tx.outputs) {
-      const key = outRefKey(output.input);
+      const key = outRefKey(output);
       if (spent.has(key) || listed.has(key) || !owns(output)) continue;
       listed.add(key);
       added.push(output);
     }
   return { kept, added };
 };
-
-/** A copy of a UTxO with `input` and `output` only: the marks of a built output dropped */
-export const plainUtxo = ({ input, output }: Readonly<UTxO>): UTxO => ({
-  input: { txHash: input.txHash, outputIndex: input.outputIndex },
-  output: structuredClone(output),
-});
 
 const isChange = (output: BuiltOutput) => output.change === true;
 
@@ -168,27 +211,44 @@ const isChange = (output: BuiltOutput) => output.change === true;
  * is given, whoever each was built for: for a transaction built for another payer, pass `owns`.
  *
  * The result holds the UTxOs of `utxos` none of the transactions spends, in their order, then
- * the outputs added, in the order of the transactions and of their bodies, as plain UTxOs
- * without `label` and `change`. An output `utxos` already lists is not added again, and one that
- * any of the transactions spends is not added, so the order of the transactions does not change
- * the set returned. Collateral is not looked at: a valid transaction does not spend it. The
- * arguments are not changed, and a new array is returned every time.
+ * the outputs added, in the order of the transactions and of their bodies, all as `Utxo`s in
+ * normal form, the outputs without `label` and `change`. An output `utxos` already lists is not
+ * added again, and one that any of the transactions spends is not added, so the order of the
+ * transactions does not change the set returned. Collateral is not looked at: a valid
+ * transaction does not spend it. The arguments are not changed, and a new array is returned
+ * every time.
  *
  * The outputs it adds are payer UTxOs, and an evaluator that does not set `acceptsKnownUtxos`
  * (a remote one) is not handed them: for a build that runs a script on such an evaluator before
  * the earlier transactions are on its chain, also pass them as `after`, or their change as
  * `knownUtxos`.
+ * @param utxos The UTxOs before the transactions, in any form the builder takes a UTxO in
  * @param owns Which outputs of the transactions are added, in place of the change test
- * @throws TxBuildError INVALID_OPTION for `utxos` that is not a list of UTxOs, a transaction
- *   without lists of `inputs` and `outputs`, and an `owns` that is not a function
+ * @throws TxBuildError INVALID_OPTION for `utxos` that is not a list of UTxOs or holds an entry
+ *   that is not one, a transaction without lists of `inputs` and `outputs`, and an `owns` that
+ *   is not a function
  */
 export const utxosAfter = (
-  utxos: readonly UTxO[],
+  utxos: readonly UtxoInput[],
   built: BuiltTx | readonly BuiltTx[],
   owns: (output: BuiltOutput) => boolean = isChange,
-): UTxO[] => {
-  if (!Array.isArray(utxos) || !utxos.every(isUtxoShape))
-    throw invalidArgument("utxos", utxos, "a list of UTxOs { input, output }");
+): Utxo[] => {
+  if (!Array.isArray(utxos))
+    throw invalidArgument("utxos", utxos, "a list of UTxOs");
+  const given = (utxos as unknown[]).map((entry, i) => {
+    try {
+      return readUtxo(entry);
+    } catch (error) {
+      throw new TxBuildError(
+        "INVALID_OPTION",
+        `invalid utxos: entry ${i} is not a UTxO: ${errorText(error)}`,
+        {
+          details: { option: "utxos", value: entry, allowed: "a UTxO" },
+          cause: error,
+        },
+      );
+    }
+  });
   const txs: readonly BuiltTx[] = Array.isArray(built)
     ? built
     : [built as BuiltTx];
@@ -203,8 +263,8 @@ export const utxosAfter = (
       throw invalidArgument("built", built, BUILT_ALLOWED);
   if (typeof owns !== "function")
     throw invalidArgument("owns", owns, "a function of a built output");
-  const { kept, added } = foldTransactions(utxos, txs, owns);
-  return [...kept, ...added.map(plainUtxo)];
+  const { kept, added } = foldTransactions(given, txs, owns);
+  return [...kept, ...added.map((output) => plainUtxo(output))];
 };
 
 /**

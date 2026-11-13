@@ -19,6 +19,7 @@ import {
   spend,
   TxBuilder,
   TxPart,
+  Utxo,
 } from "../../src/tx-builder";
 import { scriptDataHashOf } from "../../src/tx-builder/hashes";
 import { alwaysSucceedCbor, baseAddress } from "../test-util";
@@ -31,7 +32,10 @@ const unit = { data: mConStr0([]) };
 
 const rules = (result: TxResult) =>
   result.accepted ? [] : result.errors.map((e) => e.rule);
-const keyOf = (u: UTxO) => `${u.input.txHash}#${u.input.outputIndex}`;
+const keyOf = (u: UTxO | Utxo) => {
+  const { txHash, outputIndex } = "input" in u ? u.input : u;
+  return `${txHash}#${outputIndex}`;
+};
 const spends = (built: BuiltTx, utxo: UTxO) =>
   built.inputs.some((u) => keyOf(u) === keyOf(utxo));
 const pay = (lovelace: bigint) =>

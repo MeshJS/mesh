@@ -1,7 +1,8 @@
-import type { ISubmitter, NetworkConfig, UTxO } from "@meshsdk/common";
+import type { ISubmitter, NetworkConfig } from "@meshsdk/common";
 
 import type { SelectInputs } from "../balance";
 import type { BuildEvent, BuildOptions } from "../builder";
+import type { Utxo } from "../parts/types";
 import type { Payer } from "../payer";
 import type { Signer } from "../sign";
 import type { TxPlan } from "./plan";
@@ -119,7 +120,7 @@ export type ResumeOptions = {
    */
   after?: TxPlan | readonly TxPlan[];
   /** The filter of the payer's UTxOs for new attempts */
-  canSelect?: (utxo: UTxO) => boolean;
+  canSelect?: (utxo: Utxo) => boolean;
   /** The selection of the payer's UTxOs for new attempts */
   coinSelection?: SelectInputs;
   /** Gets the build events of new attempts and the warnings of the plan; never recorded */

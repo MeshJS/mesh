@@ -1,7 +1,6 @@
-import type { UTxO } from "@meshsdk/common";
-
-import type { TxPlanStatus } from "../../../src/tx-builder";
+import type { TxPlanStatus, Utxo } from "../../../src/tx-builder";
 import type { OutRef } from "../../../src/tx-builder/parts/types";
+import { outRefOf } from "../../../src/tx-builder/parts/utxo";
 import {
   Advanced,
   advancePlan,
@@ -83,7 +82,7 @@ const expectedStatus = (
 
 const generalAnchors = (json: PlanRecord, attempt: AttemptRecord) => {
   const kinds = new Map(
-    json.anchor.anchors.map((e) => [refKey(e.utxo.input), e.kind]),
+    json.anchor.anchors.map((e) => [refKey(outRefOf(e.utxo)), e.kind]),
   );
   return attempt.anchors
     .map(refKey)
@@ -92,15 +91,15 @@ const generalAnchors = (json: PlanRecord, attempt: AttemptRecord) => {
     );
 };
 
-/** The general anchor of the latest attempt that has one, as a UTxO and its kind */
+/** The general anchor of the latest attempt that has one, as a Utxo and its kind */
 const recordedGeneral = (
   json: PlanRecord,
-): { utxo: UTxO; kind: AnchorKind } | undefined => {
+): { utxo: Utxo; kind: AnchorKind } | undefined => {
   for (const attempt of [...json.attempts].reverse()) {
     const [key] = generalAnchors(json, attempt);
     if (key !== undefined) {
       const entry = json.anchor.anchors.find(
-        (e) => refKey(e.utxo.input) === key,
+        (e) => refKey(outRefOf(e.utxo)) === key,
       )!;
       return { utxo: entry.utxo, kind: entry.kind };
     }
@@ -179,7 +178,7 @@ class Watch {
         const added = after.attempts.at(-1)!;
         this.inputs.set(
           added.txHash,
-          new Set(event.built.inputs.map((u) => refKey(u.input))),
+          new Set(event.built.inputs.map((u) => refKey(u))),
         );
         this.deadAtAdd.set(
           added.txHash,
@@ -318,9 +317,7 @@ describe("plan state machine: arbitrary sequences of events", () => {
                 : child && shape < 0.7
                   ? [parentOut, general]
                   : [general];
-      const inputs = new Map(
-        anchors.map((a) => [refKey(a.utxo.input), a.utxo]),
-      );
+      const inputs = new Map(anchors.map((a) => [refKey(a.utxo), a.utxo]));
       if (r.chance(0.7))
         for (const attempt of json.attempts)
           for (const ref of attempt.anchors)
@@ -382,7 +379,7 @@ describe("plan state machine: arbitrary sequences of events", () => {
               }
             : { txHash, found: false },
       );
-      const anchors = json.anchor.anchors.map((e) => e.utxo.input);
+      const anchors = json.anchor.anchors.map((e) => outRefOf(e.utxo));
       return {
         type: "observation",
         ...(r.chance(0.85) && {
@@ -556,11 +553,7 @@ describe("plan state machine: one landing on a model chain", () => {
       const marginMs = (r.chance(0.2) ? 0 : 1 + r.int(10)) * 1000;
       const parentInput = `${hash(0xd0)}#0`;
       const ledger = new Ledger(
-        [
-          ...PAYERS.map((u) => refKey(u.input)),
-          refKey(PARTS.input),
-          parentInput,
-        ],
+        [...PAYERS.map((u) => refKey(u)), refKey(PARTS), parentInput],
         confirmations,
         marginMs,
         // In half of the runs a parent attempt lands, if at all, in the last slots before its
@@ -625,9 +618,7 @@ describe("plan state machine: one landing on a model chain", () => {
               : shape < 0.7
                 ? [parentOut, general]
                 : [general];
-        const inputs = new Map(
-          anchors.map((a) => [refKey(a.utxo.input), a.utxo]),
-        );
+        const inputs = new Map(anchors.map((a) => [refKey(a.utxo), a.utxo]));
         if (r.chance(0.8))
           for (const attempt of json.attempts)
             if (!isDead(attempt))
@@ -699,7 +690,7 @@ describe("plan state machine: one landing on a model chain", () => {
         }
         const unspent = ledger.unspent();
         const inPlace = json.anchor.anchors
-          .map((e) => e.utxo.input)
+          .map((e) => outRefOf(e.utxo))
           .filter((ref) => unspent.has(refKey(ref)) && r.chance(0.8));
         return {
           type: "observation",
@@ -787,8 +778,8 @@ describe("plan state machine: one landing on a model chain", () => {
           // Someone else spends an anchor that is still unspent.
           const unspent = ledger.unspent();
           const candidates = [
-            ...PAYERS.map((u) => refKey(u.input)),
-            refKey(PARTS.input),
+            ...PAYERS.map((u) => refKey(u)),
+            refKey(PARTS),
             ...parentAttempts.map((p) => `${p.id}#0`),
           ].filter((key) => unspent.has(key));
           if (candidates.length > 0) {

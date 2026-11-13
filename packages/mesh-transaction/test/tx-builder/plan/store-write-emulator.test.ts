@@ -2,7 +2,11 @@ import type { UTxO } from "@meshsdk/common";
 import type { NativeScript } from "@meshsdk/core";
 import { deserializeAddress } from "@meshsdk/core";
 
-import type { StoredTxPlanJSON, TxPlanError } from "../../../src/tx-builder";
+import type {
+  StoredTxPlanJSON,
+  TxPlanError,
+  Utxo,
+} from "../../../src/tx-builder";
 import type { WatchedStore } from "./store-util";
 import {
   guard,
@@ -11,6 +15,7 @@ import {
   spend,
   TxError,
 } from "../../../src/tx-builder";
+import { outRefOf } from "../../../src/tx-builder/parts/utxo";
 import { recordOf } from "../../../src/tx-builder/plan/plan";
 import {
   advance,
@@ -838,14 +843,12 @@ describe("Two objects on one record", () => {
     const anchor = recordOf(a).anchor.anchors[0]!.utxo;
     const others = funded.filter(
       (utxo) =>
-        utxo.input.txHash !== anchor.input.txHash ||
-        utxo.input.outputIndex !== anchor.input.outputIndex,
+        utxo.input.txHash !== anchor.txHash ||
+        utxo.input.outputIndex !== anchor.outputIndex,
     );
-    const not =
-      (utxo: UTxO) =>
-      ({ input }: UTxO) =>
-        input.txHash !== utxo.input.txHash ||
-        input.outputIndex !== utxo.input.outputIndex;
+    const not = (utxo: UTxO) => (candidate: Utxo) =>
+      candidate.txHash !== utxo.input.txHash ||
+      candidate.outputIndex !== utxo.input.outputIndex;
     // Each object may select only one of the two other UTxOs: their new anchors differ
     const x = await instance().builder.resume("pay", {
       payer: wallet,
@@ -856,7 +859,7 @@ describe("Two objects on one record", () => {
       canSelect: not(others[1]!),
     });
     // Someone else spends the anchor; the deadline passes
-    emulator.removeUtxos([anchor.input]);
+    emulator.removeUtxos([outRefOf(anchor)]);
     emulator.advanceTo({ time: a.attempts[0]!.until });
     await x.refresh();
     await y.refresh();

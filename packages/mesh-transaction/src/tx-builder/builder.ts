@@ -16,7 +16,6 @@ import type {
   ScriptFailure,
   TransactionOutputPrototype,
   TransactionPrototype,
-  UTxO,
 } from "@meshsdk/common";
 import {
   CachedFetcher,
@@ -26,10 +25,8 @@ import {
 } from "@meshsdk/common";
 import {
   CborWriter,
-  HexBlob,
   OfflineEvaluatorScalus,
   plutusDataVariantToCardano,
-  Script,
   Transaction,
   transactionPrototypeToHex,
   TxCBOR,
@@ -49,6 +46,8 @@ import type {
   OutputPart,
   PlutusWitness,
   TxPart,
+  Utxo,
+  UtxoInput,
 } from "./parts/types";
 import type {
   GetCollateral,
@@ -78,9 +77,10 @@ import {
 import {
   bodyOutputs,
   foldTransactions,
-  plainUtxo,
+  outputUtxo,
   refuseSpentOutRefs,
   spentByTransactions,
+  toKnownUtxos,
 } from "./chain";
 import { TxBuildError } from "./errors";
 import {
@@ -109,19 +109,17 @@ import {
   isWholeNumber,
   outRefString,
 } from "./parts/normalize";
+import { plainUtxo, readUtxo, toMeshUtxo, utxoKey } from "./parts/utxo";
 import {
-  copyUtxo,
   givenPayerEntries,
   readPayerSource,
   toAddressText,
   toPayerSource,
-  toUtxo,
 } from "./payer";
 import { checkPlanDefaults } from "./plan/deadlines";
 import { createPlan, resumePlan, TxPlan } from "./plan/plan";
-import { resolveParts, resolveValidity, utxoKey } from "./resolve";
+import { resolveParts, resolveValidity } from "./resolve";
 import { bodySigners, readTransaction } from "./sign";
-import { fromAssets } from "./value";
 import { placeholderWitnesses, signersOf, txSigners } from "./witnesses";
 
 /**
@@ -249,7 +247,7 @@ export type BuildOptions = {
    * Which of the payer's UTxOs may be selected for payment and collateral. UTxOs the parts read
    * (reference inputs, reference scripts) and script-locked UTxOs are never selected.
    */
-  canSelect?: (utxo: UTxO) => boolean;
+  canSelect?: (utxo: Utxo) => boolean;
   /** Replaces the built-in selection (each token from its largest holders, then lovelace) */
   coinSelection?: SelectInputs;
   /**
@@ -283,9 +281,9 @@ export type BuildOptions = {
    * Being listed here makes no UTxO selectable and takes none out of selection: one the payer
    * also holds is still selected. They are used as given, and reach every evaluator with the
    * transaction, as the outputs of `after` do; the payer's UTxOs reach only one that sets
-   * `acceptsKnownUtxos`.
+   * `acceptsKnownUtxos`. Each may be in any form the builder takes a UTxO in.
    */
-  knownUtxos?: readonly UTxO[];
+  knownUtxos?: readonly UtxoInput[];
   /**
    * Aborts the build with ABORTED: a wallet read, a lookup, the collateral call or an evaluation
    * that is pending is no longer waited for
@@ -468,8 +466,6 @@ const SEND_ALL_TO_ALLOWED = "a payment address, in bech32 or hex";
 const PARAMS_ALLOWED = "a whole Protocol";
 const AFTER_ALLOWED =
   "a transaction built by TxBuilder.build (txHash, inputs, outputs, change), a plan with an attempt, or a list of them";
-const KNOWN_UTXOS_ALLOWED =
-  "a list of UTxOs { input: { txHash, outputIndex }, output: { address, amount } }";
 
 /** A transaction of `after` as the build reads it: its UTxOs copied, its change marked */
 type AfterTx = ChainedTx & { txHash: string; outputs: BuiltOutput[] };
@@ -488,9 +484,8 @@ const invalidEntry = (
   });
 
 /**
- * The transactions of `after`, checked by their shape and copied: UTxOs with `input` and
- * `output` only, transaction hashes in lower case and addresses in canonical text, change
- * outputs marked
+ * The transactions of `after`, checked by their shape and copied: UTxOs in normal form, with
+ * their own members only, transaction hashes in lower case, change outputs marked
  */
 const toAfter = (after: unknown): AfterTx[] => {
   if (after === undefined) return [];
@@ -529,9 +524,9 @@ const toAfter = (after: unknown): AfterTx[] => {
     try {
       return {
         txHash: tx.txHash.toLowerCase(),
-        inputs: (tx.inputs as unknown[]).map(copyUtxo),
+        inputs: (tx.inputs as unknown[]).map((input) => readUtxo(input)),
         outputs: (tx.outputs as unknown[]).map((output): BuiltOutput => ({
-          ...copyUtxo(output),
+          ...readUtxo(output),
           ...((output as BuiltOutput).change === true && {
             change: true as const,
           }),
@@ -543,26 +538,6 @@ const toAfter = (after: unknown): AfterTx[] => {
         entry,
         AFTER_ALLOWED,
         `${where} holds an input or output that is not a UTxO: ${errorText(error)}`,
-        error,
-      );
-    }
-  });
-};
-
-/** The UTxOs of `knownUtxos`, checked by their shape and copied as `toAfter` copies them */
-const toKnownUtxos = (knownUtxos: unknown): UTxO[] => {
-  if (knownUtxos === undefined) return [];
-  if (!Array.isArray(knownUtxos))
-    throw invalidOption("knownUtxos", knownUtxos, KNOWN_UTXOS_ALLOWED);
-  return knownUtxos.map((entry: unknown, i) => {
-    try {
-      return copyUtxo(entry);
-    } catch (error) {
-      throw invalidEntry(
-        "knownUtxos",
-        entry,
-        KNOWN_UTXOS_ALLOWED,
-        `entry ${i} is not a UTxO: ${errorText(error)}`,
         error,
       );
     }
@@ -619,7 +594,7 @@ const coinCbor = (lovelace: bigint) => {
  */
 const checkBuildOptions = (
   options: BuildOptions,
-): { sendAllTo?: string; after: AfterTx[]; knownUtxos: UTxO[] } => {
+): { sendAllTo?: string; after: AfterTx[]; knownUtxos: Utxo[] } => {
   const { canSelect, coinSelection, sendAllTo, signal, trace } = options;
   const { fee, registeredPools, extraKeyWitnesses } = options;
   if (canSelect !== undefined && typeof canSelect !== "function")
@@ -706,8 +681,8 @@ export type BuildWarning = {
   label?: string;
 };
 
-/** An output of a built transaction, as the UTxO it becomes */
-export type BuiltOutput = UTxO & {
+/** An output of a built transaction, as the UTxO it becomes, with the marks of its part */
+export type BuiltOutput = Utxo & {
   /** The label of the output part it comes from */
   readonly label?: string;
   /**
@@ -732,11 +707,11 @@ export type BuiltTx = {
   exUnits: { mem: bigint; steps: bigint };
   redeemers: BuiltRedeemer[];
   /** Every input spent, resolved, in the transaction's order */
-  inputs: UTxO[];
+  inputs: Utxo[];
   /** The inputs added to pay for the transaction */
-  selectedInputs: UTxO[];
+  selectedInputs: Utxo[];
   /** The reference inputs, resolved, in the transaction's order */
-  referenceInputs: UTxO[];
+  referenceInputs: Utxo[];
   /**
    * Every output as a UTxO of `txHash`, in body order, with its part's label. The collateral
    * return is not among them.
@@ -1279,7 +1254,7 @@ export class TxBuilder {
    * const final = await builder.finalize(edited, { inputs: built.inputs, changeAddress });
    * ```
    * @param context.inputs The UTxOs its inputs, reference inputs and collateral inputs spend or
-   *   read: all of them, none is looked up
+   *   read: all of them, none is looked up; each in any form the builder takes a UTxO in
    * @param context.changeAddress In bech32 or hex
    * @throws TxBuildError FEE_TOO_LOW `{ fee, minFee }` when the fee is now too small and there is
    *   no change output to take it from; UTXO_NOT_FOUND `{ input }` for an input, reference input
@@ -1294,7 +1269,7 @@ export class TxBuilder {
    */
   async finalize(
     prototype: TransactionPrototype,
-    context: { inputs: readonly UTxO[]; changeAddress?: string },
+    context: { inputs: readonly UtxoInput[]; changeAddress?: string },
   ): Promise<BuiltTx> {
     const { inputs, changeAddress: changeTo } = context ?? {};
     if (!Array.isArray(inputs))
@@ -1311,11 +1286,11 @@ export class TxBuilder {
           error,
         );
       }
-    const given = new Map<string, UTxO>();
+    const given = new Map<string, Utxo>();
     inputs.forEach((entry: unknown, i) => {
-      let utxo: UTxO;
+      let utxo: Utxo;
       try {
-        utxo = copyUtxo(entry);
+        utxo = readUtxo(entry);
       } catch (error) {
         throw invalidEntry(
           "inputs",
@@ -1336,7 +1311,7 @@ export class TxBuilder {
     const { body } = draft;
     const utxoOf =
       (role: string) =>
-      (input: { transaction_id: string; index: number }): UTxO => {
+      (input: { transaction_id: string; index: number }): Utxo => {
         const utxo = given.get(
           `${input.transaction_id.toLowerCase()}#${input.index}`,
         );
@@ -1523,7 +1498,11 @@ export class TxBuilder {
           inputs: collateral,
           total: collateralTotal(final.body, collateral),
           ...(final.body.collateral_return && {
-            return: final.body.collateral_return,
+            return: outputUtxo(
+              txHash,
+              final.body.outputs.length,
+              final.body.collateral_return,
+            ),
           }),
         },
       }),
@@ -1627,7 +1606,8 @@ export class TxBuilder {
    * PLAN_EXISTS from that first method. A repeated request handler is safe this way.
    * @throws TxBuildError INVALID_OPTION for a parts entry that is not a part, for an `after` that
    *   holds anything but plans, for an `id` that is not a string (without a store), for a
-   *   deadline out of range,
+   *   deadline out of range, for a `knownUtxos` that is not a list of UTxOs or holds an entry
+   *   that is not one,
    *   and with a store for a parent made by a builder without one; NOT_SERIALIZABLE with a store,
    *   for a part that holds a redeemer function
    * @throws TxPlanError CANNOT_OBSERVE (`noTip`) when the builder has no provider that reads
@@ -1734,7 +1714,7 @@ export class TxBuilder {
     const { canSelect, coinSelection, signal } = options ?? {};
     throwIfAborted(signal);
     const emit = tracer(options?.trace);
-    const known = new Map<string, UTxO>();
+    const known = new Map<string, Utxo>();
     // A snapshot's UTxOs are known before the lookups start, so a part may name one by out ref
     if (source.form === "snapshot")
       for (const utxo of source.snapshot.utxos) known.set(utxoKey(utxo), utxo);
@@ -1742,7 +1722,7 @@ export class TxBuilder {
     // know yet: every evaluator is handed those the transaction names
     const handed = new Set<string>();
     for (const utxo of [
-      ...after.flatMap((tx) => tx.outputs.map(plainUtxo)),
+      ...after.flatMap((tx) => tx.outputs.map((output) => plainUtxo(output))),
       ...knownUtxos,
     ]) {
       const key = utxoKey(utxo);
@@ -1796,7 +1776,7 @@ export class TxBuilder {
       payerUtxos,
       after,
       (output) =>
-        output.change === true && output.output.address === payer.changeAddress,
+        output.change === true && output.address === payer.changeAddress,
     );
     const selectable = [
       ...kept,
@@ -2008,13 +1988,13 @@ export class TxBuilder {
     ctx: BalanceContext,
     options: {
       /** Every UTxO the build knows, which the usable ones join */
-      known: Map<string, UTxO>;
-      canSelect?: (utxo: UTxO) => boolean;
+      known: Map<string, Utxo>;
+      canSelect?: (utxo: Utxo) => boolean;
       signal?: AbortSignal;
       /** The out refs the transactions of `after` spend, which are never put up */
       spent: ReadonlyMap<string, string>;
     },
-  ): Promise<UTxO[]> {
+  ): Promise<Utxo[]> {
     const { params } = ctx;
     const stated = parts.find(
       (p): p is Extract<TxPart, { kind: "collateralReturn" }> =>
@@ -2049,13 +2029,13 @@ export class TxBuilder {
     );
     if (!answer.ok)
       throw refused(`failed: ${errorText(answer.error)}`, answer.error);
-    let utxos: UTxO[];
+    let utxos: Utxo[];
     try {
       const { value } = answer;
       if (value === undefined || value === null) utxos = [];
       else if (!Array.isArray(value))
         throw new Error("the answer is not a list");
-      else utxos = value.map(toUtxo);
+      else utxos = value.map((entry) => readUtxo(entry));
     } catch (error) {
       throw refused(
         `answered with what is not a list of UTxOs: ${errorText(error)}`,
@@ -2144,15 +2124,15 @@ export class TxBuilder {
   private async evaluate(
     tx: string,
     balanced: Balanced,
-    known: ReadonlyMap<string, UTxO>,
+    known: ReadonlyMap<string, Utxo>,
     handed: ReadonlySet<string>,
     costModels: number[][],
   ): Promise<Map<string, ExUnitsPrototype>> {
     const evaluator = this.evaluator!;
     // A local evaluator takes every UTxO the build knows; any other resolves the inputs from
     // its chain, since a remote one may reject UTxOs that also exist there, and gets only those
-    // given as data, which its chain may not have yet
-    const utxos = new Map<string, UTxO>();
+    // given as data, which its chain may not have yet. It takes them as Mesh UTxOs
+    const utxos = new Map<string, Utxo>();
     const { body } = balanced.assembled.prototype;
     for (const input of [
       ...body.inputs,
@@ -2171,7 +2151,11 @@ export class TxBuilder {
         slotConfig: this.network.slotConfig,
         costModels,
       });
-      actions = await evaluator.evaluateTx(tx, Array.from(utxos.values()), []);
+      actions = await evaluator.evaluateTx(
+        tx,
+        Array.from(utxos.values(), (utxo) => toMeshUtxo(utxo)),
+        [],
+      );
     } catch (error) {
       const failures = ScriptEvaluationError.is(error)
         ? partFailures(error.failures, balanced.assembled.redeemers)
@@ -2333,7 +2317,20 @@ export class TxBuilder {
       }),
       outputs,
       change: outputs.filter((o) => o.change),
-      ...(balanced.collateral && { collateral: balanced.collateral }),
+      ...(balanced.collateral && {
+        collateral: {
+          inputs: balanced.collateral.inputs,
+          total: balanced.collateral.total,
+          // The UTxO the return becomes if a script fails: the output after the body's own
+          ...(body.collateral_return && {
+            return: outputUtxo(
+              txHash,
+              body.outputs.length,
+              body.collateral_return,
+            ),
+          }),
+        },
+      }),
       signers: txSigners(balanced.parts),
       ...(validity && { validity }),
       network: { name: this.network.name, networkId: this.network.networkId },
@@ -2383,7 +2380,7 @@ const sameAddress = (address: string, text: string) => {
  */
 const plutusLanguages = (
   prototype: TransactionPrototype,
-  utxos: readonly UTxO[],
+  utxos: readonly Utxo[],
   called: ReadonlySet<string>,
 ): Set<LanguageVersion> => {
   const languages = new Set<LanguageVersion>();
@@ -2391,21 +2388,9 @@ const plutusLanguages = (
   if (witnessSet.plutus_v1_scripts?.length) languages.add("V1");
   if (witnessSet.plutus_v2_scripts?.length) languages.add("V2");
   if (witnessSet.plutus_v3_scripts?.length) languages.add("V3");
-  for (const utxo of utxos) {
-    const { scriptRef } = utxo.output;
-    if (!scriptRef) continue;
-    let script: Script;
-    try {
-      script = Script.fromCbor(HexBlob(scriptRef));
-    } catch {
-      // Not a script the ledger could run either
-      continue;
-    }
-    if (!called.has(script.hash().toString())) continue;
-    if (script.asPlutusV1()) languages.add("V1");
-    else if (script.asPlutusV2()) languages.add("V2");
-    else if (script.asPlutusV3()) languages.add("V3");
-  }
+  for (const { script } of utxos)
+    if (script?.type === "plutus" && called.has(script.hash))
+      languages.add(script.version);
   return languages;
 };
 
@@ -2415,12 +2400,12 @@ const plutusLanguages = (
  */
 const collateralTotal = (
   body: TransactionPrototype["body"],
-  collateral: readonly UTxO[],
+  collateral: readonly Utxo[],
 ): bigint => {
   if (body.total_collateral !== undefined && body.total_collateral !== null)
     return BigInt(body.total_collateral);
   const held = collateral.reduce(
-    (total, utxo) => total + fromAssets(utxo.output.amount).coin,
+    (total, utxo) => total + utxo.value.lovelace,
     0n,
   );
   return held - BigInt(body.collateral_return?.amount.coin ?? 0);
@@ -2432,7 +2417,7 @@ const collateralTotal = (
  */
 const checkCollateral = (
   prototype: TransactionPrototype,
-  collateral: readonly UTxO[],
+  collateral: readonly Utxo[],
   params: Protocol,
 ) => {
   const fee = BigInt(prototype.body.fee);
@@ -2518,8 +2503,8 @@ const withMinCoin = (part: OutputPart, params: Protocol): OutputPart => {
  * The UTxOs the parts read, by `txHash#index`: those of reference inputs and those reference
  * scripts are held in
  */
-const referencedUtxos = (parts: readonly TxPart[]): Map<string, UTxO> => {
-  const read = new Map<string, UTxO>();
+const referencedUtxos = (parts: readonly TxPart[]): Map<string, Utxo> => {
+  const read = new Map<string, Utxo>();
   for (const part of parts) {
     if (part.kind === "referenceInput" && part.utxo)
       read.set(outRefString(part.input), part.utxo);

@@ -579,16 +579,117 @@ const transaction = (value: unknown, path: string): unknown => {
   return result;
 };
 
-const utxoValue = (value: unknown, path: string): unknown => {
+const LANGUAGES = new Set(["V1", "V2", "V3"]);
+
+/** The datum of a UTxO, by its type */
+const datumValue = (value: unknown, path: string) => {
   const json = object(value, path);
-  const input = object(json.input, `${path}.input`);
-  text(input.txHash, `${path}.input.txHash`);
-  count(input.outputIndex, `${path}.input.outputIndex`);
-  const output = object(json.output, `${path}.output`);
-  text(output.address, `${path}.output.address`);
-  list(output.amount, `${path}.output.amount`);
-  return json;
+  switch (tagOf(json, path)) {
+    case "inline": {
+      known(json, ["type", "data"], path);
+      const data = object(json.data, `${path}.data`);
+      known(data, ["type", "content"], `${path}.data`);
+      if (data.type !== "CBOR")
+        unread(`${path}.data: inline data of the type ${show(data.type)}`);
+      return {
+        type: "inline",
+        data: {
+          type: "CBOR",
+          content: text(data.content, `${path}.data.content`),
+        },
+      };
+    }
+    case "hash":
+      known(json, ["type", "hash"], path);
+      return { type: "hash", hash: text(json.hash, `${path}.hash`) };
+    default:
+      return unread(`${path}: a datum of the type ${show(json.type)}`);
+  }
 };
+
+/** The reference script of a UTxO, by its type */
+const scriptValue = (value: unknown, path: string) => {
+  const json = object(value, path);
+  switch (tagOf(json, path)) {
+    case "plutus": {
+      known(json, ["type", "version", "code", "hash"], path);
+      const version = text(json.version, `${path}.version`);
+      if (!LANGUAGES.has(version))
+        unread(`${path}.version: the Plutus version ${show(version)}`);
+      return {
+        type: "plutus",
+        version,
+        code: text(json.code, `${path}.code`),
+        hash: text(json.hash, `${path}.hash`),
+      };
+    }
+    case "native":
+      known(json, ["type", "cbor", "hash"], path);
+      return {
+        type: "native",
+        cbor: text(json.cbor, `${path}.cbor`),
+        hash: text(json.hash, `${path}.hash`),
+      };
+    case "unknown":
+      known(json, ["type", "scriptRef", "hash"], path);
+      return {
+        type: "unknown",
+        scriptRef: text(json.scriptRef, `${path}.scriptRef`),
+        ...optional(json, "hash", text, path),
+      };
+    default:
+      return unread(`${path}: a script of the type ${show(json.type)}`);
+  }
+};
+
+const UTXO_MEMBERS = [
+  "txHash",
+  "outputIndex",
+  "address",
+  "value",
+  "datum",
+  "script",
+] as const;
+
+/** The members of a built output: a UTxO's, and the marks of its part */
+const BUILT_OUTPUT_MEMBERS = [...UTXO_MEMBERS, "label", "change"] as const;
+
+/**
+ * A UTxO in the builder's form, its quantities back as `bigint`s; with `marks`, a built output,
+ * which may also carry its part's `label` and its `change` mark
+ */
+const utxoValue = (value: unknown, path: string, marks = false): Obj => {
+  const json = object(value, path);
+  known(json, marks ? BUILT_OUTPUT_MEMBERS : UTXO_MEMBERS, path);
+  const assets = object(json.value, `${path}.value`);
+  if (assets.lovelace === undefined) unread(`${path}.value holds no lovelace`);
+  const utxo: Obj = {
+    txHash: text(json.txHash, `${path}.txHash`),
+    outputIndex: count(json.outputIndex, `${path}.outputIndex`),
+    address: text(json.address, `${path}.address`),
+    value: Object.fromEntries(
+      Object.entries(assets).map(([unit, quantity]) => [
+        unit,
+        integer(quantity, `${path}.value.${unit}`),
+      ]),
+    ),
+    ...optional(json, "datum", datumValue, path),
+    ...optional(json, "script", scriptValue, path),
+  };
+  if (marks) {
+    Object.assign(utxo, optional(json, "label", text, path));
+    if (json.change !== undefined) {
+      if (json.change !== true)
+        unread(`${path}.change is ${show(json.change)}, not true`);
+      utxo.change = true;
+    }
+  }
+  return utxo;
+};
+
+/** A built output: a UTxO with the marks of its part */
+const builtOutputValue = (value: unknown, path: string) =>
+  utxoValue(value, path, true);
 
 const inputValue = (value: unknown, path: string): unknown => {
   const json = object(value, path);
@@ -883,6 +984,9 @@ const exUnits = (value: unknown, path: string) => {
 const utxos = (value: unknown, path: string) =>
   list(value, path).map((item, i) => utxoValue(item, `${path}[${i}]`));
 
+const builtOutputs = (value: unknown, path: string) =>
+  list(value, path).map((item, i) => builtOutputValue(item, `${path}[${i}]`));
+
 const decodeBuilt = (value: unknown, path: string): BuiltTx => {
   const json = object(value, path);
   known(json, BUILT_MEMBERS, path);
@@ -905,8 +1009,8 @@ const decodeBuilt = (value: unknown, path: string): BuiltTx => {
     inputs: utxos(json.inputs, `${path}.inputs`),
     selectedInputs: utxos(json.selectedInputs, `${path}.selectedInputs`),
     referenceInputs: utxos(json.referenceInputs, `${path}.referenceInputs`),
-    outputs: utxos(json.outputs, `${path}.outputs`),
-    change: utxos(json.change, `${path}.change`),
+    outputs: builtOutputs(json.outputs, `${path}.outputs`),
+    change: builtOutputs(json.change, `${path}.change`),
     signers: {
       ...signers,
       keyHashes: texts(signers.keyHashes, `${path}.signers.keyHashes`),
@@ -936,7 +1040,7 @@ const decodeBuilt = (value: unknown, path: string): BuiltTx => {
       inputs: utxos(collateral.inputs, `${at}.inputs`),
       total: integer(collateral.total, `${at}.total`),
       ...(collateral.return !== undefined && {
-        return: outputValue(collateral.return, `${at}.return`),
+        return: utxoValue(collateral.return, `${at}.return`),
       }),
     };
   }

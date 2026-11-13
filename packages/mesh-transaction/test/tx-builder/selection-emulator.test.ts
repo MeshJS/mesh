@@ -2,7 +2,14 @@ import { Asset, CachedFetcher, UTxO } from "@meshsdk/core";
 import { ScalusEmulator } from "@meshsdk/scalus-emulator";
 import { MeshWallet } from "@meshsdk/wallet";
 
-import { BuiltTx, output, TxBuilder } from "../../src/tx-builder";
+import {
+  BuiltTx,
+  output,
+  toUtxo,
+  TxBuilder,
+  Utxo,
+  UtxoInput,
+} from "../../src/tx-builder";
 import { valueSize } from "../../src/tx-builder/fee";
 import { fromAssets, toValuePrototype } from "../../src/tx-builder/value";
 import { baseAddress } from "../test-util";
@@ -13,7 +20,10 @@ const vault = baseAddress(3);
 const policy = "ab".repeat(28);
 /** A token unit with a 32-byte name */
 const unit = (n: number) => policy + n.toString(16).padStart(64, "0");
-const outRef = (u: UTxO) => `${u.input.txHash}#${u.input.outputIndex}`;
+const outRef = (u: UTxO | Utxo) => {
+  const { txHash, outputIndex } = "input" in u ? u.input : u;
+  return `${txHash}#${outputIndex}`;
+};
 
 /*
  * Selection options on the emulator, whose ledger checks that what was selected is the wallet's
@@ -95,8 +105,7 @@ describe("TxBuilder selection on the emulator", () => {
       ],
     ]);
     const pay = output({ address: recipient, value: { lovelace: 5_000_000n } });
-    const holding = (u: UTxO) =>
-      u.output.amount.some((a) => a.unit === guarded);
+    const holding = (u: UtxoInput) => toUtxo(u).value[guarded] !== undefined;
     // Without the filter the largest UTxO is taken, the guarded one
     const unfiltered = await builder.build(pay, { payer: wallet });
     expect(unfiltered.selectedInputs.some(holding)).toBe(true);

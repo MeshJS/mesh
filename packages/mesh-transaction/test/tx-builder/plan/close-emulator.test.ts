@@ -1,8 +1,8 @@
-import type { UTxO } from "@meshsdk/common";
 import { mConStr0 } from "@meshsdk/core";
 
 import type { TxPlan, TxPlanError } from "../../../src/tx-builder";
 import { spend, TxError } from "../../../src/tx-builder";
+import { outRefOf } from "../../../src/tx-builder/parts/utxo";
 import { planOver, recordOf } from "../../../src/tx-builder/plan/plan";
 import { alwaysSucceedCbor } from "../../test-util";
 import {
@@ -69,7 +69,7 @@ const changedAnchor = async () => {
     }),
   );
   const anchor = recordOf(plan).anchor.anchors[0]!.utxo;
-  emulator.removeUtxos([anchor.input]);
+  emulator.removeUtxos([outRefOf(anchor)]);
   emulator.advanceTo({ time: plan.attempts[0]!.until });
   await plan.build();
   expect(recordOf(plan).anchor.anchors).toHaveLength(2);
@@ -210,9 +210,7 @@ describe("TxPlan.abandon and the closing on TxEmulator", () => {
     expect(plan.live).toEqual([]);
     expect(plan.attempts.map((a) => a.status)).toEqual(["expired"]);
     // Two polls, each searching the attempt and the transaction that created the anchor
-    expect(
-      searched.filter((hash) => hash === anchor.input.txHash),
-    ).toHaveLength(2);
+    expect(searched.filter((hash) => hash === anchor.txHash)).toHaveLength(2);
   });
 
   it("does not close a plan whose expired attempt a closing search finds without its slot", async () => {
@@ -384,11 +382,11 @@ describe("TxPlan.abandon and the closing on TxEmulator", () => {
     expect(second.txHash).not.toBe(first.txHash);
     const anchors = recordOf(plan).anchor.anchors;
     expect(anchors).toHaveLength(2);
-    expect(anchors[0]!.utxo.input).toEqual(firstAnchor.input);
+    expect(outRefOf(anchors[0]!.utxo)).toEqual(outRefOf(firstAnchor));
     expect(anchors[1]!.kind).toBe("payer");
     expect(anchors[1]!.attempts).toEqual([second.txHash]);
-    expect(second.inputs.map((u) => u.input)).not.toContainEqual(
-      firstAnchor.input,
+    expect(second.inputs.map(outRefOf)).not.toContainEqual(
+      outRefOf(firstAnchor),
     );
 
     // The first attempt shows up; the second expires with its anchor in place
@@ -403,8 +401,8 @@ describe("TxPlan.abandon and the closing on TxEmulator", () => {
     expect(plan.landed?.txHash).toBe(first.txHash);
     expect(
       emulator
-        .utxos({ address: anchors[1]!.utxo.output.address })
-        .some((u) => u.input.txHash === anchors[1]!.utxo.input.txHash),
+        .utxos({ address: anchors[1]!.utxo.address })
+        .some((u) => u.input.txHash === anchors[1]!.utxo.txHash),
     ).toBe(true);
   });
 });
@@ -425,7 +423,7 @@ describe("TxPlan anchor change on TxEmulator", () => {
     expect(plan.status).toBe("rejected");
     const anchor = recordOf(plan).anchor.anchors[0]!.utxo;
     // Spent by someone else, before the deadline: STILL_LIVE, nothing built
-    emulator.removeUtxos([anchor.input]);
+    emulator.removeUtxos([outRefOf(anchor)]);
     const early = (await caught(plan.build())) as TxPlanError<"STILL_LIVE">;
     expectCode(early, "STILL_LIVE");
     expect(early.details.txHashes).toEqual([plan.attempts[0]!.txHash]);
@@ -436,8 +434,8 @@ describe("TxPlan anchor change on TxEmulator", () => {
     const next = await plan.build();
     const anchors = recordOf(plan).anchor.anchors;
     expect(anchors).toHaveLength(2);
-    expect(next.inputs.map((u) => u.input)).toContainEqual(
-      anchors[1]!.utxo.input,
+    expect(next.inputs.map(outRefOf)).toContainEqual(
+      outRefOf(anchors[1]!.utxo),
     );
     expect(plan.attempts.map((a) => a.status)).toEqual(["expired", "built"]);
     await plan.send({ waitFor: "included" });
@@ -463,9 +461,7 @@ describe("TxPlan anchor change on TxEmulator", () => {
 
     const plan = builder.plan(pay(), { payer: wallet });
     await plan.send({ submitter: swallowing() });
-    expect(recordOf(plan).anchor.anchors[0]!.utxo.input.txHash).toBe(
-      funding.txHash,
-    );
+    expect(recordOf(plan).anchor.anchors[0]!.utxo.txHash).toBe(funding.txHash);
     // The provider now reads a chain without that transaction; the address holds another UTxO
     before.advanceTo({ time: plan.attempts[0]!.until + 3_000 });
     before.fund(address, { lovelace: 50_000_000n });
@@ -537,7 +533,7 @@ describe("TxPlan anchor change on TxEmulator", () => {
       );
       const attempt = plan.attempts[0]!;
       const anchor = recordOf(plan).anchor.anchors[0]!.utxo;
-      emulator.removeUtxos([anchor.input]);
+      emulator.removeUtxos([outRefOf(anchor)]);
       emulator.advanceTo({ time: attempt.until });
       // The search of build(), the first poll, then the second poll
       let searches = 0;
@@ -553,7 +549,7 @@ describe("TxPlan anchor change on TxEmulator", () => {
         address: string,
       ) => {
         const listed = await forward(address);
-        if (address !== anchor.output.address) return listed;
+        if (address !== anchor.address) return listed;
         return ++reads === 3 && fault === "anchor"
           ? [...listed, anchor]
           : listed;
@@ -585,7 +581,7 @@ describe("TxPlan anchor change on TxEmulator", () => {
         }),
       );
       const anchor = recordOf(plan).anchor.anchors[0]!.utxo;
-      emulator.removeUtxos([anchor.input]);
+      emulator.removeUtxos([outRefOf(anchor)]);
       emulator.advanceTo({ time: plan.attempts[0]!.until });
       // The read before the check, the first poll's, then the second poll's
       let reads = 0;
@@ -593,7 +589,7 @@ describe("TxPlan anchor change on TxEmulator", () => {
         forward,
         address: string,
       ) => {
-        if (address !== anchor.output.address) return forward(address);
+        if (address !== anchor.address) return forward(address);
         if (++reads !== faulty) return forward(address);
         if (answer === "empty") return [];
         throw new Error("no answer");
@@ -620,7 +616,7 @@ describe("TxPlan anchor change on TxEmulator", () => {
       }),
     );
     const anchor = recordOf(plan).anchor.anchors[0]!.utxo;
-    emulator.removeUtxos([anchor.input]);
+    emulator.removeUtxos([outRefOf(anchor)]);
     const { txHash, until } = plan.attempts[0]!;
     // Past the deadline, within the margin
     emulator.advanceTo({ time: until });
@@ -700,14 +696,14 @@ describe("TxPlan anchor change on TxEmulator", () => {
     provider.control.hooks.fetchAddressUTxOs = async () => [];
     await plan.refresh();
     expect(plan.status).toBe("expired");
-    emulator.removeUtxos([anchor.input]);
+    emulator.removeUtxos([outRefOf(anchor)]);
     const next = await plan.build({
       payer: {
-        changeAddress: anchor.output.address,
-        utxos: emulator.utxos({ address: anchor.output.address }),
+        changeAddress: anchor.address,
+        utxos: emulator.utxos({ address: anchor.address }),
       },
     });
-    expect(next.inputs.map((u: UTxO) => u.input)).toContainEqual(anchor.input);
+    expect(next.inputs.map(outRefOf)).toContainEqual(outRefOf(anchor));
     expect(recordOf(plan).anchor.anchors).toHaveLength(1);
   });
 });

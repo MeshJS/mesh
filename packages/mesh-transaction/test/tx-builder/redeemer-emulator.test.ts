@@ -124,11 +124,7 @@ describe.each(["scalus", "cquisitor"] as const)(
         { payer: { changeAddress: address, utxos: [funds] } },
       );
 
-      expect(built.inputs.map((u) => u.input.txHash[0])).toEqual([
-        "1",
-        "2",
-        "3",
-      ]);
+      expect(built.inputs.map((u) => u.txHash[0])).toEqual(["1", "2", "3"]);
       const expected = {
         "SPEND:0": "d8799f0001ff",
         "SPEND:2": "d8799f0201ff",
@@ -171,7 +167,7 @@ describe.each(["scalus", "cquisitor"] as const)(
 
       expect(built.selectedInputs.length).toBeGreaterThan(10);
       expect(built.redeemers[0]!.data).toBe(
-        `9f${built.inputs.map((u) => `5820${u.input.txHash}`).join("")}ff`,
+        `9f${built.inputs.map((u) => `5820${u.txHash}`).join("")}ff`,
       );
       await submit(built);
     });

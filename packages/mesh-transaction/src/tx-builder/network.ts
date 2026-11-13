@@ -3,7 +3,6 @@ import type {
   Network,
   NetworkConfig,
   PlutusScript,
-  UTxO,
 } from "@meshsdk/common";
 import { networkConfig } from "@meshsdk/common";
 import {
@@ -15,7 +14,7 @@ import {
 
 import type { NetworkMismatchDetails } from "./errors";
 import type { PartContext } from "./parts/normalize";
-import type { CredentialInput, TxPart } from "./parts/types";
+import type { CredentialInput, TxPart, Utxo } from "./parts/types";
 import { TxBuildError } from "./errors";
 import { toCredential } from "./parts/credentials";
 import { TxPartError } from "./parts/errors";
@@ -179,14 +178,14 @@ const fromPart = (part: TxPart, role: Role, address: string): NetworkEntry => ({
 });
 
 /** A UTxO's address, as an entry of the network check */
-export const utxoEntry = (utxo: Readonly<UTxO>, part?: TxPart): NetworkEntry =>
+export const utxoEntry = (utxo: Readonly<Utxo>, part?: TxPart): NetworkEntry =>
   part
-    ? fromPart(part, "utxo", utxo.output.address)
-    : { role: "utxo", address: utxo.output.address };
+    ? fromPart(part, "utxo", utxo.address)
+    : { role: "utxo", address: utxo.address };
 
 /** The UTxOs a part holds in full: what it spends, reads or puts up, and its reference script */
-export const heldUtxos = (part: TxPart): Readonly<UTxO>[] => {
-  const utxos: Readonly<UTxO>[] = [];
+export const heldUtxos = (part: TxPart): Readonly<Utxo>[] => {
+  const utxos: Readonly<Utxo>[] = [];
   if ("utxo" in part && part.utxo) utxos.push(part.utxo);
   if ("witness" in part) {
     const { witness } = part;

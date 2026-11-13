@@ -162,18 +162,16 @@ describe("addresses given to parts", () => {
     });
     const scriptAddress = resolvePlutusScriptAddress(plutusScript, 0);
 
-    expect(spend.pubKey({ utxo: plain }).utxo!.output.address).toBe(keyAddress);
-    expect(referenceInput({ utxo: plain }).utxo!.output.address).toBe(
-      keyAddress,
-    );
-    expect(collateral({ utxo: plain }).utxo!.output.address).toBe(keyAddress);
+    expect(spend.pubKey({ utxo: plain }).utxo!.address).toBe(keyAddress);
+    expect(referenceInput({ utxo: plain }).utxo!.address).toBe(keyAddress);
+    expect(collateral({ utxo: plain }).utxo!.address).toBe(keyAddress);
     const spent = spend.plutus({
       utxo: utxo(2, scriptAddress),
       script: { reference: holder },
       redeemer,
     });
     expect(spent.witness).toMatchObject({
-      script: { utxo: { output: { address: keyAddress } } },
+      script: { utxo: { address: keyAddress } },
     });
 
     expect(plain.output.address).toBe(hexAddress);

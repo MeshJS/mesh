@@ -1,7 +1,9 @@
 import type { UTxO } from "@meshsdk/common";
 import { mConStr0 } from "@meshsdk/core";
+import { toTxUnspentOutput } from "@meshsdk/core-cst";
 
 import type {
+  OutRef,
   StoredTxPlanJSON,
   TxBuildError,
   TxPlanError,
@@ -10,6 +12,7 @@ import {
   memoryPlanStore,
   output,
   spend,
+  toUtxo,
   TxError,
 } from "../../../src/tx-builder";
 import { recordOf } from "../../../src/tx-builder/plan/plan";
@@ -38,8 +41,11 @@ const expectCode = (error: unknown, code: string) => {
   expect((error as TxError).code).toBe(code);
 };
 
-const key = (utxo: Pick<UTxO, "input">) =>
-  `${utxo.input.txHash}#${utxo.input.outputIndex}`;
+/** `txHash#index` of a UTxO given in the Mesh form or returned in the builder's */
+const key = (utxo: Pick<UTxO, "input"> | OutRef) => {
+  const { txHash, outputIndex } = "input" in utxo ? utxo.input : utxo;
+  return `${txHash}#${outputIndex}`;
+};
 
 /** An emulator, a wallet and a builder over a watched store; `instance()` is another process */
 const storeSetup = async (options: Parameters<typeof setup>[0] = {}) => {
@@ -160,14 +166,17 @@ describe("A recorded id given to builder.plan", () => {
   it("compares the data options with the recorded ones, and takes those not given from the record", async () => {
     const { builder, wallet, instance, funded, emulator, address } =
       await storeSetup();
-    await builder
-      .plan(pay(), {
-        id: "order-1",
-        payer: wallet,
-        fee: 400_000n,
-        knownUtxos: funded,
-      })
-      .build();
+    const first = builder.plan(pay(), {
+      id: "order-1",
+      payer: wallet,
+      fee: 400_000n,
+      knownUtxos: funded,
+    });
+    await first.build();
+    // Recorded in the builder's form, whatever form they were given in
+    expect(recordOf(first).options.knownUtxos).toEqual(
+      funded.map((utxo) => toUtxo(utxo)),
+    );
     const given = (options: object) =>
       instance()
         .builder.plan(pay(), { id: "order-1", payer: wallet, ...options })
@@ -188,8 +197,19 @@ describe("A recorded id given to builder.plan", () => {
       expectCode(error, "PLAN_EXISTS");
       expect(other.store.saves()).toEqual([]);
     }
-    // The same values pass, and so does a plan that gives none of them
+    // The same values pass, the same UTxOs in another form too, and so does a plan that gives
+    // none of them
     await given({ fee: 400_000n, knownUtxos: funded });
+    await given({
+      fee: 400_000n,
+      knownUtxos: funded.map((utxo) => toUtxo(utxo)),
+    });
+    await given({
+      fee: 400_000n,
+      knownUtxos: funded.map((utxo) =>
+        toTxUnspentOutput(utxo).toCbor().toString(),
+      ),
+    });
     await given({ fee: 400_000n });
     const bare = instance().builder.plan(pay(), {
       id: "order-1",
@@ -610,7 +630,7 @@ describe("Parents of a plan with a store", () => {
     const p2 = builder.plan(pay(4_000_000n), {
       id: "p2",
       payer: wallet,
-      canSelect: (utxo) => utxo.input.txHash !== p1.txHash,
+      canSelect: (utxo) => utxo.txHash !== p1.txHash,
     });
     await p2.send({ waitFor: "included" });
     const child = builder.plan(pay(3_000_000n), {
@@ -815,7 +835,7 @@ describe("The payer and the selection after resume", () => {
       payer: { changeAddress: baseAddress(9), utxos: [anchor] },
     });
     expect(next.inputs.map(key)).toContain(key(anchor));
-    expect(next.change[0]!.output.address).toBe(recorded);
+    expect(next.change[0]!.address).toBe(recorded);
   });
 
   it("raises no PAYER_MISMATCH for a foreign payer on a plan with the closing mark or a final one", async () => {
@@ -903,8 +923,6 @@ describe("The payer and the selection after resume", () => {
       (await stored(store, "pay")).parts,
     );
     const next = await again.build();
-    expect(next.outputs.some((o) => o.output.address === baseAddress(4))).toBe(
-      false,
-    );
+    expect(next.outputs.some((o) => o.address === baseAddress(4))).toBe(false);
   });
 });

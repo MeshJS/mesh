@@ -21,6 +21,18 @@ import {
 import { baseAddress } from "../../test-util";
 import { hash, utxo } from "./plan-util";
 
+/** An output of `txHash` as a provider answers with it, a Mesh UTxO */
+const meshUtxo = (txHash: string, outputIndex = 0) => {
+  const { address, value } = utxo(txHash, outputIndex);
+  return {
+    input: { txHash, outputIndex },
+    output: {
+      address,
+      amount: [{ unit: "lovelace", quantity: String(value.lovelace) }],
+    },
+  };
+};
+
 const HASH = hash(0xab);
 const ADDRESS = baseAddress(1);
 
@@ -40,7 +52,7 @@ const fakeProvider = (overrides: Partial<Record<string, unknown>> = {}) => {
           validContract: true,
         }) as TransactionInfo,
     ),
-    fetchAddressUTxOs: jest.fn(async () => [utxo(HASH)]),
+    fetchAddressUTxOs: jest.fn(async () => [meshUtxo(HASH)]),
     ...overrides,
   };
   return provider as typeof provider & IFetcher;
@@ -108,7 +120,7 @@ describe("ChainObserver", () => {
       );
       expect(await observer.utxosAt(ADDRESS)).toBeUndefined();
     }
-    const listed = [utxo(HASH, 0), utxo(HASH, 1)];
+    const listed = [meshUtxo(HASH, 0), meshUtxo(HASH, 1)];
     const observer = chainObserver(
       fakeProvider({ fetchAddressUTxOs: async () => listed }),
     );
@@ -121,7 +133,7 @@ describe("ChainObserver", () => {
   describe("reads only the out refs of an address list", () => {
     it("as two members, copied from the provider's answer", async () => {
       const held = {
-        ...utxo(HASH, 3),
+        ...meshUtxo(HASH, 3),
         input: { txHash: HASH, outputIndex: 3, extra: "kept out" },
       };
       const observer = chainObserver(
@@ -162,7 +174,7 @@ describe("ChainObserver", () => {
     it.each([
       ["an entry that is not an object", null],
       ["an entry that is a string", "abc#0"],
-      ["an entry without input", { output: utxo(HASH).output }],
+      ["an entry without input", { output: meshUtxo(HASH).output }],
       ["an input that is not an object", { input: `${HASH}#0` }],
       ["an input without txHash", { input: { outputIndex: 0 } }],
       [
@@ -179,14 +191,18 @@ describe("ChainObserver", () => {
     ])("is unknown with %s among readable entries", async (_what, entry) => {
       const observer = chainObserver(
         fakeProvider({
-          fetchAddressUTxOs: async () => [utxo(HASH, 0), entry, utxo(HASH, 1)],
+          fetchAddressUTxOs: async () => [
+            meshUtxo(HASH, 0),
+            entry,
+            meshUtxo(HASH, 1),
+          ],
         }),
       );
       expect(await observer.utxosAt(ADDRESS)).toBeUndefined();
     });
 
     it("is unknown with a hole in the list", async () => {
-      const listed = [utxo(HASH, 0), utxo(HASH, 1), utxo(HASH, 2)];
+      const listed = [meshUtxo(HASH, 0), meshUtxo(HASH, 1), meshUtxo(HASH, 2)];
       delete listed[1];
       const observer = chainObserver(
         fakeProvider({ fetchAddressUTxOs: async () => listed }),

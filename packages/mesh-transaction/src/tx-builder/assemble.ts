@@ -15,15 +15,12 @@ import type {
   TransactionPrototype,
   TransactionWitnessSetPrototype,
   TxMetadataPrototype,
-  UTxO,
   VkeywitnessPrototype,
   VoterVotesPrototype,
   VotingProposalPrototype,
 } from "@meshsdk/common";
 import {
-  HexBlob,
   plutusDataVariantToCardano,
-  Script,
   transactionPrototypeToHex,
 } from "@meshsdk/core-cst";
 
@@ -51,6 +48,7 @@ import type {
   SpendPart,
   TreasuryValuePart,
   TxPart,
+  Utxo,
   ValidityPart,
   VotePart,
   WithdrawalPart,
@@ -66,12 +64,8 @@ import {
 } from "./ordering";
 import { encodePlutusData, errorText } from "./parts/normalize";
 import { unresolved } from "./parts/unresolved";
-import {
-  addValues,
-  fromAssets,
-  subtractValues,
-  toValuePrototype,
-} from "./value";
+import { readOutRef, utxoKey } from "./parts/utxo";
+import { addValues, subtractValues, toValuePrototype, valueOf } from "./value";
 
 export type AssembleTxOptions = {
   /** The fee, in lovelace */
@@ -144,33 +138,14 @@ const groupParts = (parts: readonly TxPart[]): PartsByKind => {
 const outRef = (input: Readonly<TransactionInputPrototype>) =>
   `${input.transaction_id}#${input.index}`;
 
-/** Hashes of reference scripts already decoded, by the output that holds them */
-const decodedScriptRefs = new WeakMap<
-  object,
-  { scriptRef: string; hash: string | undefined }
->();
-
 /**
  * Hash of the script a UTxO holds as its reference script; none for a UTxO without one, or with
- * one that cannot be decoded, which the ledger cannot read either
+ * one this library cannot read, whose hash is not known
  */
-const scriptRefHash = (
-  utxo: Readonly<UTxO> | undefined,
-): string | undefined => {
-  const scriptRef = utxo?.output.scriptRef;
-  if (!scriptRef) return undefined;
-  // Every balancing round assembles the same UTxOs again
-  const decoded = decodedScriptRefs.get(utxo.output);
-  if (decoded?.scriptRef === scriptRef) return decoded.hash;
-  let hash: string | undefined;
-  try {
-    hash = Script.fromCbor(HexBlob(scriptRef)).hash().toString();
-  } catch {
-    hash = undefined;
-  }
-  decodedScriptRefs.set(utxo.output, { scriptRef, hash });
-  return hash;
-};
+const scriptRefHash = (utxo: Readonly<Utxo> | undefined): string | undefined =>
+  utxo?.script === undefined || utxo.script.type === "unknown"
+    ? undefined
+    : utxo.script.hash;
 
 /** `item`: the repeated key, or the kind of a part a transaction holds once */
 const duplicate = (part: TxPart, message: string, item: string): never => {
@@ -518,9 +493,7 @@ export const assembleTxPrototype = (
 
   if (collateralReturn) {
     const total = BigInt(collateralReturn.totalCollateral!);
-    const held = addValues(
-      ...collaterals.map((p) => fromAssets(p.utxo!.output.amount)),
-    );
+    const held = addValues(...collaterals.map((p) => valueOf(p.utxo!.value)));
     const rest = subtractValues(held, { coin: total, assets: new Map() });
     if (rest.coin < 0n)
       throw new TxBuildError(
@@ -625,12 +598,19 @@ const finalPositions = (
 
 /** An out ref a redeemer function asks for, as `txHash#index`, its hash in lower case */
 const askedOutRef = (ref: InputRef): string => {
-  const asked: Partial<OutRef> | undefined =
-    ref !== null && typeof ref === "object" && "input" in ref
-      ? (ref as UTxO).input
-      : (ref as Partial<OutRef> | undefined);
-  const txHash = asked?.txHash;
-  return `${typeof txHash === "string" ? txHash.toLowerCase() : String(txHash)}#${asked?.outputIndex}`;
+  try {
+    return utxoKey(readOutRef(ref));
+  } catch {
+    // Not an out ref: a key no input has, which the lookup reports
+    const asked = ref as Partial<OutRef> | null | undefined;
+    const txHash =
+      asked !== null && typeof asked === "object" ? asked.txHash : undefined;
+    const outputIndex =
+      asked !== null && typeof asked === "object"
+        ? asked.outputIndex
+        : undefined;
+    return `${typeof txHash === "string" ? txHash.toLowerCase() : String(txHash)}#${outputIndex}`;
+  }
 };
 
 /**

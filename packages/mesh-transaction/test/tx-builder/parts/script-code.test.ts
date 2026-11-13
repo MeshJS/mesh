@@ -269,15 +269,6 @@ describe("Plutus script code", () => {
         () => mint.native({ script: "ffff00", assets: { "": 1n } }),
       ],
       [
-        "a reference UTxO whose script is not CBOR",
-        () =>
-          spend.plutus({
-            utxo: scriptUtxo,
-            script: { reference: holding("ffff00") },
-            redeemer,
-          }),
-      ],
-      [
         "a pool id that does not parse",
         () =>
           certificate.stakeDelegation({ stake: plutusStake, pool: "pool1x" }),
@@ -299,5 +290,26 @@ describe("Plutus script code", () => {
         throw new Error("expected a part error");
       },
     );
+
+    it("refuses a reference UTxO whose script is not CBOR: it holds a script this library cannot read", () => {
+      // Carried as a script of no known form, it is never decoded again, so there is no cause
+      for (const scriptRef of ["ffff00", "820401"]) {
+        let error: unknown;
+        try {
+          spend.plutus({
+            utxo: scriptUtxo,
+            script: { reference: holding(scriptRef) },
+            redeemer,
+          });
+        } catch (e) {
+          error = e;
+        }
+        expect(error).toBeInstanceOf(TxPartError);
+        expect((error as TxPartError).code).toBe("INVALID_SCRIPT");
+        expect((error as TxPartError).message).toContain(
+          "holds a reference script this library cannot read",
+        );
+      }
+    });
   });
 });

@@ -3,8 +3,15 @@ import { mConStr0 } from "@meshsdk/core";
 import { toTxUnspentOutput } from "@meshsdk/core-cst";
 import { MeshWallet } from "@meshsdk/wallet";
 
-import type { TxBuildError, TxPlanError } from "../../../src/tx-builder";
-import { mint, spend, TxError, validity } from "../../../src/tx-builder";
+import type { TxBuildError, TxPlanError, Utxo } from "../../../src/tx-builder";
+import {
+  mint,
+  spend,
+  toMeshUtxo,
+  TxError,
+  validity,
+} from "../../../src/tx-builder";
+import { outRefOf } from "../../../src/tx-builder/parts/utxo";
 import { planOver, recordOf } from "../../../src/tx-builder/plan/plan";
 import { cip30Wallet } from "../../cip30-wallet";
 import { alwaysSucceedCbor } from "../../test-util";
@@ -21,6 +28,12 @@ import {
 } from "./plan-emulator-util";
 
 const plutus = { code: alwaysSucceedCbor, version: "V3" as const };
+
+/** `txHash#index` of a UTxO given in the Mesh form or returned in the builder's */
+const keyOf = (utxo: UTxO | Utxo) => {
+  const { txHash, outputIndex } = "input" in utxo ? utxo.input : utxo;
+  return `${txHash}#${outputIndex}`;
+};
 
 const refusing = () =>
   submitterOf(async () => {
@@ -114,7 +127,7 @@ describe("TxPlan.build on TxEmulator", () => {
     const first = await plan.build();
     const anchor = recordOf(plan).anchor.anchors[0]!;
     expect(anchor.kind).toBe("payer");
-    expect(first.inputs.map((u) => u.input)).toEqual([anchor.utxo.input]);
+    expect(first.inputs.map(outRefOf)).toEqual([outRefOf(anchor.utxo)]);
     await plan.sign();
     await caught(plan.send({ submitter: refusing() }));
     // A larger UTxO arrives: selection alone would pay from it
@@ -122,7 +135,7 @@ describe("TxPlan.build on TxEmulator", () => {
     advance(emulator, 1);
     const second = await plan.build();
     expect(second.inputs).toHaveLength(1);
-    expect(second.inputs.map((u) => u.input)).toContainEqual(anchor.utxo.input);
+    expect(second.inputs.map(outRefOf)).toContainEqual(outRefOf(anchor.utxo));
     expect(recordOf(plan).anchor.anchors).toHaveLength(1);
     expect(recordOf(plan).anchor.anchors[0]!.attempts).toEqual([
       first.txHash,
@@ -203,10 +216,27 @@ describe("TxPlan.build on TxEmulator", () => {
       { payer: wallet, knownUtxos: [pending] },
     );
     const built = await plan.build();
-    expect(built.inputs.map((utxo) => utxo.input)).toContainEqual(
-      pending.input,
-    );
+    expect(built.inputs.map(outRefOf)).toContainEqual(outRefOf(pending));
     expect(plan.status).toBe("built");
+  });
+
+  it("is INVALID_OPTION at builder.plan for an entry of knownUtxos that is not a UTxO", async () => {
+    const { builder, wallet, funded } = await setup();
+    let error: unknown;
+    try {
+      builder.plan(pay(), {
+        payer: wallet,
+        knownUtxos: [funded[0]!, { txHash: "ab".repeat(32) } as never],
+      });
+    } catch (e) {
+      error = e;
+    }
+    expectCode(error, "INVALID_OPTION");
+    expect((error as TxBuildError<"INVALID_OPTION">).details).toMatchObject({
+      option: "knownUtxos",
+      value: { txHash: "ab".repeat(32) },
+    });
+    expect((error as Error).message).toContain("entry 1 is not a UTxO");
   });
 
   it("builds the replacement when the read of an explicit input's address gives no answer", async () => {
@@ -239,7 +269,7 @@ describe("TxPlan.build on TxEmulator", () => {
       });
       expect(plan.attempts).toHaveLength(2);
       expect(plan.txHash).toBe(next.txHash);
-      expect(next.inputs.map((u) => u.input)).toContainEqual(explicit.input);
+      expect(next.inputs.map(outRefOf)).toContainEqual(explicit.input);
     }
   });
 
@@ -277,7 +307,7 @@ describe("TxPlan.build on TxEmulator", () => {
   it("returns and shows an earlier attempt that landed after a later one was built", async () => {
     const { emulator, builder, wallet, provider } = await setup();
     let hidden: string | undefined;
-    let anchor: UTxO | undefined;
+    let anchor: Utxo | undefined;
     provider.control.hooks.fetchTxInfo = async (forward, hash: string) => {
       if (hash === hidden) throw { kind: "notFound", status: 404 };
       return forward(hash);
@@ -285,8 +315,8 @@ describe("TxPlan.build on TxEmulator", () => {
     // A lagging provider: while the first attempt is hidden, its address still lists the anchor
     provider.control.hooks.fetchAddressUTxOs = async (forward, address) => {
       const utxos: UTxO[] = await forward(address);
-      return hidden && anchor && anchor.output.address === address
-        ? [...utxos, anchor]
+      return hidden && anchor && anchor.address === address
+        ? [...utxos, toMeshUtxo(anchor)]
         : utxos;
     };
     const plan = builder.plan(pay(), { payer: wallet });
@@ -375,9 +405,7 @@ describe("TxPlan.build on TxEmulator", () => {
     );
     const built = await plan.build();
     expect(asked).toHaveLength(1);
-    expect(built.collateral!.inputs.map((u) => u.input)).toEqual([
-      reserve.input,
-    ]);
+    expect(built.collateral!.inputs.map(outRefOf)).toEqual([reserve.input]);
     await plan.send({ waitFor: "included" });
     expect(plan.status).toBe("final");
   });
@@ -619,8 +647,8 @@ describe("TxPlan.build on TxEmulator", () => {
       },
     });
     expect(plan.attempts).toHaveLength(2);
-    expect(built.inputs.map((u) => u.input)).toContainEqual(anchor.input);
-    expect(built.change.every((c) => c.output.address === address)).toBe(true);
+    expect(built.inputs.map(outRefOf)).toContainEqual(outRefOf(anchor));
+    expect(built.change.every((c) => c.address === address)).toBe(true);
   });
 
   it("is FEE_TOO_LOW for a new attempt its fee does not cover, and records nothing", async () => {
@@ -643,7 +671,7 @@ describe("TxPlan.build on TxEmulator", () => {
     const anchor = recordOf(plan).anchor.anchors[0]!.utxo;
     const others = emulator
       .utxos({ address })
-      .filter((utxo) => utxo.input.txHash !== anchor.input.txHash);
+      .filter((utxo) => utxo.input.txHash !== anchor.txHash);
     emulator.removeUtxos(others.map((utxo) => utxo.input));
     for (let i = 0; i < 8; i++)
       emulator.fund(address, { lovelace: 1_500_000n });
@@ -666,13 +694,12 @@ describe("TxPlan.build on TxEmulator", () => {
     });
     await wallet.init();
     const hidden = new Set<string>();
-    const key = (utxo: UTxO) =>
-      `${utxo.input.txHash}#${utxo.input.outputIndex}`;
+    const key = keyOf;
     provider.control.hooks.fetchAddressUTxOs = async (forward, a: string) =>
       ((await forward(a)) as UTxO[]).filter((utxo) => !hidden.has(key(utxo)));
     // A UTxO that is never selected, so that a read hiding the others still answers
     const kept = emulator.fund(address, { lovelace: 3_000_000n });
-    const canSelect = (utxo: UTxO) => key(utxo) !== key(kept);
+    const canSelect = (utxo: Utxo) => key(utxo) !== key(kept);
     const options = { payer: wallet, canSelect };
 
     // Both payer inputs hidden: no anchor can be confirmed
@@ -695,8 +722,8 @@ describe("TxPlan.build on TxEmulator", () => {
     hidden.add(key(firstInput!));
     const built = await plan.build();
     expect(built.inputs).toEqual(probe.inputs);
-    expect(recordOf(plan).anchor.anchors.map((a) => a.utxo.input)).toEqual([
-      secondInput!.input,
+    expect(recordOf(plan).anchor.anchors.map((a) => outRefOf(a.utxo))).toEqual([
+      outRefOf(secondInput!),
     ]);
     hidden.clear();
     await caught(plan.send({ submitter: refusing() }));
@@ -712,23 +739,23 @@ describe("TxPlan.build on TxEmulator", () => {
       provider.control.hooks.fetchAddressUTxOs = answer;
       const plain = builder.plan(pay(110_000_000n), options);
       await plain.build();
-      expect(recordOf(plain).anchor.anchors.map((a) => a.utxo.input)).toEqual([
-        firstInput!.input,
-      ]);
+      expect(
+        recordOf(plain).anchor.anchors.map((a) => outRefOf(a.utxo)),
+      ).toEqual([outRefOf(firstInput!)]);
     }
 
     // The replacement spends the recorded anchor: the other input is gone, and a larger UTxO
     // would pay alone
     delete provider.control.hooks.fetchAddressUTxOs;
-    emulator.removeUtxos([firstInput!.input]);
+    emulator.removeUtxos([outRefOf(firstInput!)]);
     emulator.fund(address, { lovelace: 300_000_000n });
     const next = await plan.build({
       payer: { changeAddress: address, utxos: emulator.utxos({ address }) },
     });
     expect(plan.attempts).toHaveLength(2);
-    const spent = next.inputs.map((u) => u.input);
-    expect(spent).toContainEqual(secondInput!.input);
-    expect(spent).not.toContainEqual(firstInput!.input);
+    const spent = next.inputs.map(outRefOf);
+    expect(spent).toContainEqual(outRefOf(secondInput!));
+    expect(spent).not.toContainEqual(outRefOf(firstInput!));
   });
 
   it("reads only the tip, or nothing, when it returns an attempt it has", async () => {
@@ -816,8 +843,7 @@ describe("TxPlan.build on TxEmulator", () => {
       lovelace: 20_000_000n,
     });
     const cbor = (utxo: UTxO) => toTxUnspentOutput(utxo).toCbor().toString();
-    const key = (utxo: UTxO) =>
-      `${utxo.input.txHash}#${utxo.input.outputIndex}`;
+    const key = keyOf;
     // The wallet keeps its collateral out of getUtxos, and lists every other UTxO it has
     const api = await cip30Wallet({
       words,
@@ -879,8 +905,7 @@ describe("TxPlan.build on TxEmulator", () => {
     });
     const to = (await (await walletOf(1)).getChangeAddress())!;
     const named = funded[0]!;
-    const key = (utxo: UTxO) =>
-      `${utxo.input.txHash}#${utxo.input.outputIndex}`;
+    const key = keyOf;
     const plan = builder.plan([spend.pubKey({ utxo: named }), pay()], {
       payer: wallet,
       sendAllTo: to,
@@ -893,7 +918,7 @@ describe("TxPlan.build on TxEmulator", () => {
     const second = await plan.build();
     expect(second.txHash).not.toBe(first.txHash);
     expect(second.inputs.map(key)).toEqual([key(named)]);
-    expect(second.outputs.some((o) => o.output.address === to)).toBe(true);
+    expect(second.outputs.some((o) => o.address === to)).toBe(true);
     expect(plan.attempts).toHaveLength(2);
   });
 
@@ -902,8 +927,7 @@ describe("TxPlan.build on TxEmulator", () => {
       funds: [30_000_000n, 20_000_000n, 10_000_000n],
     });
     const to = (await (await walletOf(1)).getChangeAddress())!;
-    const key = (utxo: Pick<UTxO, "input">) =>
-      `${utxo.input.txHash}#${utxo.input.outputIndex}`;
+    const key = keyOf;
     const swallow = (txHash: string) => submitterOf(async () => txHash);
     const plan = builder.plan(pay(), { payer: wallet, sendAllTo: to });
     const first = await plan.build();
@@ -924,7 +948,7 @@ describe("TxPlan.build on TxEmulator", () => {
     // The anchor alone is spent: the new anchor is one of the other pinned UTxOs
     await plan.send({ submitter: swallow(second.txHash) });
     const anchor = recordOf(plan).anchor.anchors[0]!.utxo;
-    emulator.removeUtxos([anchor.input]);
+    emulator.removeUtxos([outRefOf(anchor)]);
     emulator.advanceTo({ time: plan.attempts[1]!.until });
     await plan.refresh();
     expect(plan.status).toBe("expired");
@@ -965,14 +989,12 @@ describe("TxPlan.build on TxEmulator", () => {
 
     // Another UTxO in place of the one spent next to the anchor: a new body on the same anchor
     const anchor = recordOf(plan).anchor.anchors[0]!.utxo;
-    const other = funded.find(
-      (utxo) => utxo.input.txHash !== anchor.input.txHash,
-    )!;
+    const other = funded.find((utxo) => utxo.input.txHash !== anchor.txHash)!;
     emulator.removeUtxos([other.input]);
     emulator.fund(address, { lovelace: 30_000_000n });
     const second = await plan.build({ payer: snapshot() });
     expect(second.txHash).not.toBe(first.txHash);
-    expect(second.inputs.map((u) => u.input)).toContainEqual(anchor.input);
+    expect(second.inputs.map(outRefOf)).toContainEqual(outRefOf(anchor));
     expect(plan.attempts).toHaveLength(2);
   });
 });

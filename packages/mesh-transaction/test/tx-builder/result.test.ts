@@ -12,6 +12,8 @@ import {
   Protocol,
   pubKeyAddress,
   resolveDataHash,
+  resolveNativeScriptHash,
+  resolveScriptHash,
   resolveScriptRef,
   serializeAddressObj,
   UTxO,
@@ -19,8 +21,10 @@ import {
 import {
   getTransactionOutputs,
   keyHashToRewardAddress,
+  normalizePlutusScript,
   plutusDataVariantToCardano,
   resolvePlutusScriptAddress,
+  toNativeScript,
   Transaction,
   TxCBOR,
 } from "@meshsdk/core-cst";
@@ -35,14 +39,18 @@ import {
   output,
   referenceInput,
   spend,
+  toMeshUtxo,
+  toUtxo,
   TxBuilder,
   TxBuildError,
   TxPart,
+  UtxoInput,
   validity,
   vote,
   withdrawal,
 } from "../../src/tx-builder";
 import { feeForSize } from "../../src/tx-builder/fee";
+import { outRefOf } from "../../src/tx-builder/parts/utxo";
 import {
   alwaysSucceedCbor,
   baseAddress,
@@ -64,6 +72,7 @@ const walletKey = deserializeAddress(wallet).pubKeyHash;
 const plutusScript = { code: alwaysSucceedCbor, version: "V3" as const };
 const scriptAddress = resolvePlutusScriptAddress(plutusScript, 0);
 const deposits = { drepDeposit: 500_000_000n, govActionDeposit: 1_000_000n };
+const nativeScript: NativeScript = { type: "sig", keyHash: keyHashHex(9) };
 
 const ada = (n: number) => BigInt(n) * 1_000_000n;
 const lovelace = (n: bigint) => [{ unit: "lovelace", quantity: String(n) }];
@@ -79,7 +88,7 @@ const utxo = (
   },
   output: { address, amount, ...extra },
 });
-const payer = (...utxos: UTxO[]) => ({ changeAddress: wallet, utxos });
+const payer = (...utxos: UtxoInput[]) => ({ changeAddress: wallet, utxos });
 const keyOf = (address: string) => deserializeAddress(address).pubKeyHash;
 
 const TAGS: Action["tag"][] = [
@@ -121,7 +130,7 @@ const caught = async (build: Promise<unknown>) => {
 /** An output locked by the always-succeeding script, its datum inline */
 const locked = (n = 10) =>
   utxo(lovelace(ada(n)), { plutusData: "d87980" }, scriptAddress);
-const scriptSpend = (spent = locked(), label?: string) =>
+const scriptSpend = (spent: UtxoInput = locked(), label?: string) =>
   spend.plutus({
     utxo: spent,
     script: plutusScript,
@@ -129,23 +138,8 @@ const scriptSpend = (spent = locked(), label?: string) =>
     ...(label !== undefined && { label }),
   });
 
-/** A UTxO with its amount in unit order, to compare outputs whose token order differs */
-const sortedAmounts = (utxos: readonly UTxO[]) =>
-  utxos.map(({ input, output }) => ({
-    input,
-    output: {
-      ...output,
-      amount: [...output.amount].sort((a, b) =>
-        a.unit === "lovelace"
-          ? -1
-          : b.unit === "lovelace"
-            ? 1
-            : a.unit < b.unit
-              ? -1
-              : 1,
-      ),
-    },
-  }));
+/** UTxOs in the builder's form, without the marks of built outputs, to compare with a provider's */
+const plainUtxos = (utxos: readonly UtxoInput[]) => utxos.map((u) => toUtxo(u));
 
 /** The minimum fee of the transaction once signed by `signers` keys */
 const signedMinFee = (built: BuiltTx, signers: number) => {
@@ -153,7 +147,8 @@ const signedMinFee = (built: BuiltTx, signers: number) => {
     signers === 0 ? 0 : 101 * signers + (signers < 24 ? 1 : 2) + 1 + 1;
   // Reference scripts held by the inputs and reference inputs are priced too
   const refScripts = [...built.inputs, ...built.referenceInputs].reduce(
-    (size, u) => size + BigInt((u.output.scriptRef?.length ?? 0) / 2),
+    (size, u) =>
+      size + BigInt((toMeshUtxo(u).output.scriptRef?.length ?? 0) / 2),
     0n,
   );
   return feeForSize(
@@ -185,7 +180,7 @@ describe("BuiltTx: outputs and change", () => {
     );
     const { body } = built.prototype;
     expect(built.outputs).toHaveLength(body.outputs.length);
-    expect(built.outputs.map((o) => o.input)).toEqual(
+    expect(built.outputs.map(outRefOf)).toEqual(
       body.outputs.map((_, outputIndex) => ({
         txHash: built.txHash,
         outputIndex,
@@ -203,17 +198,15 @@ describe("BuiltTx: outputs and change", () => {
     ]);
     expect("label" in built.outputs[2]!).toBe(false);
     // What a provider would report for the same outputs
-    expect(
-      sortedAmounts(
-        built.outputs.map(({ input, output }) => ({ input, output })),
-      ),
-    ).toEqual(sortedAmounts(getTransactionOutputs(built.tx)));
-    expect(built.outputs[1]!.output.amount[0]).toEqual({
-      unit: "lovelace",
-      quantity: body.outputs[1]!.amount.coin,
+    expect(plainUtxos(built.outputs)).toEqual(
+      plainUtxos(getTransactionOutputs(built.tx)),
+    );
+    expect(built.outputs[1]!.value).toEqual({
+      lovelace: BigInt(body.outputs[1]!.amount.coin),
+      [unit]: 2n,
     });
     for (const o of built.outputs)
-      expect(Object.values(o.output)).not.toContain(undefined);
+      expect(Object.values(o)).not.toContain(undefined);
   });
 
   it("does not list the collateral return", async () => {
@@ -227,14 +220,21 @@ describe("BuiltTx: outputs and change", () => {
     const { body } = built.prototype;
     expect(body.collateral_return).toBeDefined();
     expect(built.outputs).toHaveLength(body.outputs.length);
-    expect(
-      sortedAmounts(
-        built.outputs.map(({ input, output }) => ({ input, output })),
-      ),
-    ).toEqual(sortedAmounts(getTransactionOutputs(built.tx)));
+    expect(plainUtxos(built.outputs)).toEqual(
+      plainUtxos(getTransactionOutputs(built.tx)),
+    );
+    // It is reported with the collateral, as the UTxO it becomes if a script fails: the output
+    // after the body's own, holding what the body returns
+    const returned = body.collateral_return!;
+    expect(built.collateral!.return).toStrictEqual({
+      txHash: built.txHash,
+      outputIndex: body.outputs.length,
+      address: returned.address,
+      value: { lovelace: BigInt(returned.amount.coin) },
+    });
   });
 
-  it("reports datums and reference scripts as a provider does", async () => {
+  it("describes datums and reference scripts, and reports them as a provider does", async () => {
     const data = mConStr0([]);
     const built = await builder().build(
       [
@@ -256,24 +256,48 @@ describe("BuiltTx: outputs and change", () => {
           scriptRef: plutusScript,
           label: "script",
         }),
+        output({
+          address: recipient,
+          value: { lovelace: ada(5) },
+          scriptRef: nativeScript,
+          label: "native",
+        }),
       ],
       { payer: payer(utxo(lovelace(ada(100)))) },
     );
-    const [inline, hashed, script] = built.outputs;
-    expect(inline!.output.plutusData).toBe("d87980");
-    expect(inline!.output.dataHash).toBe(resolveDataHash("d87980", "CBOR"));
-    expect(hashed!.output.dataHash).toBe(resolveDataHash("d87980", "CBOR"));
-    expect("plutusData" in hashed!.output).toBe(false);
-    expect(script!.output.scriptRef).toBe(
-      built.prototype.body.outputs[2]!.script_ref,
+    const [inline, hashed, script, native] = built.outputs;
+    expect(inline!.datum).toEqual({
+      type: "inline",
+      data: { type: "CBOR", content: "d87980" },
+    });
+    expect(hashed!.datum).toEqual({
+      type: "hash",
+      hash: resolveDataHash("d87980", "CBOR"),
+    });
+    expect(inline!.script).toBeUndefined();
+    expect(script!.datum).toBeUndefined();
+    expect(script!.script).toEqual({
+      type: "plutus",
+      version: "V3",
+      code: normalizePlutusScript(alwaysSucceedCbor, "DoubleCBOR"),
+      hash: resolveScriptHash(alwaysSucceedCbor, "V3"),
+    });
+    expect(native!.script).toEqual({
+      type: "native",
+      cbor: toNativeScript(nativeScript).toCbor().toString(),
+      hash: resolveNativeScriptHash(nativeScript),
+    });
+    // Written back, each is the script reference the body holds
+    for (const [i, o] of [script!, native!].entries())
+      expect(toMeshUtxo(o).output.scriptRef).toBe(
+        built.prototype.body.outputs[i + 2]!.script_ref,
+      );
+    expect(toMeshUtxo(script!).output.scriptRef).toBe(
+      resolveScriptRef(plutusScript),
     );
-    expect(script!.output.scriptRef).toBe(resolveScriptRef(plutusScript));
-    expect("scriptHash" in script!.output).toBe(false);
-    expect(
-      sortedAmounts(
-        built.outputs.map(({ input, output }) => ({ input, output })),
-      ),
-    ).toEqual(sortedAmounts(getTransactionOutputs(built.tx)));
+    expect(plainUtxos(built.outputs)).toEqual(
+      plainUtxos(getTransactionOutputs(built.tx)),
+    );
 
     // The output goes straight into a part, its inline datum recognised
     const unlock = scriptSpend(inline!);
@@ -292,10 +316,7 @@ describe("BuiltTx: outputs and change", () => {
         },
       },
     );
-    expect(built.outputs[0]).toMatchObject({
-      label: "old",
-      output: { address: byron },
-    });
+    expect(built.outputs[0]).toMatchObject({ label: "old", address: byron });
   });
 
   it("lists change as the outputs marked change, at the payer's change address", async () => {
@@ -305,7 +326,7 @@ describe("BuiltTx: outputs and change", () => {
     );
     expect(built.change).toHaveLength(1);
     expect(built.change).toEqual(built.outputs.filter((o) => o.change));
-    expect(built.change[0]!.output.address).toBe(wallet);
+    expect(built.change[0]!.address).toBe(wallet);
 
     // Nothing left over: no change
     const exact = await builder().build(
@@ -329,10 +350,10 @@ describe("BuiltTx: outputs and change", () => {
     });
     expect(split.change.length).toBeGreaterThan(1);
     expect(split.change).toEqual(split.outputs.filter((o) => o.change));
-    expect(split.change.map((o) => o.input.outputIndex)).toEqual(
+    expect(split.change.map((o) => o.outputIndex)).toEqual(
       split.change.map((_, i) => i + 1),
     );
-    for (const o of split.change) expect(o.output.address).toBe(wallet);
+    for (const o of split.change) expect(o.address).toBe(wallet);
   });
 
   it("does not mark an output a part pays to the payer's own address", async () => {
@@ -340,15 +361,12 @@ describe("BuiltTx: outputs and change", () => {
       [output({ address: wallet, value: { lovelace: ada(5) }, label: "self" })],
       { payer: payer(utxo(lovelace(ada(100)))) },
     );
-    expect(built.outputs[0]).toMatchObject({
-      label: "self",
-      output: { address: wallet },
-    });
+    expect(built.outputs[0]).toMatchObject({ label: "self", address: wallet });
     expect("change" in built.outputs[0]!).toBe(false);
-    expect(built.change.map((o) => o.input.outputIndex)).toEqual([1]);
+    expect(built.change.map((o) => o.outputIndex)).toEqual([1]);
   });
 
-  it("keeps only input and output of a built output given to a part or to the payer", async () => {
+  it("keeps only the UTxO's own members of a built output given to a part or to the payer", async () => {
     const first = await builder().build(
       [
         output({
@@ -373,7 +391,12 @@ describe("BuiltTx: outputs and change", () => {
     ];
     expect(carried.length).toBeGreaterThanOrEqual(4);
     for (const u of carried)
-      expect(Object.keys(u).sort()).toEqual(["input", "output"]);
+      expect(Object.keys(u).sort()).toEqual([
+        "address",
+        "outputIndex",
+        "txHash",
+        "value",
+      ]);
   });
 });
 
@@ -397,11 +420,11 @@ describe("BuiltTx: reference inputs", () => {
     );
     const refs = built.prototype.body.reference_inputs!;
     expect(refs).toHaveLength(2);
-    expect(built.referenceInputs.map((u) => u.input)).toEqual(
+    expect(built.referenceInputs.map(outRefOf)).toEqual(
       refs.map((i) => ({ txHash: i.transaction_id, outputIndex: i.index })),
     );
     expect(built.referenceInputs).toEqual(
-      expect.arrayContaining([read, holder]),
+      expect.arrayContaining([toUtxo(read), toUtxo(holder)]),
     );
   });
 
@@ -616,7 +639,7 @@ describe("BuiltTx: signers", () => {
       p.kind === "guard"
         ? [p.credential.value]
         : p.kind === "spend"
-          ? [keyOf(p.utxo!.output.address)]
+          ? [keyOf(p.utxo!.address)]
           : [],
     );
     expect(built.signers.keyHashes).toEqual(Array.from(new Set(order)));

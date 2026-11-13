@@ -1,7 +1,5 @@
-import type { UTxO } from "@meshsdk/common";
-
 import type { BuiltTx } from "../builder";
-import type { OutRef } from "../parts/types";
+import type { OutRef, Utxo } from "../parts/types";
 import type {
   TxAttempt,
   TxAttemptStatus,
@@ -29,7 +27,7 @@ export type AnchorKind = "payer" | "parts" | "parent";
  */
 export type AnchorRecord = {
   readonly anchors: readonly {
-    readonly utxo: UTxO;
+    readonly utxo: Utxo;
     readonly kind: AnchorKind;
     /** The `txHash` of each attempt built on this anchor */
     readonly attempts: readonly string[];
@@ -106,7 +104,7 @@ export type TxPlanEvent =
       readonly type: "build";
       readonly built: BuiltTx;
       readonly anchors: readonly {
-        readonly utxo: UTxO;
+        readonly utxo: Utxo;
         readonly kind: AnchorKind;
       }[];
       readonly parents?: NonNullable<TxAttempt["parents"]>;
@@ -189,9 +187,10 @@ const isDead = (attempt: AttemptRecord) => DEAD.has(attempt.status);
 
 const refKey = (ref: Readonly<OutRef>) => `${ref.txHash}#${ref.outputIndex}`;
 
-const outRef = (utxo: Readonly<UTxO>): OutRef => ({
-  txHash: utxo.input.txHash,
-  outputIndex: utxo.input.outputIndex,
+/** The out ref of a UTxO, with exactly the members `txHash` and `outputIndex` */
+const outRef = (utxo: Readonly<OutRef>): OutRef => ({
+  txHash: utxo.txHash,
+  outputIndex: utxo.outputIndex,
 });
 
 const refuse = (reason: Refusal, message: string): Advanced => ({
@@ -418,7 +417,7 @@ const build = (
   const dependsOn = [
     ...new Set(
       built.inputs
-        .map((input) => input.input.txHash)
+        .map((input) => input.txHash)
         .filter((txHash) => parentHashes.has(txHash)),
     ),
   ];
@@ -502,7 +501,7 @@ const checkAnchors = (
       );
   const parentHashes = new Set((event.parents ?? []).map((p) => p.txHash));
   for (const anchor of parent)
-    if (!parentHashes.has(anchor.utxo.input.txHash))
+    if (!parentHashes.has(anchor.utxo.txHash))
       return refuse(
         "anchor",
         `the anchor ${refKey(outRef(anchor.utxo))} is not an output of a parent attempt of the new attempt`,

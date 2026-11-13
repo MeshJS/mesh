@@ -33,6 +33,7 @@ import {
   TxBuildError,
   TxBuildErrorCode,
   TxError,
+  Utxo,
 } from "../../src/tx-builder";
 import { alwaysSucceedCbor, baseAddress } from "../test-util";
 
@@ -71,8 +72,11 @@ const utxo = (lovelace: bigint, address = wallet): UTxO => ({
     amount: [{ unit: "lovelace", quantity: String(lovelace) }],
   },
 });
-const ref = (u: UTxO) => `${u.input.txHash}#${u.input.outputIndex}`;
-const refs = (utxos: readonly UTxO[]) => utxos.map(ref);
+const ref = (u: UTxO | Utxo) => {
+  const { txHash, outputIndex } = "input" in u ? u.input : u;
+  return `${txHash}#${outputIndex}`;
+};
+const refs = (utxos: readonly (UTxO | Utxo)[]) => utxos.map(ref);
 /** The lovelace an amount of `getCollateral` asks for: the CBOR of an unsigned integer */
 const lovelaceOf = (amount: string) => new CborReader(amount).readInt();
 

@@ -59,7 +59,7 @@ describe("TxBuilder payers on the emulator", () => {
     });
     await noFetcher.init();
     const built = await builder.build(pay(), { payer: noFetcher });
-    expect(built.change.map((o) => o.output.address)).toEqual([address]);
+    expect(built.change.map((o) => o.address)).toEqual([address]);
     const txHash = await emulator.submitTx(await noFetcher.signTx(built.tx));
     expect(txHash).toBe(built.txHash);
   });
@@ -77,7 +77,7 @@ describe("TxBuilder payers on the emulator", () => {
     ];
     for (const payer of payers) {
       const built = await builder.build(pay(), { payer: await payer() });
-      expect(built.change.map((o) => o.output.address)).toEqual([address]);
+      expect(built.change.map((o) => o.address)).toEqual([address]);
       // The CIP-30 api answers with its witnesses only
       const witnesses = await api.signTx(built.tx, false);
       const tx = BrowserWallet.addBrowserWitnesses(built.tx, witnesses);
@@ -91,12 +91,10 @@ describe("TxBuilder payers on the emulator", () => {
     const second = await builder.build(pay(), { payer: address });
     await submit(second);
     const spent = new Set(
-      first.inputs.map((u) => `${u.input.txHash}#${u.input.outputIndex}`),
+      first.inputs.map((u) => `${u.txHash}#${u.outputIndex}`),
     );
     for (const input of second.inputs)
-      expect(
-        spent.has(`${input.input.txHash}#${input.input.outputIndex}`),
-      ).toBe(false);
+      expect(spent.has(`${input.txHash}#${input.outputIndex}`)).toBe(false);
   });
 
   it("takes a MeshWallet's UTxOs from its fetcher's cache, fresh after the wallet's own submit", async () => {
@@ -117,7 +115,7 @@ describe("TxBuilder payers on the emulator", () => {
       });
       await shared.init();
       const outRefs = (built: BuiltTx) =>
-        built.inputs.map((u) => `${u.input.txHash}#${u.input.outputIndex}`);
+        built.inputs.map((u) => `${u.txHash}#${u.outputIndex}`);
 
       const first = await onProvider.build(pay(), { payer: shared });
       expect(await shared.submitTx(await shared.signTx(first.tx))).toBe(

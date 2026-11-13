@@ -130,10 +130,12 @@ export type Utxo = {
 export type UtxoInput = Utxo | UTxO | string;
 
 /**
- * An existing output: either just its reference, to be resolved before assembly, or the full
- * UTxO. Passing the UTxO lets the part check it straight away and spares a lookup later.
+ * An existing output: just its reference, looked up before assembly, or the UTxO in full, in
+ * any form the builder takes one. Passing the UTxO lets the part check it straight away and
+ * spares the lookup. An object with `txHash` and `outputIndex` is the UTxO in full when it
+ * also has an `address` or a `value`, and a reference otherwise.
  */
-export type InputRef = OutRef | UTxO;
+export type InputRef = OutRef | UtxoInput;
 
 /** Plutus data, as Mesh `Data` or in any of the `BuilderData` formats */
 export type PlutusDataInput = Data | BuilderData;
@@ -313,7 +315,7 @@ type PartBase = {
 type ResolvableInput = {
   readonly input: Readonly<TransactionInputPrototype>;
   /** The output being referenced, once known */
-  readonly utxo?: Readonly<UTxO>;
+  readonly utxo?: Readonly<Utxo>;
 };
 
 export type PlutusScriptSource =

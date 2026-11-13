@@ -1,5 +1,5 @@
-import type { UTxO } from "@meshsdk/common";
-
+import type { Utxo } from "../../../src/tx-builder";
+import { outRefOf } from "../../../src/tx-builder/parts/utxo";
 import {
   advancePlan,
   AnchorKind,
@@ -46,7 +46,7 @@ const start = (deadlines: Partial<PlanRecord["deadlines"]> = {}) =>
 const build = (
   txHash: string,
   spec: {
-    anchor?: UTxO;
+    anchor?: Utxo;
     kind?: AnchorKind;
     keys?: readonly string[];
     until?: number;
@@ -228,7 +228,7 @@ describe("plan state machine: build", () => {
       sends: 0,
       keys: [K1],
       witnesses: [],
-      anchors: [ANCHOR.input],
+      anchors: [outRefOf(ANCHOR)],
     });
     const signed = accept(start(), build(A(1), { keys: [] }));
     expect(signed.status).toBe("signed");
@@ -343,7 +343,7 @@ describe("plan state machine: deliveries and answers", () => {
   const P = hash(0x100);
   const parentOut = utxo(P, 0);
   const childParents = [{ txHash: P, until: 800_000, planId: "parent" }];
-  const childSent = (anchors: { utxo: UTxO; kind: AnchorKind }[]) =>
+  const childSent = (anchors: { utxo: Utxo; kind: AnchorKind }[]) =>
     acceptAll(
       start(),
       buildEvent({
@@ -420,12 +420,12 @@ describe("plan state machine: expiry", () => {
     expect(
       accept(
         json,
-        observe({ tip: pastMargin(), anchorsInPlace: [ANCHOR.input] }),
+        observe({ tip: pastMargin(), anchorsInPlace: [outRefOf(ANCHOR)] }),
       ).status,
     ).toBe("expired");
     const otherAnchor = advancePlan(
       json,
-      observe({ tip: pastMargin(), anchorsInPlace: [OTHER.input] }),
+      observe({ tip: pastMargin(), anchorsInPlace: [outRefOf(OTHER)] }),
     );
     expect(otherAnchor.ok && otherAnchor.json).toBe(json);
     expect(
@@ -434,7 +434,7 @@ describe("plan state machine: expiry", () => {
         observe({
           tip: tipAt((UNTIL + MARGIN) / 1000),
           attempts: [found(A(1), { slot: 1099 })],
-          anchorsInPlace: [ANCHOR.input],
+          anchorsInPlace: [outRefOf(ANCHOR)],
         }),
       ).status,
     ).toBe("included");
@@ -454,12 +454,15 @@ describe("plan state machine: expiry", () => {
     // A1's anchor is still in place, and A2 does not spend it: A2 may have landed.
     const earlierAnchor = advancePlan(
       moved,
-      observe({ tip: pastMargin(A2_UNTIL), anchorsInPlace: [ANCHOR.input] }),
+      observe({
+        tip: pastMargin(A2_UNTIL),
+        anchorsInPlace: [outRefOf(ANCHOR)],
+      }),
     );
     expect(earlierAnchor.ok && earlierAnchor.json).toBe(moved);
     const ownAnchor = accept(
       moved,
-      observe({ tip: pastMargin(A2_UNTIL), anchorsInPlace: [OTHER.input] }),
+      observe({ tip: pastMargin(A2_UNTIL), anchorsInPlace: [outRefOf(OTHER)] }),
     );
     expect(statusOf(ownAnchor, A(2))).toBe("expired");
   });
@@ -679,7 +682,7 @@ describe("plan state machine: final", () => {
       observe({
         tip: tipAt(1300),
         attempts: [missing(A(1)), found(A(2), { slot: 1000 })],
-        anchorsInPlace: [ANCHOR.input],
+        anchorsInPlace: [outRefOf(ANCHOR)],
       }),
     );
     expect(final.status).toBe("final");
@@ -728,7 +731,7 @@ describe("plan state machine: final", () => {
       status: "expired",
       sends: 1,
       refused: 1,
-      anchors: [ANCHOR.input],
+      anchors: [outRefOf(ANCHOR)],
     });
   });
 
@@ -856,7 +859,7 @@ describe("plan state machine: anchors", () => {
       { utxo: ANCHOR, kind: "payer", attempts: [A(1)] },
       { utxo: OTHER, kind: "payer", attempts: [A(2)] },
     ]);
-    expect(attemptOf(moved, A(2)).anchors).toEqual([OTHER.input]);
+    expect(attemptOf(moved, A(2)).anchors).toEqual([outRefOf(OTHER)]);
 
     const parts = accept(
       sentPlan(start(), 1, { kind: "parts" }),
@@ -894,7 +897,7 @@ describe("plan state machine: anchors", () => {
 
   const P = hash(0x100);
   const named = (
-    anchors: { utxo: UTxO; kind: AnchorKind }[],
+    anchors: { utxo: Utxo; kind: AnchorKind }[],
     parents?: { txHash: string; until: number; planId?: string }[],
   ) => buildEvent({ txHash: A(1), anchors, parents });
 
@@ -945,8 +948,8 @@ describe("plan state machine: parents and children", () => {
   const childBuild = (
     txHash: string,
     parents: { txHash: string; until: number; planId?: string }[],
-    anchors: { utxo: UTxO; kind: AnchorKind }[],
-    extra: UTxO[] = [],
+    anchors: { utxo: Utxo; kind: AnchorKind }[],
+    extra: Utxo[] = [],
     keys: string[] = [],
   ) => buildEvent({ txHash, anchors, parents, extra, keys });
   const onParent = (txHash: string, parent: string, id = "p") =>

@@ -10,6 +10,7 @@ import {
   outputOf,
   spend,
   TxBuilder,
+  Utxo,
   utxosAfter,
 } from "../../src/tx-builder";
 import { alwaysSucceedCbor, baseAddress } from "../test-util";
@@ -108,8 +109,11 @@ const plutusScript = { code: alwaysSucceedCbor, version: "V3" as const };
 
 const rules = (result: TxResult) =>
   result.accepted ? [] : result.errors.map((e) => e.rule);
-const outRefs = (utxos: readonly UTxO[]) =>
-  utxos.map((u) => `${u.input.txHash}#${u.input.outputIndex}`);
+const outRefs = (utxos: readonly (UTxO | Utxo)[]) =>
+  utxos.map((u) => {
+    const { txHash, outputIndex } = "input" in u ? u.input : u;
+    return `${txHash}#${outputIndex}`;
+  });
 const pay = (address: string, lovelace: bigint) =>
   output({ address, value: { lovelace } });
 

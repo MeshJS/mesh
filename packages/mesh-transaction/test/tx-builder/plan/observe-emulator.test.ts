@@ -4,6 +4,7 @@ import { mConStr0 } from "@meshsdk/core";
 
 import type { TxPlanError } from "../../../src/tx-builder";
 import { spend, TxError } from "../../../src/tx-builder";
+import { outRefOf } from "../../../src/tx-builder/parts/utxo";
 import { advancePlan, draftPlan } from "../../../src/tx-builder/plan/core";
 import { planOver, recordOf } from "../../../src/tx-builder/plan/plan";
 import { alwaysSucceedCbor } from "../../test-util";
@@ -207,7 +208,7 @@ describe("TxPlan observation on TxEmulator", () => {
     const plan = builder.plan(pay(), { payer: wallet });
     await plan.build();
     expect(plan.status).toBe("built");
-    const anchor = recordOf(plan).anchor.anchors[0]!.utxo.input.txHash;
+    const anchor = recordOf(plan).anchor.anchors[0]!.utxo.txHash;
     expect(anchors).toEqual([anchor]);
     await plan.send();
     expect(anchors.filter((hash) => hash === anchor)).toHaveLength(2);
@@ -412,10 +413,10 @@ describe("TxPlan observation on TxEmulator", () => {
     for (const plan of plans) {
       const anchor = recordOf(plan).anchor.anchors[0]!.utxo;
       expect(
-        (await emulator.fetchAddressUTxOs(anchor.output.address)).some(
+        (await emulator.fetchAddressUTxOs(anchor.address)).some(
           (utxo) =>
-            utxo.input.txHash === anchor.input.txHash &&
-            utxo.input.outputIndex === anchor.input.outputIndex,
+            utxo.input.txHash === anchor.txHash &&
+            utxo.input.outputIndex === anchor.outputIndex,
         ),
       ).toBe(true);
       await plan.refresh();
@@ -444,7 +445,7 @@ describe("TxPlan observation on TxEmulator", () => {
     const anchor = recordOf(plan).anchor.anchors[0]!.utxo;
     // Both attempts spend the one general anchor
     for (const attempt of recordOf(plan).attempts)
-      expect(attempt.anchors).toEqual([anchor.input]);
+      expect(attempt.anchors).toEqual([outRefOf(anchor)]);
     // The first is found without its slot, the search gives no answer about the second
     provider.control.hooks.fetchTxInfo = async (forward, hash: string) => {
       if (hash === first!.txHash)
@@ -457,10 +458,10 @@ describe("TxPlan observation on TxEmulator", () => {
     });
     // The address still lists the anchor: nothing reached the ledger
     expect(
-      (await emulator.fetchAddressUTxOs(anchor.output.address)).some(
+      (await emulator.fetchAddressUTxOs(anchor.address)).some(
         (utxo) =>
-          utxo.input.txHash === anchor.input.txHash &&
-          utxo.input.outputIndex === anchor.input.outputIndex,
+          utxo.input.txHash === anchor.txHash &&
+          utxo.input.outputIndex === anchor.outputIndex,
       ),
     ).toBe(true);
     await plan.refresh();

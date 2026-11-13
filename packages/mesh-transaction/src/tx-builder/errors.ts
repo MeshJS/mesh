@@ -62,7 +62,7 @@ export type TxBuildErrorCode =
   | "INVALID_REDEEMER"
   /** A key guard whose hash is the hash of one of the transaction's scripts */
   | "INVALID_GUARD"
-  /** `coinSelection` returned a UTxO that was not a candidate */
+  /** `coinSelection` returned an out ref that names no candidate */
   | "INVALID_SELECTION"
   /** The call's `signal` aborted it */
   | "ABORTED"
@@ -118,7 +118,7 @@ export type PartGaps = {
 
 /** Why INSUFFICIENT_FUNDS */
 export type InsufficientFundsDetails = {
-  /** `"lovelace"` or the token unit */
+  /** `"lovelace"` or the token unit: a key of a UTxO's `value` */
   unit: string;
   /**
    * What to add for this build to pass: outputs, deposits, the fee with every selectable UTxO
