@@ -181,6 +181,71 @@ UTxOs come through the provider, past the cache, and a snapshot needs no request
 `readPayer(payer)` turns any form into a snapshot, for many builds on one read. See
 [Payer, signer, submitter][r-payer].
 
+### UTxOs
+
+The builder has its own UTxO type, `Utxo`, and computes on nothing else:
+
+```ts
+import type { Assets, OutputDatum, OutputScript } from "@meshsdk/transaction";
+
+type Utxo = {
+  txHash: string;
+  outputIndex: number;
+  address: string;
+  value: Assets; // { lovelace: bigint, [unit]: bigint }
+  datum?: OutputDatum; // { type: "inline", data: { type: "CBOR", content } } | { type: "hash", hash }
+  script?: OutputScript; // "plutus" { version, code, hash } | "native" { cbor, hash } | "unknown" { scriptRef, hash? }
+};
+```
+
+It is written with the words of the parts (an out ref, a `value` by unit in `bigint`, a datum
+tagged `inline` or `hash`, a Plutus script as `{ code, version }`), so a UTxO's members go into a
+part as they are, and a `Utxo` is itself an `OutRef`. It is plain data: it survives
+`structuredClone`, and a plan's record writes its quantities as decimal strings, like every
+other `bigint`.
+
+The Mesh `UTxO` of `@meshsdk/common` stays the format of providers, wallets and evaluators. The
+builder does not compute on it, for what it leaves open:
+
+- `amount` is a list of `{ unit, quantity }` strings with no rule for order or repeats: balancing
+  added repeated units up, the default evaluator's converter took the first lovelace entry, and
+  "holds tokens" was read from the list's length.
+- Whether a datum is inline follows from which of `plutusData` and `dataHash` is set, and
+  `dataHash` is set in both cases.
+- `scriptRef` is CBOR whose framing differs between sources and which every consumer decoded
+  again; one that could not be decoded passed a build and failed `requiredSigners` and `finalize`
+  with the decoder's own error. `scriptHash` was not read.
+
+**One door in.** Wherever a UTxO is given (a part, a payer snapshot, a wallet's or provider's
+answer, `knownUtxos`, `finalize`, `minFee`, `requiredSigners`, `utxosAfter`) it may be a `Utxo`, a
+Mesh `UTxO` or the CBOR of a transaction unspent output (`UtxoInput`). One function, exported as
+`toUtxo`, checks it and copies it into a `Utxo` in normal form: lower-case hex, the address in
+bech32 (base58 for Byron), lovelace always present and tokens in unit order, the reference script
+described with its hash. The three forms of one UTxO give equal values, so they build the same
+bytes. The conversion drops nothing a UTxO states: repeated units are added up, and what cannot be
+held is refused: a quantity above 2^64 − 1, an inline datum that is not exactly one item of Plutus
+data, a `dataHash` that is not the hash of the `plutusData` beside it, a `scriptHash` without a
+`scriptRef`. `output()` refuses such an inline datum too, so every output the builder makes is a
+UTxO it takes back. A reference script given as bytes (a Mesh `scriptRef`, or an `unknown` script)
+is described as `plutus` or `native` only when it is written back to the same bytes and its hash is
+the one stated with it, if any; any other, and one that cannot be read, is carried as `{ type:
+"unknown" }`: the UTxO stays spendable, the script counts for the fee by its size, and it is no
+script the transaction can use (the builder takes no hash or language from it, and it cannot be a `{
+reference }`). A `plutus` or `native` script given in the builder's form that cannot be read or
+with a `hash` that is not its own is refused. A part refuses with the code of the member at fault
+(text that is not UTxO CBOR is `INVALID_OUT_REF`), an option with `INVALID_OPTION`, a wallet's or
+provider's answer with the code of that read.
+
+**One way out.** Everything the builder returns holds `Utxo`s: `BuiltTx` (with
+`collateral.return`, the output the collateral return becomes if a script fails), `PayerSnapshot`,
+the callbacks `canSelect` and `coinSelection` (which answers out refs), the parts and the records
+of plans. `toMeshUtxo` writes a `Utxo` as a Mesh `UTxO`; the builder hands an evaluator its UTxOs
+so. The old `MeshTxBuilder` keeps the Mesh `UTxO` at its border: it leaves out the `scriptHash`,
+and a `dataHash` beside `plutusData`, which it never read, before the builder reads its UTxOs (an
+output it could not read, which the builder then looks up itself, is read as any provider answer),
+and writes back into its body, and hands its evaluator, the UTxOs it was given, as given; change and
+an input it did not hold are written with `toMeshUtxo`. See [UTxOs][r-utxos].
+
 ### Resolution
 
 Before any request the build checks the network of every address it is given, converts time
@@ -261,7 +326,8 @@ under-provisions; such a round judges funds by that upper estimate and can end i
 1. Balance with the current units, serialize, and evaluate. An evaluator that sets
    `acceptsKnownUtxos` (the default `OfflineEvaluatorScalus`, `TxEmulator`) is handed every UTxO
    the build knows for the transaction; any other only those of `knownUtxos` and `after`, and
-   resolves the rest from its own chain.
+   resolves the rest from its own chain. They are written as Mesh `UTxO`s, the form `IEvaluator`
+   takes.
 2. Map each result back to its part through the assembled redeemers.
 3. A redeemer still on its placeholder takes the evaluated units; one already evaluated keeps
    its units unless evaluation now needs more. When nothing changes, the evaluated transaction is
@@ -280,8 +346,8 @@ transaction re-serialized if they differ; a serializer that throws or answers wi
 is not a transaction is `UNSUPPORTED_SERIALIZER`.
 
 The `BuiltTx` holds the transaction, its hash and prototype, and what the build decided: fee,
-execution units, redeemers, resolved inputs, outputs and change as labelled UTxOs, collateral, the
-keys that must sign (`signers`), validity, network, warnings and the resolved parts; see
+execution units, redeemers, resolved inputs, and outputs and change as labelled `Utxo`s, collateral,
+the keys that must sign (`signers`), validity, network, warnings and the resolved parts; see
 [The result][r-result].
 
 ### Time and chains
@@ -295,7 +361,7 @@ starts, or an interval with no slot, is `INVALID_DATA`. `build` sets no `until`.
 
 `after` builds on transactions the provider has not seen: their inputs are not selected, their
 change at this build's change address is, and every output they make can be named by out ref
-without a lookup. `utxosAfter(utxos, built)` folds them into a UTxO list for the next build. A
+without a lookup. `utxosAfter(utxos, built)` folds them into a list of `Utxo`s for the next build. A
 plan names its parent plans in `after` and is built after their current attempts; see
 [Chains][r-chains].
 
@@ -325,11 +391,11 @@ plan is `draft` until its first attempt is built. Its options are the build opti
   checking every witness against the body; `send()` builds in `draft` only, submits and waits for
   `waitFor`, and in `sent` sends the same bytes again. `abandon()` records the closing mark and
   closes the plan once no attempt can land.
-- **The store.** `TxPlanStore` is `load(id)` and a compare-and-set `save(json, expectedRev)`.
-  Every change is saved before the method returns; the record holds data only, never a wallet,
-  signer, submitter or function, and `resume(id, options)` restores the plan with those given
-  again. `memoryPlanStore()` serves tests; `checkPlanStore(store)` checks one's own store
-  ([Storage][r-storage]).
+- **The store.** `TxPlanStore` is `load(id)` and a compare-and-set `save(json, expectedRev)`. Every
+  change is saved before the method returns; the record holds data only, never a wallet, signer,
+  submitter or function (its UTxOs stand in the builder's form), and `resume(id, options)`
+  restores the plan with those given again. `memoryPlanStore()` serves tests;
+  `checkPlanStore(store)` checks one's own store ([Storage][r-storage]).
 
 The rules for a lost answer, a refusal, reconciliation, chains and a new plan in place of an old
 one are in the README: [Plans][r-plans], [Servers][r-servers],
@@ -338,8 +404,12 @@ one are in the README: [Plans][r-plans], [Servers][r-servers],
 ## Signing without a plan
 
 ```ts
-import type { UTxO } from "@meshsdk/common";
-import type { RequiredKeys, Signer, TxSigners } from "@meshsdk/transaction";
+import type {
+  RequiredKeys,
+  Signer,
+  TxSigners,
+  UtxoInput,
+} from "@meshsdk/transaction";
 
 declare function signWitnesses(
   signer: Signer,
@@ -351,7 +421,10 @@ declare function addWitnesses(
   ...witnesses: string[]
 ): Promise<string>;
 declare function signedKeyHashes(tx: string): Promise<string[]>;
-declare function requiredSigners(tx: string, spent: readonly UTxO[]): TxSigners;
+declare function requiredSigners(
+  tx: string,
+  spent: readonly UtxoInput[],
+): TxSigners;
 ```
 
 `build()`, these functions, the provider's `submitTx` and `awaitTransactionConfirmation()` of
@@ -390,7 +463,9 @@ rule.
 
 - `assemble.test.ts`: redeemer indices for every purpose, including the orders that differ from
   encoding order; reference inputs, collateral return, hashes, round-trip through the decoder;
-  every conflict. `parts/*.test.ts`: the part builders.
+  every conflict. `parts/*.test.ts`: the part builders. `utxo.test.ts`: the three forms of a UTxO,
+  the normal form, every refusal, and the conversions both ways; `utxo-forms.test.ts`: one build
+  from each form gives the same transaction.
 - `builder.test.ts` and the unit tests beside it (`payer`, `selection`, `chain`, `network`,
   `result`, `sign`, `add`, `errors`, ...): balancing, deposits and refunds of every kind,
   resolution and fetch counts, the evaluation loop and its errors, collateral choices, payer
@@ -420,6 +495,9 @@ rule.
 - Automatic collateral may take a UTxO the transaction also spends, a plan's anchor included.
 - An orphaned child of two parents can come back to life by the other parent's attempt, since the
   record does not keep which parent orphaned it; no money can move by it.
+- A reference script is priced by the bytes of `[language, script]`, a few above the ledger's
+  count.
+- The CBOR decoder refuses a UTxO whose reference script is in a language it does not know.
 
 [readme]: ../../packages/mesh-transaction/README.md
 [r-old]: ../../packages/mesh-transaction/README.md#the-old-meshtxbuilder
@@ -427,6 +505,7 @@ rule.
 [r-build-options]: ../../packages/mesh-transaction/README.md#build-options
 [r-payer]: ../../packages/mesh-transaction/README.md#payer-signer-submitter
 [r-result]: ../../packages/mesh-transaction/README.md#the-result
+[r-utxos]: ../../packages/mesh-transaction/README.md#utxos
 [r-time]: ../../packages/mesh-transaction/README.md#time
 [r-chains]: ../../packages/mesh-transaction/README.md#chains
 [r-plans]: ../../packages/mesh-transaction/README.md#plans
