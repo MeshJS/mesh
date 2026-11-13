@@ -125,8 +125,9 @@ export const calculateMinLovelaceForTransactionOutput = (
   output: TransactionOutput,
   coinsPerUtxoSize: bigint,
 ): bigint => {
+  // The ledger's minimum: (160 + size of the output) * coinsPerUtxoSize
   const txOutSize = BigInt(output.toCbor().length / 2);
-  return 160n + BigInt(txOutSize) * coinsPerUtxoSize;
+  return (160n + txOutSize) * coinsPerUtxoSize;
 };
 
 export const mintParamCbor = (nonce: number) => {

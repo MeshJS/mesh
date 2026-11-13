@@ -56,6 +56,7 @@ import { LargestFirstInputSelector } from "./coin-selection";
 import { MeshTxBuilderCore } from "./tx-builder-core";
 import { warnOnce } from "./warnings";
 
+/** @deprecated Options of the deprecated `MeshTxBuilder`; the new builder takes `TxBuilderOptions` */
 export interface MeshTxBuilderOptions {
   fetcher?: IFetcher;
   submitter?: ISubmitter;
@@ -113,6 +114,10 @@ const isMeshSerializer = (serializer: unknown): boolean =>
   serializer !== null &&
   (serializer as Record<symbol, unknown>)[MESH_SERIALIZER] === true;
 
+/**
+ * @deprecated Builds through the new `TxBuilder`: the same methods, a transaction that may differ
+ * in bytes. New code uses `TxBuilder` and its parts.
+ */
 export class MeshTxBuilder extends MeshTxBuilderCore {
   serializer: IMeshTxSerializer;
   selector: IInputSelector;

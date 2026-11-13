@@ -276,7 +276,7 @@ const inflateMem =
       : actions;
 
 const selectors: [string, MeshTxBuilderOptions["selector"]][] = [
-  ["CardanoSdkInputSelector", undefined],
+  ["default selector", undefined],
   ["LargestFirstInputSelector", new LargestFirstInputSelector()],
 ];
 
@@ -379,12 +379,11 @@ describe("MeshTxBuilder exact balancing", () => {
     );
   });
 
-  // The cardano-sdk selector puts the excess lovelace in the first split change output,
-  // largest-first in the last one. The final transaction reports 1 000 000 more memory
-  // units than the selection saw, so its fee rises by about 0.06 ADA, more than a split
-  // output that holds just its minimum can give.
+  // Both selectors lead to the builder's own selection. The final transaction reports
+  // 1 000 000 more memory units than the selection saw, so its fee rises by about 0.06 ADA,
+  // more than a split output that holds just its minimum can give.
   it.each([
-    ["CardanoSdkInputSelector", undefined, 1],
+    ["default selector", undefined, 1],
     ["LargestFirstInputSelector", new LargestFirstInputSelector(), 1],
   ] as [string, MeshTxBuilderOptions["selector"], number][])(
     "puts the fee difference into the change output that has the lovelace when change is split (%s)",
