@@ -198,6 +198,62 @@ export const atMostOne = <P extends TxPart>(
   return parts[0];
 };
 
+const sortedSpends = (byKind: PartsByKind) =>
+  [...byKind.spend].sort((a, b) => compareInputs(a.input, b.input));
+const sortedMints = (byKind: PartsByKind) =>
+  [...byKind.mint].sort((a, b) => compareHashes(a.policyId, b.policyId));
+// Every reward address is known once the gaps are checked
+const sortedWithdrawals = (byKind: PartsByKind) =>
+  [...byKind.withdrawal].sort((a, b) =>
+    compareRewardAddresses(a.rewardAddress!, b.rewardAddress!),
+  );
+const sortedVotes = (byKind: PartsByKind) =>
+  [...byKind.vote].sort((a, b) => compareVoters(a.voter, b.voter));
+
+/**
+ * Refuses a second part of what a transaction holds once, in the ledger's order of each kind.
+ * A withdrawal whose reward address is still to be derived is left out: parts given to a build
+ * are checked before anything is looked up, and the complete parts again at assembly.
+ */
+const checkRepeats = (byKind: PartsByKind) => {
+  const spends = sortedSpends(byKind);
+  checkUnique(spends, (p) => outRef(p.input), "input");
+  // An output the transaction spends cannot also be one of its reference inputs
+  const spent = new Set(spends.map((p) => outRef(p.input)));
+  for (const part of byKind.referenceInput as ReferenceInputPart[]) {
+    const key = outRef(part.input);
+    if (spent.has(key))
+      duplicate(part, `${key} is also spent by this transaction`, key);
+  }
+  checkUnique(sortedMints(byKind), (p) => p.policyId, "policy");
+  checkUnique(
+    sortedWithdrawals({
+      ...byKind,
+      withdrawal: byKind.withdrawal.filter(
+        (p) => p.rewardAddress !== undefined,
+      ),
+    }),
+    (p) => p.rewardAddress!,
+    "reward address",
+  );
+  checkUnique(sortedVotes(byKind), (p) => voterKey(p.voter), "voter");
+  checkUnique(byKind.collateral, (p) => outRef(p.input), "collateral input");
+  atMostOne(byKind.collateralReturn, "collateral return");
+  atMostOne(byKind.validity, "validity interval");
+  atMostOne(byKind.donation, "donation");
+  atMostOne(byKind.treasuryValue, "treasury value");
+  atMostOne(byKind.networkId, "network id");
+  checkUnique(byKind.metadata, (p) => p.metadataLabel, "metadata label");
+};
+
+/**
+ * Refuses, before anything is looked up, a second part of what a transaction holds once, as
+ * assembly does
+ * @throws TxBuildError DUPLICATE_PART for the later part
+ */
+export const checkPartRepeats = (parts: readonly TxPart[]): void =>
+  checkRepeats(groupParts(parts));
+
 /** Fails on a second item with the same key */
 const checkUnique = <P extends TxPart>(
   parts: P[],
@@ -274,55 +330,27 @@ export const assembleTxPrototype = (
     );
 
   const byKind = groupParts(parts);
+  checkRepeats(byKind);
 
   // Items the ledger keeps in its own order, and redeemers point into by position
-  const spends = [...byKind.spend].sort((a, b) =>
-    compareInputs(a.input, b.input),
-  );
-  checkUnique(spends, (p) => outRef(p.input), "input");
-  // An output the transaction spends cannot also be one of its reference inputs
+  const spends = sortedSpends(byKind);
   const spent = new Set(spends.map((p) => outRef(p.input)));
-  for (const part of byKind.referenceInput as ReferenceInputPart[]) {
-    const key = outRef(part.input);
-    if (spent.has(key))
-      duplicate(part, `${key} is also spent by this transaction`, key);
-  }
-  const mints = [...byKind.mint].sort((a, b) =>
-    compareHashes(a.policyId, b.policyId),
-  );
-  checkUnique(mints, (p) => p.policyId, "policy");
-  // Every reward address is known once the gaps are checked
-  const withdrawals = [...byKind.withdrawal].sort((a, b) =>
-    compareRewardAddresses(a.rewardAddress!, b.rewardAddress!),
-  );
-  checkUnique(withdrawals, (p) => p.rewardAddress!, "reward address");
-  const votes = [...byKind.vote].sort((a, b) =>
-    compareVoters(a.voter, b.voter),
-  );
-  checkUnique(votes, (p) => voterKey(p.voter), "voter");
+  const mints = sortedMints(byKind);
+  const withdrawals = sortedWithdrawals(byKind);
+  const votes = sortedVotes(byKind);
   // Items kept in the order given
   const certificates: CertificatePart[] = byKind.certificate;
   const proposals: ProposalPart[] = byKind.proposal;
   const outputs: OutputPart[] = byKind.output;
 
   const collaterals: CollateralPart[] = byKind.collateral;
-  checkUnique(collaterals, (p) => outRef(p.input), "collateral input");
-  const collateralReturn = atMostOne<CollateralReturnPart>(
-    byKind.collateralReturn,
-    "collateral return",
-  );
-  const validity = atMostOne<ValidityPart>(
-    byKind.validity,
-    "validity interval",
-  );
-  const donation = atMostOne<DonationPart>(byKind.donation, "donation");
-  const treasuryValue = atMostOne<TreasuryValuePart>(
-    byKind.treasuryValue,
-    "treasury value",
-  );
-  const networkId = atMostOne<NetworkIdPart>(byKind.networkId, "network id");
+  const collateralReturn: CollateralReturnPart | undefined =
+    byKind.collateralReturn[0];
+  const validity: ValidityPart | undefined = byKind.validity[0];
+  const donation: DonationPart | undefined = byKind.donation[0];
+  const treasuryValue: TreasuryValuePart | undefined = byKind.treasuryValue[0];
+  const networkId: NetworkIdPart | undefined = byKind.networkId[0];
   const metadataParts: MetadataPart[] = byKind.metadata;
-  checkUnique(metadataParts, (p) => p.metadataLabel, "metadata label");
 
   // Witnesses: scripts, datums and redeemers, collected from every part that has one
   const nativeScripts = new Map<string, NativeScriptPrototype>();

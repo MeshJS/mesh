@@ -98,4 +98,47 @@ describe("TxBuilder payers on the emulator", () => {
         spent.has(`${input.input.txHash}#${input.input.outputIndex}`),
       ).toBe(false);
   });
+
+  it("takes a MeshWallet's UTxOs from its fetcher's cache, fresh after the wallet's own submit", async () => {
+    // The clock stands still: a cached answer cannot expire on its own during the test. The
+    // provider is a new object, so its shared cache is made under that clock
+    const clock = jest.spyOn(Date, "now").mockReturnValue(Date.now());
+    try {
+      const provider = new Proxy(emulator, {
+        get: (target, prop) => Reflect.get(target, prop, target),
+      });
+      const onProvider = new TxBuilder({ network: "preview", provider });
+      // The wallet reads through the builder's provider, so through its shared cache
+      const shared = new MeshWallet({
+        networkId: 0,
+        key: { type: "mnemonic", words },
+        fetcher: provider,
+        submitter: provider,
+      });
+      await shared.init();
+      const outRefs = (built: BuiltTx) =>
+        built.inputs.map((u) => `${u.input.txHash}#${u.input.outputIndex}`);
+
+      const first = await onProvider.build(pay(), { payer: shared });
+      expect(await shared.submitTx(await shared.signTx(first.tx))).toBe(
+        first.txHash,
+      );
+      const second = await onProvider.build(pay(), { payer: shared });
+      expect(outRefs(second)).not.toEqual(
+        expect.arrayContaining(outRefs(first)),
+      );
+      // Submitted past the wallet, the next read still lists the spent input
+      await submit(second);
+      const stale = await onProvider.build(pay(), { payer: shared });
+      expect(outRefs(stale)).toEqual(outRefs(second));
+      CachedFetcher.wrap(provider).clearVolatile();
+      const fresh = await onProvider.build(pay(), { payer: shared });
+      expect(outRefs(fresh)).not.toEqual(
+        expect.arrayContaining(outRefs(second)),
+      );
+      await submit(fresh);
+    } finally {
+      clock.mockRestore();
+    }
+  });
 });

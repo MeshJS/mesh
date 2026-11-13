@@ -66,6 +66,7 @@ import type {
 import type { GovernanceDeposits } from "./resolve";
 import type { TxSigners } from "./witnesses";
 import { abortable, throwIfAborted } from "./abort";
+import { checkPartRepeats } from "./assemble";
 import {
   balance,
   collateralCandidates,
@@ -273,14 +274,16 @@ export type BuildOptions = {
    * names an output they spend is refused with UTXO_NOT_FOUND. Their collateral inputs stay
    * selectable, since a valid transaction does not spend them. The build keeps nothing of them:
    * a transaction not given here is not known to it. An intent stands for its current attempt,
-   * `intent.built`; one without an attempt is INVALID_OPTION.
+   * `intent.built`; one without an attempt is INVALID_OPTION. Their outputs and `knownUtxos`,
+   * not the payer's UTxOs, are what an evaluator without `acceptsKnownUtxos` is handed.
    */
   after?: BuiltTx | TxIntent | readonly (BuiltTx | TxIntent)[];
   /**
    * Outputs the parts may name by out ref that the provider may not know yet; never selected.
    * Being listed here makes no UTxO selectable and takes none out of selection: one the payer
-   * also holds is still selected. They are used as given, and reach the evaluator with the
-   * transaction.
+   * also holds is still selected. They are used as given, and reach every evaluator with the
+   * transaction, as the outputs of `after` do; the payer's UTxOs reach only one that sets
+   * `acceptsKnownUtxos`.
    */
   knownUtxos?: readonly UTxO[];
   /**
@@ -1550,12 +1553,18 @@ export class TxBuilder {
    *    bounds to slots on its slot clock: `from` to the first slot starting at or after it,
    *    `until` to the slot containing it. A lower bound whose slot starts after the current time
    *    of the local clock is reported in `warnings` as VALID_FROM_FUTURE. Refuses a part that
-   *    names an output a transaction of `after` spends. Reads the payer and looks up, all at
+   *    names an output a transaction of `after` spends, and a second part of what a transaction
+   *    holds once (DUPLICATE_PART). Reads the payer and looks up, all at
    *    once and once each, the outputs the parts reference that neither `knownUtxos` nor the
    *    outputs of `after` hold, the reward balances they withdraw in full, the protocol
    *    parameters and (when Plutus scripts run) the cost models. Lookups go through the
-   *    provider's shared cache, which answers from what it holds; the payer's UTxOs are always
-   *    read past it. What is read and looked up is checked for its network too.
+   *    provider's shared cache, which answers from what it holds. The UTxOs the builder reads
+   *    for the payer through the provider (an address, or a wallet that cannot read its own)
+   *    are always read past it; a wallet's own `getUtxos` is used as it answers, so a
+   *    MeshWallet's list may come from its fetcher's short-lived cache. Submitting with the
+   *    wallet's `submitTx`, or calling `clearVolatile()` on `CachedFetcher.wrap(provider)` after
+   *    a submit, makes its next read fresh. What is read and looked up is checked for its
+   *    network too.
    * 2. Fills in what the parts leave open: reference scripts, datums, deposits, output lovelace.
    * 3. Balances: selects inputs from the payer's UTxOs, less those `after` spends and with
    *    its change at the payer's change address, that `canSelect` lets it, with `coinSelection`
@@ -1719,6 +1728,8 @@ export class TxBuilder {
     refuseSpentOutRefs(flat, spentByAfter);
     // Time bounds become slots before any request, so a wrong interval costs no I/O
     const { parts: timed, warnings } = this.convertTimes(flat);
+    // So is a second part of what a transaction holds once
+    checkPartRepeats(timed);
     const { fee, registeredPools, extraKeyWitnesses } = options ?? {};
     const { canSelect, coinSelection, signal } = options ?? {};
     throwIfAborted(signal);

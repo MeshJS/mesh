@@ -5,6 +5,7 @@ import { MeshWallet } from "@meshsdk/wallet";
 import {
   BuiltTx,
   certificate,
+  mint,
   output,
   outputOf,
   spend,
@@ -216,6 +217,46 @@ describe.each(["scalus", "cquisitor"] as const)(
       expect(outRefs(unlock.collateral!.inputs)).toEqual(outRefs(lock.change));
       expect(await emulator.submitTx(await sign(lock))).toBe(lock.txHash);
       expect(await emulator.submitTx(await sign(unlock))).toBe(unlock.txHash);
+    });
+
+    it("evaluates a script on the change a snapshot folded with utxosAfter holds, before the first is submitted", async () => {
+      const { emulator, builder, snapshot, sign } = await chainSetup(validator);
+      expect(emulator.acceptsKnownUtxos).toBe(true);
+      const payer = snapshot();
+      const tx1 = await builder.build(pay(alice, 10_000_000n), { payer });
+      // The payer's only UTxO is spent by tx1: inputs and collateral are tx1's change
+      const tx2 = await builder.build(
+        mint.plutus({
+          script: plutusScript,
+          redeemer: { data: mConStr0([]) },
+          assets: { "6d": 1n },
+        }),
+        { payer: { ...payer, utxos: utxosAfter(payer.utxos, tx1) } },
+      );
+      expect(outRefs(tx2.inputs)).toEqual(outRefs(tx1.change));
+      expect(outRefs(tx2.collateral!.inputs)).toEqual(outRefs(tx1.change));
+      expect(await emulator.submitTx(await sign(tx1))).toBe(tx1.txHash);
+      expect(await emulator.submitTx(await sign(tx2))).toBe(tx2.txHash);
+    });
+
+    it("evaluates a script when it is handed UTxOs its ledger already holds", async () => {
+      const { emulator, builder, snapshot, sign } = await chainSetup(validator);
+      const payer = snapshot();
+      const evaluateTx = jest.spyOn(emulator, "evaluateTx");
+      const built = await builder.build(
+        mint.plutus({
+          script: plutusScript,
+          redeemer: { data: mConStr0([]) },
+          assets: { "6d": 1n },
+        }),
+        { payer },
+      );
+      expect(built.redeemers[0]!.exUnits.mem).toBeGreaterThan(0n);
+      expect(outRefs(built.inputs)).toEqual(outRefs(payer.utxos));
+      expect(evaluateTx).toHaveBeenCalled();
+      for (const [, handed] of evaluateTx.mock.calls)
+        expect(outRefs(handed!)).toEqual(outRefs(payer.utxos));
+      expect(await emulator.submitTx(await sign(built))).toBe(built.txHash);
     });
   },
 );

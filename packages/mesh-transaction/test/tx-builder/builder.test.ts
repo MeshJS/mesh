@@ -72,6 +72,7 @@ import {
 import { exUnitsFee, feeForSize, refScriptFee } from "../../src/tx-builder/fee";
 import { resolveParts } from "../../src/tx-builder/resolve";
 import {
+  alwaysFailCbor,
   alwaysSucceedCbor,
   alwaysSucceedHash,
   baseAddress,
@@ -751,6 +752,48 @@ describe("TxBuilder: what INSUFFICIENT_FUNDS reports", () => {
       missing: 1n,
       reason: "noUtxos",
     });
+    const error = await expectBuildError(
+      new TxBuilder({ network, params }).build(
+        [certificate.stakeDeregistration({ stake, refund: ada(2) })],
+        { payer: { changeAddress: wallet, utxos: [] } },
+      ),
+      "INSUFFICIENT_FUNDS",
+    );
+    expect(error.message).toMatch(
+      /^1 lovelace are missing: the transaction must spend at least one input, and no UTxO of the payer can be selected; /,
+    );
+    expect(error.message).toContain("no UTxOs are given for the payer");
+  });
+
+  it("says that an input is missing when refunds pay for everything and the filter takes the only UTxO", async () => {
+    const stake = keyHashToRewardAddress(keyHashHex(5), 0);
+    const only = utxo(lovelace(ada(10)));
+    const error = (await expectBuildError(
+      new TxBuilder({ network, params }).build(
+        [
+          certificate.stakeDeregistration({ stake, refund: ada(10) }),
+          output({ address: recipient, value: { lovelace: ada(5) } }),
+        ],
+        {
+          payer: { changeAddress: wallet, utxos: [only] },
+          canSelect: () => false,
+        },
+      ),
+      "INSUFFICIENT_FUNDS",
+    )) as TxBuildError<"INSUFFICIENT_FUNDS">;
+    // The details stay those of the one-input rule
+    expect(error.details).toMatchObject({
+      unit: "lovelace",
+      missing: 1n,
+      reason: "payment",
+      pool: { given: 1, excludedByFilter: 1, selectable: 0 },
+    });
+    const { required, available } = error.details;
+    expect(available).toBe(ada(10));
+    expect(required).toBeLessThanOrEqual(available);
+    expect(error.message).toBe(
+      `1 lovelace are missing: the transaction must spend at least one input, and no UTxO of the payer can be selected; the ${available} available cover the ${required} it takes, the fee of ${error.details.feeEstimate} and change of at least ${error.details.changeMinimum} included`,
+    );
   });
 });
 
@@ -1055,6 +1098,50 @@ describe("TxBuilder: resolution", () => {
       expect(shared.part).toBeUndefined();
       expect(shared.label).toBeUndefined();
       expect(shared.message.startsWith("outputs ")).toBe(true);
+    });
+
+    it("refuses a second part of what a transaction holds once before any read", async () => {
+      const { fetcher, calls } = fakeFetcher([]);
+      const builder = new TxBuilder({ network, provider: fetcher });
+      const reads: string[] = [];
+      const reading = {
+        getChangeAddress: async () => {
+          reads.push("getChangeAddress");
+          return wallet;
+        },
+        getUtxos: async () => {
+          reads.push("getUtxos");
+          return [];
+        },
+      };
+      const twice = (parts: TxPart[]) =>
+        expectBuildError(
+          builder.build([spend.pubKey({ utxo: ghost }), pay, ...parts], {
+            payer: reading,
+          }),
+          "DUPLICATE_PART",
+        );
+
+      const validities = await twice([
+        validity({ until: Date.now() + 600_000 }),
+        validity({ until: Date.now() + 900_000, label: "later" }),
+      ]);
+      expect(validities).toMatchObject({ part: "validity", label: "later" });
+      expect(validities.details).toEqual({ item: "validity" });
+      const spends = await twice([
+        spend.pubKey({ utxo: ghost, label: "again" }),
+      ]);
+      expect(spends).toMatchObject({ part: "spend", label: "again" });
+      expect(spends.details).toEqual({
+        item: `${ghost.txHash}#${ghost.outputIndex}`,
+      });
+      const read = await twice([
+        referenceInput({ utxo: ghost, label: "read" }),
+      ]);
+      expect(read).toMatchObject({ part: "referenceInput", label: "read" });
+      // Neither the payer, the out ref nor the parameters were read
+      expect(reads).toEqual([]);
+      expect(calls).toEqual({});
     });
   });
 
@@ -1652,6 +1739,84 @@ describe("TxBuilder: scripts", () => {
     expect(built.collateral).toEqual({ inputs: [tight], total: ada(1) });
     expect(built.prototype.body.total_collateral).toBe(String(ada(1)));
     expect(built.prototype.body.collateral_return).toBeUndefined();
+  });
+
+  it("lowers the fee to the minimum once a later round forfeits the collateral return", async () => {
+    const tight = utxo(lovelace(ada(1)));
+    const fees: bigint[] = [];
+    const built = await new TxBuilder({
+      network,
+      costModels,
+      params,
+      evaluator: fakeEvaluator().evaluator,
+    }).build([scriptSpend(1), collateral({ utxo: tight })], {
+      payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] },
+      trace: (event) => {
+        if (event.type === "round") fees.push(event.fee);
+      },
+    });
+    expect(built.prototype.body.collateral_return).toBeUndefined();
+    // The round at the fee of nothing still returned collateral and priced the larger body;
+    // the last round priced the transaction at the fee it carries
+    expect(fees.some((fee) => fee > built.fee)).toBe(true);
+    expect(fees.at(-1)).toBe(built.fee);
+    expect(built.fee).toBe(
+      minFee(built.prototype, {
+        params,
+        vkeyWitnesses: built.signers.keyHashes.length,
+        inputs: [...built.inputs, ...built.referenceInputs],
+      }),
+    );
+    expectBalanced(built);
+  });
+
+  it("keeps the settled fee when the transaction priced at its minimum needs more", async () => {
+    const pay = output({ address: recipient, value: { lovelace: ada(2) } });
+    const builder = new TxBuilder({ network, params });
+    const buildWith = async (coin: bigint) => {
+      const fees: bigint[] = [];
+      const built = await builder.build([pay], {
+        payer: { changeAddress: wallet, utxos: [utxo(lovelace(coin))] },
+        trace: (event) => {
+          if (event.type === "round") fees.push(event.fee);
+        },
+      });
+      return { built, fees };
+    };
+    const minFeeOf = (built: BuiltTx) =>
+      minFee(built.prototype, {
+        params,
+        vkeyWitnesses: built.signers.keyHashes.length,
+        inputs: [...built.inputs, ...built.referenceInputs],
+      });
+    // A change of 2^32 lovelace or more takes 4 bytes more to write than one below it
+    const wide = 2n ** 32n;
+    const { built: probe } = await buildWith(ada(2) + 2n * wide);
+    const high = probe.fee;
+    // Lower fees price a wide change; at the fee of the probe the change is just below 2^32, so
+    // the transaction shrinks. Priced at its own minimum the change grows past 2^32 again, and
+    // that minimum no longer covers it: the settled fee stays
+    const { built, fees } = await buildWith(ada(2) + wide + high - 1n);
+    expect(built.fee).toBe(high);
+    expect(built.prototype.body.outputs.at(-1)!.amount.coin).toBe(
+      String(wide - 1n),
+    );
+    const low = minFeeOf(built);
+    expect(low).toBeLessThan(high);
+    expectBalanced(built);
+    // Each priced round is traced, the one at the lower fee too, though it is not kept
+    expect(fees.slice(-2)).toEqual([high, low]);
+    // At the lower fee the wider change leaves the transaction below its minimum
+    await expectBuildError(
+      builder.build([pay], {
+        payer: {
+          changeAddress: wallet,
+          utxos: [utxo(lovelace(ada(2) + wide + high - 1n))],
+        },
+        fee: low,
+      }),
+      "FEE_TOO_LOW",
+    );
   });
 
   it("prefers a collateral UTxO that leaves a return worth making", async () => {
@@ -3900,6 +4065,44 @@ describe("TxBuilder: script withdrawal without a reward address", () => {
       ),
       "DUPLICATE_PART",
     );
+  });
+
+  it("takes two derived accounts of different scripts, and refuses one script withdrawn twice", async () => {
+    const builder = new TxBuilder({
+      network,
+      params,
+      costModels,
+      evaluator: fakeEvaluator().evaluator,
+    });
+    const failing = withdrawal.plutus({
+      amount: 0n,
+      script: { code: alwaysFailCbor, version: "V3" },
+      redeemer: { data: mConStr0([]) },
+    });
+    // Neither address is known before the build derives it
+    const built = await builder.build([script, failing], {
+      payer: { changeAddress: wallet, utxos: funds() },
+    });
+    expect(Object.keys(built.prototype.body.withdrawals ?? {}).sort()).toEqual(
+      [
+        builder.rewardAddress(plutusScript),
+        builder.rewardAddress({ code: alwaysFailCbor, version: "V3" }),
+      ].sort(),
+    );
+
+    const again = withdrawal.plutus({
+      amount: 0n,
+      script: plutusScript,
+      redeemer: { data: mConStr0([]) },
+      label: "again",
+    });
+    const error = await expectBuildError(
+      builder.build([script, again], {
+        payer: { changeAddress: wallet, utxos: funds() },
+      }),
+      "DUPLICATE_PART",
+    );
+    expect(error).toMatchObject({ part: "withdrawal", label: "again" });
   });
 });
 

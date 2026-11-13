@@ -1589,6 +1589,12 @@ export class TxEmulator
   // IEvaluator
 
   /**
+   * Evaluates against its own ledger, so a builder hands it every UTxO it knows for the inputs,
+   * on the ledger or not
+   */
+  readonly acceptsKnownUtxos = true;
+
+  /**
    * The execution units each redeemer's script uses, evaluated by Scalus against the ledger.
    * @throws ScriptEvaluationError when a script fails, naming the redeemer whose script failed
    * @throws Error for any other failure, e.g. an input the ledger does not hold

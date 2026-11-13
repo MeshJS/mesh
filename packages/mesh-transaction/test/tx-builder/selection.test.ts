@@ -7,6 +7,7 @@ import {
   DEFAULT_V2_COST_MODEL_LIST,
   DEFAULT_V3_COST_MODEL_LIST,
   IEvaluator,
+  IFetcher,
   mConStr0,
   Protocol,
   UTxO,
@@ -338,6 +339,36 @@ describe("TxBuilder: coinSelection", () => {
     expect(Array.from(need.assets)).toEqual([[paidUnit, 5n]]);
     expect(refs(candidates)).toEqual(refs([big, tokens, middle]));
     expect(context).toEqual({ round: 0, selected: [], fee: 0n, params });
+  });
+
+  it("is given a frozen copy of the parameters, so a later build on the provider keeps its fee", async () => {
+    // The parameters come from the provider: every builder on it reads the cache's answer
+    const provider = {
+      fetchProtocolParameters: async () => ({ ...params }),
+    } as unknown as IFetcher;
+    const onProvider = () => new TxBuilder({ network, provider });
+    const payer = snapshot([utxo(ada(100))]);
+    const expected = await offline().build(pay(ada(20)), { payer });
+
+    const attempts: unknown[] = [];
+    const built = await onProvider().build(pay(ada(20)), {
+      payer,
+      coinSelection: (_, candidates, context) => {
+        expect(Object.isFrozen(context.params)).toBe(true);
+        try {
+          (context.params as { minFeeA: number }).minFeeA = 0;
+        } catch (error) {
+          attempts.push(error);
+        }
+        return candidates.slice(0, 1);
+      },
+    });
+    expect(attempts.length).toBeGreaterThan(0);
+    expect(attempts[0]).toBeInstanceOf(TypeError);
+    expect(built.fee).toBe(expected.fee);
+    expect((await onProvider().build(pay(ada(20)), { payer })).fee).toBe(
+      expected.fee,
+    );
   });
 
   it("matches the out refs it returns whatever the case of their hash", async () => {

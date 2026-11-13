@@ -752,6 +752,45 @@ describe.each(["scalus", "cquisitor"] as const)(
       ).rejects.toMatchObject({ code: "MISSING_PAYER" });
     });
 
+    it("takes TxEmulator for a local evaluator: a script input it gets by declared data alone is refused without a fetcher, and read with one", async () => {
+      const context = await setup(validator);
+      const { emulator, address, funds, locked } = context;
+      expect(emulator.acceptsKnownUtxos).toBe(true);
+      const spend = (builder: MeshTxBuilder) =>
+        builder
+          .spendingPlutusScriptV3()
+          .txIn(
+            locked.input.txHash,
+            locked.input.outputIndex,
+            locked.output.amount,
+            locked.output.address,
+            0,
+          )
+          .txInInlineDatumPresent()
+          .txInRedeemerValue(mConStr0([]))
+          .txInScript(alwaysSucceedCbor)
+          .txOut(address, lovelace(5_000_000))
+          .txInCollateral(
+            funds.input.txHash,
+            funds.input.outputIndex,
+            funds.output.amount,
+            funds.output.address,
+          )
+          .changeAddress(address)
+          .selectUtxosFrom([funds]);
+      // The evaluator is handed the build's UTxOs, so the declared data cannot pose as the
+      // locked output: without a fetcher the output stays by out ref
+      const params = await emulator.fetchProtocolParameters();
+      await expect(
+        spend(new MeshTxBuilder({ evaluator: emulator, params })).complete(),
+      ).rejects.toMatchObject({ code: "MISSING_FETCHER", part: "spend" });
+      // Read through a fetcher, the output is known whole and the transaction is accepted
+      const txHex = await spend(
+        new MeshTxBuilder({ fetcher: emulator, evaluator: emulator }),
+      ).complete();
+      await accept(context, txHex);
+    });
+
     describe("network", () => {
       it("takes the fetcher's network over a setNetwork() string, and configures the evaluator with it", async () => {
         const context = await setup(validator);

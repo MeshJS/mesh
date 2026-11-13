@@ -173,6 +173,11 @@ const isChange = (output: BuiltOutput) => output.change === true;
  * any of the transactions spends is not added, so the order of the transactions does not change
  * the set returned. Collateral is not looked at: a valid transaction does not spend it. The
  * arguments are not changed, and a new array is returned every time.
+ *
+ * The outputs it adds are payer UTxOs, and an evaluator that does not set `acceptsKnownUtxos`
+ * (a remote one) is not handed them: for a build that runs a script on such an evaluator before
+ * the earlier transactions are on its chain, also pass them as `after`, or their change as
+ * `knownUtxos`.
  * @param owns Which outputs of the transactions are added, in place of the change test
  * @throws TxBuildError INVALID_OPTION for `utxos` that is not a list of UTxOs, a transaction
  *   without lists of `inputs` and `outputs`, and an `owns` that is not a function

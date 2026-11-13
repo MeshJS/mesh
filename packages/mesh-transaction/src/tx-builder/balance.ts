@@ -50,6 +50,7 @@ export type SelectInputs = (
     readonly round: number;
     readonly selected: readonly UTxO[];
     readonly fee: bigint;
+    /** The build's protocol parameters, as a frozen copy */
     readonly params: Protocol;
   },
 ) => readonly UTxO[];
@@ -152,6 +153,15 @@ export type Balanced = {
   /** The minimum fee of the transaction, with a witness for every key expected to sign */
   minFee: bigint;
   collateral?: CollateralPlan;
+};
+
+/** A round that settled: its parts, fee, change outputs, minimum fee and collateral */
+type Settled = {
+  all: TxPart[];
+  fee: bigint;
+  change: OutputPart[];
+  minFee: bigint;
+  collateral: CollateralPlan | undefined;
 };
 
 /** Most balancing rounds; each one selects more inputs or raises the fee */
@@ -488,6 +498,8 @@ const lovelaceOf = (utxo: UTxO) => fromAssets(utxo.output.amount).coin;
  * Each round works out what is missing with the current fee and selects inputs for it; once
  * nothing is, it makes change, plans collateral and prices the transaction with placeholder
  * witnesses. The fee only ever rises, and inputs are only ever added, so the rounds settle.
+ * A transaction that settled above its minimum fee, because a later round made it smaller, is
+ * priced once more at that minimum, and kept so when it still settles there.
  */
 export const balance = (
   parts: readonly TxPart[],
@@ -653,9 +665,18 @@ export const balance = (
             available < required
           ? "change"
           : "payment";
-    const what =
-      unit === "lovelace"
-        ? `${missing} lovelace are missing: the transaction takes ${required}, the fee of ${estimated.feeEstimate}${estimated.changeMinimum === undefined ? "" : ` and change of at least ${estimated.changeMinimum}`} included, and ${available} are available`
+    const included = `the fee of ${estimated.feeEstimate}${estimated.changeMinimum === undefined ? "" : ` and change of at least ${estimated.changeMinimum}`} included`;
+    // What is available covers what the transaction takes: the one lovelace is the input a
+    // transaction must spend, when refunds and withdrawals pay for the rest
+    const onlyInput =
+      unit === "lovelace" &&
+      !unanswered &&
+      required <= available &&
+      spent.size + selected.length === 0;
+    const what = onlyInput
+      ? `${missing} lovelace are missing: the transaction must spend at least one input, and no UTxO of the payer can be selected; the ${available} available cover the ${required} it takes, ${included}`
+      : unit === "lovelace"
+        ? `${missing} lovelace are missing: the transaction takes ${required}, ${included}, and ${available} are available`
         : `${missing} of ${unit} are missing: the transaction takes ${required}, and ${available} are available`;
     const notes = [
       ...(unanswered ? ["coinSelection selected nothing for it"] : []),
@@ -687,6 +708,11 @@ export const balance = (
   const firstUnit = (shortfall: Value) =>
     Array.from(shortfall.assets.keys()).sort()[0] ?? "lovelace";
 
+  // The parameters may be the provider cache's own object, which every build on that provider
+  // reads: the caller's function gets a frozen copy, made once
+  let frozenParams: Readonly<Protocol> | undefined;
+  const selectionParams = () => (frozenParams ??= Object.freeze({ ...params }));
+
   /**
    * Selects inputs for a shortfall with the caller's function: what it returns must be among
    * the candidates, and something must be returned. Not called with no candidate left.
@@ -701,7 +727,7 @@ export const balance = (
     const answer: unknown = coinSelection(
       { lovelace: shortfall.coin, assets: new Map(shortfall.assets) },
       candidates,
-      { round, selected: [...selected], fee, params },
+      { round, selected: [...selected], fee, params: selectionParams() },
     );
     /** An answer that is not a list of UTxOs: the function is not a `SelectInputs` */
     const notAList = (value: unknown) =>
@@ -872,6 +898,72 @@ export const balance = (
     },
   ];
 
+  /**
+   * A settled round priced again at its minimum fee, with the same inputs, the same number of
+   * change outputs and the same collateral inputs; undefined when it does not settle there. The
+   * collateral is planned anew at the lower fee when that keeps its inputs and its return, else
+   * kept as it was, which still covers the lower fee. Its pricing is traced as a round, kept or
+   * not, as the rounds that raise the fee are.
+   */
+  const lowered = (
+    settled: Settled,
+    rest: Value,
+    round: number,
+  ): Settled | undefined => {
+    const lower = settled.minFee;
+    const change = makeChange(
+      addValues(rest, coinValue(settled.fee - lower)),
+      changeTo,
+      params,
+    );
+    if (!Array.isArray(change) || change.length !== settled.change.length)
+      return undefined;
+    let collateral = settled.collateral;
+    if (collateral) {
+      const again = planCollateral(lower);
+      if (
+        again.inputs.length === collateral.inputs.length &&
+        again.inputs.every((u, i) => u === collateral!.inputs[i]) &&
+        (again.return === undefined) === (collateral.return === undefined)
+      )
+        collateral = again;
+    }
+    const changeParts = change.map(outputPart);
+    const all: TxPart[] = [
+      ...core,
+      ...selected.map(spendPart),
+      ...changeParts,
+      ...(collateral ? collateralParts(collateral) : []),
+    ];
+    const sized = assembleTxPrototype(all, {
+      fee: lower,
+      costModels: ctx.costModels,
+      ...placeholderWitnesses(pricedSigners(all), ctx.extraKeyWitnesses),
+    });
+    const size = ctx.serialize(sized.prototype).length / 2;
+    ctx.onRound?.({
+      round: round + 1,
+      fee: lower,
+      size,
+      selected: selected.length,
+    });
+    if (size > params.maxTxSize) return undefined;
+    const required = feeForSize(
+      size,
+      refScriptSize(sized, ctx.known, ctx.scriptSizes),
+      totalExUnits(sized),
+      params,
+    );
+    if (required > lower) return undefined;
+    return {
+      all,
+      fee: lower,
+      change: changeParts,
+      minFee: required,
+      collateral,
+    };
+  };
+
   // A sweep spends every selectable UTxO from the start, leaving selection nothing to choose
   if (ctx.sendAllTo !== undefined) for (const utxo of pool) select(utxo);
 
@@ -931,20 +1023,35 @@ export const balance = (
         `the fee ${ctx.fee} is below the transaction's minimum fee ${required}`,
         { details: { fee: ctx.fee, minFee: required } },
       );
-    if (ctx.fee !== undefined || required <= fee)
+    if (ctx.fee !== undefined || required <= fee) {
+      const settled: Settled = {
+        all,
+        fee,
+        change: changeParts,
+        minFee: required,
+        collateral,
+      };
+      // The rounds only raise the fee, so a round that made the transaction smaller (collateral
+      // put up without a return, say) leaves it above the minimum: it is priced once more at
+      // that minimum. A provisional round's fee is an upper bound, and a given fee stays
+      const final =
+        ctx.fee === undefined && !ctx.provisional && required < fee
+          ? (lowered(settled, rest, round) ?? settled)
+          : settled;
       return {
-        assembled: assembleTxPrototype(all, {
-          fee,
+        assembled: assembleTxPrototype(final.all, {
+          fee: final.fee,
           costModels: ctx.costModels,
         }),
-        parts: all,
-        fee,
+        parts: final.all,
+        fee: final.fee,
         selected,
         // What is sent to another address is not the payer's change
-        change: changeTo === ctx.changeAddress ? changeParts : [],
-        minFee: required,
-        ...(collateral && { collateral }),
+        change: changeTo === ctx.changeAddress ? final.change : [],
+        minFee: final.minFee,
+        ...(final.collateral && { collateral: final.collateral }),
       };
+    }
     fee = required;
   }
   throw new TxBuildError(

@@ -839,6 +839,46 @@ describe("TxBuilder: knownUtxos", () => {
     });
   });
 
+  it("hands an evaluator without acceptsKnownUtxos no change folded in by utxosAfter, and that change once it is given as knownUtxos", async () => {
+    const funds = owned(100);
+    const backing = owned(20);
+    const tx1 = await buildWith(pay(10), { payer: snapshot(funds) });
+    const change = tx1.change[0]!;
+    const script = locked();
+    const parts = [
+      spend.plutus({
+        utxo: script.input,
+        script: plutusScript,
+        redeemer: { data: mConStr0([]) },
+      }),
+      collateral({ utxo: backing }),
+      // More than the script output holds: tx1's change is selected
+      pay(30),
+    ];
+    const payer = snapshot(...utxosAfter([funds, backing], tx1));
+
+    const folded = recordingEvaluator();
+    const built = await buildWith(
+      parts,
+      { payer, knownUtxos: [script] },
+      offline(folded.evaluator),
+    );
+    expect(refsOf(built.selectedInputs)).toEqual([refOf(change)]);
+    expect(folded.handed.length).toBeGreaterThan(0);
+    for (const handed of folded.handed)
+      expect(refsOf(handed)).toEqual([refOf(script)]);
+
+    const given = recordingEvaluator();
+    await buildWith(
+      parts,
+      { payer, knownUtxos: [script, change] },
+      offline(given.evaluator),
+    );
+    expect(refsOf(given.handed.at(-1)!).sort()).toEqual(
+      [refOf(script), refOf(change)].sort(),
+    );
+  });
+
   it("prices a reference script held by a known UTxO into the fee", async () => {
     const holder = utxoAt(other, ada(20), {
       scriptRef: resolveScriptRef(plutusScript),

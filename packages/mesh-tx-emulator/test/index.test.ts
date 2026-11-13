@@ -1748,6 +1748,22 @@ describe.each(["scalus", "cquisitor"] as const)(
       expect(ScriptEvaluationError.is(junk)).toBe(false);
     });
 
+    it("takes every UTxO a builder knows, those its ledger holds included", async () => {
+      const { emulator, spend, collateral } = await withLocked(validator);
+      expect(emulator.acceptsKnownUtxos).toBe(true);
+      const txHex = await spend(0, alwaysSucceed, false);
+      const [script] = emulator.utxos({
+        address: resolvePlutusScriptAddress(alwaysSucceed, 1),
+      });
+
+      const [action] = await emulator.evaluateTx(txHex, [script!, collateral]);
+      expect(action).toEqual({
+        tag: "SPEND",
+        index: 0,
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+      });
+    });
+
     it("locks to a vesting script, refuses the wrong key, and unlocks after the deadline", async () => {
       const vesting = {
         code: applyCborEncoding(VESTING_SCRIPT),
