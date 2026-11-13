@@ -141,6 +141,14 @@ const CHAIN_CODE_SIZE_BYTES = 32;
 export class CardanoSDKSerializer implements IMeshTxSerializer {
   protocolParams: Protocol;
 
+  // Marks the class as one of Mesh's serializers, which `MeshTxBuilder` accepts; it holds across
+  // copies of the package and bundlers, where neither `instanceof` nor the class name does. A
+  // member with a literal name: a statement after the class, or a computed key, would keep the
+  // whole class in every bundle that imports anything from this package
+  private get "@meshsdk/serializer"(): boolean {
+    return true;
+  }
+
   constructor(protocolParams?: Protocol) {
     setInConwayEra(true);
     this.protocolParams = protocolParams || DEFAULT_PROTOCOL_PARAMETERS;
@@ -571,14 +579,6 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     },
   };
 }
-
-// Marks the class as one of Mesh's serializers, which `MeshTxBuilder` accepts; it holds across
-// copies of the package and bundlers, where neither `instanceof` nor the class name does
-Object.defineProperty(
-  CardanoSDKSerializer.prototype,
-  Symbol.for("@meshsdk/serializer"),
-  { value: true },
-);
 
 class CardanoSDKSerializerCore {
   public txBody: TransactionBody;

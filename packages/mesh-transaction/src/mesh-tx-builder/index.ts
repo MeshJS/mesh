@@ -102,8 +102,8 @@ const HYDRA_PARAMS: Partial<Protocol> = {
   coinsPerUtxoSize: 0,
 };
 
-/** The brand Mesh's serializers carry on their prototype */
-const MESH_SERIALIZER = Symbol.for("@meshsdk/serializer");
+/** The name of the member that marks Mesh's serializers, on their prototype */
+const MESH_SERIALIZER = "@meshsdk/serializer";
 
 const SERIALIZERS_ALLOWED =
   "one of Mesh's serializers: CardanoSDKSerializer or CSLSerializer";
@@ -112,7 +112,7 @@ const SELECTORS_ALLOWED = "a LargestFirstInputSelector, or none";
 const isMeshSerializer = (serializer: unknown): boolean =>
   typeof serializer === "object" &&
   serializer !== null &&
-  (serializer as Record<symbol, unknown>)[MESH_SERIALIZER] === true;
+  (serializer as Record<string, unknown>)[MESH_SERIALIZER] === true;
 
 /**
  * @deprecated Builds through the new `TxBuilder`: the same methods, a transaction that may differ
