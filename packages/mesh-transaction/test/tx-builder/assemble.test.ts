@@ -758,6 +758,167 @@ describe("assembleTxPrototype: errors", () => {
   });
 });
 
+/*
+ * The ledger refuses a witness-set script the transaction also gets from the reference script of
+ * an output it spends or reads: the attached copy is left out, and the script still counts.
+ */
+describe("assembleTxPrototype: scripts the transaction's outputs already hold", () => {
+  const holder = utxo("cc".repeat(32), 0, walletAddress, {
+    scriptRef: referenceScript,
+  });
+  const policy = resolveScriptHash(alwaysSucceedCbor, "V3");
+  const mintAttached = () =>
+    mint.plutus({
+      script: plutusScript,
+      redeemer: redeemer(1),
+      assets: { "01": 1n },
+    });
+  const hexOf = (parts: TxPart[]) =>
+    transactionPrototypeToHex(assembleTxPrototype(parts, options).prototype);
+
+  it("leaves out an attached script a spent output holds: the transaction is the reference form's", () => {
+    const attached = assembleTxPrototype(
+      [spend.pubKey({ utxo: holder }), mintAttached(), pay],
+      options,
+    );
+    const { witness_set, body } = attached.prototype;
+    expect(witness_set.plutus_v3_scripts).toBeUndefined();
+    expect(attached.languages).toEqual(new Set(["V3"]));
+    expect(body.script_data_hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(body.mint).toEqual({ [policy]: { "01": "1" } });
+    expect(transactionPrototypeToHex(attached.prototype)).toBe(
+      hexOf([
+        spend.pubKey({ utxo: holder }),
+        mint.plutus({
+          script: { reference: holder },
+          redeemer: redeemer(1),
+          assets: { "01": 1n },
+        }),
+        pay,
+      ]),
+    );
+  });
+
+  it("leaves it out for a read output, and for a script spend of the output that holds it", () => {
+    const read = assembleTxPrototype(
+      [
+        keySpend("aa".repeat(32), 0),
+        referenceInput({ utxo: holder }),
+        mintAttached(),
+      ],
+      options,
+    ).prototype;
+    expect(read.witness_set.plutus_v3_scripts).toBeUndefined();
+    expect(read.body.reference_inputs).toEqual([
+      { transaction_id: "cc".repeat(32), index: 0 },
+    ]);
+    expect(read.body.script_data_hash).toMatch(/^[0-9a-f]{64}$/);
+
+    // A script output that holds its own validator as its reference script
+    const own = utxo("dd".repeat(32), 1, scriptAddress, {
+      plutusData: "d87980",
+      scriptRef: referenceScript,
+    });
+    const self = assembleTxPrototype(
+      [
+        spend.plutus({
+          utxo: own,
+          script: plutusScript,
+          redeemer: redeemer(2),
+        }),
+      ],
+      options,
+    ).prototype;
+    expect(self.witness_set.plutus_v3_scripts).toBeUndefined();
+    expect(self.body.reference_inputs).toBeUndefined();
+    expect(transactionPrototypeToHex(self)).toBe(
+      hexOf([
+        spend.plutus({
+          utxo: own,
+          script: { reference: own },
+          redeemer: redeemer(2),
+        }),
+      ]),
+    );
+  });
+
+  it("leaves it out when another part reads the same script by reference", () => {
+    const { prototype } = assembleTxPrototype(
+      [
+        spend.plutus({
+          utxo: scriptUtxo("aa".repeat(32), 0),
+          script: { reference: holder },
+          redeemer: redeemer(1),
+        }),
+        spend.plutus({
+          utxo: scriptUtxo("aa".repeat(32), 1),
+          script: plutusScript,
+          redeemer: redeemer(2),
+        }),
+      ],
+      options,
+    );
+    expect(prototype.witness_set.plutus_v3_scripts).toBeUndefined();
+    expect(prototype.body.reference_inputs).toEqual([
+      { transaction_id: "cc".repeat(32), index: 0 },
+    ]);
+    expect(prototype.witness_set.redeemers).toHaveLength(2);
+  });
+
+  it("leaves out an attached native script a spent output holds", () => {
+    const nativeHolder = utxo("cc".repeat(32), 1, walletAddress, {
+      scriptRef: resolveScriptRef(nativeScript),
+    });
+    const { prototype } = assembleTxPrototype(
+      [
+        spend.pubKey({ utxo: nativeHolder }),
+        mint.native({ script: nativeScript, assets: { "01": 5n } }),
+      ],
+      options,
+    );
+    expect(prototype.witness_set.native_scripts).toBeUndefined();
+    expect(prototype.body.mint).toEqual({
+      [resolveNativeScriptHash(nativeScript)]: { "01": "5" },
+    });
+    expect(prototype.body.script_data_hash).toBeUndefined();
+  });
+
+  it("keeps the script when no spent or read output holds it: collateral, another script, no script", () => {
+    const attachedV3 = (parts: TxPart[]) =>
+      assembleTxPrototype([...parts, mintAttached()], options).prototype
+        .witness_set.plutus_v3_scripts;
+    const scripts = attachedV3([keySpend("aa".repeat(32), 0)]);
+    expect(scripts).toHaveLength(1);
+    // A collateral input's reference script is not visible to the transaction
+    expect(
+      attachedV3([keySpend("aa".repeat(32), 0), collateral({ utxo: holder })]),
+    ).toEqual(scripts);
+    // Outputs that hold another script, spent and read
+    const other = (outputIndex: number) =>
+      utxo("dd".repeat(32), outputIndex, walletAddress, {
+        scriptRef: resolveScriptRef({ code: mintParamCbor(7), version: "V3" }),
+      });
+    expect(
+      attachedV3([
+        spend.pubKey({ utxo: other(0) }),
+        referenceInput({ utxo: other(1) }),
+      ]),
+    ).toEqual(scripts);
+    // A reference script the ledger could not read either
+    const unreadable = utxo("ee".repeat(32), 0, walletAddress, {
+      scriptRef: "ff00",
+    });
+    expect(attachedV3([spend.pubKey({ utxo: unreadable })])).toEqual(scripts);
+    // A reference input given by out ref alone
+    expect(
+      attachedV3([
+        keySpend("aa".repeat(32), 0),
+        referenceInput({ utxo: { txHash: "cc".repeat(32), outputIndex: 0 } }),
+      ]),
+    ).toEqual(scripts);
+  });
+});
+
 describe("assembleTxPrototype: guards", () => {
   const nativeHash = resolveNativeScriptHash(nativeScript);
   const guardError = (parts: TxPart[]) =>

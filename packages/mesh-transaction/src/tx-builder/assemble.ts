@@ -21,7 +21,9 @@ import type {
   VotingProposalPrototype,
 } from "@meshsdk/common";
 import {
+  HexBlob,
   plutusDataVariantToCardano,
+  Script,
   transactionPrototypeToHex,
 } from "@meshsdk/core-cst";
 
@@ -142,6 +144,34 @@ const groupParts = (parts: readonly TxPart[]): PartsByKind => {
 const outRef = (input: Readonly<TransactionInputPrototype>) =>
   `${input.transaction_id}#${input.index}`;
 
+/** Hashes of reference scripts already decoded, by the output that holds them */
+const decodedScriptRefs = new WeakMap<
+  object,
+  { scriptRef: string; hash: string | undefined }
+>();
+
+/**
+ * Hash of the script a UTxO holds as its reference script; none for a UTxO without one, or with
+ * one that cannot be decoded, which the ledger cannot read either
+ */
+const scriptRefHash = (
+  utxo: Readonly<UTxO> | undefined,
+): string | undefined => {
+  const scriptRef = utxo?.output.scriptRef;
+  if (!scriptRef) return undefined;
+  // Every balancing round assembles the same UTxOs again
+  const decoded = decodedScriptRefs.get(utxo.output);
+  if (decoded?.scriptRef === scriptRef) return decoded.hash;
+  let hash: string | undefined;
+  try {
+    hash = Script.fromCbor(HexBlob(scriptRef)).hash().toString();
+  } catch {
+    hash = undefined;
+  }
+  decodedScriptRefs.set(utxo.output, { scriptRef, hash });
+  return hash;
+};
+
 /** `item`: the repeated key, or the kind of a part a transaction holds once */
 const duplicate = (part: TxPart, message: string, item: string): never => {
   throw new TxBuildError("DUPLICATE_PART", message, {
@@ -199,7 +229,10 @@ const REDEEMER_TAG_RANK: Record<RedeemerTagPrototype["type"], number> = {
  * What is decided here, once, is everything that follows from the parts as a whole: the order
  * of inputs, policies, reward accounts and voters, and so every redeemer index; the reference
  * inputs scripts are read from; the deduplicated scripts and datums of the witness set; the
- * collateral return; the auxiliary data and script data hashes.
+ * collateral return; the auxiliary data and script data hashes. An attached script is left out
+ * of the witness set when an output the transaction spends or reads holds it as its reference
+ * script, as the ledger requires: the script runs from there, and its language still counts in
+ * the script data hash. Reference scripts of collateral inputs do not count.
  *
  * Redeemer functions are called here, once each per call, after every sorting: each gets the
  * final positions of the transaction (`RedeemerContext`), and the data it returns goes into the
@@ -301,6 +334,16 @@ export const assembleTxPrototype = (
   const scriptReferenceInputs: TransactionInputPrototype[] = [];
   /** The hashes of the scripts a witness names, attached or by reference */
   const witnessScripts = new Set<string>();
+  /**
+   * The hashes of the reference scripts of the outputs the transaction spends or reads. The
+   * ledger refuses a witness-set copy of such a script as extraneous, so an attached script among
+   * them is left out of the witness set; it still runs, and its language still counts.
+   */
+  const providedScripts = new Set<string>();
+  for (const part of [...spends, ...byKind.referenceInput]) {
+    const hash = scriptRefHash(part.utxo);
+    if (hash !== undefined) providedScripts.add(hash);
+  }
   const languages = new Set<LanguageVersion>();
   const datums = new Map<string, PlutusDataVariant>();
   const redeemers: AssembledRedeemer[] = [];
@@ -315,6 +358,8 @@ export const assembleTxPrototype = (
     if (source.scriptHash !== undefined) witnessScripts.add(source.scriptHash);
     if (source.type === "reference") {
       scriptReferenceInputs.push(source.input);
+      if (source.scriptHash !== undefined)
+        providedScripts.add(source.scriptHash);
       if ("version" in source && source.version) languages.add(source.version);
       return;
     }
@@ -468,14 +513,18 @@ export const assembleTxPrototype = (
     witnessSet.vkeys = options.vkeyWitnesses.map((w) => ({ ...w }));
   if (options.bootstrapWitnesses?.length)
     witnessSet.bootstraps = options.bootstrapWitnesses.map((w) => ({ ...w }));
-  if (nativeScripts.size > 0)
-    witnessSet.native_scripts = Array.from(nativeScripts.values());
+  const attached = <S>(scripts: Map<string, S>): S[] =>
+    Array.from(scripts)
+      .filter(([hash]) => !providedScripts.has(hash))
+      .map(([, script]) => script);
+  const natives = attached(nativeScripts);
+  if (natives.length > 0) witnessSet.native_scripts = natives;
   for (const version of ["V1", "V2", "V3"] as const) {
-    const scripts = plutusScripts[version];
-    if (scripts.size > 0)
+    const scripts = attached(plutusScripts[version]);
+    if (scripts.length > 0)
       witnessSet[
         `plutus_${version.toLowerCase() as "v1" | "v2" | "v3"}_scripts`
-      ] = Array.from(scripts.values());
+      ] = scripts;
   }
   if (datums.size > 0)
     witnessSet.plutus_data = {
