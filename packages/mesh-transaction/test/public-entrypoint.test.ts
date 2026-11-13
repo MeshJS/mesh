@@ -1,9 +1,12 @@
 import type {
+  IntentDeadlines,
   RedeemerContext,
   TxAttempt,
   TxAttemptStatus,
   TxIntentJSON,
   TxIntentStatus,
+  WaitOptions,
+  WaitTarget,
 } from "../src";
 import * as publicApi from "../src";
 
@@ -76,6 +79,30 @@ describe("public entrypoint", () => {
     expect(json.attempts[0]?.status).toBe("sent");
     expect(publicApi).not.toHaveProperty("advanceIntent");
   });
+
+  it("exports the deadline and wait types, and not the chain observer", () => {
+    const deadlines: IntentDeadlines = {
+      ttlMs: 600_000,
+      expiryMarginMs: 0,
+      confirmations: 0,
+    };
+    const waitFor: WaitTarget = "included";
+    const wait: WaitOptions = { waitFor, timeoutMs: 1_000, pollMs: 10 };
+    expect({ ...deadlines, ...wait }).toHaveProperty("waitFor", "included");
+    for (const name of [
+      "ChainObserver",
+      "chainObserver",
+      "errorFact",
+      "isRefusal",
+      "keepsAddressCache",
+      "searchThenTip",
+      "checkIntentDefaults",
+      "effectiveDeadlines",
+      "effectiveWait",
+      "horizonSlot",
+    ])
+      expect(publicApi).not.toHaveProperty(name);
+  });
 });
 
 type Equal<A, B> =
@@ -101,6 +128,8 @@ export const statusCases = () => {
     TxIntentStatus,
     TxAttemptStatus | "draft" | "abandoned"
   > = true;
+  const waitTargets: Equal<WaitTarget, "sent" | "included" | "final"> = true;
   void attemptStatuses;
   void intentStatuses;
+  void waitTargets;
 };

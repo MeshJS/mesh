@@ -1,6 +1,56 @@
 import type { NetworkConfig } from "@meshsdk/common";
 
 /**
+ * The deadlines of an intent. The builder's `intentDefaults` and an intent's own options give
+ * them; the effective numbers are written into the intent when it is created and never read from
+ * the builder again.
+ */
+export type IntentDeadlines = {
+  /**
+   * The validity of an attempt whose parts set no `until`, in ms: its deadline is
+   * `max(tip time, from) + ttlMs`, which is also the time left to sign it. Above 0; 600 000 when
+   * neither the intent nor the builder gives one. An attempt that runs a Plutus script may not
+   * end past the network's forecast horizon (`INVALID_STATE`, `pastHorizon`).
+   */
+  ttlMs?: number;
+  /**
+   * The margin after an attempt's deadline, in ms, before the intent calls it expired, may
+   * change the payer's anchor or may be closed; also the length of the double check's pause, up
+   * to a minute. It plays no part in `final`. 0 or more; 600 000 by default; 0 only on an
+   * emulator.
+   */
+  expiryMarginMs?: number;
+  /**
+   * The depth of `final`: at least this many blocks on top of the attempt's block, counted by
+   * block heights and never by time. A whole number, 0 or more; 30 by default; 0 only on an
+   * emulator.
+   */
+  confirmations?: number;
+};
+
+/**
+ * How far a call of `send()` or `advance()` waits: the answer to its delivery, a block, or
+ * `final`
+ */
+export type WaitTarget = "sent" | "included" | "final";
+
+/** The waiting of one call of `send()` or `advance()`; never written into the intent */
+export type WaitOptions = {
+  /** How far the call waits; `"sent"` by default */
+  waitFor?: WaitTarget;
+  /**
+   * How long the call waits for `"included"` or `"final"`, in ms, counted from the answer to its
+   * delivery, or from its start when it delivers nothing; then CONFIRM_TIMEOUT. Above 0;
+   * 120 000 by default, and for `"final"` the intent's `confirmations` × 30 000 + 120 000
+   */
+  timeoutMs?: number;
+  /** The pause between two looks at the chain, in ms; above 0; the builder's, else 5 000 */
+  pollMs?: number;
+  /** Aborts the whole call with ABORTED */
+  signal?: AbortSignal;
+};
+
+/**
  * Status of one attempt of an intent. An open list: a later version may add a value, and a value
  * this code does not know is not terminal.
  */

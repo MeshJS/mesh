@@ -44,6 +44,7 @@ import type {
 } from "./balance";
 import type { ChainedTx } from "./chain";
 import type { PartFailure } from "./errors";
+import type { IntentDeadlines } from "./intent/types";
 import type {
   CredentialInput,
   OutputPart,
@@ -85,6 +86,7 @@ import {
   valueSize,
 } from "./fee";
 import { auxiliaryDataHashOf, scriptDataHashOf } from "./hashes";
+import { checkIntentDefaults } from "./intent/deadlines";
 import {
   checkNetworks,
   checkProviderNetwork,
@@ -172,6 +174,15 @@ export type TxBuilderOptions = {
   costModels?: number[][];
   /** The governance deposits, which `Protocol` does not carry */
   deposits?: GovernanceDeposits;
+  /**
+   * The defaults of this builder's intents. The deadlines (`ttlMs`, `expiryMarginMs`,
+   * `confirmations`) are copied into an intent when it is made, where its own options do not
+   * give them, and never read again. `pollMs` (above 0; 5 000 when not given) is the pause
+   * between two looks at the chain while a call waits, where the call gives none; `resendMs`
+   * (at least `pollMs`; 120 000 when not given) how often the same bytes go again while an
+   * intent is sent. Neither is written into an intent. Checked by the constructor.
+   */
+  intentDefaults?: IntentDeadlines & { pollMs?: number; resendMs?: number };
 };
 
 /** One entry of a parts list: a part, a nested list of parts, or a value that is skipped */
@@ -880,6 +891,10 @@ export class TxBuilder {
   /** The `costModels` option; never what was read from the provider */
   readonly costModels?: number[][];
   readonly deposits: GovernanceDeposits;
+  /** The `intentDefaults` option, checked; only the members it knows, as given */
+  readonly intentDefaults?: Readonly<
+    IntentDeadlines & { pollMs?: number; resendMs?: number }
+  >;
   /** The shared cache of the provider; every read goes through it */
   private readonly cache?: CachedFetcher;
   /** The parts added with `add`, flat and in order, as they were given; `build` takes them first */
@@ -889,10 +904,15 @@ export class TxBuilder {
    * @throws TxBuildError INVALID_OPTION for a missing or unacceptable `network`;
    *   UNSUPPORTED_SERIALIZER for a serializer without `serializeTxPrototype`;
    *   MISSING_PARAMETER with neither a provider nor `params`;
-   *   NETWORK_MISMATCH when the provider states another network
+   *   NETWORK_MISMATCH when the provider states another network;
+   *   INVALID_OPTION for an `intentDefaults` that is not an object, or names the first of its
+   *   members out of range: `ttlMs` or `pollMs` not above 0, `expiryMarginMs` below 0,
+   *   `confirmations` not a whole number 0 or more, `resendMs` below the builder's `pollMs`
    */
   constructor(options: TxBuilderOptions) {
     this.network = resolveNetwork(options?.network);
+    const intentDefaults = checkIntentDefaults(options.intentDefaults);
+    if (intentDefaults) this.intentDefaults = intentDefaults;
     if (options.serializer) {
       if (!options.serializer.serializeTxPrototype)
         throw new TxBuildError(

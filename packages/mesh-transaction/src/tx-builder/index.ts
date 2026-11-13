@@ -60,8 +60,11 @@ export {
   type Signer,
 } from "./sign";
 export type {
+  IntentDeadlines,
   TxAttempt,
   TxAttemptStatus,
   TxIntentJSON,
   TxIntentStatus,
+  WaitOptions,
+  WaitTarget,
 } from "./intent/types";
