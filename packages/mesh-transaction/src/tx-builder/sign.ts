@@ -12,7 +12,7 @@ import {
 } from "@meshsdk/core-cst";
 
 import type { RequiredKeys } from "./payer";
-import type { PartRef, SignerRole, TxSigners } from "./witnesses";
+import type { Collected, PartRef, SignerRole, TxSigners } from "./witnesses";
 import { TxBuildError, TxIntentError } from "./errors";
 import { errorText } from "./parts/normalize";
 import { walletCodeOf } from "./payer";
@@ -749,6 +749,22 @@ export function requiredSigners(tx: string, spent: readonly UTxO[]): TxSigners {
         details: { option: "spent", value: spent, allowed: "a list of UTxOs" },
       },
     );
+  return signersOf(bodySigners(raw, spent).collected);
+}
+
+/**
+ * What a serialized transaction needs signed, as `requiredSigners` works it out, with the hashes
+ * of the scripts its body calls for: the payment credentials of its spent inputs, its minted
+ * policies, the script credentials of its withdrawals, certificates and voters, and the policy
+ * hashes of its proposals
+ * @throws TxBuildError UTXO_NOT_FOUND for an input or collateral input whose UTxO is not in
+ *   `spent`; INVALID_OPTION for a body that cannot be read
+ */
+export const bodySigners = (
+  raw: RawTx,
+  spent: readonly UTxO[],
+): { collected: Collected; scripts: Set<string> } => {
+  const tx = raw.hex;
   // Only the body is decoded, and without its proposals: of those only the policy hash is
   // needed, read below from the actions as they are
   const proposals = raw.transaction.body().proposalProcedures()?.values() ?? [];
@@ -810,7 +826,7 @@ export function requiredSigners(tx: string, spent: readonly UTxO[]): TxSigners {
   for (const utxo of collateral)
     addAddress(collected, utxo, item("collateral"), "collateral");
   for (const keyHash of body.required_signers ?? [])
-    addKey(collected, keyHash, item("requiredSigner"), "guard");
+    addKey(collected, keyHash, item("guard"), "guard");
   for (const rewardAddress of Object.keys(body.withdrawals ?? {})) {
     const account = Address.fromString(rewardAddress)
       ?.asReward()
@@ -859,5 +875,5 @@ export function requiredSigners(tx: string, spent: readonly UTxO[]): TxSigners {
     );
     if (native && scripts.has(native.hash)) addNativeScript(collected, native);
   }
-  return signersOf(collected);
-}
+  return { collected, scripts };
+};

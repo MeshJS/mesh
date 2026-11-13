@@ -36,7 +36,7 @@ import {
   TxPartError,
   utxosAfter,
 } from "../../src/tx-builder";
-import { minFee } from "../../src/tx-builder/fee";
+import { feeForSize } from "../../src/tx-builder/fee";
 import { alwaysSucceedCbor, baseAddress, keyHashHex } from "../test-util";
 
 const params: Protocol = { ...DEFAULT_PROTOCOL_PARAMETERS };
@@ -726,13 +726,13 @@ describe("TxBuilder: after", () => {
     ]);
     // One key witness: the payer's input or collateral, both at one key
     const witnessBytes = 101n + 1n + 1n + 1n;
-    const priced = minFee(
+    const priced = feeForSize(
       built.tx.length / 2 + Number(witnessBytes),
       scriptSize,
       built.exUnits,
       params,
     );
-    const unpriced = minFee(
+    const unpriced = feeForSize(
       built.tx.length / 2 + Number(witnessBytes),
       0n,
       built.exUnits,
@@ -855,13 +855,13 @@ describe("TxBuilder: knownUtxos", () => {
     expect(built.referenceInputs).toEqual([holder]);
     // One key witness: the payer's collateral
     const witnessBytes = 101n + 1n + 1n + 1n;
-    const priced = minFee(
+    const priced = feeForSize(
       built.tx.length / 2 + Number(witnessBytes),
       scriptSize,
       built.exUnits,
       params,
     );
-    const unpriced = minFee(
+    const unpriced = feeForSize(
       built.tx.length / 2 + Number(witnessBytes),
       0n,
       built.exUnits,

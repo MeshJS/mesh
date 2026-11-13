@@ -1,12 +1,19 @@
 import type {
   Protocol,
+  TransactionBodyPrototype,
   TransactionOutputPrototype,
+  TransactionPrototype,
+  UTxO,
   ValuePrototype,
 } from "@meshsdk/common";
 import {
   transactionOutputPrototypeToCardano,
+  transactionPrototypeToHex,
   valuePrototypeToCardano,
 } from "@meshsdk/core-cst";
+
+import type { OutputPart } from "./parts/types";
+import { placeholderWitnesses } from "./witnesses";
 
 /** A non-negative rational number */
 type Ratio = { n: bigint; d: bigint };
@@ -76,12 +83,12 @@ export const exUnitsFee = (
 };
 
 /**
- * The minimum fee of a transaction.
+ * The minimum fee of a transaction of a known size.
  * @param txSize Size of the transaction with all its witnesses, in bytes
  * @param refScriptSize Total size of the reference scripts its inputs and reference inputs hold
  * @param exUnits Total execution units of its redeemers
  */
-export const minFee = (
+export const feeForSize = (
   txSize: number,
   refScriptSize: bigint,
   exUnits: { mem: bigint; steps: bigint },
@@ -103,10 +110,10 @@ export const valueSize = (value: ValuePrototype): number =>
 
 /**
  * The least lovelace an output must hold: `(160 + size) * coinsPerUtxoSize`, where the size
- * counts the lovelace itself. Starts from the output's own lovelace and grows it until it
- * covers its own size.
+ * counts the lovelace itself. Starts from no lovelace, whatever the output holds, and grows the
+ * amount until it covers its own size.
  */
-export const minCoin = (
+export const outputMinCoin = (
   output: TransactionOutputPrototype,
   coinsPerUtxoSize: number,
 ): bigint => {
@@ -130,3 +137,97 @@ export const coversMinCoin = (
 ): boolean =>
   BigInt(output.amount.coin) >=
   (OUTPUT_OVERHEAD + BigInt(outputSize(output))) * BigInt(coinsPerUtxoSize);
+
+/** The total size of the reference scripts held by the UTxOs a transaction body spends or reads */
+export const bodyRefScriptSize = (
+  body: Readonly<TransactionBodyPrototype>,
+  utxos: readonly UTxO[],
+): bigint => {
+  const byOutRef = new Map(
+    utxos.map((utxo) => [
+      `${utxo.input.txHash.toLowerCase()}#${utxo.input.outputIndex}`,
+      utxo,
+    ]),
+  );
+  let size = 0n;
+  for (const input of [...body.inputs, ...(body.reference_inputs ?? [])]) {
+    const scriptRef = byOutRef.get(
+      `${input.transaction_id.toLowerCase()}#${input.index}`,
+    )?.output.scriptRef;
+    if (scriptRef) size += BigInt(scriptRef.length / 2);
+  }
+  return size;
+};
+
+/** The execution units of a transaction's redeemers, added up */
+export const prototypeExUnits = (
+  prototype: Readonly<TransactionPrototype>,
+): { mem: bigint; steps: bigint } =>
+  (prototype.witness_set.redeemers ?? []).reduce(
+    (total, r) => ({
+      mem: total.mem + BigInt(r.ex_units.mem),
+      steps: total.steps + BigInt(r.ex_units.steps),
+    }),
+    { mem: 0n, steps: 0n },
+  );
+
+/**
+ * The minimum fee of a prototype once signed: placeholder witnesses for `vkeyWitnesses` keys,
+ * and the reference-script fee for the scripts `inputs` hold.
+ *
+ * The placeholders stand in place of the prototype's own key witnesses, which are not counted on
+ * top; its bootstrap witnesses are sized as given. The size is the one the prototype encoder of
+ * `@meshsdk/core-cst` gives. The reference scripts counted are those of the UTxOs in `inputs`
+ * that the body spends or reads; without `inputs` there are none. The execution units are those
+ * the prototype's redeemers state. Pure and synchronous; the prototype is left as given.
+ *
+ * `minFeeA * size + minFeeB + referenceScriptFee + ceil(mem * priceMem + steps * priceStep)`,
+ * in exact arithmetic, the reference scripts priced in 25 KiB tiers each 1.2 times the last.
+ * @param context.params The protocol parameters
+ * @param context.vkeyWitnesses How many key witnesses the signed transaction carries
+ * @param context.inputs UTxOs of the body's inputs and reference inputs, for their reference
+ *   scripts
+ */
+export const minFee = (
+  prototype: TransactionPrototype,
+  context: {
+    params: Protocol;
+    vkeyWitnesses: number;
+    inputs?: readonly UTxO[];
+  },
+): bigint => {
+  const { params, vkeyWitnesses, inputs = [] } = context;
+  const { vkeyWitnesses: vkeys } = placeholderWitnesses(
+    { keyHashes: new Set(), byronAddresses: new Set() },
+    vkeyWitnesses,
+  );
+  // The placeholders take the place of the key witnesses the prototype holds
+  const witnessSet = { ...prototype.witness_set };
+  delete witnessSet.vkeys;
+  if (vkeys.length > 0) witnessSet.vkeys = vkeys;
+  const signed = { ...prototype, witness_set: witnessSet };
+  return feeForSize(
+    transactionPrototypeToHex(signed).length / 2,
+    bodyRefScriptSize(prototype.body, inputs),
+    prototypeExUnits(prototype),
+    params,
+  );
+};
+
+/**
+ * The least lovelace an output must hold: (160 + size) * coinsPerUtxoSize, the size counting
+ * the lovelace itself, and the output's datum and reference script. The part's own lovelace is
+ * not counted, so a part with lovelace and the same part without give the same number: the one
+ * a build puts into an output given without lovelace. Pure and synchronous; no I/O.
+ */
+export const minCoin = (
+  output: OutputPart,
+  params: Pick<Protocol, "coinsPerUtxoSize">,
+): bigint =>
+  outputMinCoin(
+    {
+      ...output.output,
+      amount: { ...output.output.amount, coin: "0" },
+    } as TransactionOutputPrototype,
+    params.coinsPerUtxoSize,
+  );

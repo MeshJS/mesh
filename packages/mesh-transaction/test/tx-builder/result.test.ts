@@ -31,9 +31,9 @@ import {
   certificate,
   collateral,
   collateralReturn,
+  guard,
   output,
   referenceInput,
-  requiredSigner,
   spend,
   TxBuilder,
   TxBuildError,
@@ -42,7 +42,7 @@ import {
   vote,
   withdrawal,
 } from "../../src/tx-builder";
-import { minFee } from "../../src/tx-builder/fee";
+import { feeForSize } from "../../src/tx-builder/fee";
 import {
   alwaysSucceedCbor,
   baseAddress,
@@ -156,7 +156,7 @@ const signedMinFee = (built: BuiltTx, signers: number) => {
     (size, u) => size + BigInt((u.output.scriptRef?.length ?? 0) / 2),
     0n,
   );
-  return minFee(
+  return feeForSize(
     built.tx.length / 2 + witnessBytes,
     refScripts,
     built.exUnits,
@@ -449,7 +449,7 @@ describe("BuiltTx: signers", () => {
           utxo: utxo(lovelace(ada(5)), {}, collateralOwner),
           label: "backing",
         }),
-        requiredSigner({ keyHash: keyHashHex(10), label: "approver" }),
+        guard.pubKey({ keyHash: keyHashHex(10), label: "approver" }),
         withdrawal.pubKey({
           rewardAddress: keyHashToRewardAddress(keyHashHex(11), 0),
           amount: 0n,
@@ -491,7 +491,7 @@ describe("BuiltTx: signers", () => {
       { part: "collateral", label: "backing", role: "collateral" },
     ]);
     expect(neededBy(built, keyHashHex(10))).toEqual([
-      { part: "requiredSigner", label: "approver", role: "guard" },
+      { part: "guard", label: "approver", role: "guard" },
     ]);
     expect(neededBy(built, keyHashHex(11))).toEqual([
       { part: "withdrawal", label: "rewards", role: "withdrawal" },
@@ -563,8 +563,8 @@ describe("BuiltTx: signers", () => {
           utxo: utxo(lovelace(ada(2)), {}, spender),
           label: "same",
         }),
-        requiredSigner({ keyHash: keyHashHex(10) }),
-        requiredSigner({ keyHash: keyHashHex(10) }),
+        guard.pubKey({ keyHash: keyHashHex(10) }),
+        guard.pubKey({ keyHash: keyHashHex(10) }),
         certificate.poolRegistration({
           params: {
             operator: keyHashHex(13),
@@ -589,8 +589,8 @@ describe("BuiltTx: signers", () => {
       { part: "spend", label: "same", role: "input" },
     ]);
     expect(neededBy(built, keyHashHex(10))).toEqual([
-      { part: "requiredSigner", role: "guard" },
-      { part: "requiredSigner", role: "guard" },
+      { part: "guard", role: "guard" },
+      { part: "guard", role: "guard" },
     ]);
     expect(built.selectedInputs).toHaveLength(2);
     expect(neededBy(built, walletKey)).toEqual([
@@ -606,15 +606,15 @@ describe("BuiltTx: signers", () => {
   it("lists the keys in the order the parts first need them", async () => {
     const built = await builder().build(
       [
-        requiredSigner({ keyHash: keyHashHex(21) }),
+        guard.pubKey({ keyHash: keyHashHex(21) }),
         spend.pubKey({ utxo: utxo(lovelace(ada(5)), {}, baseAddress(5)) }),
-        requiredSigner({ keyHash: keyHashHex(20) }),
+        guard.pubKey({ keyHash: keyHashHex(20) }),
       ],
       { payer: payer(utxo(lovelace(ada(50)))) },
     );
     const order = built.parts.flatMap((p) =>
-      p.kind === "requiredSigner"
-        ? [p.keyHash]
+      p.kind === "guard"
+        ? [p.credential.value]
         : p.kind === "spend"
           ? [keyOf(p.utxo!.output.address)]
           : [],

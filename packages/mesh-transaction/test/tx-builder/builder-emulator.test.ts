@@ -27,7 +27,7 @@ import {
   vote,
   withdrawal,
 } from "../../src/tx-builder";
-import { minFee } from "../../src/tx-builder/fee";
+import { feeForSize } from "../../src/tx-builder/fee";
 import {
   alwaysSucceedCbor,
   alwaysSucceedHash,
@@ -98,7 +98,7 @@ describe("TxBuilder on the emulator", () => {
       );
       refScripts += BigInt((utxo?.output.scriptRef?.length ?? 0) / 2);
     }
-    const min = minFee(tx.length / 2, refScripts, built.exUnits, params);
+    const min = feeForSize(tx.length / 2, refScripts, built.exUnits, params);
     expect(built.fee).toBeGreaterThanOrEqual(min);
     expect(built.fee - min).toBeLessThanOrEqual(5n * 44n);
     const txHash = await provider.submitTx(tx);

@@ -1,18 +1,25 @@
 import { NativeScript } from "@meshsdk/core";
+import {
+  Address,
+  HexBlob,
+  keyHashToRewardAddress,
+  scriptHashToRewardAddress,
+} from "@meshsdk/core-cst";
 
 import {
   auxiliaryScript,
   donation,
+  guard,
+  message,
   metadata,
   mint,
   networkId,
-  requiredSigner,
   treasuryValue,
   TxPartError,
   unresolved,
   validity,
 } from "../../../src/tx-builder";
-import { alwaysSucceedCbor } from "../../test-util";
+import { alwaysSucceedCbor, baseAddress, keyHashHex } from "../../test-util";
 
 const expectPartError = (build: () => unknown, code: string) => {
   try {
@@ -25,16 +32,110 @@ const expectPartError = (build: () => unknown, code: string) => {
   throw new Error(`expected a ${code} error`);
 };
 
-describe("requiredSigner", () => {
-  it("takes a key hash", () => {
-    const part = requiredSigner({ keyHash: "AB".repeat(28) });
+/** A Shelley address on a test network from its header byte and payment (and stake) hash */
+const shelleyAddress = (header: number, ...hashes: string[]) =>
+  Address.fromBytes(
+    HexBlob(header.toString(16).padStart(2, "0") + hashes.join("")),
+  ).toBech32();
+const hexOf = (bech32: string) => Address.fromBech32(bech32).toBytes();
+const byronAddress =
+  "DdzFFzCqrhswh7xiYG8RE1TtcvWamhbExTXfsCYaF9PrGWHRLCwCsBH5JkeApUagvo4FZE3DJD3rn5hw8vaMBib2StKMJ77rJHt51jPt";
 
-    expect(part).toEqual({ kind: "requiredSigner", keyHash: "ab".repeat(28) });
+/** The TxPartError a call throws */
+const partError = (build: () => unknown): TxPartError => {
+  try {
+    build();
+  } catch (error) {
+    expect(error).toBeInstanceOf(TxPartError);
+    return error as TxPartError;
+  }
+  throw new Error("expected a TxPartError");
+};
+
+describe("guard.pubKey", () => {
+  it("takes a key hash in either case and keeps it in lower case", () => {
+    const part = guard.pubKey({ keyHash: "AB".repeat(28) });
+
+    expect(part).toEqual({
+      kind: "guard",
+      credential: { type: "KEY", value: "ab".repeat(28) },
+      witness: { type: "key" },
+    });
+    expect(Object.isFrozen(part)).toBe(true);
+    expect(Object.isFrozen(part.credential)).toBe(true);
     expect(unresolved(part)).toEqual([]);
+    expect(
+      guard.pubKey({ keyHash: "ab".repeat(28), label: "approver" }).label,
+    ).toBe("approver");
   });
 
-  it("rejects anything but a 28-byte hash", () => {
-    expectPartError(() => requiredSigner({ keyHash: "ab" }), "INVALID_DATA");
+  it("rejects anything but a 28-byte hash, naming the part", () => {
+    const error = partError(() =>
+      guard.pubKey({ keyHash: "ab", label: "approver" }),
+    );
+    expect(error.code).toBe("INVALID_DATA");
+    expect(error.part).toBe("guard");
+    expect(error.label).toBe("approver");
+  });
+
+  it("takes the payment key of an address, in bech32 or hex", () => {
+    const fromHash = guard.pubKey({ keyHash: keyHashHex(1) });
+    const base = baseAddress(1);
+
+    expect(guard.pubKey({ address: base })).toEqual(fromHash);
+    expect(guard.pubKey({ address: hexOf(base) })).toEqual(fromHash);
+    // An enterprise address of the same key
+    expect(
+      guard.pubKey({ address: shelleyAddress(0x60, keyHashHex(1)) }),
+    ).toEqual(fromHash);
+  });
+
+  it("refuses a script address, and a string that is no address", () => {
+    const script = shelleyAddress(0x70, "c".repeat(56));
+    expectPartError(
+      () => guard.pubKey({ address: script }),
+      "WITNESS_MISMATCH",
+    );
+    expectPartError(
+      () => guard.pubKey({ address: hexOf(script) }),
+      "WITNESS_MISMATCH",
+    );
+    expectPartError(
+      () => guard.pubKey({ address: "not an address" }),
+      "INVALID_ADDRESS",
+    );
+  });
+
+  it("refuses reward and Byron addresses, which have no payment key", () => {
+    for (const address of [
+      keyHashToRewardAddress(keyHashHex(1), 0),
+      scriptHashToRewardAddress("c".repeat(56), 0),
+      byronAddress,
+    ])
+      expectPartError(() => guard.pubKey({ address }), "INVALID_ADDRESS");
+  });
+
+  it("refuses both forms at once, also naming one key, and neither", () => {
+    expectPartError(
+      () =>
+        guard.pubKey({
+          keyHash: keyHashHex(1),
+          address: baseAddress(1),
+        } as unknown as { keyHash: string }),
+      "INVALID_DATA",
+    );
+    expectPartError(
+      () =>
+        guard.pubKey({
+          keyHash: keyHashHex(2),
+          address: baseAddress(1),
+        } as unknown as { keyHash: string }),
+      "INVALID_DATA",
+    );
+    expectPartError(
+      () => guard.pubKey({} as unknown as { keyHash: string }),
+      "INVALID_DATA",
+    );
   });
 });
 
@@ -321,6 +422,78 @@ describe("metadata", () => {
       () => metadata({ metadataLabel: -1, value: 1 }),
       "INVALID_DATA",
     );
+  });
+});
+
+describe("message", () => {
+  const linesOf = (part: ReturnType<typeof message>) => {
+    const value = part.value as {
+      type: "MAP";
+      value: [unknown, { type: "LIST"; value: { value: string }[] }][];
+    };
+    return value.value[0]![1].value.map((line) => line.value);
+  };
+  const bytes = (text: string) => new TextEncoder().encode(text).length;
+
+  it("is CIP-20 metadata under label 674, labelled as given", () => {
+    expect(message({ text: "Invoice #42 paid" })).toEqual(
+      metadata({ metadataLabel: 674, value: { msg: ["Invoice #42 paid"] } }),
+    );
+    const part = message({ text: "Invoice #42 paid", label: "memo" });
+    expect(part.label).toBe("memo");
+    expect(part.metadataLabel).toBe("674");
+  });
+
+  it("cuts text longer than 64 bytes into lines of 64", () => {
+    expect(linesOf(message({ text: "a".repeat(65) })).map(bytes)).toEqual([
+      64, 1,
+    ]);
+    expect(linesOf(message({ text: "b".repeat(129) })).map(bytes)).toEqual([
+      64, 64, 1,
+    ]);
+  });
+
+  it("cuts only between characters, a code point being one", () => {
+    const twoByte = "é".repeat(33);
+    expect(linesOf(message({ text: twoByte }))).toEqual(["é".repeat(32), "é"]);
+    // A four-byte character is two code units of the string, and is never cut in two
+    const mixed = "a".repeat(62) + "😀";
+    const lines = linesOf(message({ text: mixed }));
+    expect(lines).toEqual(["a".repeat(62), "😀"]);
+    // Its first code unit alone would still fit in the line
+    expect(linesOf(message({ text: "a".repeat(61) + "😀" }))).toEqual([
+      "a".repeat(61),
+      "😀",
+    ]);
+    for (const text of [twoByte, mixed, "ж😀a".repeat(40)]) {
+      const cut = linesOf(message({ text }));
+      expect(cut.join("")).toBe(text);
+      for (const line of cut) expect(bytes(line)).toBeLessThanOrEqual(64);
+    }
+  });
+
+  it("cuts each text of a list on its own, keeping the order", () => {
+    expect(
+      linesOf(message({ text: ["short", "c".repeat(70), "last"] })),
+    ).toEqual(["short", "c".repeat(64), "c".repeat(6), "last"]);
+  });
+
+  it("keeps an empty text as an empty line", () => {
+    expect(linesOf(message({ text: "" }))).toEqual([""]);
+    expect(linesOf(message({ text: ["a", "", "b"] }))).toEqual(["a", "", "b"]);
+  });
+
+  it("refuses an empty list and what is not text", () => {
+    for (const text of [[], 42, ["a", 7], null])
+      expect(
+        partError(() =>
+          message({ text: text as unknown as string, label: "memo" }),
+        ),
+      ).toMatchObject({
+        code: "INVALID_DATA",
+        part: "metadata",
+        label: "memo",
+      });
   });
 });
 

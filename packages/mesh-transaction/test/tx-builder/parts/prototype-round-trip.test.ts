@@ -16,12 +16,12 @@ import {
   collateral,
   collateralReturn,
   donation,
+  guard,
   metadata,
   mint,
   networkId,
   output,
   referenceInput,
-  requiredSigner,
   spend,
   treasuryValue,
   TxPart,
@@ -115,8 +115,8 @@ const toPrototype = (parts: TxPart[]): TransactionPrototype => {
           [part.rewardAddress!]: part.amount ?? "0",
         };
         break;
-      case "requiredSigner":
-        (body.required_signers ??= []).push(part.keyHash);
+      case "guard":
+        (body.required_signers ??= []).push(part.credential.value);
         break;
       case "validity":
         body.validity_start_interval = part.invalidBefore;
@@ -259,7 +259,7 @@ describe("parts as TransactionPrototype fragments", () => {
         assets: { abcd: 1n },
       }),
       withdrawal.pubKey({ rewardAddress: rewardAddress(1), amount: 7n }),
-      requiredSigner({ keyHash: "e".repeat(56) }),
+      guard.pubKey({ keyHash: "e".repeat(56) }),
       validity({ invalidBefore: 0, invalidHereafter: 1000 }),
       networkId({ network: "testnet" }),
       donation({ amount: 3n }),

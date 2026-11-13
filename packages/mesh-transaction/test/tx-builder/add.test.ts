@@ -30,9 +30,9 @@ import {
   BuiltTx,
   certificate,
   collateralReturn,
+  guard,
   output,
   referenceInput,
-  requiredSigner,
   spend,
   TxBuilder,
   TxBuildError,
@@ -414,7 +414,7 @@ describe("TxBuilder.add", () => {
       const signer = keyHashHex(7);
       const parts = [
         referenceInput({ utxo: read }),
-        requiredSigner({ keyHash: signer }),
+        guard.pubKey({ keyHash: signer }),
       ];
       const built = await builder()
         .add(...parts)

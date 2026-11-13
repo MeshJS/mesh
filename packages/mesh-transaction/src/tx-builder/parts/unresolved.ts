@@ -97,7 +97,7 @@ export const unresolved = (part: TxPart): Unresolved[] => {
       return part.from !== undefined || part.until !== undefined
         ? [{ type: "slot" }]
         : [];
-    case "requiredSigner":
+    case "guard":
     case "metadata":
     case "auxiliaryScript":
     case "donation":

@@ -289,6 +289,9 @@ export const certificate = {
    * Register a stake credential without stating its deposit (certificate 0). It takes no
    * witness; the deposit is the `keyDeposit` protocol parameter.
    * @param params.stake A reward address, or the credential
+   * @deprecated The next ledger era does not decode certificate 0. Use
+   *   `certificate.stakeRegistration`, which states the deposit; unlike this form it needs the
+   *   credential's witness: its key's signature, or the script given as `witness`.
    */
   legacyStakeRegistration: (
     params: Labelled & { stake: CredentialInput },
@@ -312,6 +315,9 @@ export const certificate = {
    * Deregister a stake credential without stating the refund (certificate 1).
    * @param params.stake A reward address, or the credential
    * @param params.witness The script authorising a script credential
+   * @deprecated The next ledger era does not decode certificate 1. Use
+   *   `certificate.stakeDeregistration`, which states the refund; a Plutus script credential is
+   *   then witnessed by a V3 script only.
    */
   legacyStakeDeregistration: (
     params: Witnessed & { stake: CredentialInput },

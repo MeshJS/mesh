@@ -39,6 +39,7 @@ export {
   type BuildWarning,
 } from "./builder";
 export { outputOf, utxosAfter } from "./chain";
+export { minFee, minCoin } from "./fee";
 export {
   canSubmit,
   type MeshFormatWallet,

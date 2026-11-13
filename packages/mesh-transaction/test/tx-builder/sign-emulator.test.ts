@@ -13,8 +13,8 @@ import {
   addWitnesses,
   BuiltTx,
   certificate,
+  guard,
   output,
-  requiredSigner,
   requiredSigners,
   signedKeyHashes,
   signWitnesses,
@@ -248,8 +248,8 @@ describe.each(["scalus", "cquisitor"] as const)(
             utxo: emulator.utxos({ address: scriptAddress })[0]!,
             script: native,
           }),
-          requiredSigner({ keyHash: pubKeyHash }),
-          requiredSigner({ keyHash: stakeCredentialHash }),
+          guard.pubKey({ keyHash: pubKeyHash }),
+          guard.pubKey({ keyHash: stakeCredentialHash }),
           output({ address: recipient, value: { lovelace: 15_000_000n } }),
         ],
         { payer: address },
@@ -326,7 +326,7 @@ describe("signing functions on TxEmulator", () => {
           script: vesting,
           redeemer: { data: mConStr0([]) },
         }),
-        requiredSigner({ keyHash: beneficiary.keyHash, label: "beneficiary" }),
+        guard.pubKey({ keyHash: beneficiary.keyHash, label: "beneficiary" }),
         validity({ from: lockUntil + 1 }),
       ],
       { payer: beneficiary.address },
@@ -335,7 +335,7 @@ describe("signing functions on TxEmulator", () => {
       built.signers.keys.find((k) => k.keyHash === beneficiary.keyHash)
         ?.neededBy,
     ).toContainEqual({
-      part: "requiredSigner",
+      part: "guard",
       label: "beneficiary",
       role: "guard",
     });

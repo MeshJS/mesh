@@ -5,6 +5,7 @@ import type {
   IFetcher,
   IMeshTxSerializer,
   ISubmitter,
+  LanguageVersion,
   NativeScript,
   NetworkConfig,
   NetworkInput,
@@ -25,8 +26,10 @@ import {
 } from "@meshsdk/common";
 import {
   CborWriter,
+  HexBlob,
   OfflineEvaluatorScalus,
   plutusDataVariantToCardano,
+  Script,
   Transaction,
   transactionPrototypeToHex,
   TxCBOR,
@@ -73,7 +76,14 @@ import {
   spentByTransactions,
 } from "./chain";
 import { TxBuildError } from "./errors";
-import { coversMinCoin, minCoin, valueSize } from "./fee";
+import {
+  bodyRefScriptSize,
+  coversMinCoin,
+  feeForSize,
+  outputMinCoin,
+  prototypeExUnits,
+  valueSize,
+} from "./fee";
 import { auxiliaryDataHashOf, scriptDataHashOf } from "./hashes";
 import {
   checkNetworks,
@@ -95,7 +105,9 @@ import {
   toUtxo,
 } from "./payer";
 import { resolveParts, resolveValidity, utxoKey } from "./resolve";
-import { txSigners } from "./witnesses";
+import { bodySigners, readTransaction } from "./sign";
+import { fromAssets } from "./value";
+import { placeholderWitnesses, signersOf, txSigners } from "./witnesses";
 
 /**
  * What the builder reads the chain through: every read, the tip and the search; submits when it
@@ -257,7 +269,7 @@ const PART_KINDS: ReadonlySet<string> = new Set(
     output: true,
     mint: true,
     withdrawal: true,
-    requiredSigner: true,
+    guard: true,
     validity: true,
     metadata: true,
     auxiliaryScript: true,
@@ -549,8 +561,8 @@ export type BuiltRedeemer = {
   exUnits: { mem: bigint; steps: bigint };
   /** The redeemer data, in CBOR hex, as the transaction carries it */
   data: string;
-  /** The part the redeemer belongs to */
-  part: AssembledRedeemer["part"];
+  /** The part the redeemer belongs to; absent on a transaction completed by `finalize`, which has no parts */
+  part?: AssembledRedeemer["part"];
   label?: string;
 };
 
@@ -578,7 +590,10 @@ export type BuildWarning = {
 export type BuiltOutput = UTxO & {
   /** The label of the output part it comes from */
   readonly label?: string;
-  /** Set on change outputs: those at the payer's change address that took change */
+  /**
+   * Set on change outputs: those at the payer's change address that took change; of a
+   * transaction completed by `finalize`, every output at its `changeAddress`
+   */
   readonly change?: true;
 };
 
@@ -613,7 +628,10 @@ export type BuiltTx = {
    * has the same change address, it can then select this change.
    */
   change: BuiltOutput[];
-  /** The collateral, when the transaction runs Plutus scripts */
+  /**
+   * The collateral, when the transaction runs Plutus scripts; of a transaction completed by
+   * `finalize`, whenever the body has collateral inputs
+   */
   collateral?: CollateralPlan;
   /** The keys that must sign, and why */
   signers: TxSigners;
@@ -631,7 +649,10 @@ export type BuiltTx = {
   network: { name: string; networkId: 0 | 1 };
   /** What is worth knowing about the transaction and did not stop the build; often empty */
   warnings: BuildWarning[];
-  /** Every part of the transaction, resolved, the ones added by balancing included */
+  /**
+   * Every part of the transaction, resolved, the ones added by balancing included; empty on a
+   * transaction completed by `finalize`
+   */
   parts: TxPart[];
 };
 
@@ -1013,6 +1034,269 @@ export class TxBuilder {
     return this.serializer
       ? this.serializer.serializeTxPrototype!(prototype)
       : transactionPrototypeToHex(prototype);
+  }
+
+  /**
+   * Completes an edited or hand-assembled prototype without balancing it: recomputes the script
+   * data and auxiliary data hashes, prices it for its signers and, given `changeAddress`, takes
+   * a fee increase from the change output there: the last output at that address that still
+   * holds its minimum lovelace afterwards. A fee that covers the minimum is kept as it is.
+   *
+   * Scripts are not run again: redeemers keep the execution units the prototype states. After an
+   * edit that a script can see, build again from parts instead. Collateral is not changed. Key
+   * and bootstrap witnesses of the prototype are dropped: the result is unsigned, and priced for
+   * the keys the prototype calls for, no others. The prototype given is not changed.
+   *
+   * The result has no parts: `parts` and `selectedInputs` are empty, redeemers carry no `part`
+   * and outputs no `label`. `change` holds every output at `changeAddress`, a payment to that
+   * address included; without `changeAddress` it is empty.
+   *
+   * ```ts
+   * const edited = structuredClone(built.prototype);
+   * edited.body.ttl = String(builder.slotAt(Date.now() + 600_000));
+   * const final = await builder.finalize(edited, { inputs: built.inputs, changeAddress });
+   * ```
+   * @param context.inputs The UTxOs its inputs, reference inputs and collateral inputs spend or
+   *   read: all of them, none is looked up
+   * @param context.changeAddress In bech32 or hex
+   * @throws TxBuildError FEE_TOO_LOW `{ fee, minFee }` when the fee is now too small and there is
+   *   no change output to take it from; UTXO_NOT_FOUND `{ input }` for an input, reference input
+   *   or collateral input whose UTxO is not given; INSUFFICIENT_COLLATERAL `{ required,
+   *   available }` when the raised fee is no longer covered by the collateral of a transaction
+   *   that runs Plutus scripts; MISSING_PARAMETER when such a transaction's cost models are not
+   *   known; INVALID_OPTION for a `changeAddress` that is no address, and for `inputs` that is
+   *   not a list of UTxOs; FEE_NOT_CONVERGED when the fee does not settle
+   */
+  async finalize(
+    prototype: TransactionPrototype,
+    context: { inputs: readonly UTxO[]; changeAddress?: string },
+  ): Promise<BuiltTx> {
+    const { inputs, changeAddress: changeTo } = context ?? {};
+    if (!Array.isArray(inputs))
+      throw invalidOption("inputs", inputs, FINALIZE_INPUTS_ALLOWED);
+    let changeAddress: string | undefined;
+    if (changeTo !== undefined)
+      try {
+        changeAddress = toAddressText(changeTo);
+      } catch (error) {
+        throw invalidOption(
+          "changeAddress",
+          changeTo,
+          SEND_ALL_TO_ALLOWED,
+          error,
+        );
+      }
+    const given = new Map<string, UTxO>();
+    inputs.forEach((entry: unknown, i) => {
+      let utxo: UTxO;
+      try {
+        utxo = copyUtxo(entry);
+      } catch (error) {
+        throw invalidEntry(
+          "inputs",
+          entry,
+          FINALIZE_INPUTS_ALLOWED,
+          `entry ${i} is not a UTxO: ${errorText(error)}`,
+          error,
+        );
+      }
+      given.set(utxoKey(utxo), utxo);
+    });
+
+    // A copy without key witnesses: none would verify over a changed body, and the fee is
+    // priced for the keys the transaction calls for
+    const draft = structuredClone(prototype);
+    delete draft.witness_set.vkeys;
+    delete draft.witness_set.bootstraps;
+    const { body } = draft;
+    const utxoOf =
+      (role: string) =>
+      (input: { transaction_id: string; index: number }): UTxO => {
+        const utxo = given.get(
+          `${input.transaction_id.toLowerCase()}#${input.index}`,
+        );
+        if (utxo) return utxo;
+        throw new TxBuildError(
+          "UTXO_NOT_FOUND",
+          `the UTxO of ${input.transaction_id}#${input.index}, which the transaction ${role}, is not given in inputs`,
+          {
+            details: {
+              input: { txHash: input.transaction_id, outputIndex: input.index },
+            },
+          },
+        );
+      };
+    const spent = body.inputs.map(utxoOf("spends"));
+    const collateral = (body.collateral ?? []).map(
+      utxoOf("puts up as collateral"),
+    );
+    const references = (body.reference_inputs ?? []).map(utxoOf("reads"));
+    const changeOutputs = new Set<number>();
+    if (changeAddress !== undefined)
+      body.outputs.forEach((output, i) => {
+        if (sameAddress(output.address, changeAddress)) changeOutputs.add(i);
+      });
+
+    // A Plutus script runs only for a redeemer: datums alone need no cost model
+    const runsPlutus = (draft.witness_set.redeemers?.length ?? 0) > 0;
+    const [params, costModels] = await Promise.all([
+      this.loadParams(),
+      runsPlutus ? this.loadCostModels() : Promise.resolve(undefined),
+    ]);
+    if (runsPlutus && !costModels)
+      throw new TxBuildError(
+        "MISSING_PARAMETER",
+        this.cache
+          ? "the transaction runs Plutus scripts, and the provider gave no cost models; give the builder costModels"
+          : "the transaction runs Plutus scripts, and the builder has no cost models: give it costModels, or a provider to read them from",
+        { details: { parameter: "costModels" } },
+      );
+
+    // Who signs, and the scripts the body calls for, as for a transaction built elsewhere
+    const unsigned = this.serialize(draft);
+    const { collected, scripts } = bodySigners(readTransaction(unsigned), [
+      ...spent,
+      ...collateral,
+      ...references,
+    ]);
+    const languages = runsPlutus
+      ? plutusLanguages(draft, [...spent, ...references], scripts)
+      : new Set<LanguageVersion>();
+
+    // Both hashes from the bytes of this builder's serializer, which the fee does not change
+    const scriptDataHash = scriptDataHashOf(
+      unsigned,
+      languages,
+      costModels ?? [],
+    );
+    if (scriptDataHash) body.script_data_hash = scriptDataHash;
+    else delete body.script_data_hash;
+    const auxiliaryDataHash = auxiliaryDataHashOf(unsigned);
+    if (auxiliaryDataHash) body.auxiliary_data_hash = auxiliaryDataHash;
+    else delete body.auxiliary_data_hash;
+
+    const { vkeyWitnesses, bootstrapWitnesses } = placeholderWitnesses({
+      keyHashes: collected.priced,
+      byronAddresses: collected.byronAddresses,
+    });
+    const refScripts = bodyRefScriptSize(body, [...spent, ...references]);
+    const exUnits = prototypeExUnits(draft);
+    const priceOf = (candidate: TransactionPrototype) =>
+      feeForSize(
+        this.serialize({
+          ...candidate,
+          witness_set: {
+            ...candidate.witness_set,
+            ...(vkeyWitnesses.length > 0 && { vkeys: vkeyWitnesses }),
+            ...(bootstrapWitnesses.length > 0 && {
+              bootstraps: bootstrapWitnesses,
+            }),
+          },
+        }).length / 2,
+        refScripts,
+        exUnits,
+        params,
+      );
+
+    const fee = BigInt(body.fee);
+    let required = priceOf(draft);
+    let final = draft;
+    if (required > fee) {
+      const feeTooLow = (reason: string) =>
+        new TxBuildError(
+          "FEE_TOO_LOW",
+          `the fee ${fee} is below the transaction's minimum fee ${required}, and ${reason}`,
+          { details: { fee, minFee: required } },
+        );
+      if (changeAddress === undefined)
+        throw feeTooLow("no changeAddress is given to take the increase from");
+      let settled = false;
+      for (let round = 0; round < MAX_FINALIZE_ROUNDS && !settled; round++) {
+        // The whole increase from one output, counted from the prototype as given: the last
+        // output at the change address that still holds its minimum afterwards
+        const increase = required - fee;
+        const lowered = (i: number) => {
+          const output = body.outputs[i]!;
+          const coin = BigInt(output.amount.coin) - increase;
+          return coin < 0n
+            ? undefined
+            : {
+                ...output,
+                amount: { ...output.amount, coin: coin.toString() },
+              };
+        };
+        const payer = [...changeOutputs].reverse().find((i) => {
+          const output = lowered(i);
+          return (
+            output !== undefined &&
+            coversMinCoin(output, params.coinsPerUtxoSize)
+          );
+        });
+        if (payer === undefined)
+          throw feeTooLow(
+            changeOutputs.size === 0
+              ? `no output is at the change address ${changeAddress}`
+              : `no output at the change address ${changeAddress} can pay ${increase} lovelace and keep its minimum`,
+          );
+        const candidate = structuredClone(draft);
+        candidate.body.fee = required.toString();
+        candidate.body.outputs[payer] = lowered(payer)!;
+        const next = priceOf(candidate);
+        if (next <= required) {
+          final = candidate;
+          settled = true;
+        } else required = next;
+      }
+      if (!settled)
+        throw new TxBuildError(
+          "FEE_NOT_CONVERGED",
+          `the fee did not settle within ${MAX_FINALIZE_ROUNDS} rounds`,
+        );
+      if (runsPlutus) checkCollateral(final, collateral, params);
+    }
+
+    const tx = this.serialize(final);
+    const txHash = Transaction.fromCbor(TxCBOR(tx)).getId().toString();
+    const outputs = bodyOutputs(txHash, final.body).map(
+      (utxo, i): BuiltOutput =>
+        changeOutputs.has(i) ? { ...utxo, change: true as const } : utxo,
+    );
+    const validity = validityOf(final.body, this.network);
+    return {
+      tx,
+      txHash,
+      prototype: final,
+      fee: BigInt(final.body.fee),
+      exUnits,
+      redeemers: (final.witness_set.redeemers ?? []).map((r) => ({
+        tag: r.tag.type,
+        index: Number(r.index),
+        exUnits: {
+          mem: BigInt(r.ex_units.mem),
+          steps: BigInt(r.ex_units.steps),
+        },
+        data: dataCbor(r.data),
+      })),
+      inputs: spent,
+      selectedInputs: [],
+      referenceInputs: references,
+      outputs,
+      change: outputs.filter((o) => o.change),
+      ...(collateral.length > 0 && {
+        collateral: {
+          inputs: collateral,
+          total: collateralTotal(final.body, collateral),
+          ...(final.body.collateral_return && {
+            return: final.body.collateral_return,
+          }),
+        },
+      }),
+      signers: signersOf(collected),
+      ...(validity && { validity }),
+      network: { name: this.network.name, networkId: this.network.networkId },
+      warnings: [],
+      parts: [],
+    };
   }
 
   /**
@@ -1721,6 +2005,91 @@ export class TxBuilder {
   }
 }
 
+/** Most rounds `finalize` prices the transaction in, as balancing does */
+const MAX_FINALIZE_ROUNDS = 50;
+
+const FINALIZE_INPUTS_ALLOWED =
+  "a list of the UTxOs the transaction spends, reads and puts up as collateral";
+
+/** Whether an output's address is this address text, whatever form the output holds it in */
+const sameAddress = (address: string, text: string) => {
+  try {
+    return toAddressText(address) === text;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * The Plutus versions a transaction runs, as the ledger takes them: those of the Plutus scripts
+ * of its witness set, and of the Plutus reference scripts held by the UTxOs it spends or reads
+ * whose hash the body calls for
+ */
+const plutusLanguages = (
+  prototype: TransactionPrototype,
+  utxos: readonly UTxO[],
+  called: ReadonlySet<string>,
+): Set<LanguageVersion> => {
+  const languages = new Set<LanguageVersion>();
+  const witnessSet = prototype.witness_set;
+  if (witnessSet.plutus_v1_scripts?.length) languages.add("V1");
+  if (witnessSet.plutus_v2_scripts?.length) languages.add("V2");
+  if (witnessSet.plutus_v3_scripts?.length) languages.add("V3");
+  for (const utxo of utxos) {
+    const { scriptRef } = utxo.output;
+    if (!scriptRef) continue;
+    let script: Script;
+    try {
+      script = Script.fromCbor(HexBlob(scriptRef));
+    } catch {
+      // Not a script the ledger could run either
+      continue;
+    }
+    if (!called.has(script.hash().toString())) continue;
+    if (script.asPlutusV1()) languages.add("V1");
+    else if (script.asPlutusV2()) languages.add("V2");
+    else if (script.asPlutusV3()) languages.add("V3");
+  }
+  return languages;
+};
+
+/**
+ * The lovelace a transaction's collateral forfeits: its stated total, else the lovelace of its
+ * collateral inputs less that of its collateral return
+ */
+const collateralTotal = (
+  body: TransactionPrototype["body"],
+  collateral: readonly UTxO[],
+): bigint => {
+  if (body.total_collateral !== undefined && body.total_collateral !== null)
+    return BigInt(body.total_collateral);
+  const held = collateral.reduce(
+    (total, utxo) => total + fromAssets(utxo.output.amount).coin,
+    0n,
+  );
+  return held - BigInt(body.collateral_return?.amount.coin ?? 0);
+};
+
+/**
+ * Checks that a transaction's collateral covers `collateralPercent` of its fee
+ * @throws TxBuildError INSUFFICIENT_COLLATERAL `{ required, available }` when it does not
+ */
+const checkCollateral = (
+  prototype: TransactionPrototype,
+  collateral: readonly UTxO[],
+  params: Protocol,
+) => {
+  const fee = BigInt(prototype.body.fee);
+  const required = (fee * BigInt(params.collateralPercent) + 99n) / 100n;
+  const available = collateralTotal(prototype.body, collateral);
+  if (required > available)
+    throw new TxBuildError(
+      "INSUFFICIENT_COLLATERAL",
+      `the fee ${fee} calls for ${required} lovelace of collateral, and the transaction puts up ${available}; raise total_collateral and lower the collateral return, or build again`,
+      { details: { required, available } },
+    );
+};
+
 /**
  * Execution units to price a redeemer at before evaluation: an even share of what a
  * transaction may use beyond the given units, so the first balancing round over-provisions the
@@ -1761,7 +2130,7 @@ const withMinCoin = (part: OutputPart, params: Protocol): OutputPart => {
   // An output fragment differs from an output only in its optional lovelace
   const output = structuredClone(part.output) as TransactionOutputPrototype;
   output.amount.coin = given ?? "0";
-  const required = minCoin(output, params.coinsPerUtxoSize);
+  const required = outputMinCoin(output, params.coinsPerUtxoSize);
   if (given === undefined) output.amount.coin = required.toString();
   else if (!coversMinCoin(output, params.coinsPerUtxoSize))
     throw new TxBuildError(

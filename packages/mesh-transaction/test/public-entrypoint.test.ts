@@ -22,8 +22,16 @@ describe("public entrypoint", () => {
     "addWitnesses",
     "signedKeyHashes",
     "requiredSigners",
+    "guard",
+    "message",
+    "minFee",
+    "minCoin",
   ])("exports %s", (name) => {
     expect(publicApi).toHaveProperty(name);
+  });
+
+  it("no longer exports requiredSigner: guard.pubKey takes its place", () => {
+    expect(publicApi).not.toHaveProperty("requiredSigner");
   });
 
   it("exports the type RedeemerContext", () => {

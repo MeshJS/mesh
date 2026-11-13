@@ -1,12 +1,13 @@
 import { deserializeAddress, mConStr0, UTxO } from "@meshsdk/core";
+import { Address } from "@meshsdk/core-cst";
 import { TxEmulator } from "@meshsdk/tx-emulator";
 import { MeshWallet } from "@meshsdk/wallet";
 
 import {
   BuiltTx,
+  guard,
   NetworkMismatchDetails,
   output,
-  requiredSigner,
   spend,
   TxBuilder,
   TxBuildError,
@@ -87,7 +88,11 @@ describe("TxBuilder validity on TxEmulator", () => {
       emulator
         .utxos({ address: scriptAddress })
         .find((u) => u.input.outputIndex === outputIndex)!;
-    const unlock = (utxo: UTxO, window: TxPart) =>
+    // The script reads the beneficiary among the signatories: a guard of the wallet's payment
+    // key, given by its address, in bech32 and in hex
+    const signerAddress = (await beneficiary.wallet.getChangeAddress())!;
+    const signerAddressHex = Address.fromBech32(signerAddress).toBytes();
+    const unlock = (utxo: UTxO, window: TxPart, address = signerAddress) =>
       builder.build(
         [
           spend.plutus({
@@ -96,7 +101,7 @@ describe("TxBuilder validity on TxEmulator", () => {
             redeemer: { data: mConStr0([]) },
             label: "unlock",
           }),
-          requiredSigner({ keyHash: beneficiary.keyHash }),
+          guard.pubKey({ address }),
           window,
         ],
         { payer: beneficiary.payer() },
@@ -126,7 +131,13 @@ describe("TxBuilder validity on TxEmulator", () => {
     await submit(built);
 
     // A deadline inside a slot: `from` already rounds up past it
-    await submit(await unlock(lockedAt(1), validity({ from: lockUntil2 })));
+    await submit(
+      await unlock(
+        lockedAt(1),
+        validity({ from: lockUntil2 }),
+        signerAddressHex,
+      ),
+    );
   });
 
   it("builds one part on preprod with the emulator's time, and the ledger accepts it", async () => {

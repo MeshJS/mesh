@@ -6,43 +6,84 @@ import type {
 import { deserializePlutusScript } from "@meshsdk/core-cst";
 
 import {
+  checkCredential,
   errorText,
   fail,
   freeze,
   isHash28,
   labelOf,
+  parseAddress,
   PartContext,
+  paymentCredential,
   toNativeScriptSource,
   toPlutusScriptCode,
 } from "./normalize";
 import {
   AuxiliaryScriptPart,
   DonationPart,
+  GuardPart,
   MetadataPart,
   MetadataValueInput,
   NativeScriptSource,
   NetworkIdPart,
-  RequiredSignerPart,
   TreasuryValuePart,
   ValidityPart,
 } from "./types";
 
-/**
- * Require a key's signature. The key need not unlock anything; scripts of the transaction can
- * check that it signed.
- * @param params.keyHash Hash of the verification key, in hex
- * @param params.label Name echoed in errors about this part
- */
-export const requiredSigner = (params: {
-  keyHash: string;
-  label?: string;
-}): RequiredSignerPart => {
-  const ctx: PartContext = { part: "requiredSigner", label: params.label };
-  const keyHash =
-    typeof params.keyHash === "string" ? params.keyHash.toLowerCase() : "";
-  if (!isHash28(keyHash))
-    fail(ctx, "INVALID_DATA", `invalid key hash ${params.keyHash}`);
-  return freeze({ kind: "requiredSigner", keyHash, ...labelOf(params.label) });
+/** Guards of the transaction. Today one form: a key that must sign (Conway's required_signers; scripts read it among the signatories) */
+export const guard = {
+  /**
+   * A required signer: a key whose signature the transaction needs, given as its hash or as an
+   * address whose payment key it is; the build rejects a hash that is one of the transaction's
+   * script hashes (INVALID_GUARD)
+   * @param params.keyHash Hash of the verification key, in hex
+   * @param params.address A payment address whose payment key must sign, in bech32 or hex; its
+   *   stake part is not read
+   * @param params.label Name echoed in errors about this part
+   * @throws TxPartError WITNESS_MISMATCH for a script address
+   * @throws TxPartError INVALID_ADDRESS for a string that is no address, a reward address or a
+   *   Byron address: neither has a payment key; name a stake key by `keyHash`
+   * @throws TxPartError INVALID_DATA for a key hash that is not 28 bytes in hex, for `keyHash`
+   *   and `address` given together and for neither
+   */
+  pubKey: (
+    params: ({ keyHash: string } | { address: string }) & { label?: string },
+  ): GuardPart => {
+    const ctx: PartContext = { part: "guard", label: params.label };
+    const { keyHash, address } = params as {
+      keyHash?: unknown;
+      address?: unknown;
+    };
+    if (keyHash !== undefined && address !== undefined)
+      fail(ctx, "INVALID_DATA", "give either keyHash or address, not both");
+    let value: string;
+    if (address !== undefined) {
+      const parsed = parseAddress(ctx, address as string);
+      // Checked before the credential is read: the library reports a reward address's stake
+      // credential as its payment part
+      if (parsed.asReward() || parsed.asByron())
+        fail(
+          ctx,
+          "INVALID_ADDRESS",
+          `${String(address)} is a ${parsed.asReward() ? "reward" : "Byron"} address, which has no payment key; name a key by keyHash`,
+        );
+      const credential = paymentCredential(parsed)!;
+      checkCredential(ctx, `address ${String(address)}`, credential, {
+        type: "key",
+      });
+      value = credential.hash;
+    } else if (keyHash !== undefined) {
+      value = typeof keyHash === "string" ? keyHash.toLowerCase() : "";
+      if (!isHash28(value))
+        fail(ctx, "INVALID_DATA", `invalid key hash ${String(keyHash)}`);
+    } else return fail(ctx, "INVALID_DATA", "give keyHash or address");
+    return freeze({
+      kind: "guard",
+      credential: { type: "KEY", value },
+      witness: { type: "key" },
+      ...labelOf(params.label),
+    });
+  },
 };
 
 /** Slots above this are taken for POSIX milliseconds given by mistake */
@@ -257,6 +298,80 @@ export const metadata = (params: {
     kind: "metadata",
     metadataLabel: BigInt(metadataLabel).toString(),
     value: toMetadatum(ctx, params.value, String(metadataLabel)),
+    ...labelOf(params.label),
+  });
+};
+
+/** The metadata label of CIP-20 transaction messages */
+const MESSAGE_LABEL = 674;
+
+/**
+ * A text cut into lines of at most 64 bytes of UTF-8, only between code points: every line but
+ * the last takes as many whole code points as fit. A text that fits is one line, an empty text
+ * one empty line.
+ */
+const messageLines = (text: string): string[] => {
+  const encoder = new TextEncoder();
+  if (encoder.encode(text).length <= MAX_METADATA_BYTES) return [text];
+  const lines: string[] = [];
+  let line = "";
+  let bytes = 0;
+  // A string iterates by code point, so a surrogate pair is never split
+  for (const char of text) {
+    const size = encoder.encode(char).length;
+    if (bytes + size > MAX_METADATA_BYTES) {
+      lines.push(line);
+      line = "";
+      bytes = 0;
+    }
+    line += char;
+    bytes += size;
+  }
+  lines.push(line);
+  return lines;
+};
+
+/**
+ * A CIP-20 message (metadata label 674), each text split into lines of at most 64 bytes at
+ * character boundaries. A character is a Unicode code point, so a cut never splits one; the
+ * lines of a text put together give it back. Lines keep the order given, and nothing is trimmed.
+ * An empty string is one empty line. A transaction holds one entry per metadata label: a second
+ * message, or a `metadata` part with label 674, is DUPLICATE_PART when it is assembled.
+ * @param params.text The message: one text, or a list of texts, each cut on its own
+ * @param params.label Name echoed in errors about this part (not the metadata label)
+ * @throws TxPartError INVALID_DATA for a `text` that is neither a string nor a list of strings,
+ *   and for an empty list
+ * @example message({ text: "Invoice #42 paid" })
+ */
+export const message = (params: {
+  text: string | readonly string[];
+  label?: string;
+}): MetadataPart => {
+  const ctx: PartContext = { part: "metadata", label: params.label };
+  const { text } = params;
+  const texts: unknown[] = typeof text === "string" ? [text] : [];
+  if (Array.isArray(text)) {
+    if (text.length === 0)
+      fail(ctx, "INVALID_DATA", "a message needs at least one text");
+    texts.push(...text);
+  } else if (typeof text !== "string")
+    fail(
+      ctx,
+      "INVALID_DATA",
+      `invalid message text ${String(text)}: expected a string or a list of strings`,
+    );
+  const lines = texts.flatMap((entry, i) => {
+    if (typeof entry !== "string")
+      return fail(
+        ctx,
+        "INVALID_DATA",
+        `invalid message text at ${i}: ${String(entry)} is not a string`,
+      );
+    return messageLines(entry);
+  });
+  return metadata({
+    metadataLabel: MESSAGE_LABEL,
+    value: { msg: lines },
     ...labelOf(params.label),
   });
 };

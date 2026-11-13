@@ -39,7 +39,7 @@ settles the fee. A builder keeps no state between builds; reuse it.
 | Withdraw rewards | `withdrawal.pubKey`, `withdrawal.native`, `withdrawal.plutus`                                                         |
 | Certificates     | `certificate.stakeRegistration`, `.stakeDelegation`, `.voteDelegation`, `.drepRegistration`, `.poolRegistration`, ... |
 | Governance       | `vote`, `proposal.info`, `proposal.treasuryWithdrawals`, `proposal.parameterChange`, ...                              |
-| Everything else  | `requiredSigner`, `validity`, `metadata`, `auxiliaryScript`, `donation`, `treasuryValue`, `networkId`                 |
+| Everything else  | `guard.pubKey`, `validity`, `metadata`, `message`, `auxiliaryScript`, `donation`, `treasuryValue`, `networkId`        |
 
 Parts are immutable and their order does not matter, except for certificates, proposals and
 outputs, which keep it. Outputs given by out ref alone (`{ txHash, outputIndex }`) are fetched;

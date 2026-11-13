@@ -32,6 +32,7 @@ import type {
   CollateralPart,
   CollateralReturnPart,
   DonationPart,
+  GuardPart,
   InputRef,
   MetadataPart,
   MintPart,
@@ -45,7 +46,6 @@ import type {
   ProposalPart,
   RedeemerContext,
   ReferenceInputPart,
-  RequiredSignerPart,
   SpendPart,
   TreasuryValuePart,
   TxPart,
@@ -124,7 +124,7 @@ const groupParts = (parts: readonly TxPart[]): PartsByKind => {
     output: [],
     mint: [],
     withdrawal: [],
-    requiredSigner: [],
+    guard: [],
     validity: [],
     metadata: [],
     auxiliaryScript: [],
@@ -210,7 +210,9 @@ const REDEEMER_TAG_RANK: Record<RedeemerTagPrototype["type"], number> = {
  * @returns The prototype, with every redeemer tied to the part it belongs to
  * @throws TxBuildError MISSING_PARAMETER when a Plutus version the parts run has no cost model
  *   in `options.costModels`; INVALID_REDEEMER when a redeemer function throws, asks for an item
- *   the transaction does not hold, or returns what is not Plutus data
+ *   the transaction does not hold, or returns what is not Plutus data; INVALID_GUARD
+ *   `{ reason: "scriptHash", hash }` for the first key guard whose hash is the hash of a script
+ *   a witness of the parts names, attached or held in a reference output
  */
 export const assembleTxPrototype = (
   parts: readonly TxPart[],
@@ -297,6 +299,8 @@ export const assembleTxPrototype = (
     V3: new Map(),
   };
   const scriptReferenceInputs: TransactionInputPrototype[] = [];
+  /** The hashes of the scripts a witness names, attached or by reference */
+  const witnessScripts = new Set<string>();
   const languages = new Set<LanguageVersion>();
   const datums = new Map<string, PlutusDataVariant>();
   const redeemers: AssembledRedeemer[] = [];
@@ -307,6 +311,8 @@ export const assembleTxPrototype = (
   };
 
   const addScript = (source: NativeScriptSource | PlutusScriptSource) => {
+    // A resolved reference source always has its hash
+    if (source.scriptHash !== undefined) witnessScripts.add(source.scriptHash);
     if (source.type === "reference") {
       scriptReferenceInputs.push(source.input);
       if ("version" in source && source.version) languages.add(source.version);
@@ -371,8 +377,21 @@ export const assembleTxPrototype = (
       referenceInputs.set(key, { ...input });
   }
 
+  // A key guard with a script's hash could never be signed for
+  const guards: GuardPart[] = byKind.guard;
+  for (const part of guards)
+    if (witnessScripts.has(part.credential.value))
+      throw new TxBuildError(
+        "INVALID_GUARD",
+        `the guard's key hash ${part.credential.value} is the hash of a script of this transaction: no key can sign for it`,
+        {
+          part: part.kind,
+          label: part.label,
+          details: { reason: "scriptHash", hash: part.credential.value },
+        },
+      );
   const requiredSigners = Array.from(
-    new Set(byKind.requiredSigner.map((p: RequiredSignerPart) => p.keyHash)),
+    new Set(guards.map((p) => p.credential.value)),
   );
 
   const mint: MintPrototype = {};

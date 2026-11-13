@@ -18,7 +18,7 @@ import type {
 import type { Value } from "./value";
 import { assembleTxPrototype, atMostOne } from "./assemble";
 import { TxBuildError } from "./errors";
-import { coversMinCoin, minCoin, minFee, valueSize } from "./fee";
+import { coversMinCoin, feeForSize, outputMinCoin, valueSize } from "./fee";
 import { outRefString } from "./parts/normalize";
 import { utxoKey } from "./resolve";
 import {
@@ -430,7 +430,7 @@ const leastChange = (
       amount: { coin: "0", ...(multiasset && { multiasset }) },
     };
   });
-  const mins = outputs.map((o) => minCoin(o, params.coinsPerUtxoSize));
+  const mins = outputs.map((o) => outputMinCoin(o, params.coinsPerUtxoSize));
   outputs.forEach((o, i) => {
     o.amount.coin = mins[i]!.toString();
   });
@@ -453,7 +453,7 @@ const makeChange = (
   outputs[0]!.amount.coin = (mins[0]! + change.coin - needed).toString();
   // The extra lovelace can only lengthen the first output's encoding by a few bytes
   if (!coversMinCoin(outputs[0]!, params.coinsPerUtxoSize))
-    return { missing: minCoin(outputs[0]!, params.coinsPerUtxoSize) };
+    return { missing: outputMinCoin(outputs[0]!, params.coinsPerUtxoSize) };
   return outputs;
 };
 
@@ -579,7 +579,7 @@ export const balance = (
           costModels: ctx.costModels,
           ...placeholderWitnesses(pricedSigners(all), ctx.extraKeyWitnesses),
         });
-        const required = minFee(
+        const required = feeForSize(
           ctx.serialize(sized.prototype).length / 2,
           refScriptSize(sized, ctx.known),
           totalExUnits(sized),
@@ -904,7 +904,7 @@ export const balance = (
         `the transaction takes ${size} bytes, more than the ${params.maxTxSize} allowed`,
         { details: { size, maxTxSize: params.maxTxSize } },
       );
-    const required = minFee(
+    const required = feeForSize(
       size,
       refScriptSize(sized, ctx.known),
       totalExUnits(sized),
@@ -988,7 +988,7 @@ const collateralFor = (
   const percent = BigInt(params.collateralPercent);
   const minimum = (fee * percent + 99n) / 100n;
   const required = ctx.givenTotal ?? minimum;
-  const adaOnlyMin = minCoin(
+  const adaOnlyMin = outputMinCoin(
     { address: ctx.address, amount: { coin: "0" } },
     params.coinsPerUtxoSize,
   );

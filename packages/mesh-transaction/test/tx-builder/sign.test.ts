@@ -36,12 +36,12 @@ import {
   BuiltTx,
   certificate,
   collateral,
+  guard,
   metadata,
   mint,
   output,
   proposal,
   referenceInput,
-  requiredSigner,
   requiredSigners,
   signedKeyHashes,
   Signer,
@@ -57,7 +57,7 @@ import {
   vote,
   withdrawal,
 } from "../../src/tx-builder";
-import { minFee } from "../../src/tx-builder/fee";
+import { feeForSize } from "../../src/tx-builder/fee";
 import {
   alwaysSucceedCbor,
   baseAddress,
@@ -551,7 +551,7 @@ describe("addWitnesses", () => {
       built.tx,
       await signWitnesses(wallets.payment, built.tx),
     );
-    const min = minFee(signed.length / 2, 0n, built.exUnits, params);
+    const min = feeForSize(signed.length / 2, 0n, built.exUnits, params);
     expect(built.fee).toBeGreaterThanOrEqual(min);
     expect(built.fee - min).toBeLessThanOrEqual(5n * 44n);
   });
@@ -632,7 +632,7 @@ describe("requiredSigners", () => {
           utxo: utxo(lovelace(ada(5)), {}, collateralOwner),
           label: "backing",
         }),
-        requiredSigner({ keyHash: keyHashHex(10), label: "approver" }),
+        guard.pubKey({ keyHash: keyHashHex(10), label: "approver" }),
         withdrawal.pubKey({
           rewardAddress: keyHashToRewardAddress(keyHashHex(11), 0),
           amount: 0n,
@@ -676,10 +676,10 @@ describe("requiredSigners", () => {
     ]);
     // As the build reports it until the part is renamed
     expect(neededBy(signers, keyHashHex(10))).toEqual([
-      { part: "requiredSigner", role: "guard" },
+      { part: "guard", role: "guard" },
     ]);
     expect(neededBy(built.signers, keyHashHex(10))).toEqual([
-      { part: "requiredSigner", label: "approver", role: "guard" },
+      { part: "guard", label: "approver", role: "guard" },
     ]);
     expect(neededBy(signers, keyHashHex(11))).toEqual([
       { part: "withdrawal", role: "withdrawal" },

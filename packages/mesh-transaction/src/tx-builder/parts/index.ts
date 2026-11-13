@@ -7,9 +7,10 @@ export { withdrawal } from "./withdrawal";
 export { certificate } from "./certificates";
 export { vote, proposal } from "./governance";
 export {
-  requiredSigner,
+  guard,
   validity,
   metadata,
+  message,
   auxiliaryScript,
   donation,
   treasuryValue,

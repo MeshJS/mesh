@@ -379,10 +379,17 @@ export type WithdrawalPart = PartBase & {
   readonly witness: KeyWitness | NativeWitness | PlutusWitness;
 };
 
-/** A key whose signature the transaction requires, visible to its scripts */
-export type RequiredSignerPart = PartBase & {
-  readonly kind: "requiredSigner";
-  readonly keyHash: string;
+/**
+ * A guard: a credential the transaction must be authorised by, visible to its scripts (body
+ * key 14). Today the only guard is a key, Conway's required signer; a later ledger era admits a
+ * script credential in the same field, and this type then gains members
+ */
+export type GuardPart = PartBase & {
+  readonly kind: "guard";
+  /** The key hash, in the form `CredTypePrototype` has */
+  readonly credential: { readonly type: "KEY"; readonly value: string };
+  /** What authorises the guard: the key's signature; `guard.pubKey` sets it */
+  readonly witness: KeyWitness;
 };
 
 /** The slots between which the transaction is valid */
@@ -516,7 +523,7 @@ export type TxPart =
   | OutputPart
   | MintPart
   | WithdrawalPart
-  | RequiredSignerPart
+  | GuardPart
   | ValidityPart
   | MetadataPart
   | AuxiliaryScriptPart

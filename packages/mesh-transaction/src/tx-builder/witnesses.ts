@@ -283,8 +283,8 @@ const collectSigners = (parts: readonly TxPart[]): Collected => {
       case "collateral":
         addAddress(collected, part.utxo, part, "collateral");
         break;
-      case "requiredSigner":
-        addKey(collected, part.keyHash, part, "guard");
+      case "guard":
+        addKey(collected, part.credential.value, part, "guard");
         break;
       case "mint":
         addNativeWitness(collected, part.witness);

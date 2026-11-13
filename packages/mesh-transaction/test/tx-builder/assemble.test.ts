@@ -23,10 +23,13 @@ import {
 
 import {
   assembleTxPrototype,
+  auxiliaryScript,
   certificate,
   collateral,
   collateralReturn,
   donation,
+  guard,
+  message,
   metadata,
   mint,
   networkId,
@@ -34,7 +37,6 @@ import {
   proposal,
   RedeemerContext,
   referenceInput,
-  requiredSigner,
   spend,
   treasuryValue,
   TxBuildError,
@@ -427,9 +429,9 @@ describe("assembleTxPrototype: transaction contents", () => {
       keySpend("aa".repeat(32), 0),
       pay,
       datumOutput,
-      requiredSigner({ keyHash: keyHashHex(1) }),
-      requiredSigner({ keyHash: keyHashHex(1) }),
-      requiredSigner({ keyHash: keyHashHex(2) }),
+      guard.pubKey({ keyHash: keyHashHex(1) }),
+      guard.pubKey({ keyHash: keyHashHex(1) }),
+      guard.pubKey({ keyHash: keyHashHex(2) }),
       validity({ invalidBefore: 10, invalidHereafter: 20 }),
       networkId({ network: "testnet" }),
       donation({ amount: 1000n }),
@@ -710,6 +712,111 @@ describe("assembleTxPrototype: errors", () => {
           ),
         "DUPLICATE_PART",
       );
+    }
+  });
+});
+
+describe("assembleTxPrototype: guards", () => {
+  const nativeHash = resolveNativeScriptHash(nativeScript);
+  const guardError = (parts: TxPart[]) =>
+    expectBuildError(
+      () => assembleTxPrototype(parts, options),
+      "INVALID_GUARD",
+    );
+
+  it("refuses a key guard with the hash of a script a witness names", () => {
+    const reference = utxo("cc".repeat(32), 0, walletAddress, {
+      scriptRef: referenceScript,
+    });
+    const cases: [TxPart, string][] = [
+      // The attached Plutus script of a spend
+      [scriptSpend("aa".repeat(32), 0, 1), alwaysSucceedHash],
+      // An attached native policy
+      [mint.native({ script: nativeScript, assets: { "01": 1n } }), nativeHash],
+      // A script held in a reference output given in full
+      [
+        spend.plutus({
+          utxo: scriptUtxo("aa".repeat(32), 1),
+          script: { reference },
+          redeemer: redeemer(2),
+        }),
+        alwaysSucceedHash,
+      ],
+    ];
+    for (const [witnessed, hash] of cases) {
+      const error = guardError([
+        keySpend("bb".repeat(32), 0),
+        witnessed,
+        guard.pubKey({ keyHash: hash, label: "approver" }),
+      ]);
+      expect(error.part).toBe("guard");
+      expect(error.label).toBe("approver");
+      if (!TxError.is(error, "INVALID_GUARD")) throw error;
+      // Narrowed: the details are typed by the code
+      const { reason, hash: found } = error.details;
+      expect({ reason, hash: found }).toEqual({ reason: "scriptHash", hash });
+    }
+  });
+
+  it("reports the first such guard in the order given", () => {
+    const error = guardError([
+      scriptSpend("aa".repeat(32), 0, 1),
+      mint.native({ script: nativeScript, assets: { "01": 1n } }),
+      guard.pubKey({ keyHash: keyHashHex(3) }),
+      guard.pubKey({ keyHash: nativeHash, label: "first" }),
+      guard.pubKey({ keyHash: alwaysSucceedHash, label: "second" }),
+    ]);
+    expect(error.label).toBe("first");
+    expect(error.details).toEqual({ reason: "scriptHash", hash: nativeHash });
+  });
+
+  it("assembles key guards, and guards with the hash of a script only carried", () => {
+    const carried = { code: spend42Cbor, version: "V3" as const };
+    const carriedHash = resolveScriptHash(spend42Cbor, "V3");
+    const { prototype } = assembleTxPrototype(
+      [
+        keySpend("aa".repeat(32), 0),
+        scriptSpend("aa".repeat(32), 1, 1),
+        output({
+          address: walletAddress,
+          value: { lovelace: 2000000n },
+          scriptRef: carried,
+        }),
+        auxiliaryScript({ script: nativeScript }),
+        // The payment key of the spent input, an unrelated key, and the two carried scripts
+        guard.pubKey({ address: walletAddress }),
+        guard.pubKey({ keyHash: keyHashHex(9) }),
+        guard.pubKey({ keyHash: carriedHash }),
+        guard.pubKey({ keyHash: nativeHash }),
+      ],
+      options,
+    );
+    expect(prototype.body.required_signers).toEqual([
+      keyHashHex(1),
+      keyHashHex(9),
+      carriedHash,
+      nativeHash,
+    ]);
+  });
+});
+
+describe("assembleTxPrototype: messages", () => {
+  it("holds one entry under label 674: a second message or metadata 674 is a duplicate", () => {
+    const first = message({ text: "one" });
+    for (const second of [
+      message({ text: "two", label: "again" }),
+      metadata({ metadataLabel: 674, value: { msg: ["two"] }, label: "again" }),
+    ]) {
+      const error = expectBuildError(
+        () =>
+          assembleTxPrototype(
+            [keySpend("aa".repeat(32), 0), first, second],
+            options,
+          ),
+        "DUPLICATE_PART",
+      );
+      expect(error.label).toBe("again");
+      expect(error.details).toEqual({ item: "674" });
     }
   });
 });
