@@ -112,7 +112,8 @@ describe("MeshTxBuilder provider calls", () => {
 
     expect(count("evaluateTx")).toBe(0);
     expect(count("fetchUTxOs")).toBe(0);
-    expect(count("fetchCostModels")).toBe(1);
+    // Cost models serve only a transaction that runs a Plutus script
+    expect(count("fetchCostModels")).toBe(0);
     expect(await emulator.submitTx(await wallet.signTx(txHex))).toHaveLength(
       64,
     );
@@ -148,7 +149,10 @@ describe("MeshTxBuilder provider calls", () => {
       .complete();
 
     expect(countFor("fetchUTxOs", scriptTxHash)).toBe(1);
-    expect(count("fetchUTxOs")).toBe(1);
+    // And the collateral's, given by address and value: an output the builder does not hold
+    // is read
+    expect(countFor("fetchUTxOs", collateral.input.txHash)).toBe(1);
+    expect(count("fetchUTxOs")).toBe(2);
     expect(await emulator.submitTx(await wallet.signTx(txHex))).toHaveLength(
       64,
     );
@@ -193,7 +197,8 @@ describe("MeshTxBuilder provider calls", () => {
       .selectUtxosFrom(utxos)
       .complete();
 
-    expect(count("fetchUTxOs")).toBe(2);
+    // The script input, the reference script and the collateral, given by address and value
+    expect(count("fetchUTxOs")).toBe(3);
     const [scriptInput] = txBuilder.meshTxBuilderBody.inputs;
     expect(
       scriptInput?.type === "Script" &&

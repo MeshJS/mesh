@@ -2,6 +2,7 @@ import { CardanoInfo, ProtocolParams, Utxo, Value } from "scalus";
 
 import {
   applyCborEncoding,
+  DEFAULT_PROTOCOL_PARAMETERS,
   MeshTxBuilder,
   NativeScript,
   resolveDataHash,
@@ -472,6 +473,7 @@ describe("ScalusEmulator", () => {
       fetcher: provider,
       submitter: provider,
       evaluator: provider,
+      params: { minFeeA: DEFAULT_PROTOCOL_PARAMETERS.minFeeA },
     })
       .txOut(address, [{ unit: "lovelace", quantity: "5000000" }])
       .changeAddress(address)
@@ -535,6 +537,12 @@ describe("ScalusEmulator", () => {
       .inputForEvaluation(scriptUtxo)
       .txOut(address, [{ unit: "lovelace", quantity: "40000000" }])
       .changeAddress(address)
+      // The parent's change puts up the collateral a script spend needs
+      .selectUtxosFrom(
+        getTransactionOutputs(parent).filter(
+          (u) => u.output.address === address,
+        ),
+      )
       .chainTx(parent)
       .complete();
 

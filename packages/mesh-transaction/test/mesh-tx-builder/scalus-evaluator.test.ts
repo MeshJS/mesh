@@ -39,6 +39,17 @@ const DEFAULT_COST_MODELS = [
 ];
 /** Units declared on the redeemer, far below what the script needs */
 const declaredUnits = { mem: 7, steps: 7 };
+/** What an evaluator standing in for a real one answers: units for the script input */
+const spendUnits = async (tx: string) =>
+  Serialization.Transaction.fromCbor(Serialization.TxCBOR(tx))
+    .witnessSet()
+    .redeemers()!
+    .values()
+    .map((redeemer) => ({
+      tag: "SPEND" as const,
+      index: Number(redeemer.index()),
+      budget: { mem: 1000, steps: 100000 },
+    }));
 
 type SpendOptions = {
   /** Options over the emulator as fetcher, and so over the default evaluator */
@@ -89,7 +100,10 @@ async function spendScript(options: SpendOptions = {}) {
     {
       input: { txHash: scriptTxHash, outputIndex: 0 },
       output: {
-        address: resolvePlutusScriptAddress({ code: script, version: "V3" }, 0),
+        address: resolvePlutusScriptAddress(
+          { code: script, version: "V3" },
+          options.networkId ?? 0,
+        ),
         amount: lovelace("20000000"),
         plutusData: unitDatum,
       },
@@ -218,19 +232,32 @@ describe("MeshTxBuilder's default evaluator", () => {
 
   it("gives way to the evaluator it is given, which gets only the UTxOs given for evaluation", async () => {
     // A remote evaluator may reject additional UTxOs that also exist on chain
-    const evaluateTx = jest.fn(async () => []);
+    const evaluateTx = jest.fn(spendUnits);
     const mine = { evaluateTx } as IEvaluator;
-    const given: UTxO = {
-      input: { txHash: "5".repeat(64), outputIndex: 0 },
-      output: { address: "addr_test1", amount: lovelace("1") },
-    };
+    let given!: UTxO;
     const { builder, fetchUTxOs } = await spendScript({
       builder: { evaluator: mine },
-      configure: (builder) => builder.inputForEvaluation(given),
+      configure: (builder, address) => {
+        given = {
+          input: { txHash: scriptTxHash, outputIndex: 0 },
+          output: {
+            address: resolvePlutusScriptAddress(
+              { code: alwaysSucceedCbor, version: "V3" },
+              0,
+            ),
+            amount: lovelace("20000000"),
+            plutusData: unitDatum,
+          },
+        };
+        builder.inputForEvaluation(given);
+      },
     });
     expect(builder.evaluator).toBe(mine);
-    // Nor does the builder fetch chain data for it: the collateral is not fetched
-    expect(fetchUTxOs.mock.calls.map(([hash]) => hash)).toEqual([scriptTxHash]);
+    // The script input given for evaluation is not fetched; the collateral, given by address
+    // and value, is read like any output the builder does not hold
+    expect(fetchUTxOs.mock.calls.map(([hash]) => hash)).toEqual([
+      "1".repeat(64),
+    ]);
     expect(evaluateTx).toHaveBeenCalled();
     for (const [, additionalUtxos] of evaluateTx.mock.calls as unknown[][])
       expect(additionalUtxos).toEqual([given]);
@@ -240,7 +267,7 @@ describe("MeshTxBuilder's default evaluator", () => {
     const [v1, ...rest] = DEFAULT_COST_MODELS;
     const fetched = [[v1![0]! + 1, ...v1!.slice(1)], ...rest];
     const configure = jest.fn();
-    const mine: IEvaluator = { evaluateTx: async () => [], configure };
+    const mine: IEvaluator = { evaluateTx: spendUnits, configure };
     await spendScript({
       builder: { evaluator: mine, network: "preprod" },
       fetcher: (emulator) =>
@@ -274,7 +301,7 @@ describe("MeshTxBuilder's default evaluator", () => {
   });
 
   it("gives a local evaluator it is given every UTxO it holds, declared key inputs fetched", async () => {
-    const evaluateTx = jest.fn(async () => []);
+    const evaluateTx = jest.fn(spendUnits);
     const mine: IEvaluator = { evaluateTx, acceptsKnownUtxos: true };
     const { fetchUTxOs } = await spendScript({
       builder: { evaluator: mine },
@@ -451,7 +478,7 @@ describe("MeshTxBuilder's default evaluator", () => {
             fetcher: failingFor(error),
             configure: spendKeyInput(0),
           }),
-        ).rejects.toBe(error);
+        ).rejects.toMatchObject({ code: "UTXO_NOT_FOUND", cause: error });
       },
     );
 
@@ -478,10 +505,8 @@ describe("MeshTxBuilder's default evaluator", () => {
             builder.txIn(keyTxHash, 1, lovelace("3000000"), address, 0);
           },
         });
-        // One more round, as coin selection would run
-        await (builder as unknown as { clone(): MeshTxBuilder })
-          .clone()
-          .evaluateRedeemers();
+        // Every evaluation round is handed the chain UTxO
+        expect(builder.evaluator).toBeInstanceOf(OfflineEvaluatorScalus);
         expect(evaluateTx.mock.calls.length).toBeGreaterThan(1);
         for (const [, additionalUtxos] of evaluateTx.mock.calls) {
           const output1 = additionalUtxos!.find(
@@ -507,13 +532,13 @@ describe("MeshTxBuilder's default evaluator", () => {
               .txInRedeemerValue(mConStr0([]))
               .txInScript(alwaysSucceedCbor),
         }),
-      ).rejects.toThrow(/UTxO not found/);
+      ).rejects.toMatchObject({ code: "UTXO_NOT_FOUND" });
     });
 
     it("are not evaluated as declared if they may hold a reference script", async () => {
       await expect(
         spendScript({ configure: spendKeyInput(100) }),
-      ).rejects.toThrow(/UTxO not found/);
+      ).rejects.toMatchObject({ code: "UTXO_NOT_FOUND" });
     });
   });
 

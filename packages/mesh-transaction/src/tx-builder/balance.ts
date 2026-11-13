@@ -85,6 +85,13 @@ export type BalanceContext = {
   sendAllTo?: string;
   /** Every UTxO known to the build, keyed by `txHash#index` */
   known: ReadonlyMap<string, UTxO>;
+  /** Out refs named by collateral parts that selection may still spend as inputs */
+  selectableCollateral?: ReadonlySet<string>;
+  /**
+   * Reference-script sizes stated for out refs whose UTxO the build does not know, keyed by
+   * `txHash#index`: counted for the fee where no known UTxO holds a script
+   */
+  scriptSizes?: ReadonlyMap<string, number>;
   /**
    * A fee fixed by the caller, used as is: never raised, and judged against the minimum fee
    * only in a round that is not provisional
@@ -194,12 +201,14 @@ export const paymentPool = (
   utxos: readonly UTxO[],
   refused: ReadonlySet<string> = new Set(),
   spentByAfter = 0,
+  selectableCollateral: ReadonlySet<string> = new Set(),
 ): { pool: UTxO[]; counts: InsufficientFundsDetails["pool"] } => {
   const spent = new Set(
     parts.flatMap((p) => (p.kind === "spend" ? [utxoKey(p.utxo!)] : [])),
   );
   const read = readByParts(parts);
   const putUp = putUpByParts(parts);
+  for (const key of selectableCollateral) putUp.delete(key);
   const pool: UTxO[] = [];
   const counts: InsufficientFundsDetails["pool"] = {
     // Those spent by `after` were given too, and are counted by that reason
@@ -516,6 +525,7 @@ export const balance = (
     ctx.utxos,
     refused,
     ctx.spentByAfter,
+    ctx.selectableCollateral,
   );
   const selected: UTxO[] = [];
   const selectedKeys = new Set<string>();
@@ -581,7 +591,7 @@ export const balance = (
         });
         const required = feeForSize(
           ctx.serialize(sized.prototype).length / 2,
-          refScriptSize(sized, ctx.known),
+          refScriptSize(sized, ctx.known, ctx.scriptSizes),
           totalExUnits(sized),
           params,
         );
@@ -906,7 +916,7 @@ export const balance = (
       );
     const required = feeForSize(
       size,
-      refScriptSize(sized, ctx.known),
+      refScriptSize(sized, ctx.known, ctx.scriptSizes),
       totalExUnits(sized),
       params,
     );
@@ -940,17 +950,22 @@ export const balance = (
   );
 };
 
-/** Total size of the reference scripts the transaction's inputs and reference inputs hold */
+/**
+ * Total size of the reference scripts the transaction's inputs and reference inputs hold: those
+ * of the known UTxOs, else the size stated for the out ref
+ */
 export const refScriptSize = (
   assembled: AssembledTx,
   known: ReadonlyMap<string, UTxO>,
+  stated?: ReadonlyMap<string, number>,
 ): bigint => {
   const { body } = assembled.prototype;
   let size = 0n;
   for (const input of [...body.inputs, ...(body.reference_inputs ?? [])]) {
-    const scriptRef = known.get(`${input.transaction_id}#${input.index}`)
-      ?.output.scriptRef;
+    const key = `${input.transaction_id}#${input.index}`;
+    const scriptRef = known.get(key)?.output.scriptRef;
     if (scriptRef) size += BigInt(scriptRef.length / 2);
+    else size += BigInt(stated?.get(key) ?? 0);
   }
   return size;
 };

@@ -572,6 +572,14 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
   };
 }
 
+// Marks the class as one of Mesh's serializers, which `MeshTxBuilder` accepts; it holds across
+// copies of the package and bundlers, where neither `instanceof` nor the class name does
+Object.defineProperty(
+  CardanoSDKSerializer.prototype,
+  Symbol.for("@meshsdk/serializer"),
+  { value: true },
+);
+
 class CardanoSDKSerializerCore {
   public txBody: TransactionBody;
   public txWitnessSet: TransactionWitnessSet;

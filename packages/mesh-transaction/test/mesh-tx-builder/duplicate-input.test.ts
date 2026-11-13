@@ -109,7 +109,7 @@ describe("MeshTxBuilder - Duplicate Inputs", () => {
   it("Spending from the same script address multiple times should only have one script ref", async () => {
     const txHex = await txBuilder
       .spendingPlutusScriptV3()
-      .txIn(txHash("tx1"), 0)
+      .txIn(txHash("tx2"), 1)
       .txInInlineDatumPresent()
       .txInRedeemerValue("")
       .spendingTxInReference(txHash("tx3"), 0)
@@ -126,7 +126,7 @@ describe("MeshTxBuilder - Duplicate Inputs", () => {
 
     const txHex2 = await txBuilder2
       .spendingPlutusScriptV3()
-      .txIn(txHash("tx1"), 0)
+      .txIn(txHash("tx2"), 1)
       .txInInlineDatumPresent()
       .txInRedeemerValue("")
       .spendingTxInReference(txHash("tx3"), 0)
@@ -362,12 +362,12 @@ describe("MeshTxBuilder - Duplicate Inputs", () => {
   it("Duplicated inputs should be removed upon complete", async () => {
     const txHex2 = await txBuilder2
       .spendingPlutusScriptV3()
-      .txIn(txHash("tx1"), 0)
+      .txIn(txHash("tx2"), 1)
       .txInInlineDatumPresent()
       .txInRedeemerValue("")
       .spendingTxInReference(txHash("tx3"), 0)
       .spendingPlutusScriptV3()
-      .txIn(txHash("tx1"), 0)
+      .txIn(txHash("tx2"), 1)
       .txInInlineDatumPresent()
       .txInRedeemerValue("")
       .spendingTxInReference(txHash("tx3"), 0)

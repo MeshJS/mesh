@@ -1,126 +1,83 @@
-import {
-  AccountInfo,
-  emptyTxBuilderBody,
-  IFetcher,
-  MintParam,
-  ScriptSource,
-  TransactionInfo,
-  TxIn,
-  TxOutput,
-  UTxO,
-} from "@meshsdk/common";
+import { IFetcher, mConStr0, UTxO } from "@meshsdk/common";
+import { resolveScriptRef, serializePlutusScript } from "@meshsdk/core";
+import { OfflineFetcher } from "@meshsdk/provider";
 import { MeshTxBuilder } from "@meshsdk/transaction";
 
-import { txHash } from "../test-util";
-
-class MockTxBuilder extends MeshTxBuilder {
-  constructor() {
-    super();
-    this.queriedTxHashes = new Set();
-    this.queriedUTxOs = {};
-    this.fetcher = {
-      fetchUTxOs: jest.fn().mockResolvedValue([]),
-      fetchAccountInfo: jest.fn().mockResolvedValue({} as AccountInfo),
-      fetchAddressUTxOs: jest.fn().mockResolvedValue([]),
-      fetchProtocolParameters: jest.fn().mockResolvedValue({}),
-      fetchTxInfo: jest.fn().mockResolvedValue({} as TransactionInfo),
-      fetchNetworkInfo: jest.fn().mockResolvedValue({}),
-      fetchAssetInfo: jest.fn().mockResolvedValue({}),
-      fetchStakePoolInfo: jest.fn().mockResolvedValue({}),
-      fetchDelegationInfo: jest.fn().mockResolvedValue({}),
-    } as unknown as IFetcher;
-  }
-
-  getUTxOInfoExtended = this.getUTxOInfo;
-  queryAllTxInfoExtended = this.queryAllTxInfo;
-}
+import {
+  alwaysSucceedCbor,
+  alwaysSucceedHash,
+  baseAddress,
+  txHash,
+} from "../test-util";
 
 describe("MeshTxBuilder", () => {
-  let txBuilder: MockTxBuilder;
-
-  beforeEach(() => {
-    txBuilder = new MockTxBuilder();
-  });
-
   it("should update incomplete txIns and mints", async () => {
-    // Mock methods
-
-    jest
-      .spyOn(txBuilder.serializer as any, "serializeTxBody")
-      .mockImplementation(() => "");
-    jest
-      .spyOn(txBuilder.serializer as any, "serializeTxBodyWithMockSignatures")
-      .mockImplementation(() => "");
-    jest
-      .spyOn(txBuilder as any, "isInputComplete")
-      .mockImplementation((txIn) => false);
-    jest
-      .spyOn(txBuilder as any, "isMintComplete")
-      .mockImplementation((mint) => false);
-    jest.spyOn(txBuilder as any, "selectUtxos").mockImplementation(() => {
-      return {
-        newInputs: new Set<UTxO>(),
-        newOutputs: new Set<TxOutput>(),
-        change: [],
-        fee: 155381,
-        redeemers: null,
-      };
-    });
-    jest.spyOn(txBuilder as any, "queryAllTxInfo").mockResolvedValue(undefined);
-    const completeTxInformationMock = jest
-      .spyOn(txBuilder as any, "completeTxInformation")
-      .mockImplementation(() => {});
-    const completeScriptInfoMock = jest
-      .spyOn(txBuilder as any, "completeScriptInfo")
-      .mockImplementation(() => {});
-
-    // Define incomplete inputs and mints
-    const incompleteTxIns: TxIn[] = [
-      { type: "PubKey", txIn: { txHash: txHash("tx1"), txIndex: 0 } },
-      { type: "PubKey", txIn: { txHash: txHash("tx2"), txIndex: 1 } },
-    ];
-    const incompleteMints: MintParam[] = [
+    const lovelace = (quantity: string) => [{ unit: "lovelace", quantity }];
+    const utxos: UTxO[] = [
       {
-        type: "Plutus",
-        policyId: "policyId1",
-        mintValue: [
-          {
-            assetName: "assetName1",
-            amount: "100",
-          },
-        ],
-        scriptSource: {
-          type: "Inline",
-          txHash: txHash("tx3"),
-          txIndex: 2,
-        } as ScriptSource,
+        input: { txHash: txHash("tx1"), outputIndex: 0 },
+        output: { address: baseAddress(0), amount: lovelace("10000000") },
+      },
+      {
+        input: { txHash: txHash("tx2"), outputIndex: 1 },
+        output: { address: baseAddress(1), amount: lovelace("20000000") },
+      },
+      {
+        input: { txHash: txHash("tx3"), outputIndex: 2 },
+        output: {
+          address: serializePlutusScript({
+            code: alwaysSucceedCbor,
+            version: "V3",
+          }).address,
+          amount: lovelace("30000000"),
+          scriptRef: resolveScriptRef({
+            code: alwaysSucceedCbor,
+            version: "V3",
+          }),
+        },
       },
     ];
-
-    // Set the meshTxBuilderBody
-    txBuilder.meshTxBuilderBody = {
-      ...emptyTxBuilderBody(),
-      inputs: incompleteTxIns,
-      collaterals: [],
-      mints: incompleteMints,
-      changeAddress:
-        "addr_test1qpsjnpqljma4vdg67vtf8k4xv7umncum5lvrnlupfyyvmtawhmy5tqhkqm4lrwwm6wkykzsa2aafy25vevxhrc3fws0qszw7wl",
-    };
-
-    // Call the complete method
-    await txBuilder.complete();
-
-    // Assertions
-    expect(completeTxInformationMock).toHaveBeenCalledTimes(
-      incompleteTxIns.length,
-    );
-    incompleteTxIns.forEach((txIn) => {
-      expect(completeTxInformationMock).toHaveBeenCalledWith(txIn);
+    const fetcher = new OfflineFetcher();
+    fetcher.addUTxOs(utxos);
+    const fetchUTxOs = jest.spyOn(fetcher, "fetchUTxOs");
+    const txBuilder = new MeshTxBuilder({
+      fetcher: fetcher as unknown as IFetcher,
+      evaluator: null,
     });
 
-    expect(completeScriptInfoMock).toHaveBeenCalledTimes(1);
-    expect(completeScriptInfoMock).toHaveBeenCalledWith(
-      (incompleteMints[0] as any).scriptSource,
+    // Inputs and the minting script's reference given by out ref alone
+    await txBuilder
+      .txIn(txHash("tx1"), 0)
+      .txIn(txHash("tx2"), 1)
+      .mintPlutusScriptV3()
+      .mint("100", alwaysSucceedHash, "61737365744e616d6531")
+      .mintRedeemerValue(mConStr0([]))
+      .mintTxInReference(txHash("tx3"), 2)
+      .txInCollateral(txHash("tx1"), 0)
+      .changeAddress(baseAddress(0))
+      .complete();
+
+    // Each transaction is read once, and what was read completes the body
+    expect(fetchUTxOs.mock.calls.map(([hash]) => hash).sort()).toEqual(
+      [txHash("tx1"), txHash("tx2"), txHash("tx3")].sort(),
     );
+    const { inputs, mints } = txBuilder.meshTxBuilderBody;
+    for (const utxo of utxos.slice(0, 2)) {
+      const input = inputs.find(
+        (i) =>
+          i.txIn.txHash === utxo.input.txHash &&
+          i.txIn.txIndex === utxo.input.outputIndex,
+      );
+      expect(input?.txIn).toMatchObject({
+        amount: utxo.output.amount,
+        address: utxo.output.address,
+        scriptSize: 0,
+      });
+    }
+    expect(mints[0]!.scriptSource).toMatchObject({
+      type: "Inline",
+      scriptHash: alwaysSucceedHash,
+      scriptSize: (utxos[2]!.output.scriptRef!.length / 2).toString(),
+    });
   });
 });

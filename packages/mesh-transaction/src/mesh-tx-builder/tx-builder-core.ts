@@ -59,6 +59,16 @@ export class MeshTxBuilderCore {
 
   protected manualFee: string | undefined;
 
+  /** The parameters the consumer's fields lie over: the built-in ones until set */
+  private baseParams: Protocol = DEFAULT_PROTOCOL_PARAMETERS;
+
+  /** The protocol parameter fields the consumer gave, merged in the order given */
+  private givenParams: Partial<Protocol> = {};
+
+  /** Fields a setting of the builder fixes, laid over all others */
+  private fixedParams: Partial<Protocol> = {};
+
+  /** The parameters in effect: the consumer's fields and the fixed ones over the base */
   protected _protocolParams: Protocol = DEFAULT_PROTOCOL_PARAMETERS;
 
   protected mintItem?: MintItem;
@@ -1622,9 +1632,33 @@ export class MeshTxBuilderCore {
    * @returns The MeshTxBuilder instance
    */
   protocolParams = (params: Partial<Protocol>) => {
-    const updatedParams = { ...DEFAULT_PROTOCOL_PARAMETERS, ...params };
-    this._protocolParams = updatedParams;
+    // A field once given stays given until it is given again
+    this.givenParams = { ...this.givenParams, ...params };
+    this._protocolParams = this.layParams();
     return this;
+  };
+
+  /**
+   * Protocol parameters as the builder uses them: the consumer's fields, then the fields a
+   * setting fixes, over `base`
+   * @param base The parameters underneath; the builder's base when omitted
+   */
+  protected layParams = (base: Protocol = this.baseParams): Protocol => ({
+    ...base,
+    ...this.givenParams,
+    ...this.fixedParams,
+  });
+
+  /** Sets the parameters the consumer's fields lie over */
+  protected setBaseParams = (base: Protocol) => {
+    this.baseParams = base;
+    this._protocolParams = this.layParams();
+  };
+
+  /** Fixes fields over every other parameter source, for a setting of the builder */
+  protected fixParams = (fields: Partial<Protocol>) => {
+    this.fixedParams = { ...this.fixedParams, ...fields };
+    this._protocolParams = this.layParams();
   };
 
   /**
@@ -2090,6 +2124,9 @@ export class MeshTxBuilderCore {
     this.addingPlutusWithdrawal = false;
     this.addingPlutusVote = false;
     this.plutusWithdrawalScriptVersion = undefined;
+    this.baseParams = DEFAULT_PROTOCOL_PARAMETERS;
+    this.givenParams = {};
+    this.fixedParams = {};
     this._protocolParams = DEFAULT_PROTOCOL_PARAMETERS;
     this.mintItem = undefined;
     this.txInQueueItem = undefined;

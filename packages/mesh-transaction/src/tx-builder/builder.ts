@@ -259,6 +259,23 @@ export type BuildOptions = {
   trace?: (event: BuildEvent) => void;
 };
 
+/**
+ * What the old builder's calls declared about outputs a build has no data for. Not a build
+ * option: only `MeshTxBuilder` passes it, under `DECLARED_OUTPUTS`, which the package does not
+ * export.
+ */
+export type DeclaredOutputs = {
+  /** Out refs (`txHash#index`) not looked up: the reference inputs and scripts naming them stay as given */
+  readonly unread: ReadonlySet<string>;
+  /** Reference-script sizes declared for out refs whose UTxO the build does not know, for the fee */
+  readonly scriptSizes: ReadonlyMap<string, number>;
+  /** Out refs named as collateral that selection may still spend, as the old builder's did */
+  readonly selectableCollateral: ReadonlySet<string>;
+};
+
+/** The key `DeclaredOutputs` travels under in the options of a build */
+export const DECLARED_OUTPUTS: unique symbol = Symbol("declared outputs");
+
 /** Every part kind, once: the compiler checks the list against `TxPart` */
 const PART_KINDS: ReadonlySet<string> = new Set(
   Object.keys({
@@ -1406,6 +1423,9 @@ export class TxBuilder {
     options: BuildOptions | undefined,
   ): Promise<BuiltTx> {
     const { sendAllTo, after, knownUtxos } = checkBuildOptions(options ?? {});
+    const declared = (
+      options as { [DECLARED_OUTPUTS]?: DeclaredOutputs } | undefined
+    )?.[DECLARED_OUTPUTS];
     // What is read and looked up is checked once found
     checkNetworks(this.network, [
       ...givenPayerEntries(source),
@@ -1461,6 +1481,7 @@ export class TxBuilder {
           onFetch: (outRefs) => {
             fetched = outRefs;
           },
+          ...(declared && { unread: declared.unread }),
         }),
       ]),
       signal,
@@ -1499,8 +1520,13 @@ export class TxBuilder {
       type: "payer",
       changeAddress: payer.changeAddress,
       utxos: payerUtxos.length,
-      selectable: paymentPool(filled, selectable, refused || undefined).pool
-        .length,
+      selectable: paymentPool(
+        filled,
+        selectable,
+        refused || undefined,
+        0,
+        declared?.selectableCollateral,
+      ).pool.length,
     });
     if (fetched.length > 0) emit({ type: "fetched", outRefs: fetched });
 
@@ -1534,6 +1560,10 @@ export class TxBuilder {
       ...(coinSelection && { coinSelection }),
       ...(sendAllTo !== undefined && { sendAllTo }),
       known,
+      ...(declared && {
+        scriptSizes: declared.scriptSizes,
+        selectableCollateral: declared.selectableCollateral,
+      }),
       ...(fee !== undefined && { fee }),
       registeredPools: new Set(registeredPools ?? []),
       extraKeyWitnesses: extraKeyWitnesses ?? 0,
@@ -1972,9 +2002,11 @@ export class TxBuilder {
         inputs.get(`${i.transaction_id}#${i.index}`)!,
       ),
       selectedInputs: balanced.selected,
-      referenceInputs: (body.reference_inputs ?? []).map((i) =>
-        references.get(outRefString(i))!,
-      ),
+      // A reference input left unread by declared data has no UTxO to report
+      referenceInputs: (body.reference_inputs ?? []).flatMap((i) => {
+        const utxo = references.get(outRefString(i));
+        return utxo ? [utxo] : [];
+      }),
       outputs,
       change: outputs.filter((o) => o.change),
       ...(balanced.collateral && { collateral: balanced.collateral }),

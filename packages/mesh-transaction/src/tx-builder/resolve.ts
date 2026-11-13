@@ -57,6 +57,11 @@ export type ResolveContext = {
   known: Map<string, UTxO>;
   /** Told of the out refs looked up through the provider, as `txHash#index`, when asked for */
   onFetch?: (outRefs: string[]) => void;
+  /**
+   * Out refs (`txHash#index`) not looked up: a reference input or reference script naming one
+   * stays as given
+   */
+  unread?: ReadonlySet<string>;
 };
 
 export const utxoKey = (utxo: Readonly<UTxO>) =>
@@ -93,12 +98,18 @@ export const inputsOf = (part: TxPart): TransactionInputPrototype[] => {
  */
 const fetchMissing = async (
   parts: readonly TxPart[],
-  ctx: Pick<ResolveContext, "known" | "provider" | "onFetch">,
+  ctx: Pick<ResolveContext, "known" | "provider" | "onFetch" | "unread">,
 ) => {
   const missing = new Map<string, TransactionInputPrototype[]>();
   for (const part of parts) {
     for (const input of inputsOf(part)) {
-      if (ctx.known.has(outRefString(input))) continue;
+      const key = outRefString(input);
+      if (ctx.known.has(key)) continue;
+      // Only what is read stays unread; a spent or collateral input is always looked up
+      const spent =
+        (part.kind === "spend" || part.kind === "collateral") &&
+        input === part.input;
+      if (!spent && ctx.unread?.has(key)) continue;
       const list = missing.get(input.transaction_id) ?? [];
       // Two parts may read one output: it is asked for once
       if (list.some((l) => l.index === input.index)) continue;
@@ -160,6 +171,8 @@ const resolveScript = <T extends NativeScriptSource | PlutusScriptSource>(
   ctx: ResolveContext,
 ): T => {
   if (source.type !== "reference") return source;
+  if (!source.utxo && ctx.unread?.has(outRefString(source.input)))
+    return source;
   const reference = lookup(ctx, source.input);
   const partCtx = ctxOf(part);
   if ("version" in source)
@@ -437,6 +450,8 @@ export const resolveParts = async (
       case "spend":
         return freeze(resolveSpend(part, ctx));
       case "referenceInput":
+        if (!part.utxo && ctx.unread?.has(outRefString(part.input)))
+          return part;
         return freeze({ ...part, utxo: part.utxo ?? lookup(ctx, part.input) });
       case "collateral": {
         const utxo = part.utxo ?? lookup(ctx, part.input);

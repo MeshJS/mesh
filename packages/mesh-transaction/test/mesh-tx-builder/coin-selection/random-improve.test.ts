@@ -87,7 +87,7 @@ describe("MeshTxBuilder - coin selection - Random improve", () => {
     ];
     const tx = await txBuilder
       .txIn(
-        txHash("tx3"),
+        txHash("tx4"),
         0,
         [
           {
@@ -120,7 +120,7 @@ describe("MeshTxBuilder - coin selection - Random improve", () => {
     const utxosForSelection: UTxO[] = [];
     const tx = await txBuilder
       .txIn(
-        txHash("tx3"),
+        txHash("tx4"),
         0,
         [
           {
@@ -174,7 +174,7 @@ describe("MeshTxBuilder - coin selection - Random improve", () => {
       .txOut(baseAddress(1), [
         {
           unit: "lovelace",
-          quantity: "1000000",
+          quantity: "2000000",
         },
         {
           unit: mintAsset,
@@ -269,7 +269,7 @@ describe("MeshTxBuilder - coin selection - Random improve", () => {
       .txOut(baseAddress(0), [
         {
           unit: "lovelace",
-          quantity: "1000000",
+          quantity: "2000000",
         },
         {
           unit: mintAsset,
@@ -279,7 +279,7 @@ describe("MeshTxBuilder - coin selection - Random improve", () => {
       .txOut(baseAddress(5), [
         {
           unit: "lovelace",
-          quantity: "1000000",
+          quantity: "2000000",
         },
         {
           unit: mockTokenUnit(1),
@@ -345,7 +345,7 @@ describe("MeshTxBuilder - coin selection - Random improve", () => {
     await expect(
       txBuilder
         .txIn(
-          txHash("tx3"),
+          txHash("tx4"),
           0,
           [
             {
@@ -369,7 +369,7 @@ describe("MeshTxBuilder - coin selection - Random improve", () => {
         .selectUtxosFrom(utxosForSelection)
         .changeAddress(baseAddress(1))
         .complete(),
-    ).rejects.toThrow(`UTxO Balance Insufficient`);
+    ).rejects.toMatchObject({ code: "INSUFFICIENT_FUNDS" });
   });
 
   it("Transaction should select multiple token types correctly", async () => {

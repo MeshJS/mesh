@@ -13,8 +13,9 @@ import { getOutputMinLovelace } from ".";
 
 /**
  * Convert UTxO to TxIn parameters in array for MeshTxBuilder, e.g. `txIn(...utxoToTxIn(utxo))`.
- * Passing the reference script size too means the builder has all it needs and does not
- * fetch the UTxO again.
+ * A builder with a fetcher still reads the output when `complete()` runs, and builds on what it
+ * reads; the amount, address and reference script size given here hold only where the output
+ * cannot be read: without a fetcher, or when the provider does not have it.
  * @param utxo UTxO
  * @returns [txHash, outputIndex, amount, address, scriptSize]
  */

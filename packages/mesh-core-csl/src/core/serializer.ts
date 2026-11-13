@@ -363,3 +363,13 @@ export class CSLSerializer implements IMeshTxSerializer {
     return BigInt(number).toString(16);
   };
 }
+
+// Marks the class as one of Mesh's serializers, which `MeshTxBuilder` accepts; it holds across
+// copies of the package and bundlers, where neither `instanceof` nor the class name does
+Object.defineProperty(
+  CSLSerializer.prototype,
+  Symbol.for("@meshsdk/serializer"),
+  {
+    value: true,
+  },
+);

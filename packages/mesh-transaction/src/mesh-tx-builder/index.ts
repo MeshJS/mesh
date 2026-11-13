@@ -19,6 +19,8 @@ import {
   MintItem,
   MintParam,
   Network,
+  NetworkConfig,
+  NetworkInput,
   Output,
   Protocol,
   ScriptSource,
@@ -44,9 +46,20 @@ import {
   OfflineEvaluatorScalus,
 } from "@meshsdk/core-cst";
 
+import type {
+  BuildOptions,
+  BuiltTx,
+  DeclaredOutputs,
+} from "../tx-builder/builder";
+import type { BodyParts } from "./body-parts";
+import { DECLARED_OUTPUTS, TxBuilder } from "../tx-builder/builder";
+import { TxBuildError } from "../tx-builder/errors";
+import { voterKey } from "../tx-builder/ordering";
+import { pricedSigners } from "../tx-builder/witnesses";
+import { bodyToParts } from "./body-parts";
 import {
-  CardanoSdkInputSelector,
   CoinSelectionInterface,
+  LargestFirstInputSelector,
 } from "./coin-selection";
 import {
   IInputSelector,
@@ -54,6 +67,7 @@ import {
   TransactionPrototype,
 } from "./coin-selection/coin-selection-interface";
 import { MeshTxBuilderCore } from "./tx-builder-core";
+import { warnOnce } from "./warnings";
 
 /** How many times `complete()` evaluates the final transaction before giving up on a fixed point */
 const MAX_BALANCING_PASSES = 20;
@@ -68,17 +82,52 @@ export interface MeshTxBuilderOptions {
    */
   evaluator?: IEvaluator | null;
   /**
-   * The network the transaction is for, passed to an evaluator that takes it (`setNetwork` sets
-   * it too). Without it, mainnet is assumed for a mainnet change address. The default evaluator
-   * needs it to evaluate a transaction with a validity interval.
+   * The network the transaction is for, taken before the network the fetcher states and before
+   * a `setNetwork()` string. Without any, mainnet is assumed for a mainnet change address. The
+   * default evaluator needs a network to evaluate a transaction with a validity interval.
    */
   network?: Network;
+  /**
+   * Mesh's serializers only: `CardanoSDKSerializer` (the default) or `CSLSerializer`; any other
+   * object is INVALID_OPTION. It signs in `completeSigning()`; the transaction itself is encoded
+   * by the builder, whichever of the two is given
+   */
   serializer?: IMeshTxSerializer;
+  /**
+   * A `LargestFirstInputSelector` or nothing, both meaning the builder's own selection; any
+   * other object is INVALID_OPTION
+   */
   selector?: IInputSelector;
+  /**
+   * Five protocol parameters set to 0 over `params`: minFeeA, minFeeB, priceMem, priceStep,
+   * coinsPerUtxoSize
+   */
   isHydra?: boolean;
+  /** Protocol parameter fields laid over those read from the fetcher, or the built-in ones */
   params?: Partial<Protocol>;
   verbose?: boolean;
 }
+
+/** The fields `isHydra` sets to 0: a head charges no fee and no storage */
+const HYDRA_PARAMS: Partial<Protocol> = {
+  minFeeA: 0,
+  minFeeB: 0,
+  priceMem: 0,
+  priceStep: 0,
+  coinsPerUtxoSize: 0,
+};
+
+/** The brand Mesh's serializers carry on their prototype */
+const MESH_SERIALIZER = Symbol.for("@meshsdk/serializer");
+
+const SERIALIZERS_ALLOWED =
+  "one of Mesh's serializers: CardanoSDKSerializer or CSLSerializer";
+const SELECTORS_ALLOWED = "a LargestFirstInputSelector, or none";
+
+const isMeshSerializer = (serializer: unknown): boolean =>
+  typeof serializer === "object" &&
+  serializer !== null &&
+  (serializer as Record<symbol, unknown>)[MESH_SERIALIZER] === true;
 
 export class MeshTxBuilder extends MeshTxBuilderCore {
   serializer: IMeshTxSerializer;
@@ -95,7 +144,17 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   protected utxosWithRefScripts: UTxO[] = [];
   /** UTxOs already known to the builder (selection pool, evaluation inputs, chained txs), keyed by `txHash#index` */
   protected knownUTxOs: Map<string, UTxO> = new Map();
+  /** The constructor's `network` option, which `setNetwork()` does not replace */
+  private readonly networkOption?: Network;
+  /** The protocol parameters the last `complete()` read from the fetcher */
+  private readParams?: Protocol;
+  /** The cost models the last `complete()` read from the fetcher */
+  private lastCostModels?: number[][];
 
+  /**
+   * @throws TxBuildError INVALID_OPTION for a `serializer` that is not Mesh's, or a `selector`
+   *   that is not a `LargestFirstInputSelector`
+   */
   constructor({
     serializer,
     selector,
@@ -108,6 +167,33 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     verbose = false,
   }: MeshTxBuilderOptions = {}) {
     super();
+    if (serializer !== undefined && !isMeshSerializer(serializer))
+      throw new TxBuildError(
+        "INVALID_OPTION",
+        `invalid serializer: expected ${SERIALIZERS_ALLOWED}; the transaction is encoded by the builder`,
+        {
+          details: {
+            option: "serializer",
+            value: serializer,
+            allowed: SERIALIZERS_ALLOWED,
+          },
+        },
+      );
+    if (
+      selector !== undefined &&
+      !(selector instanceof LargestFirstInputSelector)
+    )
+      throw new TxBuildError(
+        "INVALID_OPTION",
+        `invalid selector: expected ${SELECTORS_ALLOWED}; a selection of your own is coinSelection of TxBuilder`,
+        {
+          details: {
+            option: "selector",
+            value: selector,
+            allowed: SELECTORS_ALLOWED,
+          },
+        },
+      );
     if (fetcher) this.fetcher = fetcher;
     if (submitter) this.submitter = submitter;
     if (evaluator) this.evaluator = evaluator;
@@ -115,27 +201,15 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     else if (evaluator === undefined && fetcher)
       this.evaluator = new OfflineEvaluatorScalus(fetcher);
     this.network = network;
+    this.networkOption = network;
     if (params) this.protocolParams(params);
-    if (serializer) {
-      this.serializer = serializer;
-    } else {
-      this.serializer = new CardanoSDKSerializer(this._protocolParams);
-    }
-    if (selector) {
-      this.selector = selector;
-    } else {
-      this.selector = new CardanoSdkInputSelector();
-    }
+    // Over the consumer's own fields, and over every later protocolParams() call
+    if (isHydra) this.fixParams(HYDRA_PARAMS);
+    this.serializer =
+      serializer ?? new CardanoSDKSerializer(this._protocolParams);
+    // Both selectors lead to the builder's own selection
+    this.selector = selector ?? new LargestFirstInputSelector();
     this.verbose = verbose;
-    if (isHydra)
-      this.protocolParams({
-        minFeeA: 0,
-        minFeeB: 0,
-        priceMem: 0,
-        priceStep: 0,
-        collateralPercent: 0,
-        coinsPerUtxoSize: 0,
-      });
   }
 
   serializeMockTx = () => {
@@ -208,20 +282,27 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   /**
-   * It builds the transaction and query the blockchain for missing information
-   * @param customizedTx The optional customized transaction body
-   * @returns The signed transaction in hex ready to submit / signed by client
+   * Builds the transaction with `TxBuilder`: the body becomes parts, the payer is the change
+   * address with the UTxOs of `selectUtxosFrom`, and the builder selects inputs, makes change,
+   * puts up collateral, evaluates the scripts and settles the fee. Reads the protocol
+   * parameters, the cost models (when a Plutus script runs) and every output the body names
+   * by out ref and the builder does not hold, through the fetcher's shared cache. Afterwards
+   * the body describes the transaction built: its inputs, outputs, fee, execution units and
+   * key witness count.
+   * @param customizedTx The optional customized transaction body, laid over the builder's
+   * @returns The unsigned transaction in hex
+   * @throws TxBuildError or TxPartError with a code when the transaction cannot be built
    */
   complete = async (customizedTx?: Partial<MeshTxBuilderBody>) => {
     if (customizedTx) {
       this.meshTxBuilderBody = { ...this.meshTxBuilderBody, ...customizedTx };
-      if (customizedTx.fee) {
+      // "0" is the fee of an empty or parsed body, not one set by hand
+      if (customizedTx.fee && customizedTx.fee !== "0") {
         this.setFee(customizedTx.fee);
       }
     }
-    // Cost models don't depend on the rest of the body, so fetch them alongside the UTxOs
-    const costModelsCompleted = this.completeCostModels();
     this.queueAllLastItem();
+    this.removeDuplicateRefInputs();
 
     if (this.verbose) {
       console.log(
@@ -233,31 +314,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         }),
       );
     }
-    this.removeDuplicateInputs();
-    this.removeDuplicateRefInputs();
-    // We can set scriptSize of collaterals as 0, because the ledger ignores this for fee calculations
-    for (let collateral of this.meshTxBuilderBody.collaterals) {
-      collateral.txIn.scriptSize = 0;
-    }
-    try {
-      await this.completeTxParts();
-    } finally {
-      await costModelsCompleted;
-    }
-    await this.sanitizeOutputs();
 
-    this.sortTxParts();
-    if (
-      !this.meshTxBuilderBody.changeAddress ||
-      this.meshTxBuilderBody.changeAddress === ""
-    ) {
-      throw new Error(
-        "Change address is not set, utxo selection cannot be done without this",
-      );
-    }
-    const txPrototype = await this.selectUtxos();
-    await this.updateByTxPrototype(txPrototype, true);
-    await this.settleFeeAndChange(txPrototype.change.length);
+    const { built, translated, known, costModels } = await this.buildBody();
+    this.describeBuilt(built, translated, known, costModels);
+
     if (this.verbose) {
       console.log(
         "txBodyJson - after coin selection",
@@ -269,13 +329,330 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       );
     }
 
-    const txHex = this.serializer.serializeTxBody(
-      this.meshTxBuilderBody,
-      this._protocolParams,
+    this.txHex = built.tx;
+    return built.tx;
+  };
+
+  /**
+   * Builds the body with a `TxBuilder` made for this build, on the parameters, cost models and
+   * outputs read through the fetcher, or the values that stand in for them
+   */
+  private buildBody = async (): Promise<{
+    built: BuiltTx;
+    translated: BodyParts;
+    known: ReadonlyMap<string, UTxO>;
+    costModels?: number[][];
+  }> => {
+    const body = this.meshTxBuilderBody;
+    const cache = this.fetcher && CachedFetcher.wrap(this.fetcher);
+    const plutus = runsPlutus(body);
+    const evaluator = this.evaluator;
+    // A local evaluator is handed the build's UTxOs: declared data must not pose as one there
+    const handsUtxos = plutus && !!evaluator?.acceptsKnownUtxos;
+
+    const [params, outputs] = await Promise.all([
+      this.readParameters(cache),
+      this.readOutputs(cache),
+    ]);
+    const translated = bodyToParts(body, {
+      known: outputs.known,
+      declaredStandsIn: (outRef, entry) => {
+        const absence = outputs.absent.get(outRef);
+        if (!handsUtxos) return true;
+        if (absence === "failed") return false;
+        return entry.collateral || (!entry.script && entry.scriptSize === 0);
+      },
+      needsScriptSize: true,
+      keepExUnits: !evaluator,
+    });
+    const costModels = translated.plutus
+      ? await this.readCostModels(cache)
+      : undefined;
+
+    const { network, evaluatorNetwork } = this.networkOfBuild();
+    const builder = new TxBuilder({
+      network,
+      ...(this.fetcher && { provider: this.fetcher }),
+      params,
+      ...(costModels && { costModels }),
+      // Without an evaluator the redeemers keep the units of the calls; TxBuilder would
+      // otherwise make a default one
+      evaluator: evaluator ? configuredAs(evaluator, evaluatorNetwork) : null,
+    });
+    const options: BuildOptions & { [DECLARED_OUTPUTS]: DeclaredOutputs } = {
+      ...(body.changeAddress && {
+        payer: { changeAddress: body.changeAddress, utxos: body.extraInputs },
+      }),
+      ...(this.manualFee && { fee: BigInt(this.manualFee) }),
+      knownUtxos: outputs.knownUtxos,
+      [DECLARED_OUTPUTS]: {
+        unread: translated.unread,
+        scriptSizes: translated.scriptSizes,
+        // Selection may spend a collateral input too, as it always could here
+        selectableCollateral: new Set(
+          body.collaterals.map(
+            ({ txIn }) => `${txIn.txHash.toLowerCase()}#${txIn.txIndex}`,
+          ),
+        ),
+      },
+    };
+    const built = await builder.build(translated.parts, options);
+    return {
+      built,
+      translated,
+      known: outputs.known,
+      ...(costModels && { costModels }),
+    };
+  };
+
+  /**
+   * The protocol parameters of a build: those the fetcher gives, else those the last
+   * `complete()` read, else the built-in ones, with a warning once per process; the consumer's
+   * fields lie over them. The sync methods use them afterwards.
+   */
+  private readParameters = async (
+    cache: CachedFetcher | undefined,
+  ): Promise<Protocol> => {
+    let read: Protocol | undefined;
+    if (cache) {
+      try {
+        // NaN asks for the latest epoch's parameters, as TxBuilder does: one cache entry
+        read = (await cache.fetchProtocolParameters(Number.NaN)) ?? undefined;
+      } catch {
+        // The values last read, or the built-in ones, below
+      }
+    }
+    // A field the fetcher leaves out is taken from the built-in parameters
+    if (read) this.readParams = { ...DEFAULT_PROTOCOL_PARAMETERS, ...read };
+    if (!this.readParams)
+      warnOnce(
+        "builtinParameters",
+        "MeshTxBuilder builds on its built-in protocol parameters, which may not be the network's: " +
+          "give it a fetcher to read them from, or the parameters as params",
+      );
+    this.setBaseParams(this.readParams ?? DEFAULT_PROTOCOL_PARAMETERS);
+    return this._protocolParams;
+  };
+
+  /**
+   * The cost models of a build that runs a Plutus script: an array in the body's `network`
+   * field, else the fetcher's answer, else those the last `complete()` read, else the built-in
+   * lists; a version left out or empty is filled the same way
+   */
+  private readCostModels = async (
+    cache: CachedFetcher | undefined,
+  ): Promise<number[][]> => {
+    const { network } = this.meshTxBuilderBody;
+    let models: number[][] | undefined = Array.isArray(network)
+      ? network
+      : undefined;
+    if (!models && cache) {
+      try {
+        const answer = await cache.fetchCostModels();
+        if (Array.isArray(answer) && answer.length > 0) {
+          models = answer;
+          this.lastCostModels = answer;
+        } else {
+          console.warn(
+            "fetchCostModels returned an invalid value, using default cost models:",
+            answer,
+          );
+        }
+      } catch (error) {
+        console.warn(
+          "Failed to fetch cost models, using default cost models. Error: ",
+          error,
+        );
+      }
+    }
+    const source = models ?? this.lastCostModels ?? DEFAULT_COST_MODELS;
+    const length = Math.max(source.length, DEFAULT_COST_MODELS.length);
+    return Array.from({ length }, (_, i) => {
+      const model = source[i];
+      if (model && model.length > 0) return model;
+      const last = this.lastCostModels?.[i];
+      if (last && last.length > 0) return last;
+      return DEFAULT_COST_MODELS[i] ?? [];
+    });
+  };
+
+  /**
+   * The outputs the body names by out ref: those the builder holds (the UTxOs of
+   * `selectUtxosFrom` and `inputForEvaluation`, the outputs of `chainTx`) and those read through
+   * the fetcher, once per transaction hash; why each other one is not known; and the UTxOs
+   * handed to the build as `knownUtxos`
+   */
+  private readOutputs = async (
+    cache: CachedFetcher | undefined,
+  ): Promise<{
+    known: Map<string, UTxO>;
+    absent: Map<string, "noFetcher" | "notFound" | "failed">;
+    knownUtxos: UTxO[];
+  }> => {
+    const body = this.meshTxBuilderBody;
+    const keyOf = (utxo: UTxO) =>
+      `${utxo.input.txHash.toLowerCase()}#${utxo.input.outputIndex}`;
+    const given = Object.values(body.inputsForEvaluation);
+    const chained = body.chainedTxs.flatMap((txHex) =>
+      getTransactionOutputs(txHex),
+    );
+    const known = new Map<string, UTxO>();
+    for (const utxo of [...body.extraInputs, ...given, ...chained])
+      known.set(keyOf(utxo), utxo);
+
+    const { outRefs, scriptRefs } = namedOutRefs(body);
+    // A script reference whose held copy carries no script is read: the copy may lack it
+    const unknown = Array.from(outRefs).filter((key) => {
+      const held = known.get(key);
+      return !held || (scriptRefs.has(key) && !held.output.scriptRef);
+    });
+    const absent = new Map<string, "noFetcher" | "notFound" | "failed">();
+    const byHash = new Map<string, string[]>();
+    for (const key of unknown) {
+      const hash = key.slice(0, key.indexOf("#"));
+      byHash.set(hash, [...(byHash.get(hash) ?? []), key]);
+    }
+    await Promise.all(
+      Array.from(byHash, async ([hash, keys]) => {
+        if (!cache) {
+          for (const key of keys)
+            if (!known.has(key)) absent.set(key, "noFetcher");
+          return;
+        }
+        let utxos: UTxO[];
+        try {
+          utxos = (await cache.fetchUTxOs(hash)) ?? [];
+        } catch (error) {
+          const reason = isNotFound(error) ? "notFound" : "failed";
+          for (const key of keys) if (!known.has(key)) absent.set(key, reason);
+          return;
+        }
+        for (const utxo of utxos) {
+          const key = keyOf(utxo);
+          if (!known.get(key)?.output.scriptRef) known.set(key, utxo);
+        }
+        for (const key of keys)
+          if (!known.has(key)) absent.set(key, "notFound");
+      }),
     );
 
-    this.txHex = txHex;
-    return txHex;
+    // A given UTxO that a reference script is read from, without the script, is not handed
+    // over: the build then reads the provider's copy
+    const knownUtxos = [...given, ...chained].filter(
+      (utxo) => !(scriptRefs.has(keyOf(utxo)) && !utxo.output.scriptRef),
+    );
+    return { known, absent, knownUtxos };
+  };
+
+  /**
+   * The network of a build: the constructor's option, else the network the fetcher states, else
+   * a `setNetwork()` string of the change address's network id, else mainnet for a mainnet
+   * change address; a test network nobody named is not known, and gets no slot clock. The
+   * evaluator is told the network found, else the one the consumer stated.
+   */
+  private networkOfBuild = (): {
+    network: NetworkInput;
+    evaluatorNetwork?: Network;
+  } => {
+    const changeId = networkIdOf(this.meshTxBuilderBody.changeAddress);
+    const fromSetNetwork = publicNetwork(this.network);
+    const name =
+      publicNetwork(this.networkOption) ??
+      publicNetwork(this.fetcher?.network) ??
+      (fromSetNetwork !== undefined &&
+      changeId === (fromSetNetwork === "mainnet" ? 1 : 0)
+        ? fromSetNetwork
+        : undefined) ??
+      (changeId === 1 ? "mainnet" : undefined);
+    const stated = name ?? this.networkOption ?? this.network;
+    return {
+      network: name ?? UNKNOWN_TEST_NETWORK,
+      ...(stated !== undefined && { evaluatorNetwork: stated }),
+    };
+  };
+
+  /**
+   * Writes what was built into the body: the inputs with the selected ones, the outputs with the
+   * change, the fee, the redeemers' execution units, the key witness count, and the cost models
+   * a transaction running Plutus scripts was built with
+   */
+  private describeBuilt = (
+    built: BuiltTx,
+    translated: BodyParts,
+    known: ReadonlyMap<string, UTxO>,
+    costModels: number[][] | undefined,
+  ) => {
+    const body = this.meshTxBuilderBody;
+    completeScriptSources(body, known);
+    const keyOf = (txHash: string, index: number) =>
+      `${txHash.toLowerCase()}#${index}`;
+
+    const inputs = new Map<string, TxIn>();
+    for (const input of body.inputs) {
+      const key = keyOf(input.txIn.txHash, input.txIn.txIndex);
+      if (!inputs.has(key)) inputs.set(key, input);
+    }
+    body.inputs = built.inputs.map((utxo) => {
+      const key = keyOf(utxo.input.txHash, utxo.input.outputIndex);
+      const input: TxIn = inputs.get(key) ?? {
+        type: "PubKey",
+        txIn: { txHash: utxo.input.txHash, txIndex: utxo.input.outputIndex },
+      };
+      input.txIn.amount = utxo.output.amount;
+      input.txIn.address = utxo.output.address;
+      // An input built from declared data keeps the size the fee counted for it
+      input.txIn.scriptSize = utxo.output.scriptRef
+        ? utxo.output.scriptRef.length / 2
+        : known.has(key)
+          ? 0
+          : (translated.scriptSizes.get(key) ?? input.txIn.scriptSize ?? 0);
+      return input;
+    });
+
+    // The outputs of the body come first, in order; change follows
+    body.outputs.forEach((out, i) => {
+      const lovelace = built.outputs[i]?.output.amount.find(
+        (a) => a.unit === "lovelace",
+      );
+      if (
+        lovelace &&
+        !out.amount.some((a) => a.unit === "lovelace" || a.unit === "")
+      )
+        out.amount.push({ ...lovelace });
+    });
+    for (const change of built.change)
+      body.outputs.push({
+        address: change.output.address,
+        amount: change.output.amount,
+      });
+
+    body.fee = built.fee.toString();
+
+    const { body: txBody } = built.prototype;
+    for (const redeemer of built.redeemers) {
+      const { tag, index } = redeemer;
+      let key: string;
+      if (tag === "SPEND") {
+        const input = txBody.inputs[index]!;
+        key = `SPEND:${input.transaction_id}#${input.index}`;
+      } else if (tag === "MINT")
+        key = `MINT:${Object.keys(txBody.mint ?? {})[index]}`;
+      else if (tag === "REWARD")
+        key = `REWARD:${Object.keys(txBody.withdrawals ?? {})[index]}`;
+      else if (tag === "VOTE")
+        key = `VOTE:${voterKey(txBody.voting_procedures![index]!.voter)}`;
+      else key = `${tag}:${index}`;
+      for (const item of translated.redeemers.get(key) ?? [])
+        item.exUnits = {
+          mem: Number(redeemer.exUnits.mem),
+          steps: Number(redeemer.exUnits.steps),
+        };
+    }
+
+    const signers = pricedSigners(built.parts);
+    body.expectedNumberKeyWitnesses = signers.keyHashes.size;
+    body.expectedByronAddressWitnesses = Array.from(signers.byronAddresses);
+    if (costModels) body.network = costModels;
   };
 
   selectUtxos =
@@ -2153,6 +2530,177 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     return newBuilder;
   }
 }
+
+/** Whether a body runs a Plutus script, and so has redeemers */
+const runsPlutus = (body: MeshTxBuilderBody): boolean =>
+  body.inputs.some((input) => input.type === "Script") ||
+  body.mints.some((item) => item.type === "Plutus") ||
+  body.certificates.some((cert) => cert.type === "ScriptCertificate") ||
+  body.withdrawals.some((item) => item.type === "ScriptWithdrawal") ||
+  body.votes.some((item) => item.type === "ScriptVote") ||
+  body.proposals.some((item) => item.type === "ScriptProposal");
+
+/**
+ * The out refs a body names, as `txHash#index` with the hash in lower case: inputs, collateral,
+ * read-only reference inputs and reference scripts; and those of the reference scripts alone
+ */
+const namedOutRefs = (
+  body: MeshTxBuilderBody,
+): { outRefs: Set<string>; scriptRefs: Set<string> } => {
+  const outRefs = new Set<string>();
+  const scriptRefs = new Set<string>();
+  const name = (txHash: string, index: number) =>
+    outRefs.add(`${txHash.toLowerCase()}#${index}`);
+  const script = (
+    source: ScriptSource | SimpleScriptSourceInfo | undefined,
+  ) => {
+    if (source?.type !== "Inline") return;
+    name(source.txHash, source.txIndex);
+    scriptRefs.add(`${source.txHash.toLowerCase()}#${source.txIndex}`);
+  };
+  for (const input of body.inputs) {
+    name(input.txIn.txHash, input.txIn.txIndex);
+    if (input.type === "Script") script(input.scriptTxIn.scriptSource);
+    if (input.type === "SimpleScript")
+      script(input.simpleScriptTxIn.scriptSource);
+  }
+  for (const input of body.collaterals)
+    name(input.txIn.txHash, input.txIn.txIndex);
+  for (const ref of body.referenceInputs) name(ref.txHash, ref.txIndex);
+  for (const item of body.mints) script(item.scriptSource);
+  for (const item of body.withdrawals)
+    if (item.type !== "PubKeyWithdrawal") script(item.scriptSource);
+  for (const item of body.certificates) {
+    if (item.type === "ScriptCertificate") script(item.scriptSource);
+    if (item.type === "SimpleScriptCertificate")
+      script(item.simpleScriptSource);
+  }
+  for (const item of body.votes) {
+    if (item.type === "ScriptVote") script(item.scriptSource);
+    if (item.type === "SimpleScriptVote") script(item.simpleScriptSource);
+  }
+  for (const item of body.proposals) {
+    if (item.type === "ScriptProposal") script(item.scriptSource);
+    if (item.type === "SimpleScriptProposal") script(item.simpleScriptSource);
+  }
+  return { outRefs, scriptRefs };
+};
+
+/**
+ * Fills in the hash and size of the reference scripts the body names without them, from the
+ * outputs holding them, when known
+ */
+const completeScriptSources = (
+  body: MeshTxBuilderBody,
+  known: ReadonlyMap<string, UTxO>,
+) => {
+  const held = (txHash: string, txIndex: number) => {
+    const scriptRef = known.get(`${txHash.toLowerCase()}#${txIndex}`)?.output
+      .scriptRef;
+    if (!scriptRef) return undefined;
+    return {
+      scriptHash: CstScript.fromCbor(<CardanoSDKUtil.HexBlob>scriptRef)
+        .hash()
+        .toString(),
+      scriptSize: (scriptRef.length / 2).toString(),
+    };
+  };
+  const plutus = (source: ScriptSource | undefined) => {
+    if (source?.type !== "Inline" || (source.scriptHash && source.scriptSize))
+      return;
+    const script = held(source.txHash, source.txIndex);
+    if (script) Object.assign(source, script);
+  };
+  const native = (source: SimpleScriptSourceInfo | undefined) => {
+    if (
+      source?.type !== "Inline" ||
+      (source.simpleScriptHash && source.scriptSize)
+    )
+      return;
+    const script = held(source.txHash, source.txIndex);
+    if (script)
+      Object.assign(source, {
+        simpleScriptHash: script.scriptHash,
+        scriptSize: script.scriptSize,
+      });
+  };
+  for (const input of body.inputs) {
+    if (input.type === "Script") plutus(input.scriptTxIn.scriptSource);
+    if (input.type === "SimpleScript")
+      native(input.simpleScriptTxIn.scriptSource);
+  }
+  for (const item of body.mints)
+    if (item.type === "Plutus") plutus(item.scriptSource as ScriptSource);
+    else native(item.scriptSource as SimpleScriptSourceInfo);
+  for (const item of body.withdrawals) {
+    if (item.type === "ScriptWithdrawal") plutus(item.scriptSource);
+    if (item.type === "SimpleScriptWithdrawal") native(item.scriptSource);
+  }
+  for (const item of body.certificates) {
+    if (item.type === "ScriptCertificate") plutus(item.scriptSource);
+    if (item.type === "SimpleScriptCertificate")
+      native(item.simpleScriptSource);
+  }
+  for (const item of body.votes) {
+    if (item.type === "ScriptVote") plutus(item.scriptSource);
+    if (item.type === "SimpleScriptVote") native(item.simpleScriptSource);
+  }
+  for (const item of body.proposals) {
+    if (item.type === "ScriptProposal") plutus(item.scriptSource);
+    if (item.type === "SimpleScriptProposal") native(item.simpleScriptSource);
+  }
+};
+
+const PUBLIC_NETWORKS: readonly string[] = ["mainnet", "preprod", "preview"];
+
+/** A network name that counts as stated: mainnet, preprod or preview */
+const publicNetwork = (
+  value: unknown,
+): "mainnet" | "preprod" | "preview" | undefined =>
+  PUBLIC_NETWORKS.includes(value as string)
+    ? (value as "mainnet" | "preprod" | "preview")
+    : undefined;
+
+/** The network id of an address; undefined for none */
+const networkIdOf = (address: string): number | undefined => {
+  try {
+    return CstAddress.fromString(address)?.getNetworkId();
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * A test network nobody named: network id 0, and a slot clock nothing reads, since the old API
+ * gives bounds in slots and the evaluator is not told it
+ */
+const UNKNOWN_TEST_NETWORK: NetworkConfig = {
+  name: "testnet",
+  networkId: 0,
+  slotConfig: {
+    zeroTime: 0,
+    zeroSlot: 0,
+    slotLength: 1000,
+    startEpoch: 0,
+    epochLength: 432000,
+  },
+};
+
+/**
+ * An evaluator configured as the old builder configured it: with the network it knew and the
+ * cost models, never with a slot clock, which it did not guess
+ */
+const configuredAs = (
+  evaluator: IEvaluator,
+  network: Network | undefined,
+): IEvaluator => ({
+  evaluateTx: (tx, utxos, txs) => evaluator.evaluateTx(tx, utxos, txs),
+  ...(evaluator.acceptsKnownUtxos && { acceptsKnownUtxos: true }),
+  ...(evaluator.configure && {
+    configure: ({ costModels }: EvaluationContext) =>
+      evaluator.configure!({ network, costModels }),
+  }),
+});
 
 const DEFAULT_COST_MODELS = [
   DEFAULT_V1_COST_MODEL_LIST,
