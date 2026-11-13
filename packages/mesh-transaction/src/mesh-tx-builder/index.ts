@@ -377,8 +377,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
   /**
    * The protocol parameters of a build: those the fetcher gives, else those the last
-   * `complete()` read, else the built-in ones, with a warning once per process; the consumer's
-   * fields lie over them. The sync methods use them afterwards.
+   * `complete()` read, else the built-in ones, with a warning once per process when one of them
+   * stays in use; the consumer's fields lie over them. The sync methods use them afterwards.
    */
   private readParameters = async (
     cache: CachedFetcher | undefined,
@@ -392,9 +392,16 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         // The values last read, or the built-in ones, below
       }
     }
-    // A field the fetcher leaves out is taken from the built-in parameters
-    if (read) this.readParams = { ...DEFAULT_PROTOCOL_PARAMETERS, ...read };
-    if (!this.readParams)
+    // A field the fetcher leaves out or gives as undefined comes from the built-in parameters
+    if (read)
+      this.readParams = {
+        ...DEFAULT_PROTOCOL_PARAMETERS,
+        ...(Object.fromEntries(
+          Object.entries(read).filter(([, value]) => value !== undefined),
+        ) as Partial<Protocol>),
+      };
+    // No warning when the consumer's fields leave nothing of the built-in ones in use
+    if (!this.readParams && !this.paramsGivenWhole())
       warnOnce(
         "builtinParameters",
         "MeshTxBuilder builds on its built-in protocol parameters, which may not be the network's: " +

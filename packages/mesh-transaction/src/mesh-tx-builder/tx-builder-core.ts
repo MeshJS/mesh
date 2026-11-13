@@ -1650,6 +1650,14 @@ export class MeshTxBuilderCore {
     ...this.fixedParams,
   });
 
+  /** Whether the consumer's fields and the fixed ones give every parameter, none left to the base */
+  protected paramsGivenWhole = (): boolean => {
+    const own: Partial<Protocol> = { ...this.givenParams, ...this.fixedParams };
+    return (
+      Object.keys(DEFAULT_PROTOCOL_PARAMETERS) as (keyof Protocol)[]
+    ).every((key) => own[key] !== undefined);
+  };
+
   /** Sets the parameters the consumer's fields lie over */
   protected setBaseParams = (base: Protocol) => {
     this.baseParams = base;

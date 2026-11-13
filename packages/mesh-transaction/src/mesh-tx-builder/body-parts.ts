@@ -644,8 +644,10 @@ export const bodyToParts = (
       }),
     );
 
-  for (const [label, value] of body.metadata)
-    add(metadata({ metadataLabel: label, value: value as never }));
+  // A body copied through JSON holds {} here: as before, it carries no metadata
+  if (body.metadata instanceof Map)
+    for (const [label, value] of body.metadata)
+      add(metadata({ metadataLabel: label, value: value as never }));
 
   for (const { scriptCbor, scriptType } of body.scriptMetadata)
     add(
@@ -816,6 +818,9 @@ const governanceProposal = (
   }
 };
 
+/** A ratio of 0, for a price an update leaves out */
+const zero: Rational = { numerator: "0", denominator: "1" };
+
 const ratio = (r: Rational) => ({
   numerator: r.numerator,
   denominator: r.denominator,
@@ -874,10 +879,11 @@ const toParamUpdate = (
         model.map(String),
       ]),
     );
-  if (u.executionCosts?.memPrice && u.executionCosts.stepPrice)
+  // One price given: the other is 0, as the old serializer wrote it
+  if (u.executionCosts?.memPrice || u.executionCosts?.stepPrice)
     r.execution_costs = {
-      mem_price: ratio(u.executionCosts.memPrice),
-      step_price: ratio(u.executionCosts.stepPrice),
+      mem_price: ratio(u.executionCosts.memPrice ?? zero),
+      step_price: ratio(u.executionCosts.stepPrice ?? zero),
     };
   if (u.maxTxExUnits)
     r.max_tx_ex_units = {

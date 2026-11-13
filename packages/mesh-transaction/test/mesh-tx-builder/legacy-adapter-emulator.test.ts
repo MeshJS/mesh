@@ -2,9 +2,11 @@ import {
   CachedFetcher,
   DEFAULT_PROTOCOL_PARAMETERS,
   DEFAULT_V1_COST_MODEL_LIST,
+  emptyTxBuilderBody,
   IEvaluator,
   IFetcher,
   mConStr0,
+  MeshTxBuilderBody,
   UTxO,
 } from "@meshsdk/common";
 import { CSLSerializer } from "@meshsdk/core-csl";
@@ -1165,6 +1167,58 @@ describe.each(["scalus", "cquisitor"] as const)(
           warn.mockRestore();
         }
       });
+      it("warns of the built-in parameters only when the consumer's fields leave one in use", async () => {
+        const context = await setup(validator);
+        const { emulator, address, funds } = context;
+        const params = await emulator.fetchProtocolParameters();
+        const payment = (builder: MeshTxBuilder) =>
+          builder
+            .txIn(...utxoToTxIn(funds))
+            .txOut(address, lovelace(5_000_000))
+            .changeAddress(address)
+            .complete();
+        const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+        try {
+          // Every field given, with no fetcher: nothing built in is used
+          const whole = await payment(new MeshTxBuilder({ params }));
+          await payment(new MeshTxBuilder().protocolParams(params));
+          expect(warn).not.toHaveBeenCalled();
+          await accept(context, whole);
+
+          await payment(new MeshTxBuilder({ params: { minFeeA: 50 } }));
+          expect(warn).toHaveBeenCalledTimes(1);
+          expect(String(warn.mock.calls[0]![0])).toMatch(/fetcher|params/);
+        } finally {
+          warn.mockRestore();
+        }
+      });
+
+      it("takes a field the fetcher gives as undefined from the built-in parameters", async () => {
+        const context = await setup(validator);
+        const { emulator, address, funds } = context;
+        const fetcher = new Proxy(emulator, {
+          get: (target, prop) =>
+            prop === "fetchProtocolParameters"
+              ? async (epoch: number) => ({
+                  ...(await target.fetchProtocolParameters(epoch)),
+                  minFeeRefScriptCostPerByte: undefined,
+                  priceMem: undefined,
+                })
+              : Reflect.get(target, prop, target),
+        }) as unknown as IFetcher;
+        const builder = new MeshTxBuilder({ fetcher });
+        const txHex = await builder
+          .txOut(address, lovelace(5_000_000))
+          .changeAddress(address)
+          .selectUtxosFrom([funds])
+          .complete();
+        expect(protocolOf(builder)).toMatchObject({
+          minFeeRefScriptCostPerByte:
+            DEFAULT_PROTOCOL_PARAMETERS.minFeeRefScriptCostPerByte,
+          priceMem: DEFAULT_PROTOCOL_PARAMETERS.priceMem,
+        });
+        await accept(context, txHex);
+      });
     });
 
     describe("cost models", () => {
@@ -1524,6 +1578,84 @@ describe.each(["scalus", "cquisitor"] as const)(
         await expect(declared(address)).rejects.toMatchObject({
           code: "WITNESS_MISMATCH",
         });
+      });
+      it("builds a body copied through JSON, its metadata then no Map, without metadata as before", async () => {
+        const context = await setup(validator);
+        const { emulator, address, funds } = context;
+        const body: MeshTxBuilderBody = {
+          ...emptyTxBuilderBody(),
+          inputs: [
+            {
+              type: "PubKey",
+              txIn: {
+                txHash: funds.input.txHash,
+                txIndex: funds.input.outputIndex,
+                amount: funds.output.amount,
+                address,
+              },
+            },
+          ],
+          outputs: [{ address, amount: lovelace(5_000_000) }],
+          changeAddress: address,
+        };
+        const copy = () => JSON.parse(JSON.stringify(body));
+        expect(copy().metadata).toEqual({});
+        const built = [
+          await new MeshTxBuilder({ fetcher: emulator }).complete(copy()),
+          new MeshTxBuilder().completeSync(copy()),
+          new MeshTxBuilder().completeUnbalanced(copy()),
+        ];
+        for (const txHex of built)
+          expect(parse(txHex).auxiliaryData()).toBeUndefined();
+        await accept(context, built[0]!);
+      });
+
+      it("keeps the one price a parameter change gives, the other then 0", async () => {
+        const context = await setup(validator);
+        const { emulator, address, wallet } = context;
+        const [rewardAddress] = await wallet.getRewardAddresses();
+        emulator.setAccount({ rewardAddress: rewardAddress! });
+        // The emulated network's govActionDeposit
+        const deposit = 1_000_000_000n;
+        const memPrice = { numerator: "577", denominator: "10000" };
+        const stepPrice = { numerator: "721", denominator: "10000000" };
+        const cases = [
+          [{ executionCosts: { memPrice } }, { memory: 577 / 10000, steps: 0 }],
+          [{ executionCosts: { stepPrice } }, { memory: 0, steps: 721 / 1e7 }],
+          [
+            { maxTxSize: 16384, executionCosts: { memPrice } },
+            { memory: 577 / 10000, steps: 0 },
+          ],
+        ] as const;
+        for (const [protocolParamUpdates, prices] of cases) {
+          const funds = emulator.fund(address, {
+            lovelace: deposit + 100_000_000n,
+          });
+          const txHex = await new MeshTxBuilder({ fetcher: emulator })
+            .proposal(
+              {
+                kind: "ParameterChangeAction",
+                action: { protocolParamUpdates },
+              },
+              {
+                anchorUrl: "https://example.com/p.json",
+                anchorDataHash: "cd".repeat(32),
+              },
+              rewardAddress!,
+              String(deposit),
+            )
+            .changeAddress(address)
+            .selectUtxosFrom([funds])
+            .complete();
+          const action = parse(txHex).body().toCore().proposalProcedures![0]!
+            .governanceAction as unknown as {
+            protocolParamUpdate: { prices?: unknown; maxTxSize?: number };
+          };
+          expect(action.protocolParamUpdate.prices).toEqual(prices);
+          if ("maxTxSize" in protocolParamUpdates)
+            expect(action.protocolParamUpdate.maxTxSize).toBe(16384);
+          await accept(context, txHex);
+        }
       });
     });
 
