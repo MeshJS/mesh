@@ -16,6 +16,7 @@ describe("public entrypoint", () => {
     "TxBuilder",
     "canSubmit",
     "outputOf",
+    "utxosAfter",
   ])("exports %s", (name) => {
     expect(publicApi).toHaveProperty(name);
   });

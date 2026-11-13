@@ -236,6 +236,35 @@ describe("TxBuilder: the collateral fallback", () => {
     expect(after[0]!.utxos).toContain(ref(reserve));
   });
 
+  it("never puts up a UTxO of the answer that a transaction of after spends", async () => {
+    const spentReserve = utxo(ada(5));
+    // Spends spentReserve and leaves the payer no change
+    const tx1 = await scripted().build([], {
+      payer: { changeAddress: wallet, utxos: [spentReserve] },
+      sendAllTo: recipient,
+    });
+    expect(refs(tx1.inputs)).toEqual([ref(spentReserve)]);
+
+    const built = await scripted().build([scriptSpend()], {
+      payer: cip30([dust], {
+        getCollateral: answering([cborOf(spentReserve), cborOf(reserve)]),
+      }),
+      after: tx1,
+    });
+    expect(refs(built.collateral!.inputs)).toEqual([ref(reserve)]);
+
+    await expectCode(
+      () =>
+        scripted().build([scriptSpend()], {
+          payer: cip30([dust], {
+            getCollateral: answering([cborOf(spentReserve)]),
+          }),
+          after: tx1,
+        }),
+      "INSUFFICIENT_COLLATERAL",
+    );
+  });
+
   it("plans collateral from the answer alone, never joined with the payer's UTxOs", async () => {
     // Each is short of the collateral; the two together would cover it
     const own = utxo(200_000n);

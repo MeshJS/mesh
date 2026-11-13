@@ -71,7 +71,7 @@ const toOutRef = (input: TransactionInputPrototype): OutRef => ({
 });
 
 /** Every output a part reads: the inputs it spends or references, and its reference scripts */
-const inputsOf = (part: TxPart): TransactionInputPrototype[] => {
+export const inputsOf = (part: TxPart): TransactionInputPrototype[] => {
   const inputs: TransactionInputPrototype[] = [];
   if ("input" in part) inputs.push(part.input);
   if ("witness" in part) {
@@ -395,9 +395,9 @@ export const resolveParts = async (
     params: Protocol | Promise<Protocol>;
   },
 ): Promise<TxPart[]> => {
+  // What a part holds in full needs no lookup: its input and its reference script
   for (const part of parts)
-    if ("utxo" in part && part.utxo)
-      context.known.set(utxoKey(part.utxo), part.utxo);
+    for (const utxo of heldUtxos(part)) context.known.set(utxoKey(utxo), utxo);
   const [, balances, params] = await Promise.all([
     fetchMissing(parts, context),
     fetchRewardBalances(parts, context),

@@ -132,7 +132,8 @@ export type InsufficientFundsDetails = {
    */
   available: bigint;
   /**
-   * `noUtxos`: the payer has no UTxOs at all (the message says so, and names the payer);
+   * `noUtxos`: the payer has no UTxOs at all, or none that the transactions of `after` leave
+   * (the message says so, and names the payer);
    * `change`: only the change minimum is short; `payment`: the rest
    */
   reason: "payment" | "change" | "noUtxos";
@@ -145,11 +146,13 @@ export type InsufficientFundsDetails = {
   changeMinimum?: bigint;
   /** The payer's UTxOs, and why some could not be selected */
   pool: {
+    /** The payer's UTxOs, with the change of `after` transactions that joins them */
     given: number;
     selectable: number;
     scriptLocked: number;
     excludedByFilter: number;
     readByParts: number;
+    /** The payer's UTxOs that a transaction given in `after` spends */
     spentByAfter: number;
   };
 };

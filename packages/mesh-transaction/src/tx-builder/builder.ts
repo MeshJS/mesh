@@ -39,6 +39,7 @@ import type {
   CollateralPlan,
   SelectInputs,
 } from "./balance";
+import type { ChainedTx } from "./chain";
 import type { PartFailure } from "./errors";
 import type {
   CredentialInput,
@@ -64,7 +65,13 @@ import {
   refusedBy,
   totalExUnits,
 } from "./balance";
-import { bodyOutputs } from "./chain";
+import {
+  bodyOutputs,
+  foldTransactions,
+  plainUtxo,
+  refuseSpentOutRefs,
+  spentByTransactions,
+} from "./chain";
 import { TxBuildError } from "./errors";
 import { coversMinCoin, minCoin, valueSize } from "./fee";
 import { auxiliaryDataHashOf, scriptDataHashOf } from "./hashes";
@@ -80,6 +87,7 @@ import {
 } from "./network";
 import { freeze, outRefString } from "./parts/normalize";
 import {
+  copyUtxo,
   givenPayerEntries,
   readPayerSource,
   toAddressText,
@@ -214,6 +222,23 @@ export type BuildOptions = {
   /** Key witnesses expected beyond those the parts call for */
   extraKeyWitnesses?: number;
   /**
+   * Transactions built before this one and not yet seen by the provider: their inputs are not
+   * selected again, their change is selectable, and all their outputs can be spent or read by
+   * out ref without a lookup. Only change becomes selectable, never an output paid to another:
+   * of their change, only the outputs at this build's change address are selected. A part that
+   * names an output they spend is refused with UTXO_NOT_FOUND. Their collateral inputs stay
+   * selectable, since a valid transaction does not spend them. The build keeps nothing of them:
+   * a transaction not given here is not known to it.
+   */
+  after?: BuiltTx | readonly BuiltTx[];
+  /**
+   * Outputs the parts may name by out ref that the provider may not know yet; never selected.
+   * Being listed here makes no UTxO selectable and takes none out of selection: one the payer
+   * also holds is still selected. They are used as given, and reach the evaluator with the
+   * transaction.
+   */
+  knownUtxos?: readonly UTxO[];
+  /**
    * Aborts the build with ABORTED: a wallet read, a lookup, the collateral call or an evaluation
    * that is pending is no longer waited for
    */
@@ -318,6 +343,96 @@ const invalidOption = (
   );
 
 const SEND_ALL_TO_ALLOWED = "a payment address, in bech32 or hex";
+const AFTER_ALLOWED =
+  "a transaction built by TxBuilder.build (txHash, inputs, outputs, change), or a list of them";
+const KNOWN_UTXOS_ALLOWED =
+  "a list of UTxOs { input: { txHash, outputIndex }, output: { address, amount } }";
+
+/** A transaction of `after` as the build reads it: its UTxOs copied, its change marked */
+type AfterTx = ChainedTx & { txHash: string; outputs: BuiltOutput[] };
+
+/** An entry of a list option that is not of its type, with why */
+const invalidEntry = (
+  option: string,
+  entry: unknown,
+  allowed: string,
+  reason: string,
+  cause?: unknown,
+) =>
+  new TxBuildError("INVALID_OPTION", `invalid ${option}: ${reason}`, {
+    details: { option, value: entry, allowed },
+    ...(cause !== undefined && { cause }),
+  });
+
+/**
+ * The transactions of `after`, checked by their shape and copied: UTxOs with `input` and
+ * `output` only, transaction hashes in lower case and addresses in canonical text, change
+ * outputs marked
+ */
+const toAfter = (after: unknown): AfterTx[] => {
+  if (after === undefined) return [];
+  if (typeof after !== "object" || after === null)
+    throw invalidOption("after", after, AFTER_ALLOWED);
+  const entries: unknown[] = Array.isArray(after) ? after : [after];
+  return entries.map((entry, i) => {
+    const tx = entry as Record<string, unknown> | null;
+    const where = Array.isArray(after) ? `entry ${i}` : "the transaction";
+    if (
+      typeof tx !== "object" ||
+      tx === null ||
+      typeof tx.txHash !== "string" ||
+      !Array.isArray(tx.inputs) ||
+      !Array.isArray(tx.outputs) ||
+      !Array.isArray(tx.change)
+    )
+      throw invalidEntry(
+        "after",
+        entry,
+        AFTER_ALLOWED,
+        `${where} is not a built transaction: expected ${AFTER_ALLOWED}; got ${describe(entry)}`,
+      );
+    try {
+      return {
+        txHash: tx.txHash.toLowerCase(),
+        inputs: (tx.inputs as unknown[]).map(copyUtxo),
+        outputs: (tx.outputs as unknown[]).map((output): BuiltOutput => ({
+          ...copyUtxo(output),
+          ...((output as BuiltOutput).change === true && {
+            change: true as const,
+          }),
+        })),
+      };
+    } catch (error) {
+      throw invalidEntry(
+        "after",
+        entry,
+        AFTER_ALLOWED,
+        `${where} holds an input or output that is not a UTxO: ${errorText(error)}`,
+        error,
+      );
+    }
+  });
+};
+
+/** The UTxOs of `knownUtxos`, checked by their shape and copied as `toAfter` copies them */
+const toKnownUtxos = (knownUtxos: unknown): UTxO[] => {
+  if (knownUtxos === undefined) return [];
+  if (!Array.isArray(knownUtxos))
+    throw invalidOption("knownUtxos", knownUtxos, KNOWN_UTXOS_ALLOWED);
+  return knownUtxos.map((entry: unknown, i) => {
+    try {
+      return copyUtxo(entry);
+    } catch (error) {
+      throw invalidEntry(
+        "knownUtxos",
+        entry,
+        KNOWN_UTXOS_ALLOWED,
+        `entry ${i} is not a UTxO: ${errorText(error)}`,
+        error,
+      );
+    }
+  });
+};
 
 /** An abort signal by its shape, whatever made it */
 const isAbortSignal = (value: unknown): value is AbortSignal =>
@@ -363,11 +478,13 @@ const coinCbor = (lovelace: bigint) => {
 };
 
 /**
- * Checks the type of every option of a build but `payer`, and converts `sendAllTo` to bech32
- * (base58 for Byron)
+ * Checks the type of every option of a build but `payer`, converts `sendAllTo` to bech32
+ * (base58 for Byron), and copies the transactions of `after` and the UTxOs of `knownUtxos`
  * @throws TxBuildError INVALID_OPTION naming the first option that is not of its type
  */
-const checkBuildOptions = (options: BuildOptions): { sendAllTo?: string } => {
+const checkBuildOptions = (
+  options: BuildOptions,
+): { sendAllTo?: string; after: AfterTx[]; knownUtxos: UTxO[] } => {
   const { canSelect, coinSelection, sendAllTo, signal, trace } = options;
   const { fee, registeredPools, extraKeyWitnesses } = options;
   if (canSelect !== undefined && typeof canSelect !== "function")
@@ -409,11 +526,13 @@ const checkBuildOptions = (options: BuildOptions): { sendAllTo?: string } => {
       extraKeyWitnesses,
       "a whole number, 0 or more",
     );
-  if (sendAllTo === undefined) return {};
+  const after = toAfter(options.after);
+  const knownUtxos = toKnownUtxos(options.knownUtxos);
+  if (sendAllTo === undefined) return { after, knownUtxos };
   if (typeof sendAllTo !== "string")
     throw invalidOption("sendAllTo", sendAllTo, SEND_ALL_TO_ALLOWED);
   try {
-    return { sendAllTo: toAddressText(sendAllTo) };
+    return { sendAllTo: toAddressText(sendAllTo), after, knownUtxos };
   } catch (error) {
     throw invalidOption("sendAllTo", sendAllTo, SEND_ALL_TO_ALLOWED, error);
   }
@@ -485,7 +604,11 @@ export type BuiltTx = {
    * return is not among them.
    */
   outputs: BuiltOutput[];
-  /** The change outputs, as UTxOs of `txHash`, in body order; each is also in `outputs` */
+  /**
+   * The change outputs, as UTxOs of `txHash`, in body order; each is also in `outputs`. A build
+   * made before this transaction is seen by the provider passes it as `after`; when that build
+   * has the same change address, it can then select this change.
+   */
   change: BuiltOutput[];
   /** The collateral, when the transaction runs Plutus scripts */
   collateral?: CollateralPlan;
@@ -865,24 +988,28 @@ export class TxBuilder {
    * 1. Checks that every address it is given is of the builder's network, and converts time
    *    bounds to slots on its slot clock: `from` to the first slot starting at or after it,
    *    `until` to the slot containing it. A lower bound whose slot starts after the current time
-   *    of the local clock is reported in `warnings` as VALID_FROM_FUTURE. Reads the payer and
-   *    looks up, all at once and once each, the outputs the parts reference, the reward balances
-   *    they withdraw in full, the protocol parameters and (when Plutus scripts run) the cost
-   *    models. Lookups go through the provider's shared cache, which answers from what it holds;
-   *    the payer's UTxOs are always read past it. What is read and looked up is checked for its
-   *    network too.
+   *    of the local clock is reported in `warnings` as VALID_FROM_FUTURE. Refuses a part that
+   *    names an output a transaction of `after` spends. Reads the payer and looks up, all at
+   *    once and once each, the outputs the parts reference that neither `knownUtxos` nor the
+   *    outputs of `after` hold, the reward balances they withdraw in full, the protocol
+   *    parameters and (when Plutus scripts run) the cost models. Lookups go through the
+   *    provider's shared cache, which answers from what it holds; the payer's UTxOs are always
+   *    read past it. What is read and looked up is checked for its network too.
    * 2. Fills in what the parts leave open: reference scripts, datums, deposits, output lovelace.
-   * 3. Balances: selects inputs from the payer's UTxOs that `canSelect` lets it, with
-   *    `coinSelection` when given, returns change to its change address (or sends everything
-   *    left to `sendAllTo`), puts up collateral with a collateral return, and settles the fee.
-   *    When the payer's UTxOs cannot cover the collateral and the payer is a CIP-30 api with
-   *    `getCollateral`, that is called once, and the collateral is taken from its answer alone.
+   * 3. Balances: selects inputs from the payer's UTxOs, less those `after` spends and with
+   *    its change at the payer's change address, that `canSelect` lets it, with `coinSelection`
+   *    when given, returns change to its change address (or sends everything left to
+   *    `sendAllTo`), puts up collateral with a collateral return, and settles the fee. When the
+   *    payer's UTxOs cannot cover the collateral and the payer is a CIP-30 api with
+   *    `getCollateral`, that is called once, and the collateral is taken from its answer alone,
+   *    less what `after` spends.
    * 4. Evaluates the scripts with the builder's evaluator, configured with its network, slot
    *    clock and the cost models of step 1, and balances again with their execution units,
    *    until they settle. A local evaluator gets every UTxO the build knows for the
-   *    transaction's inputs; any other resolves them from its chain. Units stated on a redeemer
-   *    are checked, not replaced, when the builder has an evaluator; after `evaluator: null`
-   *    they are taken as stated.
+   *    transaction's inputs; any other resolves them from its chain, and gets only those of
+   *    `knownUtxos` and the outputs of `after`. Units stated on a redeemer are checked, not
+   *    replaced, when the builder has an evaluator; after `evaluator: null` they are taken as
+   *    stated.
    *
    * `signal` aborts the build between and during these steps; `trace` is told of each of them.
    *
@@ -899,7 +1026,7 @@ export class TxBuilder {
     // network of what the build is given, all before any request
     const source = toPayerSource(options?.payer);
     const flat = flattenParts(parts);
-    const { sendAllTo } = checkBuildOptions(options ?? {});
+    const { sendAllTo, after, knownUtxos } = checkBuildOptions(options ?? {});
     // What is read and looked up is checked once found
     checkNetworks(this.network, [
       ...givenPayerEntries(source),
@@ -907,7 +1034,12 @@ export class TxBuilder {
         ? []
         : [{ role: "output" as const, address: sendAllTo }]),
       ...flat.flatMap(partEntries),
+      ...knownUtxos.map((utxo) => utxoEntry(utxo)),
+      ...after.flatMap((tx) => tx.outputs.map((utxo) => utxoEntry(utxo))),
     ]);
+    // An output the transactions of `after` spend is gone after them
+    const spentByAfter = spentByTransactions(after);
+    refuseSpentOutRefs(flat, spentByAfter);
     // Time bounds become slots before any request, so a wrong interval costs no I/O
     const { parts: timed, warnings } = this.convertTimes(flat);
     const { fee, registeredPools, extraKeyWitnesses } = options ?? {};
@@ -918,6 +1050,17 @@ export class TxBuilder {
     // A snapshot's UTxOs are known before the lookups start, so a part may name one by out ref
     if (source.form === "snapshot")
       for (const utxo of source.snapshot.utxos) known.set(utxoKey(utxo), utxo);
+    // So are the outputs of `after` and the UTxOs of `knownUtxos`, which the provider may not
+    // know yet: every evaluator is handed those the transaction names
+    const handed = new Set<string>();
+    for (const utxo of [
+      ...after.flatMap((tx) => tx.outputs.map(plainUtxo)),
+      ...knownUtxos,
+    ]) {
+      const key = utxoKey(utxo);
+      handed.add(key);
+      if (!known.has(key)) known.set(key, utxo);
+    }
     const plutus = timed.some(runsPlutus);
 
     // Every read starts at once, and none waits for another
@@ -958,13 +1101,26 @@ export class TxBuilder {
       listed.add(key);
       return true;
     });
+    // The payer's UTxOs after the transactions of `after`: their inputs gone, their change at
+    // this build's change address added, as `utxosAfter` folds them
+    const { kept, added } = foldTransactions(
+      payerUtxos,
+      after,
+      (output) =>
+        output.change === true && output.output.address === payer.changeAddress,
+    );
+    const selectable = [
+      ...kept,
+      ...added.map((output) => known.get(utxoKey(output))!),
+    ];
+    const spentCount = payerUtxos.length - kept.length;
     // The filter is asked once per build; its answers serve every balancing round
-    const refused = canSelect && refusedBy(canSelect, filled, payerUtxos);
+    const refused = canSelect && refusedBy(canSelect, filled, selectable);
     emit({
       type: "payer",
       changeAddress: payer.changeAddress,
       utxos: payerUtxos.length,
-      selectable: paymentPool(filled, payerUtxos, refused || undefined).pool
+      selectable: paymentPool(filled, selectable, refused || undefined).pool
         .length,
     });
     if (fetched.length > 0) emit({ type: "fetched", outRefs: fetched });
@@ -993,8 +1149,9 @@ export class TxBuilder {
       params,
       costModels,
       changeAddress: payer.changeAddress,
-      utxos: payerUtxos,
+      utxos: selectable,
       ...(refused && { refused }),
+      ...(spentCount > 0 && { spentByAfter: spentCount }),
       ...(coinSelection && { coinSelection }),
       ...(sendAllTo !== undefined && { sendAllTo }),
       known,
@@ -1020,7 +1177,7 @@ export class TxBuilder {
           getCollateral,
           roundParts,
           context,
-          { known, canSelect, signal },
+          { known, canSelect, signal, spent: spentByAfter },
         );
         return balance(roundParts, { ...context, provisional });
       }
@@ -1041,7 +1198,7 @@ export class TxBuilder {
       const tx = this.serialize(balanced.assembled.prototype);
       throwIfAborted(signal);
       const results = await abortable(
-        this.evaluate(tx, balanced, known, costModels),
+        this.evaluate(tx, balanced, known, handed, costModels),
         signal,
       );
       emit({
@@ -1143,6 +1300,8 @@ export class TxBuilder {
       known: Map<string, UTxO>;
       canSelect?: (utxo: UTxO) => boolean;
       signal?: AbortSignal;
+      /** The out refs the transactions of `after` spend, which are never put up */
+      spent: ReadonlyMap<string, string>;
     },
   ): Promise<UTxO[]> {
     const { params } = ctx;
@@ -1196,7 +1355,11 @@ export class TxBuilder {
       this.network,
       utxos.map((utxo) => utxoEntry(utxo)),
     );
-    const usable = collateralCandidates(parts, utxos, options.canSelect);
+    const usable = collateralCandidates(
+      parts,
+      utxos.filter((utxo) => !options.spent.has(utxoKey(utxo))),
+      options.canSelect,
+    );
     if (usable.length === 0)
       throw refused(
         utxos.length === 0
@@ -1255,28 +1418,31 @@ export class TxBuilder {
   /**
    * Evaluates a transaction, keyed by redeemer pointer. The evaluator is first given the
    * builder's network and slot clock, and the cost models the script data hash is made from.
+   * @param handed Out refs of the UTxOs given as data (`knownUtxos`, the outputs of `after`),
+   *   which every evaluator gets
    */
   private async evaluate(
     tx: string,
     balanced: Balanced,
     known: ReadonlyMap<string, UTxO>,
+    handed: ReadonlySet<string>,
     costModels: number[][],
   ): Promise<Map<string, ExUnitsPrototype>> {
     const evaluator = this.evaluator!;
     // A local evaluator takes every UTxO the build knows; any other resolves the inputs from
-    // its chain, since a remote one may reject UTxOs that also exist there
+    // its chain, since a remote one may reject UTxOs that also exist there, and gets only those
+    // given as data, which its chain may not have yet
     const utxos = new Map<string, UTxO>();
-    if (evaluator.acceptsKnownUtxos) {
-      const { body } = balanced.assembled.prototype;
-      for (const input of [
-        ...body.inputs,
-        ...(body.reference_inputs ?? []),
-        ...(body.collateral ?? []),
-      ]) {
-        const key = `${input.transaction_id}#${input.index}`;
-        const utxo = known.get(key);
-        if (utxo) utxos.set(key, utxo);
-      }
+    const { body } = balanced.assembled.prototype;
+    for (const input of [
+      ...body.inputs,
+      ...(body.reference_inputs ?? []),
+      ...(body.collateral ?? []),
+    ]) {
+      const key = `${input.transaction_id}#${input.index}`;
+      const utxo = known.get(key);
+      if (utxo && (evaluator.acceptsKnownUtxos || handed.has(key)))
+        utxos.set(key, utxo);
     }
     let actions;
     try {

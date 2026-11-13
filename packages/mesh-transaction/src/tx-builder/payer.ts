@@ -146,7 +146,7 @@ const decodeUtxo = (cbor: string): UTxO => {
  * A copy of a UTxO object, its transaction hash in lower case and its address in canonical
  * form, so that out refs and addresses compare as the parts store them
  */
-const copyUtxo = (value: unknown): UTxO => {
+export const copyUtxo = (value: unknown): UTxO => {
   if (!isObject(value) || !isObject(value.input) || !isObject(value.output))
     throw new Error("a UTxO is an object { input, output }");
   const { txHash, outputIndex } = value.input;

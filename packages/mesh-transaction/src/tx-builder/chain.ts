@@ -7,7 +7,10 @@ import type {
 import { plutusDataVariantToCardano, resolveDataHash } from "@meshsdk/core-cst";
 
 import type { BuiltOutput, BuiltTx } from "./builder";
+import type { TxPart } from "./parts/types";
 import { TxBuildError } from "./errors";
+import { outRefString } from "./parts/normalize";
+import { inputsOf } from "./resolve";
 
 /**
  * An output of a transaction as the UTxO it becomes, with the members a provider reports: the
@@ -52,6 +55,127 @@ export const bodyOutputs = (
   body.outputs.map((output, outputIndex) =>
     outputUtxo(txHash, outputIndex, output),
   );
+
+/** What folding transactions into a list of UTxOs reads of each */
+export type ChainedTx = {
+  readonly inputs: readonly UTxO[];
+  readonly outputs: readonly BuiltOutput[];
+};
+
+/** An out ref as `txHash#index`, its hash in lower case */
+const outRefKey = (input: Readonly<UTxO["input"]>) =>
+  `${input.txHash.toLowerCase()}#${input.outputIndex}`;
+
+/** The out refs transactions spend, each with the hash of the first transaction spending it */
+export const spentByTransactions = (
+  txs: readonly (ChainedTx & { readonly txHash: string })[],
+): Map<string, string> => {
+  const spent = new Map<string, string>();
+  for (const tx of txs)
+    for (const utxo of tx.inputs)
+      if (!spent.has(outRefKey(utxo.input)))
+        spent.set(outRefKey(utxo.input), tx.txHash);
+  return spent;
+};
+
+/**
+ * Refuses a part that names an output one of the transactions built before spends: after them
+ * the output is gone, so the transaction could never be valid. Checked before any lookup.
+ * @param spent The out refs those transactions spend, with the hash of the one spending each
+ * @throws TxBuildError UTXO_NOT_FOUND `{ input }` with the part's kind and label
+ */
+export const refuseSpentOutRefs = (
+  parts: readonly TxPart[],
+  spent: ReadonlyMap<string, string>,
+) => {
+  if (spent.size === 0) return;
+  for (const part of parts)
+    for (const input of inputsOf(part)) {
+      const by = spent.get(outRefString(input));
+      if (by === undefined) continue;
+      throw new TxBuildError(
+        "UTXO_NOT_FOUND",
+        `output ${outRefString(input)} is spent by transaction ${by}, which the build is given in after`,
+        {
+          part: part.kind,
+          ...(part.label !== undefined && { label: part.label }),
+          details: {
+            input: { txHash: input.transaction_id, outputIndex: input.index },
+          },
+        },
+      );
+    }
+};
+
+/**
+ * The UTxOs after transactions, in two lists: `kept`, those of `utxos` none of them spends, in
+ * their order; `added`, their outputs that `owns` accepts, none of them spends and neither
+ * `utxos` nor an earlier transaction lists, in the order of the transactions and their bodies
+ */
+export const foldTransactions = (
+  utxos: readonly UTxO[],
+  txs: readonly ChainedTx[],
+  owns: (output: BuiltOutput) => boolean,
+): { kept: UTxO[]; added: BuiltOutput[] } => {
+  const spent = new Set<string>();
+  for (const tx of txs)
+    for (const utxo of tx.inputs) spent.add(outRefKey(utxo.input));
+  const kept = utxos.filter((utxo) => !spent.has(outRefKey(utxo.input)));
+  const listed = new Set(utxos.map((utxo) => outRefKey(utxo.input)));
+  const added: BuiltOutput[] = [];
+  for (const tx of txs)
+    for (const output of tx.outputs) {
+      const key = outRefKey(output.input);
+      if (spent.has(key) || listed.has(key) || !owns(output)) continue;
+      listed.add(key);
+      added.push(output);
+    }
+  return { kept, added };
+};
+
+/** A copy of a UTxO with `input` and `output` only: the marks of a built output dropped */
+export const plainUtxo = ({ input, output }: Readonly<UTxO>): UTxO => ({
+  input: { txHash: input.txHash, outputIndex: input.outputIndex },
+  output: structuredClone(output),
+});
+
+const isChange = (output: BuiltOutput) => output.change === true;
+
+/**
+ * The UTxOs after transactions, pure and synchronous: their inputs removed, their outputs that
+ * `owns` accepts added (by default the change outputs only, so a recipient's output is never
+ * reused). With a `PayerSnapshot`, a batch of N builds needs one wallet read:
+ *
+ * ```ts
+ * const payer = await builder.readPayer(wallet);
+ * const first = await builder.build(parts1, { payer });
+ * const second = await builder.build(parts2, {
+ *   payer: { ...payer, utxos: utxosAfter(payer.utxos, first) },
+ * });
+ * ```
+ *
+ * The function knows no payer, so its default takes the change outputs of every transaction it
+ * is given, whoever each was built for: for a transaction built for another payer, pass `owns`.
+ *
+ * The result holds the UTxOs of `utxos` none of the transactions spends, in their order, then
+ * the outputs added, in the order of the transactions and of their bodies, as plain UTxOs
+ * without `label` and `change`. An output `utxos` already lists is not added again, and one that
+ * any of the transactions spends is not added, so the order of the transactions does not change
+ * the set returned. Collateral is not looked at: a valid transaction does not spend it. The
+ * arguments are not changed, and a new array is returned every time.
+ * @param owns Which outputs of the transactions are added, in place of the change test
+ */
+export const utxosAfter = (
+  utxos: readonly UTxO[],
+  built: BuiltTx | readonly BuiltTx[],
+  owns: (output: BuiltOutput) => boolean = isChange,
+): UTxO[] => {
+  const txs: readonly BuiltTx[] = Array.isArray(built)
+    ? built
+    : [built as BuiltTx];
+  const { kept, added } = foldTransactions(utxos, txs, owns);
+  return [...kept, ...added.map(plainUtxo)];
+};
 
 /**
  * The output a built transaction made from the output part with this label. When several

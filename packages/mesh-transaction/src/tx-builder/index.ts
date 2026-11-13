@@ -38,7 +38,7 @@ export {
   type BuiltOutput,
   type BuildWarning,
 } from "./builder";
-export { outputOf } from "./chain";
+export { outputOf, utxosAfter } from "./chain";
 export {
   canSubmit,
   type MeshFormatWallet,

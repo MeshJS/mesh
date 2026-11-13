@@ -67,6 +67,11 @@ export type BalanceContext = {
   /** Out refs of the UTxOs selected neither as inputs nor as collateral: a filter refused them */
   refused?: ReadonlySet<string>;
   /**
+   * How many of the payer's UTxOs are left out of `utxos` because a transaction the build was
+   * given as `after` spends them
+   */
+  spentByAfter?: number;
+  /**
    * The UTxOs collateral is chosen from in place of the payer's, which are then still selected
    * for payment only: those a wallet gave for collateral
    */
@@ -188,6 +193,7 @@ export const paymentPool = (
   parts: readonly TxPart[],
   utxos: readonly UTxO[],
   refused: ReadonlySet<string> = new Set(),
+  spentByAfter = 0,
 ): { pool: UTxO[]; counts: InsufficientFundsDetails["pool"] } => {
   const spent = new Set(
     parts.flatMap((p) => (p.kind === "spend" ? [utxoKey(p.utxo!)] : [])),
@@ -196,12 +202,13 @@ export const paymentPool = (
   const putUp = putUpByParts(parts);
   const pool: UTxO[] = [];
   const counts: InsufficientFundsDetails["pool"] = {
-    given: utxos.length,
+    // Those spent by `after` were given too, and are counted by that reason
+    given: utxos.length + spentByAfter,
     selectable: 0,
     scriptLocked: 0,
     excludedByFilter: 0,
     readByParts: 0,
-    spentByAfter: 0,
+    spentByAfter,
   };
   for (const utxo of utxos) {
     const key = utxoKey(utxo);
@@ -499,7 +506,12 @@ export const balance = (
   // Where what is left goes: the change address, or the address everything is sent to
   const changeTo = ctx.sendAllTo ?? ctx.changeAddress;
   // The UTxOs selection may take, and why the others may not, each counted once
-  const { pool, counts } = paymentPool(parts, ctx.utxos, refused);
+  const { pool, counts } = paymentPool(
+    parts,
+    ctx.utxos,
+    refused,
+    ctx.spentByAfter,
+  );
   const selected: UTxO[] = [];
   const selectedKeys = new Set<string>();
   const select = (utxo: UTxO) => {
@@ -616,8 +628,9 @@ export const balance = (
         (estimated.changeMinimum ?? 0n);
     }
     const missing = required - available > 0n ? required - available : 1n;
+    // Judged on the UTxOs left after the transactions of `after`
     const reason: InsufficientFundsDetails["reason"] =
-      counts.given === 0
+      counts.given === counts.spentByAfter
         ? "noUtxos"
         : unit === "lovelace" &&
             available >= produced + estimated.feeEstimate! &&
@@ -632,7 +645,9 @@ export const balance = (
       ...(unanswered ? ["coinSelection selected nothing for it"] : []),
       ...(reason === "noUtxos"
         ? [
-            `no UTxOs are given for the payer ${ctx.changeAddress}; a provider may answer a failed request with an empty list`,
+            counts.spentByAfter > 0
+              ? `the transactions given in after spend every UTxO of the payer ${ctx.changeAddress}, and leave it no change`
+              : `no UTxOs are given for the payer ${ctx.changeAddress}; a provider may answer a failed request with an empty list`,
           ]
         : []),
       ...(unit === "lovelace" && ctx.provisional && ctx.fee === undefined

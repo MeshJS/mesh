@@ -1,9 +1,17 @@
-import { deserializeAddress } from "@meshsdk/core";
-import { TxEmulator } from "@meshsdk/tx-emulator";
+import { deserializeAddress, mConStr0, UTxO } from "@meshsdk/core";
+import { TxEmulator, TxResult } from "@meshsdk/tx-emulator";
 import { MeshWallet } from "@meshsdk/wallet";
 
-import { BuiltTx, certificate, output, TxBuilder } from "../../src/tx-builder";
-import { baseAddress } from "../test-util";
+import {
+  BuiltTx,
+  certificate,
+  output,
+  outputOf,
+  spend,
+  TxBuilder,
+  utxosAfter,
+} from "../../src/tx-builder";
+import { alwaysSucceedCbor, baseAddress } from "../test-util";
 
 const words = Array(24).fill("solution");
 const recipient = baseAddress(2);
@@ -89,6 +97,125 @@ describe.each(["scalus", "cquisitor"] as const)(
         fork.submitTx(await signWith(built, stakeCredentialHash)),
       ).rejects.toThrow(stakeCredentialHash);
       expect(await emulator.submitTx(await signWith(built))).toBe(built.txHash);
+    });
+  },
+);
+
+const alice = baseAddress(3);
+const bob = baseAddress(4);
+const plutusScript = { code: alwaysSucceedCbor, version: "V3" as const };
+
+const rules = (result: TxResult) =>
+  result.accepted ? [] : result.errors.map((e) => e.rule);
+const outRefs = (utxos: readonly UTxO[]) =>
+  utxos.map((u) => `${u.input.txHash}#${u.input.outputIndex}`);
+const pay = (address: string, lovelace: bigint) =>
+  output({ address, value: { lovelace } });
+
+/** An emulator of preprod at a fixed slot, a builder on it, and a wallet holding one UTxO */
+const chainSetup = async (validator: "scalus" | "cquisitor") => {
+  const emulator = await TxEmulator.create({
+    validator,
+    network: "preprod",
+    slot: 100_000_000,
+  });
+  const builder = new TxBuilder({
+    network: "preprod",
+    provider: emulator,
+    evaluator: emulator,
+  });
+  const wallet = await walletOf("payment");
+  const address = (await wallet.getChangeAddress())!;
+  emulator.fund(address, { lovelace: 100_000_000n });
+  const snapshot = () => ({
+    changeAddress: address,
+    utxos: emulator.utxos({ address }),
+  });
+  const sign = (built: BuiltTx) => wallet.signTx(built.tx);
+  return { emulator, builder, address, snapshot, sign };
+};
+
+/*
+ * Transactions built on top of others the ledger has not seen yet, then submitted in order.
+ */
+describe.each(["scalus", "cquisitor"] as const)(
+  "TxBuilder chains on TxEmulator (%s)",
+  (validator) => {
+    it("builds a payment after another one before it is submitted; without after it spends a spent input", async () => {
+      const { emulator, builder, snapshot, sign } = await chainSetup(validator);
+      const payer = snapshot();
+      expect(payer.utxos).toHaveLength(1);
+      const tx1 = await builder.build(pay(alice, 10_000_000n), { payer });
+      const tx2 = await builder.build(pay(bob, 5_000_000n), {
+        payer,
+        after: tx1,
+      });
+      const unchained = await builder.build(pay(bob, 5_000_000n), { payer });
+      expect(outRefs(unchained.inputs)).toEqual(outRefs(tx1.inputs));
+
+      expect(await emulator.submitTx(await sign(tx1))).toBe(tx1.txHash);
+      const fork = emulator.fork();
+      expect(await emulator.submitTx(await sign(tx2))).toBe(tx2.txHash);
+      expect(rules(await fork.submit(await sign(unchained)))).toEqual([
+        "UtxoNotAvailable",
+      ]);
+    });
+
+    it("builds three transactions on one read of the payer, folded with utxosAfter", async () => {
+      const { emulator, builder, address, sign } = await chainSetup(validator);
+      let payer = await builder.readPayer(address);
+      const built: BuiltTx[] = [];
+      for (const lovelace of [10_000_000n, 7_000_000n, 3_000_000n]) {
+        const tx = await builder.build(pay(alice, lovelace), { payer });
+        built.push(tx);
+        payer = { ...payer, utxos: utxosAfter(payer.utxos, tx) };
+      }
+      const spent = built.flatMap((tx) => outRefs(tx.inputs));
+      expect(new Set(spent).size).toBe(spent.length);
+      for (const tx of built)
+        expect(await emulator.submitTx(await sign(tx))).toBe(tx.txHash);
+    });
+
+    it("spends the change of an unsubmitted transaction by a part", async () => {
+      const { emulator, builder, snapshot, sign } = await chainSetup(validator);
+      const payer = snapshot();
+      const tx1 = await builder.build(pay(alice, 10_000_000n), { payer });
+      const tx2 = await builder.build(
+        [spend.pubKey({ utxo: tx1.change[0]! }), pay(bob, 5_000_000n)],
+        { payer, after: tx1 },
+      );
+      expect(outRefs(tx2.inputs)).toEqual(outRefs(tx1.change));
+      expect(await emulator.submitTx(await sign(tx1))).toBe(tx1.txHash);
+      expect(await emulator.submitTx(await sign(tx2))).toBe(tx2.txHash);
+    });
+
+    it("locks and unlocks by label before the lock is submitted", async () => {
+      const { emulator, builder, snapshot, sign } = await chainSetup(validator);
+      const payer = snapshot();
+      const lock = await builder.build(
+        output({
+          address: builder.scriptAddress(plutusScript),
+          value: { lovelace: 20_000_000n },
+          datum: { type: "inline", data: mConStr0([]) },
+          label: "vesting",
+        }),
+        { payer },
+      );
+      const unlock = await builder.build(
+        [
+          spend.plutus({
+            utxo: outputOf(lock, "vesting"),
+            script: plutusScript,
+            redeemer: { data: mConStr0([]) },
+          }),
+          pay(bob, 5_000_000n),
+        ],
+        { payer, after: lock },
+      );
+      // The wallet's only UTxO is spent by the lock: the collateral is the lock's change
+      expect(outRefs(unlock.collateral!.inputs)).toEqual(outRefs(lock.change));
+      expect(await emulator.submitTx(await sign(lock))).toBe(lock.txHash);
+      expect(await emulator.submitTx(await sign(unlock))).toBe(unlock.txHash);
     });
   },
 );
