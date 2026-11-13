@@ -1,4 +1,5 @@
 export * from "./parts";
+export { toMeshUtxo, toUtxo } from "./parts/utxo";
 export {
   assembleTxPrototype,
   type AssembleTxOptions,

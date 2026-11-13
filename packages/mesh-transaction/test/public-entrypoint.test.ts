@@ -1,4 +1,7 @@
 import type {
+  Assets,
+  OutputDatum,
+  OutputScript,
   PlanDeadlines,
   PlanOptions,
   RedeemerContext,
@@ -11,6 +14,8 @@ import type {
   TxPlanJSON,
   TxPlanStatus,
   TxPlanStore,
+  Utxo,
+  UtxoInput,
   WaitOptions,
   WaitTarget,
 } from "../src";
@@ -44,12 +49,49 @@ describe("public entrypoint", () => {
     "TxPlan",
     "memoryPlanStore",
     "checkPlanStore",
+    "toUtxo",
+    "toMeshUtxo",
   ])("exports %s", (name) => {
     expect(publicApi).toHaveProperty(name);
   });
 
   it("no longer exports requiredSigner: guard.pubKey takes its place", () => {
     expect(publicApi).not.toHaveProperty("requiredSigner");
+  });
+
+  it("exports the UTxO types and converters, and not the reader behind them", () => {
+    const value: Assets = { lovelace: 2_000_000n };
+    const datum: OutputDatum = { type: "hash", hash: "ab".repeat(32) };
+    const script: OutputScript = { type: "unknown", scriptRef: "8204aa" };
+    const utxo: Utxo = {
+      txHash: "cd".repeat(32),
+      outputIndex: 0,
+      address:
+        "addr_test1vz46h2at4w46h2at4w46h2at4w46h2at4w46h2at4w46h2cw5nyuy",
+      value,
+      datum,
+      script,
+    };
+    const given: UtxoInput = publicApi.toMeshUtxo(utxo);
+    expect(publicApi.toUtxo(given)).toEqual(utxo);
+    expect(Object.prototype.hasOwnProperty.call(publicApi, "toUtxo")).toBe(
+      true,
+    );
+    for (const name of [
+      "readUtxo",
+      "readOutRef",
+      "UtxoError",
+      "describeScriptRef",
+      "scriptRefOf",
+      "scriptSize",
+      "outRefOf",
+      "utxoKey",
+      "plainUtxo",
+      "valueOf",
+      "toAssets",
+    ])
+      // Own members only: every object has a valueOf
+      expect(Object.prototype.hasOwnProperty.call(publicApi, name)).toBe(false);
   });
 
   it("exports the type RedeemerContext", () => {

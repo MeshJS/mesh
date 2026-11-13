@@ -4,6 +4,8 @@ import type {
   ValuePrototype,
 } from "@meshsdk/common";
 
+import type { Assets } from "./parts/types";
+
 /**
  * Lovelace and tokens with signed quantities, tokens keyed by unit (policy id followed by
  * asset name, in hex). Zero quantities are never stored.
@@ -27,6 +29,24 @@ export const fromAssets = (amount: readonly Asset[]): Value => {
     else addAsset(value.assets, unit, BigInt(quantity));
   }
   return value;
+};
+
+/** The value of a UTxO, `Assets`, as a `Value` */
+export const valueOf = (assets: Assets): Value => {
+  const value = coinValue(assets.lovelace);
+  for (const [unit, n] of Object.entries(assets))
+    if (unit !== "lovelace") addAsset(value.assets, unit, n);
+  return value;
+};
+
+/** A `Value` as `Assets`: lovelace first, then the tokens in the order of their units */
+export const toAssets = (value: Value): Assets => {
+  const assets: Record<string, bigint> = { lovelace: value.coin };
+  for (const unit of Array.from(value.assets.keys()).sort()) {
+    const n = value.assets.get(unit)!;
+    if (n !== 0n) assets[unit] = n;
+  }
+  return assets as Assets;
 };
 
 export const fromMultiAsset = (

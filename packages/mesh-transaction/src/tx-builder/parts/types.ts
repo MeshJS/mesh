@@ -55,6 +55,81 @@ import type {
 export type OutRef = { txHash: string; outputIndex: number };
 
 /**
+ * Lovelace and tokens as quantities by unit: `lovelace`, or a policy id followed by an asset
+ * name, in hex. It is the record a part takes as its `value`. As the builder returns it,
+ * lovelace is always there (it may be `0n`), a token that is not held has no entry, and tokens
+ * stand in the order of their units.
+ */
+export type Assets = {
+  readonly lovelace: bigint;
+  readonly [unit: string]: bigint;
+};
+
+/**
+ * The datum an output holds, in the forms `output()` takes a datum in:
+ * - `{ type: "inline", data }`: held in the output; `data` is its CBOR in hex, byte for byte
+ *   as the output holds it, in the form every part takes as data;
+ * - `{ type: "hash", hash }`: only its hash is held.
+ */
+export type OutputDatum =
+  | {
+      readonly type: "inline";
+      readonly data: { readonly type: "CBOR"; readonly content: string };
+    }
+  | { readonly type: "hash"; readonly hash: string };
+
+/**
+ * The reference script an output holds:
+ * - `"plutus"`: a `PlutusScript` as parts take one, with its hash; `code` is in its double CBOR
+ *   wrapping, the bytes the hash is taken over kept as the output holds them;
+ * - `"native"`: the script's CBOR in hex, as parts take a native script, with its hash;
+ * - `"unknown"`: a reference script this library cannot read (a language it does not know,
+ *   bytes that are not a script, or bytes whose hash is not the one stated with them), kept as
+ *   it was given, with the hash stated for it when there was one. It counts for the fee by its
+ *   size and cannot be used as a script.
+ */
+export type OutputScript =
+  | {
+      readonly type: "plutus";
+      readonly version: LanguageVersion;
+      readonly code: string;
+      readonly hash: string;
+    }
+  | { readonly type: "native"; readonly cbor: string; readonly hash: string }
+  | {
+      readonly type: "unknown";
+      readonly scriptRef: string;
+      readonly hash?: string;
+    };
+
+/**
+ * An unspent transaction output: plain data, in the words of the parts. Everything the builder
+ * returns holds UTxOs in this form, and it is itself an `OutRef`.
+ */
+export type Utxo = {
+  /** Hash of the transaction that made the output, in lower-case hex */
+  readonly txHash: string;
+  /** Its position among the outputs of that transaction */
+  readonly outputIndex: number;
+  /** In bech32; base58 for a Byron address */
+  readonly address: string;
+  readonly value: Assets;
+  /** Left out when the output holds no datum */
+  readonly datum?: OutputDatum;
+  /** Left out when the output holds no reference script */
+  readonly script?: OutputScript;
+};
+
+/**
+ * A UTxO as the builder takes one, wherever it takes one:
+ * - a `Utxo`;
+ * - a Mesh `UTxO`, as providers and Mesh wallets return it;
+ * - the CBOR of a transaction unspent output in hex, as a CIP-30 wallet returns it.
+ * Each is checked and copied into a `Utxo` at the call; `toUtxo` is that conversion.
+ */
+export type UtxoInput = Utxo | UTxO | string;
+
+/**
  * An existing output: either just its reference, to be resolved before assembly, or the full
  * UTxO. Passing the UTxO lets the part check it straight away and spares a lookup later.
  */
