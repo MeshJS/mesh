@@ -33,6 +33,8 @@ jobs:
           npm test --workspace @meshsdk/core-cst
           npm test --workspace @meshsdk/scalus-emulator
           npm test --workspace @meshsdk/tx-emulator
+      - name: Test the transaction README example
+        run: npm test --workspace @meshsdk/transaction -- test/readme.test.ts
       - name: Test Scalus package exports
         run: |
           npm run test:package --workspace @meshsdk/core-cst
