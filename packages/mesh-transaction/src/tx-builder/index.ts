@@ -51,3 +51,10 @@ export {
 export type { CollateralPlan, SelectInputs } from "./balance";
 export type { GovernanceDeposits } from "./resolve";
 export type { RequiredKey, SignerRole, TxSigners } from "./witnesses";
+export {
+  addWitnesses,
+  requiredSigners,
+  signedKeyHashes,
+  signWitnesses,
+  type Signer,
+} from "./sign";

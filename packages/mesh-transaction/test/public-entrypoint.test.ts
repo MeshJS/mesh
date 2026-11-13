@@ -18,6 +18,10 @@ describe("public entrypoint", () => {
     "canSubmit",
     "outputOf",
     "utxosAfter",
+    "signWitnesses",
+    "addWitnesses",
+    "signedKeyHashes",
+    "requiredSigners",
   ])("exports %s", (name) => {
     expect(publicApi).toHaveProperty(name);
   });

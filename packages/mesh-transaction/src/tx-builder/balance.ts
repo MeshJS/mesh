@@ -31,7 +31,7 @@ import {
   toMultiAsset,
   toValuePrototype,
 } from "./value";
-import { placeholderWitnesses, requiredSigners } from "./witnesses";
+import { placeholderWitnesses, pricedSigners } from "./witnesses";
 
 /**
  * Replaces input selection. Called whenever something is missing; every UTxO returned must be
@@ -577,7 +577,7 @@ export const balance = (
         const sized = assembleTxPrototype(all, {
           fee: estimated,
           costModels: ctx.costModels,
-          ...placeholderWitnesses(requiredSigners(all), ctx.extraKeyWitnesses),
+          ...placeholderWitnesses(pricedSigners(all), ctx.extraKeyWitnesses),
         });
         const required = minFee(
           ctx.serialize(sized.prototype).length / 2,
@@ -894,7 +894,7 @@ export const balance = (
     const sized = assembleTxPrototype(all, {
       fee,
       costModels: ctx.costModels,
-      ...placeholderWitnesses(requiredSigners(all), ctx.extraKeyWitnesses),
+      ...placeholderWitnesses(pricedSigners(all), ctx.extraKeyWitnesses),
     });
     const size = ctx.serialize(sized.prototype).length / 2;
     ctx.onRound?.({ round, fee, size, selected: selected.length });

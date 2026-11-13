@@ -13,6 +13,7 @@ import {
   fromNativeScript,
   HexBlob,
   Script,
+  Serialization,
 } from "@meshsdk/core-cst";
 
 import type {
@@ -66,8 +67,14 @@ export type TxSigners = {
   nativeScripts: NativeScriptPrototype[];
 };
 
+/** The part an entry of `RequiredKey.neededBy` names: its kind, and its label if it has one */
+export type PartRef = {
+  readonly kind: TxPart["kind"];
+  readonly label?: string;
+};
+
 /** What the parts of a transaction need signed, as it is collected */
-type Collected = {
+export type Collected = {
   /** Keys the parts need, with the parts and roles that need them */
   keys: Map<string, RequiredKey>;
   /** Every key a witness is priced for: the keys above and those native scripts name */
@@ -79,10 +86,19 @@ type Collected = {
   partKeys: Set<string>;
 };
 
-const addKey = (
+/** Nothing collected yet */
+export const emptyCollected = (): Collected => ({
+  keys: new Map(),
+  priced: new Set(),
+  byronAddresses: new Set(),
+  nativeScripts: new Map(),
+  partKeys: new Set(),
+});
+
+export const addKey = (
   collected: Collected,
   keyHash: string,
-  part: TxPart,
+  part: PartRef,
   role: SignerRole,
 ) => {
   collected.priced.add(keyHash);
@@ -103,20 +119,20 @@ const addKey = (
   });
 };
 
-const addCredential = (
+export const addCredential = (
   collected: Collected,
   credential: Readonly<CredTypePrototype> | undefined,
-  part: TxPart,
+  part: PartRef,
   role: SignerRole,
 ) => {
   if (credential?.type === "KEY")
     addKey(collected, credential.value, part, role);
 };
 
-const addAddress = (
+export const addAddress = (
   collected: Collected,
   utxo: Readonly<UTxO> | undefined,
-  part: TxPart,
+  part: PartRef,
   role: SignerRole,
 ) => {
   if (!utxo) return;
@@ -152,45 +168,62 @@ const addNativeScriptKeys = (
   }
 };
 
+/** A native script in the form `TxSigners.nativeScripts` lists it, with its hash */
+export const nativeScriptEntry = (
+  native: Serialization.NativeScript,
+): { script: NativeScriptPrototype; hash: string } => ({
+  script: nativeScriptToPrototype(fromNativeScript(native) as NativeScript),
+  hash: native.hash().toString(),
+});
+
+/** The native script a UTxO holds as its reference script, if it holds one */
+export const nativeScriptRef = (
+  utxo: Readonly<UTxO> | undefined,
+): { script: NativeScriptPrototype; hash: string } | undefined => {
+  const scriptRef = utxo?.output.scriptRef;
+  const native = scriptRef && Script.fromCbor(HexBlob(scriptRef)).asNative();
+  return native ? nativeScriptEntry(native) : undefined;
+};
+
 /**
  * The script of a native witness and its hash, the script read from its reference output when
  * it is held there
  */
 const nativeScriptOf = (
   source: NativeScriptSource,
-): { script: NativeScriptPrototype; hash: string } | undefined => {
-  if (source.type === "attached")
-    return {
-      script: source.script as NativeScriptPrototype,
-      hash: source.scriptHash,
-    };
-  const scriptRef = source.utxo?.output.scriptRef;
-  const native = scriptRef && Script.fromCbor(HexBlob(scriptRef)).asNative();
-  return native
+): { script: NativeScriptPrototype; hash: string } | undefined =>
+  source.type === "attached"
     ? {
-        script: nativeScriptToPrototype(
-          fromNativeScript(native) as NativeScript,
-        ),
-        hash: native.hash().toString(),
+        script: source.script as NativeScriptPrototype,
+        hash: source.scriptHash,
       }
-    : undefined;
-};
+    : nativeScriptRef(source.utxo);
 
 /** A native script that runs: listed once, and every key it names priced */
+export const addNativeScript = (
+  collected: Collected,
+  native: { script: NativeScriptPrototype; hash: string },
+) => {
+  if (!collected.nativeScripts.has(native.hash))
+    collected.nativeScripts.set(native.hash, native.script);
+  addNativeScriptKeys(collected, native.script);
+};
+
+/** The native script of a witness, when it is one: listed once, and every key it names priced */
 const addNativeWitness = (
   collected: Collected,
   witness: KeyWitness | NativeWitness | PlutusWitness | { type: "none" },
 ) => {
   if (witness.type !== "native") return;
   const native = nativeScriptOf(witness.script);
-  if (!native) return;
-  if (!collected.nativeScripts.has(native.hash))
-    collected.nativeScripts.set(native.hash, native.script);
-  addNativeScriptKeys(collected, native.script);
+  if (native) addNativeScript(collected, native);
 };
 
 /** The keys a certificate is signed with, when it is witnessed by keys */
-const certificateKeys = (collected: Collected, part: CertificatePart) => {
+export const certificateKeys = (
+  collected: Collected,
+  part: PartRef & Pick<CertificatePart, "certificate">,
+) => {
   const { certificate } = part;
   switch (certificate.type) {
     case "POOL_REGISTRATION":
@@ -238,13 +271,7 @@ const certificateKeys = (collected: Collected, part: CertificatePart) => {
 
 /** Everything the parts of a transaction need signed, in the order of the parts */
 const collectSigners = (parts: readonly TxPart[]): Collected => {
-  const collected: Collected = {
-    keys: new Map(),
-    priced: new Set(),
-    byronAddresses: new Set(),
-    nativeScripts: new Map(),
-    partKeys: new Set(),
-  };
+  const collected = emptyCollected();
   for (const part of parts) {
     collected.partKeys = new Set();
     switch (part.kind) {
@@ -301,7 +328,7 @@ const collectSigners = (parts: readonly TxPart[]): Collected => {
  * witnesses. Native scripts count every key they name, as which of them sign is not known in
  * advance; the fee is then enough for any of them.
  */
-export const requiredSigners = (parts: readonly TxPart[]): Signers => {
+export const pricedSigners = (parts: readonly TxPart[]): Signers => {
   const { priced, byronAddresses } = collectSigners(parts);
   return { keyHashes: priced, byronAddresses };
 };
@@ -310,8 +337,11 @@ export const requiredSigners = (parts: readonly TxPart[]): Signers => {
  * The keys a transaction made of these (resolved) parts needs signed, each with the parts and
  * roles that need it; the Byron addresses it spends from; the native scripts it runs
  */
-export const txSigners = (parts: readonly TxPart[]): TxSigners => {
-  const collected = collectSigners(parts);
+export const txSigners = (parts: readonly TxPart[]): TxSigners =>
+  signersOf(collectSigners(parts));
+
+/** What was collected, as `TxSigners` */
+export const signersOf = (collected: Collected): TxSigners => {
   const keys = Array.from(collected.keys.values());
   return {
     keyHashes: keys.map((k) => k.keyHash),
