@@ -871,6 +871,27 @@ describe("intent state machine: anchors", () => {
     );
   });
 
+  it("changes the payer's anchor only when every earlier attempt is dead, though the new body spends the old one", () => {
+    // Another payer anchor, with the old one among the inputs: the rule of live anchors holds
+    const moving = buildEvent({
+      txHash: A(2),
+      anchors: [{ utxo: OTHER, kind: "payer" }],
+      extra: [ANCHOR],
+      keys: [K1],
+    });
+    const rejected = accept(sentIntent(), refuse(A(1)));
+    expect(rejected.attempts[0]!.status).toBe("rejected");
+    expect(refusal(rejected, moving)).toBe("anchor");
+    const expired = accept(
+      sentIntent(),
+      observe({ tip: pastMargin(), attempts: [missing(A(1))] }),
+    );
+    expect(accept(expired, moving).anchor.anchors).toEqual([
+      { utxo: ANCHOR, kind: "payer", attempts: [A(1)] },
+      { utxo: OTHER, kind: "payer", attempts: [A(2)] },
+    ]);
+  });
+
   const P = hash(0x100);
   const named = (
     anchors: { utxo: UTxO; kind: AnchorKind }[],

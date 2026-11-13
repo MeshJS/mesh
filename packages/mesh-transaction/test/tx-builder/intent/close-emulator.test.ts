@@ -3,10 +3,11 @@ import { mConStr0 } from "@meshsdk/core";
 
 import type { TxIntent, TxIntentError } from "../../../src/tx-builder";
 import { spend, TxError } from "../../../src/tx-builder";
-import { recordOf } from "../../../src/tx-builder/intent/intent";
+import { intentOver, recordOf } from "../../../src/tx-builder/intent/intent";
 import { alwaysSucceedCbor } from "../../test-util";
 import {
   advance,
+  builderOf,
   caught,
   FAST,
   pay,
@@ -15,6 +16,7 @@ import {
   submitterOf,
   swallowing,
   walletOf,
+  wrap,
 } from "./intent-emulator-util";
 
 const plutus = { code: alwaysSucceedCbor, version: "V3" as const };
@@ -213,6 +215,62 @@ describe("TxIntent.abandon and the closing on TxEmulator", () => {
     expect(
       searched.filter((hash) => hash === anchor.input.txHash),
     ).toHaveLength(2);
+  });
+
+  it("does not close an intent whose expired attempt a closing search finds without its slot", async () => {
+    for (const validContract of [undefined, true]) {
+      const { emulator, builder, wallet, provider } = await setup();
+      const intent = builder.intent(pay(), { payer: wallet });
+      await intent.send({ submitter: swallowing() });
+      const { txHash, until } = intent.attempts[0]!;
+      emulator.advanceTo({ time: until });
+      await intent.refresh();
+      expect(intent.status).toBe("expired");
+      // The attempt did land: a later search finds it, though not where it can be placed
+      const { height } = await emulator.fetchLatestBlock();
+      provider.control.hooks.fetchTxInfo = async (forward, hash: string) =>
+        hash === txHash
+          ? {
+              hash,
+              block: "00".repeat(32),
+              blockHeight: height,
+              ...(validContract !== undefined && { validContract }),
+            }
+          : forward(hash);
+      const error = (await caught(
+        intent.abandon(),
+      )) as TxIntentError<"CANNOT_OBSERVE">;
+      expectCode(error, "CANNOT_OBSERVE");
+      expect(error.details.reason).toBe("unconfirmed");
+      expect(error.message).toMatch(/is found, and not where it can be placed/);
+      expect(intent.status).toBe("expired");
+      expect(intent.closing).toBe(true);
+    }
+  });
+
+  it("does not close on an attempt another instance recorded expired while this tip is within the margin", async () => {
+    const { emulator, builder, wallet } = await setup({
+      builder: { intentDefaults: { ...FAST, expiryMarginMs: 2_000 } },
+    });
+    const intent = builder.intent(pay(), { payer: wallet });
+    await intent.send({ submitter: swallowing() });
+    const { until } = intent.attempts[0]!;
+    // This instance's tip: past the deadline, within the margin
+    emulator.advanceTo({ time: until + 1_000 });
+    const behind = await emulator.fetchLatestBlock();
+    // The other instance's tip is past the margin: it records the attempt expired
+    emulator.advanceTo({ time: until + 3_000 });
+    await intent.refresh();
+    expect(intent.status).toBe("expired");
+    const late = intentOver(
+      builderOf(wrap(emulator, { fetchLatestBlock: async () => behind })),
+      recordOf(intent),
+    );
+    const error = await caught(late.abandon());
+    expectCode(error, "CANNOT_OBSERVE");
+    expect(reasonOf(error)).toBe("unconfirmed");
+    expect(error.message).toMatch(/before .* deadline and the margin/);
+    expect(late.status).toBe("expired");
   });
 
   it("is CANNOT_OBSERVE (unconfirmed) without a tip, before and after the deadline, and keeps the mark", async () => {
@@ -509,6 +567,71 @@ describe("TxIntent anchor change on TxEmulator", () => {
       expect(intent.attempts).toHaveLength(1);
       expect(recordOf(intent).anchor.anchors).toHaveLength(1);
     }
+  });
+
+  it.each([
+    [2, "empty"],
+    [2, "throws"],
+    [3, "empty"],
+    [3, "throws"],
+  ] as const)(
+    "changes no payer anchor when read %i of its address gives no answer (%s)",
+    async (faulty, answer) => {
+      const { emulator, builder, wallet, provider } = await setup();
+      const intent = builder.intent(pay(), { payer: wallet });
+      await caught(
+        intent.send({
+          submitter: submitterOf(async () => {
+            throw { kind: "rejected" };
+          }),
+        }),
+      );
+      const anchor = recordOf(intent).anchor.anchors[0]!.utxo;
+      emulator.removeUtxos([anchor.input]);
+      emulator.advanceTo({ time: intent.attempts[0]!.until });
+      // The read before the check, the first poll's, then the second poll's
+      let reads = 0;
+      provider.control.hooks.fetchAddressUTxOs = async (
+        forward,
+        address: string,
+      ) => {
+        if (address !== anchor.output.address) return forward(address);
+        if (++reads !== faulty) return forward(address);
+        if (answer === "empty") return [];
+        throw new Error("no answer");
+      };
+      const error = await caught(intent.build());
+      expectCode(error, "CANNOT_OBSERVE");
+      expect(reasonOf(error)).toBe("unconfirmed");
+      expect(reads).toBe(faulty);
+      expect(intent.attempts).toHaveLength(1);
+      expect(recordOf(intent).anchor.anchors).toHaveLength(1);
+    },
+  );
+
+  it("is STILL_LIVE until the deadline and the margin for a payer anchor spent by someone else", async () => {
+    const { emulator, builder, wallet } = await setup({
+      builder: { intentDefaults: { ...FAST, expiryMarginMs: 5_000 } },
+    });
+    const intent = builder.intent(pay(), { payer: wallet });
+    await caught(
+      intent.send({
+        submitter: submitterOf(async () => {
+          throw { kind: "rejected" };
+        }),
+      }),
+    );
+    const anchor = recordOf(intent).anchor.anchors[0]!.utxo;
+    emulator.removeUtxos([anchor.input]);
+    const { txHash, until } = intent.attempts[0]!;
+    // Past the deadline, within the margin
+    emulator.advanceTo({ time: until });
+    const error = (await caught(intent.build())) as TxIntentError<"STILL_LIVE">;
+    expectCode(error, "STILL_LIVE");
+    expect(error.details.txHashes).toEqual([txHash]);
+    expect(error.details.safeAfter).toBe(until + 5_000);
+    expect(intent.attempts).toHaveLength(1);
+    expect(recordOf(intent).anchor.anchors).toHaveLength(1);
   });
 
   it("searches the attempts on the previous anchor before a resend: one found landed is not sent again", async () => {

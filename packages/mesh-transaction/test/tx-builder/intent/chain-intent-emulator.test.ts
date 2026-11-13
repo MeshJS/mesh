@@ -10,10 +10,11 @@ import {
   TxError,
   validity,
 } from "../../../src/tx-builder";
-import { recordOf } from "../../../src/tx-builder/intent/intent";
+import { intentOver, recordOf } from "../../../src/tx-builder/intent/intent";
 import { alwaysSucceedCbor } from "../../test-util";
 import {
   advance,
+  builderOf,
   caught,
   FAST,
   forwarding,
@@ -23,6 +24,7 @@ import {
   submitterOf,
   swallowing,
   walletOf,
+  wrap,
 } from "./intent-emulator-util";
 
 const plutus = { code: alwaysSucceedCbor, version: "V3" as const };
@@ -73,6 +75,8 @@ describe("Intent chains on TxEmulator", () => {
     const { emulator, builder, wallet } = await setup();
     const parent = builder.intent(pay(), { payer: wallet });
     await parent.send({ submitter: swallowing() });
+    // Time passes before the child is built: its own deadline would be later than the parent's
+    advance(emulator, 60);
     const child = builder.intent(pay(3_000_000n), {
       payer: wallet,
       after: parent,
@@ -122,6 +126,35 @@ describe("Intent chains on TxEmulator", () => {
     expect(parent.status).toBe("expired");
     expectCode(await caught(child.build()), "ORPHANED");
     expect(child.attempts).toHaveLength(1);
+  });
+
+  it("does not close a child another instance recorded orphaned while this tip is within the margin past the parent's deadline", async () => {
+    const { emulator, builder, wallet } = await setup();
+    const parent = builder.intent(pay(), { payer: wallet });
+    await parent.send({ submitter: swallowing() });
+    const child = builder.intent(
+      [pay(3_000_000n), validity({ until: emulator.time + 3_600_000 })],
+      { payer: wallet, after: parent, expiryMarginMs: 2_000 },
+    );
+    await child.send({ submitter: swallowing() });
+    const parentUntil = parent.attempts[0]!.until;
+    // This instance's tip: past the parent attempt's deadline, within the child's margin
+    emulator.advanceTo({ time: parentUntil + 1_000 });
+    const behind = await emulator.fetchLatestBlock();
+    // The other instance's tip is past the margin: it records the child orphaned
+    emulator.advanceTo({ time: parentUntil + 3_000 });
+    await child.refresh();
+    expect(child.status).toBe("orphaned");
+    const late = intentOver(
+      builderOf(wrap(emulator, { fetchLatestBlock: async () => behind })),
+      recordOf(child),
+      { after: parent },
+    );
+    const error = await caught(late.abandon());
+    expectCode(error, "CANNOT_OBSERVE");
+    expect(reasonOf(error)).toBe("unconfirmed");
+    expect(error.message).toMatch(/deadline and this intent's margin/);
+    expect(late.status).toBe("orphaned");
   });
 
   it("waits for the parent's next attempt after a refusal of the parent", async () => {
@@ -512,6 +545,132 @@ describe("Intent chains with several parents, failed parents and pinned selectio
     await emulator.submitTx(second.signedTx!);
     await child.send({ waitFor: "included", submitter: forwarding(emulator) });
     expect(child.landed?.txHash).toBe(child.txHash);
+  });
+
+  it("takes the refusal of a child on two parents as unknown while one of them is not in a block", async () => {
+    const { emulator, builder, wallet, address, funded } = await setup();
+    const snapshot = (utxo: UTxO) => ({
+      changeAddress: address,
+      utxos: [utxo],
+    });
+    const first = builder.intent(
+      [
+        pay(),
+        output({ label: "a", address, value: { lovelace: 10_000_000n } }),
+      ],
+      { payer: snapshot(funded[0]!) },
+    );
+    await first.send({ signers: wallet, submitter: forwarding(emulator) });
+    const second = builder.intent(
+      [pay(), output({ label: "b", address, value: { lovelace: 5_000_000n } })],
+      { payer: snapshot(funded[1]!) },
+    );
+    await second.send({ signers: wallet, submitter: swallowing() });
+    const child = builder.intent(
+      [
+        spend.pubKey({ utxo: outputOf(first.built!, "a") }),
+        spend.pubKey({ utxo: outputOf(second.built!, "b") }),
+        pay(3_000_000n),
+      ],
+      { payer: wallet, after: [first, second] },
+    );
+    await child.build();
+    // The node does not know the second parent's output: its refusal says nothing
+    const error = await caught(child.send({ submitter: forwarding(emulator) }));
+    expectCode(error, "SUBMIT_FAILED");
+    expect(child.status).toBe("sent");
+    expect(child.attempts[0]!.status).toBe("sent");
+    // Once both parents are in a block, the child lands
+    await emulator.submitTx(second.signedTx!);
+    await child.send({ waitFor: "included", submitter: forwarding(emulator) });
+    expect(child.landed?.txHash).toBe(child.txHash);
+  });
+
+  it("is STILL_LIVE for a new attempt while an earlier one may land on a parent attempt that was replaced", async () => {
+    const { emulator, builder, wallet, address, funded } = await setup();
+    const snapshot = (utxo: UTxO) => ({
+      changeAddress: address,
+      utxos: [utxo],
+    });
+    const first = builder.intent(
+      [
+        pay(),
+        output({ label: "a", address, value: { lovelace: 10_000_000n } }),
+      ],
+      { payer: snapshot(funded[0]!) },
+    );
+    await first.send({ signers: wallet, submitter: forwarding(emulator) });
+    const second = builder.intent(pay(), { payer: snapshot(funded[1]!) });
+    await second.build();
+    await second.sign({ signers: wallet });
+    // The child spends the first parent's output, its anchor, and the second parent's change
+    const child = builder.intent(
+      [spend.pubKey({ utxo: outputOf(first.built!, "a") }), pay(15_000_000n)],
+      {
+        payer: wallet,
+        after: [first, second],
+        expiryMarginMs: 5_000,
+        canSelect: (utxo) => utxo.input.txHash === second.txHash,
+      },
+    );
+    await child.build();
+    await child.sign();
+    const anchors = anchorsOf(child);
+    expect(anchors).toEqual([
+      { kind: "parent", ref: key(outputOf(first.built!, "a")) },
+    ]);
+    const earlier = child.attempts[0]!;
+    expect([...recordOf(child).attempts[0]!.dependsOn!].sort()).toEqual(
+      [first.txHash!, second.txHash!].sort(),
+    );
+    // The second parent's attempt is refused and replaced
+    expectCode(
+      await caught(
+        second.send({
+          submitter: submitterOf(async () => {
+            throw { kind: "rejected" };
+          }),
+        }),
+      ),
+      "REJECTED",
+    );
+    advance(emulator, 1);
+    await second.build({ payer: snapshot(funded[1]!) });
+    // Past the child's deadline, within its margin: its signed attempt may still land
+    emulator.advanceTo({ time: earlier.until });
+    const error = (await caught(child.build())) as TxIntentError<"STILL_LIVE">;
+    expectCode(error, "STILL_LIVE");
+    expect(error.details.txHashes).toEqual([earlier.txHash]);
+    expect(child.attempts).toHaveLength(1);
+    expect(anchorsOf(child)).toEqual(anchors);
+  });
+
+  it("is STILL_LIVE for a new attempt on the parent's output while an earlier one on a general anchor may land", async () => {
+    const { emulator, builder, wallet } = await setup();
+    const parent = builder.intent(pay(), { payer: wallet });
+    await parent.send({ waitFor: "included" });
+    const parentTx = parent.txHash!;
+    // The first attempt does not take the parent's change: its anchor is a payer UTxO
+    let skipParent = true;
+    const child = builder.intent(pay(3_000_000n), {
+      payer: wallet,
+      after: parent,
+      ttlMs: 60_000,
+      expiryMarginMs: 5_000,
+      canSelect: (utxo) => !skipParent || utxo.input.txHash !== parentTx,
+    });
+    await child.build();
+    await child.sign();
+    expect(anchorsOf(child).map((a) => a.kind)).toEqual(["payer"]);
+    // Past its deadline, within its margin, the next attempt would stand on the parent's change
+    skipParent = false;
+    const earlier = child.attempts[0]!;
+    emulator.advanceTo({ time: earlier.until });
+    const error = (await caught(child.build())) as TxIntentError<"STILL_LIVE">;
+    expectCode(error, "STILL_LIVE");
+    expect(error.details.txHashes).toEqual([earlier.txHash]);
+    expect(child.attempts).toHaveLength(1);
+    expect(anchorsOf(child).map((a) => a.kind)).toEqual(["payer"]);
   });
 
   it("orphans a child at once when its parent's attempt is found with is_valid = false, and closes it", async () => {

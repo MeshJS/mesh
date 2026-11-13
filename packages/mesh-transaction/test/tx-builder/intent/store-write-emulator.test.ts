@@ -1,3 +1,4 @@
+import type { UTxO } from "@meshsdk/common";
 import type { NativeScript } from "@meshsdk/core";
 import { deserializeAddress } from "@meshsdk/core";
 
@@ -13,6 +14,7 @@ import {
   spend,
   TxError,
 } from "../../../src/tx-builder";
+import { recordOf } from "../../../src/tx-builder/intent/intent";
 import {
   advance,
   builderOf,
@@ -688,6 +690,217 @@ describe("Two objects on one record", () => {
     expect((await a.build()).txHash).toBe(b.txHash);
   });
 
+  it("is VERSION_CONFLICT for a first attempt whose write meets another writer's rejected first attempt; nothing handed out", async () => {
+    const { builder, wallet, emulator, instance, store } = await storeSetup();
+    const other = instance();
+    const b = other.builder.intent(pay(), { id: "pay", payer: wallet });
+    // It reads the store before any record is written, and its write waits
+    await b.refresh();
+    const held = holdSave(other.store, () => true);
+    const building = caught(b.build());
+    await held.reached;
+    // Meanwhile the first object makes the first attempt, and the node refuses it
+    advance(emulator, 1);
+    const a = builder.intent(pay(), { id: "pay", payer: wallet });
+    expectCode(
+      await caught(
+        a.send({
+          submitter: submitterOf(async () => {
+            throw { kind: "rejected" };
+          }),
+        }),
+      ),
+      "REJECTED",
+    );
+    const rejected = await stored(store.inner, "pay");
+    expect(rejected.status).toBe("rejected");
+    other.store.reset();
+    held.open();
+
+    expectCode(await building, "VERSION_CONFLICT");
+    expect(other.store.written()).toEqual([]);
+    expect(await stored(store.inner, "pay")).toStrictEqual(rejected);
+    expect(b.attempts.map((x) => x.txHash)).toEqual([a.txHash]);
+    expect(b.status).toBe("rejected");
+  });
+
+  it("is VERSION_CONFLICT for a new attempt whose write meets another writer's replacement, also once that one is rejected", async () => {
+    const { builder, wallet, emulator, instance, store } = await storeSetup();
+    const a = builder.intent(pay(), { id: "pay", payer: wallet });
+    const first = await a.build();
+    await a.sign();
+    advance(emulator, 700);
+    await a.refresh();
+    expect(a.status).toBe("expired");
+    const other = instance();
+    const b = await other.builder.resume("pay", { payer: wallet });
+    await b.refresh();
+    // Its write of the replacement waits
+    const held = holdSave(other.store, (json) => json.attempts.length === 2);
+    const building = caught(b.build());
+    await held.reached;
+    // Meanwhile the first object records its own replacement, and the node refuses it
+    advance(emulator, 1);
+    const next = await a.build();
+    expectCode(
+      await caught(
+        a.send({
+          submitter: submitterOf(async () => {
+            throw { kind: "rejected" };
+          }),
+        }),
+      ),
+      "REJECTED",
+    );
+    const rejected = await stored(store.inner, "pay");
+    other.store.reset();
+    held.open();
+
+    expectCode(await building, "VERSION_CONFLICT");
+    expect(other.store.written()).toEqual([]);
+    expect(await stored(store.inner, "pay")).toStrictEqual(rejected);
+    expect(rejected.attempts.map((x) => x.txHash)).toEqual([
+      first.txHash,
+      next.txHash,
+    ]);
+    expect(b.txHash).toBe(next.txHash);
+  });
+
+  it("searches again from another writer's record that a second call on the object read meanwhile", async () => {
+    const { builder, wallet, emulator, instance, store, provider } =
+      await storeSetup();
+    const a = builder.intent(pay(), { id: "pay", payer: wallet });
+    const first = await a.build();
+    await a.sign();
+    advance(emulator, 700);
+    await a.refresh();
+    expect(a.status).toBe("expired");
+    // Another instance replaces the attempt; the node refuses it
+    const b = await instance().builder.resume("pay", { payer: wallet });
+    const next = await b.build();
+    expectCode(
+      await caught(
+        b.send({
+          submitter: submitterOf(async () => {
+            throw { kind: "rejected" };
+          }),
+        }),
+      ),
+      "REJECTED",
+    );
+    advance(emulator, 1);
+    // The replacement is in a block with is_valid = false
+    const tip = await emulator.fetchLatestBlock();
+    const held = gate();
+    let holding = true;
+    provider.control.hooks.fetchTxInfo = async (forward, hash: string) => {
+      if (holding) {
+        holding = false;
+        await held.pass();
+      }
+      return hash === next.txHash
+        ? {
+            hash,
+            slot: String(Number(tip.slot) - 1),
+            block: tip.hash,
+            blockHeight: tip.height,
+            validContract: false,
+          }
+        : forward(hash);
+    };
+    // The first call waits in its search of the earlier attempts
+    const firstCall = caught(a.build());
+    await held.reached;
+    // The second call meets the other writer's record and reads it
+    expectCode(await caught(a.build()), "VERSION_CONFLICT");
+    expect(a.txHash).toBe(next.txHash);
+    held.open();
+
+    // The first call starts again from that record, and its search finds the replacement failed
+    expectCode(await firstCall, "SCRIPT_FAILED");
+    expect(a.status).toBe("failed");
+    const record = await stored(store.inner, "pay");
+    expect(record.status).toBe("failed");
+    expect(record.attempts.map((x) => x.txHash)).toEqual([
+      first.txHash,
+      next.txHash,
+    ]);
+  });
+
+  it("records one of two new payer anchors taken at once by two objects; the other hands nothing out", async () => {
+    const { builder, wallet, emulator, instance, store, funded } =
+      await storeSetup([40_000_000n, 30_000_000n, 30_000_000n]);
+    const a = builder.intent(pay(), { id: "pay", payer: wallet });
+    await caught(
+      a.send({
+        submitter: submitterOf(async () => {
+          throw { kind: "rejected" };
+        }),
+      }),
+    );
+    const anchor = recordOf(a).anchor.anchors[0]!.utxo;
+    const others = funded.filter(
+      (utxo) =>
+        utxo.input.txHash !== anchor.input.txHash ||
+        utxo.input.outputIndex !== anchor.input.outputIndex,
+    );
+    const not =
+      (utxo: UTxO) =>
+      ({ input }: UTxO) =>
+        input.txHash !== utxo.input.txHash ||
+        input.outputIndex !== utxo.input.outputIndex;
+    // Each object may select only one of the two other UTxOs: their new anchors differ
+    const x = await instance().builder.resume("pay", {
+      payer: wallet,
+      canSelect: not(others[0]!),
+    });
+    const y = await instance().builder.resume("pay", {
+      payer: wallet,
+      canSelect: not(others[1]!),
+    });
+    // Someone else spends the anchor; the deadline passes
+    emulator.removeUtxos([anchor.input]);
+    emulator.advanceTo({ time: a.attempts[0]!.until });
+    await x.refresh();
+    await y.refresh();
+    const results = await Promise.allSettled([x.build(), y.build()]);
+    const won = results.filter((r) => r.status === "fulfilled");
+    const lost = results.filter((r) => r.status === "rejected");
+    expect(won).toHaveLength(1);
+    expect(lost).toHaveLength(1);
+    expectCode((lost[0] as PromiseRejectedResult).reason, "VERSION_CONFLICT");
+    const winner = (won[0] as PromiseFulfilledResult<{ txHash: string }>).value;
+    const record = await stored(store.inner, "pay");
+    expect(record.attempts.map((x) => x.txHash)).toEqual([
+      a.txHash,
+      winner.txHash,
+    ]);
+    // The loser goes on with the recorded attempt
+    const loser = results[0]!.status === "rejected" ? x : y;
+    expect(loser.txHash).toBe(winner.txHash);
+    expect(recordOf(loser).anchor.anchors).toHaveLength(2);
+    expect((await loser.build()).txHash).toBe(winner.txHash);
+  });
+
+  it("delivers once when two send() calls on one object decide on the same signed attempt", async () => {
+    const { builder, wallet, store } = await storeSetup();
+    const a = builder.intent(pay(), { id: "pay", payer: wallet });
+    await a.build();
+    await a.sign();
+    store.reset();
+    const submitter = swallowing();
+    const results = await Promise.allSettled([
+      a.send({ submitter }),
+      a.send({ submitter }),
+    ]);
+    expect(results.map((r) => r.status)).toEqual(["fulfilled", "fulfilled"]);
+    expect(
+      store.written().filter((c) => c.op === "save" && c.status === "sent"),
+    ).toHaveLength(1);
+    expect(a.status).toBe("sent");
+    expect((await stored(store.inner, "pay")).attempts[0]!.sends).toBe(1);
+  });
+
   it("returns from a closing call whose write queued behind another call that closed the intent", async () => {
     for (const order of [
       ["abandon", "advance"],
@@ -743,6 +956,46 @@ describe("Refused and failed writes", () => {
     await again.send();
     expect(again.status).not.toBe("signed");
     expect(provider.control.count("submitTx")).toBe(1);
+  });
+
+  it("takes a save answering anything but true as another revision: a first delivery is not sent", async () => {
+    for (const answer of [undefined, 1, "ok"]) {
+      const { builder, wallet, store, provider } = await storeSetup();
+      const a = builder.intent(pay(), { id: "pay", payer: wallet });
+      await a.build();
+      await a.sign();
+      store.hooks.save = async (forward, json, rev) =>
+        json.status === "sent"
+          ? (answer as unknown as boolean)
+          : forward(json, rev);
+      const submitter = swallowing();
+      expectCode(await caught(a.send({ submitter })), "VERSION_CONFLICT");
+      expect(submitter.calls).toEqual([]);
+      expect(provider.control.count("submitTx")).toBe(0);
+      expect(a.status).toBe("signed");
+    }
+  });
+
+  it("takes a save answering anything but true as another revision: a new attempt is not handed out", async () => {
+    for (const answer of [undefined, 1, "ok"]) {
+      const { builder, wallet, emulator, store } = await storeSetup();
+      const a = builder.intent(pay(), { id: "pay", payer: wallet });
+      const first = await a.build();
+      await a.sign();
+      advance(emulator, 700);
+      await a.refresh();
+      expect(a.status).toBe("expired");
+      store.hooks.save = async (forward, json, rev) =>
+        json.attempts.length === 2
+          ? (answer as unknown as boolean)
+          : forward(json, rev);
+      expectCode(await caught(a.build()), "VERSION_CONFLICT");
+      expect(a.attempts).toHaveLength(1);
+      expect(a.txHash).toBe(first.txHash);
+      expect(
+        (await stored(store.inner, "pay")).attempts.map((x) => x.txHash),
+      ).toEqual([first.txHash]);
+    }
   });
 
   it("is STORE_FAILED when the write of a new attempt throws; resume goes on by what the store holds", async () => {
@@ -881,6 +1134,44 @@ describe("The read before a resend", () => {
     expect(a.status).not.toBe("sent");
     expect(a.txHash).toBe(b.txHash);
     expect(submitter.calls.filter((tx) => tx === old)).toHaveLength(oldSends);
+  });
+
+  it("hands out no bytes of a replacement another object signed before their delivery is recorded", async () => {
+    const { builder, wallet, emulator, store, instance } = await storeSetup();
+    const a = builder.intent(pay(), { id: "pay", payer: wallet });
+    // Each time bytes leave, what the store holds for their attempt
+    const seen: { txHash: string; sends?: number; status?: string }[] = [];
+    const submitter = submitterOf(async (tx) => {
+      const txHash = await hashOf(tx);
+      const attempt = (await store.inner.load("pay"))?.attempts.find(
+        (x) => x.txHash === txHash,
+      );
+      seen.push({
+        txHash,
+        ...(attempt && { sends: attempt.sends, status: attempt.status }),
+      });
+      return txHash;
+    });
+    await a.send({ submitter });
+    const held = holdNextLoad(store);
+    const call = a.send({ waitFor: "sent", submitter });
+    await held.reached;
+    // Another instance replaces the expired attempt and signs the new one, without sending it
+    advance(emulator, 700);
+    const b = await instance().builder.resume("pay", { payer: wallet });
+    await b.refresh();
+    const next = await b.build();
+    await b.sign();
+    expect(b.status).toBe("signed");
+    held.open();
+    await call;
+
+    expect(seen.length).toBeGreaterThan(1);
+    expect(seen.filter((s) => !(s.sends! > 0))).toEqual([]);
+    expect(seen.filter((s) => s.txHash === next.txHash)).toHaveLength(1);
+    expect(a.txHash).toBe(next.txHash);
+    expect(a.status).toBe("sent");
+    expect((await stored(store.inner, "pay")).attempts[1]!.sends).toBe(1);
   });
 
   it("ends the wait once another object abandoned the intent: send() throws, advance() returns", async () => {

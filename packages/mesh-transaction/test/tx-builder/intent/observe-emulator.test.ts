@@ -291,6 +291,72 @@ describe("TxIntent observation on TxEmulator", () => {
     expect(sent.status).toBe("sent");
   });
 
+  it("is CANNOT_OBSERVE (noValidity) from build() when the search before a new attempt finds an expired Plutus attempt without its validity", async () => {
+    const { emulator, builder, wallet, provider } = await setup();
+    const locked = emulator.fund(builder.scriptAddress(plutus), {
+      lovelace: 10_000_000n,
+    });
+    const intent = builder.intent(
+      spend.plutus({
+        utxo: locked,
+        script: plutus,
+        redeemer: { data: mConStr0([]) },
+      }),
+      { payer: wallet },
+    );
+    await intent.send({ submitter: swallowing() });
+    const { txHash, until } = intent.attempts[0]!;
+    emulator.advanceTo({ time: until });
+    await intent.refresh();
+    expect(intent.status).toBe("expired");
+    // A late search finds it in a block, and cannot tell whether its scripts passed
+    const tip = await emulator.fetchLatestBlock();
+    provider.control.hooks.fetchTxInfo = async (forward, hash: string) =>
+      hash === txHash
+        ? {
+            hash,
+            slot: String(Number(tip.slot) - 1),
+            block: tip.hash,
+            blockHeight: tip.height,
+          }
+        : forward(hash);
+    expect(reasonOf(await caught(intent.build()))).toBe("noValidity");
+    expect(intent.attempts).toHaveLength(1);
+    expect(intent.txHash).toBe(txHash);
+  });
+
+  it("is CANNOT_OBSERVE (noValidity) from the wait of send() once the provider stops giving the validity", async () => {
+    const { emulator, builder, wallet, provider } = await setup();
+    const locked = emulator.fund(builder.scriptAddress(plutus), {
+      lovelace: 10_000_000n,
+    });
+    const intent = builder.intent(
+      spend.plutus({
+        utxo: locked,
+        script: plutus,
+        redeemer: { data: mConStr0([]) },
+      }),
+      { payer: wallet },
+    );
+    // From the delivery on, the provider finds transactions without their validity
+    const submitter = submitterOf(async (tx) => {
+      provider.control.hooks.fetchTxInfo = async (forward, hash: string) => {
+        const { validContract: _valid, ...info } = (await forward(hash)) as {
+          validContract?: boolean;
+        };
+        return info;
+      };
+      return emulator.submitTx(tx);
+    });
+    // A wait that ran on to its end would give CONFIRM_TIMEOUT
+    const error = await caught(
+      intent.send({ submitter, waitFor: "final", timeoutMs: 2_000 }),
+    );
+    expect(reasonOf(error)).toBe("noValidity");
+    expect(submitter.calls).toHaveLength(1);
+    expect(intent.status).toBe("sent");
+  });
+
   it("is expired past the margin when the search cannot tell and a fresh read shows the anchor", async () => {
     const { emulator, builder, wallet, provider } = await setup();
     const intent = builder.intent(pay(), { payer: wallet });

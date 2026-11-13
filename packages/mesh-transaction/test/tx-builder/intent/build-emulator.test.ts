@@ -15,6 +15,7 @@ import {
   pay,
   setup,
   submitterOf,
+  swallowing,
   walletOf,
   words,
 } from "./intent-emulator-util";
@@ -67,6 +68,42 @@ describe("TxIntent.build on TxEmulator", () => {
     expectCode(await caught(intent.build()), "SCRIPT_FAILED");
     expect(reads()).toBe(before);
     expect(intent.attempts).toHaveLength(1);
+  });
+
+  it("is SCRIPT_FAILED when the search before a new attempt finds an expired attempt with is_valid = false", async () => {
+    const { emulator, builder, wallet, provider } = await setup();
+    const locked = emulator.fund(builder.scriptAddress(plutus), {
+      lovelace: 10_000_000n,
+    });
+    const intent = builder.intent(
+      spend.plutus({
+        utxo: locked,
+        script: plutus,
+        redeemer: { data: mConStr0([]) },
+      }),
+      { payer: wallet },
+    );
+    await intent.send({ submitter: swallowing() });
+    const { txHash, until } = intent.attempts[0]!;
+    emulator.advanceTo({ time: until });
+    await intent.refresh();
+    expect(intent.status).toBe("expired");
+    // A late search finds it in a block, its scripts failed
+    const tip = await emulator.fetchLatestBlock();
+    provider.control.hooks.fetchTxInfo = async (forward, hash: string) =>
+      hash === txHash
+        ? {
+            hash,
+            slot: String(Number(tip.slot) - 1),
+            block: tip.hash,
+            blockHeight: tip.height,
+            validContract: false,
+          }
+        : forward(hash);
+    expectCode(await caught(intent.build()), "SCRIPT_FAILED");
+    expect(intent.status).toBe("failed");
+    expect(intent.attempts).toHaveLength(1);
+    expect(intent.live).toEqual([]);
   });
 
   it("spends the anchor in a later attempt, also where selection would not take it", async () => {

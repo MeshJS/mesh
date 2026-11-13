@@ -15,6 +15,7 @@ import {
   advance,
   builderOf,
   caught,
+  FAST,
   pay,
   setup,
   submitterOf,
@@ -202,6 +203,19 @@ describe("TxIntent.send on TxEmulator", () => {
     expect(failed.cause).toEqual({ status: 429 });
     expect(busy.status).toBe("sent");
 
+    // A server error says nothing of the ledger's answer
+    const broken = builder.intent(pay(), { payer: wallet });
+    const unknown = (await caught(
+      broken.send({
+        submitter: submitterOf(async () => {
+          throw { status: 500 };
+        }),
+      }),
+    )) as TxIntentError<"SUBMIT_FAILED">;
+    expectCode(unknown, "SUBMIT_FAILED");
+    expect(broken.status).toBe("sent");
+    expect(recordOf(broken).attempts[0]!.refused).toBe(0);
+
     const refused = builder.intent(pay(), { payer: wallet });
     const rejected = await caught(
       refused.send({
@@ -256,8 +270,11 @@ describe("TxIntent.send on TxEmulator", () => {
 
     // Failing otherwise: SUBMIT_FAILED with waitFor "sent"
     for (const [thrown, walletCode] of [
+      [{ status: 500 }, undefined],
       [{ status: 503 }, undefined],
       [{ code: 2 }, 2],
+      // A wallet that passes on its provider's refusal of a resend
+      [{ code: 3, kind: "rejected", status: 400 }, 3],
     ] as const) {
       const failing = {
         ...submitterOf(async () => {
@@ -337,6 +354,31 @@ describe("TxIntent.send on TxEmulator", () => {
     );
     await intent.send({ waitFor: "included" });
     expect(intent.attempts.map((a) => a.status)).toEqual(["expired", "final"]);
+  });
+
+  it("is EXPIRED (unsent) for a built attempt past its deadline within the margin, and asks no signer", async () => {
+    const { emulator, builder, wallet } = await setup({
+      builder: { intentDefaults: { ...FAST, expiryMarginMs: 60_000 } },
+    });
+    const intent = builder.intent(pay(), { payer: wallet });
+    await intent.build();
+    emulator.advanceTo({ time: intent.attempts[0]!.until + 1_000 });
+    let asked = 0;
+    const signer = {
+      signTx: async (tx: string) => {
+        asked += 1;
+        return wallet.signTx(tx, true);
+      },
+    };
+    const submitter = swallowing();
+    const error = (await caught(
+      intent.send({ signers: signer, submitter }),
+    )) as TxIntentError<"EXPIRED">;
+    expectCode(error, "EXPIRED");
+    expect(error.details.unsent).toBe(true);
+    expect(asked).toBe(0);
+    expect(submitter.calls).toEqual([]);
+    expect(intent.status).toBe("built");
   });
 
   it("goes back to sent on a rollback and sends the bytes again", async () => {

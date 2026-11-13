@@ -408,11 +408,13 @@ describe("what a thrown value says", () => {
     [{ status: 400 }, "rejected"],
     [Object.assign(new Error("x"), { status: 404 }), "notFound"],
     [{ status: "404" }, undefined],
+    [{ status: 500 }, undefined],
     [{ status: 503 }, undefined],
     [{ code: 2 }, undefined],
     // the JSON text of a provider's HTTP answer, read by its status alone
     [JSON.stringify({ data: { error: "Not Found" }, status: 404 }), "notFound"],
     [JSON.stringify({ data: "bad tx", status: 400 }), "rejected"],
+    [JSON.stringify({ data: "server error", status: 500 }), undefined],
     [JSON.stringify({ kind: "notFound" }), undefined],
     [JSON.stringify({ status: "404" }), undefined],
     [JSON.stringify({ data: {} }), undefined],
@@ -430,6 +432,19 @@ describe("what a thrown value says", () => {
     [404, undefined],
   ])("%p is %p", (thrown, fact) => {
     expect(errorFact(thrown)).toBe(fact);
+  });
+
+  it("takes only a 400 or the kind rejected as a refusal: a 500 is unknown", () => {
+    for (const thrown of [
+      { status: 500 },
+      JSON.stringify({ status: 500 }),
+      new Error(JSON.stringify({ status: 500 })),
+      { status: 503 },
+    ])
+      expect(isRefusal(thrown)).toBe(false);
+    expect(isRefusal({ status: 400 })).toBe(true);
+    expect(isRefusal(JSON.stringify({ status: 400 }))).toBe(true);
+    expect(isRefusal({ kind: "rejected" })).toBe(true);
   });
 
   it("is unknown when reading a field throws", () => {
