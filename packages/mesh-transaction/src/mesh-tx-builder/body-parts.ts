@@ -133,10 +133,17 @@ const comparable = (value: unknown): string =>
         : item,
   );
 
-/** Items grouped by a key: equal ones once, any other repeat kept for the builder to refuse */
+/**
+ * Items grouped by a key. A group that `merge` makes one item of becomes that item; any other
+ * group is kept whole, for the builder to refuse. By default only exact repeats merge.
+ */
 const mergeRepeats = <T>(
   items: readonly T[],
   key: (item: T) => string,
+  merge: (group: readonly T[]) => T | undefined = (group) =>
+    group.every((item) => comparable(item) === comparable(group[0]))
+      ? group[0]
+      : undefined,
 ): T[] => {
   const groups = new Map<string, T[]>();
   for (const item of items) {
@@ -144,11 +151,40 @@ const mergeRepeats = <T>(
     groups.set(k, [...(groups.get(k) ?? []), item]);
   }
   return Array.from(groups.values()).flatMap((group) => {
-    const first = comparable(group[0]);
-    return group.every((item) => comparable(item) === first)
-      ? [group[0]!]
-      : group;
+    if (group.length === 1) return group;
+    const merged = merge(group);
+    return merged ? [merged] : group;
   });
+};
+
+/** Whether a field of a `txIn` is named: given, and not an empty list or an empty address */
+const named = (value: unknown) =>
+  value !== undefined &&
+  value !== "" &&
+  !(Array.isArray(value) && value.length === 0);
+
+/**
+ * One input of a group of entries with one out ref, when they agree: equal outside `txIn` (kind,
+ * script, datum, redeemer with its units), and every entry that names an amount, address or
+ * script size naming the same value, compared as given. The input is the group's first entry,
+ * which the body keeps and the build writes back into, with each field taken from the entry
+ * that names it; a field no entry names stays unnamed. Undefined when the entries disagree.
+ */
+const mergeInputs = <I extends TxIn>(group: readonly I[]): I | undefined => {
+  const [first, ...others] = group;
+  const { txIn: _txIn, ...rest } = first!;
+  const outside = comparable(rest);
+  const txIn = { ...first!.txIn };
+  for (const { txIn: other, ...otherRest } of others) {
+    if (comparable(otherRest) !== outside) return undefined;
+    for (const field of ["amount", "address", "scriptSize"] as const) {
+      if (!named(other[field])) continue;
+      if (!named(txIn[field])) Object.assign(txIn, { [field]: other[field] });
+      else if (comparable(txIn[field]) !== comparable(other[field]))
+        return undefined;
+    }
+  }
+  return { ...first!, txIn };
 };
 
 /** The lovelace and assets of an `Asset[]`, summed by unit; zero quantities left out */
@@ -198,8 +234,11 @@ const toCredentialInput = (credential: MeshCredential): CredentialInput =>
 
 /**
  * Translates a `MeshTxBuilderBody` into parts. Read-only reference inputs whose out ref is also
- * spent are left out, and exact repeats of an input or a withdrawal merged; other repeats are
- * kept, and the builder refuses them.
+ * spent are left out. Repeats of an input or of a collateral input merge into one part when the
+ * entries agree: everything outside `txIn` equal, and no two of them naming an amount, address
+ * or script size differently; each field is taken from the entry that names it (an entry with
+ * only the out ref adds nothing, and an entry with the amount completes one with the address).
+ * Exact repeats of a withdrawal merge. Other repeats are kept, and the builder refuses them.
  */
 export const bodyToParts = (
   body: MeshTxBuilderBody,
@@ -323,10 +362,12 @@ export const bodyToParts = (
         }
       : undefined;
 
-  // Inputs: exact repeats merge, others are the builder's to refuse
+  // Inputs: repeats that contradict nothing merge into one, others are the builder's to refuse
   const spent = new Set<string>();
-  for (const input of mergeRepeats(body.inputs, (i) =>
-    outRefOf(i.txIn.txHash, i.txIn.txIndex),
+  for (const input of mergeRepeats(
+    body.inputs,
+    (i) => outRefOf(i.txIn.txHash, i.txIn.txIndex),
+    mergeInputs,
   )) {
     const key = outRefOf(input.txIn.txHash, input.txIn.txIndex);
     spent.add(key);
@@ -434,7 +475,13 @@ export const bodyToParts = (
     );
   }
 
-  for (const input of body.collaterals) add(collateralPart(input));
+  // Collateral inputs merge as inputs do
+  for (const input of mergeRepeats(
+    body.collaterals,
+    (i) => outRefOf(i.txIn.txHash, i.txIn.txIndex),
+    mergeInputs,
+  ))
+    add(collateralPart(input));
 
   function collateralPart(input: PubKeyTxIn) {
     const { txHash, txIndex, amount, address } = input.txIn;

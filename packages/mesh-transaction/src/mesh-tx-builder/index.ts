@@ -39,7 +39,7 @@ import type {
 } from "../tx-builder/builder";
 import type { BodyParts } from "./body-parts";
 import type { IInputSelector } from "./coin-selection/coin-selection-interface";
-import { assembleTxPrototype } from "../tx-builder/assemble";
+import { assembleTxPrototype, checkPartRepeats } from "../tx-builder/assemble";
 import { refScriptSize } from "../tx-builder/balance";
 import { DECLARED_OUTPUTS, TxBuilder } from "../tx-builder/builder";
 import { TxBuildError } from "../tx-builder/errors";
@@ -212,9 +212,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
    * `completeUnbalancedSync`
    * @param customizedTx The optional customized transaction body, used in place of the builder's
    * @returns The transaction in hex, unbalanced
-   * @throws TxBuildError UNRESOLVED when an input or collateral has no amount or address, or a
-   *   reference script no size; DUPLICATE_PART for contradictory repeats of an input or a
-   *   withdrawal
+   * @throws TxBuildError DUPLICATE_PART for a repeat of an input or a collateral input that
+   *   contradicts another (repeats that name no field differently are merged into one), or a
+   *   withdrawal repeated with other data; UNRESOLVED when an input or collateral has no amount
+   *   or address, or a reference script no size
    */
   completeUnbalanced = (customizedTx?: MeshTxBuilderBody): string => {
     if (customizedTx) {
@@ -231,9 +232,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
    * `completeUnbalancedSync`
    * @param customizedTx The optional customized transaction body, used in place of the builder's
    * @returns The transaction in hex
-   * @throws TxBuildError UNRESOLVED when an input or collateral has no amount or address, or a
-   *   reference script no size; DUPLICATE_PART for contradictory repeats of an input or a
-   *   withdrawal
+   * @throws TxBuildError DUPLICATE_PART for a repeat of an input or a collateral input that
+   *   contradicts another (repeats that name no field differently are merged into one), or a
+   *   withdrawal repeated with other data; UNRESOLVED when an input or collateral has no amount
+   *   or address, or a reference script no size
    */
   completeSync = (customizedTx?: MeshTxBuilderBody) => {
     if (customizedTx) {
@@ -666,9 +668,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
    * output without lovelace gets its minimum.
    * @param customizedTx The optional customized transaction body, used in place of the builder's
    * @returns The transaction in hex, unbalanced
-   * @throws TxBuildError UNRESOLVED when an input or collateral has no amount or address, or a
-   *   reference script no size; DUPLICATE_PART for contradictory repeats of an input or a
-   *   withdrawal
+   * @throws TxBuildError DUPLICATE_PART for a repeat of an input or a collateral input that
+   *   contradicts another (repeats that name no field differently are merged into one), or a
+   *   withdrawal repeated with other data; UNRESOLVED when an input or collateral has no amount
+   *   or address, or a reference script no size
    */
   completeUnbalancedSync = (customizedTx?: MeshTxBuilderBody) => {
     if (customizedTx) {
@@ -720,8 +723,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
    * built-in ones, with the consumer's fields over them).
    * @param placeholders Whether to add stand-in witnesses for every key expected to sign, to size
    *   the transaction once signed
-   * @throws TxBuildError UNRESOLVED for an input or collateral without amount or address, or a
-   *   reference script without size; DUPLICATE_PART for contradictory repeats
+   * @throws TxBuildError DUPLICATE_PART for a repeat of an input or a collateral input that
+   *   contradicts another, or a withdrawal repeated with other data, before any gap; UNRESOLVED
+   *   for an input or collateral without amount or address, or a reference script without size
    */
   private assembleBody = (placeholders = false) => {
     const body = this.meshTxBuilderBody;
@@ -734,6 +738,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       keepExUnits: true,
       unbalanced: params,
     });
+    // A refused repeat is reported before the gaps of the parts, as complete() reports it
+    checkPartRepeats(translated.parts);
     const signers = pricedSigners(translated.parts);
     const witnesses = placeholders ? placeholderWitnesses(signers) : undefined;
     const assembled = assembleTxPrototype(translated.parts, {
@@ -755,7 +761,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
    * The body as a transaction with stand-in witnesses for every key expected to sign, the size
    * of the signed one; records the expected key and Byron witnesses in the body
    * @returns The transaction in hex
-   * @throws TxBuildError UNRESOLVED when an input has no amount or address
+   * @throws TxBuildError DUPLICATE_PART for a repeat of an input or a collateral input that
+   *   contradicts another, or a withdrawal repeated with other data; UNRESOLVED when an input
+   *   has no amount or address
    */
   serializeMockTx = () => {
     const { assembled, signers } = this.assembleBody(true);
@@ -805,7 +813,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
   /**
    * The size of the transaction once signed, in bytes
-   * @throws TxBuildError UNRESOLVED when an input has no amount or address
+   * @throws TxBuildError DUPLICATE_PART for a repeat of an input or a collateral input that
+   *   contradicts another, or a withdrawal repeated with other data; UNRESOLVED when an input
+   *   has no amount or address
    */
   getSerializedSize = (): number => {
     return this.serializeMockTx().length / 2;
@@ -823,7 +833,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   /**
    * The minimum fee of the body once signed: its size, its reference scripts and the execution
    * units of its redeemers, on the builder's parameters
-   * @throws TxBuildError UNRESOLVED when an input has no amount or address
+   * @throws TxBuildError DUPLICATE_PART for a repeat of an input or a collateral input that
+   *   contradicts another, or a withdrawal repeated with other data; UNRESOLVED when an input
+   *   has no amount or address
    */
   calculateFee = (): bigint => {
     const txSize = this.getSerializedSize();
@@ -857,8 +869,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
   /**
    * The fee for the execution units of the transaction's redeemers: those of the body as it
-   * assembles, where exact repeats are merged and the votes of one voter share one redeemer
-   * @throws TxBuildError UNRESOLVED when an input has no amount or address
+   * assembles, where repeats of an input are merged and the votes of one voter share one redeemer
+   * @throws TxBuildError DUPLICATE_PART for a repeat of an input or a collateral input that
+   *   contradicts another, or a withdrawal repeated with other data; UNRESOLVED when an input
+   *   has no amount or address
    */
   calculateRedeemersFee = (): bigint => {
     const { mem, steps } = prototypeExUnits(
