@@ -1,7 +1,6 @@
 import {
   IEvaluator,
   mConStr0,
-  resolveScriptRef,
   ScriptEvaluationError,
   UTxO,
 } from "@meshsdk/core";
@@ -14,20 +13,38 @@ import { ScalusEmulator } from "@meshsdk/scalus-emulator";
 import { MeshWallet } from "@meshsdk/wallet";
 
 import {
+  Assets,
   BuiltTx,
+  OutputDatum,
+  OutputScript,
   spend,
   TxBuilder,
   TxBuildError,
   TxPart,
   validity,
 } from "../../src/tx-builder";
-import { alwaysFailCbor, alwaysSucceedCbor } from "../test-util";
+import {
+  alwaysFailCbor,
+  alwaysSucceedCbor,
+  alwaysSucceedHash,
+} from "../test-util";
+import { asMesh } from "./utxo-util";
 
 /** The emulator's ledger is a preview one */
 const network = "preview";
 const plutusScript = { code: alwaysSucceedCbor, version: "V3" as const };
 const failingScript = { code: alwaysFailCbor, version: "V3" as const };
-const lovelace = (quantity: string) => [{ unit: "lovelace", quantity }];
+const lovelace = (quantity: bigint): Assets => ({ lovelace: quantity });
+const unitInline: OutputDatum = {
+  type: "inline",
+  data: { type: "CBOR", content: "d87980" },
+};
+const plutusRef: OutputScript = {
+  type: "plutus",
+  version: "V3",
+  code: alwaysSucceedCbor,
+  hash: alwaysSucceedHash,
+};
 /** Execution units as a built redeemer reports them */
 const bigUnits = (units: { mem: number; steps: number }) => ({
   mem: BigInt(units.mem),
@@ -88,40 +105,43 @@ describe("TxBuilder's evaluators on the emulator", () => {
     });
     await wallet.init();
     address = (await wallet.getChangeAddress())!;
-    provider = await ScalusEmulator.create([
-      {
-        input: { txHash: fundsHash, outputIndex: 0 },
-        output: { address, amount: lovelace("10000000000") },
-      },
-      {
-        input: { txHash: collateralHash, outputIndex: 0 },
-        output: { address, amount: lovelace("5000000") },
-      },
-      {
-        input: { txHash: lockedHash, outputIndex: 0 },
-        output: {
-          address: resolvePlutusScriptAddress(plutusScript, 0),
-          amount: lovelace("20000000"),
-          plutusData: "d87980",
-        },
-      },
-      {
-        input: { txHash: refScriptHash, outputIndex: 0 },
-        output: {
+    provider = await ScalusEmulator.create(
+      [
+        {
+          txHash: fundsHash,
+          outputIndex: 0,
           address,
-          amount: lovelace("20000000"),
-          scriptRef: resolveScriptRef(plutusScript),
+          value: lovelace(10_000_000_000n),
         },
-      },
-      {
-        input: { txHash: failingHash, outputIndex: 0 },
-        output: {
+        {
+          txHash: collateralHash,
+          outputIndex: 0,
+          address,
+          value: lovelace(5_000_000n),
+        },
+        {
+          txHash: lockedHash,
+          outputIndex: 0,
+          address: resolvePlutusScriptAddress(plutusScript, 0),
+          value: lovelace(20_000_000n),
+          datum: unitInline,
+        },
+        {
+          txHash: refScriptHash,
+          outputIndex: 0,
+          address,
+          value: lovelace(20_000_000n),
+          script: plutusRef,
+        },
+        {
+          txHash: failingHash,
+          outputIndex: 0,
           address: resolvePlutusScriptAddress(failingScript, 0),
-          amount: lovelace("20000000"),
-          plutusData: "d87980",
+          value: lovelace(20_000_000n),
+          datum: unitInline,
         },
-      },
-    ]);
+      ].map(asMesh),
+    );
     // The wallet's UTxOs to pay from, without the reference script output
     walletUtxos = (await provider.fetchAddressUTxOs(address)).filter(
       (utxo) => !utxo.output.scriptRef,

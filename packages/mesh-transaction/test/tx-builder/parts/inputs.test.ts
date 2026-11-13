@@ -8,19 +8,18 @@ import {
   resolveScriptRef,
   UTxO,
 } from "@meshsdk/core";
-import {
-  resolvePlutusScriptAddress,
-  toTxUnspentOutput,
-} from "@meshsdk/core-cst";
+import { resolvePlutusScriptAddress, toNativeScript } from "@meshsdk/core-cst";
 
 import {
   collateral,
   collateralReturn,
+  OutputDatum,
+  OutputScript,
   referenceInput,
   spend,
-  toUtxo,
   TxPartError,
   unresolved,
+  Utxo,
   UtxoInput,
 } from "../../../src/tx-builder";
 import {
@@ -29,6 +28,7 @@ import {
   baseAddress,
   rewardAddress,
 } from "../../test-util";
+import { asCbor, asMesh } from "../utxo-util";
 
 const keyAddress = baseAddress(1);
 const plutusAddress = resolvePlutusScriptAddress(
@@ -40,18 +40,32 @@ const nativeAddress = resolveNativeScriptAddress(nativeScript, 0);
 const unitDatum = mConStr0([]);
 const unitDatumHash = resolveDataHash(unitDatum);
 const unitDatumCbor = "d87980";
+const unitInline: OutputDatum = {
+  type: "inline",
+  data: { type: "CBOR", content: unitDatumCbor },
+};
+const nativeRef: OutputScript = {
+  type: "native",
+  cbor: toNativeScript(nativeScript).toCbor().toString(),
+  hash: resolveNativeScriptHash(nativeScript),
+};
+const plutusRef: OutputScript = {
+  type: "plutus",
+  version: "V3",
+  code: alwaysSucceedCbor,
+  hash: alwaysSucceedHash,
+};
 
 const utxo = (
   outputIndex: number,
   address: string,
-  output: Partial<UTxO["output"]> = {},
-): UTxO => ({
-  input: { txHash: "a".repeat(64), outputIndex },
-  output: {
-    address,
-    amount: [{ unit: "lovelace", quantity: "5000000" }],
-    ...output,
-  },
+  extra: Partial<Utxo> = {},
+): Utxo => ({
+  txHash: "a".repeat(64),
+  outputIndex,
+  address,
+  value: { lovelace: 5_000_000n },
+  ...extra,
 });
 const outRef = { txHash: "b".repeat(64), outputIndex: 3 };
 const input = { transaction_id: "b".repeat(64), index: 3 };
@@ -86,7 +100,7 @@ describe("spend.pubKey", () => {
   it("is frozen and detached from the caller's UTxO", () => {
     const given = utxo(0, keyAddress);
     const part = spend.pubKey({ utxo: given });
-    given.output.amount[0]!.quantity = "1";
+    (given.value as Record<string, bigint>).lovelace = 1n;
 
     expect(Object.isFrozen(part)).toBe(true);
     expect(Object.isFrozen(part.utxo!.value)).toBe(true);
@@ -137,7 +151,7 @@ describe("spend.pubKey", () => {
       "5000000",
     ];
     for (const amount of amounts) {
-      const given = utxo(0, keyAddress);
+      const given = asMesh(utxo(0, keyAddress));
       const error = expectPartError(
         () =>
           spend.pubKey({
@@ -151,7 +165,7 @@ describe("spend.pubKey", () => {
     }
     // The same check for every part that takes a UTxO in full
     const bad = {
-      ...utxo(0, keyAddress),
+      ...asMesh(utxo(0, keyAddress)),
       output: {
         address: keyAddress,
         amount: [{ unit: "lovelace", quantity: "abc" }],
@@ -179,16 +193,13 @@ describe("spend.pubKey", () => {
 
 describe("a UTxO given to a part", () => {
   const given = utxo(1, plutusAddress, {
-    amount: [
-      { unit: `${"cd".repeat(28)}01`, quantity: "2" },
-      { unit: "lovelace", quantity: "5000000" },
-    ],
-    plutusData: unitDatumCbor,
+    value: { [`${"cd".repeat(28)}01`]: 2n, lovelace: 5_000_000n },
+    datum: unitInline,
   });
   const forms: [string, UtxoInput][] = [
-    ["a Utxo", toUtxo(given)],
-    ["a Mesh UTxO", given],
-    ["its CBOR", toTxUnspentOutput(given).toCbor().toString()],
+    ["a Utxo", given],
+    ["a Mesh UTxO", asMesh(given)],
+    ["its CBOR", asCbor(given)],
   ];
 
   it("is stored as the same Utxo, whatever form it is given in", () => {
@@ -213,11 +224,7 @@ describe("a UTxO given to a part", () => {
 
   it("is not looked up when given in full; its out ref alone is", () => {
     const owned = utxo(2, keyAddress);
-    for (const form of [
-      toUtxo(owned),
-      owned,
-      toTxUnspentOutput(owned).toCbor().toString(),
-    ])
+    for (const form of [owned, asMesh(owned), asCbor(owned)])
       expect(unresolved(spend.pubKey({ utxo: form }))).toEqual([]);
     const byRef = spend.pubKey({
       utxo: { txHash: "a".repeat(64), outputIndex: 2 },
@@ -227,7 +234,7 @@ describe("a UTxO given to a part", () => {
       { type: "utxo", input: { transaction_id: "a".repeat(64), index: 2 } },
     ]);
     // The out ref of a Utxo, its other members dropped, is a reference again
-    const { address, value, ...bare } = toUtxo(owned);
+    const { address, value, ...bare } = owned;
     expect(address && value).toBeTruthy();
     expect(unresolved(spend.pubKey({ utxo: bare }))).toEqual(unresolved(byRef));
   });
@@ -244,19 +251,27 @@ describe("a UTxO given to a part", () => {
   });
 
   it("is refused when it cannot be held as a Utxo, with the code of the member at fault", () => {
-    const own = toUtxo(utxo(0, keyAddress));
+    const own = utxo(0, keyAddress);
+    const mesh = asMesh(own);
     const cases: [string, unknown, string][] = [
       [
         "a Mesh UTxO whose dataHash is not the hash of its plutusData",
-        utxo(0, keyAddress, {
-          plutusData: unitDatumCbor,
-          dataHash: "ab".repeat(32),
-        }),
+        {
+          ...mesh,
+          output: {
+            ...mesh.output,
+            plutusData: unitDatumCbor,
+            dataHash: "ab".repeat(32),
+          },
+        },
         "INVALID_DATA",
       ],
       [
         "a Mesh UTxO stating a script hash without its script",
-        utxo(0, keyAddress, { scriptHash: alwaysSucceedHash }),
+        {
+          ...mesh,
+          output: { ...mesh.output, scriptHash: alwaysSucceedHash },
+        },
         "INVALID_SCRIPT",
       ],
       [
@@ -285,7 +300,7 @@ describe("a UTxO given to a part", () => {
       ["text that is not CBOR", "8200", "INVALID_OUT_REF"],
       [
         "an object with the members of both forms",
-        { ...utxo(0, keyAddress), txHash: "a".repeat(64), outputIndex: 0 },
+        { ...mesh, txHash: "a".repeat(64), outputIndex: 0 },
         "INVALID_OUT_REF",
       ],
     ];
@@ -342,7 +357,7 @@ describe("spend.native", () => {
     const scriptRef = resolveScriptRef(nativeScript);
     const part = spend.native({
       utxo: utxo(0, nativeAddress),
-      script: { reference: utxo(1, keyAddress, { scriptRef }) },
+      script: { reference: utxo(1, keyAddress, { script: nativeRef }) },
     });
 
     expect(part.witness).toMatchObject({
@@ -378,12 +393,7 @@ describe("spend.native", () => {
         spend.native({
           utxo: outRef,
           script: {
-            reference: utxo(1, keyAddress, {
-              scriptRef: resolveScriptRef({
-                code: alwaysSucceedCbor,
-                version: "V3",
-              }),
-            }),
+            reference: utxo(1, keyAddress, { script: plutusRef }),
           },
         }),
       "INVALID_SCRIPT",
@@ -397,7 +407,7 @@ describe("spend.plutus", () => {
 
   it("attaches a script and works out an inline datum from the UTxO", () => {
     const part = spend.plutus({
-      utxo: utxo(0, plutusAddress, { plutusData: unitDatumCbor }),
+      utxo: utxo(0, plutusAddress, { datum: unitInline }),
       script,
       redeemer: { data: unitDatum, exUnits: { mem: 1000, steps: 2000 } },
       label: "unlock",
@@ -449,7 +459,9 @@ describe("spend.plutus", () => {
 
   it("checks a supplied datum against the output's datum hash", () => {
     const part = spend.plutus({
-      utxo: utxo(0, plutusAddress, { dataHash: unitDatumHash }),
+      utxo: utxo(0, plutusAddress, {
+        datum: { type: "hash", hash: unitDatumHash },
+      }),
       script,
       redeemer,
       datum: { data: unitDatum },
@@ -465,7 +477,9 @@ describe("spend.plutus", () => {
     expectPartError(
       () =>
         spend.plutus({
-          utxo: utxo(0, plutusAddress, { dataHash: "d".repeat(64) }),
+          utxo: utxo(0, plutusAddress, {
+            datum: { type: "hash", hash: "d".repeat(64) },
+          }),
           script,
           redeemer,
           datum: { data: unitDatum },
@@ -478,7 +492,9 @@ describe("spend.plutus", () => {
     expectPartError(
       () =>
         spend.plutus({
-          utxo: utxo(0, plutusAddress, { dataHash: unitDatumHash }),
+          utxo: utxo(0, plutusAddress, {
+            datum: { type: "hash", hash: unitDatumHash },
+          }),
           script,
           redeemer,
         }),
@@ -490,10 +506,7 @@ describe("spend.plutus", () => {
     expectPartError(
       () =>
         spend.plutus({
-          utxo: utxo(0, plutusAddress, {
-            plutusData: unitDatumCbor,
-            dataHash: unitDatumHash,
-          }),
+          utxo: utxo(0, plutusAddress, { datum: unitInline }),
           script,
           redeemer,
           datum: { data: unitDatum },
@@ -525,8 +538,8 @@ describe("spend.plutus", () => {
   it("takes version, hash and size from a full reference UTxO", () => {
     const scriptRef = resolveScriptRef(script);
     const part = spend.plutus({
-      utxo: utxo(0, plutusAddress, { plutusData: unitDatumCbor }),
-      script: { reference: utxo(1, keyAddress, { scriptRef }) },
+      utxo: utxo(0, plutusAddress, { datum: unitInline }),
+      script: { reference: utxo(1, keyAddress, { script: plutusRef }) },
       redeemer,
     });
 
@@ -543,7 +556,7 @@ describe("spend.plutus", () => {
         spend.plutus({
           utxo: outRef,
           script: {
-            reference: utxo(1, keyAddress, { scriptRef }),
+            reference: utxo(1, keyAddress, { script: plutusRef }),
             version: "V2",
           },
           redeemer,

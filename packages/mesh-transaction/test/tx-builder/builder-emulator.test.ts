@@ -5,8 +5,6 @@ import {
   Protocol,
   resolveNativeScriptHash,
   resolveScriptHash,
-  resolveScriptRef,
-  UTxO,
 } from "@meshsdk/core";
 import {
   resolvePlutusScriptAddress,
@@ -24,6 +22,7 @@ import {
   proposal,
   spend,
   TxBuilder,
+  Utxo,
   vote,
   withdrawal,
 } from "../../src/tx-builder";
@@ -33,6 +32,7 @@ import {
   alwaysSucceedHash,
   mintParamCbor,
 } from "../test-util";
+import { asMesh } from "./utxo-util";
 
 const plutusScript = { code: alwaysSucceedCbor, version: "V3" as const };
 const scriptAddress = resolvePlutusScriptAddress(plutusScript, 0);
@@ -114,15 +114,16 @@ describe("TxBuilder on the emulator", () => {
     };
     address = (await wallets.payment.getChangeAddress())!;
     stakeAddress = (await wallets.payment.getRewardAddresses())[0]!;
-    provider = await ScalusEmulator.create([
-      ...[0, 1, 2].map((i): UTxO => ({
-        input: { txHash: "0".repeat(64), outputIndex: i },
-        output: {
+    provider = await ScalusEmulator.create(
+      [0, 1, 2]
+        .map((i): Utxo => ({
+          txHash: "0".repeat(64),
+          outputIndex: i,
           address,
-          amount: [{ unit: "lovelace", quantity: "1000000000000" }],
-        },
-      })),
-    ]);
+          value: { lovelace: 1_000_000_000_000n },
+        }))
+        .map(asMesh),
+    );
     params = await provider.fetchProtocolParameters();
     // Scripts are evaluated by the builder's default evaluator
     builder = new TxBuilder({ network: "preview", provider, deposits });

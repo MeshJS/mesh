@@ -19,6 +19,7 @@ import {
   proposal,
   spend,
   TxPartError,
+  Utxo,
   vote,
   withdrawal,
 } from "../../../src/tx-builder";
@@ -28,6 +29,7 @@ import {
   baseAddress,
   rewardAddress,
 } from "../../test-util";
+import { asMesh, ref } from "../utxo-util";
 
 // One program in each form `code` may take
 const double = alwaysSucceedCbor;
@@ -51,12 +53,11 @@ const scriptAddress = resolvePlutusScriptAddress(
   { code: double, version: "V3" },
   0,
 );
-const scriptUtxo: UTxO = {
-  input: { txHash: "a".repeat(64), outputIndex: 0 },
-  output: {
-    address: scriptAddress,
-    amount: [{ unit: "lovelace", quantity: "5000000" }],
-  },
+const scriptUtxo: Utxo = {
+  txHash: "a".repeat(64),
+  outputIndex: 0,
+  address: scriptAddress,
+  value: { lovelace: 5_000_000n },
 };
 const plutusStake = scriptHashToRewardAddress(alwaysSucceedHash, 0);
 
@@ -200,7 +201,7 @@ describe("Plutus script code", () => {
       expectScriptError(
         () =>
           spend.plutus({
-            utxo: scriptUtxo.input,
+            utxo: ref(scriptUtxo),
             script: v3(code),
             redeemer,
             label: "lock",
@@ -230,10 +231,14 @@ describe("Plutus script code", () => {
       expect(consoleError).not.toHaveBeenCalled();
     });
 
-    const holding = (scriptRef: string): UTxO => ({
-      input: { txHash: "c".repeat(64), outputIndex: 0 },
-      output: { ...scriptUtxo.output, address: baseAddress(1), scriptRef },
-    });
+    // A UTxO in the Mesh form, whose reference script is whatever the provider gave
+    const holding = (scriptRef: string): UTxO => {
+      const mesh = asMesh(scriptUtxo);
+      return {
+        input: { txHash: "c".repeat(64), outputIndex: 0 },
+        output: { ...mesh.output, address: baseAddress(1), scriptRef },
+      };
+    };
     // A version no script has: the code reads, the script cannot be made
     const v4 = (code: string) =>
       ({ code, version: "V4" }) as unknown as PlutusScript;

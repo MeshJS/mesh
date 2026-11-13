@@ -1,17 +1,13 @@
-import {
-  mConStr0,
-  NativeScript,
-  resolveNativeScriptHash,
-  resolveScriptRef,
-  UTxO,
-} from "@meshsdk/core";
+import { mConStr0, NativeScript, resolveNativeScriptHash } from "@meshsdk/core";
 import { scriptHashToRewardAddress } from "@meshsdk/core-cst";
 
 import {
   mint,
   MintAssetsInput,
+  OutputScript,
   TxPartError,
   unresolved,
+  Utxo,
   withdrawal,
 } from "../../../src/tx-builder";
 import {
@@ -29,13 +25,17 @@ const keyRewardAddress = rewardAddress(1);
 const plutusRewardAddress = scriptHashToRewardAddress(alwaysSucceedHash, 0);
 const nativeRewardAddress = scriptHashToRewardAddress(nativeHash, 0);
 const refOut = { txHash: "c".repeat(64), outputIndex: 0 };
-const refUtxo = (scriptRef: string): UTxO => ({
-  input: refOut,
-  output: {
-    address: baseAddress(1),
-    amount: [{ unit: "lovelace", quantity: "5000000" }],
-    scriptRef,
-  },
+const plutusRef: OutputScript = {
+  type: "plutus",
+  version: "V3",
+  code: alwaysSucceedCbor,
+  hash: alwaysSucceedHash,
+};
+const refUtxo = (script: OutputScript): Utxo => ({
+  ...refOut,
+  address: baseAddress(1),
+  value: { lovelace: 5_000_000n },
+  script,
 });
 
 const expectPartError = (build: () => unknown, code: string) => {
@@ -84,7 +84,7 @@ describe("mint", () => {
 
   it("takes the policy from a full reference UTxO", () => {
     const part = mint.plutus({
-      script: { reference: refUtxo(resolveScriptRef(plutusScript)) },
+      script: { reference: refUtxo(plutusRef) },
       redeemer: { ...redeemer, exUnits: { mem: 1, steps: 1 } },
       assets: { abcd: 1n },
     });
@@ -299,7 +299,7 @@ describe("withdrawal", () => {
     });
     const held = withdrawal.plutus({
       amount: 0n,
-      script: { reference: refUtxo(resolveScriptRef(plutusScript)) },
+      script: { reference: refUtxo(plutusRef) },
       redeemer,
     });
     expect(stated.rewardAddress).toBeUndefined();

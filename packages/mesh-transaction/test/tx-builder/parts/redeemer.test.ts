@@ -1,9 +1,10 @@
-import { mConStr0, resolvePlutusScriptAddress, UTxO } from "@meshsdk/core";
+import { mConStr0, resolvePlutusScriptAddress } from "@meshsdk/core";
 import { scriptHashToRewardAddress } from "@meshsdk/core-cst";
 
 import {
   certificate,
   mint,
+  OutputDatum,
   proposal,
   RedeemerContext,
   RedeemerInput,
@@ -11,6 +12,7 @@ import {
   TxPart,
   TxPartError,
   unresolved,
+  Utxo,
   vote,
   withdrawal,
 } from "../../../src/tx-builder";
@@ -24,13 +26,16 @@ const plutusScript = { code: alwaysSucceedCbor, version: "V3" as const };
 const scriptAddress = resolvePlutusScriptAddress(plutusScript, 0);
 const stake = scriptHashToRewardAddress(alwaysSucceedHash, 0);
 const anchor = { url: "https://example.com/a.json", dataHash: "ab".repeat(32) };
-const locked: UTxO = {
-  input: { txHash: "a".repeat(64), outputIndex: 0 },
-  output: {
-    address: scriptAddress,
-    amount: [{ unit: "lovelace", quantity: "5000000" }],
-    plutusData: "d87980",
-  },
+const unitInline: OutputDatum = {
+  type: "inline",
+  data: { type: "CBOR", content: "d87980" },
+};
+const locked: Utxo = {
+  txHash: "a".repeat(64),
+  outputIndex: 0,
+  address: scriptAddress,
+  value: { lovelace: 5_000_000n },
+  datum: unitInline,
 };
 
 /** Every part builder that takes a redeemer, given the one redeemer */

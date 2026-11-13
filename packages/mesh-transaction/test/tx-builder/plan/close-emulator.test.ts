@@ -2,9 +2,9 @@ import { mConStr0 } from "@meshsdk/core";
 
 import type { TxPlan, TxPlanError } from "../../../src/tx-builder";
 import { spend, TxError } from "../../../src/tx-builder";
-import { outRefOf } from "../../../src/tx-builder/parts/utxo";
 import { planOver, recordOf } from "../../../src/tx-builder/plan/plan";
 import { alwaysSucceedCbor } from "../../test-util";
+import { ref } from "../utxo-util";
 import {
   advance,
   builderOf,
@@ -69,7 +69,7 @@ const changedAnchor = async () => {
     }),
   );
   const anchor = recordOf(plan).anchor.anchors[0]!.utxo;
-  emulator.removeUtxos([outRefOf(anchor)]);
+  emulator.removeUtxos([ref(anchor)]);
   emulator.advanceTo({ time: plan.attempts[0]!.until });
   await plan.build();
   expect(recordOf(plan).anchor.anchors).toHaveLength(2);
@@ -382,12 +382,10 @@ describe("TxPlan.abandon and the closing on TxEmulator", () => {
     expect(second.txHash).not.toBe(first.txHash);
     const anchors = recordOf(plan).anchor.anchors;
     expect(anchors).toHaveLength(2);
-    expect(outRefOf(anchors[0]!.utxo)).toEqual(outRefOf(firstAnchor));
+    expect(ref(anchors[0]!.utxo)).toEqual(ref(firstAnchor));
     expect(anchors[1]!.kind).toBe("payer");
     expect(anchors[1]!.attempts).toEqual([second.txHash]);
-    expect(second.inputs.map(outRefOf)).not.toContainEqual(
-      outRefOf(firstAnchor),
-    );
+    expect(second.inputs.map(ref)).not.toContainEqual(ref(firstAnchor));
 
     // The first attempt shows up; the second expires with its anchor in place
     hidden = undefined;
@@ -423,7 +421,7 @@ describe("TxPlan anchor change on TxEmulator", () => {
     expect(plan.status).toBe("rejected");
     const anchor = recordOf(plan).anchor.anchors[0]!.utxo;
     // Spent by someone else, before the deadline: STILL_LIVE, nothing built
-    emulator.removeUtxos([outRefOf(anchor)]);
+    emulator.removeUtxos([ref(anchor)]);
     const early = (await caught(plan.build())) as TxPlanError<"STILL_LIVE">;
     expectCode(early, "STILL_LIVE");
     expect(early.details.txHashes).toEqual([plan.attempts[0]!.txHash]);
@@ -434,9 +432,7 @@ describe("TxPlan anchor change on TxEmulator", () => {
     const next = await plan.build();
     const anchors = recordOf(plan).anchor.anchors;
     expect(anchors).toHaveLength(2);
-    expect(next.inputs.map(outRefOf)).toContainEqual(
-      outRefOf(anchors[1]!.utxo),
-    );
+    expect(next.inputs.map(ref)).toContainEqual(ref(anchors[1]!.utxo));
     expect(plan.attempts.map((a) => a.status)).toEqual(["expired", "built"]);
     await plan.send({ waitFor: "included" });
     expect(plan.status).toBe("final");
@@ -533,7 +529,7 @@ describe("TxPlan anchor change on TxEmulator", () => {
       );
       const attempt = plan.attempts[0]!;
       const anchor = recordOf(plan).anchor.anchors[0]!.utxo;
-      emulator.removeUtxos([outRefOf(anchor)]);
+      emulator.removeUtxos([ref(anchor)]);
       emulator.advanceTo({ time: attempt.until });
       // The search of build(), the first poll, then the second poll
       let searches = 0;
@@ -581,7 +577,7 @@ describe("TxPlan anchor change on TxEmulator", () => {
         }),
       );
       const anchor = recordOf(plan).anchor.anchors[0]!.utxo;
-      emulator.removeUtxos([outRefOf(anchor)]);
+      emulator.removeUtxos([ref(anchor)]);
       emulator.advanceTo({ time: plan.attempts[0]!.until });
       // The read before the check, the first poll's, then the second poll's
       let reads = 0;
@@ -616,7 +612,7 @@ describe("TxPlan anchor change on TxEmulator", () => {
       }),
     );
     const anchor = recordOf(plan).anchor.anchors[0]!.utxo;
-    emulator.removeUtxos([outRefOf(anchor)]);
+    emulator.removeUtxos([ref(anchor)]);
     const { txHash, until } = plan.attempts[0]!;
     // Past the deadline, within the margin
     emulator.advanceTo({ time: until });
@@ -696,14 +692,14 @@ describe("TxPlan anchor change on TxEmulator", () => {
     provider.control.hooks.fetchAddressUTxOs = async () => [];
     await plan.refresh();
     expect(plan.status).toBe("expired");
-    emulator.removeUtxos([outRefOf(anchor)]);
+    emulator.removeUtxos([ref(anchor)]);
     const next = await plan.build({
       payer: {
         changeAddress: anchor.address,
         utxos: emulator.utxos({ address: anchor.address }),
       },
     });
-    expect(next.inputs.map(outRefOf)).toContainEqual(outRefOf(anchor));
+    expect(next.inputs.map(ref)).toContainEqual(ref(anchor));
     expect(recordOf(plan).anchor.anchors).toHaveLength(1);
   });
 });

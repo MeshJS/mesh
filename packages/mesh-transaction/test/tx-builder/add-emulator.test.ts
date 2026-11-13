@@ -3,8 +3,8 @@ import { TxEmulator } from "@meshsdk/tx-emulator";
 import { MeshWallet } from "@meshsdk/wallet";
 
 import { BuiltTx, output, spend, TxBuilder } from "../../src/tx-builder";
-import { outRefOf } from "../../src/tx-builder/parts/utxo";
 import { alwaysSucceedCbor, baseAddress } from "../test-util";
+import { ref } from "./utxo-util";
 
 const words = Array(24).fill("solution");
 const script = { code: alwaysSucceedCbor, version: "V3" as const };
@@ -70,7 +70,7 @@ describe("TxBuilder.add on TxEmulator", () => {
       }),
     );
     const built = await unlocking.build([], { payer: wallet });
-    expect(built.inputs.map(outRefOf)).toContainEqual(utxo.input);
+    expect(built.inputs.map(ref)).toContainEqual(utxo.input);
     expect(built.outputs[0]).toMatchObject({
       label: "payout",
       address: recipient,

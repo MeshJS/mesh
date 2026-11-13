@@ -1,4 +1,4 @@
-import type { IEvaluator, NativeScript, PoolParams, UTxO } from "@meshsdk/core";
+import type { IEvaluator, NativeScript, PoolParams } from "@meshsdk/core";
 import {
   Action,
   DEFAULT_PROTOCOL_PARAMETERS,
@@ -10,21 +10,24 @@ import {
   resolveDataHash,
   resolveNativeScriptAddress,
   resolveNativeScriptHash,
-  resolveScriptRef,
 } from "@meshsdk/core";
 import {
   Cardano,
   resolvePlutusScriptAddress,
   scriptHashToRewardAddress,
+  toNativeScript,
   Transaction,
   TxCBOR,
 } from "@meshsdk/core-cst";
 
 import type {
   BuiltTx,
+  OutputDatum,
+  OutputScript,
   TxPart,
   TxPlanError,
   TxPlanJSON,
+  Utxo,
 } from "../../../src/tx-builder";
 import type { PlanRecord } from "../../../src/tx-builder/plan/core";
 import {
@@ -42,7 +45,6 @@ import {
   proposal,
   referenceInput,
   spend,
-  toUtxo,
   treasuryValue,
   TxBuilder,
   TxBuildError,
@@ -114,15 +116,30 @@ const unit = `${"c".repeat(56)}0102`;
 const utxoAt = (
   outputIndex: number,
   address: string,
-  extra: Partial<UTxO["output"]> = {},
+  extra: Partial<Utxo> = {},
   txHash = "a".repeat(64),
-): UTxO => ({
-  input: { txHash, outputIndex },
-  output: {
-    address,
-    amount: [{ unit: "lovelace", quantity: "5000000" }],
-    ...extra,
-  },
+): Utxo => ({
+  txHash,
+  outputIndex,
+  address,
+  value: { lovelace: 5_000_000n },
+  ...extra,
+});
+const unitInline: OutputDatum = {
+  type: "inline",
+  data: { type: "CBOR", content: "d87980" },
+};
+const plutusRef: OutputScript = {
+  type: "plutus",
+  version: "V3",
+  code: alwaysSucceedCbor,
+  hash: alwaysSucceedHash,
+};
+/** A native script as an output holds it for reference */
+const nativeRefOf = (script: NativeScript): OutputScript => ({
+  type: "native",
+  cbor: toNativeScript(script).toCbor().toString(),
+  hash: resolveNativeScriptHash(script),
 });
 
 const poolParams: PoolParams = {
@@ -184,16 +201,18 @@ const everyPart = (): TxPart[] => [
   spend.native({
     utxo: { txHash: "b".repeat(64), outputIndex: 4 },
     script: {
-      reference: utxoAt(9, wallet, { scriptRef: resolveScriptRef(nOfK) }),
+      reference: utxoAt(9, wallet, { script: nativeRefOf(nOfK) }),
     },
   }),
   spend.plutus({
-    utxo: utxoAt(2, plutusAddress, { plutusData: "d87980" }),
+    utxo: utxoAt(2, plutusAddress, { datum: unitInline }),
     script: plutus,
     redeemer: { data: bigData, exUnits: { mem: 1000, steps: 2000 } },
   }),
   spend.plutus({
-    utxo: utxoAt(3, plutusAddress, { dataHash: bigDataHash }),
+    utxo: utxoAt(3, plutusAddress, {
+      datum: { type: "hash", hash: bigDataHash },
+    }),
     script: plutus,
     redeemer,
     datum: { data: bigData },
@@ -210,7 +229,7 @@ const everyPart = (): TxPart[] => [
     redeemer,
   }),
   referenceInput({
-    utxo: utxoAt(5, wallet, { scriptRef: resolveScriptRef(plutus) }),
+    utxo: utxoAt(5, wallet, { script: plutusRef }),
   }),
   referenceInput({ utxo: { txHash: "b".repeat(64), outputIndex: 6 } }),
   collateral({ utxo: utxoAt(6, wallet), label: "collateral" }),
@@ -403,19 +422,14 @@ const builder = new TxBuilder({
 const UNTIL = 1_800_000_000_000;
 let nextHash = 0x500;
 const funds = (lovelace: bigint) =>
-  utxoAt(
-    0,
-    wallet,
-    { amount: [{ unit: "lovelace", quantity: String(lovelace) }] },
-    hash(++nextHash),
-  );
+  utxoAt(0, wallet, { value: { lovelace: lovelace } }, hash(++nextHash));
 
 /** A Plutus spend and a native n-of-k spend, paid from `payer`: collateral, a native signer */
-const scriptTx = (payer: UTxO) =>
+const scriptTx = (payer: Utxo) =>
   builder.build(
     [
       spend.plutus({
-        utxo: utxoAt(0, plutusAddress, { plutusData: "d87980" }, hash(0x400)),
+        utxo: utxoAt(0, plutusAddress, { datum: unitInline }, hash(0x400)),
         script: plutus,
         redeemer: { data: bigData },
         label: "unlock",
@@ -561,7 +575,7 @@ describe("the encoding of parts", () => {
     const [out, plutusSpend] = encodeParts([
       output({ address: recipient, value: { lovelace: 2_000_000n } }),
       spend.plutus({
-        utxo: utxoAt(2, plutusAddress, { plutusData: "d87980" }),
+        utxo: utxoAt(2, plutusAddress, { datum: unitInline }),
         script: plutus,
         redeemer,
       }),
@@ -597,7 +611,7 @@ describe("the encoding of parts", () => {
     const parts = [
       output({ address: recipient, value: { lovelace: 2_000_000n } }),
       spend.plutus({
-        utxo: utxoAt(2, plutusAddress, { plutusData: "d87980" }),
+        utxo: utxoAt(2, plutusAddress, { datum: unitInline }),
         script: plutus,
         redeemer: { data: (tx) => tx.self },
         label: "unlock",
@@ -686,12 +700,7 @@ describe("the encoding of a built transaction", () => {
     const payer = utxoAt(
       0,
       wallet,
-      {
-        amount: [
-          { unit: "lovelace", quantity: "80000000" },
-          { unit, quantity: "7" },
-        ],
-      },
+      { value: { lovelace: 80_000_000n, [unit]: 7n } },
       hash(++nextHash),
     );
     const built = await builder.build(
@@ -779,7 +788,7 @@ const recordWith = (builts: readonly BuiltTx[]): PlanRecord => {
     options: {
       fee: 400_000n,
       sendAllTo: recipient,
-      knownUtxos: [toUtxo(utxoAt(7, wallet))],
+      knownUtxos: [utxoAt(7, wallet)],
       registeredPools: [poolHash],
       extraKeyWitnesses: 1,
       changeAddress: wallet,
@@ -851,7 +860,7 @@ const childRecord = async () => {
     {
       type: "build",
       built,
-      anchors: [{ utxo: toUtxo(parentOutput), kind: "parent" }],
+      anchors: [{ utxo: parentOutput, kind: "parent" }],
       parents: [{ txHash: parentHash, until: UNTIL - 1, planId: "parent-1" }],
     },
     {
@@ -1162,6 +1171,7 @@ describe("readPlan", () => {
   });
 
   it("refuses a UTxO of another shape wherever the record holds one", () => {
+    // A UTxO in the Mesh form, which a record does not hold
     const mesh = {
       input: { txHash: hash(1), outputIndex: 0 },
       output: {

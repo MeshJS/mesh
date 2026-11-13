@@ -15,8 +15,8 @@ import {
   spend,
   TxError,
 } from "../../../src/tx-builder";
-import { outRefOf } from "../../../src/tx-builder/parts/utxo";
 import { recordOf } from "../../../src/tx-builder/plan/plan";
+import { ref } from "../utxo-util";
 import {
   advance,
   builderOf,
@@ -859,7 +859,7 @@ describe("Two objects on one record", () => {
       canSelect: not(others[1]!),
     });
     // Someone else spends the anchor; the deadline passes
-    emulator.removeUtxos([outRefOf(anchor)]);
+    emulator.removeUtxos([ref(anchor)]);
     emulator.advanceTo({ time: a.attempts[0]!.until });
     await x.refresh();
     await y.refresh();

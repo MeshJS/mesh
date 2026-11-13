@@ -9,9 +9,9 @@ import {
   TxPlan,
   validity,
 } from "../../../src/tx-builder";
-import { outRefOf } from "../../../src/tx-builder/parts/utxo";
 import { planOver, recordOf } from "../../../src/tx-builder/plan/plan";
 import { baseAddress } from "../../test-util";
+import { ref } from "../utxo-util";
 import {
   advance,
   builderOf,
@@ -174,7 +174,7 @@ describe("TxPlan.send on TxEmulator", () => {
 
     const second = await plan.build();
     expect(second.txHash).not.toBe(first.txHash);
-    expect(second.inputs.map(outRefOf)).toContainEqual(outRefOf(anchor!.utxo));
+    expect(second.inputs.map(ref)).toContainEqual(ref(anchor!.utxo));
     await plan.send({ waitFor: "included" });
     expect(plan.status).toBe("final");
     expect(plan.attempts.map((a) => a.status)).toEqual(["rejected", "final"]);
@@ -342,7 +342,7 @@ describe("TxPlan.send on TxEmulator", () => {
     const second = await plan.build();
     const [anchor] = recordOf(plan).anchor.anchors;
     expect(recordOf(plan).anchor.anchors).toHaveLength(1);
-    expect(second.inputs.map(outRefOf)).toContainEqual(outRefOf(anchor!.utxo));
+    expect(second.inputs.map(ref)).toContainEqual(ref(anchor!.utxo));
     await plan.send({ waitFor: "included" });
     expect(plan.attempts.map((a) => a.status)).toEqual(["expired", "final"]);
   });

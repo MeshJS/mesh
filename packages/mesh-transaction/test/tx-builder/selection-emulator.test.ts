@@ -1,8 +1,9 @@
-import { Asset, CachedFetcher, UTxO } from "@meshsdk/core";
+import { CachedFetcher, UTxO } from "@meshsdk/core";
 import { ScalusEmulator } from "@meshsdk/scalus-emulator";
 import { MeshWallet } from "@meshsdk/wallet";
 
 import {
+  Assets,
   BuiltTx,
   output,
   toUtxo,
@@ -13,6 +14,7 @@ import {
 import { valueSize } from "../../src/tx-builder/fee";
 import { fromAssets, toValuePrototype } from "../../src/tx-builder/value";
 import { baseAddress } from "../test-util";
+import { asMesh } from "./utxo-util";
 
 const words = Array(24).fill("solution");
 const recipient = baseAddress(2);
@@ -36,7 +38,7 @@ describe("TxBuilder selection on the emulator", () => {
   let address: string;
 
   /** An emulator holding the wallet's UTxOs with these values */
-  const start = async (values: Asset[][]) => {
+  const start = async (values: Assets[]) => {
     const reader = new MeshWallet({
       networkId: 0,
       key: { type: "mnemonic", words },
@@ -44,10 +46,14 @@ describe("TxBuilder selection on the emulator", () => {
     await reader.init();
     address = (await reader.getChangeAddress())!;
     emulator = await ScalusEmulator.create(
-      values.map((amount, i): UTxO => ({
-        input: { txHash: "0".repeat(64), outputIndex: i },
-        output: { address, amount },
-      })),
+      values
+        .map((value, i): Utxo => ({
+          txHash: "0".repeat(64),
+          outputIndex: i,
+          address,
+          value,
+        }))
+        .map(asMesh),
     );
     wallet = new MeshWallet({
       networkId: 0,
@@ -65,13 +71,12 @@ describe("TxBuilder selection on the emulator", () => {
   it("sweeps a wallet whose tokens do not fit in one output", async () => {
     // 180 tokens with 32-byte names: more than the 5000 bytes of value an output may hold
     await start(
-      [0, 1, 2].map((k) => [
-        { unit: "lovelace", quantity: "50000000" },
-        ...Array.from({ length: 60 }, (_, i) => ({
-          unit: unit(k * 60 + i),
-          quantity: "1",
-        })),
-      ]),
+      [0, 1, 2].map((k) => ({
+        lovelace: 50_000_000n,
+        ...Object.fromEntries(
+          Array.from({ length: 60 }, (_, i) => [unit(k * 60 + i), 1n]),
+        ),
+      })),
     );
     const { maxValSize } = (await builder.chain()).params;
     const built = await builder.build([], { payer: wallet, sendAllTo: vault });
@@ -95,14 +100,8 @@ describe("TxBuilder selection on the emulator", () => {
   it("pays without spending the UTxO holding a protected token", async () => {
     const guarded = unit(1);
     await start([
-      [
-        { unit: "lovelace", quantity: "1000000000" },
-        { unit: guarded, quantity: "1" },
-      ],
-      [
-        { unit: "lovelace", quantity: "50000000" },
-        { unit: unit(2), quantity: "5" },
-      ],
+      { lovelace: 1_000_000_000n, [guarded]: 1n },
+      { lovelace: 50_000_000n, [unit(2)]: 5n },
     ]);
     const pay = output({ address: recipient, value: { lovelace: 5_000_000n } });
     const holding = (u: UtxoInput) => toUtxo(u).value[guarded] !== undefined;

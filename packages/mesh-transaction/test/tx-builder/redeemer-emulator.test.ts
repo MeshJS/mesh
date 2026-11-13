@@ -2,7 +2,6 @@ import {
   mConStr0,
   resolvePlutusScriptAddress,
   resolveScriptHash,
-  UTxO,
 } from "@meshsdk/core";
 import {
   scriptHashToRewardAddress,
@@ -16,10 +15,12 @@ import {
   BuiltTx,
   mint,
   output,
+  OutputDatum,
   RedeemerContext,
   referenceInput,
   spend,
   TxBuilder,
+  Utxo,
   withdrawal,
 } from "../../src/tx-builder";
 import {
@@ -27,6 +28,7 @@ import {
   alwaysSucceedHash,
   mintParamCbor,
 } from "../test-util";
+import { asMesh } from "./utxo-util";
 
 const words = Array(24).fill("solution");
 const script = { code: alwaysSucceedCbor, version: "V3" as const };
@@ -41,25 +43,29 @@ beforeAll(async () => {
   address = (await wallet.getChangeAddress())!;
 });
 
+const unitInline: OutputDatum = {
+  type: "inline",
+  data: { type: "CBOR", content: "d87980" },
+};
+
 /** A UTxO `<digit * 64>#<index>` holding `lovelace` */
 const at = (
   digit: string,
   outputIndex: number,
   address: string,
   lovelace: bigint,
-  extra: Partial<UTxO["output"]> = {},
-): UTxO => ({
-  input: { txHash: digit.repeat(64), outputIndex },
-  output: {
-    address,
-    amount: [{ unit: "lovelace", quantity: lovelace.toString() }],
-    ...extra,
-  },
+  extra: Partial<Utxo> = {},
+): Utxo => ({
+  txHash: digit.repeat(64),
+  outputIndex,
+  address,
+  value: { lovelace },
+  ...extra,
 });
 
 /** A UTxO locked at the always-succeeding script, with an inline datum */
 const locked = (digit: string) =>
-  at(digit, 0, scriptAddress, 10_000_000n, { plutusData: "d87980" });
+  at(digit, 0, scriptAddress, 10_000_000n, { datum: unitInline });
 
 /** The redeemer data of a transaction's bytes, by `TAG:index` */
 const redeemersOf = (tx: string) =>
@@ -76,11 +82,11 @@ const redeemersOf = (tx: string) =>
 describe.each(["scalus", "cquisitor"] as const)(
   "TxBuilder redeemer functions on TxEmulator (%s)",
   (validator) => {
-    const setUp = async (utxos: UTxO[]) => {
+    const setUp = async (utxos: Utxo[]) => {
       const emulator = await TxEmulator.create({
         validator,
         network: "preprod",
-        utxos,
+        utxos: utxos.map(asMesh),
         accounts: [{ rewardAddress: scriptRewardAddress }],
       });
       const builder = new TxBuilder({

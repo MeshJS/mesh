@@ -1,5 +1,4 @@
 import type { Utxo } from "../../../src/tx-builder";
-import { outRefOf } from "../../../src/tx-builder/parts/utxo";
 import {
   advancePlan,
   AnchorKind,
@@ -13,6 +12,7 @@ import {
   Sighting,
   TxPlanEvent,
 } from "../../../src/tx-builder/plan/core";
+import { ref } from "../utxo-util";
 import { reach, tipAt } from "./plan-states";
 import {
   accept,
@@ -228,7 +228,7 @@ describe("plan state machine: build", () => {
       sends: 0,
       keys: [K1],
       witnesses: [],
-      anchors: [outRefOf(ANCHOR)],
+      anchors: [ref(ANCHOR)],
     });
     const signed = accept(start(), build(A(1), { keys: [] }));
     expect(signed.status).toBe("signed");
@@ -420,12 +420,12 @@ describe("plan state machine: expiry", () => {
     expect(
       accept(
         json,
-        observe({ tip: pastMargin(), anchorsInPlace: [outRefOf(ANCHOR)] }),
+        observe({ tip: pastMargin(), anchorsInPlace: [ref(ANCHOR)] }),
       ).status,
     ).toBe("expired");
     const otherAnchor = advancePlan(
       json,
-      observe({ tip: pastMargin(), anchorsInPlace: [outRefOf(OTHER)] }),
+      observe({ tip: pastMargin(), anchorsInPlace: [ref(OTHER)] }),
     );
     expect(otherAnchor.ok && otherAnchor.json).toBe(json);
     expect(
@@ -434,7 +434,7 @@ describe("plan state machine: expiry", () => {
         observe({
           tip: tipAt((UNTIL + MARGIN) / 1000),
           attempts: [found(A(1), { slot: 1099 })],
-          anchorsInPlace: [outRefOf(ANCHOR)],
+          anchorsInPlace: [ref(ANCHOR)],
         }),
       ).status,
     ).toBe("included");
@@ -456,13 +456,13 @@ describe("plan state machine: expiry", () => {
       moved,
       observe({
         tip: pastMargin(A2_UNTIL),
-        anchorsInPlace: [outRefOf(ANCHOR)],
+        anchorsInPlace: [ref(ANCHOR)],
       }),
     );
     expect(earlierAnchor.ok && earlierAnchor.json).toBe(moved);
     const ownAnchor = accept(
       moved,
-      observe({ tip: pastMargin(A2_UNTIL), anchorsInPlace: [outRefOf(OTHER)] }),
+      observe({ tip: pastMargin(A2_UNTIL), anchorsInPlace: [ref(OTHER)] }),
     );
     expect(statusOf(ownAnchor, A(2))).toBe("expired");
   });
@@ -682,7 +682,7 @@ describe("plan state machine: final", () => {
       observe({
         tip: tipAt(1300),
         attempts: [missing(A(1)), found(A(2), { slot: 1000 })],
-        anchorsInPlace: [outRefOf(ANCHOR)],
+        anchorsInPlace: [ref(ANCHOR)],
       }),
     );
     expect(final.status).toBe("final");
@@ -731,7 +731,7 @@ describe("plan state machine: final", () => {
       status: "expired",
       sends: 1,
       refused: 1,
-      anchors: [outRefOf(ANCHOR)],
+      anchors: [ref(ANCHOR)],
     });
   });
 
@@ -859,7 +859,7 @@ describe("plan state machine: anchors", () => {
       { utxo: ANCHOR, kind: "payer", attempts: [A(1)] },
       { utxo: OTHER, kind: "payer", attempts: [A(2)] },
     ]);
-    expect(attemptOf(moved, A(2)).anchors).toEqual([outRefOf(OTHER)]);
+    expect(attemptOf(moved, A(2)).anchors).toEqual([ref(OTHER)]);
 
     const parts = accept(
       sentPlan(start(), 1, { kind: "parts" }),

@@ -8,8 +8,8 @@ import type {
   Utxo,
 } from "../../../src/tx-builder";
 import { memoryPlanStore } from "../../../src/tx-builder";
-import { outRefOf } from "../../../src/tx-builder/parts/utxo";
 import { recordOf } from "../../../src/tx-builder/plan/plan";
+import { ref } from "../utxo-util";
 import {
   builderOf,
   emulatorOf,
@@ -314,7 +314,7 @@ const run = async (seed: number) => {
         .anchor.anchors.filter((entry) => entry.kind !== "parent")
         .at(-1);
       if (!anchor) return;
-      const input = outRefOf(anchor.utxo);
+      const input = ref(anchor.utxo);
       // Spent already
       if (
         !main

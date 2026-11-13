@@ -10,13 +10,11 @@ import {
   IFetcher,
   mConStr0,
   Protocol,
-  resolveScriptRef,
   UTxO,
 } from "@meshsdk/core";
 import {
   Address,
   resolvePlutusScriptAddress,
-  toTxUnspentOutput,
   Transaction,
   TxCBOR,
 } from "@meshsdk/core-cst";
@@ -26,6 +24,8 @@ import {
   BuildOptions,
   collateral,
   output,
+  OutputDatum,
+  OutputScript,
   PartsInput,
   spend,
   TxBuilder,
@@ -34,7 +34,12 @@ import {
   TxError,
   Utxo,
 } from "../../src/tx-builder";
-import { alwaysSucceedCbor, baseAddress } from "../test-util";
+import {
+  alwaysSucceedCbor,
+  alwaysSucceedHash,
+  baseAddress,
+} from "../test-util";
+import { asCbor, asMesh, ref } from "./utxo-util";
 
 const network = "preprod";
 const params: Protocol = { ...DEFAULT_PROTOCOL_PARAMETERS };
@@ -50,7 +55,16 @@ const scriptAddress = resolvePlutusScriptAddress(plutusScript, 0);
 
 const hexOf = (address: string) =>
   Address.fromString(address)!.toBytes().toString();
-const cborOf = (utxo: UTxO) => toTxUnspentOutput(utxo).toCbor().toString();
+const unitInline: OutputDatum = {
+  type: "inline",
+  data: { type: "CBOR", content: "d87980" },
+};
+const plutusRef: OutputScript = {
+  type: "plutus",
+  version: "V3",
+  code: alwaysSucceedCbor,
+  hash: alwaysSucceedHash,
+};
 
 /** The same address on mainnet */
 const onMainnet = (address: string) => {
@@ -61,33 +75,24 @@ const onMainnet = (address: string) => {
 
 const ada = (n: number) => BigInt(n) * 1_000_000n;
 let nextHash = 0xf00;
-const utxo = (lovelace: bigint, extra: Partial<UTxO["output"]> = {}): UTxO => ({
-  input: {
-    txHash: (++nextHash).toString(16).padStart(64, "e"),
-    outputIndex: 0,
-  },
-  output: {
-    address: wallet,
-    amount: [{ unit: "lovelace", quantity: String(lovelace) }],
-    ...extra,
-  },
+const utxo = (lovelace: bigint, extra: Partial<Utxo> = {}): Utxo => ({
+  txHash: (++nextHash).toString(16).padStart(64, "e"),
+  outputIndex: 0,
+  address: wallet,
+  value: { lovelace },
+  ...extra,
 });
-const ref = (u: UTxO | Utxo) => {
-  const { txHash, outputIndex } = "input" in u ? u.input : u;
-  return `${txHash}#${outputIndex}`;
-};
+/** `txHash#index` of a UTxO */
+const keyOf = (u: Utxo) => `${u.txHash}#${u.outputIndex}`;
 const pay = (n = 2) =>
   output({ address: recipient, value: { lovelace: ada(n) } });
 
 const funds = [utxo(ada(10)), utxo(ada(20))];
 /** An always-succeeding script's output, named by out ref and served by the provider */
-const locked = utxo(ada(10), {
-  address: scriptAddress,
-  plutusData: "d87980",
-});
+const locked = utxo(ada(10), { address: scriptAddress, datum: unitInline });
 const unlock = () =>
   spend.plutus({
-    utxo: { txHash: locked.input.txHash, outputIndex: 0 },
+    utxo: { txHash: locked.txHash, outputIndex: 0 },
     script: plutusScript,
     redeemer: { data: mConStr0([]) },
   });
@@ -153,11 +158,11 @@ const fakeProvider = (overrides: Partial<IFetcher> = {}) => {
   const provider = {
     fetchAddressUTxOs: async (address: string) => {
       calls.push("fetchAddressUTxOs");
-      return all.filter((u) => u.output.address === address);
+      return all.filter((u) => u.address === address).map(asMesh);
     },
     fetchUTxOs: async (txHash: string) => {
       calls.push("fetchUTxOs");
-      return all.filter((u) => u.input.txHash === txHash);
+      return all.filter((u) => u.txHash === txHash).map(asMesh);
     },
     ...overrides,
   } as unknown as IFetcher;
@@ -165,7 +170,7 @@ const fakeProvider = (overrides: Partial<IFetcher> = {}) => {
 };
 
 /** A wallet in the Mesh format, recording its calls */
-const meshFormat = (getUtxos = async () => funds) => {
+const meshFormat = (getUtxos = async () => funds.map(asMesh)) => {
   const calls: string[] = [];
   return {
     calls,
@@ -344,7 +349,7 @@ describe("TxBuilder: signal", () => {
           payer: {
             getNetworkId: async () => 0,
             getChangeAddress: async () => hexOf(wallet),
-            getUtxos: async () => [cborOf(dust)],
+            getUtxos: async () => [asCbor(dust)],
             signTx: async () => "a0",
             getCollateral,
           },
@@ -376,7 +381,7 @@ describe("TxBuilder: trace", () => {
     const events: BuildEvent[] = [];
     const built = await builderWith({ provider }).build([unlock(), pay(25)], {
       payer,
-      canSelect: (u) => ref(u) !== ref(funds[0]!),
+      canSelect: (u) => keyOf(u) !== keyOf(funds[0]!),
       trace: (event) => events.push(event),
     });
 
@@ -390,7 +395,7 @@ describe("TxBuilder: trace", () => {
       utxos: 2,
       selectable: 1,
     });
-    expect(events[1]).toEqual({ type: "fetched", outRefs: [ref(locked)] });
+    expect(events[1]).toEqual({ type: "fetched", outRefs: [keyOf(locked)] });
 
     const rounds = events.filter(
       (e): e is Extract<BuildEvent, { type: "round" }> => e.type === "round",
@@ -424,21 +429,18 @@ describe("TxBuilder: trace", () => {
 
   it("lists an output read by two parts once in the fetched event", async () => {
     // Two script outputs unlocked with one reference script, given by out ref only
-    const holder = utxo(ada(20), { scriptRef: resolveScriptRef(plutusScript) });
-    const second = utxo(ada(10), {
-      address: scriptAddress,
-      plutusData: "d87980",
-    });
+    const holder = utxo(ada(20), { script: plutusRef });
+    const second = utxo(ada(10), { address: scriptAddress, datum: unitInline });
     // A key output that one part spends and another puts up as collateral
     const key = utxo(ada(5));
     const all = [locked, second, holder, key];
-    const viaHolder = (u: UTxO) =>
+    const viaHolder = (u: Utxo) =>
       spend.plutus({
-        utxo: u.input,
-        script: { reference: holder.input },
+        utxo: ref(u),
+        script: { reference: ref(holder) },
         redeemer: { data: mConStr0([]) },
       });
-    const cases: [PartsInput, UTxO[]][] = [
+    const cases: [PartsInput, Utxo[]][] = [
       [
         [viaHolder(locked), viaHolder(second)],
         [locked, holder, second],
@@ -446,8 +448,8 @@ describe("TxBuilder: trace", () => {
       [
         [
           unlock(),
-          spend.pubKey({ utxo: key.input }),
-          collateral({ utxo: key.input }),
+          spend.pubKey({ utxo: ref(key) }),
+          collateral({ utxo: ref(key) }),
         ],
         [locked, key],
       ],
@@ -456,7 +458,7 @@ describe("TxBuilder: trace", () => {
       const events: BuildEvent[] = [];
       // A provider of its own each time, so that no lookup is served by the shared cache
       const fetchUTxOs = jest.fn(async (txHash: string) =>
-        all.filter((u) => u.input.txHash === txHash),
+        all.filter((u) => u.txHash === txHash).map(asMesh),
       );
       const { provider } = fakeProvider({ fetchUTxOs });
       await builderWith({ provider }).build(parts, {
@@ -464,7 +466,7 @@ describe("TxBuilder: trace", () => {
         trace: (event) => events.push(event),
       });
       expect(events.filter((e) => e.type === "fetched")).toEqual([
-        { type: "fetched", outRefs: read.map(ref) },
+        { type: "fetched", outRefs: read.map(keyOf) },
       ]);
       expect(fetchUTxOs).toHaveBeenCalledTimes(read.length);
     }
@@ -477,13 +479,13 @@ describe("TxBuilder: trace", () => {
     const log: string[] = [];
     const getCollateral = jest.fn(async () => {
       log.push("getCollateral");
-      return [cborOf(reserve)];
+      return [asCbor(reserve)];
     });
     const built = await builderWith({ provider }).build(unlock(), {
       payer: {
         getNetworkId: async () => 0,
         getChangeAddress: async () => hexOf(wallet),
-        getUtxos: async () => [cborOf(dust)],
+        getUtxos: async () => [asCbor(dust)],
         signTx: async () => "a0",
         getCollateral,
       },
@@ -491,7 +493,7 @@ describe("TxBuilder: trace", () => {
         log.push(event.type === "round" ? `round ${event.round}` : event.type),
     });
     expect(getCollateral).toHaveBeenCalledTimes(1);
-    expect(ref(built.collateral!.inputs[0]!)).toBe(ref(reserve));
+    expect(keyOf(built.collateral!.inputs[0]!)).toBe(keyOf(reserve));
     // The settled pass prices one round with a fee of 0, whose collateral the dust covers, and
     // then falls short; the pass that prices the amount to ask for sends nothing before the call
     expect(log).toEqual([
@@ -530,7 +532,7 @@ describe("TxBuilder: trace", () => {
   it("sends a payer event and no fetched one for a snapshot and nothing to look up", async () => {
     const events: BuildEvent[] = [];
     await builderWith().build(pay(), {
-      payer: { changeAddress: hexOf(wallet), utxos: funds.map(cborOf) },
+      payer: { changeAddress: hexOf(wallet), utxos: funds.map(asCbor) },
       trace: (event) => events.push(event),
     });
     expect(events[0]).toEqual({

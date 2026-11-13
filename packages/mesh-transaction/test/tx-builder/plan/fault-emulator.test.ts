@@ -3,8 +3,8 @@ import type { MeshWallet } from "@meshsdk/wallet";
 import type { TxBuilder, TxPlan } from "../../../src/tx-builder";
 import type { Fault, StoreFault } from "./fault-util";
 import { guard } from "../../../src/tx-builder";
-import { outRefOf } from "../../../src/tx-builder/parts/utxo";
 import { recordOf } from "../../../src/tx-builder/plan/plan";
+import { ref } from "../utxo-util";
 import { codeOf, Process, runStep, sleep, World } from "./fault-util";
 import { advance, pay } from "./plan-emulator-util";
 import { seeded } from "./plan-util";
@@ -184,7 +184,7 @@ const movesAnchor: Journey = {
       name: "the anchor spent; advance() past the deadline",
       run: async (c) => {
         const anchor = recordOf(at(c, "pay")).anchor.anchors[0]!.utxo;
-        c.world.emulator.removeUtxos([outRefOf(anchor)]);
+        c.world.emulator.removeUtxos([ref(anchor)]);
         lose(c, "pay");
         return at(c, "pay").advance({ waitFor: "final" });
       },

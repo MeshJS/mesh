@@ -1,10 +1,11 @@
-import { CachedFetcher, UTxO } from "@meshsdk/core";
+import { CachedFetcher } from "@meshsdk/core";
 import { ScalusEmulator } from "@meshsdk/scalus-emulator";
 import { BrowserWallet, MeshWallet } from "@meshsdk/wallet";
 
-import { BuiltTx, output, Payer, TxBuilder } from "../../src/tx-builder";
+import { BuiltTx, output, Payer, TxBuilder, Utxo } from "../../src/tx-builder";
 import { cip30Wallet } from "../cip30-wallet";
 import { baseAddress } from "../test-util";
+import { asMesh } from "./utxo-util";
 
 const words = Array(24).fill("solution");
 const recipient = baseAddress(2);
@@ -35,13 +36,14 @@ describe("TxBuilder payers on the emulator", () => {
     await reader.init();
     address = (await reader.getChangeAddress())!;
     emulator = await ScalusEmulator.create(
-      [0, 1].map((i): UTxO => ({
-        input: { txHash: "0".repeat(64), outputIndex: i },
-        output: {
+      [0, 1]
+        .map((i): Utxo => ({
+          txHash: "0".repeat(64),
+          outputIndex: i,
           address,
-          amount: [{ unit: "lovelace", quantity: "100000000000" }],
-        },
-      })),
+          value: { lovelace: 100_000_000_000n },
+        }))
+        .map(asMesh),
     );
     wallet = new MeshWallet({
       networkId: 0,

@@ -6,8 +6,6 @@ import {
   NativeScript,
   resolveNativeScriptHash,
   resolveScriptHash,
-  resolveScriptRef,
-  UTxO,
 } from "@meshsdk/core";
 import {
   Address,
@@ -15,6 +13,7 @@ import {
   keyHashToRewardAddress,
   resolvePlutusScriptAddress,
   scriptHashToRewardAddress,
+  toNativeScript,
   Transaction,
   transactionPrototypeFromHex,
   transactionPrototypeToHex,
@@ -34,6 +33,8 @@ import {
   mint,
   networkId,
   output,
+  OutputDatum,
+  OutputScript,
   proposal,
   RedeemerContext,
   referenceInput,
@@ -42,6 +43,7 @@ import {
   TxBuildError,
   TxError,
   TxPart,
+  Utxo,
   validity,
   vote,
   withdrawal,
@@ -72,25 +74,40 @@ const options = {
     DEFAULT_V3_COST_MODEL_LIST,
   ],
 };
-const referenceScript = resolveScriptRef(plutusScript);
+const plutusRef: OutputScript = {
+  type: "plutus",
+  version: "V3",
+  code: alwaysSucceedCbor,
+  hash: alwaysSucceedHash,
+};
+const nativeRef: OutputScript = {
+  type: "native",
+  cbor: toNativeScript(nativeScript).toCbor().toString(),
+  hash: resolveNativeScriptHash(nativeScript),
+};
+/** A reference script that is not one: the bytes are not a script */
+const unknownRef: OutputScript = { type: "unknown", scriptRef: "ff00" };
+const unitInline: OutputDatum = {
+  type: "inline",
+  data: { type: "CBOR", content: "d87980" },
+};
 
 const utxo = (
   txHash: string,
   outputIndex: number,
   address = walletAddress,
-  extra: Partial<UTxO["output"]> = {},
-  lovelace = "5000000",
-): UTxO => ({
-  input: { txHash, outputIndex },
-  output: {
-    address,
-    amount: [{ unit: "lovelace", quantity: lovelace }],
-    ...extra,
-  },
+  extra: Partial<Utxo> = {},
+  lovelace = 5_000_000n,
+): Utxo => ({
+  txHash,
+  outputIndex,
+  address,
+  value: { lovelace },
+  ...extra,
 });
 
 const scriptUtxo = (txHash: string, outputIndex: number) =>
-  utxo(txHash, outputIndex, scriptAddress, { plutusData: "d87980" });
+  utxo(txHash, outputIndex, scriptAddress, { datum: unitInline });
 
 const keySpend = (txHash: string, outputIndex: number) =>
   spend.pubKey({ utxo: utxo(txHash, outputIndex) });
@@ -329,10 +346,10 @@ describe("assembleTxPrototype: redeemer indices", () => {
 describe("assembleTxPrototype: transaction contents", () => {
   it("reads reference scripts from reference inputs, once, and not from spent ones", () => {
     const reference = utxo("cc".repeat(32), 0, walletAddress, {
-      scriptRef: referenceScript,
+      script: plutusRef,
     });
     const spentReference = utxo("dd".repeat(32), 0, walletAddress, {
-      scriptRef: referenceScript,
+      script: plutusRef,
     });
     const parts = [
       spend.plutus({
@@ -410,10 +427,7 @@ describe("assembleTxPrototype: transaction contents", () => {
   it("returns what the collateral leaves above the total, tokens included", () => {
     const unit = `${"ab".repeat(28)}0102`;
     const held = utxo("cc".repeat(32), 0, walletAddress, {
-      amount: [
-        { unit: "lovelace", quantity: "7000000" },
-        { unit, quantity: "5" },
-      ],
+      value: { lovelace: 7_000_000n, [unit]: 5n },
     });
     const parts = [
       scriptSpend("aa".repeat(32), 0, 0),
@@ -703,8 +717,8 @@ describe("assembleTxPrototype: errors", () => {
 
   it("allows a script read from the output it spends, and collateral that is read", () => {
     const holder = utxo("aa".repeat(32), 0, scriptAddress, {
-      plutusData: "d87980",
-      scriptRef: referenceScript,
+      datum: unitInline,
+      script: plutusRef,
     });
     const self = assembleTxPrototype(
       [
@@ -763,9 +777,7 @@ describe("assembleTxPrototype: errors", () => {
  * an output it spends or reads: the attached copy is left out, and the script still counts.
  */
 describe("assembleTxPrototype: scripts the transaction's outputs already hold", () => {
-  const holder = utxo("cc".repeat(32), 0, walletAddress, {
-    scriptRef: referenceScript,
-  });
+  const holder = utxo("cc".repeat(32), 0, walletAddress, { script: plutusRef });
   const policy = resolveScriptHash(alwaysSucceedCbor, "V3");
   const mintAttached = () =>
     mint.plutus({
@@ -816,8 +828,8 @@ describe("assembleTxPrototype: scripts the transaction's outputs already hold", 
 
     // A script output that holds its own validator as its reference script
     const own = utxo("dd".repeat(32), 1, scriptAddress, {
-      plutusData: "d87980",
-      scriptRef: referenceScript,
+      datum: unitInline,
+      script: plutusRef,
     });
     const self = assembleTxPrototype(
       [
@@ -867,7 +879,7 @@ describe("assembleTxPrototype: scripts the transaction's outputs already hold", 
 
   it("leaves out an attached native script a spent output holds", () => {
     const nativeHolder = utxo("cc".repeat(32), 1, walletAddress, {
-      scriptRef: resolveScriptRef(nativeScript),
+      script: nativeRef,
     });
     const { prototype } = assembleTxPrototype(
       [
@@ -896,7 +908,12 @@ describe("assembleTxPrototype: scripts the transaction's outputs already hold", 
     // Outputs that hold another script, spent and read
     const other = (outputIndex: number) =>
       utxo("dd".repeat(32), outputIndex, walletAddress, {
-        scriptRef: resolveScriptRef({ code: mintParamCbor(7), version: "V3" }),
+        script: {
+          type: "plutus",
+          version: "V3",
+          code: mintParamCbor(7),
+          hash: resolveScriptHash(mintParamCbor(7), "V3"),
+        },
       });
     expect(
       attachedV3([
@@ -906,7 +923,7 @@ describe("assembleTxPrototype: scripts the transaction's outputs already hold", 
     ).toEqual(scripts);
     // A reference script the ledger could not read either
     const unreadable = utxo("ee".repeat(32), 0, walletAddress, {
-      scriptRef: "ff00",
+      script: unknownRef,
     });
     expect(attachedV3([spend.pubKey({ utxo: unreadable })])).toEqual(scripts);
     // A reference input given by out ref alone
@@ -929,7 +946,7 @@ describe("assembleTxPrototype: guards", () => {
 
   it("refuses a key guard with the hash of a script a witness names", () => {
     const reference = utxo("cc".repeat(32), 0, walletAddress, {
-      scriptRef: referenceScript,
+      script: plutusRef,
     });
     const cases: [TxPart, string][] = [
       // The attached Plutus script of a spend
@@ -1120,7 +1137,7 @@ describe("assembleTxPrototype: redeemer functions", () => {
 
   it("sees the final inputs, reference inputs and outputs, through bound functions", () => {
     const reference = utxo("cc".repeat(32), 0, walletAddress, {
-      scriptRef: referenceScript,
+      script: plutusRef,
     });
     const read = utxo("ee".repeat(32), 4);
     const spent = [
@@ -1175,10 +1192,10 @@ describe("assembleTxPrototype: redeemer functions", () => {
 
   it("finds reference inputs among the sorted ones, reference scripts included, spent ones not", () => {
     const scriptHolder = utxo("dd".repeat(32), 0, walletAddress, {
-      scriptRef: referenceScript,
+      script: plutusRef,
     });
     const spentHolder = utxo("99".repeat(32), 0, walletAddress, {
-      scriptRef: referenceScript,
+      script: plutusRef,
     });
     const read = utxo("ee".repeat(32), 4);
     const asked: unknown[] = [];

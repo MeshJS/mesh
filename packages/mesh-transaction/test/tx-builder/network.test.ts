@@ -16,11 +16,9 @@ import {
   networkConfig,
   Protocol,
   resolveNativeScriptHash,
-  resolveScriptRef,
   SLOT_CONFIG_NETWORK,
   slotAt,
   timeAt,
-  UTxO,
 } from "@meshsdk/core";
 import {
   keyHashToRewardAddress,
@@ -42,6 +40,8 @@ import {
   networkId,
   NetworkMismatchDetails,
   output,
+  OutputDatum,
+  OutputScript,
   proposal,
   Provider,
   referenceInput,
@@ -52,6 +52,7 @@ import {
   TxError,
   TxPart,
   TxPartError,
+  Utxo,
   withdrawal,
 } from "../../src/tx-builder";
 import {
@@ -61,6 +62,7 @@ import {
   keyHashHex,
   vrfKeyHashHex,
 } from "../test-util";
+import { asMesh, ref } from "./utxo-util";
 
 const params: Protocol = { ...DEFAULT_PROTOCOL_PARAMETERS };
 const costModels = [
@@ -93,22 +95,35 @@ const devnet = customNetwork({
 });
 
 const ada = (n: number) => BigInt(n) * 1_000_000n;
-const lovelace = (n: bigint) => [{ unit: "lovelace", quantity: String(n) }];
+const unitInline: OutputDatum = {
+  type: "inline",
+  data: { type: "CBOR", content: "d87980" },
+};
+const plutusRef: OutputScript = {
+  type: "plutus",
+  version: "V3",
+  code: alwaysSucceedCbor,
+  hash: alwaysSucceedHash,
+};
 let nextHash = 0;
-const utxo = (address = wallet, coin = ada(100), extra = {}): UTxO => ({
-  input: {
-    txHash: (0xa000 + ++nextHash).toString(16).padStart(64, "0"),
-    outputIndex: 0,
-  },
-  output: { address, amount: lovelace(coin), ...extra },
+const utxo = (
+  address = wallet,
+  coin = ada(100),
+  extra: Partial<Utxo> = {},
+): Utxo => ({
+  txHash: (0xa000 + ++nextHash).toString(16).padStart(64, "0"),
+  outputIndex: 0,
+  address,
+  value: { lovelace: coin },
+  ...extra,
 });
-const locked = () => utxo(scriptAddress, ada(10), { plutusData: "d87980" });
+const locked = () => utxo(scriptAddress, ada(10), { datum: unitInline });
 const pay = (address = recipient, label?: string) =>
   output({ address, value: { lovelace: ada(5) }, ...(label && { label }) });
 
 /** A provider whose every call is recorded; methods can be replaced */
 const fakeProvider = (
-  utxos: UTxO[] = [],
+  utxos: Utxo[] = [],
   overrides: Partial<Record<keyof IFetcher, unknown>> & {
     network?: unknown;
   } = {},
@@ -122,7 +137,7 @@ const fakeProvider = (
     };
   const provider = {
     fetchUTxOs: record("fetchUTxOs", (hash: string) =>
-      utxos.filter((u) => u.input.txHash === hash),
+      utxos.filter((u) => u.txHash === hash).map(asMesh),
     ),
     fetchAccountInfo: record("fetchAccountInfo", () => ({
       active: true,
@@ -177,7 +192,7 @@ const offline = (options: object = {}) =>
 const buildWith = (
   builder: TxBuilder,
   parts: TxPart[],
-  payer: { changeAddress?: string; utxos?: UTxO[] } = {},
+  payer: { changeAddress?: string; utxos?: Utxo[] } = {},
 ) =>
   builder.build(parts, {
     payer: { changeAddress: wallet, utxos: [utxo()], ...payer },
@@ -519,7 +534,7 @@ describe("TxBuilder: parameters and cost models", () => {
 describe("TxBuilder: network checks", () => {
   const mismatch = async (
     parts: TxPart[],
-    request: { changeAddress?: string; utxos?: UTxO[] } = {},
+    request: { changeAddress?: string; utxos?: Utxo[] } = {},
     builder = offline(),
   ) => {
     const error = expectCode(
@@ -600,10 +615,8 @@ describe("TxBuilder: network checks", () => {
   it("checks the UTxOs parts hold in full", async () => {
     const mainnetWallet = onMainnet(wallet);
     const held = () => utxo(mainnetWallet, ada(20));
-    const holder = utxo(mainnetWallet, ada(20), {
-      scriptRef: resolveScriptRef(plutusScript),
-    });
-    const cases: [TxPart, TxPart["kind"], UTxO][] = [];
+    const holder = utxo(mainnetWallet, ada(20), { script: plutusRef });
+    const cases: [TxPart, TxPart["kind"], Utxo][] = [];
     const spent = held();
     cases.push([spend.pubKey({ utxo: spent }), "spend", spent]);
     const read = held();
@@ -621,7 +634,7 @@ describe("TxBuilder: network checks", () => {
     ]);
     for (const [part, kind, held] of cases)
       expect((await mismatch([part])).details.found).toEqual([
-        found("utxo", held.output.address, kind),
+        found("utxo", held.address, kind),
       ]);
   });
 
@@ -629,12 +642,12 @@ describe("TxBuilder: network checks", () => {
     const fetched = utxo(onMainnet(wallet), ada(20));
     const { provider } = fakeProvider([fetched]);
     const error = await mismatch(
-      [spend.pubKey({ utxo: fetched.input, label: "from chain" })],
+      [spend.pubKey({ utxo: ref(fetched), label: "from chain" })],
       {},
       new TxBuilder({ network: "preprod", provider }),
     );
     expect(error.details.found).toEqual([
-      found("utxo", fetched.output.address, "spend", "from chain"),
+      found("utxo", fetched.address, "spend", "from chain"),
     ]);
     expect(error.label).toBe("from chain");
   });
@@ -642,7 +655,7 @@ describe("TxBuilder: network checks", () => {
   it("checks the request's UTxOs and change address", async () => {
     const funds = utxo(onMainnet(wallet));
     const error = await mismatch([pay()], { utxos: [funds] });
-    expect(error.details.found).toEqual([found("utxo", funds.output.address)]);
+    expect(error.details.found).toEqual([found("utxo", funds.address)]);
     expect(error.part).toBeUndefined();
 
     const payer = await mismatch([pay()], { changeAddress: onMainnet(wallet) });

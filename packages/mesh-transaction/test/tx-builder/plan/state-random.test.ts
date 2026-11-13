@@ -1,6 +1,5 @@
 import type { TxPlanStatus, Utxo } from "../../../src/tx-builder";
 import type { OutRef } from "../../../src/tx-builder/parts/types";
-import { outRefOf } from "../../../src/tx-builder/parts/utxo";
 import {
   Advanced,
   advancePlan,
@@ -13,6 +12,7 @@ import {
   Sighting,
   TxPlanEvent,
 } from "../../../src/tx-builder/plan/core";
+import { ref } from "../utxo-util";
 import {
   builtTx,
   deepFreeze,
@@ -82,7 +82,7 @@ const expectedStatus = (
 
 const generalAnchors = (json: PlanRecord, attempt: AttemptRecord) => {
   const kinds = new Map(
-    json.anchor.anchors.map((e) => [refKey(outRefOf(e.utxo)), e.kind]),
+    json.anchor.anchors.map((e) => [refKey(ref(e.utxo)), e.kind]),
   );
   return attempt.anchors
     .map(refKey)
@@ -99,7 +99,7 @@ const recordedGeneral = (
     const [key] = generalAnchors(json, attempt);
     if (key !== undefined) {
       const entry = json.anchor.anchors.find(
-        (e) => refKey(outRefOf(e.utxo)) === key,
+        (e) => refKey(ref(e.utxo)) === key,
       )!;
       return { utxo: entry.utxo, kind: entry.kind };
     }
@@ -379,7 +379,7 @@ describe("plan state machine: arbitrary sequences of events", () => {
               }
             : { txHash, found: false },
       );
-      const anchors = json.anchor.anchors.map((e) => outRefOf(e.utxo));
+      const anchors = json.anchor.anchors.map((e) => ref(e.utxo));
       return {
         type: "observation",
         ...(r.chance(0.85) && {
@@ -690,7 +690,7 @@ describe("plan state machine: one landing on a model chain", () => {
         }
         const unspent = ledger.unspent();
         const inPlace = json.anchor.anchors
-          .map((e) => outRefOf(e.utxo))
+          .map((e) => ref(e.utxo))
           .filter((ref) => unspent.has(refKey(ref)) && r.chance(0.8));
         return {
           type: "observation",

@@ -4,17 +4,11 @@ import { toTxUnspentOutput } from "@meshsdk/core-cst";
 import { MeshWallet } from "@meshsdk/wallet";
 
 import type { TxBuildError, TxPlanError, Utxo } from "../../../src/tx-builder";
-import {
-  mint,
-  spend,
-  toMeshUtxo,
-  TxError,
-  validity,
-} from "../../../src/tx-builder";
-import { outRefOf } from "../../../src/tx-builder/parts/utxo";
+import { mint, spend, TxError, validity } from "../../../src/tx-builder";
 import { planOver, recordOf } from "../../../src/tx-builder/plan/plan";
 import { cip30Wallet } from "../../cip30-wallet";
 import { alwaysSucceedCbor } from "../../test-util";
+import { asMesh, ref } from "../utxo-util";
 import {
   advance,
   caught,
@@ -127,7 +121,7 @@ describe("TxPlan.build on TxEmulator", () => {
     const first = await plan.build();
     const anchor = recordOf(plan).anchor.anchors[0]!;
     expect(anchor.kind).toBe("payer");
-    expect(first.inputs.map(outRefOf)).toEqual([outRefOf(anchor.utxo)]);
+    expect(first.inputs.map(ref)).toEqual([ref(anchor.utxo)]);
     await plan.sign();
     await caught(plan.send({ submitter: refusing() }));
     // A larger UTxO arrives: selection alone would pay from it
@@ -135,7 +129,7 @@ describe("TxPlan.build on TxEmulator", () => {
     advance(emulator, 1);
     const second = await plan.build();
     expect(second.inputs).toHaveLength(1);
-    expect(second.inputs.map(outRefOf)).toContainEqual(outRefOf(anchor.utxo));
+    expect(second.inputs.map(ref)).toContainEqual(ref(anchor.utxo));
     expect(recordOf(plan).anchor.anchors).toHaveLength(1);
     expect(recordOf(plan).anchor.anchors[0]!.attempts).toEqual([
       first.txHash,
@@ -216,7 +210,7 @@ describe("TxPlan.build on TxEmulator", () => {
       { payer: wallet, knownUtxos: [pending] },
     );
     const built = await plan.build();
-    expect(built.inputs.map(outRefOf)).toContainEqual(outRefOf(pending));
+    expect(built.inputs.map(ref)).toContainEqual(ref(pending));
     expect(plan.status).toBe("built");
   });
 
@@ -269,7 +263,7 @@ describe("TxPlan.build on TxEmulator", () => {
       });
       expect(plan.attempts).toHaveLength(2);
       expect(plan.txHash).toBe(next.txHash);
-      expect(next.inputs.map(outRefOf)).toContainEqual(explicit.input);
+      expect(next.inputs.map(ref)).toContainEqual(explicit.input);
     }
   });
 
@@ -316,7 +310,7 @@ describe("TxPlan.build on TxEmulator", () => {
     provider.control.hooks.fetchAddressUTxOs = async (forward, address) => {
       const utxos: UTxO[] = await forward(address);
       return hidden && anchor && anchor.address === address
-        ? [...utxos, toMeshUtxo(anchor)]
+        ? [...utxos, asMesh(anchor)]
         : utxos;
     };
     const plan = builder.plan(pay(), { payer: wallet });
@@ -405,7 +399,7 @@ describe("TxPlan.build on TxEmulator", () => {
     );
     const built = await plan.build();
     expect(asked).toHaveLength(1);
-    expect(built.collateral!.inputs.map(outRefOf)).toEqual([reserve.input]);
+    expect(built.collateral!.inputs.map(ref)).toEqual([reserve.input]);
     await plan.send({ waitFor: "included" });
     expect(plan.status).toBe("final");
   });
@@ -647,7 +641,7 @@ describe("TxPlan.build on TxEmulator", () => {
       },
     });
     expect(plan.attempts).toHaveLength(2);
-    expect(built.inputs.map(outRefOf)).toContainEqual(outRefOf(anchor));
+    expect(built.inputs.map(ref)).toContainEqual(ref(anchor));
     expect(built.change.every((c) => c.address === address)).toBe(true);
   });
 
@@ -722,8 +716,8 @@ describe("TxPlan.build on TxEmulator", () => {
     hidden.add(key(firstInput!));
     const built = await plan.build();
     expect(built.inputs).toEqual(probe.inputs);
-    expect(recordOf(plan).anchor.anchors.map((a) => outRefOf(a.utxo))).toEqual([
-      outRefOf(secondInput!),
+    expect(recordOf(plan).anchor.anchors.map((a) => ref(a.utxo))).toEqual([
+      ref(secondInput!),
     ]);
     hidden.clear();
     await caught(plan.send({ submitter: refusing() }));
@@ -739,23 +733,23 @@ describe("TxPlan.build on TxEmulator", () => {
       provider.control.hooks.fetchAddressUTxOs = answer;
       const plain = builder.plan(pay(110_000_000n), options);
       await plain.build();
-      expect(
-        recordOf(plain).anchor.anchors.map((a) => outRefOf(a.utxo)),
-      ).toEqual([outRefOf(firstInput!)]);
+      expect(recordOf(plain).anchor.anchors.map((a) => ref(a.utxo))).toEqual([
+        ref(firstInput!),
+      ]);
     }
 
     // The replacement spends the recorded anchor: the other input is gone, and a larger UTxO
     // would pay alone
     delete provider.control.hooks.fetchAddressUTxOs;
-    emulator.removeUtxos([outRefOf(firstInput!)]);
+    emulator.removeUtxos([ref(firstInput!)]);
     emulator.fund(address, { lovelace: 300_000_000n });
     const next = await plan.build({
       payer: { changeAddress: address, utxos: emulator.utxos({ address }) },
     });
     expect(plan.attempts).toHaveLength(2);
-    const spent = next.inputs.map(outRefOf);
-    expect(spent).toContainEqual(outRefOf(secondInput!));
-    expect(spent).not.toContainEqual(outRefOf(firstInput!));
+    const spent = next.inputs.map(ref);
+    expect(spent).toContainEqual(ref(secondInput!));
+    expect(spent).not.toContainEqual(ref(firstInput!));
   });
 
   it("reads only the tip, or nothing, when it returns an attempt it has", async () => {
@@ -948,7 +942,7 @@ describe("TxPlan.build on TxEmulator", () => {
     // The anchor alone is spent: the new anchor is one of the other pinned UTxOs
     await plan.send({ submitter: swallow(second.txHash) });
     const anchor = recordOf(plan).anchor.anchors[0]!.utxo;
-    emulator.removeUtxos([outRefOf(anchor)]);
+    emulator.removeUtxos([ref(anchor)]);
     emulator.advanceTo({ time: plan.attempts[1]!.until });
     await plan.refresh();
     expect(plan.status).toBe("expired");
@@ -994,7 +988,7 @@ describe("TxPlan.build on TxEmulator", () => {
     emulator.fund(address, { lovelace: 30_000_000n });
     const second = await plan.build({ payer: snapshot() });
     expect(second.txHash).not.toBe(first.txHash);
-    expect(second.inputs.map(outRefOf)).toContainEqual(outRefOf(anchor));
+    expect(second.inputs.map(ref)).toContainEqual(ref(anchor));
     expect(plan.attempts).toHaveLength(2);
   });
 });

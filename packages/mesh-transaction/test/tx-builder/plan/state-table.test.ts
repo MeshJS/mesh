@@ -1,11 +1,11 @@
 import type { TxPlanStatus } from "../../../src/tx-builder";
-import { outRefOf } from "../../../src/tx-builder/parts/utxo";
 import {
   advancePlan,
   PlanRecord,
   Refusal,
   TxPlanEvent,
 } from "../../../src/tx-builder/plan/core";
+import { ref } from "../utxo-util";
 import {
   A1,
   A2,
@@ -242,7 +242,7 @@ const columnsB = {
   "no sighting, anchor in place, tip at the deadline and margin": {
     type: "observation",
     tip: { slot: (UNTIL + MARGIN) / 1000, timeMs: UNTIL + MARGIN },
-    anchorsInPlace: [outRefOf(PARENT_OUT)],
+    anchorsInPlace: [ref(PARENT_OUT)],
   },
 } satisfies Record<string, TxPlanEvent>;
 type ColumnB = keyof typeof columnsB;

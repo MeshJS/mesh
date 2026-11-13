@@ -10,9 +10,9 @@ import {
   TxError,
   validity,
 } from "../../../src/tx-builder";
-import { outRefOf } from "../../../src/tx-builder/parts/utxo";
 import { planOver, recordOf } from "../../../src/tx-builder/plan/plan";
 import { alwaysSucceedCbor } from "../../test-util";
+import { ref } from "../utxo-util";
 import {
   advance,
   builderOf,
@@ -332,7 +332,7 @@ describe("Chains of plans on TxEmulator", () => {
     provider.control.hooks.fetchAddressUTxOs = async () => [];
     const error = (await caught(child.build())) as TxPlanError<"INPUTS_SPENT">;
     expectCode(error, "INPUTS_SPENT");
-    expect(error.details.inputs).toEqual([outRefOf(seed)]);
+    expect(error.details.inputs).toEqual([ref(seed)]);
     expect(child.attempts).toHaveLength(1);
   });
 

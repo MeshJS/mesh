@@ -1,10 +1,19 @@
-import { mConStr0, UTxO } from "@meshsdk/core";
+import { mConStr0 } from "@meshsdk/core";
 import { resolvePlutusScriptAddress } from "@meshsdk/core-cst";
 import { ScalusEmulator } from "@meshsdk/scalus-emulator";
 import { MeshWallet } from "@meshsdk/wallet";
 
-import { BuiltTx, output, spend, TxBuilder } from "../../src/tx-builder";
+import {
+  Assets,
+  BuiltTx,
+  output,
+  OutputDatum,
+  spend,
+  TxBuilder,
+  Utxo,
+} from "../../src/tx-builder";
 import { alwaysSucceedCbor } from "../test-util";
+import { asMesh } from "./utxo-util";
 
 const plutusScript = { code: alwaysSucceedCbor, version: "V3" as const };
 // A blueprint's compiled code: the program in a single CBOR wrapping
@@ -12,7 +21,11 @@ const blueprintScript = {
   code: alwaysSucceedCbor.slice(4),
   version: "V3" as const,
 };
-const lovelace = (quantity: string) => [{ unit: "lovelace", quantity }];
+const lovelace = (quantity: bigint): Assets => ({ lovelace: quantity });
+const unitInline: OutputDatum = {
+  type: "inline",
+  data: { type: "CBOR", content: "d87980" },
+};
 const fundsHash = "0".repeat(64);
 const lockedHash = "2".repeat(64);
 // Enough for the always-succeeding script, stated so that no evaluator is needed
@@ -26,7 +39,7 @@ describe("TxBuilder's network and chain on the emulator", () => {
   let provider: ScalusEmulator;
   let wallet: MeshWallet;
   let address: string;
-  let locked: UTxO;
+  let locked: Utxo;
 
   const submit = async (built: BuiltTx) =>
     expect(await provider.submitTx(await wallet.signTx(built.tx))).toBe(
@@ -41,20 +54,23 @@ describe("TxBuilder's network and chain on the emulator", () => {
     await wallet.init();
     address = (await wallet.getChangeAddress())!;
     locked = {
-      input: { txHash: lockedHash, outputIndex: 0 },
-      output: {
-        address: resolvePlutusScriptAddress(plutusScript, 0),
-        amount: lovelace("20000000"),
-        plutusData: "d87980",
-      },
+      txHash: lockedHash,
+      outputIndex: 0,
+      address: resolvePlutusScriptAddress(plutusScript, 0),
+      value: lovelace(20_000_000n),
+      datum: unitInline,
     };
-    provider = await ScalusEmulator.create([
-      {
-        input: { txHash: fundsHash, outputIndex: 0 },
-        output: { address, amount: lovelace("10000000000") },
-      },
-      locked,
-    ]);
+    provider = await ScalusEmulator.create(
+      [
+        {
+          txHash: fundsHash,
+          outputIndex: 0,
+          address,
+          value: lovelace(10_000_000_000n),
+        },
+        locked,
+      ].map(asMesh),
+    );
   });
 
   it("builds the same transaction from a snapshot of the chain, without a provider", async () => {

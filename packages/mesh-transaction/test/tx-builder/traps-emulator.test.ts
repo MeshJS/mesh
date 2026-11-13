@@ -1,18 +1,23 @@
-import { mConStr0, resolveScriptRef, UTxO } from "@meshsdk/core";
+import { mConStr0 } from "@meshsdk/core";
 import { resolvePlutusScriptAddress } from "@meshsdk/core-cst";
 import { ScalusEmulator } from "@meshsdk/scalus-emulator";
 import { MeshWallet } from "@meshsdk/wallet";
 
 import {
+  Assets,
   BuiltTx,
   collateral,
   output,
+  OutputDatum,
+  OutputScript,
   referenceInput,
   spend,
   TxBuilder,
   TxPart,
+  Utxo,
 } from "../../src/tx-builder";
-import { alwaysSucceedCbor } from "../test-util";
+import { alwaysSucceedCbor, alwaysSucceedHash } from "../test-util";
+import { asMesh } from "./utxo-util";
 
 // The always-succeeding validator in each form its code may take
 const double = alwaysSucceedCbor;
@@ -22,9 +27,17 @@ const flat = single.slice(4);
 const network = "preview";
 const plutusScript = { code: double, version: "V3" as const };
 const scriptAddress = resolvePlutusScriptAddress(plutusScript, 0);
-const lovelace = (n: number) => [
-  { unit: "lovelace", quantity: String(BigInt(n) * 1_000_000n) },
-];
+const lovelace = (n: number): Assets => ({ lovelace: BigInt(n) * 1_000_000n });
+const unitInline: OutputDatum = {
+  type: "inline",
+  data: { type: "CBOR", content: "d87980" },
+};
+const plutusRef: OutputScript = {
+  type: "plutus",
+  version: "V3",
+  code: alwaysSucceedCbor,
+  hash: alwaysSucceedHash,
+};
 
 /*
  * Transactions the builder used to get wrong without an error of its own, built against the
@@ -44,21 +57,21 @@ describe("TxBuilder's input traps on the emulator", () => {
   });
 
   let next = 0;
-  const at = (
-    addr: string,
-    ada: number,
-    extra: Partial<UTxO["output"]> = {},
-  ): UTxO => ({
-    input: { txHash: (++next).toString(16).padStart(64, "0"), outputIndex: 0 },
-    output: { address: addr, amount: lovelace(ada), ...extra },
+  const at = (addr: string, ada: number, extra: Partial<Utxo> = {}): Utxo => ({
+    txHash: (++next).toString(16).padStart(64, "0"),
+    outputIndex: 0,
+    address: addr,
+    value: lovelace(ada),
+    ...extra,
   });
-  const locked = (ada = 10) => at(scriptAddress, ada, { plutusData: "d87980" });
-  const keyOf = (u: UTxO) => `${u.input.txHash}#${u.input.outputIndex}`;
+  const locked = (ada = 10) => at(scriptAddress, ada, { datum: unitInline });
+  const keyOf = (u: Utxo) => `${u.txHash}#${u.outputIndex}`;
   const outRefs = (
     inputs?: { transaction_id: string; index: number }[] | null,
   ) => (inputs ?? []).map((i) => `${i.transaction_id}#${i.index}`);
 
-  const emulatorWith = (utxos: UTxO[]) => ScalusEmulator.create(utxos);
+  const emulatorWith = (utxos: Utxo[]) =>
+    ScalusEmulator.create(utxos.map(asMesh));
   const build = async (
     emulator: ScalusEmulator,
     parts: TxPart[],
@@ -80,7 +93,7 @@ describe("TxBuilder's input traps on the emulator", () => {
       built.txHash,
     );
   const unlock = (
-    utxo: UTxO,
+    utxo: Utxo,
     script: Parameters<typeof spend.plutus>[0]["script"],
   ) => spend.plutus({ utxo, script, redeemer: { data: mConStr0([]) } });
 
@@ -102,9 +115,7 @@ describe("TxBuilder's input traps on the emulator", () => {
 
   it("neither spends nor puts up the UTxOs the parts read", async () => {
     const oracle = at(address, 1000);
-    const holder = at(address, 20, {
-      scriptRef: resolveScriptRef(plutusScript),
-    });
+    const holder = at(address, 20, { script: plutusRef });
     const lock = locked();
     const emulator = await emulatorWith([
       oracle,

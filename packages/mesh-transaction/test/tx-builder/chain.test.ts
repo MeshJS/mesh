@@ -26,11 +26,13 @@ import {
   BuiltTx,
   collateral,
   output,
+  OutputDatum,
   outputOf,
+  OutputScript,
+  OutRef,
   PartsInput,
   referenceInput,
   spend,
-  toMeshUtxo,
   toUtxo,
   TxBuilder,
   TxBuildError,
@@ -41,19 +43,23 @@ import {
   utxosAfter,
 } from "../../src/tx-builder";
 import { feeForSize } from "../../src/tx-builder/fee";
-import { outRefOf } from "../../src/tx-builder/parts/utxo";
-import { alwaysSucceedCbor, baseAddress, keyHashHex } from "../test-util";
+import {
+  alwaysSucceedCbor,
+  alwaysSucceedHash,
+  baseAddress,
+  keyHashHex,
+} from "../test-util";
+import { asMesh, ref } from "./utxo-util";
 
 const params: Protocol = { ...DEFAULT_PROTOCOL_PARAMETERS };
 const wallet = baseAddress(1);
 const recipient = baseAddress(2);
 const ada = (n: number) => BigInt(n) * 1_000_000n;
-const funds: UTxO = {
-  input: { txHash: "c".repeat(64), outputIndex: 0 },
-  output: {
-    address: wallet,
-    amount: [{ unit: "lovelace", quantity: String(ada(100)) }],
-  },
+const funds: Utxo = {
+  txHash: "c".repeat(64),
+  outputIndex: 0,
+  address: wallet,
+  value: { lovelace: ada(100) },
 };
 
 const pay = (n: number, label?: string) =>
@@ -73,7 +79,7 @@ describe("outputOf", () => {
     const built = await build([pay(2, "first"), pay(3, "second")]);
     const second = outputOf(built, "second");
     expect(second).toBe(built.outputs.find((o) => o.label === "second"));
-    expect(outRefOf(second)).toEqual({ txHash: built.txHash, outputIndex: 1 });
+    expect(ref(second)).toEqual({ txHash: built.txHash, outputIndex: 1 });
     expect(second.value).toEqual({ lovelace: ada(3) });
   });
 
@@ -115,25 +121,33 @@ const costModels = [
 const other = baseAddress(3);
 const plutusScript = { code: alwaysSucceedCbor, version: "V3" as const };
 const scriptAddress = resolvePlutusScriptAddress(plutusScript, 0);
-const lovelace = (n: bigint) => [{ unit: "lovelace", quantity: String(n) }];
+const plutusRef: OutputScript = {
+  type: "plutus",
+  version: "V3",
+  code: alwaysSucceedCbor,
+  hash: alwaysSucceedHash,
+};
+const unitInline: OutputDatum = {
+  type: "inline",
+  data: { type: "CBOR", content: "d87980" },
+};
 
 let nextHash = 0;
 const utxoAt = (
   address: string,
   coin: bigint,
-  extra: Partial<UTxO["output"]> = {},
-): UTxO => ({
-  input: {
-    txHash: (++nextHash).toString(16).padStart(64, "d"),
-    outputIndex: 0,
-  },
-  output: { address, amount: lovelace(coin), ...extra },
+  extra: Partial<Utxo> = {},
+): Utxo => ({
+  txHash: (++nextHash).toString(16).padStart(64, "d"),
+  outputIndex: 0,
+  address,
+  value: { lovelace: coin },
+  ...extra,
 });
 /** A UTxO of the payer */
 const owned = (n: number) => utxoAt(wallet, ada(n));
 /** An output locked by the always-succeeding script, its datum inline */
-const locked = (n = 10) =>
-  utxoAt(scriptAddress, ada(n), { plutusData: "d87980" });
+const locked = (n = 10) => utxoAt(scriptAddress, ada(n), { datum: unitInline });
 const snapshot = (...utxos: UtxoInput[]) => ({ changeAddress: wallet, utxos });
 /** The out ref of a UTxO given in the Mesh form or returned in the builder's */
 const refOf = (utxo: Readonly<UTxO> | Readonly<Utxo>) => {
@@ -272,7 +286,7 @@ describe("TxBuilder: after", () => {
     );
     expect(calls).toEqual([]);
     expect(refsOf(fetched.inputs)).toContain(refOf(paid));
-    expect(fetched.inputs).toContainEqual(toUtxo(paid));
+    expect(fetched.inputs).toContainEqual(paid);
 
     const offlineBuilt = await buildWith([byOutRef, pay(45)], {
       payer: snapshot(funds),
@@ -337,7 +351,7 @@ describe("TxBuilder: after", () => {
 
     const change = tx1.change[0]!;
     const built = await buildWith(
-      [spend.pubKey({ utxo: outRefOf(change) }), pay(5)],
+      [spend.pubKey({ utxo: ref(change) }), pay(5)],
       { payer: otherPayer, after: tx1 },
     );
     expect(refsOf(built.inputs)).toEqual([refOf(change)]);
@@ -496,7 +510,7 @@ describe("TxBuilder: after", () => {
     const tx1 = await buildWith(pay(10), { payer: snapshot(spentUtxo) });
     expect(refsOf(tx1.inputs)).toEqual([refOf(spentUtxo)]);
 
-    const cases: [string, (utxo: UTxO | UTxO["input"]) => PartsInput][] = [
+    const cases: [string, (utxo: Utxo | OutRef) => PartsInput][] = [
       ["spend", (utxo) => spend.pubKey({ utxo, label: "again" })],
       ["referenceInput", (utxo) => referenceInput({ utxo, label: "again" })],
       [
@@ -512,7 +526,7 @@ describe("TxBuilder: after", () => {
       ],
     ];
     for (const [kind, partFor] of cases) {
-      for (const given of [spentUtxo, spentUtxo.input]) {
+      for (const given of [spentUtxo, ref(spentUtxo)]) {
         const { provider, calls } = failingProvider();
         const error = await caught(
           buildWith(
@@ -522,7 +536,7 @@ describe("TxBuilder: after", () => {
           ),
         );
         expect(error.code).toBe("UTXO_NOT_FOUND");
-        expect(error.details).toEqual({ input: spentUtxo.input });
+        expect(error.details).toEqual({ input: ref(spentUtxo) });
         expect(error.part).toBe(kind);
         expect(error.label).toBe("again");
         expect(error.message).toContain(tx1.txHash);
@@ -720,11 +734,11 @@ describe("TxBuilder: after", () => {
       { payer: snapshot(funds) },
     );
     const holder = outputOf(tx1, "script");
-    const scriptSize = BigInt(toMeshUtxo(holder).output.scriptRef!.length / 2);
+    const scriptSize = BigInt(asMesh(holder).output.scriptRef!.length / 2);
     const built = await buildWith(
       spend.plutus({
         utxo: locked(),
-        script: { reference: outRefOf(holder) },
+        script: { reference: ref(holder) },
         redeemer: { data: mConStr0([]) },
       }),
       { payer: snapshot(funds), after: tx1 },
@@ -772,12 +786,12 @@ describe("TxBuilder: after", () => {
 describe("TxBuilder: knownUtxos", () => {
   it("resolves a part from it with no provider", async () => {
     const known = utxoAt(other, ada(20));
-    const parts = [spend.pubKey({ utxo: known.input }), pay(5)];
+    const parts = [spend.pubKey({ utxo: ref(known) }), pay(5)];
     const built = await buildWith(parts, {
       payer: snapshot(owned(100)),
       knownUtxos: [known],
     });
-    expect(built.inputs).toContainEqual(toUtxo(known));
+    expect(built.inputs).toContainEqual(known);
 
     const missing = await caught(
       buildWith(parts, { payer: snapshot(owned(100)) }),
@@ -808,7 +822,7 @@ describe("TxBuilder: knownUtxos", () => {
     const script = locked();
     const parts = [
       spend.plutus({
-        utxo: script.input,
+        utxo: ref(script),
         script: plutusScript,
         redeemer: { data: mConStr0([]) },
       }),
@@ -839,7 +853,7 @@ describe("TxBuilder: knownUtxos", () => {
       expect(refsOf(handed).sort()).toEqual(
         [refOf(script), refOf(change)].sort(),
       );
-    expect(remote.handed.at(-1)).toContainEqual(toMeshUtxo(change));
+    expect(remote.handed.at(-1)).toContainEqual(asMesh(change));
   });
 
   it("hands an evaluator without acceptsKnownUtxos no change folded in by utxosAfter, and that change once it is given as knownUtxos", async () => {
@@ -850,7 +864,7 @@ describe("TxBuilder: knownUtxos", () => {
     const script = locked();
     const parts = [
       spend.plutus({
-        utxo: script.input,
+        utxo: ref(script),
         script: plutusScript,
         redeemer: { data: mConStr0([]) },
       }),
@@ -883,19 +897,17 @@ describe("TxBuilder: knownUtxos", () => {
   });
 
   it("prices a reference script held by a known UTxO into the fee", async () => {
-    const holder = utxoAt(other, ada(20), {
-      scriptRef: resolveScriptRef(plutusScript),
-    });
-    const scriptSize = BigInt(holder.output.scriptRef!.length / 2);
+    const holder = utxoAt(other, ada(20), { script: plutusRef });
+    const scriptSize = BigInt(resolveScriptRef(plutusScript).length / 2);
     const built = await buildWith(
       spend.plutus({
         utxo: locked(),
-        script: { reference: holder.input },
+        script: { reference: ref(holder) },
         redeemer: { data: mConStr0([]) },
       }),
       { payer: snapshot(owned(100)), knownUtxos: [holder] },
     );
-    expect(built.referenceInputs).toEqual([toUtxo(holder)]);
+    expect(built.referenceInputs).toEqual([holder]);
     // One key witness: the payer's collateral
     const witnessBytes = 101n + 1n + 1n + 1n;
     const priced = feeForSize(
@@ -917,18 +929,15 @@ describe("TxBuilder: knownUtxos", () => {
 
   it("matches an out ref whatever the case of its transaction hash", async () => {
     const lower = utxoAt(other, ada(20));
-    const upper: UTxO = {
-      input: { ...lower.input, txHash: lower.input.txHash.toUpperCase() },
-      output: lower.output,
-    };
-    expect(upper.input.txHash).not.toBe(lower.input.txHash);
+    const upper: Utxo = { ...lower, txHash: lower.txHash.toUpperCase() };
+    expect(upper.txHash).not.toBe(lower.txHash);
     const given = structuredClone(upper);
     const built = await buildWith(
-      [spend.pubKey({ utxo: lower.input }), pay(5)],
+      [spend.pubKey({ utxo: ref(lower) }), pay(5)],
       { payer: snapshot(owned(100)), knownUtxos: [given] },
     );
     expect(built.inputs).not.toContain(undefined);
-    expect(built.inputs).toContainEqual(toUtxo(lower));
+    expect(built.inputs).toContainEqual(lower);
     expect(given).toEqual(upper);
   });
 
@@ -937,7 +946,7 @@ describe("TxBuilder: knownUtxos", () => {
     let error: unknown;
     try {
       await buildWith(
-        [spend.pubKey({ utxo: script.input, label: "key" }), pay(5)],
+        [spend.pubKey({ utxo: ref(script), label: "key" }), pay(5)],
         { payer: snapshot(owned(100)), knownUtxos: [script] },
       );
     } catch (e) {
@@ -966,9 +975,7 @@ describe("TxBuilder: knownUtxos", () => {
 
 describe("TxBuilder: reference scripts given in full", () => {
   it("needs no lookup for a reference script held by a UTxO given to the part", async () => {
-    const holder = utxoAt(other, ada(20), {
-      scriptRef: resolveScriptRef(plutusScript),
-    });
+    const holder = utxoAt(other, ada(20), { script: plutusRef });
     const built = await buildWith(
       spend.plutus({
         utxo: locked(),
@@ -977,7 +984,7 @@ describe("TxBuilder: reference scripts given in full", () => {
       }),
       { payer: snapshot(owned(100)) },
     );
-    expect(built.referenceInputs).toEqual([toUtxo(holder)]);
+    expect(built.referenceInputs).toEqual([holder]);
   });
 });
 
@@ -1022,7 +1029,7 @@ describe("utxosAfter", () => {
     expect(utxosAfter(funds, tx1)).not.toBe(first);
 
     const none = utxosAfter(funds, []);
-    expect(none).toEqual(funds.map((utxo) => toUtxo(utxo)));
+    expect(none).toEqual(funds);
     expect(none).not.toBe(funds);
 
     // An output already listed is not added again

@@ -16,7 +16,6 @@ import {
   resolveScriptHash,
   resolveScriptRef,
   serializeAddressObj,
-  UTxO,
 } from "@meshsdk/core";
 import {
   getTransactionOutputs,
@@ -30,6 +29,7 @@ import {
 } from "@meshsdk/core-cst";
 
 import {
+  Assets,
   BuildEvent,
   BuiltTx,
   certificate,
@@ -37,27 +37,30 @@ import {
   collateralReturn,
   guard,
   output,
+  OutputDatum,
+  OutputScript,
   referenceInput,
   spend,
-  toMeshUtxo,
   toUtxo,
   TxBuilder,
   TxBuildError,
   TxPart,
+  Utxo,
   UtxoInput,
   validity,
   vote,
   withdrawal,
 } from "../../src/tx-builder";
 import { feeForSize } from "../../src/tx-builder/fee";
-import { outRefOf } from "../../src/tx-builder/parts/utxo";
 import {
   alwaysSucceedCbor,
+  alwaysSucceedHash,
   baseAddress,
   keyHashHex,
   mockTokenUnit,
   vrfKeyHashHex,
 } from "../test-util";
+import { asMesh, ref } from "./utxo-util";
 
 const network = "preprod";
 const params: Protocol = { ...DEFAULT_PROTOCOL_PARAMETERS };
@@ -75,18 +78,34 @@ const deposits = { drepDeposit: 500_000_000n, govActionDeposit: 1_000_000n };
 const nativeScript: NativeScript = { type: "sig", keyHash: keyHashHex(9) };
 
 const ada = (n: number) => BigInt(n) * 1_000_000n;
-const lovelace = (n: bigint) => [{ unit: "lovelace", quantity: String(n) }];
+const lovelace = (n: bigint): Assets => ({ lovelace: n });
+const unitInline: OutputDatum = {
+  type: "inline",
+  data: { type: "CBOR", content: "d87980" },
+};
+const plutusRef: OutputScript = {
+  type: "plutus",
+  version: "V3",
+  code: alwaysSucceedCbor,
+  hash: alwaysSucceedHash,
+};
+/** A native script as an output holds it for reference */
+const nativeRefOf = (script: NativeScript): OutputScript => ({
+  type: "native",
+  cbor: toNativeScript(script).toCbor().toString(),
+  hash: resolveNativeScriptHash(script),
+});
 let nextHash = 0;
 const utxo = (
-  amount: UTxO["output"]["amount"],
-  extra: Partial<UTxO["output"]> = {},
+  value: Assets,
+  extra: Partial<Utxo> = {},
   address = wallet,
-): UTxO => ({
-  input: {
-    txHash: (++nextHash).toString(16).padStart(64, "c"),
-    outputIndex: 0,
-  },
-  output: { address, amount, ...extra },
+): Utxo => ({
+  txHash: (++nextHash).toString(16).padStart(64, "c"),
+  outputIndex: 0,
+  address,
+  value,
+  ...extra,
 });
 const payer = (...utxos: UtxoInput[]) => ({ changeAddress: wallet, utxos });
 const keyOf = (address: string) => deserializeAddress(address).pubKeyHash;
@@ -129,7 +148,7 @@ const caught = async (build: Promise<unknown>) => {
 
 /** An output locked by the always-succeeding script, its datum inline */
 const locked = (n = 10) =>
-  utxo(lovelace(ada(n)), { plutusData: "d87980" }, scriptAddress);
+  utxo(lovelace(ada(n)), { datum: unitInline }, scriptAddress);
 const scriptSpend = (spent: UtxoInput = locked(), label?: string) =>
   spend.plutus({
     utxo: spent,
@@ -147,8 +166,7 @@ const signedMinFee = (built: BuiltTx, signers: number) => {
     signers === 0 ? 0 : 101 * signers + (signers < 24 ? 1 : 2) + 1 + 1;
   // Reference scripts held by the inputs and reference inputs are priced too
   const refScripts = [...built.inputs, ...built.referenceInputs].reduce(
-    (size, u) =>
-      size + BigInt((toMeshUtxo(u).output.scriptRef?.length ?? 0) / 2),
+    (size, u) => size + BigInt((asMesh(u).output.scriptRef?.length ?? 0) / 2),
     0n,
   );
   return feeForSize(
@@ -176,11 +194,11 @@ describe("BuiltTx: outputs and change", () => {
         }),
         output({ address: recipient, value: { [unit]: 2n } }),
       ],
-      { payer: payer(utxo([...lovelace(ada(100)), { unit, quantity: "5" }])) },
+      { payer: payer(utxo({ ...lovelace(ada(100)), [unit]: 5n })) },
     );
     const { body } = built.prototype;
     expect(built.outputs).toHaveLength(body.outputs.length);
-    expect(built.outputs.map(outRefOf)).toEqual(
+    expect(built.outputs.map(ref)).toEqual(
       body.outputs.map((_, outputIndex) => ({
         txHash: built.txHash,
         outputIndex,
@@ -289,10 +307,10 @@ describe("BuiltTx: outputs and change", () => {
     });
     // Written back, each is the script reference the body holds
     for (const [i, o] of [script!, native!].entries())
-      expect(toMeshUtxo(o).output.scriptRef).toBe(
+      expect(asMesh(o).output.scriptRef).toBe(
         built.prototype.body.outputs[i + 2]!.script_ref,
       );
-    expect(toMeshUtxo(script!).output.scriptRef).toBe(
+    expect(asMesh(script!).output.scriptRef).toBe(
       resolveScriptRef(plutusScript),
     );
     expect(plainUtxos(built.outputs)).toEqual(
@@ -342,10 +360,10 @@ describe("BuiltTx: outputs and change", () => {
       params: { ...params, maxValSize: 400 },
     }).build([output({ address: recipient, value: { lovelace: ada(2) } })], {
       payer: payer(
-        utxo([
+        utxo({
           ...lovelace(ada(100)),
-          ...units.map((unit) => ({ unit, quantity: "1" })),
-        ]),
+          ...Object.fromEntries(units.map((unit) => [unit, 1n])),
+        }),
       ),
     });
     expect(split.change.length).toBeGreaterThan(1);
@@ -402,10 +420,8 @@ describe("BuiltTx: outputs and change", () => {
 
 describe("BuiltTx: reference inputs", () => {
   it("lists the UTxOs read by reference inputs and reference scripts, in body order", async () => {
-    const holder = utxo(lovelace(ada(20)), {
-      scriptRef: resolveScriptRef(plutusScript),
-    });
-    const read = utxo(lovelace(ada(2)), { plutusData: "d87980" });
+    const holder = utxo(lovelace(ada(20)), { script: plutusRef });
+    const read = utxo(lovelace(ada(2)), { datum: unitInline });
     const built = await builder().build(
       [
         referenceInput({ utxo: read }),
@@ -420,18 +436,16 @@ describe("BuiltTx: reference inputs", () => {
     );
     const refs = built.prototype.body.reference_inputs!;
     expect(refs).toHaveLength(2);
-    expect(built.referenceInputs.map(outRefOf)).toEqual(
+    expect(built.referenceInputs.map(ref)).toEqual(
       refs.map((i) => ({ txHash: i.transaction_id, outputIndex: i.index })),
     );
     expect(built.referenceInputs).toEqual(
-      expect.arrayContaining([toUtxo(read), toUtxo(holder)]),
+      expect.arrayContaining([read, holder]),
     );
   });
 
   it("leaves out a reference script the transaction also spends, and is empty without any", async () => {
-    const holder = utxo(lovelace(ada(20)), {
-      scriptRef: resolveScriptRef(plutusScript),
-    });
+    const holder = utxo(lovelace(ada(20)), { script: plutusRef });
     const built = await builder().build(
       [
         spend.pubKey({ utxo: holder }),
@@ -678,9 +692,7 @@ describe("BuiltTx: signers", () => {
 
     it("reads a script held in a reference output", async () => {
       const native = script(k1, k2);
-      const holder = utxo(lovelace(ada(20)), {
-        scriptRef: resolveScriptRef(native),
-      });
+      const holder = utxo(lovelace(ada(20)), { script: nativeRefOf(native) });
       const built = await builder().build(
         [
           spend.native({

@@ -86,11 +86,10 @@ describe("TxPlan.toJSON", () => {
         changeAddress: baseAddress(1),
         utxos: [
           {
-            input: { txHash: "e".repeat(64), outputIndex: 0 },
-            output: {
-              address: baseAddress(1),
-              amount: [{ unit: "lovelace", quantity: "20000000" }],
-            },
+            txHash: "e".repeat(64),
+            outputIndex: 0,
+            address: baseAddress(1),
+            value: { lovelace: 20_000_000n },
           },
         ],
       },

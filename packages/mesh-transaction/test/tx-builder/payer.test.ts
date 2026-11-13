@@ -16,7 +16,6 @@ import {
 import {
   Address,
   resolvePlutusScriptAddress,
-  toTxUnspentOutput,
   TransactionInput,
   TransactionOutput,
   TransactionUnspentOutput,
@@ -26,21 +25,28 @@ import {
   BuildOptions,
   canSubmit,
   output,
+  OutputDatum,
+  OutputScript,
   PartEntry,
   Payer,
   PayerSnapshot,
   RequiredKeys,
   spend,
-  toMeshUtxo,
-  toUtxo,
   TxBuilder,
   TxBuilderOptions,
   TxBuildError,
   TxBuildErrorCode,
   TxError,
   TxPart,
+  Utxo,
 } from "../../src/tx-builder";
-import { alwaysSucceedCbor, baseAddress, rewardAddress } from "../test-util";
+import {
+  alwaysSucceedCbor,
+  alwaysSucceedHash,
+  baseAddress,
+  rewardAddress,
+} from "../test-util";
+import { asCbor, asMesh, ref } from "./utxo-util";
 
 const network = "preprod";
 const params: Protocol = { ...DEFAULT_PROTOCOL_PARAMETERS };
@@ -54,7 +60,16 @@ const recipient = baseAddress(2);
 
 const hexOf = (address: string) =>
   Address.fromString(address)!.toBytes().toString();
-const cborOf = (utxo: UTxO) => toTxUnspentOutput(utxo).toCbor().toString();
+const plutusRef: OutputScript = {
+  type: "plutus",
+  version: "V3",
+  code: alwaysSucceedCbor,
+  hash: alwaysSucceedHash,
+};
+const unitInline: OutputDatum = {
+  type: "inline",
+  data: { type: "CBOR", content: "d87980" },
+};
 const onMainnet = (address: string) => {
   const bytes = bech32.fromWords(bech32.decode(address, 200).words);
   bytes[0] = bytes[0]! | 0x01;
@@ -66,16 +81,12 @@ const byron =
 
 const ada = (n: number) => BigInt(n) * 1_000_000n;
 let nextHash = 0x500;
-const utxo = (lovelace: bigint, extra: Partial<UTxO["output"]> = {}): UTxO => ({
-  input: {
-    txHash: (++nextHash).toString(16).padStart(64, "0"),
-    outputIndex: 0,
-  },
-  output: {
-    address: wallet,
-    amount: [{ unit: "lovelace", quantity: String(lovelace) }],
-    ...extra,
-  },
+const utxo = (lovelace: bigint, extra: Partial<Utxo> = {}): Utxo => ({
+  txHash: (++nextHash).toString(16).padStart(64, "0"),
+  outputIndex: 0,
+  address: wallet,
+  value: { lovelace },
+  ...extra,
 });
 const pay = (n = 2, address = recipient) =>
   output({ address, value: { lovelace: ada(n) } });
@@ -84,18 +95,18 @@ const pay = (n = 2, address = recipient) =>
 const funds = [utxo(ada(10)), utxo(ada(20))];
 
 /** Serves UTxOs at their addresses and by hash, recording every call */
-const fakeProvider = (utxos: UTxO[] = funds) => {
+const fakeProvider = (utxos: Utxo[] = funds) => {
   const calls: { method: string; args: unknown[] }[] = [];
   const record = (method: string, args: unknown[]) =>
     calls.push({ method, args });
   const provider = {
     fetchAddressUTxOs: async (...args: [string]) => {
       record("fetchAddressUTxOs", args);
-      return utxos.filter((u) => u.output.address === args[0]);
+      return utxos.filter((u) => u.address === args[0]).map(asMesh);
     },
     fetchUTxOs: async (...args: [string]) => {
       record("fetchUTxOs", args);
-      return utxos.filter((u) => u.input.txHash === args[0]);
+      return utxos.filter((u) => u.txHash === args[0]).map(asMesh);
     },
     fetchProtocolParameters: async (...args: unknown[]) => {
       record("fetchProtocolParameters", args);
@@ -127,7 +138,7 @@ const meshFormat = (
     }),
     getUtxos: jest.fn(async () => {
       calls.push("getUtxos");
-      return (answers.utxos ?? funds) as UTxO[];
+      return (answers.utxos ?? funds.map(asMesh)) as UTxO[];
     }),
     getNetworkId: jest.fn(async () => {
       calls.push("getNetworkId");
@@ -143,7 +154,7 @@ const cip30 = (...answer: [unknown?]) => ({
   getChangeAddress: jest.fn(async () => hexOf(wallet)),
   getUtxos: jest.fn(
     async () =>
-      (answer.length > 0 ? answer[0] : funds.map(cborOf)) as
+      (answer.length > 0 ? answer[0] : funds.map(asCbor)) as
         string[] | null | undefined,
   ),
   signTx: jest.fn(async () => "a0"),
@@ -272,12 +283,19 @@ describe("TxBuilder: payer forms", () => {
     const objects = await offline().build(pay(), {
       payer: { changeAddress: wallet, utxos: funds },
     });
+    const meshes = await offline().build(pay(), {
+      payer: { changeAddress: wallet, utxos: funds.map(asMesh) },
+    });
     const cbor = await offline().build(pay(), {
-      payer: { changeAddress: hexOf(wallet), utxos: funds.map(cborOf) },
+      payer: { changeAddress: hexOf(wallet), utxos: funds.map(asCbor) },
     });
     const mixed = await offline().build(pay(), {
-      payer: { changeAddress: wallet, utxos: [cborOf(funds[0]!), funds[1]!] },
+      payer: {
+        changeAddress: wallet,
+        utxos: [asCbor(funds[0]!), asMesh(funds[1]!)],
+      },
     });
+    expect(meshes.tx).toBe(objects.tx);
     expect(cbor.tx).toBe(objects.tx);
     expect(mixed.tx).toBe(objects.tx);
   });
@@ -293,7 +311,7 @@ describe("TxBuilder: payer forms", () => {
       });
     const payer = {
       getChangeAddress: gated("getChangeAddress", wallet),
-      getUtxos: gated("getUtxos", funds),
+      getUtxos: gated("getUtxos", funds.map(asMesh)),
       getNetworkId: gated("getNetworkId", 0),
     };
     const building = offline().build(pay(), { payer });
@@ -362,7 +380,7 @@ describe("TxBuilder: payer forms", () => {
       expect(fake.count("fetchAddressUTxOs")).toBe(2);
       expect(fake.count("fetchProtocolParameters")).toBe(1);
       expect(first.inputs).not.toContainEqual(gained);
-      expect(second.inputs).toContainEqual(toUtxo(gained));
+      expect(second.inputs).toContainEqual(gained);
     } finally {
       jest.restoreAllMocks();
     }
@@ -495,8 +513,7 @@ describe("TxBuilder: payer forms", () => {
     const addressRead = fakeProvider();
     expect(await roleOf(mainnet, addressRead.provider)).toEqual(["payer"]);
     expect(addressRead.calls).toEqual([]);
-    const foreign = { ...utxo(ada(1)) };
-    foreign.output = { ...foreign.output, address: mainnet };
+    const foreign: Utxo = { ...utxo(ada(1)), address: mainnet };
     expect(await roleOf({ changeAddress: wallet, utxos: [foreign] })).toEqual([
       "utxo",
     ]);
@@ -505,11 +522,11 @@ describe("TxBuilder: payer forms", () => {
     expect(
       await roleOf(meshFormat({ address: mainnet, utxos: [] }).wallet),
     ).toEqual(["payer"]);
-    expect(await roleOf(meshFormat({ utxos: [foreign] }).wallet)).toEqual([
-      "utxo",
-    ]);
+    expect(
+      await roleOf(meshFormat({ utxos: [asMesh(foreign)] }).wallet),
+    ).toEqual(["utxo"]);
     const servingForeign = fakeProvider();
-    servingForeign.provider.fetchAddressUTxOs = async () => [foreign];
+    servingForeign.provider.fetchAddressUTxOs = async () => [asMesh(foreign)];
     expect(await roleOf(wallet, servingForeign.provider)).toEqual(["utxo"]);
 
     // A wallet read through the provider is checked before the provider is asked, so a provider
@@ -549,19 +566,17 @@ describe("TxBuilder: payer forms", () => {
 
   it("decodes CBOR UTxOs as core-cst does, keeping datums and reference scripts", async () => {
     const script = resolveScriptRef({ code: alwaysSucceedCbor, version: "V3" });
-    const inline = utxo(ada(3), {
-      plutusData: "d87980",
+    const inline = utxo(ada(3), { datum: unitInline });
+    const hashed = utxo(ada(3), {
+      datum: { type: "hash", hash: "ab".repeat(32) },
     });
-    const hashed = utxo(ada(3), { dataHash: "ab".repeat(32) });
-    const withScript = utxo(ada(30), { scriptRef: script });
+    const withScript = utxo(ada(30), { script: plutusRef });
     const snapshot = await offline().readPayer({
       changeAddress: wallet,
-      utxos: [inline, hashed, withScript].map(cborOf),
+      utxos: [inline, hashed, withScript].map(asCbor),
     });
     // The same UTxOs as their objects give
-    expect(snapshot.utxos).toEqual(
-      [inline, hashed, withScript].map((u) => toUtxo(u)),
-    );
+    expect(snapshot.utxos).toEqual([inline, hashed, withScript]);
     expect(snapshot.utxos[0]!.datum).toEqual({
       type: "inline",
       data: { type: "CBOR", content: "d87980" },
@@ -570,7 +585,7 @@ describe("TxBuilder: payer forms", () => {
       type: "hash",
       hash: "ab".repeat(32),
     });
-    expect(toMeshUtxo(snapshot.utxos[2]!).output.scriptRef).toBe(script);
+    expect(asMesh(snapshot.utxos[2]!).output.scriptRef).toBe(script);
 
     // Byron addresses in base58, on a mainnet builder
     const mainnet = new TxBuilder({ network: "mainnet", params });
@@ -590,17 +605,13 @@ describe("TxBuilder: payer forms", () => {
   });
 
   it("matches a payer UTxO written with an upper-case hash to a part naming it in lower case", async () => {
-    const own = utxo(ada(10));
-    own.input.txHash = "ab".repeat(32);
-    const upper = {
-      ...own,
-      input: { ...own.input, txHash: own.input.txHash.toUpperCase() },
-    };
+    const own: Utxo = { ...utxo(ada(10)), txHash: "ab".repeat(32) };
+    const upper: Utxo = { ...own, txHash: own.txHash.toUpperCase() };
     const built = await offline().build(
-      [spend.pubKey({ utxo: own.input }), pay()],
+      [spend.pubKey({ utxo: ref(own) }), pay()],
       { payer: { changeAddress: wallet, utxos: [upper] } },
     );
-    expect(built.inputs).toEqual([toUtxo(own)]);
+    expect(built.inputs).toEqual([own]);
     expect(built.selectedInputs).toEqual([]);
   });
 
@@ -609,13 +620,13 @@ describe("TxBuilder: payer forms", () => {
     const builder = new TxBuilder({ network, params, provider: fake.provider });
     const expected: PayerSnapshot = {
       changeAddress: wallet,
-      utxos: funds.map((u) => toUtxo(u)),
+      utxos: funds,
     };
     expect(await builder.readPayer(cip30())).toEqual(expected);
     expect(await builder.readPayer(meshFormat().wallet)).toEqual(expected);
     expect(await builder.readPayer(hexOf(wallet))).toEqual(expected);
     // A snapshot: no provider needed, and none asked when there is one
-    const given = { changeAddress: hexOf(wallet), utxos: funds.map(cborOf) };
+    const given = { changeAddress: hexOf(wallet), utxos: funds.map(asCbor) };
     expect(await offline().readPayer(given)).toEqual(expected);
     const callsBefore = fake.calls.length;
     expect(await builder.readPayer(given)).toEqual(expected);
@@ -639,17 +650,16 @@ describe("TxBuilder: payer forms", () => {
       network,
       params,
       provider: fake.provider,
-    }).build([spend.pubKey({ utxo: funds[1]!.input }), pay()], {
+    }).build([spend.pubKey({ utxo: ref(funds[1]!) }), pay()], {
       payer: { changeAddress: wallet, utxos: funds },
     });
-    expect(built.inputs).toContainEqual(toUtxo(funds[1]!));
+    expect(built.inputs).toContainEqual(funds[1]!);
     expect(fake.count("fetchUTxOs")).toBe(0);
   });
 });
 
 describe("TxBuilder: the payer read and the other reads", () => {
-  const other = utxo(ada(5));
-  other.input.txHash = "ee".repeat(32);
+  const other: Utxo = { ...utxo(ada(5)), txHash: "ee".repeat(32) };
 
   it("starts the wallet's reads and the lookups together", async () => {
     const { open, opened } = gate();
@@ -663,15 +673,15 @@ describe("TxBuilder: the payer read and the other reads", () => {
     const fake = fakeProvider([...funds, other]);
     const provider = {
       ...fake.provider,
-      fetchUTxOs: gated("fetchUTxOs", () => [other]),
+      fetchUTxOs: gated("fetchUTxOs", () => [asMesh(other)]),
     } as unknown as IFetcher;
     const payer = {
       getChangeAddress: gated("getChangeAddress", () => wallet),
-      getUtxos: gated("getUtxos", () => funds),
+      getUtxos: gated("getUtxos", () => funds.map(asMesh)),
       getNetworkId: gated("getNetworkId", () => 0),
     };
     const building = new TxBuilder({ network, params, provider }).build(
-      [spend.pubKey({ utxo: other.input }), pay()],
+      [spend.pubKey({ utxo: ref(other) }), pay()],
       { payer },
     );
     await tick();
@@ -682,12 +692,12 @@ describe("TxBuilder: the payer read and the other reads", () => {
       "getUtxos",
     ]);
     open();
-    expect((await building).inputs).toContainEqual(toUtxo(other));
+    expect((await building).inputs).toContainEqual(other);
   });
 
   it("looks up a wallet payer's UTxO a part names by out ref", async () => {
     const fake = fakeProvider();
-    const part = spend.pubKey({ utxo: funds[0]!.input });
+    const part = spend.pubKey({ utxo: ref(funds[0]!) });
     await new TxBuilder({ network, params, provider: fake.provider }).build(
       [part, pay()],
       { payer: meshFormat().wallet },
@@ -701,18 +711,17 @@ describe("TxBuilder: the payer read and the other reads", () => {
 
   it("keeps the copy a part gives in full over the payer's", async () => {
     const script = { code: alwaysSucceedCbor, version: "V3" as const };
-    const locked: UTxO = {
-      input: { txHash: "dd".repeat(32), outputIndex: 0 },
-      output: {
-        address: resolvePlutusScriptAddress(script, 0),
-        amount: [{ unit: "lovelace", quantity: String(ada(5)) }],
-        plutusData: "d87980",
-      },
+    const locked: Utxo = {
+      txHash: "dd".repeat(32),
+      outputIndex: 0,
+      address: resolvePlutusScriptAddress(script, 0),
+      value: { lovelace: ada(5) },
+      datum: unitInline,
     };
     // The wallet lists the same out ref with another datum
-    const listed: UTxO = {
+    const listed: Utxo = {
       ...locked,
-      output: { ...locked.output, plutusData: "d87a80" },
+      datum: { type: "inline", data: { type: "CBOR", content: "d87a80" } },
     };
     const seen: UTxO[][] = [];
     const evaluator: IEvaluator = {
@@ -724,14 +733,14 @@ describe("TxBuilder: the payer read and the other reads", () => {
     };
     const built = await offline({ evaluator, costModels }).build(
       [spend.plutus({ utxo: locked, script, redeemer: { data: 0 } })],
-      { payer: meshFormat({ utxos: [...funds, listed] }).wallet },
+      { payer: meshFormat({ utxos: [...funds, listed].map(asMesh) }).wallet },
     );
-    expect(built.inputs).toContainEqual(toUtxo(locked));
+    expect(built.inputs).toContainEqual(locked);
     expect(seen.length).toBeGreaterThan(0);
     for (const utxos of seen) {
       // Handed as Mesh UTxOs, written from the part's copy
-      expect(utxos).toContainEqual(toMeshUtxo(locked));
-      expect(utxos).not.toContainEqual(toMeshUtxo(listed));
+      expect(utxos).toContainEqual(asMesh(locked));
+      expect(utxos).not.toContainEqual(asMesh(listed));
     }
   });
 });
@@ -850,7 +859,7 @@ describe("TxBuilder: bad values", () => {
     for (const payer of [
       meshFormat({ address: "not an address" }).wallet,
       cip30(["84a400"]),
-      meshFormat({ utxos: { utxos: funds } }).wallet,
+      meshFormat({ utxos: { utxos: funds.map(asMesh) } }).wallet,
     ]) {
       const error = await expectCode(
         () => offline().build(pay(), { payer }),

@@ -4,10 +4,10 @@ import { mConStr0 } from "@meshsdk/core";
 
 import type { TxPlanError } from "../../../src/tx-builder";
 import { spend, TxError } from "../../../src/tx-builder";
-import { outRefOf } from "../../../src/tx-builder/parts/utxo";
 import { advancePlan, draftPlan } from "../../../src/tx-builder/plan/core";
 import { planOver, recordOf } from "../../../src/tx-builder/plan/plan";
 import { alwaysSucceedCbor } from "../../test-util";
+import { ref } from "../utxo-util";
 import {
   advance,
   builderOf,
@@ -445,7 +445,7 @@ describe("TxPlan observation on TxEmulator", () => {
     const anchor = recordOf(plan).anchor.anchors[0]!.utxo;
     // Both attempts spend the one general anchor
     for (const attempt of recordOf(plan).attempts)
-      expect(attempt.anchors).toEqual([outRefOf(anchor)]);
+      expect(attempt.anchors).toEqual([ref(anchor)]);
     // The first is found without its slot, the search gives no answer about the second
     provider.control.hooks.fetchTxInfo = async (forward, hash: string) => {
       if (hash === first!.txHash)

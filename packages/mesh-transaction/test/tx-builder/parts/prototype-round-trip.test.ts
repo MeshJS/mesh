@@ -3,7 +3,6 @@ import {
   NativeScript,
   resolveNativeScriptAddress,
   TransactionPrototype,
-  UTxO,
 } from "@meshsdk/core";
 import {
   resolvePlutusScriptAddress,
@@ -25,6 +24,7 @@ import {
   spend,
   treasuryValue,
   TxPart,
+  Utxo,
   validity,
   withdrawal,
 } from "../../../src/tx-builder";
@@ -151,13 +151,12 @@ const toPrototype = (parts: TxPart[]): TransactionPrototype => {
 const keyAddress = baseAddress(1);
 const nativeScript: NativeScript = { type: "all", scripts: [] };
 const plutusScript = { code: alwaysSucceedCbor, version: "V3" as const };
-const at = (outputIndex: number, address: string, extra = {}): UTxO => ({
-  input: { txHash: "a".repeat(64), outputIndex },
-  output: {
-    address,
-    amount: [{ unit: "lovelace", quantity: "5000000" }],
-    ...extra,
-  },
+const at = (outputIndex: number, address: string, extra = {}): Utxo => ({
+  txHash: "a".repeat(64),
+  outputIndex,
+  address,
+  value: { lovelace: 5_000_000n },
+  ...extra,
 });
 
 describe("parts as TransactionPrototype fragments", () => {
@@ -170,8 +169,10 @@ describe("parts as TransactionPrototype fragments", () => {
       }),
       spend.plutus({
         utxo: at(2, resolvePlutusScriptAddress(plutusScript, 0), {
-          dataHash:
-            "923918e403bf43c34b4ef6b48eb2ee04babed17320d8d1b9ff9ad086e86f44ec",
+          datum: {
+            type: "hash",
+            hash: "923918e403bf43c34b4ef6b48eb2ee04babed17320d8d1b9ff9ad086e86f44ec",
+          },
         }),
         script: plutusScript,
         datum: { data: mConStr0([]) },

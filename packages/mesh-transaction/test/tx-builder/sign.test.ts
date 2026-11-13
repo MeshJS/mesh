@@ -13,9 +13,7 @@ import {
   pubKeyAddress,
   resolveDataHash,
   resolveNativeScriptHash,
-  resolveScriptRef,
   serializeAddressObj,
-  UTxO,
 } from "@meshsdk/core";
 import {
   CborReader,
@@ -24,6 +22,7 @@ import {
   keyHashToRewardAddress,
   scriptHashToRewardAddress,
   Serialization,
+  toNativeScript,
   Transaction,
   transactionPrototypeToHex,
   TxCBOR,
@@ -33,6 +32,7 @@ import { AppWallet, BrowserWallet, MeshWallet } from "@meshsdk/wallet";
 import * as publicApi from "../../src";
 import {
   addWitnesses,
+  Assets,
   BuiltTx,
   certificate,
   collateral,
@@ -40,6 +40,8 @@ import {
   metadata,
   mint,
   output,
+  OutputDatum,
+  OutputScript,
   proposal,
   referenceInput,
   requiredSigners,
@@ -55,18 +57,19 @@ import {
   TxPlanErrorCode,
   TxPlanErrorDetails,
   TxSigners,
+  Utxo,
   UtxoInput,
   vote,
   withdrawal,
 } from "../../src/tx-builder";
 import { feeForSize } from "../../src/tx-builder/fee";
-import { outRefOf } from "../../src/tx-builder/parts/utxo";
 import {
   alwaysSucceedCbor,
   baseAddress,
   keyHashHex,
   vrfKeyHashHex,
 } from "../test-util";
+import { ref } from "./utxo-util";
 
 const network = "preprod";
 const params: Protocol = { ...DEFAULT_PROTOCOL_PARAMETERS };
@@ -107,7 +110,17 @@ const builder = () =>
   });
 
 const ada = (n: number) => BigInt(n) * 1_000_000n;
-const lovelace = (n: bigint) => [{ unit: "lovelace", quantity: String(n) }];
+const lovelace = (n: bigint): Assets => ({ lovelace: n });
+const unitInline: OutputDatum = {
+  type: "inline",
+  data: { type: "CBOR", content: "d87980" },
+};
+/** A native script as an output holds it for reference */
+const nativeRefOf = (script: NativeScript): OutputScript => ({
+  type: "native",
+  cbor: toNativeScript(script).toCbor().toString(),
+  hash: resolveNativeScriptHash(script),
+});
 
 type Wallets = Record<"payment" | "stake" | "drep", MeshWallet>;
 let wallets: Wallets;
@@ -137,17 +150,17 @@ beforeAll(async () => {
 
 let nextHash = 0;
 const utxo = (
-  amount: UTxO["output"]["amount"],
-  extra: Partial<UTxO["output"]> = {},
+  value: Assets,
+  extra: Partial<Utxo> = {},
   at = address,
-): UTxO => ({
-  input: {
-    txHash: (++nextHash).toString(16).padStart(64, "c"),
-    outputIndex: 0,
-  },
-  output: { address: at, amount, ...extra },
+): Utxo => ({
+  txHash: (++nextHash).toString(16).padStart(64, "c"),
+  outputIndex: 0,
+  address: at,
+  value,
+  ...extra,
 });
-const payer = (...utxos: UTxO[]) => ({ changeAddress: address, utxos });
+const payer = (...utxos: Utxo[]) => ({ changeAddress: address, utxos });
 
 /** A payment from the fixture's wallet: one key signs it */
 const payment = async (lovelaceOut = ada(5)) => {
@@ -310,7 +323,7 @@ const scriptTx = async (taggedSets = true) => {
   const scriptAddress = builder().scriptAddress(plutusScript);
   const locked = utxo(
     lovelace(ada(10)),
-    { dataHash: resolveDataHash(datum) },
+    { datum: { type: "hash", hash: resolveDataHash(datum) } },
     scriptAddress,
   );
   const built = await builder().build(
@@ -810,14 +823,14 @@ describe("requiredSigners", () => {
       NativeScript,
     ];
     const holderOf = (native: NativeScript) =>
-      utxo(lovelace(ada(20)), { scriptRef: resolveScriptRef(native) });
+      utxo(lovelace(ada(20)), { script: nativeRefOf(native) });
     const holders = [rewards, staking, drep, guardrail, policy].map(holderOf);
     const [rewardsAt, stakingAt, drepAt, guardrailAt, policyAt] = holders as [
-      UTxO,
-      UTxO,
-      UTxO,
-      UTxO,
-      UTxO,
+      Utxo,
+      Utxo,
+      Utxo,
+      Utxo,
+      Utxo,
     ];
     const credentialOf = (native: NativeScript) => ({
       type: "SCRIPT" as const,
@@ -983,11 +996,7 @@ describe("requiredSigners", () => {
       const built = await builder().build(
         [
           spend.plutus({
-            utxo: utxo(
-              lovelace(ada(10)),
-              { plutusData: "d87980" },
-              scriptAddress,
-            ),
+            utxo: utxo(lovelace(ada(10)), { datum: unitInline }, scriptAddress),
             script: plutusScript,
             redeemer: { data: mConStr0([]) },
           }),
@@ -1007,14 +1016,12 @@ describe("requiredSigners", () => {
           () => requiredSigners(built.tx, spent),
           "UTXO_NOT_FOUND",
         );
-        expect(error.details).toEqual({ input: outRefOf(missing) });
+        expect(error.details).toEqual({ input: ref(missing) });
       }
     });
 
     it("lists a native script held in a reference input only with its UTxO", async () => {
-      const holder = utxo(lovelace(ada(20)), {
-        scriptRef: resolveScriptRef(native),
-      });
+      const holder = utxo(lovelace(ada(20)), { script: nativeRefOf(native) });
       const built = await builder().build(
         [
           spend.native({
@@ -1034,9 +1041,7 @@ describe("requiredSigners", () => {
     });
 
     it("ignores native scripts the transaction does not run, and UTxOs it does not use", async () => {
-      const holder = utxo(lovelace(ada(20)), {
-        scriptRef: resolveScriptRef(native),
-      });
+      const holder = utxo(lovelace(ada(20)), { script: nativeRefOf(native) });
       const built = await builder().build(
         [
           referenceInput({ utxo: holder }),

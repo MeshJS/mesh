@@ -10,13 +10,11 @@ import {
   IFetcher,
   mConStr0,
   Protocol,
-  UTxO,
 } from "@meshsdk/core";
 import {
   Address,
   CborReader,
   resolvePlutusScriptAddress,
-  toTxUnspentOutput,
   Transaction,
   TxCBOR,
 } from "@meshsdk/core-cst";
@@ -26,6 +24,7 @@ import {
   collateral,
   collateralReturn,
   output,
+  OutputDatum,
   PartsInput,
   referenceInput,
   spend,
@@ -36,6 +35,7 @@ import {
   Utxo,
 } from "../../src/tx-builder";
 import { alwaysSucceedCbor, baseAddress } from "../test-util";
+import { asCbor, asMesh } from "./utxo-util";
 
 const network = "preprod";
 const params: Protocol = { ...DEFAULT_PROTOCOL_PARAMETERS };
@@ -49,9 +49,12 @@ const recipient = baseAddress(2);
 const plutusScript = { code: alwaysSucceedCbor, version: "V3" as const };
 const scriptAddress = resolvePlutusScriptAddress(plutusScript, 0);
 
+const unitInline: OutputDatum = {
+  type: "inline",
+  data: { type: "CBOR", content: "d87980" },
+};
 const hexOf = (address: string) =>
   Address.fromString(address)!.toBytes().toString();
-const cborOf = (utxo: UTxO) => toTxUnspentOutput(utxo).toCbor().toString();
 /** The same address on mainnet */
 const onMainnet = (address: string) => {
   const bytes = bech32.fromWords(bech32.decode(address, 200).words);
@@ -62,21 +65,15 @@ const onMainnet = (address: string) => {
 const ada = (n: number) => BigInt(n) * 1_000_000n;
 let nextHash = 0xb00;
 /** A UTxO of the wallet; its hash holds letters, so case matters */
-const utxo = (lovelace: bigint, address = wallet): UTxO => ({
-  input: {
-    txHash: (++nextHash).toString(16).padStart(64, "d"),
-    outputIndex: 0,
-  },
-  output: {
-    address,
-    amount: [{ unit: "lovelace", quantity: String(lovelace) }],
-  },
+const utxo = (lovelace: bigint, address = wallet): Utxo => ({
+  txHash: (++nextHash).toString(16).padStart(64, "d"),
+  outputIndex: 0,
+  address,
+  value: { lovelace },
 });
-const ref = (u: UTxO | Utxo) => {
-  const { txHash, outputIndex } = "input" in u ? u.input : u;
-  return `${txHash}#${outputIndex}`;
-};
-const refs = (utxos: readonly (UTxO | Utxo)[]) => utxos.map(ref);
+/** `txHash#index` of a UTxO */
+const keyOf = (u: Utxo) => `${u.txHash}#${u.outputIndex}`;
+const keysOf = (utxos: readonly Utxo[]) => utxos.map(keyOf);
 /** The lovelace an amount of `getCollateral` asks for: the CBOR of an unsigned integer */
 const lovelaceOf = (amount: string) => new CborReader(amount).readInt();
 
@@ -130,15 +127,11 @@ let nextLock = 0;
 const scriptSpend = (lovelace = ada(10)) =>
   spend.plutus({
     utxo: {
-      input: {
-        txHash: (0xc0 + ++nextLock).toString(16).repeat(32),
-        outputIndex: 0,
-      },
-      output: {
-        address: scriptAddress,
-        amount: [{ unit: "lovelace", quantity: String(lovelace) }],
-        plutusData: "d87980",
-      },
+      txHash: (0xc0 + ++nextLock).toString(16).repeat(32),
+      outputIndex: 0,
+      address: scriptAddress,
+      value: { lovelace: lovelace },
+      datum: unitInline,
     },
     script: plutusScript,
     redeemer: { data: mConStr0([]) },
@@ -153,7 +146,7 @@ const reserve = utxo(ada(5));
  * A CIP-30 api: its change address in hex, its UTxOs as CBOR, and the collateral methods given
  */
 const cip30 = (
-  utxos: UTxO[],
+  utxos: Utxo[],
   methods: {
     getCollateral?: jest.Mock;
     experimental?: { getCollateral?: jest.Mock };
@@ -161,7 +154,7 @@ const cip30 = (
 ) => ({
   getNetworkId: jest.fn(async () => 0),
   getChangeAddress: jest.fn(async () => hexOf(wallet)),
-  getUtxos: jest.fn(async () => utxos.map(cborOf)),
+  getUtxos: jest.fn(async () => utxos.map(asCbor)),
   signTx: jest.fn(async () => "a0"),
   ...methods,
 });
@@ -172,7 +165,7 @@ const answering = (answer: unknown) =>
 
 describe("TxBuilder: the collateral fallback", () => {
   it("asks a CIP-30 payer once, for the collateral the transaction calls for, and puts up its answer", async () => {
-    const getCollateral = answering([cborOf(reserve)]);
+    const getCollateral = answering([asCbor(reserve)]);
     const built = await scripted().build([scriptSpend()], {
       payer: cip30([dust], { getCollateral }),
     });
@@ -184,18 +177,18 @@ describe("TxBuilder: the collateral fallback", () => {
     expect(asked).toBeGreaterThan(0n);
     expect(asked).toBeGreaterThanOrEqual(built.collateral!.total);
     // The answer alone: the payer's own UTxO, too small to cover, is not joined to it
-    expect(refs(built.collateral!.inputs)).toEqual([ref(reserve)]);
-    expect(refs(built.selectedInputs)).not.toContain(ref(reserve));
-    expect(refs(built.inputs)).not.toContain(ref(reserve));
+    expect(keysOf(built.collateral!.inputs)).toEqual([keyOf(reserve)]);
+    expect(keysOf(built.selectedInputs)).not.toContain(keyOf(reserve));
+    expect(keysOf(built.inputs)).not.toContain(keyOf(reserve));
     expect(built.prototype.body.collateral).toEqual([
-      { transaction_id: reserve.input.txHash, index: 0 },
+      { transaction_id: reserve.txHash, index: 0 },
     ]);
   });
 
   it("adds nothing of the answer to what payment may select", async () => {
     // The payer can pay but holds no collateral: 80 UTxOs, any three of them short of it
     const small = Array.from({ length: 80 }, () => utxo(100_000n));
-    const getCollateral = answering([cborOf(reserve)]);
+    const getCollateral = answering([asCbor(reserve)]);
     const built = await scripted().build(
       [
         scriptSpend(ada(2)),
@@ -204,13 +197,13 @@ describe("TxBuilder: the collateral fallback", () => {
       { payer: cip30(small, { getCollateral }) },
     );
     expect(getCollateral).toHaveBeenCalledTimes(1);
-    expect(refs(built.collateral!.inputs)).toEqual([ref(reserve)]);
+    expect(keysOf(built.collateral!.inputs)).toEqual([keyOf(reserve)]);
     // The built-in selection takes the largest first, so the answer would be taken if it could
     expect(built.selectedInputs.length).toBeGreaterThan(0);
     expect(
-      refs(built.selectedInputs).every((r) => refs(small).includes(r)),
+      keysOf(built.selectedInputs).every((r) => keysOf(small).includes(r)),
     ).toBe(true);
-    expect(refs(built.inputs)).not.toContain(ref(reserve));
+    expect(keysOf(built.inputs)).not.toContain(keyOf(reserve));
   });
 
   it("gives the UTxOs of the answer to the evaluation that follows the call", async () => {
@@ -218,12 +211,15 @@ describe("TxBuilder: the collateral fallback", () => {
     let asked = false;
     const getCollateral = jest.fn(async (_: { amount: string }) => {
       asked = true;
-      return [cborOf(reserve)];
+      return [asCbor(reserve)];
     });
     const recording: IEvaluator = {
       acceptsKnownUtxos: true,
       evaluateTx: async (tx, utxos = []) => {
-        calls.push({ before: !asked, utxos: refs(utxos) });
+        calls.push({
+          before: !asked,
+          utxos: utxos.map((u) => `${u.input.txHash}#${u.input.outputIndex}`),
+        });
         return fakeEvaluator().evaluateTx(tx, utxos, []);
       },
     };
@@ -234,10 +230,10 @@ describe("TxBuilder: the collateral fallback", () => {
       evaluator: recording,
     }).build([scriptSpend()], { payer: cip30([dust], { getCollateral }) });
     expect(getCollateral).toHaveBeenCalledTimes(1);
-    expect(refs(built.collateral!.inputs)).toEqual([ref(reserve)]);
+    expect(keysOf(built.collateral!.inputs)).toEqual([keyOf(reserve)]);
     const after = calls.filter((c) => !c.before);
     expect(after.length).toBeGreaterThan(0);
-    expect(after[0]!.utxos).toContain(ref(reserve));
+    expect(after[0]!.utxos).toContain(keyOf(reserve));
   });
 
   it("never puts up a UTxO of the answer that a transaction of after spends", async () => {
@@ -247,21 +243,21 @@ describe("TxBuilder: the collateral fallback", () => {
       payer: { changeAddress: wallet, utxos: [spentReserve] },
       sendAllTo: recipient,
     });
-    expect(refs(tx1.inputs)).toEqual([ref(spentReserve)]);
+    expect(keysOf(tx1.inputs)).toEqual([keyOf(spentReserve)]);
 
     const built = await scripted().build([scriptSpend()], {
       payer: cip30([dust], {
-        getCollateral: answering([cborOf(spentReserve), cborOf(reserve)]),
+        getCollateral: answering([asCbor(spentReserve), asCbor(reserve)]),
       }),
       after: tx1,
     });
-    expect(refs(built.collateral!.inputs)).toEqual([ref(reserve)]);
+    expect(keysOf(built.collateral!.inputs)).toEqual([keyOf(reserve)]);
 
     await expectCode(
       () =>
         scripted().build([scriptSpend()], {
           payer: cip30([dust], {
-            getCollateral: answering([cborOf(spentReserve)]),
+            getCollateral: answering([asCbor(spentReserve)]),
           }),
           after: tx1,
         }),
@@ -273,7 +269,7 @@ describe("TxBuilder: the collateral fallback", () => {
     // Each is short of the collateral; the two together would cover it
     const own = utxo(200_000n);
     const given = utxo(200_000n);
-    const getCollateral = answering([cborOf(given)]);
+    const getCollateral = answering([asCbor(given)]);
     const error = await expectCode(
       () =>
         scripted().build([scriptSpend()], {
@@ -306,7 +302,7 @@ describe("TxBuilder: the collateral fallback", () => {
         }));
       },
     };
-    const getCollateral = answering([cborOf(utxo(400_000n))]);
+    const getCollateral = answering([asCbor(utxo(400_000n))]);
     const error = await expectCode(
       () =>
         new TxBuilder({
@@ -323,7 +319,7 @@ describe("TxBuilder: the collateral fallback", () => {
   });
 
   it("asks for the total a collateral return part states", async () => {
-    const getCollateral = answering([cborOf(reserve)]);
+    const getCollateral = answering([asCbor(reserve)]);
     const built = await scripted().build(
       [
         scriptSpend(),
@@ -336,11 +332,11 @@ describe("TxBuilder: the collateral fallback", () => {
     expect(amount).toBe("1a001e8480");
     expect(lovelaceOf(amount)).toBe(ada(2));
     expect(built.collateral!.total).toBe(ada(2));
-    expect(refs(built.collateral!.inputs)).toEqual([ref(reserve)]);
+    expect(keysOf(built.collateral!.inputs)).toEqual([keyOf(reserve)]);
   });
 
   it("asks for the collateral of the fee option when one is given", async () => {
-    const getCollateral = answering([cborOf(reserve)]);
+    const getCollateral = answering([asCbor(reserve)]);
     const fee = ada(1);
     await scripted().build([scriptSpend()], {
       payer: cip30([dust], { getCollateral }),
@@ -353,15 +349,15 @@ describe("TxBuilder: the collateral fallback", () => {
   });
 
   it("calls experimental.getCollateral only when the api has no getCollateral", async () => {
-    const experimental = answering([cborOf(reserve)]);
+    const experimental = answering([asCbor(reserve)]);
     const built = await scripted().build([scriptSpend()], {
       payer: cip30([dust], { experimental: { getCollateral: experimental } }),
     });
     expect(experimental).toHaveBeenCalledTimes(1);
-    expect(refs(built.collateral!.inputs)).toEqual([ref(reserve)]);
+    expect(keysOf(built.collateral!.inputs)).toEqual([keyOf(reserve)]);
 
-    const top = answering([cborOf(reserve)]);
-    const nested = answering([cborOf(reserve)]);
+    const top = answering([asCbor(reserve)]);
+    const nested = answering([asCbor(reserve)]);
     await scripted().build([scriptSpend()], {
       payer: cip30([dust], {
         getCollateral: top,
@@ -383,21 +379,21 @@ describe("TxBuilder: the collateral fallback", () => {
     { answer: "[]", method: () => answering([]) },
     {
       answer: "UTxOs worth less than required",
-      method: () => answering([cborOf(dust)]),
+      method: () => answering([asCbor(dust)]),
     },
     {
       answer: "UTxOs the filter rejects",
-      method: () => answering([cborOf(reserve)]),
+      method: () => answering([asCbor(reserve)]),
       options: { canSelect: () => false },
     },
     {
       answer: "UTxOs a part reads",
-      method: () => answering([cborOf(reserve)]),
+      method: () => answering([asCbor(reserve)]),
       parts: [scriptSpend(), referenceInput({ utxo: reserve })],
     },
     {
       answer: "a script-locked UTxO",
-      method: () => answering([cborOf(utxo(ada(5), scriptAddress))]),
+      method: () => answering([asCbor(utxo(ada(5), scriptAddress))]),
     },
   ];
 
@@ -480,7 +476,7 @@ describe("TxBuilder: the collateral fallback", () => {
   });
 
   it("is NETWORK_MISMATCH for a UTxO of another network in the answer", async () => {
-    const getCollateral = answering([cborOf(utxo(ada(5), onMainnet(wallet)))]);
+    const getCollateral = answering([asCbor(utxo(ada(5), onMainnet(wallet)))]);
     const error = await expectCode(
       () =>
         scripted().build([scriptSpend()], {
@@ -494,31 +490,31 @@ describe("TxBuilder: the collateral fallback", () => {
 
   it("asks the filter about the UTxOs of the answer and puts up only those it lets", async () => {
     const other = utxo(ada(6));
-    const getCollateral = answering([cborOf(reserve), cborOf(other)]);
+    const getCollateral = answering([asCbor(reserve), asCbor(other)]);
     const asked: string[] = [];
     const built = await scripted().build([scriptSpend()], {
       payer: cip30([dust], { getCollateral }),
       canSelect: (u) => {
-        asked.push(ref(u));
-        return ref(u) !== ref(reserve);
+        asked.push(keyOf(u));
+        return keyOf(u) !== keyOf(reserve);
       },
     });
-    expect(refs(built.collateral!.inputs)).toEqual([ref(other)]);
-    expect(asked.filter((r) => r === ref(reserve))).toHaveLength(1);
+    expect(keysOf(built.collateral!.inputs)).toEqual([keyOf(other)]);
+    expect(asked.filter((r) => r === keyOf(reserve))).toHaveLength(1);
   });
 
   it("does not call when the payer's UTxOs cover the collateral", async () => {
-    const getCollateral = answering([cborOf(reserve)]);
+    const getCollateral = answering([asCbor(reserve)]);
     const own = utxo(ada(3));
     const built = await scripted().build([scriptSpend()], {
       payer: cip30([own], { getCollateral }),
     });
     expect(getCollateral).not.toHaveBeenCalled();
-    expect(refs(built.collateral!.inputs)).toEqual([ref(own)]);
+    expect(keysOf(built.collateral!.inputs)).toEqual([keyOf(own)]);
   });
 
   it("does not call when no Plutus script runs", async () => {
-    const getCollateral = answering([cborOf(reserve)]);
+    const getCollateral = answering([asCbor(reserve)]);
     const built = await scripted().build(
       output({ address: recipient, value: { lovelace: ada(2) } }),
       { payer: cip30([utxo(ada(10))], { getCollateral }) },
@@ -528,11 +524,11 @@ describe("TxBuilder: the collateral fallback", () => {
   });
 
   it("does not call a wallet that answers its change address in bech32", async () => {
-    const getCollateral = answering([cborOf(reserve)]);
+    const getCollateral = answering([asCbor(reserve)]);
     const meshFormat = {
       getNetworkId: async () => 0,
       getChangeAddress: async () => wallet,
-      getUtxos: async () => [dust],
+      getUtxos: async () => [asMesh(dust)],
       getCollateral,
     };
     await expectCode(
@@ -543,7 +539,7 @@ describe("TxBuilder: the collateral fallback", () => {
   });
 
   it("does not call when collateral parts are given and fall short", async () => {
-    const getCollateral = answering([cborOf(reserve)]);
+    const getCollateral = answering([asCbor(reserve)]);
     await expectCode(
       () =>
         scripted().build([scriptSpend(), collateral({ utxo: dust })], {
@@ -559,11 +555,11 @@ describe("TxBuilder: the collateral fallback", () => {
     await expectCode(
       () =>
         scripted().build([scriptSpend()], {
-          payer: { changeAddress: hexOf(wallet), utxos: [cborOf(dust)] },
+          payer: { changeAddress: hexOf(wallet), utxos: [asCbor(dust)] },
         }),
       "INSUFFICIENT_COLLATERAL",
     );
-    const fetchAddressUTxOs = jest.fn(async () => [dust]);
+    const fetchAddressUTxOs = jest.fn(async () => [asMesh(dust)]);
     await expectCode(
       () =>
         new TxBuilder({

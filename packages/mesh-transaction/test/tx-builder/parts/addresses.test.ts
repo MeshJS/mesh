@@ -3,8 +3,6 @@ import {
   NativeScript,
   PoolParams,
   resolveNativeScriptHash,
-  resolveScriptRef,
-  UTxO,
 } from "@meshsdk/core";
 import {
   Address,
@@ -18,10 +16,12 @@ import {
   collateral,
   collateralReturn,
   output,
+  OutputScript,
   proposal,
   referenceInput,
   spend,
   TxPartError,
+  Utxo,
   withdrawal,
 } from "../../../src/tx-builder";
 import {
@@ -47,6 +47,12 @@ const nativeStake = scriptHashToRewardAddress(
 );
 const plutusStake = scriptHashToRewardAddress(alwaysSucceedHash, 0);
 const plutusScript = { code: alwaysSucceedCbor, version: "V3" as const };
+const plutusRef: OutputScript = {
+  type: "plutus",
+  version: "V3",
+  code: alwaysSucceedCbor,
+  hash: alwaysSucceedHash,
+};
 const redeemer = { data: mConStr0([]) };
 const anchor = { url: "https://example.com/r.json", dataHash: "cd".repeat(32) };
 const value = { lovelace: 2_000_000n };
@@ -54,14 +60,13 @@ const value = { lovelace: 2_000_000n };
 const utxo = (
   outputIndex: number,
   address: string,
-  output: Partial<UTxO["output"]> = {},
-): UTxO => ({
-  input: { txHash: "a".repeat(64), outputIndex },
-  output: {
-    address,
-    amount: [{ unit: "lovelace", quantity: "5000000" }],
-    ...output,
-  },
+  extra: Partial<Utxo> = {},
+): Utxo => ({
+  txHash: "a".repeat(64),
+  outputIndex,
+  address,
+  value: { lovelace: 5_000_000n },
+  ...extra,
 });
 
 const expectPartError = (build: () => unknown, code: string) => {
@@ -157,9 +162,7 @@ describe("addresses given to parts", () => {
   it("are stored as bech32 inside a UTxO given in full, in the part's copy only", () => {
     const hexAddress = hexOf(keyAddress);
     const plain = utxo(0, hexAddress);
-    const holder = utxo(1, hexAddress, {
-      scriptRef: resolveScriptRef(plutusScript),
-    });
+    const holder = utxo(1, hexAddress, { script: plutusRef });
     const scriptAddress = resolvePlutusScriptAddress(plutusScript, 0);
 
     expect(spend.pubKey({ utxo: plain }).utxo!.address).toBe(keyAddress);
@@ -174,8 +177,8 @@ describe("addresses given to parts", () => {
       script: { utxo: { address: keyAddress } },
     });
 
-    expect(plain.output.address).toBe(hexAddress);
-    expect(holder.output.address).toBe(hexAddress);
+    expect(plain.address).toBe(hexAddress);
+    expect(holder.address).toBe(hexAddress);
   });
 
   it("keep their checks, which quote the address as given", () => {

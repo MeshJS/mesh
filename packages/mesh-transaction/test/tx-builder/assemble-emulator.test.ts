@@ -1,9 +1,4 @@
-import {
-  mConStr0,
-  resolveScriptHash,
-  resolveScriptRef,
-  UTxO,
-} from "@meshsdk/core";
+import { mConStr0, resolveScriptHash } from "@meshsdk/core";
 import {
   resolvePlutusScriptAddress,
   transactionPrototypeToHex,
@@ -17,13 +12,31 @@ import {
   collateralReturn,
   mint,
   output,
+  OutputDatum,
+  OutputScript,
   spend,
+  Utxo,
 } from "../../src/tx-builder";
-import { alwaysSucceedCbor, mintParamCbor } from "../test-util";
+import {
+  alwaysSucceedCbor,
+  alwaysSucceedHash,
+  mintParamCbor,
+} from "../test-util";
+import { asMesh } from "./utxo-util";
 
 const plutusScript = { code: alwaysSucceedCbor, version: "V3" as const };
 const scriptAddress = resolvePlutusScriptAddress(plutusScript, 0);
 const exUnits = { mem: 1_000_000, steps: 400_000_000 };
+const plutusRef: OutputScript = {
+  type: "plutus",
+  version: "V3",
+  code: alwaysSucceedCbor,
+  hash: alwaysSucceedHash,
+};
+const unitInline: OutputDatum = {
+  type: "inline",
+  data: { type: "CBOR", content: "d87980" },
+};
 
 /*
  * Transactions assembled by hand, with a generous fixed fee, and submitted to the emulator: the
@@ -37,40 +50,33 @@ describe("assembleTxPrototype on the emulator", () => {
     });
     await wallet.init();
     const address = (await wallet.getChangeAddress())!;
-    const lovelace = (quantity: string) => [{ unit: "lovelace", quantity }];
     const at = (
       txHash: string,
       outputIndex: number,
       addr: string,
-      quantity: string,
-      extra: Partial<UTxO["output"]> = {},
-    ): UTxO => ({
-      input: { txHash, outputIndex },
-      output: { address: addr, amount: lovelace(quantity), ...extra },
+      lovelace: bigint,
+      extra: Partial<Utxo> = {},
+    ): Utxo => ({
+      txHash,
+      outputIndex,
+      address: addr,
+      value: { lovelace },
+      ...extra,
     });
-    const funds = at("0".repeat(64), 0, address, "100000000");
-    const collateralUtxo = at("1".repeat(64), 0, address, "5000000");
+    const funds = at("0".repeat(64), 0, address, 100_000_000n);
+    const collateralUtxo = at("1".repeat(64), 0, address, 5_000_000n);
     // Script outputs whose out refs sort differently from the order they are given in
     const locked = [
-      at("2".repeat(64), 2, scriptAddress, "10000000", {
-        plutusData: "d87980",
-      }),
-      at("2".repeat(64), 0, scriptAddress, "10000000", {
-        plutusData: "d87980",
-      }),
-      at("2".repeat(64), 1, scriptAddress, "10000000", {
-        plutusData: "d87980",
-      }),
+      at("2".repeat(64), 2, scriptAddress, 10_000_000n, { datum: unitInline }),
+      at("2".repeat(64), 0, scriptAddress, 10_000_000n, { datum: unitInline }),
+      at("2".repeat(64), 1, scriptAddress, 10_000_000n, { datum: unitInline }),
     ];
-    const reference = at("3".repeat(64), 0, address, "20000000", {
-      scriptRef: resolveScriptRef(plutusScript),
+    const reference = at("3".repeat(64), 0, address, 20_000_000n, {
+      script: plutusRef,
     });
-    const provider = await ScalusEmulator.create([
-      funds,
-      collateralUtxo,
-      ...locked,
-      reference,
-    ]);
+    const provider = await ScalusEmulator.create(
+      [funds, collateralUtxo, ...locked, reference].map(asMesh),
+    );
 
     const fee = 2_000_000n;
     const policies = [7, 3].map((n) => ({

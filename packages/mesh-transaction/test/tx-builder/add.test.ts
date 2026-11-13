@@ -9,7 +9,6 @@ import {
   IFetcher,
   mConStr0,
   Protocol,
-  UTxO,
 } from "@meshsdk/core";
 import { CSLSerializer } from "@meshsdk/core-csl";
 import {
@@ -21,10 +20,13 @@ import {
 } from "@meshsdk/core-cst";
 
 import type {
+  Assets,
+  OutputDatum,
   PartEntry,
   PartsInput,
   Payer,
   PayerSnapshotInput,
+  Utxo,
 } from "../../src/tx-builder";
 import {
   BuiltTx,
@@ -34,13 +36,13 @@ import {
   output,
   referenceInput,
   spend,
-  toUtxo,
   TxBuilder,
   TxBuildError,
   TxPart,
   validity,
 } from "../../src/tx-builder";
 import { alwaysSucceedCbor, baseAddress, keyHashHex } from "../test-util";
+import { asMesh, ref } from "./utxo-util";
 
 const network = "preprod";
 const params: Protocol = { ...DEFAULT_PROTOCOL_PARAMETERS };
@@ -57,18 +59,22 @@ const scriptAddress = resolvePlutusScriptAddress(plutusScript, 0);
 const stake = keyHashToRewardAddress(keyHashHex(5), 0);
 
 const ada = (n: number) => BigInt(n) * 1_000_000n;
-const lovelace = (n: bigint) => [{ unit: "lovelace", quantity: String(n) }];
+const lovelace = (n: bigint): Assets => ({ lovelace: n });
+const unitInline: OutputDatum = {
+  type: "inline",
+  data: { type: "CBOR", content: "d87980" },
+};
 let nextHash = 0;
 const utxo = (
-  amount: UTxO["output"]["amount"],
-  extra: Partial<UTxO["output"]> = {},
+  value: Assets,
+  extra: Partial<Utxo> = {},
   address = wallet,
-): UTxO => ({
-  input: {
-    txHash: (++nextHash).toString(16).padStart(64, "a"),
-    outputIndex: 0,
-  },
-  output: { address, amount, ...extra },
+): Utxo => ({
+  txHash: (++nextHash).toString(16).padStart(64, "a"),
+  outputIndex: 0,
+  address,
+  value,
+  ...extra,
 });
 
 const TAGS: Action["tag"][] = [
@@ -93,13 +99,13 @@ const fakeEvaluator = (): IEvaluator => ({
 });
 
 /** A provider that answers from a list of UTxOs and counts its calls; a new object each time */
-const countingProvider = (utxos: UTxO[] = []) => {
+const countingProvider = (utxos: Utxo[] = []) => {
   const calls: Record<string, number> = {};
   const count = (name: string) => (calls[name] = (calls[name] ?? 0) + 1);
   const provider = {
     fetchUTxOs: async (hash: string) => {
       count("fetchUTxOs");
-      return utxos.filter((u) => u.input.txHash === hash);
+      return utxos.filter((u) => u.txHash === hash).map(asMesh);
     },
     fetchAddressUTxOs: async () => {
       count("fetchAddressUTxOs");
@@ -297,7 +303,7 @@ describe("TxBuilder.add", () => {
   it("keeps a builder without evaluation without evaluation", async () => {
     const locked = utxo(
       lovelace(ada(10)),
-      { plutusData: "d87980" },
+      { datum: unitInline },
       scriptAddress,
     );
     const { provider } = countingProvider([locked]);
@@ -328,12 +334,12 @@ describe("TxBuilder.add", () => {
       evaluator: fakeEvaluator(),
       deposits,
     });
-    const b2 = b.add(referenceInput({ utxo: read.input }));
+    const b2 = b.add(referenceInput({ utxo: ref(read) }));
     const b3 = b2.add(A);
     expect(calls).toEqual({});
 
-    expect((await b2.build([], o)).referenceInputs).toEqual([toUtxo(read)]);
-    expect((await b3.build([], o)).referenceInputs).toEqual([toUtxo(read)]);
+    expect((await b2.build([], o)).referenceInputs).toEqual([read]);
+    expect((await b3.build([], o)).referenceInputs).toEqual([read]);
     expect(calls).toEqual({ fetchUTxOs: 1 });
   });
 
@@ -420,9 +426,9 @@ describe("TxBuilder.add", () => {
       const built = await builder()
         .add(...parts)
         .build(parts, o);
-      expect(built.referenceInputs).toEqual([toUtxo(read)]);
+      expect(built.referenceInputs).toEqual([read]);
       expect(built.prototype.body.reference_inputs).toEqual([
-        { transaction_id: read.input.txHash, index: read.input.outputIndex },
+        { transaction_id: read.txHash, index: read.outputIndex },
       ]);
       expect(built.prototype.body.required_signers).toEqual([signer]);
 
@@ -466,7 +472,7 @@ describe("TxBuilder.add", () => {
   it("computes an added redeemer function in every build", async () => {
     const locked = utxo(
       lovelace(ada(10)),
-      { plutusData: "d87980" },
+      { datum: unitInline },
       scriptAddress,
     );
     const b = builder().add(

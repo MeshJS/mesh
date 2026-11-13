@@ -1,4 +1,4 @@
-import { DEFAULT_PROTOCOL_PARAMETERS, UTxO } from "@meshsdk/core";
+import { DEFAULT_PROTOCOL_PARAMETERS } from "@meshsdk/core";
 import { keyHashToRewardAddress } from "@meshsdk/core-cst";
 
 import {
@@ -22,19 +22,23 @@ import {
   TxError,
   TxPart,
   TxPartError,
+  Utxo,
   validity,
   vote,
   withdrawal,
 } from "../../../src/tx-builder";
 import { alwaysSucceedCbor, baseAddress, keyHashHex } from "../../test-util";
+import { ref } from "../utxo-util";
 
 const address = baseAddress(1);
 const stake = keyHashToRewardAddress(keyHashHex(5), 0);
 const txHash = "ab".repeat(32);
 const plutus = { code: alwaysSucceedCbor, version: "V3" as const };
-const utxo: UTxO = {
-  input: { txHash, outputIndex: 0 },
-  output: { address, amount: [{ unit: "lovelace", quantity: "5000000" }] },
+const utxo: Utxo = {
+  txHash,
+  outputIndex: 0,
+  address,
+  value: { lovelace: 5_000_000n },
 };
 
 /** Every part builder, by name */
@@ -133,7 +137,7 @@ describe("the parameters of the part builders", () => {
       [
         () =>
           spend.plutus({
-            utxo: utxo.input,
+            utxo: ref(utxo),
             script: plutus,
             redeemer: null as never,
           }),
@@ -142,7 +146,7 @@ describe("the parameters of the part builders", () => {
       [
         () =>
           spend.plutus({
-            utxo: utxo.input,
+            utxo: ref(utxo),
             script: plutus,
             redeemer: { data: 1 },
             datum: null as never,
@@ -152,7 +156,7 @@ describe("the parameters of the part builders", () => {
       [
         () =>
           spend.plutus({
-            utxo: utxo.input,
+            utxo: ref(utxo),
             script: plutus,
             redeemer: { data: 1, exUnits: 5 as never },
           }),
