@@ -1,11 +1,13 @@
 import {
   PartGaps,
+  TxAttempt,
   TxBuildError,
   TxBuildErrorCode,
   TxError,
   TxErrorCode,
   TxIntentError,
   TxIntentErrorCode,
+  TxIntentStatus,
   TxPart,
   TxPartError,
   TxPartErrorCode,
@@ -223,6 +225,34 @@ describe("the error tree", () => {
     }
     expect(observe("noTip").message).toBe("bad");
   });
+
+  it("keeps an intent error's status as plain data", () => {
+    const landed = {
+      txHash: "ab".repeat(32),
+      status: "included" as const,
+      until: 1_700_000_000_000,
+      sends: 1,
+    };
+    const error = new TxIntentError("ATTEMPT_ON_CHAIN", "bad", {
+      details: { landed },
+      status: "included",
+      intentId: "intent-1",
+    });
+    expect(error.status).toBe("included");
+    expect(error.details.landed).toBe(landed);
+    expect(error.retryable).toBe(false);
+    expect(Object.keys(error)).toContain("status");
+    expect(JSON.parse(JSON.stringify(error))).toMatchObject({
+      status: "included",
+      intentId: "intent-1",
+    });
+    expect(
+      "status" in
+        new TxIntentError("INVALID_STATE", "bad", {
+          details: { reason: "terminal" },
+        }),
+    ).toBe(false);
+  });
 });
 
 type Equal<A, B> =
@@ -255,6 +285,12 @@ export const typeCases = (e: unknown) => {
   if (TxError.is(e, "INVALID_DATA")) {
     const narrowed: Equal<typeof e.part, TxPart["kind"]> = true;
     void narrowed;
+  }
+  if (TxError.is(e, "ATTEMPT_ON_CHAIN")) {
+    const narrowed: Equal<typeof e.details.landed, TxAttempt> = true;
+    const status: TxIntentStatus | undefined = e.status;
+    void narrowed;
+    void status;
   }
   if (TxBuildError.is(e, "FEE_TOO_LOW")) {
     const narrowed: Equal<typeof e.details.minFee, bigint> = true;

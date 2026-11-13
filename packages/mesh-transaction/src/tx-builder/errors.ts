@@ -1,5 +1,6 @@
 import type { Budget, ScriptFailure } from "@meshsdk/common";
 
+import type { TxAttempt, TxIntentStatus } from "./intent/types";
 import type { TxPartError, TxPartErrorCode } from "./parts/errors";
 import type { OutRef, TxPart, Unresolved } from "./parts/types";
 import type { RequiredKey } from "./witnesses";
@@ -360,6 +361,8 @@ export type TxIntentErrorDetails = {
   };
   /** `safeAfter`: POSIX ms */
   STILL_LIVE: { txHashes: string[]; safeAfter: number };
+  /** The attempt in a block with `is_valid = true`; raised by closing an intent */
+  ATTEMPT_ON_CHAIN: { landed: TxAttempt };
   /** Change addresses; only when the recorded anchor is not among the payer's UTxOs either */
   PAYER_MISMATCH: { recorded: string; given: string };
   /** Explicit inputs of the parts that are gone */
@@ -562,6 +565,8 @@ export type TxIntentErrorContext<C extends TxIntentErrorCode> =
     retryAfterMs?: number;
     /** The intent's id */
     intentId?: string;
+    /** The intent's status when the error was raised */
+    status?: TxIntentStatus;
     /** The attempt the error is about */
     txHash?: string;
   } & (C extends keyof TxIntentErrorDetails
@@ -581,6 +586,8 @@ export class TxIntentError<
   readonly details: DetailsOf<C, TxIntentErrorDetails>;
   /** The intent's id: plain data, safe to log */
   declare readonly intentId?: string;
+  /** The intent's status when the error was raised; for logs only */
+  declare readonly status?: TxIntentStatus;
   /** The attempt the error is about */
   declare readonly txHash?: string;
 
@@ -591,10 +598,18 @@ export class TxIntentError<
       ? [context: TxIntentErrorContext<C>]
       : [context?: TxIntentErrorContext<C>]
   ) {
-    const { part, label, cause, details, retryAfterMs, intentId, txHash } =
-      (context ?? {}) as TxIntentErrorContext<TxIntentErrorCode> & {
-        details?: unknown;
-      };
+    const {
+      part,
+      label,
+      cause,
+      details,
+      retryAfterMs,
+      intentId,
+      status,
+      txHash,
+    } = (context ?? {}) as TxIntentErrorContext<TxIntentErrorCode> & {
+      details?: unknown;
+    };
     const retryable =
       RETRYABLE.has(code) ||
       (code === "CANNOT_OBSERVE" &&
@@ -609,8 +624,13 @@ export class TxIntentError<
     this.name = "TxIntentError";
     this.code = code;
     this.details = details as DetailsOf<C, TxIntentErrorDetails>;
-    const self = this as { intentId?: string; txHash?: string };
+    const self = this as {
+      intentId?: string;
+      status?: TxIntentStatus;
+      txHash?: string;
+    };
     if (intentId !== undefined) self.intentId = intentId;
+    if (status !== undefined) self.status = status;
     if (txHash !== undefined) self.txHash = txHash;
   }
 
