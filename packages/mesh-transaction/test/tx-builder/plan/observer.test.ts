@@ -112,7 +112,87 @@ describe("ChainObserver", () => {
     const observer = chainObserver(
       fakeProvider({ fetchAddressUTxOs: async () => listed }),
     );
-    expect(await observer.utxosAt(ADDRESS)).toEqual(listed);
+    expect(await observer.utxosAt(ADDRESS)).toStrictEqual([
+      { txHash: HASH, outputIndex: 0 },
+      { txHash: HASH, outputIndex: 1 },
+    ]);
+  });
+
+  describe("reads only the out refs of an address list", () => {
+    it("as two members, copied from the provider's answer", async () => {
+      const held = {
+        ...utxo(HASH, 3),
+        input: { txHash: HASH, outputIndex: 3, extra: "kept out" },
+      };
+      const observer = chainObserver(
+        fakeProvider({ fetchAddressUTxOs: async () => [held] }),
+      );
+      const [ref] = (await observer.utxosAt(ADDRESS))!;
+      expect(Object.keys(ref!)).toEqual(["txHash", "outputIndex"]);
+      expect(ref).toStrictEqual({ txHash: HASH, outputIndex: 3 });
+      expect(ref).not.toBe(held.input);
+    });
+
+    it("whatever the output of an entry holds", async () => {
+      const observer = chainObserver(
+        fakeProvider({
+          fetchAddressUTxOs: async () => [
+            { input: { txHash: HASH, outputIndex: 0 } },
+          ],
+        }),
+      );
+      expect(await observer.utxosAt(ADDRESS)).toStrictEqual([
+        { txHash: HASH, outputIndex: 0 },
+      ]);
+    });
+
+    const throwingInput = {
+      get input(): never {
+        throw new Error("getter");
+      },
+    };
+    const throwingHash = {
+      input: {
+        get txHash(): never {
+          throw new Error("getter");
+        },
+        outputIndex: 0,
+      },
+    };
+    it.each([
+      ["an entry that is not an object", null],
+      ["an entry that is a string", "abc#0"],
+      ["an entry without input", { output: utxo(HASH).output }],
+      ["an input that is not an object", { input: `${HASH}#0` }],
+      ["an input without txHash", { input: { outputIndex: 0 } }],
+      [
+        "a txHash that is not a string",
+        { input: { txHash: 7, outputIndex: 0 } },
+      ],
+      ["an input without outputIndex", { input: { txHash: HASH } }],
+      [
+        "an outputIndex that is not a number",
+        { input: { txHash: HASH, outputIndex: "1" } },
+      ],
+      ["an input getter that throws", throwingInput],
+      ["a txHash getter that throws", throwingHash],
+    ])("is unknown with %s among readable entries", async (_what, entry) => {
+      const observer = chainObserver(
+        fakeProvider({
+          fetchAddressUTxOs: async () => [utxo(HASH, 0), entry, utxo(HASH, 1)],
+        }),
+      );
+      expect(await observer.utxosAt(ADDRESS)).toBeUndefined();
+    });
+
+    it("is unknown with a hole in the list", async () => {
+      const listed = [utxo(HASH, 0), utxo(HASH, 1), utxo(HASH, 2)];
+      delete listed[1];
+      const observer = chainObserver(
+        fakeProvider({ fetchAddressUTxOs: async () => listed }),
+      );
+      expect(await observer.utxosAt(ADDRESS)).toBeUndefined();
+    });
   });
 
   it("searches and reads addresses past CachedFetcher", async () => {
@@ -363,8 +443,11 @@ describe("ChainObserver", () => {
       });
       expect(searches.get(hash(0xee))).toEqual({ found: false });
       expect(tip).toEqual({ slot: 1_010, height: 1_010 });
-      expect(await observer.utxosAt(ADDRESS)).toEqual([
-        expect.objectContaining({ input: funded.input }),
+      expect(await observer.utxosAt(ADDRESS)).toStrictEqual([
+        {
+          txHash: funded.input.txHash,
+          outputIndex: funded.input.outputIndex,
+        },
       ]);
       // An address the ledger holds nothing at
       expect(await observer.utxosAt(baseAddress(9))).toBeUndefined();

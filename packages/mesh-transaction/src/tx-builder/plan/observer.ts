@@ -1,5 +1,7 @@
-import type { IFetcher, UTxO } from "@meshsdk/common";
+import type { IFetcher } from "@meshsdk/common";
 import { CachedFetcher } from "@meshsdk/common";
+
+import type { OutRef } from "../parts/types";
 
 // What a plan reads from the chain, and how it reads what a provider throws. Every read goes
 // to the provider itself, past the shared cache, and every failure is "unknown": never "no".
@@ -38,10 +40,11 @@ export type ChainObserver = {
   /** A transaction by hash: found, not found, a provider without search, or unknown */
   findTx(txHash: string): Promise<TxSearch>;
   /**
-   * The unspent outputs at an address, read past the cache. An empty list, a failed read and a
-   * read while the provider keeps an address cache are unknown.
+   * The out refs of the unspent outputs at an address, read past the cache. An empty list, a
+   * list with an entry whose out ref cannot be read, a failed read and a read while the provider
+   * keeps an address cache are unknown.
    */
-  utxosAt(address: string): Promise<readonly UTxO[] | undefined>;
+  utxosAt(address: string): Promise<readonly OutRef[] | undefined>;
 };
 
 /**
@@ -133,6 +136,27 @@ const heightOf = (value: unknown): number | undefined =>
     : undefined;
 
 /**
+ * The out ref of one entry of an address list: its `input.txHash`, a string, and its
+ * `input.outputIndex`, a number. Anything else, a getter that throws included, is unreadable.
+ */
+const outRefOfEntry = (entry: unknown): OutRef | undefined => {
+  try {
+    if (typeof entry !== "object" || entry === null) return undefined;
+    const input: unknown = (entry as { input?: unknown }).input;
+    if (typeof input !== "object" || input === null) return undefined;
+    const { txHash, outputIndex } = input as {
+      txHash?: unknown;
+      outputIndex?: unknown;
+    };
+    if (typeof txHash !== "string" || typeof outputIndex !== "number")
+      return undefined;
+    return { txHash, outputIndex };
+  } catch {
+    return undefined;
+  }
+};
+
+/**
  * The chain observer of one plan object, over the builder's provider. A builder without a
  * provider gives an observer that knows nothing.
  */
@@ -204,7 +228,7 @@ export const chainObserver = (
 
   const utxosAt = async (
     address: string,
-  ): Promise<readonly UTxO[] | undefined> => {
+  ): Promise<readonly OutRef[] | undefined> => {
     // Asked before every read: a cache may be switched on after the plan was made
     if (inner === undefined || keepsAddressCache(inner)) return undefined;
     let utxos: unknown;
@@ -214,9 +238,15 @@ export const chainObserver = (
       return undefined;
     }
     // An empty list is no evidence: a provider may answer [] to an error
-    return Array.isArray(utxos) && utxos.length > 0
-      ? (utxos as UTxO[])
-      : undefined;
+    if (!Array.isArray(utxos) || utxos.length === 0) return undefined;
+    // A list with an entry that cannot be read says nothing of the out refs it holds
+    const refs: OutRef[] = [];
+    for (const entry of utxos as unknown[]) {
+      const ref = outRefOfEntry(entry);
+      if (ref === undefined) return undefined;
+      refs.push(ref);
+    }
+    return refs;
   };
 
   return { tip, findTx, utxosAt };

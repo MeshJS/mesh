@@ -236,9 +236,9 @@ const stateOf = (plan: TxPlan): PlanState => {
 
 const refKey = (ref: Readonly<OutRef>) => `${ref.txHash}#${ref.outputIndex}`;
 
-const sameRef = (utxo: Readonly<UTxO>, ref: Readonly<OutRef>) =>
-  utxo.input.txHash.toLowerCase() === ref.txHash.toLowerCase() &&
-  utxo.input.outputIndex === ref.outputIndex;
+const sameRef = (a: Readonly<OutRef>, b: Readonly<OutRef>) =>
+  a.txHash.toLowerCase() === b.txHash.toLowerCase() &&
+  a.outputIndex === b.outputIndex;
 
 const describe = (value: unknown): string => {
   if (typeof value === "string") return JSON.stringify(value);
@@ -619,7 +619,7 @@ const parentAttempt = (
 
 /** The UTxO of an anchor out ref, as the record holds it */
 const anchorUtxo = (record: PlanRecord, ref: OutRef) =>
-  record.anchor.anchors.find((entry) => sameRef(entry.utxo, ref))?.utxo;
+  record.anchor.anchors.find((entry) => sameRef(entry.utxo.input, ref))?.utxo;
 
 const runsPlutus = (part: TxPart) =>
   "witness" in part && part.witness.type === "plutus";
@@ -1702,7 +1702,7 @@ export class TxPlan {
         const utxo = anchorUtxo(state.record, ref);
         if (utxo) refs.set(refKey(ref), utxo);
       }
-    const reads = new Map<string, Promise<readonly UTxO[] | undefined>>();
+    const reads = new Map<string, Promise<readonly OutRef[] | undefined>>();
     for (const utxo of refs.values()) {
       const address = utxo.output.address;
       if (!reads.has(address))
@@ -1959,7 +1959,7 @@ export class TxPlan {
       if (anchor === undefined) break;
       chain.push(anchor.txHash);
       const entry = holder.record.anchor.anchors.find((each) =>
-        sameRef(each.utxo, anchor),
+        sameRef(each.utxo.input, anchor),
       );
       if (entry?.kind !== "parent") break;
       const found = parentAttempt(holder, anchor.txHash);
@@ -2351,7 +2351,7 @@ export class TxPlan {
     const fresh = anchors.some(
       (anchor) =>
         !record.attempts.some((attempt) =>
-          attempt.anchors.some((ref) => sameRef(anchor.utxo, ref)),
+          attempt.anchors.some((ref) => sameRef(anchor.utxo.input, ref)),
         ),
     );
     if (!first && bases.length > 0 && fresh) {
@@ -2648,12 +2648,13 @@ export class TxPlan {
           ...(built.collateral?.inputs ?? []),
         ]
       : [];
-    const reads = new Map<string, Promise<readonly UTxO[] | undefined>>();
+    const reads = new Map<string, Promise<readonly OutRef[] | undefined>>();
     const checked: { ref: OutRef; address: string }[] = [];
     for (const ref of explicitInputs(state.parts)) {
       if (staleKeys.has(lowKey(ref)) || unread.has(lowKey(ref))) continue;
       if (standing.has(ref.txHash.toLowerCase())) continue;
-      const address = known.find((utxo) => sameRef(utxo, ref))?.output.address;
+      const address = known.find((utxo) => sameRef(utxo.input, ref))?.output
+        .address;
       // Not in the body: nothing to compare with, unknown
       if (address === undefined) continue;
       checked.push({ ref, address });
@@ -2663,7 +2664,7 @@ export class TxPlan {
     const spent: OutRef[] = [...stale];
     for (const { ref, address } of checked) {
       const listed = await abortable(reads.get(address)!, signal, CALL);
-      if (listed !== undefined && !listed.some((utxo) => sameRef(utxo, ref)))
+      if (listed !== undefined && !listed.some((held) => sameRef(held, ref)))
         spent.push(ref);
     }
     if (spent.length === 0) return undefined;
@@ -2763,7 +2764,7 @@ export class TxPlan {
     const collateralOnly = (built.collateral?.inputs ?? []).filter(
       (utxo) => payers(utxo) && !spent.has(lowKey(utxo.input)),
     );
-    const reads = new Map<string, Promise<readonly UTxO[] | undefined>>();
+    const reads = new Map<string, Promise<readonly OutRef[] | undefined>>();
     for (const utxo of [...inputs, ...collateralOnly])
       if (!reads.has(utxo.output.address))
         reads.set(
@@ -2806,7 +2807,7 @@ export class TxPlan {
     const anchor = generalAnchor(state.record);
     const holds =
       anchor?.kind === "payer" &&
-      payer.utxos.some((utxo) => sameRef(utxo, anchor.utxo.input));
+      payer.utxos.some((utxo) => sameRef(utxo.input, anchor.utxo.input));
     if (!holds)
       throw this.#error(
         "PAYER_MISMATCH",
@@ -3029,7 +3030,7 @@ export class TxPlan {
         return utxo ? [utxo] : [];
       });
     }
-    const reads = new Map<string, Promise<readonly UTxO[] | undefined>>();
+    const reads = new Map<string, Promise<readonly OutRef[] | undefined>>();
     for (const utxo of candidates) {
       const address = utxo.output.address;
       if (!reads.has(address))
