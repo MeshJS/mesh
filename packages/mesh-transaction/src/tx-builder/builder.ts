@@ -319,6 +319,9 @@ export const flattenParts = (input: unknown): TxPart[] => {
   return parts;
 };
 
+/** The parts of a builder made by the constructor: none */
+const EMPTY_PARTS: readonly TxPart[] = Object.freeze([]);
+
 const describe = (value: unknown): string => {
   if (typeof value === "string") return JSON.stringify(value);
   if (typeof value === "bigint") return `${value}n`;
@@ -803,10 +806,11 @@ const maxUnits = (
  * Builds transactions from parts: looks up what they leave open, balances them, works out the
  * execution units of their scripts, and serializes the result.
  *
- * A builder holds only its network, providers and settings, so one builder can build any number
- * of transactions, concurrently included. It reads through the `CachedFetcher` of its provider,
- * shared with every builder, wallet and evaluator over the same provider, and evaluates scripts
- * locally unless given another evaluator.
+ * A builder holds its network, providers and settings, and the parts added with `add`, which
+ * returns a new builder and leaves this one as it is. `build` changes nothing in the builder, so
+ * one builder can build any number of transactions, concurrently included. It reads through the
+ * `CachedFetcher` of its provider, shared with every builder, wallet and evaluator over the same
+ * provider, and evaluates scripts locally unless given another evaluator.
  *
  * ```ts
  * const builder = new TxBuilder({ network: "preprod", provider });
@@ -814,6 +818,10 @@ const maxUnits = (
  *   output({ address, value: { lovelace: 5_000_000n } }),
  *   { payer: wallet },
  * );
+ *
+ * // Parts held by the builder go first; its own parts are the first argument of `build`
+ * const unlock = builder.add(spend.plutus({ utxo, script, redeemer }));
+ * const built = await unlock.build([], { payer: wallet });
  * ```
  */
 export class TxBuilder {
@@ -836,6 +844,8 @@ export class TxBuilder {
   readonly deposits: GovernanceDeposits;
   /** The shared cache of the provider; every read goes through it */
   private readonly cache?: CachedFetcher;
+  /** The parts added with `add`, flat and in order, as they were given; `build` takes them first */
+  private readonly added: readonly TxPart[] = EMPTY_PARTS;
 
   /**
    * @throws TxBuildError INVALID_OPTION for a missing or unacceptable `network`;
@@ -1006,7 +1016,10 @@ export class TxBuilder {
   }
 
   /**
-   * Builds a balanced, unsigned transaction.
+   * Builds a balanced, unsigned transaction from the parts added with `add`, followed by `parts`
+   * (none when omitted). The builder is not changed: the parts it holds are never replaced by
+   * what the build makes of them. A part of a kind a transaction holds once, given both here and
+   * among the held parts, is DUPLICATE_PART, as within one list.
    *
    * Before anything is selected the builder reads the payer once (a wallet's change address,
    * UTxOs and network id, concurrently) and checks the network of every address it is given or
@@ -1052,11 +1065,62 @@ export class TxBuilder {
    *   part whose time bound is before the network's slot clock starts, or whose interval holds
    *   no slot once converted
    */
-  async build(parts: PartsInput, options?: BuildOptions): Promise<BuiltTx> {
-    // Nothing can be read without a payer: that comes first, then the options' types, then the
-    // network of what the build is given, all before any request
+  async build(
+    parts: PartsInput = [],
+    options?: BuildOptions,
+  ): Promise<BuiltTx> {
+    // Nothing can be read without a payer: that comes first, then the parts, then the options'
+    // types, then the network of what the build is given, all before any request
     const source = toPayerSource(options?.payer);
-    const flat = flattenParts(parts);
+    return this.buildList(source, this.withAdded(parts), options);
+  }
+
+  /**
+   * A new builder with this builder's settings, providers and cache, and these parts added after
+   * the ones it already holds. This builder is not changed, so keep the builder that is
+   * returned: a call whose result is dropped adds nothing.
+   *
+   * Takes what `build` takes: parts, nested lists of parts, and `false`, `null` or `undefined`,
+   * which are skipped. `build` takes the held parts first, then the parts it is given.
+   *
+   * ```ts
+   * const withFee = builder.add(output({ label: "fee", address, value }));
+   * const built = await withFee.build(output({ address: to, value }), { payer: wallet });
+   * ```
+   * @throws TxBuildError INVALID_OPTION for an entry that is none of these
+   */
+  add(...parts: PartEntry[]): TxBuilder {
+    const added = flattenParts(parts);
+    // Every member is carried as it is (the evaluator, the provider and its cache included), so
+    // nothing is made, checked or read again; only the list of parts is new
+    const next = Object.create(
+      Object.getPrototypeOf(this),
+      Object.getOwnPropertyDescriptors(this),
+    ) as TxBuilder;
+    Object.defineProperty(next, "added", {
+      ...Object.getOwnPropertyDescriptor(this, "added"),
+      value: Object.freeze([...this.added, ...added]),
+    });
+    return next;
+  }
+
+  /**
+   * The parts a build of this builder works on: the parts added with `add`, then the given ones
+   * @throws TxBuildError INVALID_OPTION for an entry that is not a part
+   */
+  private withAdded(parts: PartsInput): TxPart[] {
+    return [...this.added, ...flattenParts(parts)];
+  }
+
+  /**
+   * `build` over a final list of parts: the parts added with `add` are not put in front of it
+   * again
+   */
+  private async buildList(
+    source: PayerSource,
+    flat: readonly TxPart[],
+    options: BuildOptions | undefined,
+  ): Promise<BuiltTx> {
     const { sendAllTo, after, knownUtxos } = checkBuildOptions(options ?? {});
     // What is read and looked up is checked once found
     checkNetworks(this.network, [
