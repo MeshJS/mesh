@@ -80,7 +80,10 @@ state of a payment lives in its `TxPlan`, and with a `store` in the store's reco
   fluent methods, its `complete…` methods and its queries; its own build steps (selection,
   ordering, evaluation) are gone. `complete()` builds with `TxBuilder.build(parts, options)` and
   writes the result back into the body, so the CBOR may differ from what it produced before.
-  `MeshTxBuilderV2` and `Transaction` work through it. See [The old MeshTxBuilder][r-old].
+  `MeshTxBuilderV2` and `Transaction` work through it. `MeshTxBuilderBody` and the serializers'
+  `serializeTxBody` and `serializeTxBodyWithMockSignatures` are `@deprecated` as well: no builder
+  serializes a body any more, while `TxParser` and `TxTester` still work on one. See
+  [The old MeshTxBuilder][r-old].
 
 ## Assembly: `assembleTxPrototype`
 

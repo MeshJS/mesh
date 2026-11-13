@@ -1810,6 +1810,11 @@ signatures are kept and behave the same or very close, though the final CBOR may
   into the body. `completeSync()`, `completeUnbalanced()` and `completeUnbalancedSync()` stay
   synchronous and read nothing: an input or collateral without amount or address, or a reference
   script without size, is `UNRESOLVED`.
+- `MeshTxBuilderBody`, with `emptyTxBuilderBody` and `cloneTxBuilderBody`, and the serializers'
+  `serializeTxBody` and `serializeTxBodyWithMockSignatures` are `@deprecated` as well, and still
+  work. No builder calls the two methods: `MeshTxBuilder` turns its body into parts, and `TxBuilder`
+  serializes the `TransactionPrototype` it assembles (`serializeTxPrototype`). `TxParser` and
+  `TxTester` still work on a body and are not deprecated.
 - Where the old code silently returned a transaction the ledger refuses, it now throws the new
   builder's error: an output below the minimum lovelace (`OUTPUT_BELOW_MIN_COIN`), a fee below the
   minimum (`FEE_TOO_LOW`), an address of another network (`NETWORK_MISMATCH`), a datum that does

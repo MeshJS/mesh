@@ -4,6 +4,12 @@
 encoder/decoder + `mesh-core-csl` serializer). This document is the design record for that work; it
 introduces no code of its own.
 
+**Since then:** `TxBuilder` assembles a `TransactionPrototype` from parts and serializes it with
+`serializeTxPrototype`, an optional method of `IMeshTxSerializer`
+([`tx-builder.md`](tx-builder.md)); `MeshTxBuilderBody` and `serializeTxBody` are `@deprecated`.
+The sections below are the record of that work and are not updated, so their non-goals and open
+items describe the code as it was then.
+
 ## Problem
 
 `IMeshTxSerializer.serializeTxBody()` takes a `MeshTxBuilderBody` — the builder's own working state —

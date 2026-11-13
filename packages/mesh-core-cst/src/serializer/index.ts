@@ -446,6 +446,10 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     },
   };
 
+  /**
+   * @deprecated Serializes a `MeshTxBuilderBody`, which is deprecated. Use `serializeTxPrototype`
+   * with a `TransactionPrototype`; `TxBuilder` of `@meshsdk/transaction` builds one from parts.
+   */
   serializeTxBody = (
     txBuilderBody: MeshTxBuilderBody,
     protocolParams?: Protocol,
@@ -456,6 +460,11 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     return serializerCore.coreSerializeTx(txBuilderBody);
   };
 
+  /**
+   * @deprecated Serializes a `MeshTxBuilderBody` with placeholder witnesses, to size the signed
+   * transaction. `minFee` of `@meshsdk/transaction` gives the minimum fee of a
+   * `TransactionPrototype` once signed.
+   */
   serializeTxBodyWithMockSignatures(
     txBuilderBody: MeshTxBuilderBody,
     protocolParams: Protocol,

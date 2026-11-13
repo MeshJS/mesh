@@ -16,17 +16,28 @@ import {
 } from "../types";
 
 export interface IMeshTxSerializer {
+  /**
+   * @deprecated Serializes a `MeshTxBuilderBody`, which is deprecated; Mesh's builders do not call
+   * it. Use `serializeTxPrototype`: `TxBuilder` of `@meshsdk/transaction` builds a
+   * `TransactionPrototype` from parts.
+   */
   serializeTxBody(
     txBuilderBody: MeshTxBuilderBody,
     protocolParams: Protocol,
   ): string;
+  /**
+   * @deprecated Serializes a `MeshTxBuilderBody` with placeholder witnesses, to size the signed
+   * transaction; Mesh's builders do not call it. `minFee` of `@meshsdk/transaction` gives the
+   * minimum fee of a `TransactionPrototype` once signed.
+   */
   serializeTxBodyWithMockSignatures(
     txBuilderBody: MeshTxBuilderBody,
     protocolParams: Protocol,
   ): string;
   /**
    * Serializes a fully resolved `TransactionPrototype` to transaction CBOR, as is: nothing is
-   * added, sorted or recomputed. Optional until every serializer implements it.
+   * added, sorted or recomputed. Optional, so that a serializer written before it still fits the
+   * interface; `TxBuilder` of `@meshsdk/transaction` takes only a serializer that has it.
    */
   serializeTxPrototype?(txPrototype: TransactionPrototype): string;
   addSigningKeys(txHex: string, signingKeys: string[]): string;

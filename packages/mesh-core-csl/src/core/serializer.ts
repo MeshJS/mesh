@@ -81,6 +81,12 @@ export class CSLSerializer implements IMeshTxSerializer {
     this.protocolParams = protocolParams || DEFAULT_PROTOCOL_PARAMETERS;
   }
 
+  /**
+   * @deprecated Serializes a `MeshTxBuilderBody`, which is deprecated. Use `serializeTxPrototype`
+   * with a `TransactionPrototype`. This class's `serializeTxPrototype` refuses Plutus V2 and V3
+   * witness scripts, integers in metadata and integers in Plutus data not given as CBOR, among
+   * others; `CardanoSDKSerializer` of `@meshsdk/core-cst` covers the whole type.
+   */
   serializeTxBody(
     txBody: MeshTxBuilderBody,
     protocolParams?: Protocol,
@@ -276,6 +282,11 @@ export class CSLSerializer implements IMeshTxSerializer {
       .to_hex();
   }
 
+  /**
+   * @deprecated Serializes a `MeshTxBuilderBody` with placeholder witnesses, to size the signed
+   * transaction. `minFee` of `@meshsdk/transaction` gives the minimum fee of a
+   * `TransactionPrototype` once signed.
+   */
   serializeTxBodyWithMockSignatures(
     txBuilderBody: MeshTxBuilderBody,
     protocolParams: Protocol,

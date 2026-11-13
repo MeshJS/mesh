@@ -20,6 +20,12 @@ export * from "./certificate";
 export * from "./vote";
 export * from "./proposal";
 
+/**
+ * @deprecated The working state of the deprecated `MeshTxBuilder`. New code describes a
+ * transaction with parts and builds it with `TxBuilder` of `@meshsdk/transaction`, which
+ * serializes a `TransactionPrototype`. `TxParser` and `TxTester` still work on this type and are
+ * not deprecated.
+ */
 export type MeshTxBuilderBody = {
   inputs: TxIn[];
   outputs: Output[];
@@ -48,6 +54,10 @@ export type MeshTxBuilderBody = {
   donation?: Quantity;
 };
 
+/**
+ * @deprecated An empty `MeshTxBuilderBody`, deprecated with the type. `TxBuilder` of
+ * `@meshsdk/transaction` builds from parts and keeps no body.
+ */
 export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({
   inputs: [],
   outputs: [],
@@ -73,6 +83,10 @@ export const emptyTxBuilderBody = (): MeshTxBuilderBody => ({
   expectedByronAddressWitnesses: [],
 });
 
+/**
+ * @deprecated A copy of a `MeshTxBuilderBody`, deprecated with the type. `TxBuilder` of
+ * `@meshsdk/transaction` builds from parts and keeps no body.
+ */
 export function cloneTxBuilderBody(body: MeshTxBuilderBody): MeshTxBuilderBody {
   const { extraInputs, ...otherProps } = body;
   const cloned = structuredClone(otherProps) as MeshTxBuilderBody;
