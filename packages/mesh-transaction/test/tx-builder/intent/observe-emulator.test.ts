@@ -282,6 +282,11 @@ describe("TxIntent observation on TxEmulator", () => {
     later.provider.control.hooks.fetchTxInfo = stripped;
     expect(reasonOf(await caught(sent.send()))).toBe("noValidity");
     expect(sent.status).toBe("sent");
+    expect(reasonOf(await caught(sent.advance()))).toBe("noValidity");
+    expect(sent.status).toBe("sent");
+    // abandon() records no closing mark for it
+    expect(reasonOf(await caught(sent.abandon()))).toBe("noValidity");
+    expect(sent.closing).toBe(false);
     await sent.refresh();
     expect(sent.status).toBe("sent");
   });
@@ -472,6 +477,10 @@ describe("TxIntent observation on TxEmulator", () => {
     await intent.refresh();
     await intent.send();
     await intent.send({ waitFor: "final" });
+    expect(await intent.advance()).toBe(intent);
+    expect(await intent.advance({ waitFor: "final", signers: wallet })).toBe(
+      intent,
+    );
     expect(reads()).toBe(before);
 
     // An abandoned record, closed from draft
@@ -495,6 +504,8 @@ describe("TxIntent observation on TxEmulator", () => {
       ((await caught(abandoned.build())) as TxIntentError<"INVALID_STATE">)
         .details.reason,
     ).toBe("terminal");
+    expect(await abandoned.advance({ signers: wallet })).toBe(abandoned);
+    expect(await abandoned.abandon()).toBe(abandoned);
     expect(reads()).toBe(before);
   });
 

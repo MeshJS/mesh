@@ -2,6 +2,7 @@ import type { ISubmitter, NetworkConfig } from "@meshsdk/common";
 
 import type { BuildOptions } from "../builder";
 import type { Signer } from "../sign";
+import type { TxIntent } from "./intent";
 
 /**
  * The deadlines of an intent. The builder's `intentDefaults` and an intent's own options give
@@ -57,7 +58,8 @@ export type WaitOptions = {
  * The options of an intent, given to `builder.intent(parts, options)`. Every attempt is built
  * with the same build options. The data options (`sendAllTo`, `knownUtxos`, `fee`,
  * `registeredPools`, `extraKeyWitnesses`) and the three deadlines are written into the intent;
- * the live objects (`payer`, `canSelect`, `coinSelection`, `trace`) are kept by the object only.
+ * the live objects (`payer`, `after`, `canSelect`, `coinSelection`, `trace`) are kept by the
+ * object only.
  * Signers and the submitter are not options of an intent: they belong to the call that signs or
  * sends (`SignOptions`, `SendOptions`).
  *
@@ -70,9 +72,21 @@ export type IntentOptions = Omit<BuildOptions, "signal" | "after"> &
   IntentDeadlines & {
     /** The application's id of the intent, shown as `intent.id`; none is made up */
     id?: string;
+    /**
+     * The parent intents, kept by the object: each attempt stands on the current attempt of each
+     * parent and spends an output of one of them, the parent's change at this intent's change
+     * address when its parts and selection spend none. When no parent attempt has such an output
+     * (key-locked change at this intent's change address that `canSelect` takes), the attempt
+     * takes a general anchor, does not depend on the parent attempt and is never orphaned.
+     * Intents only; anything else is INVALID_OPTION. The parents are fixed by the first attempt
+     */
+    after?: TxIntent | readonly TxIntent[];
   };
 
-/** The options of one call of `send()`: its waiting, who signs and who submits; never written */
+/**
+ * The options of one call of `send()` or `advance()`: its waiting, who signs and who submits;
+ * never written
+ */
 export type SendOptions = WaitOptions & {
   /** Who signs an attempt that still needs signatures; else the intent's payer, if it can sign */
   signers?: Signer | readonly Signer[];

@@ -257,7 +257,10 @@ export type TxIntentErrorCode =
   | "EXPIRED"
   /** The transaction was included with a failed script, and its collateral taken */
   | "SCRIPT_FAILED"
-  /** The block holding the transaction was rolled back, and it cannot come back */
+  /**
+   * The attempt spends an output of a parent attempt that can no longer land, or the parent has
+   * no live attempt to build on; the attempt is live again if that parent attempt is found
+   */
   | "ORPHANED"
   /** The provider cannot tell what is needed, or cannot tell it yet */
   | "CANNOT_OBSERVE"

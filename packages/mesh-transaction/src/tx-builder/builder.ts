@@ -44,7 +44,6 @@ import type {
 } from "./balance";
 import type { ChainedTx } from "./chain";
 import type { PartFailure } from "./errors";
-import type { TxIntent } from "./intent/intent";
 import type { IntentDeadlines, IntentOptions } from "./intent/types";
 import type {
   CredentialInput,
@@ -88,7 +87,7 @@ import {
 } from "./fee";
 import { auxiliaryDataHashOf, scriptDataHashOf } from "./hashes";
 import { checkIntentDefaults } from "./intent/deadlines";
-import { createIntent } from "./intent/intent";
+import { createIntent, TxIntent } from "./intent/intent";
 import {
   checkNetworks,
   checkProviderNetwork,
@@ -253,9 +252,10 @@ export type BuildOptions = {
    * of their change, only the outputs at this build's change address are selected. A part that
    * names an output they spend is refused with UTXO_NOT_FOUND. Their collateral inputs stay
    * selectable, since a valid transaction does not spend them. The build keeps nothing of them:
-   * a transaction not given here is not known to it.
+   * a transaction not given here is not known to it. An intent stands for its current attempt,
+   * `intent.built`; one without an attempt is INVALID_OPTION.
    */
-  after?: BuiltTx | readonly BuiltTx[];
+  after?: BuiltTx | TxIntent | readonly (BuiltTx | TxIntent)[];
   /**
    * Outputs the parts may name by out ref that the provider may not know yet; never selected.
    * Being listed here makes no UTxO selectable and takes none out of selection: one the payer
@@ -389,7 +389,7 @@ const invalidOption = (
 
 const SEND_ALL_TO_ALLOWED = "a payment address, in bech32 or hex";
 const AFTER_ALLOWED =
-  "a transaction built by TxBuilder.build (txHash, inputs, outputs, change), or a list of them";
+  "a transaction built by TxBuilder.build (txHash, inputs, outputs, change), an intent with an attempt, or a list of them";
 const KNOWN_UTXOS_ALLOWED =
   "a list of UTxOs { input: { txHash, outputIndex }, output: { address, amount } }";
 
@@ -419,9 +419,21 @@ const toAfter = (after: unknown): AfterTx[] => {
   if (typeof after !== "object" || after === null)
     throw invalidOption("after", after, AFTER_ALLOWED);
   const entries: unknown[] = Array.isArray(after) ? after : [after];
-  return entries.map((entry, i) => {
-    const tx = entry as Record<string, unknown> | null;
+  return entries.map((given, i) => {
     const where = Array.isArray(after) ? `entry ${i}` : "the transaction";
+    // An intent stands for its current attempt; without one it stands for nothing
+    let entry = given;
+    if (given instanceof TxIntent) {
+      if (given.built === undefined)
+        throw invalidEntry(
+          "after",
+          given.status,
+          AFTER_ALLOWED,
+          `${where} is an intent without an attempt (${given.status}): it stands for no transaction`,
+        );
+      entry = given.built;
+    }
+    const tx = entry as Record<string, unknown> | null;
     if (
       typeof tx !== "object" ||
       tx === null ||
@@ -1410,9 +1422,10 @@ export class TxBuilder {
    *
    * The intent's deadlines are its own options, else this builder's `intentDefaults`, else the
    * built-in values, written into it now and never read from the builder again. Its parts are
-   * fixed: a later `add` does not change them.
-   * @throws TxBuildError INVALID_OPTION for a parts entry that is not a part, for `after`, for an
-   *   `id` that is not a string, and for a deadline out of range
+   * fixed: a later `add` does not change them, and so are its parents, the intents of `after`.
+   * @throws TxBuildError INVALID_OPTION for a parts entry that is not a part, for an `after` that
+   *   holds anything but intents, for an `id` that is not a string, and for a deadline out of
+   *   range
    * @throws TxIntentError CANNOT_OBSERVE (`noTip`) when the builder has no provider that reads
    *   the chain's tip; (`addressCache`) when its provider keeps a cache of address UTxOs
    */

@@ -187,12 +187,21 @@ describe("TxIntent.build on TxEmulator", () => {
   it("returns and shows an earlier attempt that landed after a later one was built", async () => {
     const { emulator, builder, wallet, provider } = await setup();
     let hidden: string | undefined;
+    let anchor: UTxO | undefined;
     provider.control.hooks.fetchTxInfo = async (forward, hash: string) => {
       if (hash === hidden) throw { kind: "notFound", status: 404 };
       return forward(hash);
     };
+    // A lagging provider: while the first attempt is hidden, its address still lists the anchor
+    provider.control.hooks.fetchAddressUTxOs = async (forward, address) => {
+      const utxos: UTxO[] = await forward(address);
+      return hidden && anchor && anchor.output.address === address
+        ? [...utxos, anchor]
+        : utxos;
+    };
     const intent = builder.intent(pay(), { payer: wallet });
     const first = await intent.build();
+    anchor = recordOf(intent).anchor.anchors[0]!.utxo;
     // The submitter passes the bytes on and says they were refused; the search does not see them
     hidden = first.txHash;
     await caught(
@@ -339,7 +348,15 @@ describe("TxIntent.build on TxEmulator", () => {
     const over = intentOver(builder, recordOf(lost));
     expectCode(await caught(over.send()), "EXPIRED");
     expectCode(await caught(over.build()), "MISSING_PAYER");
+    // advance() with a signer builds through build(): MISSING_PAYER too
+    expectCode(
+      await caught(over.advance({ signers: wallet })),
+      "MISSING_PAYER",
+    );
     expect(over.attempts).toHaveLength(1);
+    // It closes without a payer
+    await over.abandon();
+    expect(over.status).toBe("abandoned");
   });
 
   it("is CANNOT_OBSERVE (unconfirmed) without a tip, and with a tip older than one read", async () => {
@@ -500,6 +517,12 @@ describe("TxIntent.build on TxEmulator", () => {
     )) as TxIntentError<"PAYER_MISMATCH">;
     expectCode(error, "PAYER_MISMATCH");
     expect(error.details).toEqual({ recorded: address, given: otherAddress });
+    expect(intent.attempts).toHaveLength(1);
+    // The same from advance() with signers, which builds; nothing built
+    expectCode(
+      await caught(intent.advance({ signers: wallet })),
+      "PAYER_MISMATCH",
+    );
     expect(intent.attempts).toHaveLength(1);
 
     // Another change address that holds the recorded anchor is accepted; the change goes to the
@@ -699,23 +722,136 @@ describe("TxIntent.build on TxEmulator", () => {
     expect(late.attempts).toHaveLength(2);
   });
 
-  it("builds no attempt in place of the first of an intent with sendAllTo", async () => {
-    const { emulator, builder, wallet } = await setup();
-    const intent = builder.intent([], {
+  it("takes only the payer UTxOs the replaced attempt used in a new attempt of an intent with sendAllTo", async () => {
+    const { emulator, builder, address } = await setup({ funds: [] });
+    // A UTxO too small to put up as collateral with its tokens, and one the wallet keeps for it
+    const token = "c0ffee".padEnd(56, "0") + "746f6b656e";
+    const funded = [
+      emulator.fund(address, { lovelace: 1_300_000n, [token]: 5n }),
+    ];
+    const reserve = emulator.fund(address, { lovelace: 5_000_000n });
+    const locked = emulator.fund(builder.scriptAddress(plutus), {
+      lovelace: 20_000_000n,
+    });
+    const cbor = (utxo: UTxO) => toTxUnspentOutput(utxo).toCbor().toString();
+    const key = (utxo: UTxO) =>
+      `${utxo.input.txHash}#${utxo.input.outputIndex}`;
+    // The wallet keeps its collateral out of getUtxos, and lists every other UTxO it has
+    const api = await cip30Wallet({
+      words,
+      fetcher: emulator,
+      utxos: async () =>
+        emulator
+          .utxos({ address })
+          .filter((utxo) => key(utxo) !== key(reserve))
+          .map(cbor),
+      collateral: async () => [cbor(reserve)],
+    });
+    const to = (await (await walletOf(1)).getChangeAddress())!;
+    const intent = builder.intent(
+      spend.plutus({
+        utxo: locked,
+        script: plutus,
+        redeemer: { data: mConStr0([]) },
+      }),
+      { payer: api, sendAllTo: to },
+    );
+    const first = await intent.build();
+    const paid = new Set(funded.map(key));
+    expect(new Set(first.inputs.map(key))).toEqual(
+      new Set([...paid, key(locked)]),
+    );
+    expect(first.collateral!.inputs.map(key)).toEqual([key(reserve)]);
+    await intent.sign({ signers: api.wallet });
+    await intent.send({ submitter: submitterOf(async () => first.txHash) });
+
+    // A UTxO that arrives later is not taken, with or without a filter
+    const later = emulator.fund(address, { lovelace: 300_000_000n });
+    emulator.advanceTo({ time: intent.attempts[0]!.until });
+    expectCode(await caught(intent.send()), "EXPIRED");
+    const second = await intent.build();
+    expect(second.txHash).not.toBe(first.txHash);
+    expect(new Set(second.inputs.map(key))).toEqual(
+      new Set([...paid, key(locked)]),
+    );
+    expect(second.inputs.map(key)).not.toContain(key(later));
+    // The collateral-only UTxO is collateral again, and is not spent
+    expect(second.collateral!.inputs.map(key)).toEqual([key(reserve)]);
+    expect(second.inputs.map(key)).not.toContain(key(reserve));
+
+    // None of them left: INSUFFICIENT_FUNDS, nothing built
+    await intent.sign({ signers: api.wallet });
+    await intent.send({ submitter: submitterOf(async () => second.txHash) });
+    emulator.advanceTo({ time: intent.attempts[1]!.until });
+    expectCode(await caught(intent.send()), "EXPIRED");
+    emulator.removeUtxos([...funded, reserve].map((utxo) => utxo.input));
+    const error = (await caught(intent.build())) as TxBuildError;
+    expectCode(error, "INSUFFICIENT_FUNDS");
+    expect(error.message).toContain("sendAllTo");
+    expect(intent.attempts).toHaveLength(2);
+  });
+
+  it("builds a new attempt of an intent with sendAllTo again from its parts when it used no other payer UTxO", async () => {
+    const { emulator, builder, wallet, funded } = await setup({
+      funds: [50_000_000n],
+    });
+    const to = (await (await walletOf(1)).getChangeAddress())!;
+    const named = funded[0]!;
+    const key = (utxo: UTxO) =>
+      `${utxo.input.txHash}#${utxo.input.outputIndex}`;
+    const intent = builder.intent([spend.pubKey({ utxo: named }), pay()], {
       payer: wallet,
-      sendAllTo: (await (await walletOf(1)).getChangeAddress())!,
+      sendAllTo: to,
     });
     const first = await intent.build();
-    expect(first.inputs).toHaveLength(2);
-    await intent.sign();
-    await caught(intent.send({ submitter: refusing() }));
-    advance(emulator, 1);
-    const error = (await caught(
-      intent.build(),
-    )) as TxIntentError<"INVALID_STATE">;
-    expectCode(error, "INVALID_STATE");
-    expect(error.details.reason).toBe("status");
-    expect(intent.attempts).toHaveLength(1);
+    expect(first.inputs.map(key)).toEqual([key(named)]);
+    await intent.send({ submitter: submitterOf(async () => first.txHash) });
+    emulator.advanceTo({ time: intent.attempts[0]!.until });
+    expectCode(await caught(intent.send()), "EXPIRED");
+    const second = await intent.build();
+    expect(second.txHash).not.toBe(first.txHash);
+    expect(second.inputs.map(key)).toEqual([key(named)]);
+    expect(second.outputs.some((o) => o.output.address === to)).toBe(true);
+    expect(intent.attempts).toHaveLength(2);
+  });
+
+  it("keeps the pinned UTxOs of sendAllTo when their read gives no answer, and takes a new anchor from them", async () => {
+    const { emulator, builder, wallet, provider } = await setup({
+      funds: [30_000_000n, 20_000_000n, 10_000_000n],
+    });
+    const to = (await (await walletOf(1)).getChangeAddress())!;
+    const key = (utxo: Pick<UTxO, "input">) =>
+      `${utxo.input.txHash}#${utxo.input.outputIndex}`;
+    const swallow = (txHash: string) => submitterOf(async () => txHash);
+    const intent = builder.intent(pay(), { payer: wallet, sendAllTo: to });
+    const first = await intent.build();
+    const pinned = new Set(first.inputs.map(key));
+    expect(pinned.size).toBe(3);
+    await intent.send({ submitter: swallow(first.txHash) });
+    emulator.advanceTo({ time: intent.attempts[0]!.until });
+    await intent.refresh();
+    expect(intent.status).toBe("expired");
+
+    // An empty read is no answer: the replaced attempt's inputs are taken as they are
+    provider.control.hooks.fetchAddressUTxOs = async () => [];
+    const second = await intent.build();
+    provider.control.hooks.fetchAddressUTxOs = undefined;
+    expect(second.txHash).not.toBe(first.txHash);
+    expect(new Set(second.inputs.map(key))).toEqual(pinned);
+
+    // The anchor alone is spent: the new anchor is one of the other pinned UTxOs
+    await intent.send({ submitter: swallow(second.txHash) });
+    const anchor = recordOf(intent).anchor.anchors[0]!.utxo;
+    emulator.removeUtxos([anchor.input]);
+    emulator.advanceTo({ time: intent.attempts[1]!.until });
+    await intent.refresh();
+    expect(intent.status).toBe("expired");
+    const third = await intent.build();
+    const anchors = recordOf(intent).anchor.anchors;
+    expect(anchors).toHaveLength(2);
+    const rest = new Set([...pinned].filter((k) => k !== key(anchor)));
+    expect(rest.has(key(anchors[1]!.utxo))).toBe(true);
+    expect(new Set(third.inputs.map(key))).toEqual(rest);
   });
 
   it("is INVALID_STATE (status) when the parts give the same body again", async () => {

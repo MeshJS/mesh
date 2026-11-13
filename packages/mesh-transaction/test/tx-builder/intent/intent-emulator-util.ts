@@ -167,3 +167,20 @@ export const caught = async (promise: Promise<unknown>): Promise<any> => {
   }
   throw new Error("expected the call to throw");
 };
+
+/** The hash of a transaction in CBOR hex */
+export const hashOf = async (tx: string) => {
+  const { Transaction, TxCBOR } = await import("@meshsdk/core-cst");
+  return Transaction.fromCbor(TxCBOR(tx)).getId().toString();
+};
+
+/** A submitter that answers with the hash and passes nothing on */
+export const swallowing = () => submitterOf(hashOf);
+
+/** A submitter that passes the bytes on to an emulator */
+export const forwarding = (emulator: TxEmulator) =>
+  submitterOf((tx) => emulator.submitTx(tx));
+
+/** The reason of a CANNOT_OBSERVE error, or of an INVALID_STATE one */
+export const reasonOf = (error: unknown): string | undefined =>
+  (error as { details?: { reason?: string } }).details?.reason;

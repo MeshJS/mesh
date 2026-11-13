@@ -117,12 +117,16 @@ describe("TxBuilder.intent", () => {
       "fetchAddressUTxOs",
     );
     const intent = builder.intent(pay());
-    for (const after of [built, [intent, built]]) {
+    for (const after of [built, [intent, built], {}, "parent", null]) {
       const error = await invalidOption(() =>
         builder.intent(pay(), { after } as never),
       );
       expect(error.details.option).toBe("after");
     }
+    // Intents are parents, alone or in a list
+    expect(builder.intent(pay(), { after: intent }).status).toBe("draft");
+    expect(builder.intent(pay(), { after: [intent] }).status).toBe("draft");
+    expect(builder.intent(pay(), { after: [] }).status).toBe("draft");
     expect(
       provider.control.count(
         "fetchLatestBlock",
@@ -290,23 +294,61 @@ describe("TxBuilder.intent", () => {
     expect(intent.status).toBe("draft");
   });
 
-  it("checks the wait options of send() before any request", async () => {
+  it("checks the wait options of send() and advance() before any request", async () => {
     const { provider, calls } = countingProvider();
     const builder = new TxBuilder({ network: "preprod", provider });
     const intent = builder.intent(pay(), { payer: baseAddress(9) });
-    for (const [options, option] of [
-      [{ waitFor: "landed" }, "waitFor"],
-      [{ timeoutMs: 0 }, "timeoutMs"],
-      [{ pollMs: -1 }, "pollMs"],
-      [{ pollMs: NaN }, "pollMs"],
-      [{ submitter: {} }, "submitter"],
-      [{ signers: [{}] }, "signers"],
-      [{ signal: {} }, "signal"],
-    ] as const) {
-      const error = await invalidOption(() => intent.send(options as never));
-      expect(error.details.option).toBe(option);
-    }
+    for (const method of ["send", "advance"] as const)
+      for (const [options, option] of [
+        [{ waitFor: "landed" }, "waitFor"],
+        [{ timeoutMs: 0 }, "timeoutMs"],
+        [{ pollMs: -1 }, "pollMs"],
+        [{ pollMs: NaN }, "pollMs"],
+        [{ submitter: {} }, "submitter"],
+        [{ signers: [{}] }, "signers"],
+        [{ signal: {} }, "signal"],
+      ] as const) {
+        const error = await invalidOption(() =>
+          intent[method](options as never),
+        );
+        expect(error.details.option).toBe(option);
+      }
     expect(calls).toEqual([]);
     expect(intent.status).toBe("draft");
+  });
+
+  it("closes a draft at once, without a request", async () => {
+    const { provider, calls } = countingProvider();
+    const builder = new TxBuilder({ network: "preprod", provider });
+    const intent = builder.intent(pay(), { payer: baseAddress(9) });
+    expect(await intent.abandon()).toBe(intent);
+    expect(intent.status).toBe("abandoned");
+    expect(intent.closing).toBe(true);
+    expect(intent.built).toBeUndefined();
+    expect(intent.live).toEqual([]);
+    // Closed: the same call, and advance(), return at once
+    expect(await intent.abandon()).toBe(intent);
+    expect(await intent.advance()).toBe(intent);
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses an intent without an attempt as after of builder.build(), before any request", async () => {
+    const { provider, calls } = countingProvider();
+    const builder = new TxBuilder({ network: "preprod", provider });
+    const draft = builder.intent(pay(), { payer: baseAddress(9) });
+    const closed = builder.intent(pay(), { payer: baseAddress(9) });
+    await closed.abandon();
+    for (const after of [draft, [closed]]) {
+      const error = await invalidOption(() =>
+        builder.build(pay(), {
+          payer: baseAddress(9),
+          after: after as never,
+        }),
+      );
+      expect(error.details.option).toBe("after");
+      expect(["draft", "abandoned"]).toContain(error.details.value);
+      expect(error.details.value).not.toBeInstanceOf(TxIntent);
+    }
+    expect(calls).toEqual([]);
   });
 });
