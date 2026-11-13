@@ -557,6 +557,16 @@ export class TxBuildError<
 }
 brandClass(TxBuildError, "build");
 
+/** An argument of a public function that is not of its type */
+export const invalidArgument = (
+  option: string,
+  value: unknown,
+  allowed: string,
+) =>
+  new TxBuildError("INVALID_OPTION", `invalid ${option}: expected ${allowed}`, {
+    details: { option, value, allowed },
+  });
+
 /** The sentence every message of an intent error ends with */
 export const NOT_UNPAID =
   "This error does not mean that the payment did not go through: only an abandoned intent did not pay.";

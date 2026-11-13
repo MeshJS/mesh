@@ -23,6 +23,7 @@ import {
   isHash28,
   isHash32,
   labelOf,
+  partContext,
   PartContext,
   toNativeScriptSource,
   toPlutusScriptSource,
@@ -76,11 +77,17 @@ export const vote = (params: {
   witness?: CredentialWitnessInput;
   label?: string;
 }): VotePart => {
-  const ctx: PartContext = { part: "vote", label: params.label };
+  const ctx = partContext("vote", params);
   const { voter: voterInput } = params;
 
   let voter: VoterPrototype;
   let credential: Credential | undefined;
+  if (typeof voterInput !== "object" || voterInput === null)
+    return fail(
+      ctx,
+      "INVALID_DATA",
+      `invalid voter ${String(voterInput)}: expected { pool }, { drep } or { committee }`,
+    );
   if ("pool" in voterInput) {
     if (params.witness)
       fail(
@@ -113,6 +120,8 @@ export const vote = (params: {
     fail(ctx, "INVALID_DATA", "no votes");
   const seen = new Set<string>();
   const votes = params.votes.map((input): VotePrototype => {
+    if (typeof input !== "object" || input === null)
+      fail(ctx, "INVALID_DATA", `invalid vote ${String(input)}`);
     const action = toGovActionId(ctx, input.action);
     const key = `${action.transaction_id}#${action.index}`;
     if (seen.has(key))
@@ -169,7 +178,7 @@ type ChainedParams = {
   previous?: GovActionIdInput;
 };
 
-const ctxOf = (label?: string): PartContext => ({ part: "proposal", label });
+const ctxOf = (params: unknown): PartContext => partContext("proposal", params);
 
 const toGuardrail = (
   ctx: PartContext,
@@ -303,7 +312,7 @@ export const proposal = {
       GuardedParams &
       ChainedParams & { updates: ProtocolParamUpdatePrototype },
   ): ProposalPart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     checkParamUpdate(ctx, params.updates);
     const { policyHash, witness } = toGuardrail(ctx, params);
     return build(
@@ -329,7 +338,7 @@ export const proposal = {
     params: ProposalParams &
       ChainedParams & { protocolVersion: { major: number; minor: number } },
   ): ProposalPart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     const { major, minor } = params.protocolVersion ?? {};
     for (const [name, value] of [
       ["major", major],
@@ -356,7 +365,7 @@ export const proposal = {
     params: ProposalParams &
       GuardedParams & { withdrawals: Record<string, bigint> },
   ): ProposalPart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     const entries = Object.entries(params.withdrawals ?? {});
     if (entries.length === 0) fail(ctx, "INVALID_VALUE", "no withdrawals");
     const withdrawals: Record<string, string> = {};
@@ -382,7 +391,7 @@ export const proposal = {
 
   /** Propose a motion of no confidence in the constitutional committee. */
   noConfidence: (params: ProposalParams & ChainedParams): ProposalPart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     return build(ctx, params, {
       type: "NO_CONFIDENCE_ACTION",
       value: { ...previousOf(ctx, params.previous) },
@@ -403,7 +412,7 @@ export const proposal = {
         quorum: { numerator: bigint | number; denominator: bigint | number };
       },
   ): ProposalPart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     const quorum = toUnitInterval(ctx, "quorum", params.quorum);
     if (BigInt(quorum.numerator) > BigInt(quorum.denominator))
       fail(
@@ -446,7 +455,7 @@ export const proposal = {
         constitution: { anchor: AnchorInput; scriptHash?: string };
       },
   ): ProposalPart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     const anchor = toAnchor(ctx, params.constitution?.anchor);
     if (!anchor)
       return fail(ctx, "INVALID_DATA", "a constitution needs an anchor");
@@ -471,5 +480,5 @@ export const proposal = {
 
   /** Propose an info action, voted on but with no effect on the chain. */
   info: (params: ProposalParams): ProposalPart =>
-    build(ctxOf(params.label), params, { type: "INFO_ACTION" }),
+    build(ctxOf(params), params, { type: "INFO_ACTION" }),
 };

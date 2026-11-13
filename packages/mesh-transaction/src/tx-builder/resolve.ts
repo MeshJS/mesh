@@ -29,14 +29,17 @@ import { TxBuildError } from "./errors";
 import { checkNetworks, heldUtxos, utxoEntry } from "./network";
 import { checkLock, toSpendDatum } from "./parts/inputs";
 import {
+  errorText,
   fail,
   freeze,
+  isWholeNumber,
   outRefString,
   rewardCredential,
   toNativeScriptSource,
   toPlutusScriptSource,
   withKnownHash,
 } from "./parts/normalize";
+import { copyUtxo } from "./payer";
 
 /** Deposits the protocol parameters on `Protocol` leave out */
 export type GovernanceDeposits = {
@@ -101,6 +104,10 @@ const fetchMissing = async (
   ctx: Pick<ResolveContext, "known" | "provider" | "onFetch" | "unread">,
 ) => {
   const missing = new Map<string, TransactionInputPrototype[]>();
+  // The first part naming each missing out ref, which an error about that out ref is about
+  const firstPart = new Map<string, TxPart>();
+  // Every part naming a missing out ref
+  const naming = new Set<TxPart>();
   for (const part of parts) {
     for (const input of inputsOf(part)) {
       const key = outRefString(input);
@@ -110,6 +117,8 @@ const fetchMissing = async (
         (part.kind === "spend" || part.kind === "collateral") &&
         input === part.input;
       if (!spent && ctx.unread?.has(key)) continue;
+      naming.add(part);
+      if (!firstPart.has(key)) firstPart.set(key, part);
       const list = missing.get(input.transaction_id) ?? [];
       // Two parts may read one output: it is asked for once
       if (list.some((l) => l.index === input.index)) continue;
@@ -118,12 +127,17 @@ const fetchMissing = async (
     }
   }
   if (missing.size === 0) return;
+  const partOf = (input: TransactionInputPrototype) =>
+    ctxOf(firstPart.get(outRefString(input))!);
   const { provider } = ctx;
   if (!provider) {
     const outRefs = Array.from(missing.values(), (l) => l.map(outRefString));
+    // The part and label only when one part names every missing out ref
+    const [only] = naming.size === 1 ? naming : [];
     throw new TxBuildError(
       "MISSING_FETCHER",
       `outputs ${outRefs.flat().join(", ")} are given by reference only, and the builder has no provider`,
+      only ? ctxOf(only) : undefined,
     );
   }
   ctx.onFetch?.(
@@ -131,23 +145,42 @@ const fetchMissing = async (
   );
   await Promise.all(
     Array.from(missing.keys(), async (txHash) => {
-      let utxos: UTxO[];
-      try {
-        utxos = await provider.fetchUTxOs(txHash);
-      } catch (error) {
-        const [first] = missing.get(txHash)!;
-        throw new TxBuildError(
+      const [first] = missing.get(txHash)!;
+      const notFound = (reason: string, cause: unknown) =>
+        new TxBuildError(
           "UTXO_NOT_FOUND",
-          `fetching the outputs of ${txHash} failed: ${error instanceof Error ? error.message : String(error)}`,
-          { details: { input: toOutRef(first!) }, cause: error },
+          `fetching the outputs of ${txHash} failed: ${reason}`,
+          {
+            ...partOf(first!),
+            details: { input: toOutRef(first!) },
+            cause,
+          },
         );
+      let answer: unknown;
+      try {
+        answer = await provider.fetchUTxOs(txHash);
+      } catch (error) {
+        throw notFound(errorText(error), error);
       }
-      for (const utxo of utxos ?? []) {
-        // A copy: the answer may be shared through a cache, and parts freeze what they hold
-        const normalized = structuredClone(utxo);
-        normalized.input.txHash = normalized.input.txHash.toLowerCase();
-        ctx.known.set(utxoKey(normalized), normalized);
-      }
+      // Checked as the payer's UTxOs are, and copied: the answer may be shared through a
+      // cache, and parts freeze what they hold
+      if (answer === undefined || answer === null) return;
+      if (!Array.isArray(answer))
+        throw notFound(
+          "the answer is not a list",
+          new Error("the answer is not a list"),
+        );
+      const utxos = answer.map((entry: unknown, i) => {
+        try {
+          return copyUtxo(entry);
+        } catch (error) {
+          throw notFound(
+            `entry ${i} of the answer is not a UTxO: ${errorText(error)}`,
+            error,
+          );
+        }
+      });
+      for (const utxo of utxos) ctx.known.set(utxoKey(utxo), utxo);
     }),
   );
   for (const inputs of missing.values()) {
@@ -156,7 +189,7 @@ const fetchMissing = async (
         throw new TxBuildError(
           "UTXO_NOT_FOUND",
           `output ${outRefString(input)} does not exist or is already spent`,
-          { details: { input: toOutRef(input) } },
+          { ...partOf(input), details: { input: toOutRef(input) } },
         );
     }
   }
@@ -363,6 +396,24 @@ const withRewardAddress = (part: TxPart, network: NetworkConfig): TxPart => {
   });
 };
 
+/**
+ * The reward balance of an account info, in lovelace; none stated is 0. Throws for an answer
+ * that is not an object, or rewards that are not a whole number of 0 or more
+ */
+const rewardBalance = (info: unknown): string => {
+  if (typeof info !== "object" || info === null)
+    throw new Error(
+      `the answer is not an account info: ${info === null ? "null" : typeof info}`,
+    );
+  const { rewards } = info as { rewards?: unknown };
+  if (rewards === undefined || rewards === null) return "0";
+  if (!isWholeNumber(rewards))
+    throw new Error(
+      `invalid rewards ${String(rewards)}: expected a whole number of lovelace`,
+    );
+  return BigInt(rewards as string | number | bigint).toString();
+};
+
 /** The reward balances of the stake addresses whose whole balance is withdrawn */
 const fetchRewardBalances = async (
   parts: readonly TxPart[],
@@ -382,17 +433,23 @@ const fetchRewardBalances = async (
     );
   await Promise.all(
     Array.from(addresses, async (address) => {
-      let info;
+      const failed = (error: unknown) =>
+        new TxBuildError(
+          "PROVIDER_FAILED",
+          `fetching the reward balance of ${address} failed: ${errorText(error)}`,
+          { details: { operation: "fetchAccountInfo" }, cause: error },
+        );
+      let info: unknown;
       try {
         info = await provider.fetchAccountInfo(address);
       } catch (error) {
-        throw new TxBuildError(
-          "PROVIDER_FAILED",
-          `fetching the reward balance of ${address} failed: ${error instanceof Error ? error.message : String(error)}`,
-          { details: { operation: "fetchAccountInfo" }, cause: error },
-        );
+        throw failed(error);
       }
-      balances.set(address, BigInt(info.rewards ?? 0).toString());
+      try {
+        balances.set(address, rewardBalance(info));
+      } catch (error) {
+        throw failed(error);
+      }
     }),
   );
   return balances;

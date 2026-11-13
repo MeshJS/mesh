@@ -23,6 +23,7 @@ import {
   isHash28,
   isHash32,
   labelOf,
+  partContext,
   PartContext,
   toRewardAddress,
 } from "./normalize";
@@ -51,7 +52,8 @@ const build = (
     ...labelOf(ctx.label),
   });
 
-const ctxOf = (label?: string): PartContext => ({ part: "certificate", label });
+const ctxOf = (params: unknown): PartContext =>
+  partContext("certificate", params);
 
 type Labelled = { label?: string };
 type Witnessed = Labelled & {
@@ -115,6 +117,8 @@ const toPort = (ctx: PartContext, port: number | undefined) => {
 };
 
 const toRelay = (ctx: PartContext, relay: Relay): RelayPrototype => {
+  if (typeof relay !== "object" || relay === null)
+    return fail(ctx, "INVALID_DATA", `invalid relay ${String(relay)}`);
   switch (relay.type) {
     case "SingleHostAddr": {
       const port = toPort(ctx, relay.port);
@@ -158,6 +162,12 @@ const toPoolParams = (
   ctx: PartContext,
   params: PoolParams,
 ): PoolParamsPrototype => {
+  if (typeof params !== "object" || params === null)
+    fail(ctx, "INVALID_DATA", `invalid pool parameters ${String(params)}`);
+  if (!Array.isArray(params.margin))
+    fail(ctx, "INVALID_VALUE", `invalid margin ${String(params.margin)}`);
+  if (!Array.isArray(params.owners))
+    fail(ctx, "INVALID_DATA", `invalid pool owners ${String(params.owners)}`);
   const vrf =
     typeof params.vrfKeyHash === "string"
       ? params.vrfKeyHash.toLowerCase()
@@ -187,7 +197,10 @@ const toPoolParams = (
   const rewardAccount = toRewardAddress(ctx, params.rewardAddress).address;
   let poolMetadata: PoolParamsPrototype["pool_metadata"];
   if (params.metadata) {
-    const hash = params.metadata.hash.toLowerCase();
+    const hash =
+      typeof params.metadata.hash === "string"
+        ? params.metadata.hash.toLowerCase()
+        : "";
     if (!isHash32(hash))
       fail(
         ctx,
@@ -195,8 +208,9 @@ const toPoolParams = (
         `invalid pool metadata hash ${params.metadata.hash}`,
       );
     if (
+      typeof params.metadata.URL !== "string" ||
       new TextEncoder().encode(params.metadata.URL).length >
-      MAX_POOL_METADATA_URL_BYTES
+        MAX_POOL_METADATA_URL_BYTES
     )
       fail(
         ctx,
@@ -213,7 +227,10 @@ const toPoolParams = (
     margin: { numerator: String(numerator), denominator: String(denominator) },
     reward_account: rewardAccount,
     pool_owners: owners,
-    relays: params.relays.map((relay) => toRelay(ctx, relay)),
+    relays: (Array.isArray(params.relays)
+      ? params.relays
+      : fail(ctx, "INVALID_DATA", `invalid relays ${String(params.relays)}`)
+    ).map((relay) => toRelay(ctx, relay)),
     ...(poolMetadata && { pool_metadata: poolMetadata }),
   };
 };
@@ -229,7 +246,7 @@ export const certificate = {
   stakeRegistration: (
     params: Witnessed & { stake: CredentialInput; deposit?: bigint },
   ): CertificatePart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     const credential = toCredential(ctx, params.stake);
     const { coin, depositParameter } = toDeposit(
       ctx,
@@ -262,7 +279,7 @@ export const certificate = {
   stakeDeregistration: (
     params: Witnessed & { stake: CredentialInput; refund?: bigint },
   ): CertificatePart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     const credential = toCredential(ctx, params.stake);
     const { coin, depositParameter } = toDeposit(
       ctx,
@@ -296,7 +313,7 @@ export const certificate = {
   legacyStakeRegistration: (
     params: Labelled & { stake: CredentialInput },
   ): CertificatePart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     return build(
       ctx,
       {
@@ -322,7 +339,7 @@ export const certificate = {
   legacyStakeDeregistration: (
     params: Witnessed & { stake: CredentialInput },
   ): CertificatePart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     const credential = toCredential(ctx, params.stake);
     return build(
       ctx,
@@ -345,7 +362,7 @@ export const certificate = {
   stakeDelegation: (
     params: Witnessed & { stake: CredentialInput; pool: PoolInput },
   ): CertificatePart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     const credential = toCredential(ctx, params.stake);
     return build(
       ctx,
@@ -371,7 +388,7 @@ export const certificate = {
   voteDelegation: (
     params: Witnessed & { stake: CredentialInput; drep: DRepInput },
   ): CertificatePart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     const credential = toCredential(ctx, params.stake);
     return build(
       ctx,
@@ -402,7 +419,7 @@ export const certificate = {
       drep: DRepInput;
     },
   ): CertificatePart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     const credential = toCredential(ctx, params.stake);
     return build(
       ctx,
@@ -434,7 +451,7 @@ export const certificate = {
       deposit?: bigint;
     },
   ): CertificatePart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     const credential = toCredential(ctx, params.stake);
     const { coin, depositParameter } = toDeposit(
       ctx,
@@ -472,7 +489,7 @@ export const certificate = {
       deposit?: bigint;
     },
   ): CertificatePart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     const credential = toCredential(ctx, params.stake);
     const { coin, depositParameter } = toDeposit(
       ctx,
@@ -512,7 +529,7 @@ export const certificate = {
       deposit?: bigint;
     },
   ): CertificatePart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     const credential = toCredential(ctx, params.stake);
     const { coin, depositParameter } = toDeposit(
       ctx,
@@ -545,7 +562,7 @@ export const certificate = {
   poolRegistration: (
     params: Labelled & { params: PoolParams },
   ): CertificatePart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     return build(
       ctx,
       {
@@ -564,7 +581,7 @@ export const certificate = {
   poolRetirement: (
     params: Labelled & { pool: PoolInput; epoch: bigint | number },
   ): CertificatePart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     const { epoch } = params;
     if (
       (typeof epoch !== "bigint" && !Number.isSafeInteger(epoch)) ||
@@ -594,7 +611,7 @@ export const certificate = {
   committeeHotAuth: (
     params: Witnessed & { cold: CredentialInput; hot: CredentialInput },
   ): CertificatePart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     const cold = toCredential(ctx, params.cold);
     return build(
       ctx,
@@ -620,7 +637,7 @@ export const certificate = {
   committeeColdResign: (
     params: Witnessed & { cold: CredentialInput; anchor?: AnchorInput },
   ): CertificatePart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     const cold = toCredential(ctx, params.cold);
     const anchor = toAnchor(ctx, params.anchor);
     return build(
@@ -650,7 +667,7 @@ export const certificate = {
       anchor?: AnchorInput;
     },
   ): CertificatePart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     const credential = toDRepCredential(ctx, params.drep);
     const { coin, depositParameter } = toDeposit(
       ctx,
@@ -685,7 +702,7 @@ export const certificate = {
   drepDeregistration: (
     params: Witnessed & { drep: DRepCredentialInput; refund?: bigint },
   ): CertificatePart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     const credential = toDRepCredential(ctx, params.drep);
     const { coin, depositParameter } = toDeposit(
       ctx,
@@ -717,7 +734,7 @@ export const certificate = {
   drepUpdate: (
     params: Witnessed & { drep: DRepCredentialInput; anchor?: AnchorInput },
   ): CertificatePart => {
-    const ctx = ctxOf(params.label);
+    const ctx = ctxOf(params);
     const credential = toDRepCredential(ctx, params.drep);
     const anchor = toAnchor(ctx, params.anchor);
     return build(

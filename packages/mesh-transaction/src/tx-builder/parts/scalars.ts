@@ -13,6 +13,7 @@ import {
   isHash28,
   labelOf,
   parseAddress,
+  partContext,
   PartContext,
   paymentCredential,
   toNativeScriptSource,
@@ -49,7 +50,7 @@ export const guard = {
   pubKey: (
     params: ({ keyHash: string } | { address: string }) & { label?: string },
   ): GuardPart => {
-    const ctx: PartContext = { part: "guard", label: params.label };
+    const ctx = partContext("guard", params);
     const { keyHash, address } = params as {
       keyHash?: unknown;
       address?: unknown;
@@ -171,7 +172,7 @@ export const validity = (params: {
   invalidHereafter?: bigint | number;
   label?: string;
 }): ValidityPart => {
-  const ctx: PartContext = { part: "validity", label: params.label };
+  const ctx = partContext("validity", params);
   const before = toSlot(ctx, "invalidBefore", params.invalidBefore, "from");
   const hereafter = toSlot(
     ctx,
@@ -285,7 +286,7 @@ export const metadata = (params: {
   value: MetadataValueInput;
   label?: string;
 }): MetadataPart => {
-  const ctx: PartContext = { part: "metadata", label: params.label };
+  const ctx = partContext("metadata", params);
   const { metadataLabel } = params;
   if (
     (typeof metadataLabel !== "bigint" &&
@@ -347,7 +348,7 @@ export const message = (params: {
   text: string | readonly string[];
   label?: string;
 }): MetadataPart => {
-  const ctx: PartContext = { part: "metadata", label: params.label };
+  const ctx = partContext("metadata", params);
   const { text } = params;
   const texts: unknown[] = typeof text === "string" ? [text] : [];
   if (Array.isArray(text)) {
@@ -386,8 +387,14 @@ export const auxiliaryScript = (params: {
   script: NativeScript | PlutusScript;
   label?: string;
 }): AuxiliaryScriptPart => {
-  const ctx: PartContext = { part: "auxiliaryScript", label: params.label };
+  const ctx = partContext("auxiliaryScript", params);
   const { script } = params;
+  if (typeof script !== "object" || script === null)
+    fail(
+      ctx,
+      "INVALID_SCRIPT",
+      `invalid script ${String(script)}: expected a native script or { code, version }`,
+    );
   if ("code" in script) {
     const code = toPlutusScriptCode(
       ctx,
@@ -442,7 +449,7 @@ export const donation = (params: {
   amount: bigint;
   label?: string;
 }): DonationPart => {
-  const ctx: PartContext = { part: "donation", label: params.label };
+  const ctx = partContext("donation", params);
   return freeze({
     kind: "donation",
     amount: toCoin(ctx, params.amount, { allowZero: false }),
@@ -459,7 +466,7 @@ export const treasuryValue = (params: {
   amount: bigint;
   label?: string;
 }): TreasuryValuePart => {
-  const ctx: PartContext = { part: "treasuryValue", label: params.label };
+  const ctx = partContext("treasuryValue", params);
   return freeze({
     kind: "treasuryValue",
     amount: toCoin(ctx, params.amount, { allowZero: true }),
@@ -476,7 +483,7 @@ export const networkId = (params: {
   network: "mainnet" | "testnet";
   label?: string;
 }): NetworkIdPart => {
-  const ctx: PartContext = { part: "networkId", label: params.label };
+  const ctx = partContext("networkId", params);
   if (params.network !== "mainnet" && params.network !== "testnet")
     fail(ctx, "INVALID_DATA", `invalid network ${params.network}`);
   return freeze({

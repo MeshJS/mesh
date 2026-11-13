@@ -20,6 +20,7 @@ import {
   freeze,
   labelOf,
   parseAddress,
+  partContext,
   paymentCredential,
   toNativeScriptSource,
   toPlutusData,
@@ -82,6 +83,12 @@ export const toSpendDatum = (
     return { type: "none" };
   }
   if (datum !== undefined) {
+    if (typeof datum !== "object" || datum === null)
+      fail(
+        ctx,
+        "INVALID_DATA",
+        `invalid datum ${String(datum)}: expected "inline", "none" or { data }`,
+      );
     const provided = toPlutusData(ctx, datum.data);
     if (utxo) {
       if (inlineDatum)
@@ -121,7 +128,7 @@ export const spend = {
    * @param params.label Name echoed in errors about this part
    */
   pubKey: (params: { utxo: InputRef; label?: string }): SpendPart => {
-    const ctx: PartContext = { part: "spend", label: params.label };
+    const ctx = partContext("spend", params);
     const resolvable = toResolvableInput(ctx, params.utxo);
     checkLock(ctx, resolvable.utxo, { type: "key" });
     return freeze({
@@ -144,7 +151,7 @@ export const spend = {
     script: NativeScriptInput;
     label?: string;
   }): SpendPart => {
-    const ctx: PartContext = { part: "spend", label: params.label };
+    const ctx = partContext("spend", params);
     const resolvable = toResolvableInput(ctx, params.utxo);
     const given = toNativeScriptSource(ctx, params.script);
     const script = withKnownHash(
@@ -179,7 +186,7 @@ export const spend = {
     datum?: SpendDatumInput;
     label?: string;
   }): SpendPart => {
-    const ctx: PartContext = { part: "spend", label: params.label };
+    const ctx = partContext("spend", params);
     const resolvable = toResolvableInput(ctx, params.utxo);
     const given = toPlutusScriptSource(ctx, params.script);
     const script = withKnownHash(
@@ -220,7 +227,7 @@ export const referenceInput = (params: {
   utxo: InputRef;
   label?: string;
 }): ReferenceInputPart => {
-  const ctx: PartContext = { part: "referenceInput", label: params.label };
+  const ctx = partContext("referenceInput", params);
   return freeze({
     kind: "referenceInput",
     ...toResolvableInput(ctx, params.utxo),
@@ -237,7 +244,7 @@ export const collateral = (params: {
   utxo: InputRef;
   label?: string;
 }): CollateralPart => {
-  const ctx: PartContext = { part: "collateral", label: params.label };
+  const ctx = partContext("collateral", params);
   const resolvable = toResolvableInput(ctx, params.utxo);
   checkLock(ctx, resolvable.utxo, { type: "key" });
   return freeze({
@@ -260,7 +267,7 @@ export const collateralReturn = (params: {
   totalCollateral?: bigint;
   label?: string;
 }): CollateralReturnPart => {
-  const ctx: PartContext = { part: "collateralReturn", label: params.label };
+  const ctx = partContext("collateralReturn", params);
   const address = parseAddress(ctx, params.address);
   if (address.asReward())
     fail(

@@ -3,6 +3,7 @@ import {
   fail,
   freeze,
   labelOf,
+  partContext,
   PartContext,
   rewardCredential,
   toNativeScriptSource,
@@ -52,7 +53,7 @@ const build = (
   ) => KeyWitness | NativeWitness | PlutusWitness,
   keyOnly = false,
 ): WithdrawalPart => {
-  const ctx: PartContext = { part: "withdrawal", label: params.label };
+  const ctx = partContext("withdrawal", params);
   // A key credential has no script to derive the address from: `pubKey` always parses it
   const given =
     params.rewardAddress === undefined && !keyOnly

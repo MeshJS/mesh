@@ -15,7 +15,7 @@ import type { RequiredKeys } from "./payer";
 import type { Collected, PartRef, SignerRole, TxSigners } from "./witnesses";
 import { TxBuildError, TxIntentError } from "./errors";
 import { errorText } from "./parts/normalize";
-import { walletCodeOf } from "./payer";
+import { copyUtxo, walletCodeOf } from "./payer";
 import {
   addAddress,
   addCredential,
@@ -577,7 +577,9 @@ const answerWitnessSet = (answer: unknown, raw: RawTx): string => {
  *   otherwise, or answers with something that is neither a witness set nor a transaction. The
  *   signer's own error is the `cause`.
  * @throws TxBuildError INVALID_OPTION for a `signer` with neither `signTxWitnesses` nor `signTx`,
- *   and for a `tx` that is not a transaction; the signer is not called
+ *   and for a `tx` that is not a transaction; the signer is not called. For the signer,
+ *   `details.value` is only the JavaScript type of what was given, never the value: something
+ *   passed as a signer may hold keys, and `details` is data a logger prints
  */
 export async function signWitnesses(
   signer: Signer,
@@ -737,7 +739,7 @@ const certificateCredential = (
  *   `nativeScripts`
  * @throws TxBuildError UTXO_NOT_FOUND for an input or collateral input whose UTxO is not in
  *   `spent`; INVALID_OPTION for a `tx` that is not a transaction, and for a `spent` that is not
- *   a list
+ *   a list or holds an entry that is not a UTxO (an address that does not parse among them)
  */
 export function requiredSigners(tx: string, spent: readonly UTxO[]): TxSigners {
   const raw = readTransaction(tx);
@@ -749,7 +751,27 @@ export function requiredSigners(tx: string, spent: readonly UTxO[]): TxSigners {
         details: { option: "spent", value: spent, allowed: "a list of UTxOs" },
       },
     );
-  return signersOf(bodySigners(raw, spent).collected);
+  // Each entry copied as a payer's UTxO is: an entry whose address cannot be read would
+  // otherwise drop the key that signs for it, an answer that is silently short
+  const utxos = (spent as readonly unknown[]).map((entry) => {
+    try {
+      return copyUtxo(entry);
+    } catch (error) {
+      throw new TxBuildError(
+        "INVALID_OPTION",
+        `invalid spent: an entry is not a UTxO: ${errorText(error)}`,
+        {
+          details: {
+            option: "spent",
+            value: entry,
+            allowed: "a list of UTxOs",
+          },
+          cause: error,
+        },
+      );
+    }
+  });
+  return signersOf(bodySigners(raw, utxos).collected);
 }
 
 /**

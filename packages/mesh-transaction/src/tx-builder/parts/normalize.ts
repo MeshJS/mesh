@@ -78,13 +78,77 @@ export const isHex = (value: string) => HEX.test(value);
 
 const isUtxo = (ref: InputRef): ref is UTxO => "input" in ref;
 
+/** Whether a value is an object, not null */
+export const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+/** Whether a value is a whole number of 0 or more: a safe integer, decimal digits or a bigint */
+export const isWholeNumber = (value: unknown): boolean =>
+  (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) ||
+  (typeof value === "string" && /^\d+$/.test(value)) ||
+  (typeof value === "bigint" && value >= 0n);
+
+/**
+ * A unit of a UTxO's amount: `lovelace` (or the empty unit, read as lovelace across the
+ * repository), or a policy id and an asset name of up to 32 bytes
+ */
+const UTXO_UNIT = /^(?:lovelace|[0-9a-fA-F]{56}(?:[0-9a-fA-F]{2}){0,32})?$/;
+
+/**
+ * What is wrong with the amount of a UTxO, or undefined when it is a list of assets, each with
+ * a unit (`lovelace` or a policy id and asset name in hex) and a quantity in decimal digits
+ */
+export const utxoAmountProblem = (amount: unknown): string | undefined => {
+  if (!Array.isArray(amount)) return "the amount is not a list of assets";
+  for (const asset of amount as unknown[]) {
+    if (!isObject(asset))
+      return `an asset of the amount is not an object { unit, quantity }: ${String(asset)}`;
+    const { unit, quantity } = asset;
+    if (typeof unit !== "string" || !UTXO_UNIT.test(unit))
+      return `invalid unit ${String(unit)}: expected lovelace or a policy id and an asset name in hex`;
+    if (typeof quantity !== "string" || !/^\d+$/.test(quantity))
+      return `invalid quantity ${String(quantity)} of ${unit}: expected decimal digits`;
+  }
+  return undefined;
+};
+
+/**
+ * The context of a part builder's call, after checking its parameters: an object, with a label
+ * that is a string when given
+ */
+export const partContext = (
+  part: TxPart["kind"],
+  params: unknown,
+): PartContext => {
+  if (!isObject(params))
+    fail(
+      { part },
+      "INVALID_DATA",
+      `expected an object of parameters; got ${params === null ? "null" : typeof params}`,
+    );
+  const { label } = params as { label?: unknown };
+  if (label !== undefined && typeof label !== "string")
+    fail(
+      { part },
+      "INVALID_DATA",
+      `invalid label ${String(label)}: expected a string`,
+    );
+  return { part, label: label as string | undefined };
+};
+
 /**
  * Normalises an input reference. A full UTxO is copied, so later changes to the caller's
- * object cannot reach the part, and the copy holds its address in canonical text. The copy has
- * `input` and `output` only: what else the object carries (the `label` and `change` of a built
- * output) is not the UTxO's.
+ * object cannot reach the part, and the copy holds its address in canonical text and an amount
+ * checked as a payer's UTxO is. The copy has `input` and `output` only: what else the object
+ * carries (the `label` and `change` of a built output) is not the UTxO's.
  */
 export const toResolvableInput = (ctx: PartContext, ref: InputRef) => {
+  if (!isObject(ref) || (isUtxo(ref) && !isObject(ref.input)))
+    fail(
+      ctx,
+      "INVALID_OUT_REF",
+      `expected an out ref { txHash, outputIndex } or a UTxO { input, output }; got ${ref === null ? "null" : typeof ref}`,
+    );
   const { txHash, outputIndex } = isUtxo(ref) ? ref.input : ref;
   const transactionId =
     typeof txHash === "string" ? txHash.toLowerCase() : txHash;
@@ -95,10 +159,28 @@ export const toResolvableInput = (ctx: PartContext, ref: InputRef) => {
 
   const input = { transaction_id: transactionId, index: outputIndex };
   if (!isUtxo(ref)) return { input };
-  const utxo: UTxO = {
-    input: { txHash: transactionId, outputIndex },
-    output: structuredClone(ref.output),
-  };
+  const outRef = `${transactionId}#${outputIndex}`;
+  if (!isObject(ref.output))
+    fail(
+      ctx,
+      "INVALID_VALUE",
+      `the UTxO ${outRef} has no output { address, amount }`,
+    );
+  const amountProblem = utxoAmountProblem(ref.output.amount);
+  if (amountProblem !== undefined)
+    fail(ctx, "INVALID_VALUE", `the UTxO ${outRef}: ${amountProblem}`);
+  let output: UTxO["output"];
+  try {
+    output = structuredClone(ref.output);
+  } catch (error) {
+    return fail(
+      ctx,
+      "INVALID_VALUE",
+      `the UTxO ${outRef} cannot be copied: ${errorText(error)}`,
+      error,
+    );
+  }
+  const utxo: UTxO = { input: { txHash: transactionId, outputIndex }, output };
   utxo.output.address = addressText(parseAddress(ctx, utxo.output.address));
   return { input, utxo };
 };
@@ -180,6 +262,8 @@ export const toExUnits = (
   ctx: PartContext,
   budget: Budget,
 ): ExUnitsPrototype => {
+  if (!isObject(budget))
+    fail(ctx, "INVALID_DATA", `invalid execution units ${String(budget)}`);
   for (const [name, value] of Object.entries(budget)) {
     if (!Number.isSafeInteger(value) || value < 0)
       fail(ctx, "INVALID_DATA", `invalid execution units ${name}: ${value}`);
@@ -195,6 +279,12 @@ export const toRedeemer = (
   ctx: PartContext,
   redeemer: RedeemerInput,
 ): PartRedeemer => {
+  if (!isObject(redeemer))
+    fail(
+      ctx,
+      "INVALID_DATA",
+      `invalid redeemer ${String(redeemer)}: expected { data, exUnits }`,
+    );
   const { data } = redeemer;
   return {
     data:
@@ -375,6 +465,12 @@ export const toPlutusScriptSource = (
   ctx: PartContext,
   script: PlutusScriptInput,
 ): PlutusScriptSource => {
+  if (!isObject(script))
+    fail(
+      ctx,
+      "INVALID_SCRIPT",
+      `invalid Plutus script ${String(script)}: expected { code, version } or { reference }`,
+    );
   if ("code" in script) {
     const code = toPlutusScriptCode(
       ctx,
@@ -436,6 +532,12 @@ export const toNativeScriptSource = (
   ctx: PartContext,
   script: NativeScriptInput,
 ): NativeScriptSource => {
+  if (typeof script !== "string" && !isObject(script))
+    fail(
+      ctx,
+      "INVALID_SCRIPT",
+      `invalid native script ${String(script)}: expected a script, its CBOR or { reference }`,
+    );
   if (typeof script === "string" || "type" in script) {
     let nativeScript: CstNativeScript;
     try {
@@ -443,6 +545,11 @@ export const toNativeScriptSource = (
         typeof script === "string"
           ? CstNativeScript.fromCbor(HexBlob(script))
           : toNativeScript(script);
+      // A script of no known type converts to nothing
+      if (!nativeScript)
+        throw new Error(
+          `unknown script type ${String((script as { type?: unknown }).type)}`,
+        );
     } catch (error) {
       return fail(
         ctx,
@@ -518,5 +625,34 @@ export const nativeScriptToPrototype = (
   }
 };
 
-export const errorText = (error: unknown) =>
-  error instanceof Error ? error.message : String(error);
+/**
+ * The text of a thrown value, for a message: an Error's message, a string as it is, a CIP-30
+ * error (an object with a string `info`) by its info and its code, an object with a string
+ * `message` by that message, and anything else as JSON, or as `String` when it has none
+ */
+export const errorText = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (typeof error === "object" && error !== null) {
+    const { info, message, code } = error as Record<string, unknown>;
+    const text =
+      typeof info === "string"
+        ? info
+        : typeof message === "string"
+          ? message
+          : undefined;
+    if (text !== undefined)
+      return typeof code === "number" || typeof code === "string"
+        ? `${text} (code ${code})`
+        : text;
+  }
+  try {
+    const json = JSON.stringify(error, (_, value: unknown) =>
+      typeof value === "bigint" ? value.toString() : value,
+    );
+    if (json !== undefined) return json;
+  } catch {
+    // A value JSON cannot write, such as one that holds itself
+  }
+  return String(error);
+};

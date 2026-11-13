@@ -32,6 +32,7 @@ import {
   scriptHashToRewardAddress,
   Transaction,
   transactionOutputPrototypeToCardano,
+  transactionPrototypeToHex,
   TxCBOR,
 } from "@meshsdk/core-cst";
 
@@ -47,6 +48,7 @@ import {
   donation,
   guard,
   message,
+  metadata,
   minCoin,
   minFee,
   mint,
@@ -59,6 +61,7 @@ import {
   TxBuilder,
   TxBuilderOptions,
   TxBuildError,
+  TxError,
   TxPart,
   TxPartError,
   unresolved,
@@ -935,6 +938,126 @@ describe("TxBuilder: resolution", () => {
     expect(error.cause).toBeUndefined();
   });
 
+  describe("names the part whose out ref cannot be looked up", () => {
+    const ghost = { txHash: "ee".repeat(32), outputIndex: 7 };
+    const other = { txHash: "ef".repeat(32), outputIndex: 0 };
+    const payer = { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] };
+    const pay = output({ address: recipient, value: { lovelace: ada(2) } });
+
+    it("for an output that does not exist", async () => {
+      const builder = new TxBuilder({
+        network,
+        params,
+        provider: fakeFetcher([]).fetcher,
+      });
+      const spent = await expectBuildError(
+        builder.build([spend.pubKey({ utxo: ghost, label: "mine" }), pay], {
+          payer,
+        }),
+        "UTXO_NOT_FOUND",
+      );
+      expect(TxError.is(spent, "UTXO_NOT_FOUND")).toBe(true);
+      expect(spent).toMatchObject({ part: "spend", label: "mine" });
+      expect(spent.details).toEqual({ input: ghost });
+      expect(spent.message.startsWith('spend "mine": ')).toBe(true);
+
+      const read = await expectBuildError(
+        builder.build([referenceInput({ utxo: ghost, label: "ref" }), pay], {
+          payer,
+        }),
+        "UTXO_NOT_FOUND",
+      );
+      expect(read).toMatchObject({ part: "referenceInput", label: "ref" });
+      expect(read.message.startsWith('referenceInput "ref": ')).toBe(true);
+
+      // Two parts naming one out ref: the first
+      const both = await expectBuildError(
+        builder.build(
+          [
+            referenceInput({ utxo: ghost, label: "first" }),
+            referenceInput({ utxo: ghost, label: "second" }),
+            pay,
+          ],
+          { payer },
+        ),
+        "UTXO_NOT_FOUND",
+      );
+      expect(both).toMatchObject({ part: "referenceInput", label: "first" });
+    });
+
+    it("for a lookup the provider rejects", async () => {
+      const down = new Error("503");
+      const fetcher = {
+        ...fakeFetcher([]).fetcher,
+        fetchUTxOs: async () => {
+          throw down;
+        },
+      } as IFetcher;
+      const error = await expectBuildError(
+        new TxBuilder({ network, params, provider: fetcher }).build(
+          [spend.pubKey({ utxo: ghost, label: "mine" }), pay],
+          { payer },
+        ),
+        "UTXO_NOT_FOUND",
+      );
+      expect(error).toMatchObject({ part: "spend", label: "mine" });
+      expect(error.details).toEqual({ input: ghost });
+      expect(error.cause).toBe(down);
+      expect(error.message).toContain("503");
+    });
+
+    it("for a lookup without a provider, when one part names them", async () => {
+      const builder = new TxBuilder({ network, params });
+      const one = await expectBuildError(
+        builder.build([spend.pubKey({ utxo: ghost, label: "mine" }), pay], {
+          payer,
+        }),
+        "MISSING_FETCHER",
+      );
+      expect(one).toMatchObject({ part: "spend", label: "mine" });
+      expect(one.message.startsWith('spend "mine": ')).toBe(true);
+
+      const two = await expectBuildError(
+        builder.build(
+          [
+            spend.pubKey({ utxo: ghost, label: "mine" }),
+            referenceInput({ utxo: other, label: "ref" }),
+            pay,
+          ],
+          { payer },
+        ),
+        "MISSING_FETCHER",
+      );
+      expect(two.part).toBeUndefined();
+      expect(two.label).toBeUndefined();
+
+      // Two parts naming one missing out ref: neither alone is meant
+      const shared = await expectBuildError(
+        builder.build(
+          [
+            referenceInput({ utxo: ghost, label: "ref" }),
+            spend.plutus({
+              utxo: utxo(
+                lovelace(ada(10)),
+                { plutusData: "d87980" },
+                scriptAddress,
+              ),
+              script: { reference: ghost },
+              redeemer: { data: mConStr0([]) },
+              label: "unlock",
+            }),
+            pay,
+          ],
+          { payer },
+        ),
+        "MISSING_FETCHER",
+      );
+      expect(shared.part).toBeUndefined();
+      expect(shared.label).toBeUndefined();
+      expect(shared.message.startsWith("outputs ")).toBe(true);
+    });
+  });
+
   it("works out the datum of a script output once it is fetched", async () => {
     const locked: UTxO = {
       input: { txHash: "ab".repeat(32), outputIndex: 0 },
@@ -1259,6 +1382,96 @@ describe("TxBuilder: scripts", () => {
     expect(silent.cause).toBeUndefined();
   });
 
+  it.each([
+    ["nothing", undefined, "not a list"],
+    ["an entry without a budget", [{ tag: "SPEND", index: 0 }], "budget"],
+    [
+      "a budget that is not a number",
+      [{ tag: "SPEND", index: 0, budget: { mem: "x", steps: 1 } }],
+      "invalid budget",
+    ],
+    [
+      "an index that is not a number",
+      [{ tag: "SPEND", index: "0", budget: { mem: 1, steps: 1 } }],
+      "invalid index",
+    ],
+    ["an entry that is null", [null], "not an object"],
+    [
+      "a negative index",
+      [{ tag: "SPEND", index: -1, budget: { mem: 1, steps: 1 } }],
+      "invalid index",
+    ],
+    [
+      "a negative budget",
+      [{ tag: "SPEND", index: 0, budget: { mem: -1, steps: 1 } }],
+      "invalid budget",
+    ],
+    [
+      "a budget that is not whole",
+      [{ tag: "SPEND", index: 0, budget: { mem: 1.5, steps: 1 } }],
+      "invalid budget",
+    ],
+    [
+      "a budget with an exponent",
+      [{ tag: "SPEND", index: 0, budget: { mem: 1, steps: "1e3" } }],
+      "invalid budget",
+    ],
+  ])(
+    "refuses an evaluator answer of %s as EVALUATION_FAILED",
+    async (_, answer, reason) => {
+      const calls: string[] = [];
+      const evaluator = {
+        evaluateTx: async (tx: string) => {
+          calls.push(tx);
+          return answer;
+        },
+      } as unknown as IEvaluator;
+      const error = await new TxBuilder({
+        network,
+        costModels,
+        params,
+        evaluator,
+      })
+        .build([scriptSpend(1)], {
+          payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] },
+        })
+        .then(
+          () => {
+            throw new Error("expected EVALUATION_FAILED");
+          },
+          (error: unknown) => error,
+        );
+      expect(TxError.is(error, "EVALUATION_FAILED")).toBe(true);
+      const failed = error as TxBuildError<"EVALUATION_FAILED">;
+      expect(failed.details).toEqual({ tx: calls[0], failures: [] });
+      expect(failed.details.tx).toMatch(/^[0-9a-f]+$/);
+      expect(failed.part).toBeUndefined();
+      expect(failed.label).toBeUndefined();
+      expect(failed.message).toContain(reason);
+      expect(failed.cause).toBeInstanceOf(TypeError);
+    },
+  );
+
+  it("takes budgets given as digits or bigints", async () => {
+    for (const budget of [
+      { mem: "1000", steps: "2000" },
+      { mem: 1000n, steps: 2000n },
+    ]) {
+      const evaluator = {
+        evaluateTx: async () => [{ tag: "SPEND", index: 0, budget }],
+      } as unknown as IEvaluator;
+      const built = await new TxBuilder({
+        network,
+        costModels,
+        params,
+        evaluator,
+      }).build([scriptSpend(1)], {
+        payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] },
+      });
+      expect(built.exUnits).toEqual({ mem: 1000n, steps: 2000n });
+    }
+  });
+
   it("reports scripts needing more than a transaction may use", async () => {
     const { evaluator } = fakeEvaluator({ mem: 9_000_000, steps: 1000 });
     const error = await expectBuildError(
@@ -1514,6 +1727,85 @@ describe("TxBuilder: scripts", () => {
     expect(stated.message).toContain(
       `the ${required} lovelace the fee calls for`,
     );
+  });
+
+  it("names the collateral part at fault", async () => {
+    const build = (parts: TxPart[]) =>
+      expectBuildError(
+        new TxBuilder({
+          network,
+          costModels,
+          params,
+          evaluator: fakeEvaluator().evaluator,
+        }).build([scriptSpend(1), ...parts], {
+          payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] },
+        }),
+        "INSUFFICIENT_COLLATERAL",
+      );
+
+    // A stated total below what the fee calls for: the return states it
+    const below = await build([
+      collateral({ utxo: utxo(lovelace(ada(5))) }),
+      collateralReturn({ address: wallet, totalCollateral: 1n, label: "ret" }),
+    ]);
+    expect(below).toMatchObject({ part: "collateralReturn", label: "ret" });
+    expect(below.message.startsWith('collateralReturn "ret": ')).toBe(true);
+
+    // Inputs that cannot cover the total, stated or not: the one collateral part
+    const above = await build([
+      collateral({ utxo: utxo(lovelace(ada(5))), label: "coll" }),
+      collateralReturn({
+        address: wallet,
+        totalCollateral: ada(50),
+        label: "ret",
+      }),
+    ]);
+    expect(above).toMatchObject({ part: "collateral", label: "coll" });
+    const short = await build([
+      collateral({ utxo: utxo(lovelace(100_000n)), label: "coll" }),
+    ]);
+    expect(short).toMatchObject({ part: "collateral", label: "coll" });
+    expect(short.message.startsWith('collateral "coll": ')).toBe(true);
+    const shortStated = await build([
+      collateral({ utxo: utxo(lovelace(100_000n)), label: "coll" }),
+      collateralReturn({ address: wallet, totalCollateral: ada(1) }),
+    ]);
+    expect(shortStated).toMatchObject({ part: "collateral", label: "coll" });
+
+    // Two collateral parts: neither alone is at fault
+    const two = await build([
+      collateral({ utxo: utxo(lovelace(50_000n)), label: "a" }),
+      collateral({ utxo: utxo(lovelace(50_000n)), label: "b" }),
+    ]);
+    expect(two.part).toBeUndefined();
+    expect(two.label).toBeUndefined();
+
+    // Collateral chosen by the builder falls short of a stated total: neither the return,
+    // which states the total, nor any other part is at fault
+    const pooled = await build([
+      collateralReturn({
+        address: wallet,
+        totalCollateral: ada(50),
+        label: "ret",
+      }),
+    ]);
+    expect(pooled.part).toBeUndefined();
+    expect(pooled.label).toBeUndefined();
+    expect(pooled).toMatchObject({ details: { required: ada(50) } });
+
+    // Collateral chosen by the builder: no part
+    const chosen = await expectBuildError(
+      new TxBuilder({
+        network,
+        costModels,
+        params,
+        evaluator: fakeEvaluator().evaluator,
+      }).build([scriptSpend(1)], {
+        payer: { changeAddress: wallet, utxos: [] },
+      }),
+      "INSUFFICIENT_COLLATERAL",
+    );
+    expect(chosen.part).toBeUndefined();
   });
 });
 
@@ -2319,6 +2611,574 @@ describe("TxBuilder: serialization", () => {
           new TxBuilder({ ...options, serializer: serializer as never }))(),
         "UNSUPPORTED_SERIALIZER",
       );
+  });
+
+  describe("a serializer that fails or answers with no transaction", () => {
+    const parts = [output({ address: recipient, value: { lovelace: ada(2) } })];
+    const options = {
+      payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] },
+    };
+    const withSerializer = (serializeTxPrototype: () => unknown) =>
+      new TxBuilder({
+        network,
+        params,
+        serializer: { serializeTxPrototype } as never,
+      });
+    const boom = new Error("boom");
+    const throwing = () => {
+      throw boom;
+    };
+    const unsupported = (error: unknown) => {
+      expect(TxError.is(error, "UNSUPPORTED_SERIALIZER")).toBe(true);
+      return error as TxBuildError<"UNSUPPORTED_SERIALIZER">;
+    };
+    const rejection = (promise: Promise<unknown>) =>
+      promise.then(
+        () => {
+          throw new Error("expected UNSUPPORTED_SERIALIZER");
+        },
+        (error: unknown) => error,
+      );
+
+    it("is UNSUPPORTED_SERIALIZER from build, with the serializer's error as cause", async () => {
+      const error = unsupported(
+        await rejection(withSerializer(throwing).build(parts, options)),
+      );
+      expect(error.cause).toBe(boom);
+      expect((error.cause as Error).message).toBe("boom");
+      expect(error.message).toContain("boom");
+    });
+
+    it.each([
+      ["text that is not hex", "zz"],
+      ["a value that is not text", 5],
+      ["hex that is not a transaction", "00"],
+    ])("is UNSUPPORTED_SERIALIZER from build for %s", async (_, answer) => {
+      const error = unsupported(
+        await rejection(withSerializer(() => answer).build(parts, options)),
+      );
+      expect(error.details).toBeUndefined();
+    });
+
+    describe("hex that is not a transaction, where the build decodes it first", () => {
+      const notATransaction = { serializeTxPrototype: () => "00" } as never;
+      const unlock = (exUnits?: { mem: number; steps: number }) =>
+        spend.plutus({
+          utxo: utxo(
+            lovelace(ada(10)),
+            { plutusData: "d87980" },
+            scriptAddress,
+          ),
+          script: plutusScript,
+          redeemer: { data: mConStr0([]), ...(exUnits && { exUnits }) },
+        });
+      const decodeError = (error: TxBuildError<"UNSUPPORTED_SERIALIZER">) => {
+        expect(error.message).toContain("not a transaction");
+        expect(error.cause).toBeInstanceOf(Error);
+        expect(TxError.is(error.cause)).toBe(false);
+      };
+
+      it("for a transaction with metadata", async () => {
+        decodeError(
+          unsupported(
+            await rejection(
+              new TxBuilder({
+                network,
+                params,
+                serializer: notATransaction,
+              }).build(
+                [...parts, metadata({ metadataLabel: 674n, value: "hi" })],
+                options,
+              ),
+            ),
+          ),
+        );
+      });
+
+      it("for a Plutus transaction with its units stated", async () => {
+        decodeError(
+          unsupported(
+            await rejection(
+              new TxBuilder({
+                network,
+                costModels,
+                params,
+                evaluator: null,
+                serializer: notATransaction,
+              }).build([unlock({ mem: 1000, steps: 2000 })], options),
+            ),
+          ),
+        );
+      });
+
+      it("for a Plutus transaction, before the evaluator gets it", async () => {
+        const { evaluator, calls } = fakeEvaluator();
+        decodeError(
+          unsupported(
+            await rejection(
+              new TxBuilder({
+                network,
+                costModels,
+                params,
+                evaluator,
+                serializer: notATransaction,
+              }).build([unlock()], options),
+            ),
+          ),
+        );
+        expect(calls).toHaveLength(0);
+      });
+    });
+
+    it("is UNSUPPORTED_SERIALIZER from finalize, never INVALID_OPTION tx", async () => {
+      const built = await new TxBuilder({ network, params }).build(
+        parts,
+        options,
+      );
+      const thrown = unsupported(
+        await rejection(
+          withSerializer(throwing).finalize(built.prototype, {
+            inputs: built.inputs,
+          }),
+        ),
+      );
+      expect(thrown.cause).toBe(boom);
+      const notATransaction = unsupported(
+        await rejection(
+          withSerializer(() => "a0").finalize(built.prototype, {
+            inputs: built.inputs,
+          }),
+        ),
+      );
+      expect(notATransaction.cause).toBeInstanceOf(Error);
+      expect(TxError.is(notATransaction.cause)).toBe(false);
+    });
+
+    it("leaves the built-in encoder and a working serializer as they were", async () => {
+      const cst = await new TxBuilder({ network, params }).build(
+        parts,
+        options,
+      );
+      const csl = await new TxBuilder({
+        network,
+        params,
+        serializer: new CSLSerializer(),
+      }).build(parts, options);
+      expect(csl.txHash).toBe(cst.txHash);
+      const final = await new TxBuilder({
+        network,
+        params,
+        serializer: new CSLSerializer(),
+      }).finalize(cst.prototype, { inputs: cst.inputs });
+      expect(final.txHash).toBe(cst.txHash);
+    });
+  });
+});
+
+describe("TxBuilder: a fee that does not settle", () => {
+  // A serializer that writes one byte more for every fee it has not seen before: each fee
+  // makes the transaction larger, so the next round always asks for more
+  const growing = () => {
+    const seen = new Map<string, number>();
+    return {
+      serializeTxPrototype: (prototype: TransactionPrototype) => {
+        const { fee } = prototype.body;
+        if (!seen.has(fee)) seen.set(fee, seen.size);
+        return (
+          transactionPrototypeToHex(prototype) + "00".repeat(seen.get(fee)!)
+        );
+      },
+    };
+  };
+  const parts = [output({ address: recipient, value: { lovelace: ada(2) } })];
+  const options = {
+    payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(100)))] },
+  };
+
+  it("is FEE_NOT_CONVERGED from build, without details", async () => {
+    const error = await expectBuildError(
+      new TxBuilder({
+        network,
+        params,
+        serializer: growing() as never,
+      }).build(parts, options),
+      "FEE_NOT_CONVERGED",
+    );
+    expect(TxError.is(error, "FEE_NOT_CONVERGED")).toBe(true);
+    expect(error.details).toBeUndefined();
+  });
+
+  it("is FEE_NOT_CONVERGED from finalize, without details", async () => {
+    const built = await new TxBuilder({ network, params }).build(
+      parts,
+      options,
+    );
+    const edited = structuredClone(built.prototype);
+    // Below the minimum, so that finalize raises it
+    edited.body.fee = "0";
+    const change = built.change[0]!;
+    const error = await expectBuildError(
+      new TxBuilder({
+        network,
+        params,
+        serializer: growing() as never,
+      }).finalize(edited, {
+        inputs: built.inputs,
+        changeAddress: change.output.address,
+      }),
+      "FEE_NOT_CONVERGED",
+    );
+    expect(error.details).toBeUndefined();
+  });
+});
+
+describe("TxBuilder: malformed values given or read", () => {
+  const pay = output({ address: recipient, value: { lovelace: ada(2) } });
+  const funds = () => utxo(lovelace(ada(10)));
+  /** A UTxO whose amount holds `entry` after its lovelace */
+  const withAsset = (entry: unknown): UTxO => {
+    const good = funds();
+    return {
+      ...good,
+      output: {
+        ...good.output,
+        amount: [...good.output.amount, entry] as UTxO["output"]["amount"],
+      },
+    };
+  };
+  const badAmounts: [string, unknown][] = [
+    ["a quantity that is not a number", { unit: "lovelace", quantity: "abc" }],
+    ["a quantity in hex", { unit: "lovelace", quantity: "0x10" }],
+    ["a negative quantity", { unit: "lovelace", quantity: "-5" }],
+    ["a quantity with an exponent", { unit: "lovelace", quantity: "1e3" }],
+    ["a quantity that is a number", { unit: "lovelace", quantity: 5 }],
+    ["a unit that is not hex", { unit: "zz", quantity: "1" }],
+    ["a null entry", null],
+  ];
+  const rejection = (promise: Promise<unknown>) =>
+    promise.then(
+      () => {
+        throw new Error("expected an error");
+      },
+      (error: unknown) => error as TxError,
+    );
+
+  describe("UTxO amounts", () => {
+    it.each(badAmounts)(
+      "refuses a snapshot UTxO with %s as INVALID_OPTION payer",
+      async (_, entry) => {
+        const error = await rejection(
+          new TxBuilder({ network, params }).build([pay], {
+            payer: { changeAddress: wallet, utxos: [withAsset(entry)] },
+          }),
+        );
+        expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
+        const invalid = error as TxBuildError<"INVALID_OPTION">;
+        expect(invalid.details.option).toBe("payer");
+        expect(invalid.cause).toBeInstanceOf(Error);
+      },
+    );
+
+    it.each(badAmounts)(
+      "refuses a wallet UTxO with %s as WALLET_FAILED",
+      async (_, entry) => {
+        const error = await rejection(
+          new TxBuilder({ network, params }).build([pay], {
+            payer: {
+              getChangeAddress: async () => wallet,
+              getUtxos: async () => [withAsset(entry)],
+            },
+          }),
+        );
+        expect(TxError.is(error, "WALLET_FAILED")).toBe(true);
+        expect((error as TxBuildError<"WALLET_FAILED">).details).toEqual({});
+        expect(error.cause).toBeInstanceOf(Error);
+      },
+    );
+
+    it("refuses a provider's UTxO of the payer as PROVIDER_FAILED", async () => {
+      const fetcher = {
+        ...fakeFetcher([]).fetcher,
+        fetchAddressUTxOs: async () => [
+          withAsset({ unit: "lovelace", quantity: "abc" }),
+        ],
+      } as IFetcher;
+      const error = await rejection(
+        new TxBuilder({ network, params, provider: fetcher }).build([pay], {
+          payer: wallet,
+        }),
+      );
+      expect(TxError.is(error, "PROVIDER_FAILED")).toBe(true);
+      expect((error as TxBuildError<"PROVIDER_FAILED">).details).toEqual({
+        operation: "fetchAddressUTxOs",
+      });
+    });
+
+    it("takes amounts in the forms a provider gives", async () => {
+      const token = mockTokenUnit(1);
+      const held = utxo([
+        { unit: "lovelace", quantity: String(ada(10)) },
+        { unit: token, quantity: "5" },
+        { unit: token.toUpperCase().slice(0, 56), quantity: "0" },
+      ]);
+      const built = await new TxBuilder({ network, params }).build([pay], {
+        payer: { changeAddress: wallet, utxos: [held] },
+      });
+      expect(built.inputs).toHaveLength(1);
+    });
+
+    it("takes the empty unit as lovelace, as the rest of the repository does", async () => {
+      const blank = (u: UTxO): UTxO => ({
+        ...u,
+        output: {
+          ...u.output,
+          amount: u.output.amount.map((a) =>
+            a.unit === "lovelace" ? { ...a, unit: "" } : a,
+          ),
+        },
+      });
+      const builder = new TxBuilder({ network, params });
+      const held = funds();
+      const plain = await builder.build([pay], {
+        payer: { changeAddress: wallet, utxos: [held] },
+      });
+      const fromSnapshot = await builder.build([pay], {
+        payer: { changeAddress: wallet, utxos: [blank(held)] },
+      });
+      expect(fromSnapshot.txHash).toBe(plain.txHash);
+
+      const fromPart = await builder.build(
+        [spend.pubKey({ utxo: blank(held) }), pay],
+        { payer: { changeAddress: wallet, utxos: [] } },
+      );
+      const plainPart = await builder.build(
+        [spend.pubKey({ utxo: held }), pay],
+        { payer: { changeAddress: wallet, utxos: [] } },
+      );
+      expect(fromPart.txHash).toBe(plainPart.txHash);
+    });
+  });
+
+  describe("provider answers", () => {
+    const ghost = { txHash: "ee".repeat(32), outputIndex: 0 };
+    const answering = (members: Partial<Record<keyof IFetcher, unknown>>) =>
+      ({ ...fakeFetcher([]).fetcher, ...members }) as IFetcher;
+
+    it.each([
+      ["an object", {}],
+      ["a list holding null", [null]],
+      [
+        "a UTxO with a bad quantity",
+        [{ ...withAsset({ unit: "lovelace", quantity: "x" }), input: ghost }],
+      ],
+    ])(
+      "refuses fetchUTxOs answering %s as UTXO_NOT_FOUND",
+      async (_, answer) => {
+        const error = await rejection(
+          new TxBuilder({
+            network,
+            params,
+            provider: answering({ fetchUTxOs: async () => answer }),
+          }).build([spend.pubKey({ utxo: ghost, label: "mine" }), pay], {
+            payer: { changeAddress: wallet, utxos: [funds()] },
+          }),
+        );
+        expect(TxError.is(error, "UTXO_NOT_FOUND")).toBe(true);
+        expect((error as TxBuildError<"UTXO_NOT_FOUND">).details).toEqual({
+          input: ghost,
+        });
+        expect(error).toMatchObject({ part: "spend", label: "mine" });
+        expect(error.cause).toBeInstanceOf(Error);
+      },
+    );
+
+    it("copies what fetchUTxOs answers, as a payer's UTxO", async () => {
+      const held: UTxO = {
+        input: { txHash: "EE".repeat(32), outputIndex: 0 },
+        output: {
+          address: Address.fromBech32(wallet).toBytes(),
+          amount: lovelace(ada(5)),
+        },
+      };
+      const built = await new TxBuilder({
+        network,
+        params,
+        provider: answering({ fetchUTxOs: async () => [held] }),
+      }).build([spend.pubKey({ utxo: ghost }), pay], {
+        payer: { changeAddress: wallet, utxos: [funds()] },
+      });
+      expect(built.inputs).toContainEqual({
+        input: ghost,
+        output: { address: wallet, amount: lovelace(ada(5)) },
+      });
+    });
+
+    it.each([
+      ["nothing", undefined],
+      ["rewards that are not a number", { rewards: "abc" }],
+      ["negative rewards", { rewards: "-1" }],
+    ])(
+      "refuses fetchAccountInfo answering %s as PROVIDER_FAILED",
+      async (_, answer) => {
+        const stake = keyHashToRewardAddress(keyHashHex(5), 0);
+        const error = await rejection(
+          new TxBuilder({
+            network,
+            params,
+            provider: answering({ fetchAccountInfo: async () => answer }),
+          }).build(
+            [withdrawal.pubKey({ rewardAddress: stake, amount: "all" }), pay],
+            { payer: { changeAddress: wallet, utxos: [funds()] } },
+          ),
+        );
+        expect(TxError.is(error, "PROVIDER_FAILED")).toBe(true);
+        expect((error as TxBuildError<"PROVIDER_FAILED">).details).toEqual({
+          operation: "fetchAccountInfo",
+        });
+        expect(error.cause).toBeInstanceOf(Error);
+      },
+    );
+
+    it.each([
+      ["a field that is not a number", { ...params, minFeeA: "x" }],
+      ["a field missing", { ...params, minFeeB: undefined }],
+      ["a price that is not a number", { ...params, priceMem: "abc" }],
+    ])(
+      "refuses protocol parameters with %s as MISSING_PARAMETER, from build and chain",
+      async (_, answer) => {
+        const builder = new TxBuilder({
+          network,
+          provider: answering({ fetchProtocolParameters: async () => answer }),
+        });
+        for (const call of [
+          () =>
+            builder.build([pay], {
+              payer: { changeAddress: wallet, utxos: [funds()] },
+            }),
+          () => builder.chain(),
+        ]) {
+          const error = await rejection(call());
+          expect(TxError.is(error, "MISSING_PARAMETER")).toBe(true);
+          expect((error as TxBuildError<"MISSING_PARAMETER">).details).toEqual({
+            parameter: "params",
+          });
+          expect(error.cause).toBeInstanceOf(Error);
+        }
+      },
+    );
+  });
+
+  describe("the params option", () => {
+    it.each([
+      ["a price that is not a number", { ...params, priceMem: "abc" }],
+      ["minFeeA missing", { ...params, minFeeA: undefined }],
+      ["a fraction where a whole number stands", { ...params, maxTxSize: 1.5 }],
+      ["a negative number", { ...params, coinsPerUtxoSize: -1 }],
+      ["a value that is not an object", 5],
+    ])("refuses %s as INVALID_OPTION at construction", (_, given) => {
+      let error: unknown;
+      try {
+        new TxBuilder({ network, params: given as unknown as Protocol });
+      } catch (thrown) {
+        error = thrown;
+      }
+      expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
+      const invalid = error as TxBuildError<"INVALID_OPTION">;
+      expect(invalid.details).toEqual({
+        option: "params",
+        value: given,
+        allowed: "a whole Protocol",
+      });
+      expect(invalid.cause).toBeInstanceOf(Error);
+    });
+
+    it("takes whole numbers as digits, and leaves the deposits optional", async () => {
+      const given = {
+        ...params,
+        minFeeA: "44",
+        maxTxExMem: "14000000",
+        priceStep: "0.0000721",
+        keyDeposit: undefined,
+        poolDeposit: undefined,
+      } as unknown as Protocol;
+      const built = await new TxBuilder({ network, params: given }).build(
+        [pay],
+        { payer: { changeAddress: wallet, utxos: [funds()] } },
+      );
+      const plain = await new TxBuilder({ network, params }).build([pay], {
+        payer: { changeAddress: wallet, utxos: [funds()] },
+      });
+      expect(built.fee).toBe(plain.fee);
+    });
+  });
+
+  describe("arguments of the pure functions", () => {
+    const invalid = (call: () => unknown, option: string) => {
+      let error: unknown;
+      try {
+        call();
+      } catch (thrown) {
+        error = thrown;
+      }
+      expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
+      expect((error as TxBuildError<"INVALID_OPTION">).details.option).toBe(
+        option,
+      );
+    };
+
+    it("refuses arguments of minFee and minCoin of another shape", async () => {
+      const built = await new TxBuilder({ network, params }).build([pay], {
+        payer: { changeAddress: wallet, utxos: [funds()] },
+      });
+      const context = { params, vkeyWitnesses: 1 };
+      invalid(() => minFee(null as never, context), "prototype");
+      invalid(() => minFee({} as never, context), "prototype");
+      invalid(() => minFee(built.prototype, null as never), "context");
+      invalid(
+        () => minFee(built.prototype, { ...context, params: {} as never }),
+        "params",
+      );
+      invalid(
+        () => minFee(built.prototype, { ...context, vkeyWitnesses: -1 }),
+        "vkeyWitnesses",
+      );
+      invalid(
+        () => minFee(built.prototype, { ...context, inputs: 5 as never }),
+        "inputs",
+      );
+      invalid(() => minCoin(null as never, params), "output");
+      invalid(
+        () => minCoin(spend.pubKey({ utxo: funds() }) as never, params),
+        "output",
+      );
+      invalid(() => minCoin(pay, {} as never), "params");
+      invalid(() => minCoin(pay, { coinsPerUtxoSize: "x" } as never), "params");
+      expect(minFee(built.prototype, context)).toBeGreaterThan(0n);
+      expect(minCoin(pay, params)).toBeGreaterThan(0n);
+    });
+
+    it("refuses arguments of outputOf and utxosAfter of another shape", async () => {
+      const built = await new TxBuilder({ network, params }).build(
+        [
+          output({
+            address: recipient,
+            value: { lovelace: ada(2) },
+            label: "pay",
+          }),
+        ],
+        { payer: { changeAddress: wallet, utxos: [funds()] } },
+      );
+      invalid(() => outputOf(null as never, "pay"), "built");
+      invalid(() => outputOf({} as never, "pay"), "built");
+      invalid(() => outputOf(built, 5 as never), "label");
+      invalid(() => utxosAfter(null as never, built), "utxos");
+      invalid(() => utxosAfter([null] as never, built), "utxos");
+      invalid(() => utxosAfter([], 5 as never), "built");
+      invalid(() => utxosAfter([], [built, null] as never), "built");
+      invalid(() => utxosAfter([], built, 5 as never), "owns");
+      expect(outputOf(built, "pay").label).toBe("pay");
+      expect(utxosAfter([], built)).toHaveLength(1);
+    });
   });
 });
 

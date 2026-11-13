@@ -84,6 +84,7 @@ import {
 import { TxBuildError } from "./errors";
 import {
   bodyRefScriptSize,
+  checkProtocol,
   coversMinCoin,
   feeForSize,
   outputMinCoin,
@@ -103,7 +104,12 @@ import {
   scriptAddressOn,
   utxoEntry,
 } from "./network";
-import { freeze, outRefString } from "./parts/normalize";
+import {
+  errorText,
+  freeze,
+  isWholeNumber,
+  outRefString,
+} from "./parts/normalize";
 import {
   copyUtxo,
   givenPayerEntries,
@@ -332,6 +338,37 @@ const isPart = (value: unknown): value is TxPart =>
   !Array.isArray(value) &&
   PART_KINDS.has((value as { kind?: unknown }).kind as string);
 
+/**
+ * The members a part of each kind always has, as the part builders make it. A part put
+ * together by hand is held as it is, but one without them cannot be read
+ */
+const PART_MEMBERS: Readonly<Record<TxPart["kind"], readonly string[]>> = {
+  spend: ["input", "witness"],
+  referenceInput: ["input"],
+  collateral: ["input"],
+  collateralReturn: ["address"],
+  output: ["output"],
+  mint: ["policyId", "assets", "witness"],
+  withdrawal: ["witness"],
+  guard: ["credential", "witness"],
+  validity: [],
+  metadata: ["metadataLabel", "value"],
+  auxiliaryScript: ["script"],
+  donation: ["amount"],
+  treasuryValue: ["amount"],
+  networkId: ["networkId"],
+  certificate: ["certificate", "witness"],
+  vote: ["voter", "votes", "witness"],
+  proposal: ["proposal", "witness"],
+};
+
+/** The first member a part lacks of those its kind always has */
+const missingMember = (part: TxPart): string | undefined =>
+  PART_MEMBERS[part.kind].find((member) => {
+    const value = (part as unknown as Record<string, unknown>)[member];
+    return value === undefined || value === null;
+  });
+
 const PARTS_ALLOWED =
   "a part, or a list of parts, nested lists, false, null and undefined";
 
@@ -340,14 +377,28 @@ const invalidParts = (entry: unknown, reason: string) =>
     details: { option: "parts", value: entry, allowed: PARTS_ALLOWED },
   });
 
+/** Refuses a part without a member its kind always has */
+const checkMembers = (part: TxPart) => {
+  const member = missingMember(part);
+  if (member !== undefined)
+    throw invalidParts(
+      part,
+      `a part of kind ${part.kind} without ${member}; give parts made by the part builders`,
+    );
+};
+
 /**
  * The parts of a `PartsInput`, in order: nested lists flattened depth first, `false`, `null` and
  * `undefined` dropped
- * @throws TxBuildError INVALID_OPTION for an entry that is none of these
+ * @throws TxBuildError INVALID_OPTION for an entry that is none of these, and for a part that
+ *   lacks a member its kind always has
  */
 export const flattenParts = (input: unknown): TxPart[] => {
   if (!Array.isArray(input)) {
-    if (isPart(input)) return [input];
+    if (isPart(input)) {
+      checkMembers(input);
+      return [input];
+    }
     throw invalidParts(
       input,
       `expected ${PARTS_ALLOWED}; got ${describe(input)}`,
@@ -369,6 +420,7 @@ export const flattenParts = (input: unknown): TxPart[] => {
         entry,
         `an entry is neither a part nor a list: ${describe(entry)}; give parts made by the part builders`,
       );
+    checkMembers(entry);
     parts.push(entry);
   };
   visit(input);
@@ -401,7 +453,16 @@ const invalidOption = (
     },
   );
 
+/** A serializer that failed on a prototype, or answered with something that is no transaction */
+const unsupportedSerializer = (reason: string, cause?: unknown) =>
+  new TxBuildError(
+    "UNSUPPORTED_SERIALIZER",
+    `the serializer cannot serialize a TransactionPrototype: ${reason}`,
+    cause === undefined ? undefined : { cause },
+  );
+
 const SEND_ALL_TO_ALLOWED = "a payment address, in bech32 or hex";
+const PARAMS_ALLOWED = "a whole Protocol";
 const AFTER_ALLOWED =
   "a transaction built by TxBuilder.build (txHash, inputs, outputs, change), an intent with an attempt, or a list of them";
 const KNOWN_UTXOS_ALLOWED =
@@ -781,6 +842,29 @@ const partFailures = (
     ];
   });
 
+/**
+ * What is wrong with an evaluator's answer, or undefined for a list of entries with an index of
+ * 0 or more and a budget of whole `mem` and `steps`. Tags are not checked: an unknown tag matches
+ * no redeemer, which is reported as such.
+ */
+const evaluationAnswerProblem = (answer: unknown): string | undefined => {
+  if (!Array.isArray(answer))
+    return `something that is not a list: ${answer === null ? "null" : typeof answer}`;
+  for (const [i, entry] of (answer as unknown[]).entries()) {
+    if (typeof entry !== "object" || entry === null)
+      return `an entry ${i} that is not an object`;
+    const { index, budget } = entry as { index?: unknown; budget?: unknown };
+    if (typeof index !== "number" || !Number.isSafeInteger(index) || index < 0)
+      return `an entry ${i} with an invalid index ${String(index)}`;
+    if (typeof budget !== "object" || budget === null)
+      return `an entry ${i} without a budget`;
+    const { mem, steps } = budget as { mem?: unknown; steps?: unknown };
+    if (!isWholeNumber(mem) || !isWholeNumber(steps))
+      return `an entry ${i} with an invalid budget: mem ${String(mem)}, steps ${String(steps)}`;
+  }
+  return undefined;
+};
+
 const toBudget = (units: ExUnitsPrototype): Budget => ({
   mem: Number(units.mem),
   steps: Number(units.steps),
@@ -848,13 +932,6 @@ const builtRedeemers = (
     ];
   });
 };
-
-const errorText = (error: unknown) =>
-  error instanceof Error
-    ? error.message
-    : typeof error === "string"
-      ? error
-      : JSON.stringify(error);
 
 const runsPlutus = (part: TxPart) =>
   "witness" in part && part.witness.type === "plutus";
@@ -934,6 +1011,8 @@ export class TxBuilder {
    * @throws TxBuildError INVALID_OPTION for a missing or unacceptable `network`;
    *   UNSUPPORTED_SERIALIZER for a serializer without `serializeTxPrototype`;
    *   MISSING_PARAMETER with neither a provider nor `params`;
+   *   INVALID_OPTION for `params` that lack a field a build reads, or hold one that is not a
+   *   number (`keyDeposit` and `poolDeposit` may be missing);
    *   NETWORK_MISMATCH when the provider states another network;
    *   INVALID_OPTION for an `intentDefaults` that is not an object, or names the first of its
    *   members out of range: `ttlMs` or `pollMs` not above 0, `expiryMarginMs` below 0,
@@ -986,6 +1065,23 @@ export class TxBuilder {
         "the builder needs protocol parameters: give it a provider to read them from, or params",
         { details: { parameter: "params" } },
       );
+    if (options.params)
+      try {
+        checkProtocol(options.params);
+      } catch (error) {
+        throw new TxBuildError(
+          "INVALID_OPTION",
+          `invalid params: ${errorText(error)}`,
+          {
+            details: {
+              option: "params",
+              value: options.params,
+              allowed: PARAMS_ALLOWED,
+            },
+            cause: error,
+          },
+        );
+      }
     if (options.provider) {
       checkProviderNetwork(this.network, options.provider);
       this.provider = options.provider;
@@ -1125,11 +1221,38 @@ export class TxBuilder {
   /**
    * Serializes a transaction prototype as this builder does: with its serializer, or the
    * `@meshsdk/core-cst` prototype encoder
+   * @throws TxBuildError UNSUPPORTED_SERIALIZER when the serializer throws, with its error as
+   *   `cause`, or answers with something that is not CBOR in hex
    */
   serialize(prototype: TransactionPrototype): string {
-    return this.serializer
-      ? this.serializer.serializeTxPrototype!(prototype)
-      : transactionPrototypeToHex(prototype);
+    if (!this.serializer) return transactionPrototypeToHex(prototype);
+    let tx: unknown;
+    try {
+      tx = this.serializer.serializeTxPrototype!(prototype);
+    } catch (error) {
+      throw unsupportedSerializer(errorText(error), error);
+    }
+    if (typeof tx !== "string" || !/^(?:[0-9a-fA-F]{2})+$/.test(tx))
+      throw unsupportedSerializer(
+        `it answered with ${typeof tx === "string" ? `${JSON.stringify(tx.slice(0, 64))}, which is not CBOR in hex` : `a ${tx === null ? "null" : typeof tx}, not CBOR in hex`}`,
+      );
+    return tx;
+  }
+
+  /**
+   * The hash of a transaction this builder serialized; for one its serializer made that does not
+   * decode, UNSUPPORTED_SERIALIZER
+   */
+  private txHashOf(tx: string): string {
+    try {
+      return Transaction.fromCbor(TxCBOR(tx)).getId().toString();
+    } catch (error) {
+      if (!this.serializer) throw error;
+      throw unsupportedSerializer(
+        `it answered with CBOR that is not a transaction: ${errorText(error)}`,
+        error,
+      );
+    }
   }
 
   /**
@@ -1161,7 +1284,10 @@ export class TxBuilder {
    *   available }` when the raised fee is no longer covered by the collateral of a transaction
    *   that runs Plutus scripts; MISSING_PARAMETER when such a transaction's cost models are not
    *   known; INVALID_OPTION for a `changeAddress` that is no address, and for `inputs` that is
-   *   not a list of UTxOs; FEE_NOT_CONVERGED when the fee does not settle
+   *   not a list of UTxOs; FEE_NOT_CONVERGED when the fee does not settle; UNSUPPORTED_SERIALIZER
+   *   when the builder's serializer throws, or answers with something that is not a transaction
+   *   in CBOR hex; MISSING_PARAMETER when the provider's protocol parameters lack a field a
+   *   build reads, or hold one that is not a number
    */
   async finalize(
     prototype: TransactionPrototype,
@@ -1250,7 +1376,18 @@ export class TxBuilder {
 
     // Who signs, and the scripts the body calls for, as for a transaction built elsewhere
     const unsigned = this.serialize(draft);
-    const { collected, scripts } = bodySigners(readTransaction(unsigned), [
+    let read: ReturnType<typeof readTransaction>;
+    try {
+      read = readTransaction(unsigned);
+    } catch (error) {
+      if (!this.serializer) throw error;
+      const cause = (error as { cause?: unknown }).cause ?? error;
+      throw unsupportedSerializer(
+        `it answered with CBOR that is not a transaction: ${errorText(cause)}`,
+        cause,
+      );
+    }
+    const { collected, scripts } = bodySigners(read, [
       ...spent,
       ...collateral,
       ...references,
@@ -1352,7 +1489,7 @@ export class TxBuilder {
     }
 
     const tx = this.serialize(final);
-    const txHash = Transaction.fromCbor(TxCBOR(tx)).getId().toString();
+    const txHash = this.txHashOf(tx);
     const outputs = bodyOutputs(txHash, final.body).map(
       (utxo, i): BuiltOutput =>
         changeOutputs.has(i) ? { ...utxo, change: true as const } : utxo,
@@ -1440,7 +1577,10 @@ export class TxBuilder {
    * Redeemer indices follow from where each item ends up in the ledger's order, assigned once
    * by `assembleTxPrototype`; evaluation results are matched back to their parts through them.
    *
-   * @throws TxBuildError with a `code`; TxPartError when what is looked up does not fit a part
+   * @throws TxBuildError with a `code`, among them UNSUPPORTED_SERIALIZER when the builder's
+   *   serializer throws, or answers with something that is not a transaction in CBOR hex, and
+   *   MISSING_PARAMETER when the provider's protocol parameters lack a field a build reads, or
+   *   hold one that is not a number; TxPartError when what is looked up does not fit a part
    *   (e.g. a reference output holding a different script), and INVALID_DATA for a validity
    *   part whose time bound is before the network's slot clock starts, or whose interval holds
    *   no slot once converted
@@ -1743,6 +1883,8 @@ export class TxBuilder {
         return this.finish(balanced, params, costModels, warnings, fee);
 
       const tx = this.serialize(balanced.assembled.prototype);
+      // A serializer's answer that is no transaction is its own fault, not the scripts'
+      if (this.serializer) this.txHashOf(tx);
       throwIfAborted(signal);
       const results = await abortable(
         this.evaluate(tx, balanced, known, handed, costModels),
@@ -1951,6 +2093,15 @@ export class TxBuilder {
         "the provider gave no protocol parameters; give the builder params",
         { details: { parameter: "params" } },
       );
+    try {
+      checkProtocol(params);
+    } catch (error) {
+      throw new TxBuildError(
+        "MISSING_PARAMETER",
+        `the provider gave protocol parameters that cannot be used: ${errorText(error)}; give the builder params`,
+        { details: { parameter: "params" }, cause: error },
+      );
+    }
     return params;
   }
 
@@ -2025,11 +2176,22 @@ export class TxBuilder {
         },
       );
     }
+    // The answer is checked before it is read: an evaluator from elsewhere may answer anything
+    const problem = evaluationAnswerProblem(actions);
+    if (problem !== undefined)
+      throw new TxBuildError(
+        "EVALUATION_FAILED",
+        `script evaluation failed: the evaluator returned ${problem}`,
+        {
+          details: { tx, failures: [] },
+          cause: new TypeError(`the evaluator returned ${problem}`),
+        },
+      );
     const results = new Map<string, ExUnitsPrototype>();
     for (const action of actions) {
       results.set(`${EVALUATOR_TAGS[action.tag]}:${action.index}`, {
-        mem: String(action.budget.mem),
-        steps: String(action.budget.steps),
+        mem: BigInt(action.budget.mem).toString(),
+        steps: BigInt(action.budget.steps).toString(),
       });
     }
     return results;
@@ -2091,6 +2253,8 @@ export class TxBuilder {
     const prototype = assembled.prototype;
     let tx = this.serialize(prototype);
     if (this.serializer) {
+      // Decoded first, so that an answer that is no transaction is UNSUPPORTED_SERIALIZER
+      this.txHashOf(tx);
       // The hashes are taken from the prototype encoder's bytes; another serializer may lay out
       // the witness set or auxiliary data differently, so take them again from its own bytes
       const scriptDataHash = prototype.body.script_data_hash
@@ -2111,7 +2275,7 @@ export class TxBuilder {
     }
 
     const { body } = prototype;
-    const txHash = Transaction.fromCbor(TxCBOR(tx)).getId().toString();
+    const txHash = this.txHashOf(tx);
     const inputs = new Map(
       balanced.parts.flatMap((p) =>
         p.kind === "spend" ? [[utxoKey(p.utxo!), p.utxo!] as const] : [],

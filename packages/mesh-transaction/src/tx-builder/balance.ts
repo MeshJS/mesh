@@ -819,6 +819,8 @@ export const balance = (
       collateralFor(fee, {
         params,
         given: givenCollateral.map((p) => p.utxo!),
+        givenParts: givenCollateral,
+        ...(givenReturn && { returnPart: givenReturn }),
         givenTotal:
           givenReturn?.totalCollateral === undefined
             ? undefined
@@ -995,6 +997,10 @@ const collateralFor = (
   ctx: {
     params: Protocol;
     given: UTxO[];
+    /** The collateral parts `given` comes from, for the part an error names */
+    givenParts?: readonly TxPart[];
+    /** The collateral return part, which states `givenTotal` when it is given */
+    returnPart?: TxPart;
     givenTotal?: bigint;
     address: string;
     pool: readonly UTxO[];
@@ -1011,8 +1017,15 @@ const collateralFor = (
   const fail = (
     message: string,
     details: { required: bigint; available: bigint },
+    part?: TxPart,
   ): never => {
-    throw new TxBuildError("INSUFFICIENT_COLLATERAL", message, { details });
+    throw new TxBuildError("INSUFFICIENT_COLLATERAL", message, {
+      ...(part && {
+        part: part.kind,
+        ...(part.label !== undefined && { label: part.label }),
+      }),
+      details,
+    });
   };
   const lovelaceIn = (inputs: readonly UTxO[]) =>
     inputs.reduce((total, u) => total + lovelaceOf(u), 0n);
@@ -1036,16 +1049,22 @@ const collateralFor = (
     fail(
       `the total collateral ${required} is below the ${minimum} lovelace the fee calls for`,
       { required: minimum, available: required },
+      ctx.returnPart,
     );
 
-  if (ctx.given.length > 0)
+  if (ctx.given.length > 0) {
+    // The inputs are at fault: the collateral part, when one part gives them all
+    const atFault =
+      ctx.givenParts?.length === 1 ? ctx.givenParts[0] : undefined;
     return (
       plan(ctx.given) ??
       fail(
         `the collateral inputs cannot cover ${required} lovelace and return the rest`,
         { required, available: lovelaceIn(ctx.given) },
+        atFault,
       )
     );
+  }
 
   const adaOnly = ctx.pool
     .filter((u) => u.output.amount.length === 1 && !u.output.scriptRef)

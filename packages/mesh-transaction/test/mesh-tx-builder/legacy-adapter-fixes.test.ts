@@ -157,6 +157,29 @@ describe.each(["scalus", "cquisitor"] as const)(
       await accept(context, txHex);
     });
 
+    it("takes UTxOs whose lovelace unit is the empty unit, as before", async () => {
+      const context = await setup(validator);
+      const { emulator, address, funds } = context;
+      const blank: UTxO = {
+        ...funds,
+        output: {
+          ...funds.output,
+          amount: funds.output.amount.map((a) =>
+            a.unit === "lovelace" ? { ...a, unit: "" } : a,
+          ),
+        },
+      };
+      const build = (from: UTxO) =>
+        new MeshTxBuilder({ fetcher: emulator })
+          .txOut(address, [{ unit: "lovelace", quantity: "2000000" }])
+          .changeAddress(address)
+          .selectUtxosFrom([from])
+          .complete();
+      const txHex = await build(blank);
+      expect(txHex).toBe(await build(funds));
+      await accept(context, txHex);
+    });
+
     it("points a MINT redeemer at its policy among all policies, native ones included", async () => {
       const context = await setup(validator);
       const { emulator, address, funds } = context;

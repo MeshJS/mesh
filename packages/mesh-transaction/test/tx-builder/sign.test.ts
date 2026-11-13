@@ -935,6 +935,39 @@ describe("requiredSigners", () => {
     }
   });
 
+  it("throws INVALID_OPTION for an entry of spent that is not a UTxO", async () => {
+    const built = await payment();
+    const thrown = (spent: unknown[]) => {
+      let error: unknown;
+      try {
+        requiredSigners(built.tx, spent as never);
+      } catch (e) {
+        error = e;
+      }
+      expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
+      return error as TxBuildError<"INVALID_OPTION">;
+    };
+
+    const nullEntry = thrown([null, ...built.inputs]);
+    expect(nullEntry.details).toEqual({
+      option: "spent",
+      value: null,
+      allowed: "a list of UTxOs",
+    });
+    expect(nullEntry.cause).toBeInstanceOf(Error);
+
+    // An address that cannot be read would drop the key that signs for the input
+    for (const address of ["nope", 5]) {
+      const [first, ...rest] = built.inputs;
+      const mangled = { ...first!, output: { ...first!.output, address } };
+      const error = thrown([mangled, ...rest]);
+      expect(error.details.value).toBe(mangled);
+      expect(error.cause).toBeInstanceOf(Error);
+    }
+
+    expect(requiredSigners(built.tx, built.inputs)).toEqual(built.signers);
+  });
+
   describe("the UTxOs given", () => {
     const native: NativeScript = {
       type: "any",
@@ -1306,6 +1339,35 @@ describe("signWitnesses", () => {
           (error as unknown as Record<string, unknown>).status,
         ).toBeUndefined();
         expect(stub.calls).toHaveLength(1);
+      }
+    });
+
+    it("reads a CIP-30 error's info into the message", async () => {
+      for (const [thrown, code, text] of [
+        [
+          { code: 2, info: "user declined" },
+          "SIGN_DECLINED",
+          "declined to sign: user declined (code 2)",
+        ],
+        [
+          { code: -4, info: "account changed" },
+          "SIGNER_FAILED",
+          "the signer failed: account changed (code -4)",
+        ],
+        [
+          { code: -2, message: "internal" },
+          "SIGNER_FAILED",
+          "the signer failed: internal (code -2)",
+        ],
+        [{ reason: "odd" }, "SIGNER_FAILED", '{"reason":"odd"}'],
+      ] as const) {
+        const stub = recording(["signTx"], () => Promise.reject(thrown), {});
+        const error = await intentError(
+          () => signWitnesses(stub.signer, tx),
+          code,
+        );
+        expect(error.message).toContain(text);
+        expect(error.message).not.toContain("[object Object]");
       }
     });
   });

@@ -6,6 +6,7 @@ import {
   isHash28,
   isHex,
   labelOf,
+  partContext,
   PartContext,
   toNativeScriptSource,
   toPlutusScriptSource,
@@ -29,6 +30,8 @@ const toMintAssets = (
   ctx: PartContext,
   assets: MintAssetsInput,
 ): AssetsPrototype => {
+  if (typeof assets !== "object" || assets === null)
+    fail(ctx, "INVALID_VALUE", `invalid assets ${String(assets)}`);
   const entries = Object.entries(assets);
   if (entries.length === 0) fail(ctx, "INVALID_VALUE", "no assets to mint");
   const result: AssetsPrototype = {};
@@ -96,7 +99,7 @@ export const mint = {
     policyId?: string;
     label?: string;
   }): MintPart => {
-    const ctx: PartContext = { part: "mint", label: params.label };
+    const ctx = partContext("mint", params);
     const { policyId, script } = toPolicyId(
       ctx,
       toNativeScriptSource(ctx, params.script),
@@ -128,7 +131,7 @@ export const mint = {
     policyId?: string;
     label?: string;
   }): MintPart => {
-    const ctx: PartContext = { part: "mint", label: params.label };
+    const ctx = partContext("mint", params);
     const { policyId, script } = toPolicyId(
       ctx,
       toPlutusScriptSource(ctx, params.script),

@@ -13,6 +13,8 @@ import {
 } from "@meshsdk/core-cst";
 
 import type { OutputPart } from "./parts/types";
+import { invalidArgument, TxBuildError } from "./errors";
+import { errorText, isObject, isWholeNumber } from "./parts/normalize";
 import { placeholderWitnesses } from "./witnesses";
 
 /** A non-negative rational number */
@@ -33,6 +35,108 @@ export const toRatio = (value: number | string): Ratio => {
   if (e > 0) n *= 10n ** BigInt(e);
   else d *= 10n ** BigInt(-e);
   return { n, d };
+};
+
+/** The protocol parameters a build reads as whole numbers */
+const INTEGER_PARAMETERS = [
+  "minFeeA",
+  "minFeeB",
+  "maxTxSize",
+  "maxValSize",
+  "maxTxExMem",
+  "maxTxExSteps",
+  "collateralPercent",
+  "maxCollateralInputs",
+  "coinsPerUtxoSize",
+] as const satisfies readonly (keyof Protocol)[];
+
+/** The protocol parameters a build reads as decimal numbers */
+const RATIO_PARAMETERS = [
+  "priceMem",
+  "priceStep",
+  "minFeeRefScriptCostPerByte",
+] as const satisfies readonly (keyof Protocol)[];
+
+/**
+ * The deposits a build reads only for a part that owes one: when missing, that part's build
+ * says so (MISSING_PARAMETER)
+ */
+const DEPOSIT_PARAMETERS = [
+  "keyDeposit",
+  "poolDeposit",
+] as const satisfies readonly (keyof Protocol)[];
+
+/** The protocol parameters a build reads, each once */
+const BUILD_PARAMETERS: readonly (keyof Protocol)[] = [
+  ...INTEGER_PARAMETERS,
+  ...RATIO_PARAMETERS,
+  ...DEPOSIT_PARAMETERS,
+];
+
+/**
+ * Checks protocol parameters before they are read: an object whose named fields (by default
+ * every one a build reads) are whole numbers of 0 or more, as numbers or digits, or decimals for
+ * the prices. A deposit may be missing. Throws an Error naming the first field that is not.
+ */
+export const checkProtocol = (
+  params: unknown,
+  fields: readonly (keyof Protocol)[] = BUILD_PARAMETERS,
+): void => {
+  if (typeof params !== "object" || params === null || Array.isArray(params))
+    throw new Error(
+      `the protocol parameters are not an object: ${params === null ? "null" : Array.isArray(params) ? "a list" : typeof params}`,
+    );
+  const record = params as Record<string, unknown>;
+  for (const field of fields) {
+    const value = record[field];
+    const deposit = (DEPOSIT_PARAMETERS as readonly string[]).includes(field);
+    if (deposit && (value === undefined || value === null)) continue;
+    if ((RATIO_PARAMETERS as readonly string[]).includes(field)) {
+      if (typeof value === "number" || typeof value === "string")
+        try {
+          toRatio(value);
+          continue;
+        } catch {
+          // Reported below, with the field's name
+        }
+    } else if (isWholeNumber(value)) continue;
+    throw new Error(
+      `invalid protocol parameter ${field}: ${value === undefined ? "missing" : String(value)}`,
+    );
+  }
+};
+
+/** Whether a value is an object that is not a list */
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  isObject(value) && !Array.isArray(value);
+
+/** The protocol parameters `minFee` reads */
+const MIN_FEE_PARAMETERS: readonly (keyof Protocol)[] = [
+  "minFeeA",
+  "minFeeB",
+  "minFeeRefScriptCostPerByte",
+  "priceMem",
+  "priceStep",
+];
+
+/** `checkProtocol` for the parameters of a public function: INVALID_OPTION `params` */
+const checkParams = (params: unknown, fields: readonly (keyof Protocol)[]) => {
+  try {
+    checkProtocol(params, fields);
+  } catch (error) {
+    throw new TxBuildError(
+      "INVALID_OPTION",
+      `invalid params: ${errorText(error)}`,
+      {
+        details: {
+          option: "params",
+          value: params,
+          allowed: `protocol parameters with ${fields.join(", ")}`,
+        },
+        cause: error,
+      },
+    );
+  }
 };
 
 const ceilDiv = (n: bigint, d: bigint) => (n + d - 1n) / d;
@@ -181,12 +285,18 @@ export const prototypeExUnits = (
  * that the body spends or reads; without `inputs` there are none. The execution units are those
  * the prototype's redeemers state. Pure and synchronous; the prototype is left as given.
  *
+ * Only the shape of its arguments is checked: a prototype that the encoder cannot write fails
+ * with the encoder's error.
+ *
  * `minFeeA * size + minFeeB + referenceScriptFee + ceil(mem * priceMem + steps * priceStep)`,
  * in exact arithmetic, the reference scripts priced in 25 KiB tiers each 1.2 times the last.
  * @param context.params The protocol parameters
  * @param context.vkeyWitnesses How many key witnesses the signed transaction carries
  * @param context.inputs UTxOs of the body's inputs and reference inputs, for their reference
  *   scripts
+ * @throws TxBuildError INVALID_OPTION for a prototype without `body` and `witness_set`, a
+ *   `vkeyWitnesses` that is not a whole number of 0 or more, `inputs` that is not a list, and
+ *   `params` lacking a field the fee is worked out from, or holding one that is not a number
  */
 export const minFee = (
   prototype: TransactionPrototype,
@@ -196,7 +306,32 @@ export const minFee = (
     inputs?: readonly UTxO[];
   },
 ): bigint => {
+  if (
+    !isRecord(prototype) ||
+    !isRecord(prototype.body) ||
+    !isRecord(prototype.witness_set)
+  )
+    throw invalidArgument(
+      "prototype",
+      prototype,
+      "a TransactionPrototype { body, witness_set }",
+    );
+  if (!isRecord(context))
+    throw invalidArgument(
+      "context",
+      context,
+      "an object { params, vkeyWitnesses, inputs }",
+    );
   const { params, vkeyWitnesses, inputs = [] } = context;
+  checkParams(params, MIN_FEE_PARAMETERS);
+  if (!Number.isSafeInteger(vkeyWitnesses) || vkeyWitnesses < 0)
+    throw invalidArgument(
+      "vkeyWitnesses",
+      vkeyWitnesses,
+      "a whole number of 0 or more",
+    );
+  if (!Array.isArray(inputs))
+    throw invalidArgument("inputs", inputs, "a list of UTxOs");
   const { vkeyWitnesses: vkeys } = placeholderWitnesses(
     { keyHashes: new Set(), byronAddresses: new Set() },
     vkeyWitnesses,
@@ -219,15 +354,26 @@ export const minFee = (
  * the lovelace itself, and the output's datum and reference script. The part's own lovelace is
  * not counted, so a part with lovelace and the same part without give the same number: the one
  * a build puts into an output given without lovelace. Pure and synchronous; no I/O.
+ * @throws TxBuildError INVALID_OPTION for an `output` that is not an output part, and `params`
+ *   without a whole `coinsPerUtxoSize`
  */
 export const minCoin = (
   output: OutputPart,
   params: Pick<Protocol, "coinsPerUtxoSize">,
-): bigint =>
-  outputMinCoin(
+): bigint => {
+  if (
+    !isRecord(output) ||
+    output.kind !== "output" ||
+    !isRecord(output.output) ||
+    !isRecord(output.output.amount)
+  )
+    throw invalidArgument("output", output, "an output part, made by output()");
+  checkParams(params, ["coinsPerUtxoSize"]);
+  return outputMinCoin(
     {
       ...output.output,
       amount: { ...output.output.amount, coin: "0" },
     } as TransactionOutputPrototype,
     params.coinsPerUtxoSize,
   );
+};

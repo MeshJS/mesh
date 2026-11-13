@@ -432,6 +432,9 @@ describe("TxBuilder: payer forms", () => {
       expect(error.details.walletCode).toBe(-3);
       expect(error.cause).toBe(apiError);
       expect(error.retryable).toBe(false);
+      // The message reads the CIP-30 error's info
+      expect(error.message).toContain("account changed (code -3)");
+      expect(error.message).not.toContain("[object Object]");
     }
     const plain = new Error("broken");
     const error = await expectCode(

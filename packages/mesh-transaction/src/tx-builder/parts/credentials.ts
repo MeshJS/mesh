@@ -43,6 +43,8 @@ export const fromPrototypeCredential = (
   ctx: PartContext,
   credential: CredTypePrototype,
 ): Credential => {
+  if (typeof credential !== "object" || credential === null)
+    fail(ctx, "INVALID_DATA", `invalid credential ${String(credential)}`);
   const hash =
     typeof credential.value === "string" ? credential.value.toLowerCase() : "";
   if (
@@ -84,7 +86,7 @@ export const toDRepCredential = (
 export const toDRep = (ctx: PartContext, input: DRepInput): DRepPrototype => {
   if (input === "alwaysAbstain") return { type: "ALWAYS_ABSTAIN" };
   if (input === "alwaysNoConfidence") return { type: "ALWAYS_NO_CONFIDENCE" };
-  if (typeof input === "object" && "type" in input) {
+  if (typeof input === "object" && input !== null && "type" in input) {
     if (
       input.type === "ALWAYS_ABSTAIN" ||
       input.type === "ALWAYS_NO_CONFIDENCE"
@@ -122,6 +124,8 @@ export const toAnchor = (
   anchor: AnchorInput | undefined,
 ): AnchorPrototype | undefined => {
   if (anchor === undefined) return undefined;
+  if (typeof anchor !== "object" || anchor === null)
+    fail(ctx, "INVALID_DATA", `invalid anchor ${String(anchor)}`);
   const dataHash =
     typeof anchor.dataHash === "string" ? anchor.dataHash.toLowerCase() : "";
   if (!isHash32(dataHash))
@@ -172,6 +176,12 @@ export const toCredentialWitness = (
       ctx,
       "WITNESS_MISMATCH",
       `${what} needs a witness: { native } or { plutus, redeemer }`,
+    );
+  if (typeof witness !== "object")
+    return fail(
+      ctx,
+      "WITNESS_MISMATCH",
+      `invalid witness ${String(witness)}: expected { native } or { plutus, redeemer }`,
     );
   if ("native" in witness) {
     const script = withKnownHash(

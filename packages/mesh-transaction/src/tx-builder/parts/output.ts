@@ -20,6 +20,7 @@ import {
   isHex,
   labelOf,
   parseAddress,
+  partContext,
   toPlutusData,
   toPlutusScriptCode,
 } from "./normalize";
@@ -28,11 +29,27 @@ import {
 const MAX_ASSET_NAME_HEX = 64;
 
 const toValue = (ctx: PartContext, value: ValueInput) => {
+  if (typeof value !== "object" || value === null)
+    fail(
+      ctx,
+      "INVALID_VALUE",
+      `invalid value ${String(value)}: expected a list of assets or { unit: quantity }`,
+    );
   const entries: [string, bigint][] = Array.isArray(value)
-    ? value.map(({ unit, quantity }) => {
+    ? value.map((asset: unknown) => {
+        if (typeof asset !== "object" || asset === null)
+          fail(ctx, "INVALID_VALUE", `invalid asset ${String(asset)}`);
+        const { unit, quantity } = asset as {
+          unit: unknown;
+          quantity: unknown;
+        };
         if (typeof quantity !== "string" || !/^\d+$/.test(quantity))
-          fail(ctx, "INVALID_VALUE", `invalid quantity ${quantity} of ${unit}`);
-        return [unit, BigInt(quantity)];
+          fail(
+            ctx,
+            "INVALID_VALUE",
+            `invalid quantity ${String(quantity)} of ${String(unit)}`,
+          );
+        return [unit as string, BigInt(quantity as string)];
       })
     : Object.entries(value);
 
@@ -41,6 +58,8 @@ const toValue = (ctx: PartContext, value: ValueInput) => {
   for (const [rawUnit, quantity] of entries) {
     if (typeof quantity !== "bigint" || quantity <= 0n)
       fail(ctx, "INVALID_VALUE", `invalid quantity ${quantity} of ${rawUnit}`);
+    if (typeof rawUnit !== "string")
+      fail(ctx, "INVALID_VALUE", `invalid asset unit ${String(rawUnit)}`);
     if (rawUnit === "lovelace" || rawUnit === "") {
       coin = (coin ?? 0n) + quantity;
       continue;
@@ -68,6 +87,12 @@ const toDatum = (
   ctx: PartContext,
   datum: OutputDatumInput,
 ): { plutus_data: DataOptionPrototype; embeddedDatum?: PlutusDataVariant } => {
+  if (typeof datum !== "object" || datum === null)
+    fail(
+      ctx,
+      "INVALID_DATA",
+      `invalid datum ${String(datum)}: expected { type: "inline" | "hash", ... }`,
+    );
   if (datum.type === "inline")
     return {
       plutus_data: { type: "DATA", value: toPlutusData(ctx, datum.data).data },
@@ -119,7 +144,7 @@ export const output = (params: {
   scriptRef?: PlutusScript | NativeScript;
   label?: string;
 }): OutputPart => {
-  const ctx: PartContext = { part: "output", label: params.label };
+  const ctx = partContext("output", params);
   const address = parseAddress(ctx, params.address);
   if (address.asReward())
     fail(

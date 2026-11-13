@@ -8,8 +8,8 @@ import { plutusDataVariantToCardano, resolveDataHash } from "@meshsdk/core-cst";
 
 import type { BuiltOutput, BuiltTx } from "./builder";
 import type { TxPart } from "./parts/types";
-import { TxBuildError } from "./errors";
-import { outRefString } from "./parts/normalize";
+import { invalidArgument, TxBuildError } from "./errors";
+import { isObject, outRefString } from "./parts/normalize";
 import { inputsOf } from "./resolve";
 
 /**
@@ -61,6 +61,16 @@ export type ChainedTx = {
   readonly inputs: readonly UTxO[];
   readonly outputs: readonly BuiltOutput[];
 };
+
+/** Whether a value has the members a fold reads of a UTxO: an `input` and an `output` */
+const isUtxoShape = (value: unknown) =>
+  isObject(value) &&
+  isObject(value.input) &&
+  typeof value.input.txHash === "string" &&
+  isObject(value.output);
+
+const BUILT_ALLOWED =
+  "a transaction built by TxBuilder.build, or a list of them";
 
 /** An out ref as `txHash#index`, its hash in lower case */
 const outRefKey = (input: Readonly<UTxO["input"]>) =>
@@ -164,15 +174,30 @@ const isChange = (output: BuiltOutput) => output.change === true;
  * the set returned. Collateral is not looked at: a valid transaction does not spend it. The
  * arguments are not changed, and a new array is returned every time.
  * @param owns Which outputs of the transactions are added, in place of the change test
+ * @throws TxBuildError INVALID_OPTION for `utxos` that is not a list of UTxOs, a transaction
+ *   without lists of `inputs` and `outputs`, and an `owns` that is not a function
  */
 export const utxosAfter = (
   utxos: readonly UTxO[],
   built: BuiltTx | readonly BuiltTx[],
   owns: (output: BuiltOutput) => boolean = isChange,
 ): UTxO[] => {
+  if (!Array.isArray(utxos) || !utxos.every(isUtxoShape))
+    throw invalidArgument("utxos", utxos, "a list of UTxOs { input, output }");
   const txs: readonly BuiltTx[] = Array.isArray(built)
     ? built
     : [built as BuiltTx];
+  for (const tx of txs)
+    if (
+      !isObject(tx) ||
+      !Array.isArray(tx.inputs) ||
+      !Array.isArray(tx.outputs) ||
+      !tx.inputs.every(isUtxoShape) ||
+      !tx.outputs.every(isUtxoShape)
+    )
+      throw invalidArgument("built", built, BUILT_ALLOWED);
+  if (typeof owns !== "function")
+    throw invalidArgument("owns", owns, "a function of a built output");
   const { kept, added } = foldTransactions(utxos, txs, owns);
   return [...kept, ...added.map(plainUtxo)];
 };
@@ -183,9 +208,18 @@ export const utxosAfter = (
  *
  * Pure and synchronous: it reads nothing but its arguments.
  * @throws TxBuildError UNKNOWN_LABEL `{ label, labels }`, listing the labels the transaction's
- *   outputs have, when none matches
+ *   outputs have, when none matches; INVALID_OPTION for a `built` without a list of `outputs`,
+ *   and a `label` that is not a string
  */
 export const outputOf = (built: BuiltTx, label: string): BuiltOutput => {
+  if (!isObject(built) || !Array.isArray(built.outputs))
+    throw invalidArgument(
+      "built",
+      built,
+      "a transaction built by TxBuilder.build",
+    );
+  if (typeof label !== "string")
+    throw invalidArgument("label", label, "a string");
   const found = built.outputs.find((output) => output.label === label);
   if (found) return found;
   const labels = Array.from(

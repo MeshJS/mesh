@@ -119,6 +119,56 @@ describe("spend.pubKey", () => {
       "INVALID_ADDRESS",
     );
   });
+
+  it("rejects a UTxO whose amount is not a list of assets", () => {
+    const amounts: unknown[] = [
+      [{ unit: "lovelace", quantity: "abc" }],
+      [{ unit: "lovelace", quantity: "0x10" }],
+      [{ unit: "lovelace", quantity: "-5" }],
+      [{ unit: "lovelace", quantity: 5 }],
+      [{ unit: "zz", quantity: "1" }],
+      [null],
+      "5000000",
+    ];
+    for (const amount of amounts) {
+      const given = utxo(0, keyAddress);
+      const error = expectPartError(
+        () =>
+          spend.pubKey({
+            utxo: { ...given, output: { ...given.output, amount } } as UTxO,
+            label: "mine",
+          }),
+        "INVALID_VALUE",
+      );
+      expect(error).toMatchObject({ part: "spend", label: "mine" });
+      expect(error.message).toContain(`${"a".repeat(64)}#0`);
+    }
+    // The same check for every part that takes a UTxO in full
+    const bad = {
+      ...utxo(0, keyAddress),
+      output: {
+        address: keyAddress,
+        amount: [{ unit: "lovelace", quantity: "abc" }],
+      },
+    };
+    expectPartError(() => referenceInput({ utxo: bad }), "INVALID_VALUE");
+    expectPartError(() => collateral({ utxo: bad }), "INVALID_VALUE");
+  });
+
+  it("rejects an input that is neither an out ref nor a UTxO", () => {
+    for (const given of [null, 5, "ab", { input: null }])
+      expectPartError(
+        () => spend.pubKey({ utxo: given as never }),
+        "INVALID_OUT_REF",
+      );
+    expectPartError(
+      () =>
+        spend.pubKey({
+          utxo: { input: outRef, output: null } as never,
+        }),
+      "INVALID_VALUE",
+    );
+  });
 });
 
 describe("spend.native", () => {

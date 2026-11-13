@@ -16,7 +16,12 @@ import type { NetworkEntry } from "./network";
 import { throwIfAborted } from "./abort";
 import { TxBuildError } from "./errors";
 import { checkNetworks, utxoEntry } from "./network";
-import { addressText, errorText } from "./parts/normalize";
+import {
+  addressText,
+  errorText,
+  isObject,
+  utxoAmountProblem,
+} from "./parts/normalize";
 
 /** The vkey witnesses a transaction needs, as key hashes */
 export type RequiredKeys = readonly string[];
@@ -102,9 +107,6 @@ const PAYER_FORMS =
 
 const HASH_32_ANY_CASE = /^[0-9a-f]{64}$/i;
 
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
-
 /** An address text in canonical form, bech32 or base58 for Byron; throws for any other text */
 export const toAddressText = (text: unknown): string => {
   if (typeof text !== "string") throw new Error("an address must be a string");
@@ -151,7 +153,9 @@ const decodeUtxo = (cbor: string): UTxO => {
 
 /**
  * A copy of a UTxO object, its transaction hash in lower case and its address in canonical
- * form, so that out refs and addresses compare as the parts store them
+ * form, so that out refs and addresses compare as the parts store them. Throws for a value that
+ * is not a UTxO: a bad hash or index, an amount that is not a list of assets with a unit and a
+ * quantity in decimal digits each, an address that does not parse or is a reward address.
  */
 export const copyUtxo = (value: unknown): UTxO => {
   if (!isObject(value) || !isObject(value.input) || !isObject(value.output))
@@ -165,8 +169,11 @@ export const copyUtxo = (value: unknown): UTxO => {
     outputIndex < 0
   )
     throw new Error(`invalid output index ${String(outputIndex)}`);
-  if (!Array.isArray(value.output.amount))
-    throw new Error("a UTxO's amount is a list of assets");
+  const amountProblem = utxoAmountProblem(value.output.amount);
+  if (amountProblem !== undefined)
+    throw new Error(
+      `the UTxO ${txHash.toLowerCase()}#${outputIndex}: ${amountProblem}`,
+    );
   // `input` and `output` only: the `label` and `change` of a built output are not the UTxO's
   const utxo: UTxO = {
     input: { txHash: txHash.toLowerCase(), outputIndex },
