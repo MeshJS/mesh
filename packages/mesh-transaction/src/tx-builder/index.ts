@@ -60,15 +60,18 @@ export {
   type Signer,
 } from "./sign";
 export { TxIntent } from "./intent/intent";
+export { checkIntentStore, memoryIntentStore } from "./intent/store";
 export type {
   IntentDeadlines,
   IntentOptions,
   SendOptions,
   SignOptions,
+  StoredTxIntentJSON,
   TxAttempt,
   TxAttemptStatus,
   TxIntentJSON,
   TxIntentStatus,
+  TxIntentStore,
   WaitOptions,
   WaitTarget,
 } from "./intent/types";

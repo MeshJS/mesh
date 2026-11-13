@@ -259,7 +259,8 @@ export type TxIntentErrorCode =
   | "SCRIPT_FAILED"
   /**
    * The attempt spends an output of a parent attempt that can no longer land, or the parent has
-   * no live attempt to build on; the attempt is live again if that parent attempt is found
+   * no live attempt to build on; the attempt is live again once every parent attempt whose output
+   * it spends is found in a block with `is_valid = true`
    */
   | "ORPHANED"
   /** The provider cannot tell what is needed, or cannot tell it yet */
@@ -553,6 +554,10 @@ export class TxBuildError<
   }
 }
 brandClass(TxBuildError, "build");
+
+/** The sentence every message of an intent error ends with */
+export const NOT_UNPAID =
+  "This error does not mean that the payment did not go through: only an abandoned intent did not pay.";
 
 /** Intent codes whose same call may pass when repeated */
 const RETRYABLE: ReadonlySet<string> = new Set<TxIntentErrorCode>([

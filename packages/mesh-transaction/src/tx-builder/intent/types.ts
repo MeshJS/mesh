@@ -181,22 +181,25 @@ export type TxAttempt = {
 };
 
 /**
- * An intent as data: what a store holds and what the intent is restored from. Applications read
- * `id`, `rev`, `status`, `closing`, `deadlines` and `attempts`; `anchor`, `parts`, `options` and
- * the other fields of an attempt are the library's.
+ * An intent as data, in its encoded form: what `intent.toJSON()` returns and a store holds. Plain
+ * JSON data: every `bigint` of the parts and of the transactions stands as its decimal string,
+ * POSIX times as numbers, so `JSON.parse(JSON.stringify(json))` gives it back unchanged.
+ * Applications read `id`, `rev`, `status`, `closing`, `deadlines` and `attempts`; `anchor`,
+ * `parts`, `options` and the other fields of an attempt are the library's.
  */
 export type TxIntentJSON = {
   /** Always `"TxIntent"`: what kind of record this is */
   readonly kind: "TxIntent";
   /**
-   * The record format; this release writes 1. A library writes its own version only: it migrates
-   * an older version when it reads it. A newer version, another kind, or content it does not know
-   * (a part kind, a status) is never read further or overwritten
+   * The record format; this release writes 1. A library writes its own version only: it
+   * migrates an older version when it reads it and saves it in its own with its next write. A
+   * newer version, another kind, or content it does not know (a part kind, a status, a member)
+   * is never read further or overwritten: INVALID_STATE (`recordVersion`)
    */
   readonly version: number;
-  /** The intent's id, when it has one */
+  /** The intent's id, when it has one; always in a store */
   readonly id?: string;
-  /** The revision: one higher with every change of the record */
+  /** The revision: 0 for a draft that was never written, one higher with every change */
   readonly rev: number;
   /**
    * The intent's status, worked out from its attempts as `TxIntentStatus` describes, and written
@@ -206,7 +209,10 @@ export type TxIntentJSON = {
   readonly status: TxIntentStatus;
   /** The decision to close the intent has been recorded; never removed */
   readonly closing?: true;
-  /** The network the intent's attempts are built for: its name, or its full configuration */
+  /**
+   * The network the intent's attempts are built for: the name of a public network
+   * (`"mainnet"`, `"preprod"`, `"preview"`), else its full configuration
+   */
   readonly network: string | NetworkConfig;
   /**
    * The effective deadlines, all three always: the validity length of an attempt, the margin
@@ -219,10 +225,40 @@ export type TxIntentJSON = {
   };
   /** The attempts, in the order they were built; the current one is last */
   readonly attempts: readonly TxAttempt[];
-  /** The library's: the inputs the attempts spend so that at most one of them can land */
+  /**
+   * The library's: the inputs the attempts spend so that at most one of them can land, each as
+   * a full UTxO with the attempts built on it
+   */
   readonly anchor: unknown;
-  /** The library's encoding of the intent's parts */
+  /**
+   * The library's encoding of the intent's parts; never null, since an intent is made from parts
+   * only
+   */
   readonly parts: unknown[];
-  /** The library's: the data options of the intent */
+  /**
+   * The library's: the data options of the intent, and the payer's change address once an
+   * attempt is built; nothing about `canSelect`, `coinSelection`, signers or the submitter
+   */
   readonly options: Record<string, unknown>;
 };
+
+/** What a store holds: a record with its id */
+export type StoredTxIntentJSON = TxIntentJSON & { readonly id: string };
+
+/**
+ * Where the records of intents are kept: the application's database, file or browser storage.
+ * A store keeps each record under its `id` as it was saved, with no members of its own, and
+ * writes it only over the revision the writer read, so that two writers of one intent never both
+ * succeed. `memoryIntentStore()` keeps records in memory, for tests; `checkIntentStore(store)`
+ * checks a store before it is used.
+ */
+export interface TxIntentStore {
+  /** The record saved last under `id`, or `undefined` when there is none */
+  load(id: string): Promise<StoredTxIntentJSON | undefined>;
+  /**
+   * Writes `json` under `json.id` only when the stored revision is `expectedRev` (0: only when
+   * no record is stored); `json.rev` is `expectedRev + 1`. `true`: written; `false`: another
+   * revision is stored, and nothing was written; a throw: unknown, the write may have passed
+   */
+  save(json: StoredTxIntentJSON, expectedRev: number): Promise<boolean>;
+}

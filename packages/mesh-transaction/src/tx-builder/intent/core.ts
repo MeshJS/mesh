@@ -60,7 +60,10 @@ export type AttemptRecord = TxAttempt & {
   readonly plutus?: true;
 };
 
-/** The record as the state machine reads and writes it; assignable to `TxIntentJSON` */
+/**
+ * The record as the state machine reads and writes it, in memory: the parts as `TxPart`s and the
+ * transactions as `BuiltTx`s, with their `bigint`s. `encodeIntent` gives its `TxIntentJSON`
+ */
 export type IntentRecord = Omit<TxIntentJSON, "attempts" | "anchor"> & {
   readonly attempts: readonly AttemptRecord[];
   readonly anchor: AnchorRecord;

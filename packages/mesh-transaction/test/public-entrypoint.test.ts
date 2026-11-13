@@ -4,10 +4,12 @@ import type {
   RedeemerContext,
   SendOptions,
   SignOptions,
+  StoredTxIntentJSON,
   TxAttempt,
   TxAttemptStatus,
   TxIntentJSON,
   TxIntentStatus,
+  TxIntentStore,
   WaitOptions,
   WaitTarget,
 } from "../src";
@@ -39,6 +41,8 @@ describe("public entrypoint", () => {
     "minFee",
     "minCoin",
     "TxIntent",
+    "memoryIntentStore",
+    "checkIntentStore",
   ])("exports %s", (name) => {
     expect(publicApi).toHaveProperty(name);
   });
@@ -119,6 +123,39 @@ describe("public entrypoint", () => {
       "intentOver",
       "recordOf",
       "IntentLiveObjects",
+    ])
+      expect(publicApi).not.toHaveProperty(name);
+  });
+
+  it("exports the store types and functions, and not the record encoding", async () => {
+    const store: TxIntentStore = publicApi.memoryIntentStore();
+    const json: StoredTxIntentJSON = {
+      kind: "TxIntent",
+      version: 1,
+      id: "pay-1",
+      rev: 1,
+      status: "abandoned",
+      closing: true,
+      network: "preprod",
+      deadlines: { ttlMs: 600_000, expiryMarginMs: 0, confirmations: 0 },
+      attempts: [],
+      anchor: { anchors: [] },
+      parts: [],
+      options: {},
+    };
+    expect(await store.save(json, 0)).toBe(true);
+    expect(await store.load("pay-1")).toEqual(json);
+    await expect(publicApi.checkIntentStore(store)).resolves.toBeUndefined();
+    for (const name of [
+      "encodeParts",
+      "decodeParts",
+      "encodeIntent",
+      "readIntent",
+      "readIntentWith",
+      "INTENT_RECORD_VERSION",
+      "migrations",
+      "UnreadContent",
+      "NOT_UNPAID",
     ])
       expect(publicApi).not.toHaveProperty(name);
   });

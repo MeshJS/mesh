@@ -30,12 +30,13 @@ import type {
   SendOptions,
   SignOptions,
   TxAttempt,
+  TxIntentJSON,
   TxIntentStatus,
 } from "./types";
 import { abortable, abortedError, throwIfAborted } from "../abort";
 import { isKeyLocked } from "../balance";
 import { plainUtxo } from "../chain";
-import { TxBuildError, TxIntentError } from "../errors";
+import { NOT_UNPAID, TxBuildError, TxIntentError } from "../errors";
 import { collateral, spend, validity } from "../parts";
 import { toPayerSource } from "../payer";
 import { utxoKey } from "../resolve";
@@ -64,6 +65,7 @@ import {
   effectiveWait,
   horizonSlot,
 } from "./deadlines";
+import { encodeIntent } from "./json";
 import {
   chainObserver,
   isRefusal,
@@ -77,10 +79,6 @@ import {
 // submits. Every change of its state is an event given to the state machine of `core.ts`, and
 // is recorded before the step it permits: an attempt before it is handed out or signed, a
 // delivery before the bytes leave.
-
-/** The sentence every error of an intent ends with */
-const NOT_UNPAID =
-  "This error does not mean that the payment did not go through: only an abandoned intent did not pay.";
 
 /** The call an aborted signal names */
 const CALL = "the call";
@@ -658,6 +656,17 @@ export class TxIntent {
    */
   get closing(): boolean {
     return stateOf(this).record.closing === true;
+  }
+
+  /**
+   * The intent as data, as it is now: plain JSON data, in every status and with the closing
+   * mark; no request is made. `JSON.stringify(intent)` writes it. It has no `id` when the intent
+   * was given none
+   * @throws TxBuildError NOT_SERIALIZABLE, with the part's kind and label, when a part holds a
+   *   redeemer function: such an intent lives in memory only
+   */
+  toJSON(): TxIntentJSON {
+    return encodeIntent(stateOf(this).record);
   }
 
   /**
