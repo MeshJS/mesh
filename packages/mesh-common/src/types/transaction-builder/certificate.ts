@@ -18,9 +18,11 @@ export type Certificate =
 
 export type CertificateType =
   | { type: "RegisterPool"; poolParams: PoolParams }
-  | { type: "RegisterStake"; stakeKeyAddress: string }
+  /** Certificate 7. coin is the deposit in lovelace; defaults to protocol keyDeposit. */
+  | { type: "RegisterStake"; stakeKeyAddress: string; coin?: number }
   | { type: "DelegateStake"; stakeKeyAddress: string; poolId: string }
-  | { type: "DeregisterStake"; stakeKeyAddress: string }
+  /** Certificate 8. coin must equal the original deposit; defaults to protocol keyDeposit. */
+  | { type: "DeregisterStake"; stakeKeyAddress: string; coin?: number }
   | { type: "RetirePool"; poolId: string; epoch: number }
   | { type: "VoteDelegation"; stakeKeyAddress: string; drep: DRep }
   | {

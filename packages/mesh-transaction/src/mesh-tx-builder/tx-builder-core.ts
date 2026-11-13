@@ -1251,16 +1251,19 @@ export class MeshTxBuilderCore {
   };
 
   /**
-   * Creates a stake registration certificate, and adds it to the transaction
+   * Creates a stake registration certificate with an explicit deposit (certificate 7).
+   * The stake credential must witness the transaction.
    * @param rewardAddress The bech32 reward address (i.e. start with `stake_xxxxx`)
+   * @param coin Deposit in lovelace; defaults to the keyDeposit protocol parameter at serialization.
    * @returns The MeshTxBuilder instance
    */
-  registerStakeCertificate = (rewardAddress: string) => {
+  registerStakeCertificate = (rewardAddress: string, coin?: number) => {
     this.meshTxBuilderBody.certificates.push({
       type: "BasicCertificate",
       certType: {
         type: "RegisterStake",
         stakeKeyAddress: rewardAddress,
+        coin,
       },
     });
     return this;
@@ -1286,16 +1289,18 @@ export class MeshTxBuilderCore {
   };
 
   /**
-   * Creates a stake deregister certificate, and adds it to the transaction
+   * Creates a stake deregistration certificate with an explicit refund (certificate 8).
    * @param rewardAddress The bech32 reward address (i.e. start with `stake_xxxxx`)
+   * @param coin Refund in lovelace; must match the original deposit. Defaults to keyDeposit.
    * @returns The MeshTxBuilder instance
    */
-  deregisterStakeCertificate = (rewardAddress: string) => {
+  deregisterStakeCertificate = (rewardAddress: string, coin?: number) => {
     this.meshTxBuilderBody.certificates.push({
       type: "BasicCertificate",
       certType: {
         type: "DeregisterStake",
         stakeKeyAddress: rewardAddress,
+        coin,
       },
     });
     return this;

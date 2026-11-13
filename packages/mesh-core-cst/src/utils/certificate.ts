@@ -1,6 +1,6 @@
 import { Cardano, Serialization } from "@cardano-sdk/core";
 
-import { CertificateType } from "@meshsdk/common";
+import { CertificateType, DEFAULT_PROTOCOL_PARAMETERS } from "@meshsdk/common";
 
 import { Crypto, toDRep } from "..";
 import {
@@ -9,7 +9,10 @@ import {
   Hash32ByteBase16,
 } from "../types";
 
-export const toCardanoCert = (cert: CertificateType): CardanoCert => {
+export const toCardanoCert = (
+  cert: CertificateType,
+  keyDeposit = DEFAULT_PROTOCOL_PARAMETERS.keyDeposit,
+): CardanoCert => {
   switch (cert.type) {
     case "RegisterPool": {
       let relays: Serialization.Relay[] = [];
@@ -107,9 +110,10 @@ export const toCardanoCert = (cert: CertificateType): CardanoCert => {
         );
       }
 
-      return CardanoCert.newStakeRegistration(
-        new Serialization.StakeRegistration(
+      return CardanoCert.newRegistrationCert(
+        new Serialization.Registration(
           rewardAddress.getPaymentCredential(),
+          BigInt(cert.coin ?? keyDeposit),
         ),
       );
     }
@@ -144,9 +148,10 @@ export const toCardanoCert = (cert: CertificateType): CardanoCert => {
         );
       }
 
-      return CardanoCert.newStakeDeregistration(
-        new Serialization.StakeDeregistration(
+      return CardanoCert.newUnregistrationCert(
+        new Serialization.Unregistration(
           rewardAddress.getPaymentCredential(),
+          BigInt(cert.coin ?? keyDeposit),
         ),
       );
     }

@@ -73,10 +73,8 @@ const poolParamsPrototypeToMesh = (pool: PoolParamsPrototype): PoolParams => ({
  * `networkId`) is the price of reusing that conversion path for all 13 certificate kinds it
  * supports, instead of re-deriving CST's ~13 certificate constructors independently.
  *
- * `STAKE_REGISTRATION`/`STAKE_DEREGISTRATION` carrying a `coin` are the Conway `reg_cert` /
- * `unreg_cert` forms (CDDL certificates 7 and 8), which state their deposit. `toCardanoCert` has no
- * case for them, so they are built here directly; without a `coin`, the legacy certificates 0 and
- * 1 are produced as before.
+ * The prototype also supports historical certificates 0/1, represented by a missing `coin`.
+ * Construct these directly so normal Mesh certificate building can default to certificates 7/8.
  */
 export const certificatePrototypeToCardano = (
   cert: CertificatePrototype,
@@ -85,11 +83,7 @@ export const certificatePrototypeToCardano = (
   const rewardAddr = (cred: CredTypePrototype) =>
     credentialPrototypeToRewardAddressBech32(cred, networkId);
 
-  if (
-    (cert.type === "STAKE_REGISTRATION" || cert.type === "STAKE_DEREGISTRATION") &&
-    cert.value.coin !== undefined &&
-    cert.value.coin !== null
-  ) {
+  if (cert.type === "STAKE_REGISTRATION" || cert.type === "STAKE_DEREGISTRATION") {
     const { stake_credential, coin } = cert.value;
     const credential: Cardano.Credential = {
       type:
@@ -98,19 +92,18 @@ export const certificatePrototypeToCardano = (
           : Cardano.CredentialType.KeyHash,
       hash: Hash28ByteBase16(stake_credential.value),
     };
+    if (coin !== undefined && coin !== null) {
+      return cert.type === "STAKE_REGISTRATION"
+        ? CardanoCert.newRegistrationCert(new Serialization.Registration(credential, BigInt(coin)))
+        : CardanoCert.newUnregistrationCert(new Serialization.Unregistration(credential, BigInt(coin)));
+    }
     return cert.type === "STAKE_REGISTRATION"
-      ? CardanoCert.newRegistrationCert(new Serialization.Registration(credential, BigInt(coin)))
-      : CardanoCert.newUnregistrationCert(new Serialization.Unregistration(credential, BigInt(coin)));
+      ? CardanoCert.newStakeRegistration(new Serialization.StakeRegistration(credential))
+      : CardanoCert.newStakeDeregistration(new Serialization.StakeDeregistration(credential));
   }
 
   let certType: CertificateType;
   switch (cert.type) {
-    case "STAKE_REGISTRATION":
-      certType = { type: "RegisterStake", stakeKeyAddress: rewardAddr(cert.value.stake_credential) };
-      break;
-    case "STAKE_DEREGISTRATION":
-      certType = { type: "DeregisterStake", stakeKeyAddress: rewardAddr(cert.value.stake_credential) };
-      break;
     case "STAKE_DELEGATION":
       certType = {
         type: "DelegateStake",
