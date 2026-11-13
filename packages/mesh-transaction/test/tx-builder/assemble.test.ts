@@ -32,11 +32,13 @@ import {
   networkId,
   output,
   proposal,
+  RedeemerContext,
   referenceInput,
   requiredSigner,
   spend,
   treasuryValue,
   TxBuildError,
+  TxError,
   TxPart,
   validity,
   vote,
@@ -708,6 +710,558 @@ describe("assembleTxPrototype: errors", () => {
           ),
         "DUPLICATE_PART",
       );
+    }
+  });
+});
+
+describe("assembleTxPrototype: redeemer functions", () => {
+  /** A redeemer that gives its own index, as an integer */
+  const selfRedeemer = {
+    data: (tx: RedeemerContext) => tx.self,
+    exUnits: budget,
+  };
+  /** CBOR of a small unsigned integer */
+  const smallInt = (n: number) => n.toString(16).padStart(2, "0");
+  const dataOf = (parts: TxPart[]) =>
+    assembleTxPrototype(parts, options).prototype.witness_set.redeemers!.map(
+      (r) => [`${r.tag.type}:${r.index}`, r.data],
+    );
+
+  it("gives each redeemer the index of what it witnesses, for every purpose", () => {
+    const action = { txHash: "a".repeat(64), index: 0 };
+    const votes = [{ action, vote: "yes" as const }];
+    const scriptCred = { type: "SCRIPT" as const, value: alwaysSucceedHash };
+    const stake = scriptHashToRewardAddress(alwaysSucceedHash, 0);
+    const otherStake = scriptHashToRewardAddress(
+      resolveScriptHash(spend42Cbor, "V3"),
+      0,
+    );
+    const witness = { plutus: plutusScript, redeemer: selfRedeemer };
+    const parts: TxPart[] = [
+      keySpend("00".repeat(32), 0),
+      ...["bb", "aa", "cc"].map((h) =>
+        spend.plutus({
+          utxo: scriptUtxo(h.repeat(32), 0),
+          script: plutusScript,
+          redeemer: selfRedeemer,
+        }),
+      ),
+      ...[1, 2, 3].map((nonce) =>
+        mint.plutus({
+          script: { code: mintParamCbor(nonce), version: "V3" },
+          redeemer: selfRedeemer,
+          assets: { "01": 1n },
+        }),
+      ),
+      certificate.stakeRegistration({
+        stake: keyHashToRewardAddress(keyHashHex(1), 0),
+        deposit: 2000000n,
+      }),
+      certificate.stakeDelegation({ stake, pool: keyHashHex(9), witness }),
+      certificate.stakeDeregistration({ stake, refund: 2000000n, witness }),
+      withdrawal.pubKey({
+        rewardAddress: keyHashToRewardAddress("00".repeat(28), 0),
+        amount: 0n,
+      }),
+      withdrawal.plutus({
+        rewardAddress: otherStake,
+        amount: 0n,
+        script: { code: spend42Cbor, version: "V3" },
+        redeemer: selfRedeemer,
+      }),
+      withdrawal.plutus({
+        rewardAddress: stake,
+        amount: 0n,
+        script: plutusScript,
+        redeemer: selfRedeemer,
+      }),
+      vote({ voter: { drep: scriptCred }, votes, witness }),
+      vote({ voter: { committee: scriptCred }, votes, witness }),
+      proposal.info({ rewardAccount: stake, anchor, deposit: 1000n }),
+      proposal.treasuryWithdrawals({
+        rewardAccount: stake,
+        anchor,
+        deposit: 1000n,
+        withdrawals: { [stake]: 5n },
+        guardrail: witness,
+      }),
+    ];
+    const { prototype } = assembleTxPrototype(parts, options);
+    const redeemers = prototype.witness_set.redeemers!;
+
+    expect(redeemers.map((r) => `${r.tag.type}:${r.index}`)).toEqual([
+      "SPEND:1",
+      "SPEND:2",
+      "SPEND:3",
+      "MINT:0",
+      "MINT:1",
+      "MINT:2",
+      "CERT:1",
+      "CERT:2",
+      "REWARD:0",
+      "REWARD:1",
+      "VOTE:0",
+      "VOTE:1",
+      "VOTING_PROPOSAL:1",
+    ]);
+    for (const r of redeemers)
+      expect(r.data).toEqual({ type: "CBOR", hex: smallInt(Number(r.index)) });
+  });
+
+  it("sees the final inputs, reference inputs and outputs, through bound functions", () => {
+    const reference = utxo("cc".repeat(32), 0, walletAddress, {
+      scriptRef: referenceScript,
+    });
+    const read = utxo("ee".repeat(32), 4);
+    const spent = [
+      utxo("dd".repeat(32), 1),
+      utxo("dd".repeat(32), 0),
+      utxo("11".repeat(32), 7),
+    ];
+    let seen: RedeemerContext | undefined;
+    const parts = [
+      ...spent.map((u) => spend.pubKey({ utxo: u })),
+      spend.plutus({
+        utxo: scriptUtxo("aa".repeat(32), 0),
+        script: { reference },
+        redeemer: {
+          data: (tx) => {
+            seen = tx;
+            return 0;
+          },
+          exUnits: budget,
+        },
+      }),
+      referenceInput({ utxo: read }),
+      output({ address: walletAddress, value: { lovelace: 2000000n } }),
+      output({
+        address: walletAddress,
+        value: { lovelace: 2000000n },
+        label: "pay",
+      }),
+    ];
+    const { prototype } = assembleTxPrototype(parts, options);
+    const tx = seen!;
+    const { input, referenceInput: refInput, output: out } = tx;
+
+    expect(tx.inputs).toEqual(
+      prototype.body.inputs.map((i) => ({
+        txHash: i.transaction_id,
+        outputIndex: i.index,
+      })),
+    );
+    expect(Object.isFrozen(tx.inputs)).toBe(true);
+    // An out ref, a full UTxO, an upper-case hash; detached and through `map`
+    expect(input({ txHash: "dd".repeat(32), outputIndex: 0 })).toBe(2);
+    expect(input(spent[0]!)).toBe(3);
+    expect(input({ txHash: "DD".repeat(32), outputIndex: 1 })).toBe(3);
+    expect(spent.map(tx.input)).toEqual([3, 2, 0]);
+    expect(input(scriptUtxo("aa".repeat(32), 0))).toBe(1);
+    expect(refInput(read)).toBe(1);
+    expect([reference, read].map(tx.referenceInput)).toEqual([0, 1]);
+    expect(out("pay")).toBe(1);
+    expect(["pay"].map(tx.output)).toEqual([1]);
+  });
+
+  it("finds reference inputs among the sorted ones, reference scripts included, spent ones not", () => {
+    const scriptHolder = utxo("dd".repeat(32), 0, walletAddress, {
+      scriptRef: referenceScript,
+    });
+    const spentHolder = utxo("99".repeat(32), 0, walletAddress, {
+      scriptRef: referenceScript,
+    });
+    const read = utxo("ee".repeat(32), 4);
+    const asked: unknown[] = [];
+    const parts = [
+      spend.plutus({
+        utxo: scriptUtxo("aa".repeat(32), 0),
+        script: { reference: scriptHolder },
+        redeemer: {
+          data: (tx) => {
+            asked.push(tx.referenceInput(scriptHolder));
+            asked.push(tx.referenceInput(read));
+            try {
+              tx.referenceInput(spentHolder);
+            } catch (error) {
+              asked.push(error);
+            }
+            return 0;
+          },
+          exUnits: budget,
+        },
+      }),
+      mint.plutus({
+        script: { reference: spentHolder },
+        redeemer: redeemer(1),
+        assets: { "": 1n },
+      }),
+      spend.pubKey({ utxo: spentHolder }),
+      referenceInput({ utxo: read }),
+      referenceInput({ utxo: utxo("bb".repeat(32), 0) }),
+    ];
+    const { prototype } = assembleTxPrototype(parts, options);
+
+    expect(
+      prototype.body.reference_inputs!.map((r) => r.transaction_id),
+    ).toEqual(["bb".repeat(32), "dd".repeat(32), "ee".repeat(32)]);
+    expect(asked.slice(0, 2)).toEqual([1, 2]);
+    expect(asked[2]).toBeInstanceOf(TxBuildError);
+    expect((asked[2] as TxBuildError<"INVALID_REDEEMER">).details).toEqual({
+      reason: "notAReferenceInput",
+      ref: `${"99".repeat(32)}#0`,
+    });
+  });
+
+  it("finds an output by the label of its output part, the first of two", () => {
+    const parts = [
+      spend.plutus({
+        utxo: scriptUtxo("aa".repeat(32), 0),
+        script: plutusScript,
+        redeemer: {
+          data: (tx) => [tx.output("b"), tx.output("twice")],
+          exUnits: budget,
+        },
+        label: "twice",
+      }),
+      output({ address: walletAddress, value: { lovelace: 2000000n } }),
+      output({
+        address: walletAddress,
+        value: { lovelace: 3000000n },
+        label: "twice",
+      }),
+      output({
+        address: walletAddress,
+        value: { lovelace: 4000000n },
+        label: "b",
+      }),
+      output({
+        address: walletAddress,
+        value: { lovelace: 5000000n },
+        label: "twice",
+      }),
+    ];
+    expect(dataOf(parts)).toEqual([
+      ["SPEND:0", { type: "CBOR", hex: "9f0201ff" }],
+    ]);
+
+    // A label carried only by a part of another kind names no output
+    const error = expectBuildError(
+      () =>
+        assembleTxPrototype(
+          [
+            spend.plutus({
+              utxo: scriptUtxo("aa".repeat(32), 0),
+              script: plutusScript,
+              redeemer: { data: (tx) => tx.output("lock"), exUnits: budget },
+              label: "lock",
+            }),
+            pay,
+          ],
+          options,
+        ),
+      "INVALID_REDEEMER",
+    );
+    expect(error.details).toEqual({ reason: "noSuchOutput" });
+  });
+
+  /** The error a redeemer function on the spend of `aa..aa#0` gets from assembly */
+  const failing = (
+    data: (tx: RedeemerContext) => unknown,
+    extra: TxPart[] = [],
+  ) =>
+    expectBuildError(
+      () =>
+        assembleTxPrototype(
+          [
+            spend.plutus({
+              utxo: scriptUtxo("aa".repeat(32), 0),
+              script: plutusScript,
+              redeemer: {
+                data: data as (tx: RedeemerContext) => number,
+                exUnits: budget,
+              },
+              label: "unlock",
+            }),
+            ...extra,
+          ],
+          options,
+        ),
+      "INVALID_REDEEMER",
+    );
+
+  it("refuses a lookup of what the transaction does not hold, with the part's label", () => {
+    const labelled = (label: string) =>
+      output({
+        address: walletAddress,
+        value: { lovelace: 2000000n },
+        label,
+      });
+    const cases = [
+      {
+        error: failing((tx) =>
+          tx.input({ txHash: "BB".repeat(32), outputIndex: 2 }),
+        ),
+        details: { reason: "notAnInput", ref: `${"bb".repeat(32)}#2` },
+        names: `${"bb".repeat(32)}#2`,
+      },
+      {
+        error: failing((tx) =>
+          tx.referenceInput({ txHash: "aa".repeat(32), outputIndex: 0 }),
+        ),
+        details: { reason: "notAReferenceInput", ref: `${"aa".repeat(32)}#0` },
+        names: `${"aa".repeat(32)}#0`,
+      },
+      {
+        error: failing(
+          (tx) => tx.output("missing"),
+          [labelled("pay"), pay, labelled("fee"), labelled("pay")],
+        ),
+        details: { reason: "noSuchOutput" },
+        names: '"missing"',
+      },
+    ];
+    for (const { error, details, names } of cases) {
+      expect(error.details).toEqual(details);
+      expect(error.part).toBe("spend");
+      expect(error.label).toBe("unlock");
+      expect(error.cause).toBeUndefined();
+      expect(error.retryable).toBe(false);
+      expect(error.message).toMatch(/^spend "unlock": /);
+      expect(error.message).toContain(names);
+      if (TxError.is(error, "INVALID_REDEEMER"))
+        expect(error.details.reason).toBe(details.reason);
+      else throw new Error("expected INVALID_REDEEMER");
+    }
+    // The labels the output parts have, each once, in their order
+    expect(cases[2]!.error.message).toContain('"pay", "fee"');
+    expect(cases[2]!.error.message).not.toContain('"pay", "fee", "pay"');
+  });
+
+  it("reports what the function throws, with the thrown value as the cause", () => {
+    const thrown = new Error("no datum");
+    const error = failing(() => {
+      throw thrown;
+    });
+    expect(error.details).toEqual({ reason: "threw" });
+    expect(error.cause).toBe(thrown);
+    expect(error.part).toBe("spend");
+    expect(error.label).toBe("unlock");
+    expect(error.message).toContain("no datum");
+  });
+
+  it("lets a lookup error through as it is, unless the function catches it", () => {
+    let raised: unknown;
+    const error = failing((tx) => {
+      try {
+        return tx.input({ txHash: "bb".repeat(32), outputIndex: 0 });
+      } catch (e) {
+        raised = e;
+        throw e;
+      }
+    });
+    expect(error).toBe(raised);
+    expect(error.details).toMatchObject({ reason: "notAnInput" });
+    expect(error.cause).toBeUndefined();
+
+    // Caught, it stops nothing
+    expect(
+      dataOf([
+        spend.plutus({
+          utxo: scriptUtxo("aa".repeat(32), 0),
+          script: plutusScript,
+          redeemer: {
+            data: (tx) => {
+              try {
+                return tx.output("none");
+              } catch {
+                return 7;
+              }
+            },
+            exUnits: budget,
+          },
+        }),
+      ]),
+    ).toEqual([["SPEND:0", { type: "CBOR", hex: "07" }]]);
+
+    // An error of the same code that the function made itself is its own failure
+    const own = new TxBuildError("INVALID_REDEEMER", "made up", {
+      details: { reason: "notAnInput" },
+    });
+    const wrapped = failing(() => {
+      throw own;
+    });
+    expect(wrapped).not.toBe(own);
+    expect(wrapped.details).toEqual({ reason: "threw" });
+    expect(wrapped.cause).toBe(own);
+
+    // A lookup error of another redeemer's context is this function's failure
+    let stored: unknown;
+    const rethrown = expectBuildError(
+      () =>
+        assembleTxPrototype(
+          [
+            spend.plutus({
+              utxo: scriptUtxo("bb".repeat(32), 0),
+              script: plutusScript,
+              redeemer: {
+                data: () => {
+                  throw stored;
+                },
+                exUnits: budget,
+              },
+              label: "b",
+            }),
+            // Its input sorts first, so its function runs first
+            spend.plutus({
+              utxo: scriptUtxo("aa".repeat(32), 0),
+              script: plutusScript,
+              redeemer: {
+                data: (tx) => {
+                  try {
+                    tx.input({ txHash: "cc".repeat(32), outputIndex: 0 });
+                  } catch (e) {
+                    stored = e;
+                  }
+                  return 0;
+                },
+                exUnits: budget,
+              },
+              label: "a",
+            }),
+          ],
+          options,
+        ),
+      "INVALID_REDEEMER",
+    );
+    expect(stored).toBeInstanceOf(TxBuildError);
+    expect((stored as TxBuildError).label).toBe("a");
+    expect(rethrown).not.toBe(stored);
+    expect(rethrown.details).toEqual({ reason: "threw" });
+    expect(rethrown.label).toBe("b");
+    expect(rethrown.cause).toBe(stored);
+  });
+
+  it("refuses what is not Plutus data: nothing, a promise", () => {
+    for (const returned of [undefined, Promise.resolve(1), () => 1, null]) {
+      const error = failing(() => returned);
+      expect(error.details).toEqual({ reason: "invalidData" });
+      expect(error.label).toBe("unlock");
+    }
+    // A conversion failure is the cause
+    const error = failing(() => ({ type: "CBOR", content: "zz" }));
+    expect(error.details).toEqual({ reason: "invalidData" });
+    expect(error.cause).toBeInstanceOf(Error);
+  });
+
+  it("takes no asynchronous function", () => {
+    spend.plutus({
+      utxo: scriptUtxo("aa".repeat(32), 0),
+      script: plutusScript,
+      // @ts-expect-error A redeemer function is synchronous
+      redeemer: { data: async () => 1, exUnits: budget },
+    });
+  });
+
+  it("encodes returned data as data given directly", () => {
+    const value = mConStr0([1, "abcd", [2n]]);
+    const given = dataOf([
+      spend.plutus({
+        utxo: scriptUtxo("aa".repeat(32), 0),
+        script: plutusScript,
+        redeemer: { data: value, exUnits: budget },
+      }),
+    ]);
+    const cbor = (given[0]![1] as { hex: string }).hex;
+    for (const returned of [
+      value,
+      { type: "Mesh" as const, content: value },
+      { type: "CBOR" as const, content: cbor },
+    ])
+      expect(
+        dataOf([
+          spend.plutus({
+            utxo: scriptUtxo("aa".repeat(32), 0),
+            script: plutusScript,
+            redeemer: { data: () => returned, exUnits: budget },
+          }),
+        ]),
+      ).toEqual(given);
+  });
+
+  it("covers computed data with the script data hash", () => {
+    const withData = (data: number | (() => number)) =>
+      assembleTxPrototype(
+        [
+          spend.plutus({
+            utxo: scriptUtxo("aa".repeat(32), 0),
+            script: plutusScript,
+            redeemer: { data, exUnits: budget },
+          }),
+        ],
+        options,
+      ).prototype;
+    const direct = withData(5);
+    const computed = withData(() => 5);
+    expect(computed.body.script_data_hash).toBe(direct.body.script_data_hash);
+    expect(withData(() => 6).body.script_data_hash).not.toBe(
+      direct.body.script_data_hash,
+    );
+    expect(transactionPrototypeToHex(computed)).toBe(
+      transactionPrototypeToHex(direct),
+    );
+  });
+
+  it("refuses a withdrawal part whose reward address is not derived", () => {
+    const error = expectBuildError(
+      () =>
+        assembleTxPrototype(
+          [
+            keySpend("aa".repeat(32), 0),
+            withdrawal.native({
+              amount: 0n,
+              script: nativeScript,
+              label: "own",
+            }),
+          ],
+          options,
+        ),
+      "UNRESOLVED",
+    );
+    expect(error.details).toEqual([
+      { kind: "withdrawal", label: "own", gaps: [{ type: "rewardAddress" }] },
+    ]);
+  });
+
+  it("calls no redeemer function when an earlier check fails", () => {
+    const account = keyHashToRewardAddress(keyHashHex(1), 0);
+    const failures: [TxPart[], string][] = [
+      [[withdrawal.native({ amount: 0n, script: nativeScript })], "UNRESOLVED"],
+      [
+        [
+          withdrawal.pubKey({ rewardAddress: account, amount: 0n }),
+          withdrawal.pubKey({ rewardAddress: account, amount: 0n }),
+        ],
+        "DUPLICATE_PART",
+      ],
+    ];
+    for (const [others, code] of failures) {
+      const data = jest.fn((tx: RedeemerContext) => tx.self);
+      expectBuildError(
+        () =>
+          assembleTxPrototype(
+            [
+              spend.plutus({
+                utxo: scriptUtxo("aa".repeat(32), 0),
+                script: plutusScript,
+                redeemer: { data, exUnits: budget },
+              }),
+              ...others,
+            ],
+            options,
+          ),
+        code,
+      );
+      expect(data).not.toHaveBeenCalled();
     }
   });
 });

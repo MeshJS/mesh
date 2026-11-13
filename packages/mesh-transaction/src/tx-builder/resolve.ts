@@ -6,6 +6,7 @@ import type {
   UTxO,
 } from "@meshsdk/common";
 import { slotAt } from "@meshsdk/common";
+import { scriptHashToRewardAddress } from "@meshsdk/core-cst";
 
 import type { PartContext } from "./parts/normalize";
 import type {
@@ -22,6 +23,7 @@ import type {
   SpendPart,
   TxPart,
   ValidityPart,
+  WithdrawalPart,
 } from "./parts/types";
 import { TxBuildError } from "./errors";
 import { checkNetworks, heldUtxos, utxoEntry } from "./network";
@@ -329,6 +331,25 @@ export const resolveValidity = (
   });
 };
 
+/**
+ * A script withdrawal without a reward address, with the script's own reward address on the
+ * network; it comes from the hash the part holds. Any other part is returned as it is.
+ */
+const withRewardAddress = (part: TxPart, network: NetworkConfig): TxPart => {
+  if (part.kind !== "withdrawal" || part.rewardAddress !== undefined)
+    return part;
+  const { witness } = part as WithdrawalPart & {
+    witness: NativeWitness | PlutusWitness;
+  };
+  return freeze({
+    ...part,
+    rewardAddress: scriptHashToRewardAddress(
+      witness.script.scriptHash!,
+      network.networkId,
+    ),
+  });
+};
+
 /** The reward balances of the stake addresses whose whole balance is withdrawn */
 const fetchRewardBalances = async (
   parts: readonly TxPart[],
@@ -337,7 +358,7 @@ const fetchRewardBalances = async (
   const addresses = new Set<string>();
   for (const part of parts)
     if (part.kind === "withdrawal" && part.amount === undefined)
-      addresses.add(part.rewardAddress);
+      addresses.add(part.rewardAddress!);
   const balances = new Map<string, string>();
   if (addresses.size === 0) return balances;
   const { provider } = ctx;
@@ -381,7 +402,8 @@ const fetchedEntries = (parts: readonly TxPart[], ctx: ResolveContext) =>
 /**
  * Fills in what parts leave open and can be found out before balancing: the outputs they
  * reference, their reference scripts, the datum of spent script outputs, deposits, reward
- * balances, and the slots of validity bounds given as times, on the network's clock. Checks
+ * balances, the reward address of a script withdrawal given without one, and the slots of
+ * validity bounds given as times, on the network's clock. Checks
  * what is filled in against what the parts state, as the part builders would have had it been
  * given to them.
  *
@@ -389,24 +411,28 @@ const fetchedEntries = (parts: readonly TxPart[], ctx: ResolveContext) =>
  * evaluation work out.
  */
 export const resolveParts = async (
-  parts: readonly TxPart[],
+  given: readonly TxPart[],
   context: Omit<ResolveContext, "params"> & {
     /** The parameters, or their read: the lookups do not wait for it */
     params: Protocol | Promise<Protocol>;
   },
 ): Promise<TxPart[]> => {
+  // Reward addresses come first: a balance is read at the address, and accounts are sorted by it
+  const addressed = given.map((part) =>
+    withRewardAddress(part, context.network),
+  );
   // What a part holds in full needs no lookup: its input and its reference script
-  for (const part of parts)
+  for (const part of addressed)
     for (const utxo of heldUtxos(part)) context.known.set(utxoKey(utxo), utxo);
   const [, balances, params] = await Promise.all([
-    fetchMissing(parts, context),
-    fetchRewardBalances(parts, context),
+    fetchMissing(addressed, context),
+    fetchRewardBalances(addressed, context),
     context.params,
   ]);
   const ctx: ResolveContext = { ...context, params };
-  checkNetworks(ctx.network, fetchedEntries(parts, ctx));
+  checkNetworks(ctx.network, fetchedEntries(addressed, ctx));
 
-  return parts.map((part): TxPart => {
+  return addressed.map((part): TxPart => {
     switch (part.kind) {
       case "spend":
         return freeze(resolveSpend(part, ctx));
@@ -424,10 +450,10 @@ export const resolveParts = async (
           witness: resolveWitness(part, part.witness, ctx),
         } as TxPart);
       case "withdrawal": {
-        rewardCredential(ctxOf(part), part.rewardAddress);
+        rewardCredential(ctxOf(part), part.rewardAddress!);
         return freeze({
           ...part,
-          amount: part.amount ?? balances.get(part.rewardAddress)!,
+          amount: part.amount ?? balances.get(part.rewardAddress!)!,
           witness: resolveWitness(part, part.witness, ctx),
         });
       }

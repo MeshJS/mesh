@@ -9,6 +9,7 @@ import { scriptHashToRewardAddress } from "@meshsdk/core-cst";
 
 import {
   mint,
+  MintAssetsInput,
   TxPartError,
   unresolved,
   withdrawal,
@@ -126,7 +127,7 @@ describe("mint", () => {
   });
 
   it("rejects malformed assets", () => {
-    for (const assets of [
+    for (const assets of <MintAssetsInput[]>[
       {},
       { "": 0n },
       { zz: 1n },
@@ -218,6 +219,117 @@ describe("withdrawal", () => {
           script: nativeScript,
         }),
       "WITNESS_MISMATCH",
+    );
+  });
+
+  it("leaves a script's reward address out, keeping the script's hash", () => {
+    const plutus = withdrawal.plutus({
+      amount: 0n,
+      script: plutusScript,
+      redeemer,
+      label: "zero",
+    });
+    const native = withdrawal.native({ amount: 5n, script: nativeScript });
+
+    expect(plutus).toEqual({
+      kind: "withdrawal",
+      amount: "0",
+      witness: {
+        type: "plutus",
+        script: expect.objectContaining({ scriptHash: alwaysSucceedHash }),
+        redeemer: { data: { type: "CBOR", hex: "d87980" } },
+      },
+      label: "zero",
+    });
+    expect("rewardAddress" in plutus).toBe(false);
+    expect(unresolved(plutus)).toEqual([
+      { type: "rewardAddress" },
+      { type: "exUnits" },
+    ]);
+    expect(Object.keys(native).sort()).toEqual(["amount", "kind", "witness"]);
+    expect(native.witness).toMatchObject({
+      type: "native",
+      script: { scriptHash: nativeHash },
+    });
+    expect(unresolved(native)).toEqual([{ type: "rewardAddress" }]);
+  });
+
+  it("withdraws all from an address not derived yet: the balance gap has no address", () => {
+    const part = withdrawal.native({ amount: "all", script: nativeScript });
+
+    expect(part.amount).toBeUndefined();
+    expect(unresolved(part)).toEqual([
+      { type: "rewardAddress" },
+      { type: "rewardBalance" },
+    ]);
+  });
+
+  it("needs a known script hash when the reward address is left out", () => {
+    for (const make of [
+      () =>
+        withdrawal.native({
+          amount: 0n,
+          script: { reference: refOut },
+          label: "by ref",
+        }),
+      () =>
+        withdrawal.plutus({
+          amount: 0n,
+          script: { reference: refOut, version: "V3" },
+          redeemer,
+          label: "by ref",
+        }),
+    ]) {
+      try {
+        make();
+        throw new Error("expected INVALID_SCRIPT");
+      } catch (error) {
+        expect(error).toBeInstanceOf(TxPartError);
+        expect((error as TxPartError).code).toBe("INVALID_SCRIPT");
+        expect((error as TxPartError).label).toBe("by ref");
+        expect((error as TxPartError).message).toMatch(
+          /rewardAddress, scriptHash, or the reference UTxO in full/,
+        );
+      }
+    }
+
+    const stated = withdrawal.native({
+      amount: 0n,
+      script: { reference: refOut, scriptHash: nativeHash },
+    });
+    const held = withdrawal.plutus({
+      amount: 0n,
+      script: { reference: refUtxo(resolveScriptRef(plutusScript)) },
+      redeemer,
+    });
+    expect(stated.rewardAddress).toBeUndefined();
+    expect(stated.witness).toMatchObject({
+      script: { scriptHash: nativeHash },
+    });
+    expect(held.rewardAddress).toBeUndefined();
+    expect(held.witness).toMatchObject({
+      script: { scriptHash: alwaysSucceedHash },
+    });
+  });
+
+  it("checks a given reward address against the script", () => {
+    expectPartError(
+      () =>
+        withdrawal.plutus({
+          rewardAddress: nativeRewardAddress,
+          amount: 0n,
+          script: plutusScript,
+          redeemer,
+        }),
+      "WITNESS_MISMATCH",
+    );
+  });
+
+  it("needs the reward address of a key withdrawal", () => {
+    expectPartError(
+      // @ts-expect-error A key credential's address cannot be derived
+      () => withdrawal.pubKey({ amount: 0n }),
+      "INVALID_ADDRESS",
     );
   });
 

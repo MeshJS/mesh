@@ -143,19 +143,29 @@ const isBuilderData = (data: PlutusDataInput): data is BuilderData =>
   "content" in data &&
   (data.type === "Mesh" || data.type === "JSON" || data.type === "CBOR");
 
+/**
+ * Plutus data in its CBOR form, with its hash; throws the converter's own error for anything
+ * that is not Plutus data
+ */
+export const encodePlutusData = (
+  data: PlutusDataInput,
+): { data: PlutusDataVariant & { type: "CBOR" }; hash: string } => {
+  const plutusData = fromBuilderToPlutusData(
+    isBuilderData(data) ? data : { type: "Mesh", content: data },
+  );
+  return {
+    data: { type: "CBOR", hex: plutusData.toCbor().toString() },
+    hash: plutusData.hash().toString(),
+  };
+};
+
 /** Plutus data in its CBOR form, with its hash */
 export const toPlutusData = (
   ctx: PartContext,
   data: PlutusDataInput,
 ): { data: PlutusDataVariant; hash: string } => {
   try {
-    const plutusData = fromBuilderToPlutusData(
-      isBuilderData(data) ? data : { type: "Mesh", content: data },
-    );
-    return {
-      data: { type: "CBOR", hex: plutusData.toCbor().toString() },
-      hash: plutusData.hash().toString(),
-    };
+    return encodePlutusData(data);
   } catch (error) {
     return fail(
       ctx,
@@ -177,13 +187,23 @@ export const toExUnits = (
   return { mem: String(budget.mem), steps: String(budget.steps) };
 };
 
+/**
+ * A redeemer as a part holds it: a value encoded and checked now; a function kept as it is, not
+ * called, for assembly to call with the final transaction
+ */
 export const toRedeemer = (
   ctx: PartContext,
   redeemer: RedeemerInput,
-): PartRedeemer => ({
-  data: toPlutusData(ctx, redeemer.data).data,
-  ...(redeemer.exUnits && { exUnits: toExUnits(ctx, redeemer.exUnits) }),
-});
+): PartRedeemer => {
+  const { data } = redeemer;
+  return {
+    data:
+      typeof data === "function"
+        ? { type: "deferred", build: data }
+        : toPlutusData(ctx, data).data,
+    ...(redeemer.exUnits && { exUnits: toExUnits(ctx, redeemer.exUnits) }),
+  };
+};
 
 /**
  * A reward address given in bech32 or hex, with its stake credential; `address` is the text a

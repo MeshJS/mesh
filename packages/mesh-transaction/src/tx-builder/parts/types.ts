@@ -41,6 +41,10 @@ import type {
  *
  * Redeemers carry no index. The index depends on where the item they witness ends up once the
  * transaction is sorted, so it is assigned once, at assembly, from what the redeemer belongs to.
+ *
+ * A redeemer given as a function of the final transaction is the one content of a part that is
+ * not data: the part keeps the function, uncalled, and assembly calls it. A part holding one
+ * cannot be written as JSON.
  */
 
 /* ---------------------------------------------------------------------------------------------
@@ -86,8 +90,48 @@ export type PlutusScriptInput =
 /** A native script, attached (as a script or its CBOR) or held in a reference output */
 export type NativeScriptInput = NativeScript | string | ScriptReferenceInput;
 
+/**
+ * The final positions a redeemer function may read. Its functions are bound, so
+ * `utxos.map(tx.input)` works.
+ */
+export type RedeemerContext = {
+  /**
+   * Index of the item the redeemer witnesses, in the ledger's order for its purpose: the input
+   * among the sorted inputs, the policy among the sorted policies, the reward account among the
+   * sorted withdrawals, the certificate, voter or proposal in its list
+   */
+  readonly self: number;
+  /** The inputs, sorted as the ledger sorts them */
+  readonly inputs: readonly OutRef[];
+  /**
+   * Index of an input among the sorted inputs
+   * @throws TxBuildError INVALID_REDEEMER (`notAnInput`), with this part's label
+   */
+  readonly input: (ref: InputRef) => number;
+  /**
+   * Index of a reference input among the sorted reference inputs
+   * @throws TxBuildError INVALID_REDEEMER (`notAReferenceInput`), with this part's label
+   */
+  readonly referenceInput: (ref: InputRef) => number;
+  /**
+   * Index of the output made by the output part with this label; when several output parts
+   * carry it, the first of them in the order of the parts
+   * @throws TxBuildError INVALID_REDEEMER (`noSuchOutput`), with this part's label
+   */
+  readonly output: (label: string) => number;
+};
+
+/**
+ * Redeemer data, as a value or computed from the final transaction. A function runs inside
+ * `assembleTxPrototype`, synchronously, after the ledger order is fixed, in every balancing
+ * round, so the fee and the evaluator see the data of the transaction returned. It must depend
+ * on nothing but its argument. What it throws becomes TxBuildError INVALID_REDEEMER with the
+ * part and label, the thrown value as `cause`; an INVALID_REDEEMER raised by the lookups of its
+ * own context and not caught passes as it is, with its own reason. Data it returns that is not
+ * Plutus data is INVALID_REDEEMER (`invalidData`).
+ */
 export type RedeemerInput = {
-  data: PlutusDataInput;
+  data: PlutusDataInput | ((tx: RedeemerContext) => PlutusDataInput);
   /** Execution units; left to evaluation when omitted */
   exUnits?: Budget;
 };
@@ -153,7 +197,11 @@ export type PoolInput = string;
 
 export type AnchorInput = { url: string; dataHash: string };
 
-/** How a script credential authorises a certificate; key credentials need nothing */
+/**
+ * How a script credential authorises a certificate, a vote or a proposal; key credentials need
+ * nothing. The redeemer's data may be a function of the final transaction (`self`: the
+ * certificate's or proposal's position in its list, the voter's among the voters).
+ */
 export type CredentialWitnessInput =
   | { native: NativeScriptInput }
   | { plutus: PlutusScriptInput; redeemer: RedeemerInput };
@@ -222,7 +270,13 @@ export type NativeScriptSource =
     });
 
 export type PartRedeemer = {
-  readonly data: Readonly<PlutusDataVariant>;
+  /** The data, or the function that computes it at assembly, kept as given */
+  readonly data:
+    | Readonly<PlutusDataVariant>
+    | {
+        readonly type: "deferred";
+        readonly build: (tx: RedeemerContext) => PlutusDataInput;
+      };
   readonly exUnits?: Readonly<ExUnitsPrototype>;
 };
 
@@ -318,7 +372,8 @@ export type MintPart = PartBase & {
 /** Rewards withdrawn from a stake address */
 export type WithdrawalPart = PartBase & {
   readonly kind: "withdrawal";
-  readonly rewardAddress: string;
+  /** Left out for a script's own reward address, derived on the build's network before assembly */
+  readonly rewardAddress?: string;
   /** Lovelace withdrawn; left out to withdraw the whole balance, looked up before assembly */
   readonly amount?: string;
   readonly witness: KeyWitness | NativeWitness | PlutusWitness;
@@ -491,8 +546,10 @@ export type Unresolved =
   | { readonly type: "totalCollateral" }
   /** The slot of a validity bound given as a time */
   | { readonly type: "slot" }
-  /** The reward balance of a stake address, to withdraw in full */
-  | { readonly type: "rewardBalance"; readonly rewardAddress: string }
+  /** The reward address of a script's stake credential, which depends on the network */
+  | { readonly type: "rewardAddress" }
+  /** The reward balance of a stake address, to withdraw in full; no address while it is not derived */
+  | { readonly type: "rewardBalance"; readonly rewardAddress?: string }
   /** A deposit or refund, from a protocol parameter */
   | {
       readonly type: "deposit";

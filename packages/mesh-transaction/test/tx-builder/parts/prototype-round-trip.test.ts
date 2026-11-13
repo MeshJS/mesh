@@ -55,17 +55,22 @@ const toPrototype = (parts: TxPart[]): TransactionPrototype => {
         if (witness.type === "plutus") {
           if (witness.script.type === "attached") {
             const key =
-              `plutus_${witness.script.version.toLowerCase()}_scripts` as const;
+              `plutus_${witness.script.version.toLowerCase()}_scripts` as
+                "plutus_v1_scripts" | "plutus_v2_scripts" | "plutus_v3_scripts";
             (ws[key] ??= []).push(witness.script.cbor);
           } else (body.reference_inputs ??= []).push(witness.script.input);
           if (witness.datum?.type === "provided")
             (ws.plutus_data ??= { elems: [] }).elems.push(
               witness.datum.data.type === "CBOR" ? witness.datum.data.hex : "",
             );
+          const { data } = witness.redeemer;
+          // The parts here give their redeemers as values
+          if (data.type === "deferred")
+            throw new Error("a redeemer function is not data");
           (ws.redeemers ??= []).push({
             tag: { type: "SPEND" },
             index: String(body.inputs.length - 1),
-            data: witness.redeemer.data,
+            data,
             ex_units: witness.redeemer.exUnits ?? { mem: "0", steps: "0" },
           });
         }
@@ -107,7 +112,7 @@ const toPrototype = (parts: TxPart[]): TransactionPrototype => {
       case "withdrawal":
         body.withdrawals = {
           ...body.withdrawals,
-          [part.rewardAddress]: part.amount ?? "0",
+          [part.rewardAddress!]: part.amount ?? "0",
         };
         break;
       case "requiredSigner":

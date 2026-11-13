@@ -167,7 +167,8 @@ export const spend = {
    * @param params.utxo The output, by reference or in full
    * @param params.script The script: attached (`{ code, version }`, the code flat or in one or
    *   two CBOR wrappings) or held in a reference output (`{ reference }`)
-   * @param params.redeemer Redeemer data, with execution units if already known
+   * @param params.redeemer Data, or a function of the final transaction (`self`: this input's
+   *   index), with execution units if already known
    * @param params.datum The datum of the output; worked out from the output when omitted
    * @param params.label Name echoed in errors about this part, such as a script failure
    */

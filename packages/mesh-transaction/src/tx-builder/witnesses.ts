@@ -267,7 +267,8 @@ const collectSigners = (parts: readonly TxPart[]): Collected => {
           addNativeWitness(collected, part.witness);
           break;
         }
-        const credential = Address.fromString(part.rewardAddress)
+        // A key withdrawal always states its address
+        const credential = Address.fromString(part.rewardAddress!)
           ?.asReward()
           ?.getPaymentCredential();
         if (credential?.type === CredentialType.KeyHash)

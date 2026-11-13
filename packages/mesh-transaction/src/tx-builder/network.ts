@@ -211,7 +211,9 @@ export const partEntries = (part: TxPart): NetworkEntry[] => {
       entries.push(fromPart(part, "collateralReturn", part.address));
       break;
     case "withdrawal":
-      entries.push(fromPart(part, "withdrawal", part.rewardAddress));
+      // A derived address is on the build's network by construction
+      if (part.rewardAddress !== undefined)
+        entries.push(fromPart(part, "withdrawal", part.rewardAddress));
       break;
     case "proposal": {
       const { proposal } = part;

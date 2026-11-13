@@ -32,7 +32,7 @@ import {
   TxCBOR,
 } from "@meshsdk/core-cst";
 
-import type { AssembledRedeemer, AssembledTx } from "./assemble";
+import type { AssembledRedeemer, AssembledTx, RedeemerPart } from "./assemble";
 import type {
   BalanceContext,
   Balanced,
@@ -713,12 +713,43 @@ const dataCbor = (data: Readonly<PlutusDataVariant>): string =>
     : plutusDataVariantToCardano(data).toCbor().toString();
 
 /**
+ * The parts of an assembled transaction whose redeemer is a function, each with a frozen copy
+ * that holds the data the function returned in that assembly: what a result reports in their
+ * place, so that it stays plain data
+ */
+const computedParts = (assembled: AssembledTx): Map<TxPart, TxPart> => {
+  // The witness set holds the redeemers in the same order
+  const data = assembled.prototype.witness_set.redeemers ?? [];
+  const computed = new Map<TxPart, TxPart>();
+  assembled.redeemers.forEach((r, i) => {
+    const { witness } = r.part as RedeemerPart & { witness: PlutusWitness };
+    if (witness.redeemer.data.type !== "deferred") return;
+    computed.set(
+      r.part,
+      freeze({
+        ...r.part,
+        witness: {
+          ...witness,
+          redeemer: {
+            ...witness.redeemer,
+            data: { type: "CBOR", hex: dataCbor(data[i]!.data) },
+          },
+        },
+      } as TxPart),
+    );
+  });
+  return computed;
+};
+
+/**
  * The redeemers of an assembled transaction as a result reports them, with the execution units
- * `unitsOf` gives each; one it gives none for is left out
+ * `unitsOf` gives each; one it gives none for is left out. A part with a redeemer function is
+ * reported as its copy in `computed`.
  */
 const builtRedeemers = (
   assembled: AssembledTx,
   unitsOf: (redeemer: AssembledRedeemer) => ExUnitsPrototype | undefined,
+  computed: Map<TxPart, TxPart> = computedParts(assembled),
 ): BuiltRedeemer[] => {
   // The witness set holds the redeemers in the same order
   const data = assembled.prototype.witness_set.redeemers ?? [];
@@ -731,7 +762,7 @@ const builtRedeemers = (
         index: r.index,
         exUnits: { mem: BigInt(units.mem), steps: BigInt(units.steps) },
         data: dataCbor(data[i]!.data),
-        part: r.part,
+        part: (computed.get(r.part) ?? r.part) as RedeemerPart,
         ...(r.label !== undefined && { label: r.label }),
       },
     ];
@@ -1577,6 +1608,8 @@ export class TxBuilder {
     });
 
     const validity = validityOf(body, this.network);
+    // Parts with a redeemer function are reported with the data it returned for this transaction
+    const computed = computedParts(assembled);
     // Collateral without a return is forfeited whole if a script fails
     const forfeited =
       (body.collateral?.length ?? 0) > 0 && !body.collateral_return;
@@ -1586,7 +1619,7 @@ export class TxBuilder {
       prototype,
       fee: balanced.fee,
       exUnits: total,
-      redeemers: builtRedeemers(assembled, (r) => r.exUnits),
+      redeemers: builtRedeemers(assembled, (r) => r.exUnits, computed),
       inputs: body.inputs.map((i) =>
         inputs.get(`${i.transaction_id}#${i.index}`)!,
       ),
@@ -1619,7 +1652,7 @@ export class TxBuilder {
             ]
           : []),
       ],
-      parts: balanced.parts,
+      parts: balanced.parts.map((part) => computed.get(part) ?? part),
     };
   }
 }

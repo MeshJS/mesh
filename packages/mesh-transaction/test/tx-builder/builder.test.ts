@@ -1,3 +1,5 @@
+import { bech32 } from "bech32";
+
 import {
   Action,
   CachedFetcher,
@@ -32,6 +34,7 @@ import {
 import {
   BuildEvent,
   BuildOptions,
+  BuiltRedeemer,
   BuiltTx,
   certificate,
   collateral,
@@ -39,7 +42,9 @@ import {
   donation,
   mint,
   output,
+  outputOf,
   proposal,
+  RedeemerContext,
   referenceInput,
   spend,
   TxBuilder,
@@ -2551,6 +2556,421 @@ describe("TxBuilder: validity in POSIX time", () => {
     expect(Object.isFrozen(resolved)).toBe(true);
     await expectPartError(
       resolveParts([validity({ from: T + 1, until: T + 999 })], context),
+    );
+  });
+});
+
+describe("TxBuilder: redeemer functions", () => {
+  const locked = (n: number): UTxO => ({
+    input: { txHash: (0xf0 + n).toString(16).repeat(32), outputIndex: 0 },
+    output: {
+      address: scriptAddress,
+      amount: lovelace(ada(10)),
+      plutusData: "d87980",
+    },
+  });
+  const unlock = (
+    n: number,
+    data: (tx: RedeemerContext) => unknown,
+    label = `unlock ${n}`,
+  ) =>
+    spend.plutus({
+      utxo: locked(n),
+      script: plutusScript,
+      redeemer: { data: data as (tx: RedeemerContext) => number },
+      label,
+    });
+  const builder = (evaluator = fakeEvaluator().evaluator) =>
+    new TxBuilder({ network, costModels, params, evaluator });
+  const payer = (...utxos: UTxO[]) => ({ changeAddress: wallet, utxos });
+  /** The redeemer data of a transaction, in the order of its witness set */
+  const redeemerData = (tx: string) =>
+    (
+      Transaction.fromCbor(TxCBOR(tx)).witnessSet().redeemers()?.values() ?? []
+    ).map((r) => r.data().toCbor().toString());
+  /** Whether a value holds a function anywhere */
+  const holdsFunction = (value: unknown): boolean =>
+    typeof value === "function" ||
+    (value !== null &&
+      typeof value === "object" &&
+      Object.values(value).some(holdsFunction));
+
+  it("indexes an input among the inputs balancing adds", async () => {
+    // The payer's UTxO sorts before the script output
+    const funds = utxo(lovelace(ada(50)));
+    const built = await builder().build(
+      [
+        unlock(1, (tx) => tx.self),
+        output({ address: recipient, value: { lovelace: ada(30) } }),
+      ],
+      { payer: payer(funds) },
+    );
+
+    expect(built.inputs.map((u) => u.input.txHash)).toEqual([
+      funds.input.txHash,
+      locked(1).input.txHash,
+    ]);
+    expect(built.redeemers.map((r) => [r.tag, r.index, r.data])).toEqual([
+      ["SPEND", 1, "01"],
+    ]);
+    expect(redeemerData(built.tx)).toEqual(["01"]);
+  });
+
+  it("hands the evaluator the computed data", async () => {
+    const { evaluator, calls } = fakeEvaluator();
+    const built = await builder(evaluator).build(
+      [unlock(1, (tx) => [tx.self, tx.inputs.length])],
+      { payer: payer(utxo(lovelace(ada(50)))) },
+    );
+
+    expect(calls.length).toBeGreaterThan(0);
+    for (const tx of calls)
+      expect(redeemerData(tx)).toEqual(built.redeemers.map((r) => r.data));
+  });
+
+  it("reports the data in the result, which stays plain data", async () => {
+    const events: BuildEvent[] = [];
+    const built = await builder().build(
+      [
+        unlock(1, (tx) => tx.self),
+        mint.plutus({
+          script: plutusScript,
+          redeemer: { data: (tx) => tx.self + 7 },
+          assets: { "01": 1n },
+          label: "mint",
+        }),
+        // A value: its part stays the one given
+        spend.plutus({
+          utxo: locked(2),
+          script: plutusScript,
+          redeemer: { data: 3 },
+          label: "value",
+        }),
+      ],
+      {
+        payer: payer(utxo(lovelace(ada(50)))),
+        trace: (event) => events.push(event),
+      },
+    );
+
+    expect(holdsFunction(built)).toBe(false);
+    expect(structuredClone(built.parts)).toEqual(built.parts);
+    expect(structuredClone(built)).toEqual(built);
+    for (const r of built.redeemers) expect(built.parts).toContain(r.part);
+    expect(
+      built.redeemers.map((r) => [r.label, r.data, redeemerOf(r)]),
+    ).toEqual([
+      ["unlock 1", "00", { type: "CBOR", hex: "00" }],
+      ["value", "03", { type: "CBOR", hex: "03" }],
+      ["mint", "07", { type: "CBOR", hex: "07" }],
+    ]);
+    const evaluated = events.flatMap((e) =>
+      e.type === "evaluated" ? [e.redeemers] : [],
+    );
+    expect(evaluated.length).toBeGreaterThan(0);
+    expect(holdsFunction(evaluated)).toBe(false);
+    for (const redeemers of evaluated)
+      expect(redeemers.map((r) => r.data)).toEqual(["00", "03", "07"]);
+  });
+
+  const redeemerOf = (r: BuiltRedeemer) =>
+    (r.part.witness as { redeemer: { data: unknown } }).redeemer.data;
+
+  it("leaves the given parts alone: a second build calls the function again", async () => {
+    const data = jest.fn((tx: RedeemerContext) => tx.self);
+    const parts = [unlock(1, data)];
+    const funds = utxo(lovelace(ada(50)));
+    const first = await builder().build(parts, { payer: payer(funds) });
+    const calls = data.mock.calls.length;
+    const second = await builder().build(parts, { payer: payer(funds) });
+
+    expect(calls).toBeGreaterThan(0);
+    expect(data.mock.calls.length).toBe(2 * calls);
+    expect(second.tx).toBe(first.tx);
+    expect(() => structuredClone(parts[0])).toThrow();
+    expect(
+      (parts[0]!.witness as { redeemer: { data: unknown } }).redeemer.data,
+    ).toEqual({ type: "deferred", build: data });
+  });
+
+  it("agrees with the result on inputs, reference inputs and outputs", async () => {
+    const holder = utxo(lovelace(ada(20)), {
+      scriptRef: resolveScriptRef(plutusScript),
+    });
+    const read = utxo(lovelace(ada(2)));
+    const funds = utxo(lovelace(ada(50)));
+    let seen: RedeemerContext | undefined;
+    const built = await builder().build(
+      [
+        spend.plutus({
+          utxo: locked(1),
+          script: { reference: holder },
+          redeemer: {
+            data: (tx) => {
+              seen = tx;
+              return [tx.output("pay"), tx.input(locked(1))];
+            },
+          },
+        }),
+        referenceInput({ utxo: read }),
+        output({
+          address: recipient,
+          value: { lovelace: ada(3) },
+          label: "other",
+        }),
+        output({
+          address: recipient,
+          value: { lovelace: ada(4) },
+          label: "pay",
+        }),
+        output({
+          address: recipient,
+          value: { lovelace: ada(5) },
+          label: "pay",
+        }),
+      ],
+      { payer: payer(funds, holder) },
+    );
+    const tx = seen!;
+
+    expect(tx.output("pay")).toBe(outputOf(built, "pay").input.outputIndex);
+    expect(tx.output("pay")).toBe(1);
+    expect(tx.output("other")).toBe(outputOf(built, "other").input.outputIndex);
+    for (const [i, u] of built.inputs.entries()) expect(tx.input(u)).toBe(i);
+    expect(built.referenceInputs).toHaveLength(2);
+    for (const [i, u] of built.referenceInputs.entries())
+      expect(tx.referenceInput(u)).toBe(i);
+    expect(built.redeemers[0]!.data).toBe(
+      `9f01${tx.input(locked(1)).toString(16).padStart(2, "0")}ff`,
+    );
+  });
+
+  it("refuses a payer UTxO that balancing did not select", async () => {
+    const spare = utxo(lovelace(ada(50)));
+    const error = await expectBuildError(
+      builder().build([unlock(1, (tx) => tx.input(spare))], {
+        payer: payer(spare),
+      }),
+      "INVALID_REDEEMER",
+    );
+    expect(error.details).toEqual({
+      reason: "notAnInput",
+      ref: `${spare.input.txHash}#0`,
+    });
+    expect(error.label).toBe("unlock 1");
+  });
+
+  it("rejects with what the function throws", async () => {
+    const thrown = new Error("cannot");
+    const error = await expectBuildError(
+      builder().build(
+        [
+          unlock(1, () => {
+            throw thrown;
+          }),
+        ],
+        { payer: payer(utxo(lovelace(ada(50)))) },
+      ),
+      "INVALID_REDEEMER",
+    );
+    expect(error.details).toEqual({ reason: "threw" });
+    expect(error.cause).toBe(thrown);
+    expect(error.part).toBe("spend");
+    expect(error.label).toBe("unlock 1");
+  });
+
+  it("settles a redeemer that lists every input, over rounds that add inputs", async () => {
+    const funds = Array.from({ length: 40 }, () => utxo(lovelace(1_500_000n)));
+    const rounds: number[] = [];
+    const built = await builder().build(
+      [
+        unlock(1, (tx) => tx.inputs.map((i) => i.txHash)),
+        output({ address: recipient, value: { lovelace: ada(40) } }),
+      ],
+      {
+        payer: payer(...funds),
+        trace: (event) => {
+          if (event.type === "round") rounds.push(event.selected);
+        },
+      },
+    );
+
+    expect(built.selectedInputs.length).toBeGreaterThan(20);
+    expect(new Set(rounds).size).toBeGreaterThan(1);
+    const listed = built.inputs.map((u) => u.input.txHash);
+    expect(built.redeemers[0]!.data).toBe(
+      `9f${listed.map((h) => `5820${h}`).join("")}ff`,
+    );
+    expect(redeemerData(built.tx)).toEqual([built.redeemers[0]!.data]);
+    expect(built.fee).toBeGreaterThanOrEqual(signedMinFee(built, 1));
+    expectBalanced(built);
+  });
+});
+
+describe("TxBuilder: script withdrawal without a reward address", () => {
+  const script = withdrawal.plutus({
+    amount: 0n,
+    script: plutusScript,
+    redeemer: { data: mConStr0([]) },
+    label: "own",
+  });
+  const funds = () => [utxo(lovelace(ada(50)))];
+  const onMainnet = (address: string) => {
+    const bytes = bech32.fromWords(bech32.decode(address, 200).words);
+    bytes[0] = bytes[0]! | 0x01;
+    return bech32.encode("addr", bech32.toWords(bytes), 200);
+  };
+
+  it("derives the address on the builder's network", async () => {
+    for (const [name, prefix, changeAddress] of [
+      ["preprod", "stake_test1", wallet],
+      ["mainnet", "stake1", onMainnet(wallet)],
+    ] as const) {
+      const builder = new TxBuilder({
+        network: name,
+        costModels,
+        params,
+        evaluator: fakeEvaluator().evaluator,
+      });
+      const derived = builder.rewardAddress(plutusScript);
+      const keyAccount = keyHashToRewardAddress(
+        "00".repeat(28),
+        name === "mainnet" ? 1 : 0,
+      );
+      const built = await builder.build(
+        [withdrawal.pubKey({ rewardAddress: keyAccount, amount: 0n }), script],
+        {
+          payer: {
+            changeAddress,
+            utxos: funds().map((u) => ({
+              ...u,
+              output: { ...u.output, address: changeAddress },
+            })),
+          },
+        },
+      );
+
+      expect(derived.startsWith(prefix)).toBe(true);
+      expect(derived).toBe(
+        scriptHashToRewardAddress(
+          alwaysSucceedHash,
+          name === "mainnet" ? 1 : 0,
+        ),
+      );
+      // Script accounts still sort before key accounts
+      expect(Object.keys(built.prototype.body.withdrawals!)).toEqual([
+        derived,
+        keyAccount,
+      ]);
+      expect(built.parts).toContainEqual(
+        expect.objectContaining({ label: "own", rewardAddress: derived }),
+      );
+      expect(built.redeemers.map((r) => [r.tag, r.index, r.label])).toEqual([
+        ["REWARD", 0, "own"],
+      ]);
+      expect(script.rewardAddress).toBeUndefined();
+    }
+  });
+
+  it("looks the balance up once, at the derived address", async () => {
+    const derived = scriptHashToRewardAddress(alwaysSucceedHash, 0);
+    const { fetcher, calls } = fakeFetcher([], { [derived]: "4200000" });
+    const built = await new TxBuilder({
+      network,
+      params,
+      costModels,
+      provider: fetcher,
+      evaluator: fakeEvaluator().evaluator,
+    }).build(
+      [
+        withdrawal.plutus({
+          amount: "all",
+          script: plutusScript,
+          redeemer: { data: mConStr0([]) },
+        }),
+      ],
+      { payer: { changeAddress: wallet, utxos: funds() } },
+    );
+
+    expect(calls.fetchAccountInfo).toBe(1);
+    expect(built.prototype.body.withdrawals).toEqual({ [derived]: "4200000" });
+    expectBalanced(built);
+  });
+
+  it("checks a stated script hash against the reference output it names", async () => {
+    const holder = utxo(lovelace(ada(20)), {
+      scriptRef: resolveScriptRef(plutusScript),
+    });
+    const part = withdrawal.plutus({
+      amount: 0n,
+      script: {
+        reference: holder.input,
+        scriptHash: "ab".repeat(28),
+        version: "V3",
+      },
+      redeemer: { data: mConStr0([]) },
+    });
+    await expect(
+      new TxBuilder({
+        network,
+        params,
+        costModels,
+        evaluator: fakeEvaluator().evaluator,
+      }).build([part], {
+        payer: { changeAddress: wallet, utxos: [...funds(), holder] },
+      }),
+    ).rejects.toMatchObject({
+      name: "TxPartError",
+      code: "INVALID_SCRIPT",
+      message: expect.stringContaining(
+        `script hash ${"ab".repeat(28)} does not match`,
+      ),
+    });
+  });
+
+  it("refuses a given address of another network", async () => {
+    const error = await expectBuildError(
+      new TxBuilder({
+        network,
+        params,
+        costModels,
+        evaluator: fakeEvaluator().evaluator,
+      }).build(
+        [
+          withdrawal.plutus({
+            rewardAddress: scriptHashToRewardAddress(alwaysSucceedHash, 1),
+            amount: 0n,
+            script: plutusScript,
+            redeemer: { data: mConStr0([]) },
+          }),
+        ],
+        { payer: { changeAddress: wallet, utxos: funds() } },
+      ),
+      "NETWORK_MISMATCH",
+    );
+    expect(error.part).toBe("withdrawal");
+  });
+
+  it("refuses the same account twice, derived or given", async () => {
+    await expectBuildError(
+      new TxBuilder({
+        network,
+        params,
+        costModels,
+        evaluator: fakeEvaluator().evaluator,
+      }).build(
+        [
+          script,
+          withdrawal.plutus({
+            rewardAddress: scriptHashToRewardAddress(alwaysSucceedHash, 0),
+            amount: 0n,
+            script: plutusScript,
+            redeemer: { data: mConStr0([]) },
+          }),
+        ],
+        { payer: { changeAddress: wallet, utxos: funds() } },
+      ),
+      "DUPLICATE_PART",
     );
   });
 });

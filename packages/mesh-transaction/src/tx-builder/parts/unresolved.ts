@@ -59,18 +59,24 @@ export const unresolved = (part: TxPart): Unresolved[] => {
       return part.output.amount.coin === undefined ? [{ type: "minCoin" }] : [];
     case "mint":
       return witnessGaps(part.witness);
-    case "withdrawal":
+    case "withdrawal": {
+      const { rewardAddress } = part;
       return [
+        // A script's own reward address, derived on the build's network
+        ...(rewardAddress === undefined
+          ? [{ type: "rewardAddress" as const }]
+          : []),
         ...(part.amount === undefined
           ? [
               {
                 type: "rewardBalance" as const,
-                rewardAddress: part.rewardAddress,
+                ...(rewardAddress !== undefined && { rewardAddress }),
               },
             ]
           : []),
         ...witnessGaps(part.witness),
       ];
+    }
     case "certificate":
       return [
         ...(part.depositParameter

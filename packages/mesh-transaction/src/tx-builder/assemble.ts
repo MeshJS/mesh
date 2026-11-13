@@ -15,6 +15,7 @@ import type {
   TransactionPrototype,
   TransactionWitnessSetPrototype,
   TxMetadataPrototype,
+  UTxO,
   VkeywitnessPrototype,
   VoterVotesPrototype,
   VotingProposalPrototype,
@@ -31,13 +32,18 @@ import type {
   CollateralPart,
   CollateralReturnPart,
   DonationPart,
+  InputRef,
   MetadataPart,
   MintPart,
   NativeScriptSource,
   NetworkIdPart,
   OutputPart,
+  OutRef,
+  PlutusDataInput,
   PlutusScriptSource,
+  PlutusWitness,
   ProposalPart,
+  RedeemerContext,
   ReferenceInputPart,
   RequiredSignerPart,
   SpendPart,
@@ -56,6 +62,7 @@ import {
   compareVoters,
   voterKey,
 } from "./ordering";
+import { encodePlutusData, errorText } from "./parts/normalize";
 import { unresolved } from "./parts/unresolved";
 import {
   addValues,
@@ -191,11 +198,16 @@ const REDEEMER_TAG_RANK: Record<RedeemerTagPrototype["type"], number> = {
  * inputs scripts are read from; the deduplicated scripts and datums of the witness set; the
  * collateral return; the auxiliary data and script data hashes.
  *
+ * Redeemer functions are called here, once each per call, after every sorting: each gets the
+ * final positions of the transaction (`RedeemerContext`), and the data it returns goes into the
+ * witness set, which the script data hash covers.
+ *
  * @param parts The transaction's parts, each complete
  * @param options The fee, and what the hashes and witness set need beyond the parts
  * @returns The prototype, with every redeemer tied to the part it belongs to
  * @throws TxBuildError MISSING_PARAMETER when a Plutus version the parts run has no cost model
- *   in `options.costModels`
+ *   in `options.costModels`; INVALID_REDEEMER when a redeemer function throws, asks for an item
+ *   the transaction does not hold, or returns what is not Plutus data
  */
 export const assembleTxPrototype = (
   parts: readonly TxPart[],
@@ -241,10 +253,11 @@ export const assembleTxPrototype = (
     compareHashes(a.policyId, b.policyId),
   );
   checkUnique(mints, (p) => p.policyId, "policy");
+  // Every reward address is known once the gaps are checked
   const withdrawals = [...byKind.withdrawal].sort((a, b) =>
-    compareRewardAddresses(a.rewardAddress, b.rewardAddress),
+    compareRewardAddresses(a.rewardAddress!, b.rewardAddress!),
   );
-  checkUnique(withdrawals, (p) => p.rewardAddress, "reward address");
+  checkUnique(withdrawals, (p) => p.rewardAddress!, "reward address");
   const votes = [...byKind.vote].sort((a, b) =>
     compareVoters(a.voter, b.voter),
   );
@@ -364,7 +377,7 @@ export const assembleTxPrototype = (
 
   const withdrawalMap: Record<string, string> = {};
   for (const part of withdrawals)
-    withdrawalMap[part.rewardAddress] = part.amount!;
+    withdrawalMap[part.rewardAddress!] = part.amount!;
 
   const votingProcedures: VoterVotesPrototype[] = votes.map((part) => ({
     voter: structuredClone(part.voter),
@@ -399,10 +412,10 @@ export const assembleTxPrototype = (
       .map((p) => ({ ...p.input }));
   if (requiredSigners.length > 0) body.required_signers = requiredSigners;
   if (networkId) body.network_id = { ...networkId.networkId };
-  if (referenceInputs.size > 0)
-    body.reference_inputs = Array.from(referenceInputs.values()).sort(
-      compareInputs,
-    );
+  const sortedReferenceInputs = Array.from(referenceInputs.values()).sort(
+    compareInputs,
+  );
+  if (referenceInputs.size > 0) body.reference_inputs = sortedReferenceInputs;
   if (votingProcedures.length > 0) body.voting_procedures = votingProcedures;
   if (votingProposals.length > 0) body.voting_proposals = votingProposals;
   if (treasuryValue) body.current_treasury_value = treasuryValue.amount;
@@ -448,13 +461,15 @@ export const assembleTxPrototype = (
         d.type === "CBOR" ? d.hex : plutusDataVariantToCardano(d).toCbor(),
       ),
     };
-  if (redeemers.length > 0)
+  if (redeemers.length > 0) {
+    const positions = finalPositions(spends, sortedReferenceInputs, outputs);
     witnessSet.redeemers = redeemers.map((r): RedeemerPrototype => ({
       tag: { type: r.tag } as RedeemerTagPrototype,
       index: r.index.toString(),
-      data: structuredClone(redeemerData(r.part)),
+      data: redeemerData(r, positions),
       ex_units: { ...r.exUnits },
     }));
+  }
 
   const auxiliaryData = toAuxiliaryData(metadataParts, byKind.auxiliaryScript);
 
@@ -480,11 +495,165 @@ export const assembleTxPrototype = (
   return { prototype, redeemers, languages };
 };
 
-const redeemerData = (part: RedeemerPart): PlutusDataVariant => {
-  const { witness } = part;
-  if (witness.type !== "plutus")
-    throw new Error(`${part.kind} part has no redeemer`);
-  return witness.redeemer.data as PlutusDataVariant;
+/** What a redeemer function can ask about: the final positions of the transaction's items */
+type FinalPositions = {
+  inputs: readonly TransactionInputPrototype[];
+  /** Position of each input, by `txHash#index` */
+  input: Map<string, number>;
+  /** Position of each reference input, by `txHash#index` */
+  referenceInput: Map<string, number>;
+  /** Position of the first output part with each label */
+  output: Map<string, number>;
+};
+
+const finalPositions = (
+  spends: readonly SpendPart[],
+  referenceInputs: readonly TransactionInputPrototype[],
+  outputs: readonly OutputPart[],
+): FinalPositions => {
+  const output = new Map<string, number>();
+  outputs.forEach((part, i) => {
+    if (part.label !== undefined && !output.has(part.label))
+      output.set(part.label, i);
+  });
+  return {
+    inputs: spends.map((p) => p.input),
+    input: new Map(spends.map((p, i) => [outRef(p.input), i])),
+    referenceInput: new Map(referenceInputs.map((r, i) => [outRef(r), i])),
+    output,
+  };
+};
+
+/** An out ref a redeemer function asks for, as `txHash#index`, its hash in lower case */
+const askedOutRef = (ref: InputRef): string => {
+  const asked: Partial<OutRef> | undefined =
+    ref !== null && typeof ref === "object" && "input" in ref
+      ? (ref as UTxO).input
+      : (ref as Partial<OutRef> | undefined);
+  const txHash = asked?.txHash;
+  return `${typeof txHash === "string" ? txHash.toLowerCase() : String(txHash)}#${asked?.outputIndex}`;
+};
+
+/**
+ * The context of one redeemer function call. The errors its lookups raise are added to `raised`,
+ * so that the call can tell them from what the function throws itself.
+ */
+const redeemerContext = (
+  redeemer: AssembledRedeemer,
+  positions: FinalPositions,
+  raised: Set<unknown>,
+): RedeemerContext => {
+  const refuse = (
+    reason: "notAnInput" | "notAReferenceInput" | "noSuchOutput",
+    message: string,
+    ref?: string,
+  ) => {
+    const error = new TxBuildError("INVALID_REDEEMER", message, {
+      part: redeemer.part.kind,
+      label: redeemer.label,
+      details: { reason, ...(ref !== undefined && { ref }) },
+    });
+    raised.add(error);
+    return error;
+  };
+  // Arrow functions: bound, and blind to the extra arguments of `map`
+  return Object.freeze({
+    self: redeemer.index,
+    inputs: Object.freeze(
+      positions.inputs.map((input) =>
+        Object.freeze({
+          txHash: input.transaction_id,
+          outputIndex: input.index,
+        }),
+      ),
+    ),
+    input: (ref: InputRef) => {
+      const key = askedOutRef(ref);
+      const position = positions.input.get(key);
+      if (position === undefined)
+        throw refuse(
+          "notAnInput",
+          `the redeemer asks for input ${key}, which the transaction does not spend`,
+          key,
+        );
+      return position;
+    },
+    referenceInput: (ref: InputRef) => {
+      const key = askedOutRef(ref);
+      const position = positions.referenceInput.get(key);
+      if (position === undefined)
+        throw refuse(
+          "notAReferenceInput",
+          `the redeemer asks for reference input ${key}, which is not among the transaction's reference inputs`,
+          key,
+        );
+      return position;
+    },
+    output: (label: string) => {
+      const position = positions.output.get(label);
+      if (position === undefined) {
+        const labels = Array.from(positions.output.keys(), (l) =>
+          JSON.stringify(l),
+        );
+        throw refuse(
+          "noSuchOutput",
+          `the redeemer asks for the output labelled ${JSON.stringify(label)}, and no output part has that label (output labels: ${labels.length > 0 ? labels.join(", ") : "none"})`,
+        );
+      }
+      return position;
+    },
+  });
+};
+
+const isThenable = (value: unknown) =>
+  value !== null &&
+  (typeof value === "object" || typeof value === "function") &&
+  typeof (value as { then?: unknown }).then === "function";
+
+/**
+ * The data of a redeemer as the witness set holds it: a copy of the part's data, or what its
+ * function returns for the final transaction
+ */
+const redeemerData = (
+  redeemer: AssembledRedeemer,
+  positions: FinalPositions,
+): PlutusDataVariant => {
+  const { data } = (redeemer.part.witness as PlutusWitness).redeemer;
+  if (data.type !== "deferred")
+    return structuredClone(data) as PlutusDataVariant;
+
+  const context = { part: redeemer.part.kind, label: redeemer.label };
+  const raised = new Set<unknown>();
+  let value: unknown;
+  try {
+    value = data.build(redeemerContext(redeemer, positions, raised));
+  } catch (error) {
+    // A lookup of its own context keeps its reason; anything else is the function's failure
+    if (raised.has(error)) throw error;
+    throw new TxBuildError(
+      "INVALID_REDEEMER",
+      `the redeemer function threw: ${errorText(error)}`,
+      { ...context, details: { reason: "threw" }, cause: error },
+    );
+  }
+  const invalid = (message: string, cause?: unknown) =>
+    new TxBuildError(
+      "INVALID_REDEEMER",
+      `the redeemer function returned ${message}`,
+      { ...context, details: { reason: "invalidData" }, cause },
+    );
+  if (isThenable(value)) {
+    // Its outcome is never read; a rejection must not go unhandled
+    (value as PromiseLike<unknown>).then(undefined, () => undefined);
+    throw invalid("a promise: a redeemer function must be synchronous");
+  }
+  if (value === undefined || typeof value === "function")
+    throw invalid(`${typeof value}, not Plutus data`);
+  try {
+    return encodePlutusData(value as PlutusDataInput).data;
+  } catch (error) {
+    throw invalid(`what is not Plutus data: ${errorText(error)}`, error);
+  }
 };
 
 const toAuxiliaryData = (
