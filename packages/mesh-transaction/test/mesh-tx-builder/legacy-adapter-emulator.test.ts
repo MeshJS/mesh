@@ -1127,6 +1127,9 @@ describe.each(["scalus", "cquisitor"] as const)(
         for (const answer of [
           () => Promise.reject(new Error("unavailable")),
           () => Promise.resolve(undefined),
+          // An answer without a single field is no answer
+          () => Promise.resolve({}),
+          () => Promise.resolve({ minFeeA: undefined }),
         ]) {
           resetWarnings();
           const context = await setup(validator, { params: { minFeeA: 50 } });
@@ -1170,40 +1173,44 @@ describe.each(["scalus", "cquisitor"] as const)(
         }
       });
 
-      it("keeps the parameters an earlier complete() read when a later read fails", async () => {
-        const context = await setup(validator, { params: { minFeeA: 50 } });
-        const { emulator, address, funds } = context;
-        let failing = false;
-        const fetcher = new Proxy(emulator, {
-          get: (target, prop) =>
-            prop === "fetchProtocolParameters"
-              ? (epoch: number) =>
-                  failing
-                    ? Promise.reject(new Error("unavailable"))
-                    : target.fetchProtocolParameters(epoch)
-              : Reflect.get(target, prop, target),
-        }) as unknown as IFetcher;
-        const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
-        try {
-          const builder = new MeshTxBuilder({ fetcher });
-          const payment = () =>
-            builder
-              .txOut(address, lovelace(5_000_000))
-              .changeAddress(address)
-              .selectUtxosFrom([funds])
-              .complete();
-          const first = await payment();
-          expect(protocolOf(builder).minFeeA).toBe(50);
+      it("keeps the parameters an earlier complete() read when a later read fails or is empty", async () => {
+        for (const later of [
+          () => Promise.reject(new Error("unavailable")),
+          () => Promise.resolve({}),
+        ]) {
+          resetWarnings();
+          const context = await setup(validator, { params: { minFeeA: 50 } });
+          const { emulator, address, funds } = context;
+          let failing = false;
+          const fetcher = new Proxy(emulator, {
+            get: (target, prop) =>
+              prop === "fetchProtocolParameters"
+                ? (epoch: number) =>
+                    failing ? later() : target.fetchProtocolParameters(epoch)
+                : Reflect.get(target, prop, target),
+          }) as unknown as IFetcher;
+          const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+          try {
+            const builder = new MeshTxBuilder({ fetcher });
+            const payment = () =>
+              builder
+                .txOut(address, lovelace(5_000_000))
+                .changeAddress(address)
+                .selectUtxosFrom([funds])
+                .complete();
+            const first = await payment();
+            expect(protocolOf(builder).minFeeA).toBe(50);
 
-          // The next read fails, and is not served by the cache
-          failing = true;
-          CachedFetcher.wrap(fetcher).clear();
-          builder.reset();
-          expect(await payment()).toBe(first);
-          expect(protocolOf(builder).minFeeA).toBe(50);
-          expect(warn).not.toHaveBeenCalled();
-        } finally {
-          warn.mockRestore();
+            // The next read gives nothing, and is not served by the cache
+            failing = true;
+            CachedFetcher.wrap(fetcher).clear();
+            builder.reset();
+            expect(await payment()).toBe(first);
+            expect(protocolOf(builder).minFeeA).toBe(50);
+            expect(warn).not.toHaveBeenCalled();
+          } finally {
+            warn.mockRestore();
+          }
         }
       });
       it("warns of the built-in parameters only when the consumer's fields leave one in use", async () => {

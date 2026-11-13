@@ -392,13 +392,15 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         // The values last read, or the built-in ones, below
       }
     }
-    // A field the fetcher leaves out or gives as undefined comes from the built-in parameters
-    if (read)
+    // A field the fetcher leaves out or gives as undefined comes from the built-in parameters;
+    // an answer without a single field is no answer
+    const given = Object.entries(read ?? {}).filter(
+      ([, value]) => value !== undefined,
+    );
+    if (given.length > 0)
       this.readParams = {
         ...DEFAULT_PROTOCOL_PARAMETERS,
-        ...(Object.fromEntries(
-          Object.entries(read).filter(([, value]) => value !== undefined),
-        ) as Partial<Protocol>),
+        ...(Object.fromEntries(given) as Partial<Protocol>),
       };
     // No warning when the consumer's fields leave nothing of the built-in ones in use
     if (!this.readParams && !this.paramsGivenWhole())
