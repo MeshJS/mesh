@@ -777,10 +777,27 @@ const byParents = (
   }
 
   if (attempt.status === "orphaned") {
-    const alive = dependsOn.every((txHash) => {
-      const sighting = sightingOf(txHash);
-      return sighting?.found === true && sighting.valid === true;
-    });
+    // Live again once no parent attempt is dead by this search: each one is found valid, or not
+    // found while the tip is still before its deadline and the margin. One of them at least is
+    // found valid: a parent attempt found with is_valid = false and then rolled back is not
+    // found, yet its bytes can only land invalid again
+    const { tip } = event;
+    const alive =
+      dependsOn.every((txHash) => {
+        const sighting = sightingOf(txHash);
+        if (sighting === undefined) return false;
+        if (sighting.found) return sighting.valid === true;
+        const until = attempt.parents?.find((p) => p.txHash === txHash)?.until;
+        return (
+          tip !== undefined &&
+          until !== undefined &&
+          tip.timeMs < until + json.deadlines.expiryMarginMs
+        );
+      }) &&
+      dependsOn.some((txHash) => {
+        const sighting = sightingOf(txHash);
+        return sighting?.found === true && sighting.valid === true;
+      });
     if (!alive) return attempt;
     const status: TxAttemptStatus =
       attempt.sends > 0

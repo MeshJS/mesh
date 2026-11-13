@@ -181,11 +181,6 @@ type IntentState = {
    * every attempt stands on their current attempts
    */
   parents: readonly TxIntent[];
-  /**
-   * Parent attempts this object knows to be in a block: its own search found them, or found an
-   * attempt of this intent that spends their output
-   */
-  readonly parentsInBlock: Set<string>;
   readonly observer: ChainObserver;
   /**
    * `owed` until a probe of the provider answered: the object makes it with the first attempt it
@@ -690,13 +685,15 @@ const explicitInputs = (parts: readonly TxPart[]): OutRef[] => {
  * terminal intent, INVALID_STATE (`closing`) after another writer's closing mark, INVALID_WITNESS
  * (`staleAttempt`) for signatures of a replaced attempt, VERSION_CONFLICT for a new attempt or a
  * first delivery another writer overtook. `send()` and `advance()` read the record before each
- * resend. Every method of such an intent may throw TxIntentError VERSION_CONFLICT, STORE_FAILED
- * (the store threw; a write may have passed), INTENT_NOT_FOUND (the record is gone) and
- * INVALID_STATE (`recordVersion`) for a record this library does not read; after any of them
- * nothing more is handed out or sent, and the intent goes on through `builder.resume(id)`. The
- * first method of an intent made by `builder.intent` reads its id's record first, and for a
- * recorded id also throws INTENT_EXISTS (other parts, deadlines, data options or parents) and
- * TxBuildError NETWORK_MISMATCH (a record of another network).
+ * resend; an attempt that record shows in a block and the object did not find is searched for
+ * again, and after a rollback its bytes go again. Every method of such an intent may throw
+ * TxIntentError VERSION_CONFLICT, STORE_FAILED (the store threw; a write may have passed),
+ * INTENT_NOT_FOUND (the record is gone) and INVALID_STATE (`recordVersion`) for a record this
+ * library does not read; after any of them nothing more is handed out or sent, and the intent
+ * goes on through `builder.resume(id)`. The first method of an intent made by `builder.intent`
+ * reads its id's record first, and for a recorded id also throws INTENT_EXISTS (other parts,
+ * deadlines, data options or parents) and TxBuildError NETWORK_MISMATCH (a record of another
+ * network).
  */
 export class TxIntent {
   /** Made by `builder.intent()` and `builder.resume()` only */
@@ -826,13 +823,17 @@ export class TxIntent {
    *   `noValidity`) when the provider, probed with the first attempt this object builds, cannot
    *   follow it; nothing built. STILL_LIVE (retryable) when the payer's anchor is gone before
    *   every earlier attempt's deadline and margin have passed, for a child whose parent attempt
-   *   was refused, and for a child whose earlier attempt may still land on another parent
-   *   attempt. ORPHANED for a child whose parent has no live attempt: build the parent first.
-   *   INVALID_STATE (`terminal`) in `abandoned`, (`closing`) with the closing mark,
-   *   (`tooManyAttempts`) for a 17th attempt, (`pastHorizon`) for an attempt that runs a Plutus
-   *   script past the network's forecast horizon, (`status`) when the parts give a body the
-   *   intent already has. PAYER_MISMATCH, INPUTS_SPENT (also for a part naming an output of a
-   *   parent attempt that is no longer the parent's current one), SCRIPT_FAILED as above
+   *   was refused, for a child whose earlier attempt may still land on another parent attempt,
+   *   and for a child on a parent attempt not in a block past its deadline, until the child's
+   *   margin has passed too (CANNOT_OBSERVE (`unconfirmed`) after that when the search gives no
+   *   answer about it). ORPHANED for a child whose parent has no live attempt, and for one whose
+   *   own search shows the parent attempt dead though the parent's object does not know it yet:
+   *   build the parent first. INVALID_STATE (`terminal`) in `abandoned`, (`closing`) with the
+   *   closing mark, (`tooManyAttempts`) for a 17th attempt, (`pastHorizon`) for an attempt that
+   *   runs a Plutus script past the network's forecast horizon, (`status`) when the parts give a
+   *   body the intent already has. PAYER_MISMATCH, INPUTS_SPENT (also for a part naming an
+   *   output of a parent attempt that is no longer the parent's current one), SCRIPT_FAILED as
+   *   above
    * @throws TxBuildError MISSING_PAYER without a payer, or with a snapshot an earlier attempt
    *   was built from; INVALID_OPTION for a payer of no known form; INSUFFICIENT_FUNDS for an
    *   intent with `sendAllTo` none of whose earlier UTxOs is left; ABORTED; and every error of
@@ -1112,6 +1113,8 @@ export class TxIntent {
   abandon(): Promise<this> {
     return this.#run(async (state) => {
       state.closingSteps += 1;
+      // How often a landing that only a record read again showed was observed again
+      let rereads = 0;
       try {
         for (;;) {
           const status = intentStatus(state.record);
@@ -1137,6 +1140,7 @@ export class TxIntent {
           if (now === "final" || now === "included") throw this.#onChain(state);
           if (seen.noValidity)
             this.#refuseUnobservable({ ...seen, noDepth: false });
+          const reads = state.storeReads;
           // The mark goes in first; the waits of other calls learn of it once this step ends.
           // Over a record that is closed or landed by then, also through another call's write
           // queued before this one, nothing is marked
@@ -1150,7 +1154,18 @@ export class TxIntent {
             };
           });
           if (marked === "skipped") {
-            if (intentStatus(state.record) === "abandoned") return this;
+            const at = intentStatus(state.record);
+            if (at === "abandoned") return this;
+            // An attempt in a block by another writer's record, which this call's search did not
+            // find: it is observed again over that record, and a rollback takes it back to sent
+            if (
+              at === "included" &&
+              state.storeReads !== reads &&
+              rereads < MAX_REPEATS
+            ) {
+              rereads += 1;
+              continue;
+            }
             throw this.#onChain(state);
           }
           await this.#close(state, seen.tip, "abandon", undefined);
@@ -1426,6 +1441,20 @@ export class TxIntent {
   async #reread(state: IntentState): Promise<IntentRecord> {
     const record = await loadRecord(state.store!, state.record.id!);
     if (record === undefined) throw this.#gone();
+    return this.#takeStored(state, record);
+  }
+
+  /**
+   * A record read from the store, taken as the object's own; one met for the first time is
+   * compared with what `builder.intent` was given
+   * @throws TxIntentError INTENT_EXISTS; INTENT_NOT_FOUND, STORE_FAILED, INVALID_STATE
+   *   (`recordVersion`) for a parent loaded
+   * @throws TxBuildError NETWORK_MISMATCH
+   */
+  async #takeStored(
+    state: IntentState,
+    record: IntentRecord,
+  ): Promise<IntentRecord> {
     if (state.met) commitStored(state, record);
     else {
       try {
@@ -1583,7 +1612,6 @@ export class TxIntent {
    * slot is left out, and the anchors such an attempt spends are never read as in place
    */
   #readSearches(
-    state: IntentState,
     attempts: readonly AttemptRecord[],
     searches: ReadonlyMap<string, TxSearch>,
     tip: Tip | undefined,
@@ -1605,9 +1633,6 @@ export class TxIntent {
         sightings.push({ txHash: attempt.txHash, found: false });
         continue;
       }
-      // A found attempt of a child says that the parent attempts it spends are in a block
-      for (const parent of attempt.dependsOn ?? [])
-        state.parentsInBlock.add(parent);
       const validityUnknown =
         attempt.plutus === true && search.validContract === undefined;
       if (validityUnknown && attempt.status !== "failed") noValidity = true;
@@ -1642,8 +1667,8 @@ export class TxIntent {
   }
 
   /**
-   * What this intent's own searches say about parent attempts; a found one is in a block for this
-   * intent from now on. A parent attempt that runs no Plutus script is valid when found
+   * What this intent's own searches say about parent attempts. A parent attempt that runs no
+   * Plutus script is valid when found
    */
   #parentSightings(
     state: IntentState,
@@ -1656,7 +1681,6 @@ export class TxIntent {
         sightings.push({ txHash, found: false });
         continue;
       }
-      state.parentsInBlock.add(txHash);
       const plutus = parentAttempt(state, txHash)?.attempt.plutus === true;
       const valid = search.validContract ?? (plutus ? undefined : true);
       sightings.push({
@@ -1750,7 +1774,7 @@ export class TxIntent {
     const parentSearches = await this.#search(state, parentHashes, signal);
     const observed = await abortable(state.observer.tip(), signal, CALL);
     const tip = observed && this.#tipOf(state, observed);
-    const read = this.#readSearches(state, attempts, searches, tip);
+    const read = this.#readSearches(attempts, searches, tip);
 
     // An attempt past its deadline and the margin that the search gave no answer about is
     // expired when a fresh read of its anchor's address shows the anchor still there. An anchor
@@ -2023,7 +2047,7 @@ export class TxIntent {
     const parentSearches = await this.#search(state, orphanParents, signal);
     const observed = await abortable(state.observer.tip(), signal, CALL);
     const tip = observed && this.#tipOf(state, observed);
-    const read = this.#readSearches(state, record.attempts, own, tip);
+    const read = this.#readSearches(record.attempts, own, tip);
     const inPlace = await this.#anchorsInPlace(
       state,
       read.noAnswer,
@@ -2181,7 +2205,12 @@ export class TxIntent {
       const stale = this.#staleParentRefs(state, bases);
       if (stale.length > 0) throw this.#inputsSpent(stale);
     } else {
-      const landed = await this.#checkInputs(state, current!, bases, signal);
+      const landed = await this.#checkInputs(
+        state,
+        current!.built,
+        bases,
+        signal,
+      );
       if (landed) return landed;
     }
     if (bases.length > 0) this.#refuseOtherParent(state, bases, tip);
@@ -2304,6 +2333,19 @@ export class TxIntent {
       },
     );
 
+    // The first attempt's explicit inputs are checked on the body just built, which gives their
+    // addresses; outputs of `knownUtxos` are not read, as the provider may not know them yet
+    if (first) {
+      const landed = await this.#checkInputs(
+        state,
+        built,
+        bases,
+        signal,
+        new Set((options.knownUtxos ?? []).map((utxo) => lowKey(utxo.input))),
+      );
+      if (landed) return landed;
+    }
+
     const anchors = await this.#anchorsOf(
       state,
       built,
@@ -2386,7 +2428,7 @@ export class TxIntent {
               refusal.reason === "attempt"
                 ? this.#error(
                     "INVALID_STATE",
-                    `the parts give the same body again: the intent already has the attempt ${built.txHash}, with these parts and this payer it has no other body; start a new intent once this one is abandoned, or build again once the payer's UTxOs have changed`,
+                    `the parts give the same body again: the intent already has the attempt ${built.txHash}, with these parts and this payer it has no other body; ${state.parents.length > 0 ? "refresh() the parents and build their new attempts first, or " : ""}start a new intent once this one is abandoned, or build again once the payer's UTxOs have changed`,
                     { details: { reason: "status" }, txHash: built.txHash },
                   )
                 : this.#refused(state, refusal),
@@ -2453,10 +2495,15 @@ export class TxIntent {
 
   /**
    * The parent attempts a new attempt of a child stands on: each parent's landed attempt, else
-   * its current one. One not known to be in a block is searched once, since its deadline caps
-   * the child's
-   * @throws TxIntentError ORPHANED for a parent with no live attempt; STILL_LIVE for a parent
-   *   whose current attempt was refused or is dead while another of its attempts may land
+   * its current one. One that the parent's record does not show in a block is searched once by
+   * the child, since its deadline caps the child's; the parent's object and record are not
+   * changed
+   * @throws TxIntentError ORPHANED for a parent with no live attempt, and for a parent attempt the
+   *   child's search shows dead (found with is_valid = false, or not found past its deadline and
+   *   the child's margin); STILL_LIVE for a parent whose current attempt was refused or is dead
+   *   while another of its attempts may land, and for a parent attempt not found past its
+   *   deadline, before the margin; CANNOT_OBSERVE (`unconfirmed`) for one past its deadline that
+   *   the search gives no answer about
    */
   async #parentBases(
     state: IntentState,
@@ -2488,24 +2535,48 @@ export class TxIntent {
       bases.push({
         attempt,
         built: attempt.built,
-        inBlock:
-          attempt.status === "included" ||
-          attempt.status === "final" ||
-          state.parentsInBlock.has(attempt.txHash),
+        inBlock: attempt.status === "included" || attempt.status === "final",
         ...(held.id !== undefined && { intentId: held.id }),
       });
     }
+    const margin = state.record.deadlines.expiryMarginMs;
     for (const [i, base] of bases.entries()) {
       if (base.inBlock) continue;
+      const { txHash, until } = base.attempt;
       const search = await abortable(
-        state.observer.findTx(base.attempt.txHash),
+        state.observer.findTx(txHash),
         signal,
         CALL,
       );
+      // Dead by the child's own search, though the parent's object may not know it yet
+      const dead = (why: string) =>
+        this.#error(
+          "ORPHANED",
+          `the parent attempt ${txHash} ${why}, though the parent's object has not observed it yet: refresh() the parent, build its new attempt, then build this one`,
+          { details: { otherLive: this.#otherLive(state) } },
+        );
       if (isFound(search)) {
-        state.parentsInBlock.add(base.attempt.txHash);
+        if (search.validContract === false)
+          throw dead("is in a block with is_valid = false");
         bases[i] = { ...base, inBlock: true };
+        continue;
       }
+      // A parent attempt past its deadline and not in a block gives a body that cannot land
+      if (tip.timeMs < until) continue;
+      const answered = search !== undefined && !("unsupported" in search);
+      if (answered && tip.timeMs >= until + margin)
+        throw dead("is not found, and its deadline and the margin have passed");
+      if (!answered && tip.timeMs >= until + margin)
+        throw this.#unconfirmed(
+          state,
+          `the deadline of the parent attempt ${txHash} has passed, and the search gives no answer about it: whether it is in a block is not known`,
+        );
+      throw this.#stillLive(
+        [txHash],
+        until + margin,
+        tip,
+        `the parent attempt ${txHash} is not found, and its deadline has passed: a new attempt on it could not land`,
+      );
     }
     return bases;
   }
@@ -2563,16 +2634,21 @@ export class TxIntent {
   /**
    * The explicit inputs of the parts, read fresh at their addresses: when one is gone, the
    * attempts are searched once more, at once; one that landed is returned, else INPUTS_SPENT.
+   * Before the first attempt, with a store, the record is read once more: one that holds
+   * another writer's attempts is taken, and the build step starts again from it.
    * An output of the parent attempt a child stands on is not on chain yet and is not read; an
    * output of an earlier parent attempt is gone for a child on a new one
+   * @param built The body whose inputs give the addresses: the previous attempt's, or for the
+   *   first attempt the one just built
+   * @param unread Inputs not read, by `lowKey`: those the provider may not know yet
    */
   async #checkInputs(
     state: IntentState,
-    previous: AttemptRecord,
+    built: BuiltTx | undefined,
     bases: readonly ParentBase[],
     signal: AbortSignal | undefined,
+    unread: ReadonlySet<string> = new Set(),
   ): Promise<BuiltTx | undefined> {
-    const built = previous.built;
     const stale = this.#staleParentRefs(state, bases);
     const staleKeys = new Set(stale.map(lowKey));
     const standing = new Set(
@@ -2588,10 +2664,10 @@ export class TxIntent {
     const reads = new Map<string, Promise<readonly UTxO[] | undefined>>();
     const checked: { ref: OutRef; address: string }[] = [];
     for (const ref of explicitInputs(state.parts)) {
-      if (staleKeys.has(lowKey(ref))) continue;
+      if (staleKeys.has(lowKey(ref)) || unread.has(lowKey(ref))) continue;
       if (standing.has(ref.txHash.toLowerCase())) continue;
       const address = known.find((utxo) => sameRef(utxo, ref))?.output.address;
-      // Not in the previous attempt: nothing to compare with, unknown
+      // Not in the body: nothing to compare with, unknown
       if (address === undefined) continue;
       checked.push({ ref, address });
       if (!reads.has(address))
@@ -2608,6 +2684,16 @@ export class TxIntent {
     await this.#observe(state, "all", signal);
     const landed = this.#landedOrFailed(state);
     if (landed) return landed;
+    // Before its first attempt the object knows of no attempt but those in the store: another
+    // writer's attempt may be what spent the input. The step goes on from that record
+    if (currentAttempt(state.record) === undefined && state.store) {
+      const stored = await loadRecord(state.store, state.record.id!);
+      if (stored !== undefined && stored.attempts.length > 0) {
+        await this.#takeStored(state, stored);
+        if (intentStatus(state.record) !== "final") this.#refuseClosed(state);
+        return this.#buildStep(state, signal);
+      }
+    }
     throw this.#inputsSpent(spent);
   }
 
@@ -2973,7 +3059,7 @@ export class TxIntent {
       state,
       candidates.length === 0
         ? "the attempt spends no input that can be its anchor"
-        : "fresh reads of their addresses show none of the inputs that could be the intent's anchor: the provider contradicts the payer's own list",
+        : "fresh reads of their addresses show none of the inputs that could be the intent's anchor: the payer's UTxOs are older than those reads (they may have been spent meanwhile, also by an attempt of this intent made elsewhere), or the provider lags behind; the same call reads a wallet's UTxOs again",
     );
   }
 
@@ -3406,8 +3492,9 @@ export class TxIntent {
   /**
    * The error of a recorded delivery that failed, and the refusal recorded when it is one. A
    * refusal of a child's attempt counts only once a fresh search finds every parent attempt it
-   * names in a block. Undefined when another call on the object found the attempt in a block
-   * meanwhile: nothing is recorded, and the step goes on from the record
+   * names in a block. Undefined when another call on the object, or another writer of its
+   * record, found the attempt in a block or closed the intent meanwhile: nothing is recorded, and
+   * the step goes on from the record
    */
   async #failedDelivery(
     state: IntentState,
@@ -3440,12 +3527,27 @@ export class TxIntent {
           return isFound(search);
         });
       }
-      await this.#apply(state, {
-        type: "answer",
-        txHash: attempt.txHash,
-        refused: true,
-        ...(parents.length > 0 && { parentsInBlock }),
+      // The record it is applied to, read again after another writer's change, may be terminal
+      // or hold the attempt in a block: nothing is recorded, and the step goes on from it
+      const recorded = await this.#write(state, (record) => {
+        const held = record.attempts.find((a) => a.txHash === attempt.txHash);
+        if (
+          isTerminal(record) ||
+          held?.status === "included" ||
+          held?.status === "final"
+        )
+          return { skip: true };
+        return {
+          event: {
+            type: "answer",
+            txHash: attempt.txHash,
+            refused: true,
+            ...(parents.length > 0 && { parentsInBlock }),
+          },
+          refused: (refusal) => this.#refused(state, refusal),
+        };
       });
+      if (recorded === "skipped") return undefined;
       const now = state.record.attempts.find(
         (a) => a.txHash === attempt.txHash,
       );
@@ -3525,7 +3627,13 @@ export class TxIntent {
     if (state.store !== undefined) {
       const stored = await loadRecord(state.store, state.record.id!);
       if (stored === undefined) throw this.#gone();
-      if (stored.rev > state.record.rev) commitStored(state, stored);
+      if (stored.rev > state.record.rev) {
+        commitStored(state, stored);
+        // An attempt in a block by that record, which this object's own search did not find, is
+        // searched for again over it: after a rollback it is sent again, and its bytes go again
+        if (intentStatus(state.record) === "included")
+          await this.#observe(state, "live", call.signal);
+      }
     }
     // Another call may have changed the record during that search: read it again
     const now = currentAttempt(state.record);
@@ -3693,7 +3801,6 @@ const makeIntent = (
         : Array.isArray(live.after)
           ? [...(live.after as readonly TxIntent[])]
           : [live.after as TxIntent],
-    parentsInBlock: new Set(),
     observer: chainObserver(builder.provider),
     probe: "owed",
     watchers: new Set(),

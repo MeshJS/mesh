@@ -1089,6 +1089,88 @@ describe("intent state machine: parents and children", () => {
     expect(half.ok && half.json).toBe(twoParents);
   });
 
+  it("an orphaned attempt on two parents is live again once neither parent attempt is dead", () => {
+    const P2_UNTIL = PARENT_UNTIL + 5 * MARGIN;
+    // Orphaned by P1, not found past its deadline and the margin; P2's deadline is later
+    const orphaned = acceptAll(
+      start(),
+      childBuild(
+        A(1),
+        [
+          { txHash: P1, until: PARENT_UNTIL, intentId: "p" },
+          { txHash: P2, until: P2_UNTIL, intentId: "r" },
+        ],
+        [{ utxo: utxo(P1, 0), kind: "parent" }],
+        [utxo(P2, 0)],
+        [K1],
+      ),
+      sign(A(1), K1),
+      deliver(A(1)),
+      parentGone(),
+    );
+    expect(orphaned.status).toBe("orphaned");
+    const back = (tip: ReturnType<typeof timeTip> | undefined) =>
+      observe({
+        ...(tip !== undefined && { tip }),
+        parents: [
+          { txHash: P1, found: true, valid: true },
+          { txHash: P2, found: false },
+        ],
+      });
+
+    const live = accept(orphaned, back(timeTip(P2_UNTIL + MARGIN - 1)));
+    expect(live.status).toBe("sent");
+    expect(liveAttempts(live).map((a) => a.txHash)).toEqual([A(1)]);
+    for (const tip of [timeTip(P2_UNTIL + MARGIN), undefined]) {
+      const still = advanceIntent(orphaned, back(tip));
+      expect(still.ok && still.json).toBe(orphaned);
+    }
+    // P1 still not found past its deadline: it is dead, though P2 may land
+    const p1Gone = advanceIntent(
+      orphaned,
+      observe({
+        tip: timeTip(PARENT_UNTIL + MARGIN + 1),
+        parents: [
+          { txHash: P1, found: false },
+          { txHash: P2, found: false },
+        ],
+      }),
+    );
+    expect(p1Gone.ok && p1Gone.json).toBe(orphaned);
+  });
+
+  it("an attempt orphaned by a parent found with is_valid = false stays orphaned once a rollback hides it", () => {
+    const json = accept(start(), onParent(A(1), P1));
+    const invalid = accept(
+      json,
+      observe({
+        tip: timeTip(PARENT_UNTIL - 5 * MARGIN),
+        parents: [{ txHash: P1, found: true, valid: false }],
+      }),
+    );
+    expect(invalid.status).toBe("orphaned");
+    // Not found before its deadline and the margin: its bytes can only land invalid again
+    for (const timeMs of [
+      PARENT_UNTIL - 4 * MARGIN,
+      PARENT_UNTIL + MARGIN - 1,
+    ]) {
+      const still = advanceIntent(
+        invalid,
+        observe({
+          tip: timeTip(timeMs),
+          parents: [{ txHash: P1, found: false }],
+        }),
+      );
+      expect(still.ok && still.json).toBe(invalid);
+    }
+    expect(
+      accept(
+        invalid,
+        observe({ parents: [{ txHash: P1, found: true, valid: true }] }),
+      ).status,
+    ).toBe("signed");
+  });
+
   it("keeps a child's anchors: the parent output while it may land, the general anchor for good", () => {
     const P1b = hash(0x101);
     const json = accept(start(), onParent(A(1), P1));

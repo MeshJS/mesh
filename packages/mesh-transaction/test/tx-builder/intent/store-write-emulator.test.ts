@@ -17,6 +17,7 @@ import {
   advance,
   builderOf,
   caught,
+  FAST,
   forwarding,
   hashOf,
   pay,
@@ -521,6 +522,172 @@ describe("Two objects on one record", () => {
     expect(other.store.written()).toEqual([]);
   });
 
+  it("returns from a first delivery refused after the other object carried the intent to final; nothing written", async () => {
+    for (const method of ["send", "advance"] as const) {
+      const { builder, wallet, emulator, instance, store } = await storeSetup();
+      const held = gate();
+      // The bytes reach the node only after the other object made them land: it refuses them
+      const submitter = submitterOf(async (tx) => {
+        await held.pass();
+        return emulator.submitTx(tx);
+      });
+      const a = builder.intent(pay(), { id: "pay", payer: wallet });
+      const call = a[method]({ submitter });
+      await held.reached;
+      expect((await stored(store, "pay")).status).toBe("sent");
+      const b = await instance().builder.resume("pay", { payer: wallet });
+      await b.advance({ waitFor: "final", submitter: forwarding(emulator) });
+      expect(b.status).toBe("final");
+      const final = await stored(store, "pay");
+      store.reset();
+      held.open();
+
+      await call;
+      expect(a.status).toBe("final");
+      expect(a.txHash).toBe(b.txHash);
+      expect(submitter.calls).toHaveLength(1);
+      expect(store.written()).toEqual([]);
+      expect(await stored(store, "pay")).toEqual(final);
+    }
+  });
+
+  it("ends a first delivery refused after the other object abandoned the intent as in abandoned; nothing written", async () => {
+    for (const method of ["send", "advance"] as const) {
+      const { builder, wallet, emulator, instance, store } = await storeSetup();
+      const held = gate();
+      // The bytes reach the node only past their deadline: it refuses them
+      const submitter = submitterOf(async (tx) => {
+        await held.pass();
+        return emulator.submitTx(tx);
+      });
+      const a = builder.intent(pay(), { id: "pay", payer: wallet });
+      const call = a[method]({ submitter }).then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+      await held.reached;
+      expect((await stored(store, "pay")).status).toBe("sent");
+      emulator.advanceTo({ time: a.attempts[0]!.until + 1_000 });
+      const b = await instance().builder.resume("pay", { payer: wallet });
+      await b.abandon();
+      expect(b.status).toBe("abandoned");
+      const abandoned = await stored(store, "pay");
+      store.reset();
+      held.open();
+
+      const outcome = await call;
+      if (method === "send") {
+        expectCode(outcome, "INVALID_STATE");
+        expect(reasonOf(outcome)).toBe("terminal");
+      } else expect(outcome).toBeUndefined();
+      expect(a.status).toBe("abandoned");
+      expect(submitter.calls).toHaveLength(1);
+      expect(store.written()).toEqual([]);
+      expect(await stored(store, "pay")).toEqual(abandoned);
+    }
+  });
+
+  it("goes on from included after a first delivery refused once the other object saw the attempt in a block; nothing written", async () => {
+    for (const method of ["send", "advance"] as const) {
+      const store = watchStore();
+      const intentDefaults = { ...FAST, confirmations: 2 };
+      const { builder, wallet, emulator, provider } = await setup({
+        builder: { store, intentDefaults },
+      });
+      const held = gate();
+      // The bytes reach the node only after the other object's copy is in a block: it refuses them
+      const submitter = submitterOf(async (tx) => {
+        await held.pass();
+        return emulator.submitTx(tx);
+      });
+      const a = builder.intent(pay(), { id: "pay", payer: wallet });
+      const call = a[method]({ submitter });
+      await held.reached;
+      const b = await builderOf(provider, {
+        store: watchStore(store.inner),
+        intentDefaults,
+      }).resume("pay", { payer: wallet });
+      await b.advance({
+        waitFor: "included",
+        submitter: forwarding(emulator),
+      });
+      expect(b.status).toBe("included");
+      const included = await stored(store, "pay");
+      store.reset();
+      held.open();
+
+      await call;
+      expect(a.status).toBe("included");
+      expect(a.landed?.txHash).toBe(b.txHash);
+      expect(submitter.calls).toHaveLength(1);
+      expect(store.written()).toEqual([]);
+      expect(await stored(store, "pay")).toEqual(included);
+    }
+  });
+
+  it("is CANNOT_OBSERVE (unconfirmed) for a first build over payer UTxOs the other object spent meanwhile; again it returns the landed attempt", async () => {
+    const { builder, wallet, emulator, instance, store, provider } =
+      await storeSetup();
+    const held = gate();
+    provider.control.hooks.fetchProtocolParameters = async (
+      forward,
+      ...args
+    ) => {
+      delete provider.control.hooks.fetchProtocolParameters;
+      await held.pass();
+      return forward(...args);
+    };
+    const a = builder.intent(pay(), { id: "pay", payer: wallet });
+    const building = caught(a.build());
+    await held.reached;
+    // Meanwhile the other object makes the first attempt, from the same payer, and it lands
+    const b = instance().builder.intent(pay(), { id: "pay", payer: wallet });
+    await b.send({ waitFor: "final", submitter: forwarding(emulator) });
+    store.reset();
+    held.open();
+
+    const error = (await building) as TxIntentError<"CANNOT_OBSERVE">;
+    expectCode(error, "CANNOT_OBSERVE");
+    expect(error.details.reason).toBe("unconfirmed");
+    expect(error.retryable).toBe(true);
+    expect(error.message).toMatch(/payer's UTxOs are older than those reads/);
+    expect(store.written()).toEqual([]);
+    expect(a.status).toBe("draft");
+    const built = await a.build();
+    expect(built.txHash).toBe(b.txHash);
+    expect(a.status).toBe("final");
+    expect(store.written()).toEqual([]);
+  });
+
+  it("returns the other object's landed attempt from a first build whose explicit input that attempt spent, not INPUTS_SPENT", async () => {
+    const { builder, wallet, emulator, instance, store, provider, funded } =
+      await storeSetup();
+    const parts = () => [spend.pubKey({ utxo: funded[0]! }), pay()];
+    const held = gate();
+    provider.control.hooks.fetchProtocolParameters = async (
+      forward,
+      ...args
+    ) => {
+      delete provider.control.hooks.fetchProtocolParameters;
+      await held.pass();
+      return forward(...args);
+    };
+    const a = builder.intent(parts(), { id: "pay", payer: wallet });
+    const building = a.build();
+    await held.reached;
+    const b = instance().builder.intent(parts(), { id: "pay", payer: wallet });
+    await b.send({ waitFor: "final", submitter: forwarding(emulator) });
+    store.reset();
+    held.open();
+
+    const built = await building;
+    expect(built.txHash).toBe(b.txHash);
+    expect(a.status).toBe("final");
+    expect(a.attempts).toHaveLength(1);
+    expect(store.written()).toEqual([]);
+    expect((await a.build()).txHash).toBe(b.txHash);
+  });
+
   it("returns from a closing call whose write queued behind another call that closed the intent", async () => {
     for (const order of [
       ["abandon", "advance"],
@@ -803,6 +970,77 @@ describe("The read before a resend", () => {
     expect(error.intentId).toBe("pay");
     expect(submitter.calls).toHaveLength(2);
     expect(store.saves()).toEqual([]);
+  });
+});
+
+describe("A rollback of an attempt another object saw in a block", () => {
+  /**
+   * The first object sends through a submitter that passes nothing on; the other sends the same
+   * bytes for real and records them included; then the chain rolls back to before them. The
+   * first object still holds its record of `sent`
+   */
+  const rolledBack = async () => {
+    const store = watchStore();
+    const intentDefaults = { ...FAST, confirmations: 2 };
+    const ctx = await setup({ builder: { store, intentDefaults } });
+    const a = ctx.builder.intent(pay(), { id: "pay", payer: ctx.wallet });
+    await a.send({ submitter: swallowing() });
+    const before = ctx.emulator.fork();
+    const b = await builderOf(ctx.provider, { store, intentDefaults }).resume(
+      "pay",
+    );
+    await b.advance({
+      waitFor: "included",
+      submitter: forwarding(ctx.emulator),
+    });
+    expect(b.status).toBe("included");
+    ctx.provider.control.target = before;
+    await expect(before.fetchTxInfo(a.txHash!)).rejects.toBeDefined();
+    expect(a.status).toBe("sent");
+    expect((await stored(store, "pay")).status).toBe("included");
+    return { ...ctx, store, a, before };
+  };
+
+  it("is STILL_LIVE from abandon(), not ATTEMPT_ON_CHAIN, and writes the mark over sent", async () => {
+    for (const refreshFirst of [false, true]) {
+      const { a, store } = await rolledBack();
+      if (refreshFirst) await a.refresh();
+      expectCode(await caught(a.abandon()), "STILL_LIVE");
+      expect(a.status).toBe("sent");
+      expect(a.landed).toBeUndefined();
+      expect(a.closing).toBe(true);
+      const record = await stored(store, "pay");
+      expect(record.status).toBe("sent");
+      expect(record.closing).toBe(true);
+    }
+  });
+
+  it("sends the bytes again from send() and advance() waiting for included, instead of returning", async () => {
+    for (const method of ["send", "advance"] as const) {
+      const failing = await rolledBack();
+      const down = submitterOf(async () => {
+        throw new Error("the network is down");
+      });
+      const error = await caught(
+        failing.a[method]({
+          waitFor: "included",
+          timeoutMs: 100,
+          submitter: down,
+        }),
+      );
+      expectCode(error, "CONFIRM_TIMEOUT");
+      expect(down.calls.length).toBeGreaterThan(0);
+      expect(failing.a.status).toBe("sent");
+      expect(failing.a.landed).toBeUndefined();
+      expect((await stored(failing.store, "pay")).status).toBe("sent");
+
+      const { a, before } = await rolledBack();
+      const resent = forwarding(before);
+      await a[method]({ waitFor: "included", submitter: resent });
+      expect(resent.calls).toEqual([a.signedTx]);
+      expect(a.status).toBe("included");
+      expect((await before.fetchTxInfo(a.txHash!)).hash).toBe(a.txHash);
+    }
   });
 });
 

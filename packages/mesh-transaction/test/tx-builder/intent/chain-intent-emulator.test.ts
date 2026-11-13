@@ -1,5 +1,5 @@
 import type { UTxO } from "@meshsdk/common";
-import { mConStr0 } from "@meshsdk/core";
+import { mConStr0, ProviderError } from "@meshsdk/core";
 
 import type { TxIntent, TxIntentError } from "../../../src/tx-builder";
 import {
@@ -15,6 +15,7 @@ import { alwaysSucceedCbor } from "../../test-util";
 import {
   advance,
   caught,
+  FAST,
   forwarding,
   pay,
   reasonOf,
@@ -451,6 +452,68 @@ describe("Intent chains with several parents, failed parents and pinned selectio
     expect(child.status).toBe("abandoned");
   });
 
+  it("makes a child on two parents live again once the parent that orphaned it is found, while the other may land", async () => {
+    const { emulator, builder, wallet, address, funded, provider } =
+      await setup();
+    let hidden: string | undefined;
+    provider.control.hooks.fetchTxInfo = (forward, hash: string) => {
+      if (hash === hidden) throw { kind: "notFound", status: 404 };
+      return forward(hash);
+    };
+    const snapshot = (utxo: UTxO) => ({
+      changeAddress: address,
+      utxos: [utxo],
+    });
+    // The first parent lands; the second, with a later deadline, is not passed on yet
+    const first = builder.intent(
+      [
+        pay(),
+        output({ label: "a", address, value: { lovelace: 10_000_000n } }),
+      ],
+      { payer: snapshot(funded[0]!) },
+    );
+    await first.send({ signers: wallet, submitter: forwarding(emulator) });
+    advance(emulator, 200);
+    const second = builder.intent(
+      [pay(), output({ label: "b", address, value: { lovelace: 5_000_000n } })],
+      { payer: snapshot(funded[1]!) },
+    );
+    await second.send({ signers: wallet, submitter: swallowing() });
+    expect(second.attempts[0]!.until).toBeGreaterThan(first.attempts[0]!.until);
+    const child = builder.intent(
+      [
+        spend.pubKey({ utxo: outputOf(first.built!, "a") }),
+        spend.pubKey({ utxo: outputOf(second.built!, "b") }),
+        pay(3_000_000n),
+      ],
+      { payer: wallet, after: [first, second] },
+    );
+    await child.build();
+    await child.send({ submitter: swallowing() });
+    const bytes = child.signedTx!;
+    // The search does not show the first parent past its deadline: orphaned
+    hidden = first.txHash;
+    emulator.advanceTo({ time: first.attempts[0]!.until });
+    await child.refresh();
+    expect(child.status).toBe("orphaned");
+
+    // Shown again, while the second parent is before its deadline: no parent attempt is dead
+    hidden = undefined;
+    const built = await child.build();
+    expect(built.txHash).toBe(child.txHash);
+    expect(child.status).toBe("sent");
+    expect(child.live.map((attempt) => attempt.txHash)).toEqual([child.txHash]);
+    expect(child.attempts).toHaveLength(1);
+    const resent = swallowing();
+    await child.send({ submitter: resent });
+    expect(resent.calls).toEqual([bytes]);
+
+    // The second parent lands, and so does the child
+    await emulator.submitTx(second.signedTx!);
+    await child.send({ waitFor: "included", submitter: forwarding(emulator) });
+    expect(child.landed?.txHash).toBe(child.txHash);
+  });
+
   it("orphans a child at once when its parent's attempt is found with is_valid = false, and closes it", async () => {
     const { emulator, builder, wallet, provider } = await setup();
     const locked = emulator.fund(builder.scriptAddress(plutus), {
@@ -629,6 +692,179 @@ describe("Intent chains with several parents, failed parents and pinned selectio
     expect(second.inputs.map(key)).toEqual([key(change)]);
     expect(second.outputs.some((o) => o.output.address === to)).toBe(true);
     expect(child.attempts).toHaveLength(2);
+  });
+});
+
+describe("A child on a parent attempt its parent's object has not observed", () => {
+  it("is ORPHANED from build() and advance() on a parent attempt past its deadline, until the parent builds again", async () => {
+    const { emulator, builder, wallet } = await setup();
+    const parent = builder.intent(pay(), { payer: wallet });
+    await parent.send({ submitter: swallowing() });
+    const child = builder.intent(pay(3_000_000n), {
+      payer: wallet,
+      after: parent,
+    });
+    await child.build();
+    await child.send({ submitter: swallowing() });
+    emulator.advanceTo({ time: parent.attempts[0]!.until });
+    await child.refresh();
+    expect(child.status).toBe("expired");
+    // The parent's object still shows its attempt sent
+    expect(parent.status).toBe("sent");
+    const record = recordOf(child);
+    for (const call of [() => child.build(), () => child.advance()]) {
+      const error = (await caught(call())) as TxIntentError<"ORPHANED">;
+      expectCode(error, "ORPHANED");
+      expect(error.details.otherLive).toEqual([]);
+      expect(error.message).toMatch(/refresh\(\) the parent/);
+    }
+    expect(child.attempts).toHaveLength(1);
+    expect(recordOf(child)).toBe(record);
+
+    await parent.refresh();
+    await parent.build();
+    await parent.send();
+    const built = await child.build();
+    expect(child.attempts).toHaveLength(2);
+    expect(child.attempts[1]!.parents![0]!.txHash).toBe(parent.txHash);
+    expect(built.inputs.map((utxo) => utxo.input.txHash)).toContain(
+      parent.txHash,
+    );
+  });
+
+  it("is ORPHANED, not INVALID_STATE, from build() on a parent attempt its search finds with is_valid = false", async () => {
+    const { emulator, builder, wallet, provider } = await setup();
+    const locked = emulator.fund(builder.scriptAddress(plutus), {
+      lovelace: 10_000_000n,
+    });
+    const parent = builder.intent(
+      spend.plutus({
+        utxo: locked,
+        script: plutus,
+        redeemer: { data: mConStr0([]) },
+      }),
+      { payer: wallet },
+    );
+    await parent.send({ submitter: forwarding(emulator) });
+    const child = builder.intent(pay(3_000_000n), {
+      payer: wallet,
+      after: parent,
+    });
+    await child.build();
+    await child.send({ submitter: swallowing() });
+    const parentTx = parent.txHash!;
+    provider.control.hooks.fetchTxInfo = async (forward, hash: string) => {
+      const info = await forward(hash);
+      return hash === parentTx ? { ...info, validContract: false } : info;
+    };
+    await child.refresh();
+    expect(child.status).toBe("orphaned");
+    expect(parent.status).toBe("sent");
+    const error = (await caught(child.build())) as TxIntentError<"ORPHANED">;
+    expectCode(error, "ORPHANED");
+    expect(error.details.otherLive).toEqual([]);
+    expect(child.attempts).toHaveLength(1);
+  });
+
+  it("builds nothing on a parent attempt a rollback took out of a block past its deadline", async () => {
+    const { emulator, builder, wallet, provider } = await setup({
+      builder: { intentDefaults: { ...FAST, confirmations: 3 } },
+    });
+    const before = emulator.fork();
+    const parent = builder.intent(pay(), { payer: wallet });
+    await parent.send({ waitFor: "included" });
+    expect(parent.status).toBe("included");
+    advance(emulator, 1);
+    const child = builder.intent(pay(3_000_000n), {
+      payer: wallet,
+      after: parent,
+    });
+    await child.build();
+    await child.send({ submitter: swallowing() });
+    // In a block, the parent attempt did not cap the child's deadline
+    expect(child.attempts[0]!.until).toBeGreaterThan(parent.attempts[0]!.until);
+    // A rollback of one block, and the tip passes the child's deadline
+    provider.control.target = before;
+    before.advanceTo({ time: child.attempts[0]!.until + 1_000 });
+    await child.refresh();
+    await parent.refresh();
+    expect(child.status).toBe("expired");
+    expect(parent.status).toBe("sent");
+    const record = recordOf(child);
+    const error = (await caught(child.build())) as TxIntentError<"ORPHANED">;
+    expectCode(error, "ORPHANED");
+    expect(child.attempts).toHaveLength(1);
+    expect(recordOf(child)).toBe(record);
+  });
+
+  it("is STILL_LIVE within the margin past the parent attempt's deadline, and CANNOT_OBSERVE without an answer after it", async () => {
+    const { emulator, builder, wallet, provider } = await setup();
+    const parent = builder.intent(pay(), { payer: wallet });
+    await parent.send({ submitter: swallowing() });
+    const until = parent.attempts[0]!.until;
+    const child = builder.intent(pay(3_000_000n), {
+      payer: wallet,
+      after: parent,
+      expiryMarginMs: 60_000,
+    });
+    emulator.advanceTo({ time: until });
+    const early = (await caught(child.build())) as TxIntentError<"STILL_LIVE">;
+    expectCode(early, "STILL_LIVE");
+    expect(early.details.txHashes).toEqual([parent.txHash]);
+    expect(early.details.safeAfter).toBe(until + 60_000);
+
+    emulator.advanceTo({ time: until + 60_000 });
+    const parentTx = parent.txHash!;
+    provider.control.hooks.fetchTxInfo = (forward, hash: string) => {
+      if (hash === parentTx) throw new Error("no answer");
+      return forward(hash);
+    };
+    const unknown = await caught(child.build());
+    expectCode(unknown, "CANNOT_OBSERVE");
+    expect(reasonOf(unknown)).toBe("unconfirmed");
+    // A provider without a search tells nothing about the parent attempt either
+    provider.control.hooks.fetchTxInfo = (forward, hash: string) => {
+      if (hash === parentTx)
+        throw new ProviderError("no search", { kind: "unsupported" });
+      return forward(hash);
+    };
+    const unsupported = await caught(child.build());
+    expectCode(unsupported, "CANNOT_OBSERVE");
+    expect(reasonOf(unsupported)).toBe("unconfirmed");
+    provider.control.hooks.fetchTxInfo = undefined;
+    expectCode(await caught(child.build()), "ORPHANED");
+    expect(child.status).toBe("draft");
+  });
+
+  it("caps a new attempt at the deadline of a parent attempt a rollback took out of a block", async () => {
+    const { emulator, builder, wallet, provider } = await setup({
+      builder: { intentDefaults: { ...FAST, confirmations: 3 } },
+    });
+    const before = emulator.fork();
+    const parent = builder.intent(pay(), { payer: wallet });
+    await parent.send({ waitFor: "included" });
+    advance(emulator, 30);
+    const child = builder.intent(pay(3_000_000n), {
+      payer: wallet,
+      after: parent,
+    });
+    await child.build();
+    expect(child.attempts[0]!.until).toBeGreaterThan(parent.attempts[0]!.until);
+    const refused = submitterOf(async () => {
+      throw { kind: "rejected" };
+    });
+    expectCode(await caught(child.send({ submitter: refused })), "REJECTED");
+    // A rollback while the parent attempt's deadline is still ahead
+    provider.control.target = before;
+    before.advanceTo({ slot: emulator.slot + 1 });
+    await parent.refresh();
+    expect(parent.status).toBe("sent");
+    expect(before.time).toBeLessThan(parent.attempts[0]!.until);
+    await child.build();
+    expect(child.attempts).toHaveLength(2);
+    expect(child.attempts[1]!.until).toBeLessThanOrEqual(
+      parent.attempts[0]!.until,
+    );
   });
 });
 

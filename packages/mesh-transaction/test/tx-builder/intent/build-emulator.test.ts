@@ -119,6 +119,61 @@ describe("TxIntent.build on TxEmulator", () => {
     expect(intent.attempts).toHaveLength(1);
   });
 
+  it("is INPUTS_SPENT for an explicit input gone before the first attempt; nothing recorded, signed or sent", async () => {
+    // The input covers the payment, or the payment also needs a UTxO of the payer
+    for (const lovelace of [3_000_000n, 30_000_000n]) {
+      const { emulator, builder, wallet, address, funded, provider } =
+        await setup();
+      const explicit = funded[1]!;
+      const spender = await builder.build(
+        [spend.pubKey({ utxo: explicit }), pay(2_000_000n, address)],
+        { payer: { changeAddress: address, utxos: [explicit] } },
+      );
+      await emulator.submitTx(await wallet.signTx(spender.tx));
+      // The intent signs with a wallet's signTxWitnesses where it has one
+      const signers = [
+        jest.spyOn(wallet, "signTxWitnesses"),
+        jest.spyOn(wallet, "signTx"),
+      ];
+      const intent = builder.intent(
+        [spend.pubKey({ utxo: explicit }), pay(lovelace)],
+        { payer: wallet },
+      );
+      for (const call of [
+        () => intent.build(),
+        () => intent.build(),
+        () => intent.send(),
+      ]) {
+        const error = (await caught(call())) as TxIntentError<"INPUTS_SPENT">;
+        expectCode(error, "INPUTS_SPENT");
+        expect(error.retryable).toBe(false);
+        expect(error.details.inputs).toEqual([explicit.input]);
+      }
+      expect(intent.status).toBe("draft");
+      expect(intent.attempts).toHaveLength(0);
+      for (const signer of signers) expect(signer).not.toHaveBeenCalled();
+      expect(provider.control.count("submitTx")).toBe(0);
+    }
+  });
+
+  it("builds a first attempt on an explicit input of knownUtxos that the provider does not know yet", async () => {
+    const { builder, wallet, address, funded } = await setup();
+    // An output of a transaction that is not on chain yet
+    const parent = await builder.build([pay(10_000_000n, address)], {
+      payer: { changeAddress: address, utxos: [funded[1]!] },
+    });
+    const pending = parent.outputs[0]!;
+    const intent = builder.intent(
+      [spend.pubKey({ utxo: pending }), pay(30_000_000n)],
+      { payer: wallet, knownUtxos: [pending] },
+    );
+    const built = await intent.build();
+    expect(built.inputs.map((utxo) => utxo.input)).toContainEqual(
+      pending.input,
+    );
+    expect(intent.status).toBe("built");
+  });
+
   it("builds the replacement when the read of an explicit input's address gives no answer", async () => {
     const noAnswers = [
       async () => [],

@@ -261,8 +261,10 @@ export type TxIntentErrorCode =
   | "SCRIPT_FAILED"
   /**
    * The attempt spends an output of a parent attempt that can no longer land, or the parent has
-   * no live attempt to build on; the attempt is live again once every parent attempt whose output
-   * it spends is found in a block with `is_valid = true`
+   * no live attempt to build on; the attempt is live again once a fresh search finds none of the
+   * parent attempts whose outputs it spends dead: each one is found in a block with
+   * `is_valid = true`, or not found while the tip is before its deadline and the margin, and one
+   * of them at least is found
    */
   | "ORPHANED"
   /** The provider cannot tell what is needed, or cannot tell it yet */

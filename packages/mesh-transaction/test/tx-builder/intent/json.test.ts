@@ -867,6 +867,13 @@ describe("the encoding of a record", () => {
       attempts: [],
     });
     expect(readIntent(encodeIntent(closed))).toEqual(closed);
+    // The mark is never removed: an abandoned record without it is not read
+    const unmarked: any = encodeIntent(closed);
+    delete unmarked.closing;
+    expectUnread(
+      () => readIntent(unmarked),
+      /closing is missing on an abandoned intent/,
+    );
   });
 
   it("writes a custom network as its whole configuration", () => {
