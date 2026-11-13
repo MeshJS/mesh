@@ -211,7 +211,8 @@ export const spend = {
 
 /**
  * Read an output without spending it: its datum and reference script become visible to the
- * transaction's scripts.
+ * transaction's scripts. Given by out ref, the part assembles as it is, since only the out ref
+ * goes into the body; `build()` still reads the output.
  * @param params.utxo The output, by reference or in full
  * @param params.label Name echoed in errors about this part
  */

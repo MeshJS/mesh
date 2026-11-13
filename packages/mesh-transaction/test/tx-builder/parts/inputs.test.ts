@@ -412,10 +412,9 @@ describe("spend.plutus", () => {
 });
 
 describe("referenceInput", () => {
-  it("references an output by out ref or in full", () => {
-    expect(unresolved(referenceInput({ utxo: outRef }))).toEqual([
-      { type: "utxo", input },
-    ]);
+  it("references an output by out ref or in full, complete either way", () => {
+    expect(unresolved(referenceInput({ utxo: outRef }))).toEqual([]);
+    expect(referenceInput({ utxo: outRef }).input).toEqual(input);
     expect(
       unresolved(referenceInput({ utxo: utxo(0, plutusAddress) })),
     ).toEqual([]);

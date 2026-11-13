@@ -49,6 +49,8 @@ export const unresolved = (part: TxPart): Unresolved[] => {
       return gaps;
     }
     case "referenceInput":
+      // Only the out ref goes into the body: a read output assembles without its contents
+      return [];
     case "collateral":
       return part.utxo ? [] : [{ type: "utxo", input: part.input }];
     case "collateralReturn":

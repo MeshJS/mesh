@@ -35,9 +35,9 @@ import type {
  *
  * Parts are shaped after `TransactionPrototype`, so turning them into one is mostly a matter of
  * collecting them. What a part cannot know when it is built is left out and listed by
- * `unresolved()`: the contents of an input given by reference only, script execution units,
- * the lovelace an output needs to hold, the slot of a validity bound given as a time. Those are
- * filled in before assembly.
+ * `unresolved()`: the contents of a spent or collateral input given by reference only, script
+ * execution units, the lovelace an output needs to hold, the slot of a validity bound given as a
+ * time. Those are filled in before assembly.
  *
  * Redeemers carry no index. The index depends on where the item they witness ends up once the
  * transaction is sorted, so it is assigned once, at assembly, from what the redeemer belongs to.
@@ -536,7 +536,7 @@ export type TxPart =
 
 /** Something a part leaves to be filled in before assembly */
 export type Unresolved =
-  /** The contents of an output given by reference only */
+  /** The contents of an output spent or put up as collateral, given by reference only */
   | { readonly type: "utxo"; readonly input: TransactionInputPrototype }
   /** Hash, size or version of a script in a reference output */
   | {

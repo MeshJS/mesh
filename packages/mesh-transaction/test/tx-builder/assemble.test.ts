@@ -365,6 +365,48 @@ describe("assembleTxPrototype: transaction contents", () => {
     expect(prototype.body.script_data_hash).toMatch(/^[0-9a-f]{64}$/);
   });
 
+  it("assembles a reference input given by out ref alone; a collateral needs its output", () => {
+    const read = { txHash: "cc".repeat(32), outputIndex: 2 };
+    const { prototype } = assembleTxPrototype(
+      [
+        keySpend("aa".repeat(32), 0),
+        pay,
+        referenceInput({ utxo: read, label: "oracle" }),
+        referenceInput({ utxo: utxo("bb".repeat(32), 1) }),
+      ],
+      options,
+    );
+    expect(prototype.body.reference_inputs).toEqual([
+      { transaction_id: "bb".repeat(32), index: 1 },
+      { transaction_id: "cc".repeat(32), index: 2 },
+    ]);
+
+    const error = expectBuildError(
+      () =>
+        assembleTxPrototype(
+          [
+            keySpend("aa".repeat(32), 0),
+            referenceInput({ utxo: read }),
+            collateral({ utxo: read, label: "backing" }),
+          ],
+          options,
+        ),
+      "UNRESOLVED",
+    );
+    expect(error.details).toEqual([
+      {
+        kind: "collateral",
+        label: "backing",
+        gaps: [
+          {
+            type: "utxo",
+            input: { transaction_id: "cc".repeat(32), index: 2 },
+          },
+        ],
+      },
+    ]);
+  });
+
   it("returns what the collateral leaves above the total, tokens included", () => {
     const unit = `${"ab".repeat(28)}0102`;
     const held = utxo("cc".repeat(32), 0, walletAddress, {
