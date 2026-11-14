@@ -1,0 +1,1963 @@
+import type { CachedFetcher, ISubmitter } from "@meshsdk/common";
+import { Crypto } from "@meshsdk/core-cst";
+
+import type { BuildEvent, BuiltTxData, TxBuilder } from "../builder";
+import type { TxPlanErrorCode, TxPlanErrorDetails } from "../errors";
+import type { Payer } from "../payer";
+import type { KeyWitness, Signer } from "../sign";
+import type { RequiredKey } from "../witnesses";
+import type { EffectiveWait } from "./deadlines";
+import type { MadePlan, PlanStep, PlanSteps, StepParts } from "./make";
+import type { ChainObserver, ObservedTip, TxSearch } from "./observer";
+import type {
+  StepPlanEvent,
+  StepPlanRecord,
+  StepPlanStatus,
+  StepRecord,
+  StepRefusal,
+  StepTip,
+  TxSighting,
+  TxStepStatus,
+} from "./step-core";
+import type { StepPlanJSON } from "./step-json";
+import type {
+  SignOptions,
+  StoredTxPlanJSON,
+  TxPlanStore,
+  WaitTarget,
+} from "./types";
+import {
+  abortable,
+  abortedError,
+  throwIfAborted,
+  TIMED_OUT,
+  within,
+} from "../abort";
+import { NOT_UNPAID, TxBuildError, TxPlanError } from "../errors";
+import {
+  invalidOption,
+  optionsObject,
+  SIGNERS_IN_PLACE,
+  SUBMITTER_IN_PLACE,
+} from "../options";
+import {
+  countedWitnesses,
+  isWallet,
+  payerHasNothingLeft,
+  payerSigner,
+  payerWitnesses,
+  readTransaction,
+  readWitnessArgument,
+  signerWitnesses,
+  signsHashes,
+  toSigners,
+  verifies,
+  withWitnesses,
+} from "../sign";
+import { askedKeys, countedKeys } from "../witnesses";
+import { effectiveWait } from "./deadlines";
+import { sameJson } from "./json";
+import {
+  chainObserver,
+  isRefusal,
+  numericCodeOf,
+  searchThenTip,
+  submitFailure,
+  submitFailureText,
+} from "./observer";
+import {
+  advanceStepPlan,
+  isDeadStep,
+  isUnlandedStep,
+  keyHashOfVkey,
+  landedSteps,
+  liveSteps,
+  missingKeys,
+  stepPlanUntil,
+  stepUntil,
+} from "./step-core";
+import { encodeStepPlan, readStepPlan } from "./step-json";
+
+// The object that runs a plan of steps: a group of transactions built together, whose bodies
+// never change. It makes the requests: it reads the chain through its observer, asks signers
+// and submits. It builds nothing. Every change of what it knows is an event given to the state
+// machine of `step-core.ts`, written before the step it permits: a delivery before the bytes
+// leave. Nothing here is exported from the package.
+
+/** The call an aborted signal names */
+const CALL = "the call";
+
+/** The sentence every message of an error of a plan of steps ends with */
+export const STEP_NOT_UNPAID =
+  "This error does not mean that a payment did not go through: only the status of its step says so.";
+
+/** The builder's cache, which a delivery or a landing makes stale */
+type BuilderInternals = { readonly cache?: CachedFetcher };
+
+const internals = (builder: TxBuilder) =>
+  builder as unknown as BuilderInternals;
+
+/**
+ * One step of a plan: the data of its transaction, as `build` gives it, with its place in the
+ * plan. It goes wherever a `BuiltTxData` goes (`after`, `utxosAfter`, `outputOf`).
+ */
+export type TxStep = Readonly<BuiltTxData> & {
+  /** The name the application gave the step; `main` for a plan made from one list of parts */
+  readonly name: string;
+  /** `"consolidation"` for a step the plan put in itself; absent for a step the application gave */
+  readonly kind?: "consolidation";
+  readonly status: TxStepStatus;
+  /** The keys the transaction needs that have not signed it yet, each with its roles */
+  readonly missing: readonly RequiredKey[];
+  /** The transaction with every witness it needs, from `signed` on */
+  readonly signedTx?: string;
+  /** The names of the earlier steps whose outputs it spends, reads or puts up as collateral */
+  readonly standsOn: readonly string[];
+  /** The block it was last found in */
+  readonly seen?: { readonly slot: number; readonly block?: string };
+};
+
+/** The options of one call of `run()`; never written. Any other member is INVALID_OPTION */
+export type StepRunOptions = {
+  /** Who signs a step that still needs signatures when its turn comes; else the plan's payer */
+  signers?: Signer | readonly Signer[];
+  /** Who submits; else the builder's submitter, else the provider */
+  submitter?: ISubmitter;
+  /**
+   * How far the call goes. `"included"`, the default: until every step is in a block. `"final"`:
+   * until every step is final. `"sent"`: it does what can be done at once (signs and sends the
+   * step whose turn it is) and returns without waiting for a block
+   */
+  waitFor?: WaitTarget;
+  /**
+   * How long the call waits for a block or for depth, in ms, counted anew after every first
+   * delivery of a step; then CONFIRM_TIMEOUT
+   */
+  timeoutMs?: number;
+  /** The pause between two looks at the chain, in ms; the builder's, else 5 000 */
+  pollMs?: number;
+  /** Aborts the whole call with ABORTED */
+  signal?: AbortSignal;
+};
+
+/** The live objects of a plan of steps: kept by the object, never written into its record */
+export type StepPlanLiveObjects = {
+  /** Signs when a call names no signer, when it can sign; kept for nothing else */
+  payer?: Payer;
+  /** Gets the warnings of the plan; never recorded */
+  trace?: (event: BuildEvent) => void;
+};
+
+/** What a plan object holds besides its record */
+type PlanState = {
+  readonly builder: TxBuilder;
+  record: StepPlanRecord;
+  /** The payer as the signer of a call that names none, when it can sign */
+  readonly signer?: Signer;
+  readonly trace?: (event: BuildEvent) => void;
+  readonly observer: ChainObserver;
+  /** `owed` until a probe of the provider answered: made before the first delivery */
+  probe: "owed" | "done";
+  /** The last tip read, for the age of the tip in errors */
+  lastTip?: StepTip;
+  /** The waits of calls on this object, woken when its record changes */
+  readonly watchers: Set<() => void>;
+  /** The store the record is kept in; without one the object alone holds it */
+  readonly store?: TxPlanStore;
+  /** The writes of the object, made one at a time */
+  writing: Promise<unknown>;
+  /** How often a record read from the store replaced the one the object held */
+  storeReads: number;
+};
+
+const STATE = new WeakMap<StepPlan, PlanState>();
+
+const stateOf = (plan: StepPlan): PlanState => {
+  const state = STATE.get(plan);
+  if (state === undefined)
+    throw new TypeError("not a plan of steps made by this library");
+  return state;
+};
+
+/* ---------------------------------------------------------------------------------------------
+ * Small helpers
+ * ------------------------------------------------------------------------------------------- */
+
+const isFunction = (value: unknown, name: string) =>
+  (typeof value === "object" || typeof value === "function") &&
+  value !== null &&
+  typeof (value as Record<string, unknown>)[name] === "function";
+
+const isAbortSignal = (value: unknown): value is AbortSignal =>
+  typeof value === "object" &&
+  value !== null &&
+  typeof (value as { aborted?: unknown }).aborted === "boolean" &&
+  typeof (value as { addEventListener?: unknown }).addEventListener ===
+    "function";
+
+/** The members of the options of `sign()`, and what the call takes */
+const SIGN_MEMBERS: readonly string[] = ["signers", "signal"];
+const SIGN_ALLOWED = "an object { signers?, signal? }";
+
+/** The members of the options of `run()`, and what the call takes */
+const RUN_MEMBERS: readonly string[] = [
+  "signers",
+  "submitter",
+  "waitFor",
+  "timeoutMs",
+  "pollMs",
+  "signal",
+];
+const RUN_ALLOWED =
+  "an object { signers?, submitter?, waitFor?, timeoutMs?, pollMs?, signal? }";
+
+/**
+ * The submitter and the signal of a call, checked by their shape
+ * @throws TxBuildError INVALID_OPTION for a submitter without `submitTx`, or a signal that is
+ *   not an AbortSignal; `details.value` is only the JavaScript type of what was given
+ */
+const checkCallOptions = (options: {
+  submitter?: unknown;
+  signal?: unknown;
+}) => {
+  const { submitter, signal } = options;
+  if (submitter !== undefined && !isFunction(submitter, "submitTx"))
+    throw invalidOption("submitter", submitter, "an object with submitTx");
+  if (signal !== undefined && !isAbortSignal(signal))
+    throw invalidOption("signal", signal, "an AbortSignal");
+};
+
+/** Sets the record an object holds, and wakes the waits of its other calls */
+const commit = (state: PlanState, record: StepPlanRecord) => {
+  state.record = record;
+  for (const wake of [...state.watchers]) wake();
+};
+
+/** Takes a record read from the store as the object's own */
+const commitStored = (state: PlanState, record: StepPlanRecord) => {
+  state.storeReads += 1;
+  commit(state, record);
+};
+
+/**
+ * Waits `ms` of real time, until the record changes, or until the signal aborts the call
+ * @throws TxBuildError ABORTED
+ */
+const pause = (state: PlanState, ms: number, signal: AbortSignal | undefined) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(abortedError(signal, CALL));
+      return;
+    }
+    const stop = () => {
+      clearTimeout(timer);
+      state.watchers.delete(done);
+      signal?.removeEventListener?.("abort", onAbort);
+    };
+    const done = () => {
+      stop();
+      resolve();
+    };
+    const onAbort = () => {
+      stop();
+      reject(abortedError(signal!, CALL));
+    };
+    const timer = setTimeout(done, Math.max(0, ms));
+    state.watchers.add(done);
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+
+/** Sends an event to `trace`; what it throws or rejects with is dropped */
+const emit = (
+  trace: ((event: BuildEvent) => void) | undefined,
+  event: BuildEvent,
+) => {
+  if (!trace) return;
+  try {
+    const answer: unknown = trace(event);
+    if (
+      typeof answer === "object" &&
+      answer !== null &&
+      typeof (answer as PromiseLike<unknown>).then === "function"
+    )
+      (answer as PromiseLike<unknown>).then(undefined, () => undefined);
+  } catch {
+    // Diagnostics never change a step
+  }
+};
+
+/** A hash in a submitter's answer: trimmed of spaces and quotes at its ends, lower-cased */
+const answeredHash = (answer: unknown): string | undefined => {
+  if (typeof answer !== "string") return undefined;
+  const hash = answer
+    .trim()
+    .replace(/^["'`]+|["'`]+$/g, "")
+    .trim()
+    .toLowerCase();
+  return /^[0-9a-f]{64}$/.test(hash) ? hash : undefined;
+};
+
+/** Whether a step is in a block: included or final */
+const isLanded = (step: Pick<StepRecord, "status">) =>
+  step.status === "included" || step.status === "final";
+
+const isTerminal = (record: StepPlanRecord) =>
+  record.status === "final" || record.status === "stopped";
+
+/** The step of a record with this name */
+const stepIn = (record: StepPlanRecord, name: string) =>
+  record.steps.find((step) => step.name === name);
+
+/** A search that found the transaction */
+const isFound = (search: TxSearch) =>
+  search !== undefined && "found" in search && search.found;
+
+const SIGNED = new WeakMap<StepRecord, string>();
+
+/** The step's transaction with its witnesses; undefined while a key is missing */
+const signedTxOf = (step: StepRecord): string | undefined => {
+  if (missingKeys(step).length > 0) return undefined;
+  let tx = SIGNED.get(step);
+  if (tx === undefined) {
+    tx = withWitnesses(readTransaction(step.built.tx), step.witnesses);
+    SIGNED.set(step, tx);
+  }
+  return tx;
+};
+
+/** The keys a step needs and has no vkey witness of, each with its roles */
+const missingOf = (step: StepRecord): RequiredKey[] => {
+  const missing = new Set(missingKeys(step));
+  return step.built.signers.keys
+    .filter((key) => missing.has(key.keyHash))
+    .map((key) => ({ keyHash: key.keyHash, roles: [...key.roles] }));
+};
+
+const VIEWS = new WeakMap<StepRecord, TxStep>();
+
+/** A step as the public `TxStep`: the data of its transaction with its place in the plan */
+const viewOf = (step: StepRecord): TxStep => {
+  let view = VIEWS.get(step);
+  if (view === undefined) {
+    const signedTx = signedTxOf(step);
+    view = Object.freeze({
+      ...step.built,
+      name: step.name,
+      ...(step.kind !== undefined && { kind: step.kind }),
+      status: step.status,
+      missing: Object.freeze(missingOf(step)),
+      ...(signedTx !== undefined && { signedTx }),
+      standsOn: Object.freeze([...step.standsOn]),
+      ...(step.seen !== undefined && { seen: Object.freeze({ ...step.seen }) }),
+    });
+    VIEWS.set(step, view);
+  }
+  return view;
+};
+
+/** The witnesses a step needs that are not held: a key not signed, or a bootstrap witness */
+const needsWitnesses = (step: StepRecord) =>
+  isUnlandedStep(step) &&
+  !payerHasNothingLeft(
+    askedKeys(step.built.signers).filter(
+      ({ keyHash }) =>
+        !step.witnesses.some(
+          (w) => w.kind === "vkey" && keyHashOfVkey(w.vkey) === keyHash,
+        ),
+    ),
+    step.witnesses,
+    step.built.signers.byronAddresses.length,
+  );
+
+/** Offered witnesses with the key hash each one's own public key gives; none that has none */
+const ownKeys = (offered: readonly KeyWitness[]): KeyWitness[] =>
+  offered.flatMap((witness) => {
+    const keyHash = keyHashOfVkey(witness.vkey);
+    return keyHash === undefined ? [] : [{ ...witness, keyHash }];
+  });
+
+/** The witnesses a step keeps of those offered: those its fee counts, by the record now */
+const keptOf = (step: StepRecord, offered: readonly KeyWitness[]) =>
+  countedWitnesses(ownKeys(offered), step.witnesses, {
+    keys: new Set(countedKeys(step.built.signers)),
+    extraKeys: step.extraKeyWitnesses ?? 0,
+    bootstraps: step.built.signers.byronAddresses.length,
+  });
+
+/** How many times one change is applied again to a record read again after a refused write */
+const MAX_REPEATS = 3;
+
+/** What a write does with the record it is shown */
+type WriteDecision =
+  /** Apply the event; `refused` maps a refusal to the error, or undefined to drop it */
+  | {
+      readonly event: StepPlanEvent;
+      readonly refused: (refusal: {
+        reason: StepRefusal;
+        message: string;
+      }) => unknown;
+    }
+  /** Throw this, applying nothing */
+  | { readonly stop: unknown }
+  /** Apply nothing: the caller goes on from the record as it is now */
+  | { readonly skip: true };
+
+type WriteOutcome = "written" | "unchanged" | "skipped";
+
+/** What one look could not follow */
+type Observed = {
+  readonly tip?: StepTip;
+  /** A step that runs a Plutus script was found without its validity */
+  readonly noValidity: boolean;
+  /** A step was found while the tip or the find has no block height */
+  readonly noDepth: boolean;
+};
+
+/** One call of `run()`, its options worked out */
+type Call = {
+  readonly wait: EffectiveWait;
+  readonly signers?: readonly Signer[];
+  readonly submitter?: ISubmitter;
+  readonly signal?: AbortSignal;
+  /** When the call started, by the local clock */
+  readonly started: number;
+};
+
+/** What one send of a step's bytes came to */
+type Sent =
+  /** Accepted, or refused in a way that proves nothing */
+  | { readonly outcome: "accepted" }
+  /** Refused while no delivery of it may have gone through, and the refusal does not count */
+  | { readonly outcome: "unconfirmed"; readonly error: TxPlanError }
+  /** The record changed meanwhile: nothing was sent; on from the record as it is now */
+  | { readonly outcome: "moved" }
+  /** Sending the same bytes again failed; the outcome is unknown */
+  | { readonly outcome: "failed"; readonly error: TxPlanError };
+
+/* ---------------------------------------------------------------------------------------------
+ * The plan
+ * ------------------------------------------------------------------------------------------- */
+
+/**
+ * A group of transactions built together and sent in order. It is made from the steps
+ * `makePlan` builds, or brought back from its record.
+ *
+ * The transactions of a plan never change: a call signs them, sends them and looks for them, and
+ * a repeated call sends the same bytes. A step built from parts stands on the step before it of
+ * the same payer, so the steps of one payer can land only in their order. `run()` sends a step
+ * when the step before it is in a block. When a step cannot go through, the plan stops and says
+ * what landed, what will not land and what was never sent.
+ *
+ * A group is not atomic. Whether one payment went through is the status of its step: `final`
+ * means it did, `expired`, `failed` and `orphaned` mean it did not and will not, and any other
+ * status means it is not known yet. No error of a plan means that a payment did not go through.
+ *
+ * On a builder with a store, every change is written before the method returns, over the
+ * revision the object holds: a delivery before the bytes leave. A write over a revision another
+ * writer changed reads the record again and applies the same fact to it, up to three times, then
+ * VERSION_CONFLICT. Every method of such a plan may throw STORE_FAILED (the store threw; a write
+ * may have passed), PLAN_NOT_FOUND (the record is gone) and INVALID_STATE (`recordVersion`) for a
+ * record this library does not read.
+ */
+export class StepPlan {
+  /** Made by `createStepPlan` and `resumeStepPlan` only */
+  private constructor() {}
+
+  /** The application's id of the plan, when it was given one */
+  get id(): string | undefined {
+    return stateOf(this).record.id;
+  }
+
+  /** `final`, `stopped`, `stopping`, or `pending` */
+  get status(): StepPlanStatus {
+    return stateOf(this).record.status;
+  }
+
+  /** The steps, in the order they are sent */
+  get steps(): readonly TxStep[] {
+    return stateOf(this).record.steps.map(viewOf);
+  }
+
+  /**
+   * The step with this name
+   * @throws TxBuildError INVALID_OPTION (`step`) when the plan has no step with the name
+   */
+  step(name: string): TxStep {
+    const step =
+      typeof name === "string" ? stepIn(stateOf(this).record, name) : undefined;
+    if (step === undefined)
+      throw invalidOption(
+        "step",
+        name,
+        `the name of a step of the plan: ${stateOf(this)
+          .record.steps.map((each) => JSON.stringify(each.name))
+          .join(", ")}`,
+      );
+    return viewOf(step);
+  }
+
+  /** The steps found in a block: `included` and `final` */
+  get landed(): readonly TxStep[] {
+    return landedSteps(stateOf(this).record).map(viewOf);
+  }
+
+  /** The steps that are not in a block and may still land: neither expired, failed nor orphaned */
+  get live(): readonly TxStep[] {
+    return liveSteps(stateOf(this).record).map(viewOf);
+  }
+
+  /** The fees of all its transactions together */
+  get fee(): bigint {
+    return stateOf(this).record.steps.reduce(
+      (sum, step) => sum + step.built.fee,
+      0n,
+    );
+  }
+
+  /**
+   * The time after which no step that is not in a block can land: the latest end of validity
+   * among its transactions, POSIX ms. Undefined when a transaction of it has none
+   */
+  get until(): number | undefined {
+    return stepPlanUntil(stateOf(this).record);
+  }
+
+  /** The id of the plan made in place of this one, when that plan has an id */
+  get replacedBy(): string | undefined {
+    return stateOf(this).record.replacedBy;
+  }
+
+  /**
+   * The steps that are not in a block, as `makePlan` takes them: the parts a step was given,
+   * links kept, with its own options. Consolidation steps are not among them
+   */
+  get rest(): PlanSteps {
+    const rest: Record<string, PlanStep> = {};
+    for (const step of stateOf(this).record.steps) {
+      if (isLanded(step) || step.kind === "consolidation") continue;
+      if (step.given === undefined) continue;
+      const parts = step.given.parts as StepParts;
+      const { changeAddress: _changeAddress, ...options } =
+        step.given.options ?? {};
+      rest[step.name] =
+        Object.keys(options).length === 0
+          ? parts
+          : ({ parts, ...options } as PlanStep);
+    }
+    return Object.freeze(rest);
+  }
+
+  /** The plan as plain JSON data, as it is: `JSON.stringify(plan)` writes it */
+  toJSON(): StepPlanJSON {
+    return encodeStepPlan(stateOf(this).record);
+  }
+
+  /**
+   * Signs every step that still needs signatures, in order, with the call's signers, else with
+   * the plan's payer when it can sign; each signer is asked once for each step, for the keys
+   * that have not signed it yet, and the payer only for those. Every witness is verified against
+   * the body it is for, and counts for the key its own public key hashes to. A step with every
+   * key is `signed`; a step a signer gives no witness for stays `built`, and `run()` asks again
+   * when its turn comes. A signer is waited for no longer than the step's end of validity, by
+   * the tip read once before asking.
+   * @throws TxPlanError MISSING_SIGNATURES when a step needs keys and nobody can sign;
+   *   SIGN_DECLINED, SIGNER_FAILED, with the step in `error.step`: the witnesses already
+   *   recorded stay; INVALID_STATE (`stopped`) for a plan that was stopped, or a step of which
+   *   will not land
+   * @throws TxBuildError ABORTED; INVALID_OPTION for a signer that cannot sign, and for options
+   *   that are not an object or have a member other than these
+   */
+  sign(options?: SignOptions): Promise<this> {
+    return this.#call(async (state) => {
+      const opts: SignOptions = optionsObject(
+        options,
+        SIGN_MEMBERS,
+        SIGN_ALLOWED,
+        SIGNERS_IN_PLACE,
+      );
+      const { signal } = opts;
+      checkCallOptions({ signal });
+      const given = toSigners(opts.signers);
+      if (state.record.status === "final") return this;
+      this.#refuseStopped(state);
+      throwIfAborted(signal, CALL);
+      const needing = state.record.steps.filter(needsWitnesses);
+      if (needing.length === 0) return this;
+      const signers = given ?? (state.signer && [state.signer]);
+      if (signers === undefined) throw this.#missingSignatures(needing[0]!);
+      const tip = await this.#readTip(state, signal);
+      for (const step of needing)
+        await this.#signStep(
+          state,
+          step.name,
+          signers,
+          tip,
+          signal,
+          given === undefined,
+        );
+      return this;
+    });
+  }
+
+  /**
+   * Adds witnesses made elsewhere: witness sets, or full transactions of which only the vkey and
+   * bootstrap witnesses are taken. Each witness goes to the step whose body it verifies against,
+   * and counts for the key its own public key hashes to; a witness of a step in a block is
+   * dropped. Nothing of a call is kept when one of its arguments is refused.
+   * @throws TxPlanError INVALID_WITNESS (`undecodable`, `wrongBody`) with the index of the
+   *   argument; a witness of no transaction of the plan is `wrongBody`. INVALID_STATE
+   *   (`stopped`) as `sign()`
+   */
+  addWitnesses(...witnesses: string[]): Promise<this> {
+    return this.#call(async (state) => {
+      if (state.record.status !== "final") this.#refuseStopped(state);
+      await Crypto.ready();
+      const offered = new Map<string, KeyWitness[]>();
+      for (const [argument, value] of witnesses.entries()) {
+        let read: KeyWitness[];
+        try {
+          read = readWitnessArgument(value).witnesses;
+        } catch (error) {
+          throw this.#error(
+            "INVALID_WITNESS",
+            `witness argument ${argument} is neither a witness set nor a transaction`,
+            { details: { reason: "undecodable", argument }, cause: error },
+          );
+        }
+        for (const witness of read) {
+          const step = state.record.steps.find((each) =>
+            verifies(witness, each.txHash),
+          );
+          if (step === undefined)
+            throw this.#error(
+              "INVALID_WITNESS",
+              `witness argument ${argument} holds a signature of key ${witness.keyHash} that is not of the body of any step of the plan`,
+              {
+                details: {
+                  reason: "wrongBody",
+                  argument,
+                  keyHash: witness.keyHash,
+                },
+              },
+            );
+          offered.set(step.name, [...(offered.get(step.name) ?? []), witness]);
+        }
+      }
+      const since = state.storeReads;
+      for (const [name, list] of offered)
+        await this.#record(state, name, list, since);
+      return this;
+    });
+  }
+
+  /**
+   * Drives the plan. It looks at the chain first. Then the first step that is not in a block is
+   * signed if it still needs signatures, sent, and waited for; then the next one. A step is sent
+   * only when every step before it is in a block. A step that was sent is sent again, the same
+   * bytes, every `resendMs` until it is found. The call returns when the plan reached `waitFor`.
+   * It can be repeated at any time, by any process that holds the plan: it goes on from what the
+   * chain shows.
+   *
+   * A refusal of the ledger counts only when no delivery of the step may have gone through, a
+   * search after it does not find the step, and every step it stands on is found in a block by
+   * that search. A refusal that does not count proves nothing: a call that waits goes on waiting
+   * and sends the same bytes again; a call with `waitFor: "sent"` throws SUBMIT_FAILED (`refused`)
+   * when no delivery of the step may have gone through.
+   * @throws TxPlanError with the step in `error.step`. REJECTED when the refusal counts: the step
+   *   is `rejected`, and the same call sends the same bytes again. EXPIRED, SCRIPT_FAILED,
+   *   ORPHANED when a step will not land: the plan has stopped. EXPIRED (`unsent` when the plan
+   *   never sent it) for a step past its end of validity by the tip; nothing sent. SUBMIT_FAILED
+   *   when the outcome of a delivery is unknown (retryable). CONFIRM_TIMEOUT after `timeoutMs`
+   *   (retryable). NOT_YET_VALID before a step's lower bound (retryable). MISSING_SIGNATURES,
+   *   MISSING_SUBMITTER, SIGN_DECLINED, SIGNER_FAILED: nothing was sent. CANNOT_OBSERVE when the
+   *   provider cannot follow the plan. INVALID_STATE (`stopped`) for a plan that was stopped
+   * @throws TxBuildError ABORTED; INVALID_OPTION for a wait option out of range, and for options
+   *   that are not an object or have a member other than those of `StepRunOptions`
+   */
+  run(options?: StepRunOptions): Promise<this> {
+    return this.#call(async (state) => {
+      const opts: StepRunOptions = optionsObject(
+        options,
+        RUN_MEMBERS,
+        RUN_ALLOWED,
+        [...SIGNERS_IN_PLACE, SUBMITTER_IN_PLACE],
+      );
+      const wait = effectiveWait(
+        {
+          waitFor: opts.waitFor ?? "included",
+          ...(opts.timeoutMs !== undefined && { timeoutMs: opts.timeoutMs }),
+          ...(opts.pollMs !== undefined && { pollMs: opts.pollMs }),
+        },
+        state.record.deadlines,
+        state.builder.planDefaults,
+      );
+      checkCallOptions(opts);
+      const signers = toSigners(opts.signers);
+      const { signal } = opts;
+      await this.#takeStoredIfNewer(state);
+      if (state.record.status === "final") return this;
+      this.#refuseMarked(state);
+      throwIfAborted(signal, CALL);
+      const call: Call = {
+        wait,
+        ...(signers !== undefined && { signers }),
+        ...(opts.submitter !== undefined && { submitter: opts.submitter }),
+        ...(signal !== undefined && { signal }),
+        started: Date.now(),
+      };
+      const seen = await this.#look(state, signal);
+      this.#refuseUnobservable(seen);
+      await this.#drive(state, call);
+      return this;
+    });
+  }
+
+  /**
+   * One look at the chain: a search for each step that is not final, and for a transaction one
+   * of the inputs of each step not in a block comes from, then the tip. It records what they
+   * show, sends nothing, and throws nothing for what it sees. On a final or stopped plan it
+   * returns at once, without a request.
+   */
+  refresh(): Promise<this> {
+    return this.#call(async (state) => {
+      await this.#takeStoredIfNewer(state);
+      await this.#look(state, undefined);
+      return this;
+    });
+  }
+
+  /**
+   * Records the decision that the plan signs and sends nothing more. Steps that were sent, or
+   * signed, may still land: the plan is `stopping` until none of them can, then `stopped`. On a
+   * plan that is `final` or `stopped` it does nothing
+   */
+  stop(): Promise<this> {
+    return this.#call(async (state) => {
+      await this.#write(state, (record) =>
+        isTerminal(record)
+          ? { skip: true }
+          : {
+              event: { type: "stop" },
+              refused: (refusal) => this.#refused(refusal),
+            },
+      );
+      return this;
+    });
+  }
+
+  /* -------------------------------------------------------------------------------------------
+   * Errors
+   * ----------------------------------------------------------------------------------------- */
+
+  /** Runs a method; every plan error it throws gets the plan, its id and status */
+  async #call<T>(body: (state: PlanState) => Promise<T>): Promise<T> {
+    const state = stateOf(this);
+    try {
+      return await body(state);
+    } catch (error) {
+      throw this.#withPlan(state, error);
+    }
+  }
+
+  /** A plan error as a method of this plan throws it */
+  #withPlan(state: PlanState, error: unknown): unknown {
+    if (!TxPlanError.is(error) || error.plan !== undefined) return error;
+    Object.defineProperty(error, "plan", {
+      value: this,
+      enumerable: false,
+      configurable: true,
+      writable: false,
+    });
+    const fields = error as { planId?: string; status?: string };
+    if (fields.planId === undefined && state.record.id !== undefined)
+      fields.planId = state.record.id;
+    fields.status = state.record.status;
+    let message = error.message;
+    if (message.endsWith(NOT_UNPAID))
+      message = message.slice(0, -NOT_UNPAID.length).trimEnd();
+    if (!message.endsWith(STEP_NOT_UNPAID))
+      message = `${message}${message.endsWith(".") ? "" : "."} ${STEP_NOT_UNPAID}`;
+    error.message = message;
+    return error;
+  }
+
+  /** A new plan error of this plan; about a step, it names the step and its transaction */
+  #error<C extends TxPlanErrorCode>(
+    code: C,
+    message: string,
+    context: {
+      details?: C extends keyof TxPlanErrorDetails
+        ? TxPlanErrorDetails[C]
+        : undefined;
+      retryAfterMs?: number;
+      step?: Pick<StepRecord, "name" | "txHash">;
+      cause?: unknown;
+    },
+  ): TxPlanError<C> {
+    const make = TxPlanError as new (
+      code: C,
+      message: string,
+      context: object,
+    ) => TxPlanError<C>;
+    const { step, ...rest } = context;
+    const error = new make(
+      code,
+      step === undefined
+        ? message
+        : `step ${JSON.stringify(step.name)}: ${message}`,
+      { ...rest, ...(step !== undefined && { txHash: step.txHash }) },
+    );
+    if (step !== undefined) onStep(error, step);
+    return error;
+  }
+
+  /** The age of the last tip read by the local clock, for `tipAgeMs` */
+  #tipAge(state: PlanState): { tipAgeMs?: number } {
+    return state.lastTip === undefined
+      ? {}
+      : { tipAgeMs: Date.now() - state.lastTip.timeMs };
+  }
+
+  /** The hashes of the steps that may still land, but this one */
+  #otherLive(state: PlanState, step: StepRecord): string[] {
+    return liveSteps(state.record)
+      .map((each) => each.txHash)
+      .filter((txHash) => txHash !== step.txHash);
+  }
+
+  #missingSignatures(step: StepRecord) {
+    const missing = missingOf(step);
+    return this.#error(
+      "MISSING_SIGNATURES",
+      `${missing.length} key(s) the step needs have not signed it, and nobody in this call can sign: give signers, a payer that signs, or addWitnesses; nothing was sent`,
+      { details: { missing }, step },
+    );
+  }
+
+  /** The error of a step that will not land */
+  #deadError(state: PlanState, step: StepRecord) {
+    const otherLive = this.#otherLive(state, step);
+    switch (step.status) {
+      case "expired":
+        return this.#error(
+          "EXPIRED",
+          "its end of validity and the margin have passed and it is not on chain: it will not land, and the plan has stopped",
+          { details: { otherLive, ...this.#tipAge(state) }, step },
+        );
+      case "orphaned":
+        return this.#error(
+          "ORPHANED",
+          "a step it stands on will not land, so it will not either, and the plan has stopped",
+          { details: { otherLive }, step },
+        );
+      default:
+        return this.#error(
+          "SCRIPT_FAILED",
+          "it is in a block with is_valid = false: a script failed and the collateral was taken; the plan has stopped",
+          { step },
+        );
+    }
+  }
+
+  /** Maps a refusal of the state machine to the error of the method */
+  #refused(refusal: { reason: StepRefusal; message: string }): TxPlanError {
+    const reason =
+      refusal.reason === "terminal"
+        ? "terminal"
+        : refusal.reason === "stopped"
+          ? "stopped"
+          : "status";
+    return this.#error("INVALID_STATE", refusal.message, {
+      details: { reason },
+    });
+  }
+
+  /** INVALID_STATE (`stopped`) for a plan that was stopped or replaced */
+  #refuseMarked(state: PlanState) {
+    const { record } = state;
+    if (record.stopped === true)
+      throw this.#error(
+        "INVALID_STATE",
+        record.replacedBy === undefined
+          ? "the plan was stopped: it signs and sends nothing more"
+          : `the plan was replaced by ${JSON.stringify(record.replacedBy)}: it signs and sends nothing more`,
+        { details: { reason: "stopped" } },
+      );
+  }
+
+  /**
+   * INVALID_STATE (`stopped`) for a plan that was stopped; with `dead`, the error of the first
+   * step that will not land instead, else for a plan one of whose steps will not land
+   */
+  #refuseStopped(state: PlanState, dead = false) {
+    this.#refuseMarked(state);
+    const { record } = state;
+    const first = record.steps.find(isDeadStep);
+    if (first === undefined) return;
+    if (dead) throw this.#deadError(state, first);
+    throw this.#error(
+      "INVALID_STATE",
+      `step ${JSON.stringify(first.name)} will not land: the plan does not go on, and signs and sends nothing more`,
+      { details: { reason: "stopped" } },
+    );
+  }
+
+  /** CANNOT_OBSERVE right after a look that found what cannot be followed */
+  #refuseUnobservable(seen: Observed) {
+    if (seen.noValidity)
+      throw this.#error(
+        "CANNOT_OBSERVE",
+        "a step that runs a Plutus script was found, and the provider does not say whether its scripts passed (validContract): use a provider that does",
+        { details: { reason: "noValidity" } },
+      );
+    if (seen.noDepth)
+      throw this.#error(
+        "CANNOT_OBSERVE",
+        "a step was found, and the provider gives no block heights to count its depth by: use a provider that does",
+        { details: { reason: "noDepth" } },
+      );
+  }
+
+  /* -------------------------------------------------------------------------------------------
+   * Writing
+   * ----------------------------------------------------------------------------------------- */
+
+  /**
+   * One change of the record: `decide` gives the event for the record it is shown, and the
+   * object takes the next record only once it is written. Without a store the change is made at
+   * once. With one, the record is saved over the revision the object holds; on `false` the
+   * record is read again and `decide` is shown the fresh record (`fresh`), at most three times
+   * more. The writes of one object are made one at a time. `fresh` is also true when a record
+   * read from the store replaced the object's since `since`.
+   * @returns `written`, `unchanged` (the event changed nothing, or its refusal was dropped), or
+   *   `skipped` (`decide` applied nothing)
+   * @throws TxPlanError VERSION_CONFLICT after the fourth `false`; STORE_FAILED when the store
+   *   throws; PLAN_NOT_FOUND when the record is gone; INVALID_STATE (`recordVersion`) for a
+   *   record read again that this library does not read; what `decide` stops with
+   */
+  #write(
+    state: PlanState,
+    decide: (record: StepPlanRecord, fresh: boolean) => WriteDecision,
+    since = state.storeReads,
+  ): Promise<WriteOutcome> {
+    const run = async (): Promise<WriteOutcome> => {
+      let record = state.record;
+      let fresh = state.storeReads !== since;
+      for (let saves = 0; ;) {
+        const step = decide(record, fresh);
+        if ("stop" in step) throw step.stop;
+        if ("skip" in step) return "skipped";
+        const result = advanceStepPlan(record, step.event);
+        if (!result.ok) {
+          const error = step.refused(result);
+          if (error !== undefined) throw error;
+          return "unchanged";
+        }
+        if (result.json === record) return "unchanged";
+        const next = result.json;
+        if (state.store === undefined) {
+          commit(state, next);
+          return "written";
+        }
+        if (await this.#save(state, next, record.rev)) {
+          commit(state, next);
+          return "written";
+        }
+        saves += 1;
+        if (saves > MAX_REPEATS)
+          throw this.#error(
+            "VERSION_CONFLICT",
+            `the store holds another revision of the plan's record at each of ${saves} writes of one change: nothing was sent; the plan goes on from its record`,
+            {},
+          );
+        record = await this.#reread(state);
+        fresh = true;
+      }
+    };
+    // Without a store nothing waits: the change is made before the first pause
+    if (state.store === undefined) return run();
+    const mine = state.writing.then(run, run);
+    state.writing = mine.then(
+      () => undefined,
+      () => undefined,
+    );
+    return mine;
+  }
+
+  /**
+   * Saves the next record over the revision the object holds
+   * @returns whether the store wrote it; any answer but `true` is taken as another revision
+   * @throws TxPlanError STORE_FAILED when the store throws: the write may have passed
+   */
+  async #save(
+    state: PlanState,
+    next: StepPlanRecord,
+    expectedRev: number,
+  ): Promise<boolean> {
+    const json = encodeStepPlan(next) as unknown as StoredTxPlanJSON;
+    try {
+      return (await state.store!.save(json, expectedRev)) === true;
+    } catch (error) {
+      throw this.#error(
+        "STORE_FAILED",
+        "the store failed to write the plan's record, and the write may have passed: nothing was sent; the plan goes on from its record",
+        { cause: error },
+      );
+    }
+  }
+
+  /**
+   * The record read again after a write the store refused, taken as the object's own
+   * @throws TxPlanError PLAN_NOT_FOUND when the record is gone: it is never written anew;
+   *   STORE_FAILED; INVALID_STATE (`recordVersion`)
+   */
+  async #reread(state: PlanState): Promise<StepPlanRecord> {
+    const record = await loadStepRecord(state.store!, state.record.id!);
+    if (record === undefined)
+      throw this.#error(
+        "PLAN_NOT_FOUND",
+        "the plan's record is gone from the store: nothing was sent or written, and the record is not written anew",
+        {},
+      );
+    commitStored(state, record);
+    return record;
+  }
+
+  /** With a store: the stored record, when it is newer than the one the object holds */
+  async #takeStoredIfNewer(state: PlanState) {
+    if (state.store === undefined) return;
+    const stored = await loadStepRecord(state.store, state.record.id!);
+    if (stored === undefined)
+      throw this.#error(
+        "PLAN_NOT_FOUND",
+        "the plan's record is gone from the store: nothing was sent or written, and the record is not written anew",
+        {},
+      );
+    if (stored.rev > state.record.rev) commitStored(state, stored);
+  }
+
+  /* -------------------------------------------------------------------------------------------
+   * Observation
+   * ----------------------------------------------------------------------------------------- */
+
+  /** The tip as the state machine takes it, with the time its slot starts at */
+  #tipOf(state: PlanState, observed: ObservedTip): StepTip {
+    const tip: StepTip = {
+      slot: observed.slot,
+      timeMs: state.builder.timeAt(observed.slot),
+      ...(observed.height !== undefined && { height: observed.height }),
+    };
+    state.lastTip = tip;
+    return tip;
+  }
+
+  /** Reads the tip once; undefined when it is unknown */
+  async #readTip(
+    state: PlanState,
+    signal: AbortSignal | undefined,
+  ): Promise<StepTip | undefined> {
+    const observed = await abortable(state.observer.tip(), signal, CALL);
+    return observed && this.#tipOf(state, observed);
+  }
+
+  /**
+   * One look: a search for each step that is neither final nor dead, and for each step not in a
+   * block with an end of validity, a transaction one of its inputs comes from when no search of
+   * the look covers one already; then the tip. What it shows is recorded; what it cannot tell is
+   * unknown and changes nothing. A find without its slot is unknown.
+   */
+  async #look(
+    state: PlanState,
+    signal: AbortSignal | undefined,
+  ): Promise<Observed> {
+    const record = state.record;
+    const none: Observed = { noValidity: false, noDepth: false };
+    if (isTerminal(record)) return none;
+    const watched = record.steps.filter(
+      (step) => step.status !== "final" && !isDeadStep(step),
+    );
+    const hashes = watched.map((step) => step.txHash.toLowerCase());
+    const sources: string[] = [];
+    for (const step of record.steps) {
+      if (!isUnlandedStep(step) || stepUntil(step) === undefined) continue;
+      const from = step.built.inputs.map((input) => input.txHash.toLowerCase());
+      if (from.some((hash) => hashes.includes(hash) || sources.includes(hash)))
+        continue;
+      if (from[0] !== undefined) sources.push(from[0]);
+    }
+    const { searches, tip: observed } = await abortable(
+      searchThenTip(state.observer, [...hashes, ...sources]),
+      signal,
+      CALL,
+    );
+    const tip = observed && this.#tipOf(state, observed);
+    const sightings: TxSighting[] = [];
+    let noValidity = false;
+    let noDepth = false;
+    for (const step of watched) {
+      const txHash = step.txHash.toLowerCase();
+      const search = searches.get(txHash);
+      if (search === undefined || "unsupported" in search) continue;
+      if (!search.found) {
+        sightings.push({ txHash, found: false });
+        continue;
+      }
+      const plutus = step.built.redeemers.length > 0;
+      const validityUnknown = plutus && search.validContract === undefined;
+      if (validityUnknown && step.status !== "failed") noValidity = true;
+      if (search.slot === undefined) continue;
+      sightings.push(sightingOf(txHash, search));
+      if (
+        !validityUnknown &&
+        search.validContract !== false &&
+        (search.blockHeight === undefined ||
+          (tip !== undefined && tip.height === undefined))
+      )
+        noDepth = true;
+    }
+    for (const txHash of sources) {
+      const search = searches.get(txHash);
+      if (search === undefined || "unsupported" in search) continue;
+      if (!search.found) sightings.push({ txHash, found: false });
+      else if (search.slot !== undefined)
+        sightings.push(sightingOf(txHash, search));
+    }
+    const landed = landedSteps(state.record).length;
+    await this.#write(state, () => ({
+      event: {
+        type: "observation",
+        ...(tip !== undefined && { tip }),
+        sightings,
+      },
+      refused: () => undefined,
+    }));
+    if (landedSteps(state.record).length > landed) this.#clearVolatile(state);
+    return { ...(tip !== undefined && { tip }), noValidity, noDepth };
+  }
+
+  /** Clears the builder's cache of reads that a delivery or a landing makes stale */
+  #clearVolatile(state: PlanState) {
+    internals(state.builder).cache?.clearVolatile();
+  }
+
+  /* -------------------------------------------------------------------------------------------
+   * Signing
+   * ----------------------------------------------------------------------------------------- */
+
+  /**
+   * Asks each signer once for one step, sharing the time left to its end of validity by the
+   * tip; records what each gives as it comes. A signer of hashes is skipped when no key is left;
+   * the payer, asked because the call names no signer, when it has nothing left to give, and only
+   * its witnesses of the keys it was asked for, and bootstrap witnesses, are recorded.
+   * @param byDefault The signer is the plan's payer, asked because the call names no signer
+   */
+  async #signStep(
+    state: PlanState,
+    name: string,
+    signers: readonly Signer[],
+    tip: StepTip | undefined,
+    signal: AbortSignal | undefined,
+    byDefault: boolean,
+  ) {
+    const since = state.storeReads;
+    const first = stepIn(state.record, name)!;
+    const keys = askedKeys(first.built.signers);
+    const raw = readTransaction(first.built.tx);
+    const until = stepUntil(first);
+    const timeout = () =>
+      this.#error(
+        "SIGNER_FAILED",
+        "the signer did not answer before the step's end of validity",
+        { details: { reason: "timeout" }, step: first },
+      );
+    const endsAt =
+      tip === undefined || until === undefined
+        ? undefined
+        : Date.now() + (until - tip.timeMs);
+    for (const signer of signers) {
+      // The keys that have not signed yet, by the record as it is now
+      const now = stepIn(state.record, name)!;
+      if (!isUnlandedStep(now)) return;
+      const signed = new Set(
+        now.witnesses
+          .filter((w) => w.kind === "vkey")
+          .map((w) => keyHashOfVkey(w.vkey)),
+      );
+      const unsigned = keys.filter(({ keyHash }) => !signed.has(keyHash));
+      if (unsigned.length === 0 && signsHashes(signer)) continue;
+      if (
+        byDefault &&
+        payerHasNothingLeft(
+          unsigned,
+          now.witnesses,
+          now.built.signers.byronAddresses.length,
+        )
+      )
+        continue;
+      const left = endsAt === undefined ? undefined : endsAt - Date.now();
+      if (left !== undefined && left <= 0) throw timeout();
+      let offered: KeyWitness[] | typeof TIMED_OUT;
+      try {
+        offered = await abortable(
+          within(
+            signerWitnesses(
+              signer,
+              raw,
+              { keys: unsigned, ...(signal !== undefined && { signal }) },
+              "the step's body",
+            ),
+            left,
+          ),
+          signal,
+          CALL,
+        );
+      } catch (error) {
+        if (TxPlanError.is(error)) onStep(error, first);
+        throw error;
+      }
+      if (offered === TIMED_OUT) throw timeout();
+      await this.#record(
+        state,
+        name,
+        byDefault ? payerWitnesses(offered, unsigned) : offered,
+        since,
+      );
+    }
+  }
+
+  /**
+   * Records the witnesses offered for a step that its fee counts: of the keys it needs and of
+   * the keys its native scripts name, `extraKeyWitnesses` more of other keys, and as many
+   * bootstrap witnesses as it spends from Byron addresses; each counts for the key its own
+   * public key hashes to. A step in a block keeps none
+   */
+  #record(
+    state: PlanState,
+    name: string,
+    offered: readonly KeyWitness[],
+    since = state.storeReads,
+  ) {
+    return this.#write(
+      state,
+      (record) => {
+        if (record.stopped === true)
+          return {
+            stop: this.#error(
+              "INVALID_STATE",
+              "the plan was stopped: it signs and sends nothing more",
+              { details: { reason: "stopped" } },
+            ),
+          };
+        const step = stepIn(record, name);
+        if (step === undefined || !isUnlandedStep(step)) return { skip: true };
+        const kept = keptOf(step, offered);
+        if (kept.length === 0) return { skip: true };
+        return {
+          event: { type: "signature", step: name, witnesses: kept },
+          refused: (refusal) => this.#refused(refusal),
+        };
+      },
+      since,
+    );
+  }
+
+  /* -------------------------------------------------------------------------------------------
+   * Running
+   * ----------------------------------------------------------------------------------------- */
+
+  /** The submitter of a call: its own, else the builder's, else the provider when it submits */
+  #submitter(state: PlanState, given: ISubmitter | undefined) {
+    if (given) return given;
+    if (state.builder.submitter) return state.builder.submitter;
+    const { provider } = state.builder;
+    return provider !== undefined && isFunction(provider, "submitTx")
+      ? (provider as ISubmitter)
+      : undefined;
+  }
+
+  /**
+   * The loop of `run()`: the first step that is not in a block is signed, sent and waited for;
+   * every step before it is in a block. It holds no state of its own but the times of its
+   * sends: every turn starts from the record as it is
+   */
+  async #drive(state: PlanState, call: Call) {
+    const { waitFor, resendMs } = call.wait;
+    // When timeoutMs counts from: the call's start, or the last first delivery of a step
+    let from = call.started;
+    const lastSent = new Map<string, number>();
+    const signedHere = new Set<string>();
+    for (;;) {
+      const record = state.record;
+      if (record.status === "final") return;
+      this.#refuseStopped(state, true);
+      const step = record.steps.find((each) => !isLanded(each));
+      if (step === undefined) {
+        // Every step is in a block
+        if (waitFor !== "final") return;
+        const first = record.steps.find((each) => each.status !== "final")!;
+        await this.#pauseAndLook(state, call, from, first);
+        continue;
+      }
+      switch (step.status) {
+        case "built": {
+          this.#refusePastUntil(state, step, state.lastTip);
+          if (signedHere.has(step.name)) throw this.#missingSignatures(step);
+          const signers =
+            call.signers ?? (state.signer ? [state.signer] : undefined);
+          if (signers === undefined) throw this.#missingSignatures(step);
+          await this.#signStep(
+            state,
+            step.name,
+            signers,
+            state.lastTip,
+            call.signal,
+            call.signers === undefined,
+          );
+          signedHere.add(step.name);
+          continue;
+        }
+        case "signed":
+        case "rejected": {
+          // The deadline once more, by a tip read after signing
+          const tip = signedHere.has(step.name)
+            ? ((await this.#readTip(state, call.signal)) ?? state.lastTip)
+            : state.lastTip;
+          this.#refusePastUntil(state, step, tip);
+          this.#refuseNotYetValid(state, step, tip);
+          const sent = await this.#send(state, step.name, call, true);
+          if (sent.outcome === "moved") continue;
+          if (sent.outcome === "failed") throw sent.error;
+          lastSent.set(step.name, Date.now());
+          from = Date.now();
+          if (waitFor === "sent") {
+            if (sent.outcome === "unconfirmed") throw sent.error;
+            return;
+          }
+          await this.#pauseAndLook(state, call, from, step);
+          continue;
+        }
+        case "sent": {
+          const last = lastSent.get(step.name);
+          if (last === undefined || Date.now() - last >= resendMs) {
+            const sent = await this.#send(state, step.name, call, false);
+            if (sent.outcome === "moved") continue;
+            lastSent.set(step.name, Date.now());
+            if (waitFor === "sent") {
+              if (sent.outcome !== "accepted") throw sent.error;
+              return;
+            }
+          }
+          await this.#pauseAndLook(state, call, from, step);
+          continue;
+        }
+        default:
+          throw this.#error(
+            "INVALID_STATE",
+            `the step is ${step.status}, a status this library does not send in`,
+            { details: { reason: "status" }, step },
+          );
+      }
+    }
+  }
+
+  /**
+   * One pause of a call that waits, then a look; CONFIRM_TIMEOUT about the step waited for once
+   * `timeoutMs` has passed since `from`
+   */
+  async #pauseAndLook(
+    state: PlanState,
+    call: Call,
+    from: number,
+    step: StepRecord,
+  ) {
+    const { waitFor, timeoutMs, pollMs } = call.wait;
+    const elapsed = Date.now() - from;
+    if (elapsed >= timeoutMs)
+      throw this.#error(
+        "CONFIRM_TIMEOUT",
+        `it did not reach ${waitFor} within ${timeoutMs} ms; nothing changed, and the same call waits on`,
+        {
+          details: {
+            waitedFor: waitFor === "final" ? "final" : "included",
+            timeoutMs,
+          },
+          step,
+        },
+      );
+    await pause(state, Math.min(pollMs, timeoutMs - elapsed), call.signal);
+    await this.#takeStoredIfNewer(state);
+    const seen = await this.#look(state, call.signal);
+    this.#refuseUnobservable(seen);
+  }
+
+  /**
+   * EXPIRED for a step not in a block whose end of validity the tip has passed; `unsent` only
+   * when the plan never sent it
+   */
+  #refusePastUntil(
+    state: PlanState,
+    step: StepRecord,
+    tip: StepTip | undefined,
+  ) {
+    const until = stepUntil(step);
+    if (tip === undefined || until === undefined || tip.timeMs < until) return;
+    const unsent = step.sends === 0;
+    throw this.#error(
+      "EXPIRED",
+      unsent
+        ? "it was never sent, and the tip has passed its end of validity: nothing was sent"
+        : "the tip has passed its end of validity: nothing was sent now",
+      {
+        details: {
+          otherLive: this.#otherLive(state, step),
+          ...(unsent && { unsent: true as const }),
+          ...this.#tipAge(state),
+        },
+        step,
+      },
+    );
+  }
+
+  /** NOT_YET_VALID while the step's lower bound is ahead of the tip */
+  #refuseNotYetValid(
+    state: PlanState,
+    step: StepRecord,
+    tip: StepTip | undefined,
+  ) {
+    const before = step.built.validity?.invalidBefore;
+    if (tip === undefined || before === undefined || before <= tip.slot) return;
+    const waitMs = state.builder.timeAt(before) - tip.timeMs;
+    throw this.#error(
+      "NOT_YET_VALID",
+      `it is valid from slot ${before}, ${waitMs} ms after the tip: nothing was sent`,
+      { details: { waitMs }, retryAfterMs: waitMs, step },
+    );
+  }
+
+  /**
+   * One send of a step's bytes: the probe this object owes, the delivery written, then the bytes
+   * of `signedTx` handed to the submitter, and its answer. When the record no longer takes the
+   * delivery (another call or writer changed it), nothing is sent: `moved`.
+   * @param first The step was not sent yet: a failure is thrown; else it is given back
+   * @throws TxPlanError MISSING_SUBMITTER, nothing sent; REJECTED; SUBMIT_FAILED for a first send
+   */
+  async #send(
+    state: PlanState,
+    name: string,
+    call: Call,
+    first: boolean,
+  ): Promise<Sent> {
+    const since = state.storeReads;
+    const step = stepIn(state.record, name)!;
+    const submitter = this.#submitter(state, call.submitter);
+    if (submitter === undefined)
+      throw this.#error(
+        "MISSING_SUBMITTER",
+        "nothing can submit it: give the call or the builder a submitter, or a provider with submitTx; nothing was sent",
+        { step },
+      );
+    if (state.probe === "owed") {
+      await probeProvider(state.observer, state.record, call.signal, (error) =>
+        this.#error("CANNOT_OBSERVE", error.message, {
+          details: { reason: error.reason },
+        }),
+      );
+      state.probe = "done";
+    }
+    throwIfAborted(call.signal, CALL);
+    const delivered = await this.#write(
+      state,
+      (record) => {
+        const now = stepIn(record, name);
+        if (
+          now === undefined ||
+          record.stopped === true ||
+          record.status !== "pending" ||
+          (now.status !== "signed" &&
+            now.status !== "sent" &&
+            now.status !== "rejected") ||
+          signedTxOf(now) === undefined
+        )
+          return { skip: true };
+        return {
+          event: { type: "delivery", step: name },
+          refused: (refusal) => this.#refused(refusal),
+        };
+      },
+      since,
+    );
+    if (delivered === "skipped") return { outcome: "moved" };
+    // The bytes of the step as recorded
+    const now = stepIn(state.record, name)!;
+    const tx = signedTxOf(now)!;
+    let answer: unknown;
+    try {
+      answer = await this.#submit(state, submitter, tx, call.signal);
+    } catch (error) {
+      if (TxBuildError.is(error, "ABORTED")) throw error;
+      const failure = await this.#failedDelivery(
+        state,
+        now,
+        submitter,
+        error,
+        call.signal,
+      );
+      if (failure.outcome === "failed" && first) throw failure.error;
+      return failure;
+    }
+    const reportedHash = answeredHash(answer);
+    if (reportedHash !== undefined && reportedHash !== now.txHash)
+      emit(state.trace, {
+        type: "warning",
+        code: "HASH_MISMATCH",
+        txHash: now.txHash,
+        reportedHash,
+      });
+    return { outcome: "accepted" };
+  }
+
+  /** Hands the bytes to the submitter; the cache is cleared whatever it answers */
+  async #submit(
+    state: PlanState,
+    submitter: ISubmitter,
+    tx: string,
+    signal: AbortSignal | undefined,
+  ): Promise<unknown> {
+    try {
+      return await abortable(
+        Promise.resolve().then(() => submitter.submitTx(tx)),
+        signal,
+        CALL,
+      );
+    } finally {
+      this.#clearVolatile(state);
+    }
+  }
+
+  /**
+   * What a delivery that failed comes to. A refusal of the ledger is recorded with what a search
+   * made after it shows: whether the step is found, and whether every step it stands on is found
+   * in a block. It counts only when every recorded delivery was refused and both say so: the step
+   * is `rejected`, and the error is REJECTED. Else it proves nothing when an earlier delivery may
+   * have gone through (`accepted`), and is SUBMIT_FAILED (`refused`) when none may have
+   * (`unconfirmed`). Any other failure leaves the outcome unknown (`failed`)
+   * @throws TxPlanError REJECTED
+   */
+  async #failedDelivery(
+    state: PlanState,
+    step: StepRecord,
+    submitter: ISubmitter,
+    error: unknown,
+    signal: AbortSignal | undefined,
+  ): Promise<Sent> {
+    const wallet = isWallet(submitter);
+    if (!wallet && isRefusal(error)) {
+      const parents = step.standsOn.map(
+        (name) => stepIn(state.record, name)!.txHash,
+      );
+      const { searches } = await abortable(
+        searchThenTip(state.observer, [step.txHash, ...parents]),
+        signal,
+        CALL,
+      );
+      const own = searches.get(step.txHash);
+      const found =
+        own === undefined || "unsupported" in own ? undefined : own.found;
+      const standingInBlock = parents.every((txHash) =>
+        isFound(searches.get(txHash)),
+      );
+      await this.#write(state, (record) => {
+        const held = stepIn(record, step.name);
+        if (
+          held === undefined ||
+          !isUnlandedStep(held) ||
+          held.refused >= held.sends
+        )
+          return { skip: true };
+        return {
+          event: {
+            type: "answer",
+            step: step.name,
+            refused: true,
+            ...(found !== undefined && { found }),
+            standingInBlock,
+          },
+          refused: () => undefined,
+        };
+      });
+      const now = stepIn(state.record, step.name)!;
+      if (now.status === "rejected")
+        throw this.#error(
+          "REJECTED",
+          "the ledger refused it, no delivery of it may have gone through, and it is not found while every step it stands on is in a block; the bytes exist and the same call sends them again",
+          {
+            details: {
+              otherLive: this.#otherLive(state, now),
+              ...this.#tipAge(state),
+            },
+            cause: error,
+            step: now,
+          },
+        );
+      if (!isUnlandedStep(now) || now.sends > now.refused || found === true)
+        return { outcome: "accepted" };
+      return {
+        outcome: "unconfirmed",
+        error: this.#error(
+          "SUBMIT_FAILED",
+          `the ledger refused it while ${standingInBlock ? "the search does not tell whether it is on chain" : "a step it stands on is not found in a block"}: the refusal proves nothing; the same call sends the same bytes again`,
+          {
+            details: { ...submitFailure(error), reason: "refused" },
+            cause: error,
+            step: now,
+          },
+        ),
+      };
+    }
+    const walletCode = wallet ? numericCodeOf(error) : undefined;
+    const failure = submitFailure(error);
+    return {
+      outcome: "failed",
+      error: this.#error(
+        "SUBMIT_FAILED",
+        `${submitFailureText(failure)}; the outcome of the delivery is unknown: it may be on its way; the same call sends the same bytes again`,
+        {
+          details: {
+            ...failure,
+            ...(walletCode !== undefined && { walletCode }),
+          },
+          cause: error,
+          step,
+        },
+      ),
+    };
+  }
+}
+
+/** Names the step an error is about */
+const onStep = (
+  error: TxPlanError,
+  step: Pick<StepRecord, "name" | "txHash">,
+) => {
+  const fields = error as { step?: string; txHash?: string };
+  if (fields.step === undefined) fields.step = step.name;
+  if (fields.txHash === undefined) fields.txHash = step.txHash;
+};
+
+/** A find of a search as the state machine takes it */
+const sightingOf = (
+  txHash: string,
+  search: Extract<TxSearch, { found: true }>,
+): TxSighting => ({
+  txHash,
+  found: true,
+  slot: search.slot!,
+  ...(search.block !== undefined && { block: search.block }),
+  ...(search.blockHeight !== undefined && {
+    blockHeight: search.blockHeight,
+  }),
+  ...(search.validContract !== undefined && { valid: search.validContract }),
+});
+
+/* ---------------------------------------------------------------------------------------------
+ * Making the object
+ * ------------------------------------------------------------------------------------------- */
+
+/** A new plan error of the store or of creation; its message says that it means no "not paid" */
+const planError = <C extends TxPlanErrorCode>(
+  code: C,
+  message: string,
+  context: {
+    planId?: string;
+    cause?: unknown;
+    details?: C extends keyof TxPlanErrorDetails
+      ? TxPlanErrorDetails[C]
+      : undefined;
+  },
+): TxPlanError<C> => {
+  const make = TxPlanError as new (
+    code: C,
+    message: string,
+    context: object,
+  ) => TxPlanError<C>;
+  return new make(code, `${message}. ${STEP_NOT_UNPAID}`, {
+    ...(context.planId !== undefined && { planId: context.planId }),
+    ...(context.cause !== undefined && { cause: context.cause }),
+    ...(context.details !== undefined && { details: context.details }),
+  });
+};
+
+/**
+ * The trial request of the provider: a search for the transaction the first input of the first
+ * step comes from, and the tip. The provider must have a search, block heights and, for a plan
+ * with a step that runs a Plutus script, the validity of what it finds. Without an answer nothing
+ * is forbidden.
+ * @throws what `cannot` makes of CANNOT_OBSERVE (`noSearch`, `noDepth`, `noValidity`)
+ */
+const probeProvider = async (
+  observer: ChainObserver,
+  record: StepPlanRecord,
+  signal: AbortSignal | undefined,
+  cannot: (problem: {
+    reason: "noSearch" | "noDepth" | "noValidity";
+    message: string;
+  }) => unknown,
+) => {
+  const source = record.steps[0]?.built.inputs[0]?.txHash;
+  const plutus = record.steps.some((step) => step.built.redeemers.length > 0);
+  const { searches, tip } = await abortable(
+    searchThenTip(observer, source === undefined ? [] : [source]),
+    signal,
+    CALL,
+  );
+  const search = source === undefined ? undefined : searches.get(source);
+  const fail = (reason: "noSearch" | "noDepth" | "noValidity", what: string) =>
+    cannot({
+      reason,
+      message: `the provider cannot follow the plan: ${what}; use another provider`,
+    });
+  if (search !== undefined && "unsupported" in search)
+    throw fail("noSearch", "it cannot search for a transaction");
+  if (tip !== undefined && tip.height === undefined)
+    throw fail("noDepth", "its tip has no block height");
+  if (search?.found === true) {
+    if (search.blockHeight === undefined)
+      throw fail("noDepth", "what it finds has no block height");
+    if (plutus && search.validContract === undefined)
+      throw fail(
+        "noValidity",
+        "what it finds does not say whether its scripts passed (validContract)",
+      );
+  }
+};
+
+/**
+ * The record of an id, read from a store and checked; undefined when there is none
+ * @throws TxPlanError STORE_FAILED when the store throws; INVALID_STATE (`recordVersion`) for
+ *   a record this library does not read
+ */
+const loadStepRecord = async (
+  store: TxPlanStore,
+  id: string,
+): Promise<StepPlanRecord | undefined> => {
+  let json: unknown;
+  try {
+    json = await store.load(id);
+  } catch (error) {
+    throw planError(
+      "STORE_FAILED",
+      `the store failed to read the record of the plan ${id}: nothing was signed, written or sent`,
+      { planId: id, cause: error },
+    );
+  }
+  // Only `undefined` says that there is no record; anything else is read as one
+  if (json === undefined) return undefined;
+  return readStepPlan(json, id);
+};
+
+/**
+ * The record's network against the builder's: the name, and for a recorded configuration also
+ * the network id and the slot clock, by which the plan's time is counted
+ * @throws TxBuildError NETWORK_MISMATCH with the role `record`
+ */
+const checkRecordNetwork = (builder: TxBuilder, record: StepPlanRecord) => {
+  const own = builder.network;
+  const recorded = record.network;
+  const name = typeof recorded === "string" ? recorded : recorded.name;
+  let differs: string | undefined;
+  if (name !== own.name) differs = "the name";
+  else if (typeof recorded !== "string") {
+    const a = recorded.slotConfig;
+    const b = own.slotConfig;
+    if (recorded.networkId !== own.networkId) differs = "the network id";
+    else if (
+      a.zeroTime !== b.zeroTime ||
+      a.zeroSlot !== b.zeroSlot ||
+      a.slotLength !== b.slotLength
+    )
+      differs = "the slot clock (zeroTime, zeroSlot, slotLength)";
+  }
+  if (differs === undefined) return;
+  throw new TxBuildError(
+    "NETWORK_MISMATCH",
+    `the plan's record ${record.id ?? ""} was written for the network ${name}${typeof recorded === "string" ? "" : ` (network id ${recorded.networkId})`}, and the builder is for ${own.name} (network id ${own.networkId}): ${differs} differs. Resume it with a builder of its network`,
+    {
+      details: {
+        expected: { name: own.name, networkId: own.networkId },
+        found: [
+          {
+            role: "record",
+            network: name,
+            ...(typeof recorded !== "string" && {
+              networkId: recorded.networkId,
+            }),
+          },
+        ],
+      },
+    },
+  );
+};
+
+/** A plan object over a record, with its live objects */
+const objectOver = (
+  builder: TxBuilder,
+  record: StepPlanRecord,
+  live: StepPlanLiveObjects,
+  probe: "owed" | "done",
+): StepPlan => {
+  const plan = new (StepPlan as unknown as new () => StepPlan)();
+  const signer = payerSigner(live.payer);
+  const { store } = builder;
+  STATE.set(plan, {
+    builder,
+    record,
+    ...(signer !== undefined && { signer }),
+    ...(live.trace !== undefined && { trace: live.trace }),
+    observer: chainObserver(builder.provider),
+    probe,
+    watchers: new Set(),
+    ...(store !== undefined && { store }),
+    writing: Promise.resolve(),
+    storeReads: 0,
+  });
+  return plan;
+};
+
+/** What makes two records of one id the same plan: its network, deadlines, options and steps */
+const sameOrder = (a: StepPlanRecord, b: StepPlanRecord) => {
+  const shape = (record: StepPlanRecord) => {
+    const json = encodeStepPlan(record);
+    return {
+      network: json.network,
+      deadlines: json.deadlines,
+      options: json.options,
+      steps: json.steps.map((step) => ({
+        name: step.name,
+        kind: step.kind,
+        given: step.given,
+      })),
+    };
+  };
+  return sameJson(
+    JSON.parse(JSON.stringify(shape(a))),
+    JSON.parse(JSON.stringify(shape(b))),
+  );
+};
+
+/**
+ * The object of a plan `makePlan` built. The provider is probed first. On a builder with a
+ * store the plan needs an id, and its first record is written before the object is returned:
+ * an id the store holds already with the same steps and options gives the recorded plan, with
+ * its recorded transactions, and the steps just built are dropped.
+ * @throws TxPlanError CANNOT_OBSERVE (`noSearch`, `noDepth`, `noValidity`) for a provider that
+ *   cannot follow the plan; on a builder with a store MISSING_ID, PLAN_EXISTS for an id recorded
+ *   with other steps or options, STORE_FAILED, VERSION_CONFLICT
+ * @throws TxBuildError NOT_SERIALIZABLE on a builder with a store, for a part that holds a
+ *   redeemer function; NETWORK_MISMATCH for a recorded id of another network
+ */
+export const createStepPlan = async (
+  builder: TxBuilder,
+  made: Pick<MadePlan, "record">,
+  live: StepPlanLiveObjects = {},
+): Promise<StepPlan> => {
+  const { record } = made;
+  const { store } = builder;
+  const id = record.id;
+  if (store !== undefined && (id === undefined || id === ""))
+    throw planError(
+      "MISSING_ID",
+      "a builder with a store keeps every plan under its id: give the plan an id, a non-empty string, such as the key of the order",
+      {},
+    );
+  const json =
+    store === undefined
+      ? undefined
+      : (encodeStepPlan(record) as unknown as StoredTxPlanJSON);
+  await probeProvider(chainObserver(builder.provider), record, undefined, (p) =>
+    planError("CANNOT_OBSERVE", p.message, {
+      ...(id !== undefined && { planId: id }),
+      details: { reason: p.reason },
+    }),
+  );
+  if (store === undefined) return objectOver(builder, record, live, "done");
+  let written: boolean;
+  try {
+    written = (await store.save(json!, 0)) === true;
+  } catch (error) {
+    throw planError(
+      "STORE_FAILED",
+      `the store failed to write the first record of the plan ${id}, and the write may have passed: nothing was signed or sent`,
+      { planId: id!, cause: error },
+    );
+  }
+  if (written) return objectOver(builder, record, live, "done");
+  const stored = await loadStepRecord(store, id!);
+  if (stored === undefined)
+    throw planError(
+      "VERSION_CONFLICT",
+      `the store refused the first record of the plan ${id} and holds none: nothing was signed or sent`,
+      { planId: id! },
+    );
+  checkRecordNetwork(builder, stored);
+  if (!sameOrder(stored, record))
+    throw planError(
+      "PLAN_EXISTS",
+      `the store holds the plan ${id} with other steps or options: an id names one plan, whose steps never change; nothing was written. Give a new plan a new id`,
+      { planId: id! },
+    );
+  return objectOver(builder, stored, live, "done");
+};
+
+/**
+ * A recorded plan, with the live objects given again: by its id from the builder's store, or
+ * from its JSON. It makes no request to the chain and does not call the payer; the provider is
+ * probed before the first delivery. The transactions are those of the record, each read again
+ * and its witnesses verified against its body.
+ * @throws TxPlanError MISSING_STORE for an id on a builder without a store; MISSING_ID for an
+ *   id that is not a non-empty string, and for a record without one on a builder with a store;
+ *   PLAN_NOT_FOUND; STORE_FAILED; INVALID_STATE (`recordVersion`) for a record this library
+ *   does not read
+ * @throws TxBuildError NETWORK_MISMATCH for a record of another network
+ */
+export const resumeStepPlan = async (
+  builder: TxBuilder,
+  source: string | StepPlanJSON,
+  live: StepPlanLiveObjects = {},
+): Promise<StepPlan> => {
+  const { store } = builder;
+  let record: StepPlanRecord;
+  if (typeof source === "string") {
+    if (store === undefined)
+      throw planError(
+        "MISSING_STORE",
+        "the builder has no store to resume a plan from: give the builder the store the plan was recorded in, or resume it from its JSON",
+        {},
+      );
+    if (source === "")
+      throw planError(
+        "MISSING_ID",
+        "a plan is resumed by its id, a non-empty string",
+        {},
+      );
+    const stored = await loadStepRecord(store, source);
+    if (stored === undefined)
+      throw planError("PLAN_NOT_FOUND", `the store holds no plan ${source}`, {
+        planId: source,
+      });
+    record = stored;
+  } else {
+    record = readStepPlan(source);
+    if (store !== undefined && (record.id === undefined || record.id === ""))
+      throw planError(
+        "MISSING_ID",
+        "a builder with a store keeps every plan under its id, and the record has none",
+        {},
+      );
+  }
+  checkRecordNetwork(builder, record);
+  return objectOver(builder, record, live, "owed");
+};
+
+/** The record a plan object holds now */
+export const stepRecordOf = (plan: StepPlan): StepPlanRecord =>
+  stateOf(plan).record;

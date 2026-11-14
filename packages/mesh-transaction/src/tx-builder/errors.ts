@@ -421,15 +421,17 @@ export type TxPlanErrorDetails = {
       | "unconfirmed";
   };
   /**
-   * `closing`: the plan carries the closing mark; `recordVersion`: the record is of a newer
-   * format, another kind, or holds content this library does not know: a plan's record, or the
-   * JSON of a `BuiltTx` given to `restore`, whose error quotes none of its values
+   * `closing`: the plan carries the closing mark; `stopped`: the plan was stopped, or a step of
+   * it will not land, so it signs and sends nothing more; `recordVersion`: the record is of a
+   * newer format, another kind, or holds content this library does not know: a plan's record, or
+   * the JSON of a `BuiltTx` given to `restore`, whose error quotes none of its values
    */
   INVALID_STATE: {
     reason:
       | "status"
       | "terminal"
       | "closing"
+      | "stopped"
       | "tooManyAttempts"
       | "pastHorizon"
       | "recordVersion";
@@ -691,6 +693,8 @@ export class TxPlanError<
   declare readonly status?: TxPlanStatus;
   /** The attempt the error is about */
   declare readonly txHash?: string;
+  /** The name of the step of a plan the error is about */
+  declare readonly step?: string;
 
   constructor(
     code: C,
