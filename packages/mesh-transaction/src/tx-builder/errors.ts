@@ -211,7 +211,15 @@ export type TxBuildErrorDetails = {
   EXUNITS_TOO_LOW: { needed: Budget; given: Budget };
   EXUNITS_EXCEEDED: { mem: bigint; steps: bigint };
   VALUE_TOO_LARGE: { size: number; maxValSize: number };
-  TX_TOO_LARGE: { size: number; maxTxSize: number };
+  /**
+   * `cause` is `"selection"` when the parts alone fit a transaction and the inputs selected for
+   * them, with their change, do not; `"parts"` when the parts do not fit with one input
+   */
+  TX_TOO_LARGE: {
+    size: number;
+    maxTxSize: number;
+    cause: "selection" | "parts";
+  };
   FEE_TOO_LOW: { fee: bigint; minFee: bigint };
   OUTPUT_BELOW_MIN_COIN: { coin: bigint; minCoin: bigint };
   INVALID_REDEEMER: {

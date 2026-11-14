@@ -971,6 +971,42 @@ export const balance = (
   ];
 
   /**
+   * Why a round's transaction is larger than the ledger allows: `"selection"` when the parts fit
+   * with one of the selected inputs, a change holding only the tokens the parts leave over and
+   * the round's collateral; `"parts"` when they do not, or when selection added no input. It
+   * assembles and serializes one transaction more, and is asked only when the round fails.
+   */
+  const causeOfSize = (
+    fee: bigint,
+    collateral: BalancedCollateral | undefined,
+  ): "selection" | "parts" => {
+    if (selected.length === 0) return "parts";
+    const left = subtractValues(flow.consumed, flow.produced);
+    const tokens = new Map(Array.from(left.assets).filter(([, n]) => n > 0n));
+    let change: TransactionOutputPrototype[];
+    try {
+      change = leastChange(tokens, changeTo, params).outputs;
+    } catch {
+      // Tokens the parts leave over that fit no output
+      return "parts";
+    }
+    const trial: TxPart[] = [
+      ...core,
+      spendPart(selected[0]!),
+      ...change.map(outputPart),
+      ...(collateral ? collateralParts(collateral) : []),
+    ];
+    const sized = assembleTxPrototype(trial, {
+      fee,
+      costModels: ctx.costModels,
+      ...placeholderWitnesses(pricedSigners(trial), ctx.extraKeyWitnesses),
+    });
+    return ctx.serialize(sized.prototype).length / 2 > params.maxTxSize
+      ? "parts"
+      : "selection";
+  };
+
+  /**
    * A settled round priced again at its minimum fee, with the same inputs, the same number of
    * change outputs and the same collateral inputs; undefined when it does not settle there. The
    * collateral is put up anew at the lower fee when that keeps its inputs and its return, else
@@ -1079,7 +1115,13 @@ export const balance = (
       throw new TxBuildError(
         "TX_TOO_LARGE",
         `the transaction takes ${size} bytes, more than the ${params.maxTxSize} allowed`,
-        { details: { size, maxTxSize: params.maxTxSize } },
+        {
+          details: {
+            size,
+            maxTxSize: params.maxTxSize,
+            cause: causeOfSize(fee, collateral),
+          },
+        },
       );
     const required = feeForSize(
       size,
