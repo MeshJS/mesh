@@ -674,6 +674,105 @@ describe("TxBuilder.fromCbor: the object", () => {
   });
 });
 
+describe("a bootstrap witness beside a vkey witness of one key", () => {
+  /** A key behind a Shelley input and a Byron input of a mainnet transaction */
+  const twoInputs = () => {
+    const key = testKey();
+    const body = cbor.body("tagged", {
+      inputs: [0, 1],
+      to: addressHex(key, 1),
+    });
+    return {
+      key,
+      body,
+      txHash: cbor.txHashOf(body),
+      knownUtxos: [handUtxo(addressOf(key, 1)), handUtxo(BYRON, 1)],
+    };
+  };
+  /** A witness set of a vkey witness and a bootstrap witness of one key */
+  const both = (key: TestKey, txHash: string) =>
+    cbor.map(
+      [cbor.uint(0), cbor.arr(cbor.vkeyWitness(key, txHash))],
+      [cbor.uint(2), cbor.arr(bootstrapWitness(key, txHash))],
+    );
+  /** A wallet that answers with both witnesses of the key */
+  const walletOf = (key: TestKey) => ({
+    signTxWitnesses: async (tx: string) => both(key, readTransaction(tx).txId),
+  });
+
+  it("are both held by fromCbor from the transaction given, and the bytes stay", async () => {
+    await Crypto.ready();
+    const { key, body, txHash, knownUtxos } = twoInputs();
+    const given = cbor.tx(body, both(key, txHash));
+    const made = await offline("mainnet").fromCbor(given, { knownUtxos });
+    expect(made.signers.byronAddresses).toEqual([BYRON]);
+    expect(keysOf(made.partialTx)).toEqual({
+      vkeys: [key.vkey],
+      bootstraps: [key.vkey],
+    });
+    expect(made.signedTx).toBe(given);
+  });
+
+  it("are both kept by addWitnesses, given together or one after the other", async () => {
+    await Crypto.ready();
+    const { key, body, txHash, knownUtxos } = twoInputs();
+    const b = offline("mainnet");
+    const together = await b.fromCbor(cbor.tx(body), { knownUtxos });
+    await together.addWitnesses(both(key, txHash));
+    const apart = await b.fromCbor(cbor.tx(body), { knownUtxos });
+    await apart.addWitnesses(
+      cbor.map([cbor.uint(0), cbor.arr(cbor.vkeyWitness(key, txHash))]),
+    );
+    await apart.addWitnesses(
+      cbor.map([cbor.uint(2), cbor.arr(bootstrapWitness(key, txHash))]),
+    );
+    for (const made of [together, apart])
+      expect(keysOf(made.signedTx!)).toEqual({
+        vkeys: [key.vkey],
+        bootstraps: [key.vkey],
+      });
+  });
+
+  it("are both kept by sign() of a build and of an object from CBOR, and by a plan", async () => {
+    await Crypto.ready();
+    const { key, body, knownUtxos } = twoInputs();
+    const b = offline("mainnet");
+    const parts = [
+      spend.pubKey({ utxo: utxoAt(addressOf(key, 1), ada(5)) }),
+      spend.pubKey({ utxo: utxoAt(BYRON, ada(5)) }),
+      output({ address: addressOf(key, 1), value: { lovelace: ada(3) } }),
+    ];
+    const payer = {
+      changeAddress: addressOf(key, 1),
+      utxos: [utxoAt(addressOf(key, 1))],
+    };
+    const built = await b.build(parts, { payer });
+    const made = await b.fromCbor(cbor.tx(body), { knownUtxos });
+    for (const tx of [built, made]) {
+      await tx.sign({ signers: walletOf(key) });
+      expect(keysOf(tx.signedTx!)).toEqual({
+        vkeys: [key.vkey],
+        bootstraps: [key.vkey],
+      });
+    }
+    // A plan reads the chain's tip and can search for a transaction
+    const tip = {
+      fetchLatestBlock: async () => ({ slot: "1", height: 1 }),
+      fetchAddressUTxOs: async () => [],
+      fetchTxInfo: async () => {
+        throw new Error("not found");
+      },
+    } as unknown as TxBuilderOptions["provider"];
+    const plan = offline("mainnet", { provider: tip }).plan(parts, { payer });
+    await plan.build();
+    await plan.sign({ signers: walletOf(key) });
+    expect(keysOf(plan.signedTx!)).toEqual({
+      vkeys: [key.vkey],
+      bootstraps: [key.vkey],
+    });
+  });
+});
+
 describe("TxBuilder.fromCbor: collateral returned to someone else", () => {
   /** The collateral inputs `TX_IN#i` of each `i` given */
   const collateralOf = (...indices: number[]) =>

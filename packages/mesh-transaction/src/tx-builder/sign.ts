@@ -1212,8 +1212,8 @@ export const signerWitnesses = async (
 };
 
 /**
- * The witnesses offered for a transaction that it keeps, in order: each key once, none of a key
- * `held` has; vkey witnesses of the keys the fee counts, and `extraKeys` more of other keys over
+ * The witnesses offered for a transaction that it keeps, in order: each key once of each kind
+ * (vkey and bootstrap), none of a kind and a key `held` has; vkey witnesses of the keys the fee counts, and `extraKeys` more of other keys over
  * everything held; bootstrap witnesses up to `bootstraps`, the held ones counted. A witness kept
  * past these numbers would put the fee below the minimum
  * @param held The witnesses the transaction holds already
@@ -1233,10 +1233,12 @@ export const countedWitnesses = (
     (w) => w.kind === "vkey" && !keys.has(w.keyHash),
   ).length;
   let byron = held.filter((w) => w.kind === "bootstrap").length;
-  const seen = new Set(held.map((w) => w.keyHash));
+  // A key once of each kind: a vkey witness and a bootstrap witness of one key are two witnesses,
+  // for a Shelley address and for a Byron address of that key
+  const seen = new Set(held.map((w) => `${w.kind} ${w.keyHash}`));
   const kept: KeyWitness[] = [];
   for (const witness of offered) {
-    if (seen.has(witness.keyHash)) continue;
+    if (seen.has(`${witness.kind} ${witness.keyHash}`)) continue;
     if (witness.kind === "bootstrap") {
       if (byron >= bootstraps) continue;
       byron++;
@@ -1244,7 +1246,7 @@ export const countedWitnesses = (
       if (others >= extraKeys) continue;
       others++;
     }
-    seen.add(witness.keyHash);
+    seen.add(`${witness.kind} ${witness.keyHash}`);
     kept.push(witness);
   }
   return kept;

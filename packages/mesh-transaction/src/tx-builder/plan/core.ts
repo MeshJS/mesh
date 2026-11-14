@@ -6,6 +6,7 @@ import type {
   TxPlanJSON,
   TxPlanStatus,
 } from "./types";
+import { readWitnessArgument } from "../sign";
 
 // The state machine of a plan: a pure function from a record and an event to the next record.
 // It makes no request and reads no clock; every time it compares comes in the event or the
@@ -298,6 +299,15 @@ const replaceAt = (
   attempt: AttemptRecord,
 ): AttemptRecord[] => attempts.map((each, i) => (i === index ? attempt : each));
 
+/** The kind of the one witness a recorded witness set holds; undefined for one it cannot read */
+const witnessKind = (witness: Witness) => {
+  try {
+    return readWitnessArgument(witness.witness).witnesses[0]?.kind;
+  } catch {
+    return undefined;
+  }
+};
+
 const keysComplete = (keys: readonly string[], witnesses: readonly Witness[]) =>
   keys.every((key) => witnesses.some((w) => w.keyHash === key));
 
@@ -567,8 +577,15 @@ const signature = (
     );
   const attempt = json.attempts[index]!;
   const witnesses = [...attempt.witnesses];
+  // A key once of each kind: a vkey witness and a bootstrap witness of one key are both kept
   for (const witness of event.witnesses)
-    if (!witnesses.some((held) => held.keyHash === witness.keyHash))
+    if (
+      !witnesses.some(
+        (held) =>
+          held.keyHash === witness.keyHash &&
+          witnessKind(held) === witnessKind(witness),
+      )
+    )
       witnesses.push({ keyHash: witness.keyHash, witness: witness.witness });
   if (witnesses.length === attempt.witnesses.length) return { ok: true, json };
   const signed =
