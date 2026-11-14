@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { bech32 } from "bech32";
 
 import { mnemonicToEntropy } from "@meshsdk/common";
-import { deserializeAddress, NativeScript } from "@meshsdk/core";
+import { deserializeAddress, mConStr0, NativeScript } from "@meshsdk/core";
 import { Crypto, HexBlob } from "@meshsdk/core-cst";
 import { TxEmulator, TxResult } from "@meshsdk/tx-emulator";
 import { MeshWallet } from "@meshsdk/wallet";
@@ -20,9 +20,11 @@ import {
   TxBuilder,
   TxHashRequest,
   TxHashSigner,
+  TxPlanError,
 } from "../../src/tx-builder";
 import { cip30Wallet } from "../cip30-wallet";
-import { baseAddress } from "../test-util";
+import { alwaysSucceedCbor, baseAddress } from "../test-util";
+import { caught, Hooks, submitterOf, wrap } from "./plan/plan-emulator-util";
 
 const words = Array(24).fill("solution");
 const HARDENED = 0x80000000;
@@ -296,5 +298,198 @@ describe.each(["scalus", "cquisitor"] as const)(
         expect(await emulator.submitTx(built.signedTx!)).toBe(built.txHash);
       },
     );
+  },
+);
+
+/** The emulator of `setup`, behind a provider whose hooks change what it answers */
+const wrapped = async (
+  validator: "scalus" | "cquisitor",
+  hooks: Hooks = {},
+) => {
+  const { emulator } = await setup(validator);
+  const provider = wrap(emulator, hooks);
+  const builder = new TxBuilder({
+    network: "preprod",
+    provider,
+    evaluator: emulator,
+  });
+  const wallet = await walletOf();
+  const address = (await wallet.getChangeAddress())!;
+  emulator.fund(address, { lovelace: 100_000_000n });
+  return { emulator, provider, builder, wallet, address };
+};
+
+const QUICK = { timeoutMs: 2_000, pollMs: 10 } as const;
+
+describe.each(["scalus", "cquisitor"] as const)(
+  "StandaloneTx submitted on TxEmulator (%s)",
+  (validator) => {
+    it("is built, signed, submitted and found in a block", async () => {
+      const { emulator, builder, wallet, address } = await wrapped(validator);
+      const built = await builder.build(
+        output({ address: recipient, value: { lovelace: 5_000_000n } }),
+        { payer: address },
+      );
+      await built.sign({ signers: wallet });
+      expect(await built.submit()).toBe(built);
+      const found = await built.awaitInclusion(QUICK);
+      const info = await emulator.fetchTxInfo(built.txHash);
+      expect(found).toEqual({
+        txHash: built.txHash,
+        slot: Number(info.slot),
+        block: info.block,
+        blockHeight: info.blockHeight,
+      });
+      expect(emulator.utxos({ address: recipient })).toHaveLength(1);
+    });
+
+    it("sends the same bytes when submitted twice, and the second refusal is no error", async () => {
+      const { emulator, builder, wallet, address } = await wrapped(validator);
+      const built = await builder.build(
+        output({ address: recipient, value: { lovelace: 5_000_000n } }),
+        { payer: address },
+      );
+      await built.sign({ signers: wallet });
+      const recording = submitterOf((tx) => emulator.submitTx(tx));
+      await built.submit({ submitter: recording });
+      // The ledger refuses the repeat: its inputs are spent, by this very transaction
+      expect(await built.submit({ submitter: recording })).toBe(built);
+      expect(recording.calls).toEqual([built.signedTx, built.signedTx]);
+      expect((await built.awaitInclusion(QUICK)).txHash).toBe(built.txHash);
+    });
+
+    it("is REJECTED for an input another transaction spent", async () => {
+      const { builder, wallet, address } = await wrapped(validator);
+      const pay = (lovelace: bigint) =>
+        builder.build(output({ address: recipient, value: { lovelace } }), {
+          payer: address,
+        });
+      // Both select the payer's one UTxO
+      const first = await pay(5_000_000n);
+      const second = await pay(6_000_000n);
+      expect(second.inputs.map(({ txHash }) => txHash)).toEqual(
+        first.inputs.map(({ txHash }) => txHash),
+      );
+      await first.sign({ signers: wallet });
+      await second.sign({ signers: wallet });
+      await first.submit();
+      const error = await caught(second.submit());
+      expect(error).toBeInstanceOf(TxPlanError);
+      expect([error.code, error.retryable, error.details]).toEqual([
+        "REJECTED",
+        false,
+        { otherLive: [] },
+      ]);
+      expect(error.cause).toMatchObject({ kind: "rejected" });
+      expect(
+        (await caught(second.awaitInclusion({ timeoutMs: 50, pollMs: 10 })))
+          .code,
+      ).toBe("CONFIRM_TIMEOUT");
+      expect((await first.awaitInclusion(QUICK)).txHash).toBe(first.txHash);
+    });
+
+    it("is SUBMIT_FAILED when the answer is lost; the same call then returns, and the transaction is found", async () => {
+      const { emulator, builder, wallet, address } = await wrapped(validator);
+      const built = await builder.build(
+        output({ address: recipient, value: { lovelace: 5_000_000n } }),
+        { payer: address },
+      );
+      await built.sign({ signers: wallet });
+      const lossy = submitterOf(async (tx) => {
+        await emulator.submitTx(tx);
+        throw new Error("socket hang up");
+      });
+      const lost = await caught(built.submit({ submitter: lossy }));
+      expect([lost.code, lost.retryable]).toEqual(["SUBMIT_FAILED", true]);
+      expect(await built.submit()).toBe(built);
+      expect((await built.awaitInclusion(QUICK)).txHash).toBe(built.txHash);
+    });
+
+    describe("a Plutus spend", () => {
+      const script = { code: alwaysSucceedCbor, version: "V3" as const };
+
+      /** A script output locked by the wallet, and its spend, signed */
+      const unlocking = async (hooks: Hooks = {}) => {
+        const setUp = await wrapped(validator, hooks);
+        const { builder, wallet, address } = setUp;
+        const scriptAddress = builder.scriptAddress(script);
+        const lock = await builder.build(
+          output({
+            address: scriptAddress,
+            value: { lovelace: 20_000_000n },
+            datum: { type: "inline", data: mConStr0([]) },
+          }),
+          { payer: address },
+        );
+        await (await lock.sign({ signers: wallet })).submit();
+        const utxo = setUp.emulator.utxos({ address: scriptAddress })[0]!;
+        const unlock = await builder.build(
+          [
+            spend.plutus({ utxo, script, redeemer: { data: mConStr0([]) } }),
+            output({ address: recipient, value: { lovelace: 15_000_000n } }),
+          ],
+          { payer: address },
+        );
+        expect(unlock.redeemers).toHaveLength(1);
+        await unlock.sign({ signers: wallet });
+        await unlock.submit();
+        return { ...setUp, lock, unlock };
+      };
+
+      it("is found with the validity the provider gives", async () => {
+        const { emulator, unlock } = await unlocking();
+        expect((await emulator.fetchTxInfo(unlock.txHash)).validContract).toBe(
+          true,
+        );
+        expect((await unlock.awaitInclusion(QUICK)).txHash).toBe(unlock.txHash);
+      });
+
+      it("is CANNOT_OBSERVE (noValidity) when the provider does not say whether its scripts passed; a payment needs no validity", async () => {
+        const { lock, unlock } = await unlocking({
+          fetchTxInfo: async (forward, hash) => {
+            const { validContract: _valid, ...info } = await forward(hash);
+            return info;
+          },
+        });
+        const error = await caught(unlock.awaitInclusion(QUICK));
+        expect([error.code, error.details]).toEqual([
+          "CANNOT_OBSERVE",
+          { reason: "noValidity" },
+        ]);
+        expect((await lock.awaitInclusion(QUICK)).txHash).toBe(lock.txHash);
+      });
+
+      it("is SCRIPT_FAILED when it is found with is_valid = false", async () => {
+        const { unlock } = await unlocking({
+          fetchTxInfo: async (forward, hash) => ({
+            ...(await forward(hash)),
+            validContract: false,
+          }),
+        });
+        expect((await caught(unlock.awaitInclusion(QUICK))).code).toBe(
+          "SCRIPT_FAILED",
+        );
+      });
+    });
+
+    it("builds after an unsent transaction, and both are submitted in order and found", async () => {
+      const { emulator, builder, wallet, address } = await wrapped(validator);
+      const first = await builder.build(
+        output({ address: recipient, value: { lovelace: 5_000_000n } }),
+        { payer: address },
+      );
+      const second = await builder.build(
+        output({ address: recipient, value: { lovelace: 6_000_000n } }),
+        { payer: address, after: first },
+      );
+      expect(second.inputs.map(({ txHash }) => txHash)).toContain(first.txHash);
+      for (const built of [first, second])
+        await built.sign({ signers: wallet, partial: false });
+      await first.submit();
+      await second.submit();
+      for (const built of [first, second])
+        expect((await built.awaitInclusion(QUICK)).txHash).toBe(built.txHash);
+      expect(emulator.utxos({ address: recipient })).toHaveLength(2);
+    });
   },
 );

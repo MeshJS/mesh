@@ -36,7 +36,14 @@ import type {
   TxPlanStatus,
   TxPlanStore,
 } from "./types";
-import { abortable, abortedError, throwIfAborted } from "../abort";
+import {
+  abortable,
+  abortedError,
+  MAX_TIMER_MS,
+  throwIfAborted,
+  TIMED_OUT,
+  within,
+} from "../abort";
 import { isKeyLocked } from "../balance";
 import { toKnownUtxos } from "../chain";
 import { NOT_UNPAID, TxBuildError, TxPlanError } from "../errors";
@@ -46,6 +53,7 @@ import { toPayerSource } from "../payer";
 import {
   canSign,
   countedWitnesses,
+  isWallet,
   readTransaction,
   readWitnessArgument,
   signerWitnesses,
@@ -264,12 +272,6 @@ const isFunction = (value: unknown, name: string) =>
   value !== null &&
   typeof (value as Record<string, unknown>)[name] === "function";
 
-/** A wallet given as a submitter: its errors are never refusals of the ledger */
-const isWallet = (value: object) =>
-  isFunction(value, "getChangeAddress") ||
-  isFunction(value, "signTxWitnesses") ||
-  isFunction(value, "signTx");
-
 const isAbortSignal = (value: unknown): value is AbortSignal =>
   typeof value === "object" &&
   value !== null &&
@@ -370,45 +372,6 @@ const pause = (state: PlanState, ms: number, signal: AbortSignal | undefined) =>
     state.watchers.add(done);
     signal?.addEventListener("abort", onAbort, { once: true });
   });
-
-const TIMED_OUT = Symbol("timed out");
-
-/** The longest delay a timer takes; a longer one fires at once */
-const MAX_TIMER_MS = 2_147_483_647;
-
-/**
- * Waits for a promise no longer than `ms` (no limit when undefined); `TIMED_OUT` after that.
- * What the promise does later is dropped. A limit longer than a timer takes is waited for in
- * several timers.
- */
-const within = <T>(
-  promise: Promise<T>,
-  ms: number | undefined,
-): Promise<T | typeof TIMED_OUT> => {
-  if (ms === undefined) return promise;
-  return new Promise((resolve, reject) => {
-    const endsAt = Date.now() + Math.max(0, ms);
-    let timer: ReturnType<typeof setTimeout>;
-    const arm = (delay: number) => {
-      timer = setTimeout(() => {
-        const left = endsAt - Date.now();
-        if (left > 0) arm(Math.min(left, MAX_TIMER_MS));
-        else resolve(TIMED_OUT);
-      }, delay);
-    };
-    arm(Math.min(Math.max(0, ms), MAX_TIMER_MS));
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error) => {
-        clearTimeout(timer);
-        reject(error);
-      },
-    );
-  });
-};
 
 /** Sends an event to `trace`; what it throws or rejects with is dropped */
 const emit = (

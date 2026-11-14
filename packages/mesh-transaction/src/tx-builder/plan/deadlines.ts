@@ -5,7 +5,8 @@ import { TxBuildError } from "../errors";
 
 // The deadlines of plans and the waiting of their calls: the built-in values, the order in
 // which the builder's defaults, a plan's options and a call's options override them, and the
-// check of every value. Nothing here is exported from the package.
+// check of every value. `awaitInclusion()` of a `StandaloneTx` waits by the same defaults and
+// checks. Nothing here is exported from the package.
 
 /** The builder's `planDefaults`: the three deadlines and the pace of waiting */
 export type PlanDefaults = PlanDeadlines & {
@@ -35,7 +36,7 @@ export const DEFAULT_DEADLINES: EffectiveDeadlines = Object.freeze({
 export const DEFAULT_POLL_MS = 5_000;
 /** How often the same bytes go again while a plan is sent, in ms */
 export const DEFAULT_RESEND_MS = 120_000;
-/** How long a call waits for a block, in ms */
+/** How long a call waits for a block, in ms: a plan's call, and `awaitInclusion()` of a transaction */
 export const DEFAULT_TIMEOUT_MS = 120_000;
 /** How long a call waits for `final` per block of depth, in ms, on top of `DEFAULT_TIMEOUT_MS` */
 const FINAL_TIMEOUT_PER_BLOCK_MS = 30_000;

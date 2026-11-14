@@ -1,11 +1,27 @@
-import type { BuiltTx } from "./builder";
+import type { CachedFetcher, ISubmitter } from "@meshsdk/common";
+
+import type { BuiltTx, TxBuilder } from "./builder";
 import type { AskedKey, KeyWitness, RawTx, Signer } from "./sign";
 import type { RequiredKey } from "./witnesses";
-import { abortable, throwIfAborted } from "./abort";
-import { TxBuildError, TxPlanError } from "./errors";
+import {
+  abortable,
+  abortedError,
+  MAX_TIMER_MS,
+  throwIfAborted,
+  TIMED_OUT,
+  within,
+} from "./abort";
+import { NO_REBUILD, TxBuildError, TxPlanError } from "./errors";
+import {
+  checkWaitOptions,
+  DEFAULT_POLL_MS,
+  DEFAULT_TIMEOUT_MS,
+} from "./plan/deadlines";
+import { chainObserver, isRefusal } from "./plan/observer";
 import {
   canSign,
   countedWitnesses,
+  isWallet,
   readTransaction,
   signerWitnesses,
   toSigners,
@@ -15,11 +31,34 @@ import {
 import { askedKeys } from "./witnesses";
 
 // The object of one built transaction: the data of the build as its own members, and the calls
-// that sign that one body. Its bytes and their hash are read once, when it is made; the members
-// are data for the application, and nothing the object signs or asks is taken from them later.
+// that sign that one body, submit it and look for it. Its bytes and their hash are read once,
+// when it is made; the members are data for the application, and nothing the object signs,
+// sends or looks for is taken from them later.
 
 /** The call an aborted signal names */
 const CALL = "the call";
+
+/** The builder's private member the object uses: the shared cache of its provider */
+type BuilderInternals = { readonly cache?: CachedFetcher };
+
+/** What became of one delivery: taken, else refused by the ledger or failed otherwise */
+type Delivery =
+  | { readonly taken: true }
+  | {
+      readonly taken: false;
+      readonly refused: boolean;
+      readonly error: unknown;
+    };
+
+/**
+ * What one look for the transaction gave: found, not found, or unknown (no provider, a provider
+ * without search, a search that failed or answered about another transaction)
+ */
+type Look = "found" | "notFound" | "unknown";
+
+/** The start of the message of REJECTED */
+const REFUSED =
+  "the ledger refused the transaction, and no delivery of it by this object may have gone through";
 
 /** The options of one call of `sign()` of a `StandaloneTx` */
 export type SignTxOptions = {
@@ -33,6 +72,18 @@ export type SignTxOptions = {
   partial?: boolean;
   /** Aborts the call with ABORTED; a signer already asked is no longer waited for */
   signal?: AbortSignal;
+};
+
+/** Where `awaitInclusion()` found the transaction: what the provider's answer gave of its block */
+export type TxInclusion = {
+  /** The hash of the transaction found: the object's `txHash` */
+  readonly txHash: string;
+  /** The slot of the block it is in */
+  readonly slot?: number;
+  /** The hash of that block */
+  readonly block?: string;
+  /** The height of that block */
+  readonly blockHeight?: number;
 };
 
 /** The JavaScript type of a value, with `null` told apart */
@@ -100,6 +151,112 @@ const checkSignOptions = (options: unknown) => {
   };
 };
 
+const hasMethod = (value: unknown, name: string) =>
+  (typeof value === "object" || typeof value === "function") &&
+  value !== null &&
+  typeof (value as Record<string, unknown>)[name] === "function";
+
+/**
+ * Options of a call that are an object, else INVALID_OPTION: `undefined` is none
+ * @param given What the call's options are given as when a member is given in their place
+ */
+const optionsObject = (
+  options: unknown,
+  allowed: string,
+  given?: { member: string; is: (value: unknown) => boolean },
+): Record<string, unknown> => {
+  if (options === undefined) return {};
+  if (
+    typeof options !== "object" ||
+    options === null ||
+    Array.isArray(options) ||
+    given?.is(options) === true
+  )
+    throw invalidOption(
+      "options",
+      options,
+      allowed,
+      given?.is(options) === true
+        ? `; a ${given.member} is given as { ${given.member} }`
+        : "",
+    );
+  return options as Record<string, unknown>;
+};
+
+/**
+ * The options of `submit()`, checked by their shape
+ * @throws TxBuildError INVALID_OPTION
+ */
+const checkSubmitOptions = (options: unknown) => {
+  const { submitter, signal } = optionsObject(
+    options,
+    "an object { submitter?, signal? }",
+    { member: "submitter", is: (value) => hasMethod(value, "submitTx") },
+  );
+  if (submitter !== undefined && !hasMethod(submitter, "submitTx"))
+    throw invalidOption("submitter", submitter, "an object with submitTx");
+  if (signal !== undefined && !isAbortSignal(signal))
+    throw invalidOption("signal", signal, "an AbortSignal");
+  return {
+    submitter: submitter as ISubmitter | undefined,
+    signal: signal as AbortSignal | undefined,
+  };
+};
+
+/**
+ * The options of `awaitInclusion()`: `timeoutMs` and `pollMs` as a plan's call checks them
+ * @throws TxBuildError INVALID_OPTION
+ */
+const checkInclusionOptions = (options: unknown) => {
+  const { timeoutMs, pollMs, signal } = optionsObject(
+    options,
+    "an object { timeoutMs?, pollMs?, signal? }",
+  );
+  checkWaitOptions({
+    timeoutMs: timeoutMs as number | undefined,
+    pollMs: pollMs as number | undefined,
+  });
+  if (signal !== undefined && !isAbortSignal(signal))
+    throw invalidOption("signal", signal, "an AbortSignal");
+  return {
+    timeoutMs: timeoutMs as number | undefined,
+    pollMs: pollMs as number | undefined,
+    signal: signal as AbortSignal | undefined,
+  };
+};
+
+/**
+ * Waits `ms`, or until the signal aborts the call
+ * @throws TxBuildError ABORTED
+ */
+const pause = (ms: number, signal: AbortSignal | undefined) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(abortedError(signal, CALL));
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(abortedError(signal!, CALL));
+    };
+    const timer = setTimeout(
+      () => {
+        signal?.removeEventListener?.("abort", onAbort);
+        resolve();
+      },
+      Math.min(Math.max(0, ms), MAX_TIMER_MS),
+    );
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+
+/** The CIP-30 code of what a wallet threw, when it carries a numeric one */
+const walletCodeOf = (error: unknown) =>
+  typeof error === "object" &&
+  error !== null &&
+  typeof (error as { code?: unknown }).code === "number"
+    ? (error as { code: number }).code
+    : undefined;
+
 /** The keys in a message: each hash with its roles */
 const keysText = (keys: readonly RequiredKey[]) =>
   keys.map((k) => `${k.keyHash} (${k.roles.join(", ")})`).join("; ");
@@ -110,22 +267,24 @@ const keysText = (keys: readonly RequiredKey[]) =>
  * It is a `BuiltTx`: every member of it is here as the object's own read-only data, so it goes
  * wherever a `BuiltTx` goes (`after`, `utxosAfter`, `outputOf`), and `{ ...built }` or
  * `structuredClone(built)` is that data as a plain object. Beside the data it holds the
- * witnesses given to it, and it has the calls that sign this one body and take witnesses made
- * elsewhere: `tx` stays the unsigned transaction, `partialTx` is it with the witnesses held so
- * far, and `signedTx` is it with every witness it needs.
+ * witnesses given to it, and it has the calls that sign this one body, take witnesses made
+ * elsewhere, submit it and look for it: `tx` stays the unsigned transaction, `partialTx` is it
+ * with the witnesses held so far, and `signedTx` is it with every witness it needs.
  *
  * ```ts
  * const built = await builder.build(output({ address, value }), { payer: wallet });
  * await built.sign({ signers: wallet });
- * await provider.submitTx(built.signedTx!);
+ * await built.submit();
+ * await built.awaitInclusion();
  * ```
  *
  * One object is one body. Its bytes and its hash are fixed when it is made; no call builds,
- * edits or serializes a transaction again, and what is signed is that body. It has no deadline,
- * no anchor, no statuses and no replacement, so do not build another transaction to retry it: a
- * new build may select other inputs, and both may land. A payment that has to be repeated
- * safely, replaced or followed to `final` is a `TxPlan`; a plan's `build()` gives the data
- * alone, since a plan signs and sends its own attempts.
+ * edits or serializes a transaction again, and what is signed and sent is that body. It has no
+ * deadline, no anchor, no statuses and no replacement, so do not build another transaction to
+ * retry it: a new build may select other inputs, and both may land. A retry is the same call on
+ * the same object. A payment that has to be repeated safely, replaced or followed to `final` is
+ * a `TxPlan`; a plan's `build()` gives the data alone, since a plan signs and sends its own
+ * attempts.
  *
  * Two calls at once are safe: a witness is kept once per key, whoever gives it first.
  */
@@ -197,11 +356,26 @@ export class StandaloneTx implements BuiltTx {
   readonly #held: KeyWitness[] = [];
   /** `partialTx` as last written, with the number of witnesses it holds */
   #written?: { count: number; tx: string };
+  /** The builder that made it: its submitter, provider, cache and `planDefaults` */
+  readonly #builder: TxBuilder;
+  /** Whether a Plutus script runs: a find then needs the provider to say that the scripts passed */
+  readonly #plutus: boolean;
+  /**
+   * A delivery was taken by a submitter, its outcome is unknown, or the call that handed it off
+   * was aborted: the bytes may land, and a refusal proves nothing. Set by the delivery itself
+   */
+  #delivered = false;
+  /** The deliveries handed to a submitter that have not answered yet, each its outcome */
+  readonly #sending = new Set<Promise<Delivery>>();
+  /** How many deliveries were handed off: a refused call sees one handed off while it looks */
+  #handedOff = 0;
 
   /** Made by `builder.build()` and `builder.finalize()` only */
-  private constructor(built: BuiltTx, extraKeys: number) {
+  private constructor(builder: TxBuilder, built: BuiltTx, extraKeys: number) {
     Object.assign(this, built);
+    this.#builder = builder;
     this.#raw = readTransaction(built.tx);
+    this.#plutus = built.redeemers.length > 0;
     this.#keys = Object.freeze(
       built.signers.keys.map(({ keyHash, roles }) =>
         Object.freeze({ keyHash, roles: Object.freeze([...roles]) }),
@@ -228,7 +402,7 @@ export class StandaloneTx implements BuiltTx {
    * signed: `tx` itself while it holds none, and `signedTx` once none is missing. It is what is
    * handed to a party that signs next outside this object, such as a wallet's `signTx(tx, true)`
    * in another program; what that party gives back goes to `addWitnesses`. While a key is
-   * missing the ledger refuses it: the transaction to submit is `signedTx`
+   * missing the ledger refuses it: `submit()` sends `signedTx` only
    */
   get partialTx(): string {
     const count = this.#held.length;
@@ -257,8 +431,8 @@ export class StandaloneTx implements BuiltTx {
    * Byron addresses; any other is dropped. What a signer gave stays when a later one fails.
    *
    * By default the call returns whether or not a key is still missing, so that parties sign one
-   * after another; with `partial: false` a key still missing is MISSING_SIGNATURES. Nothing is
-   * sent: `signedTx` is the transaction to submit once `missing` is empty.
+   * after another; with `partial: false` a key still missing is MISSING_SIGNATURES. `submit()`
+   * checks the same before it sends.
    * @returns This object
    * @throws TxPlanError MISSING_SIGNATURES `{ missing }` when no signer is given (an empty list
    *   gives none), and with `partial: false` when a key the transaction needs has no signature
@@ -319,6 +493,249 @@ export class StandaloneTx implements BuiltTx {
     return this;
   }
 
+  /**
+   * Hands the transaction to a submitter: the call's, else the builder's, else the provider when
+   * it submits. It sends `signedTx` and nothing else: the same body every time, so the call can
+   * be repeated, and a repeat never pays twice. After every hand-off the builder's cache of
+   * volatile reads is cleared. What the submitter answers is not read: the hash is `txHash`.
+   *
+   * It returns when the submitter took the bytes. It also returns when the submitter refuses
+   * them after a delivery of this object that was taken or whose answer was lost, and when the
+   * provider already finds the transaction: a refusal of bytes that may be on their way, or are
+   * in a block, proves nothing. A delivery of this object that has not answered yet is waited
+   * for, and the refusal is decided by its outcome. The call's `signal` stops the waiting for
+   * the submitter, for those deliveries and for the look.
+   * @returns This object
+   * @throws TxPlanError MISSING_SIGNATURES `{ missing }` while a key has not signed, and
+   *   MISSING_SUBMITTER with nothing to submit through: nothing is sent. REJECTED when the
+   *   ledger refuses the bytes, no delivery of this object may have gone through and the
+   *   transaction is not found, or the provider cannot be asked; the object does not know what
+   *   another process sent. SUBMIT_FAILED (retryable) when the outcome is unknown, for a wallet
+   *   with `details.walletCode`: the same call sends the same bytes. The submitter's error is
+   *   the `cause`
+   * @throws TxBuildError INVALID_OPTION for options that are not an object (a submitter given
+   *   in their place among them: give it as `{ submitter }`), a submitter without `submitTx` or
+   *   a signal that is not an AbortSignal; `details.value` is only the JavaScript type of what
+   *   was given; ABORTED: bytes already handed to the submitter count as sent
+   */
+  async submit(options?: {
+    submitter?: ISubmitter;
+    signal?: AbortSignal;
+  }): Promise<this> {
+    const call = checkSubmitOptions(options);
+    throwIfAborted(call.signal, CALL);
+    const tx = this.signedTx;
+    if (tx === undefined) {
+      const missing = this.missing;
+      throw new TxPlanError(
+        "MISSING_SIGNATURES",
+        `${missing.length} key(s) the transaction needs have not signed it: ${keysText(missing)}; sign it, or add witnesses made elsewhere with addWitnesses; nothing was sent`,
+        { details: { missing: [...missing] } },
+      );
+    }
+    const submitter = this.#submitter(call.submitter);
+    if (submitter === undefined)
+      throw new TxPlanError(
+        "MISSING_SUBMITTER",
+        "nothing can submit the transaction: give the call or the builder a submitter, or a provider with submitTx; nothing was sent",
+      );
+    const wallet = isWallet(submitter);
+    const delivery = this.#deliver(submitter, tx, wallet);
+    try {
+      let outcome: Delivery;
+      try {
+        outcome = await abortable(delivery, call.signal, CALL);
+      } catch (error) {
+        // Aborted after the hand-off: the bytes are on their way
+        this.#delivered = true;
+        throw error;
+      }
+      if (outcome.taken) return this;
+      if (!outcome.refused) {
+        const walletCode = wallet ? walletCodeOf(outcome.error) : undefined;
+        throw new TxPlanError(
+          "SUBMIT_FAILED",
+          `the outcome of the delivery is unknown: the transaction may be on its way; the same submit() sends the same bytes again. ${NO_REBUILD}`,
+          {
+            details: walletCode === undefined ? {} : { walletCode },
+            cause: outcome.error,
+          },
+        );
+      }
+      const look = await this.#refusal(call.signal);
+      if (look === undefined) return this;
+      throw new TxPlanError(
+        "REJECTED",
+        look === "notFound"
+          ? `${REFUSED}; the provider does not find the transaction, and the object does not know what another process sent. ${NO_REBUILD}`
+          : `${REFUSED}; the provider could not be asked whether it holds the transaction (no provider, no search, or no answer), and the object does not know what another process sent. ${NO_REBUILD}`,
+        { details: { otherLive: [] }, cause: outcome.error },
+      );
+    } finally {
+      internals(this.#builder).cache?.clearVolatile();
+    }
+  }
+
+  /**
+   * Looks for the transaction through the builder's provider, past its cache, every `pollMs`,
+   * until it is found in a block: `included`, in a plan's words. It promises that one sighting
+   * and nothing after it: a rollback can undo it, and nothing here waits for depth or `final`.
+   * It sends nothing and changes nothing; it can be called before `submit()`, after it, again,
+   * and for a transaction that another process sent.
+   * @param options.timeoutMs How long to look, in ms, a look that has not answered by then
+   *   included; above 0; 120 000 by default
+   * @param options.pollMs The pause between two looks, in ms; above 0; the builder's
+   *   `planDefaults.pollMs`, else 5 000
+   * @returns What the provider's answer gave of the block
+   * @throws TxPlanError CONFIRM_TIMEOUT `{ waitedFor: "included", timeoutMs }` (retryable) when
+   *   it is not found in time: this does not mean that it will not land. SCRIPT_FAILED when it
+   *   is in a block with `is_valid = false`: a script failed and the collateral was taken.
+   *   CANNOT_OBSERVE (`noSearch`) for a provider without `fetchTxInfo`, (`noValidity`) for a
+   *   transaction that runs a Plutus script found without `validContract`
+   * @throws TxBuildError MISSING_FETCHER when the builder has no provider; INVALID_OPTION for an
+   *   option out of range; ABORTED
+   */
+  async awaitInclusion(options?: {
+    timeoutMs?: number;
+    pollMs?: number;
+    signal?: AbortSignal;
+  }): Promise<TxInclusion> {
+    const call = checkInclusionOptions(options);
+    throwIfAborted(call.signal, CALL);
+    const { provider, planDefaults } = this.#builder;
+    if (provider === undefined)
+      throw new TxBuildError(
+        "MISSING_FETCHER",
+        "looking for the transaction needs a provider, and the builder has none",
+      );
+    const timeoutMs = call.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const pollMs = call.pollMs ?? planDefaults?.pollMs ?? DEFAULT_POLL_MS;
+    const observer = chainObserver(provider);
+    const txHash = this.#raw.txId;
+    const timeout = () =>
+      new TxPlanError(
+        "CONFIRM_TIMEOUT",
+        `the transaction was not found in a block within ${timeoutMs} ms: this does not mean that it will not land, and the same call looks again. ${NO_REBUILD}`,
+        { details: { waitedFor: "included", timeoutMs } },
+      );
+    const started = Date.now();
+    for (;;) {
+      // A look gets the time left: one that has not answered by then is unknown, and dropped
+      const search = await within(
+        observer.findTx(txHash),
+        timeoutMs - (Date.now() - started),
+        call.signal,
+        CALL,
+      );
+      if (search === TIMED_OUT) throw timeout();
+      if (search !== undefined && "unsupported" in search)
+        throw new TxPlanError(
+          "CANNOT_OBSERVE",
+          "the provider cannot search for a transaction (fetchTxInfo): use another provider",
+          { details: { reason: "noSearch" } },
+        );
+      // Not found, and an answer that tells nothing, are looked for again: unknown is never "no"
+      if (search !== undefined && "found" in search && search.found) {
+        if (search.validContract === false)
+          throw new TxPlanError(
+            "SCRIPT_FAILED",
+            "the transaction is in a block with is_valid = false: a script failed and the collateral was taken",
+          );
+        if (this.#plutus && search.validContract !== true)
+          throw new TxPlanError(
+            "CANNOT_OBSERVE",
+            "the provider finds the transaction and does not say whether its scripts passed (validContract): use another provider",
+            { details: { reason: "noValidity" } },
+          );
+        return Object.freeze({
+          txHash,
+          ...(search.slot !== undefined && { slot: search.slot }),
+          ...(search.block !== undefined && { block: search.block }),
+          ...(search.blockHeight !== undefined && {
+            blockHeight: search.blockHeight,
+          }),
+        });
+      }
+      const left = timeoutMs - (Date.now() - started);
+      if (left <= 0) throw timeout();
+      await pause(Math.min(pollMs, left), call.signal);
+    }
+  }
+
+  /** The submitter of a call: its own, else the builder's, else the provider when it submits */
+  #submitter(given: ISubmitter | undefined): ISubmitter | undefined {
+    if (given !== undefined) return given;
+    const { submitter, provider } = this.#builder;
+    if (submitter !== undefined) return submitter;
+    return hasMethod(provider, "submitTx")
+      ? (provider as unknown as ISubmitter)
+      : undefined;
+  }
+
+  /**
+   * Hands the bytes to the submitter, at once, and records the outcome of the delivery when it
+   * answers, before any call that waits for it goes on: taken, or failed otherwise than by a
+   * refusal of the ledger (every failure of a wallet), sets `#delivered`; a refusal does not
+   * @returns The outcome; it never rejects
+   */
+  #deliver(submitter: ISubmitter, tx: string, wallet: boolean) {
+    this.#handedOff += 1;
+    const delivery: Promise<Delivery> = (async () => submitter.submitTx(tx))()
+      .then(
+        (): Delivery => {
+          this.#delivered = true;
+          return { taken: true };
+        },
+        (error: unknown): Delivery => {
+          const refused = !wallet && isRefusal(error);
+          if (!refused) this.#delivered = true;
+          return { taken: false, refused, error };
+        },
+      )
+      .finally(() => {
+        this.#sending.delete(delivery);
+      });
+    this.#sending.add(delivery);
+    return delivery;
+  }
+
+  /**
+   * Decides a refusal of a call's own delivery on settled facts: `undefined` when the bytes may
+   * land or are found (the call returns), else what the last look gave (REJECTED)
+   * @throws TxBuildError ABORTED by the call's signal while it waits; no mark is set then
+   */
+  async #refusal(
+    signal: AbortSignal | undefined,
+  ): Promise<"notFound" | "unknown" | undefined> {
+    for (;;) {
+      // A delivery taken, or whose answer was lost, may land: the refusal proves nothing
+      if (this.#delivered) return undefined;
+      // A delivery that has not answered yet decides by its outcome
+      if (this.#sending.size > 0) {
+        await abortable(Promise.all(this.#sending), signal, CALL);
+        continue;
+      }
+      const handedOff = this.#handedOff;
+      const look = await this.#look(signal);
+      // Bytes in a block already, sent by another process, are no refusal
+      if (look === "found") return undefined;
+      // A delivery that settled as taken or lost, or was handed off, during the look
+      if (this.#delivered || this.#handedOff !== handedOff) continue;
+      return look;
+    }
+  }
+
+  /** One look for the transaction past the cache */
+  async #look(signal: AbortSignal | undefined): Promise<Look> {
+    const search = await abortable(
+      chainObserver(this.#builder.provider).findTx(this.#raw.txId),
+      signal,
+      CALL,
+    );
+    if (search === undefined || "unsupported" in search) return "unknown";
+    return search.found ? "found" : "notFound";
+  }
+
   /** Keeps the offered witnesses the fee counts, against what is held at this moment */
   #keep(offered: readonly KeyWitness[]) {
     this.#held.push(
@@ -331,14 +748,24 @@ export class StandaloneTx implements BuiltTx {
   }
 }
 
+/** The builder's private members */
+const internals = (builder: TxBuilder) =>
+  builder as unknown as BuilderInternals;
+
 /**
  * A `StandaloneTx` of the data of a build: the object `build()` and `finalize()` return
+ * @param builder The builder that made it: it submits through it and looks through its provider
  * @param extraKeys The build's `extraKeyWitnesses`: witnesses of other keys its fee counts
  */
-export const standaloneTx = (built: BuiltTx, extraKeys = 0): StandaloneTx =>
+export const standaloneTx = (
+  builder: TxBuilder,
+  built: BuiltTx,
+  extraKeys = 0,
+): StandaloneTx =>
   new (
     StandaloneTx as unknown as new (
+      builder: TxBuilder,
       built: BuiltTx,
       extraKeys: number,
     ) => StandaloneTx
-  )(built, extraKeys);
+  )(builder, built, extraKeys);

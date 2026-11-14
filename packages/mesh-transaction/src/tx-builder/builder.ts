@@ -1482,7 +1482,7 @@ export class TxBuilder {
         changeOutputs.has(i) ? { ...utxo, change: true as const } : utxo,
     );
     const validity = validityOf(final.body, this.network);
-    return standaloneTx({
+    return standaloneTx(this, {
       tx,
       txHash,
       prototype: final,
@@ -1526,9 +1526,10 @@ export class TxBuilder {
   /**
    * Builds a balanced, unsigned transaction from the parts added with `add`, followed by `parts`
    * (none when omitted), and returns it as a `StandaloneTx`: the data of the build, with the
-   * calls that sign that one transaction. The builder is not changed: the parts it holds are
-   * never replaced by what the build makes of them. A part of a kind a transaction holds once,
-   * given both here and among the held parts, is DUPLICATE_PART, as within one list.
+   * calls that sign, submit and look for that one transaction. The builder is not changed: the
+   * parts it holds are never replaced by what the build makes of them. A part of a kind a
+   * transaction holds once, given both here and among the held parts, is DUPLICATE_PART, as
+   * within one list.
    *
    * Before anything is selected the builder reads the payer once (a wallet's change address,
    * UTxOs and network id, concurrently) and checks the network of every address it is given or
@@ -1593,7 +1594,7 @@ export class TxBuilder {
     // A plan builds through buildList and keeps plain data; only this call makes the object.
     // The object keeps the witnesses of as many other keys as the fee was priced for
     const built = await this.buildList(source, this.withAdded(parts), options);
-    return standaloneTx(built, options?.extraKeyWitnesses ?? 0);
+    return standaloneTx(this, built, options?.extraKeyWitnesses ?? 0);
   }
 
   /**

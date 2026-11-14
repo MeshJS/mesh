@@ -233,8 +233,8 @@ export type TxBuildErrorDetails = {
 };
 
 /**
- * Codes of a `TxPlanError`: signing, submitting, waiting for the chain, any step of a plan,
- * and its store
+ * Codes of a `TxPlanError`: signing, submitting and waiting for the chain, by a plan or by a
+ * `StandaloneTx`, any step of a plan, and its store
  */
 export type TxPlanErrorCode =
   /** The signer declined to sign */
@@ -245,19 +245,31 @@ export type TxPlanErrorCode =
   | "INVALID_WITNESS"
   /** Keys the transaction needs have not signed it */
   | "MISSING_SIGNATURES"
-  /** Nothing to submit the transaction with */
+  /** Nothing to submit the transaction with: neither the call, the builder nor its provider */
   | "MISSING_SUBMITTER"
   /** The transaction's validity interval has not started yet */
   | "NOT_YET_VALID"
-  /** Submitting failed with an unknown outcome; the same bytes are safe to submit again */
+  /**
+   * Submitting failed with an unknown outcome; the same bytes are safe to submit again: the same
+   * call of the plan or of the transaction sends them
+   */
   | "SUBMIT_FAILED"
-  /** The ledger rejected the transaction */
+  /**
+   * The ledger rejected the transaction: a plan's attempt, or a transaction none of whose
+   * deliveries can have gone through and that the provider does not find or cannot be asked for
+   */
   | "REJECTED"
-  /** The transaction was not seen on chain within the time allowed */
+  /**
+   * The transaction was not seen on chain within the time allowed; it may still land. From a
+   * plan's wait, or from `awaitInclusion()` of a transaction
+   */
   | "CONFIRM_TIMEOUT"
   /** The transaction's validity interval ended before it was included */
   | "EXPIRED"
-  /** The transaction was included with a failed script, and its collateral taken */
+  /**
+   * The transaction was included with a failed script, and its collateral taken: a plan's
+   * attempt, or a transaction `awaitInclusion()` finds
+   */
   | "SCRIPT_FAILED"
   /**
    * The attempt spends an output of a parent attempt that can no longer land, or the parent has
@@ -267,7 +279,10 @@ export type TxPlanErrorCode =
    * of them at least is found
    */
   | "ORPHANED"
-  /** The provider cannot tell what is needed, or cannot tell it yet */
+  /**
+   * The provider cannot tell what is needed, or cannot tell it yet: what a plan follows, or what
+   * `awaitInclusion()` of a transaction looks for
+   */
   | "CANNOT_OBSERVE"
   /** An attempt is on chain */
   | "ATTEMPT_ON_CHAIN"
@@ -337,14 +352,17 @@ export type TxPlanErrorDetails = {
   MISSING_SIGNATURES: { missing: RequiredKey[] };
   /** The CIP-30 code when a wallet submitted: TxSendError Refused 1, Failure 2 */
   SUBMIT_FAILED: { walletCode?: number };
+  /** `otherLive`: a plan's other attempts that may still land; empty from a transaction */
   REJECTED: { otherLive: string[]; tipAgeMs?: number };
   /** `unsent`: the plan never sent this attempt */
   EXPIRED: { otherLive: string[]; unsent?: true; tipAgeMs?: number };
   ORPHANED: { otherLive: string[] };
+  /** A transaction's `awaitInclusion()` waits for `included` */
   CONFIRM_TIMEOUT: { waitedFor: "included" | "final"; timeoutMs: number };
   /**
    * `unconfirmed`: this answer confirms nothing now (retryable); the other reasons are about the
-   * provider itself; `noDepth`: no block heights, for any plan
+   * provider itself; `noDepth`: no block heights, for any plan. A transaction's
+   * `awaitInclusion()` raises `noSearch` and `noValidity`
    */
   CANNOT_OBSERVE: {
     reason:
@@ -572,6 +590,13 @@ export const invalidArgument = (
 export const NOT_UNPAID =
   "This error does not mean that the payment did not go through: only an abandoned plan did not pay.";
 
+/**
+ * The sentence the messages of SUBMIT_FAILED, REJECTED and CONFIRM_TIMEOUT end with when a
+ * `StandaloneTx` raises them: a second build of the same payment may land beside the first
+ */
+export const NO_REBUILD =
+  "Do not build another transaction to retry it: a new build may select other inputs, and both may land.";
+
 /** Plan error codes whose same call may pass when repeated */
 const RETRYABLE: ReadonlySet<string> = new Set<TxPlanErrorCode>([
   "SUBMIT_FAILED",
@@ -597,9 +622,9 @@ export type TxPlanErrorContext<C extends TxPlanErrorCode> = TxErrorContext & {
     : { details?: undefined });
 
 /**
- * Raised by signing, submitting, waiting for and storing a transaction plan. Retryable for
- * `SUBMIT_FAILED`, `CONFIRM_TIMEOUT`, `NOT_YET_VALID`, `STILL_LIVE`, and `CANNOT_OBSERVE` with
- * the reason `unconfirmed`; for no other code.
+ * Raised by signing, submitting and waiting for a transaction or a plan, and by storing a plan.
+ * Retryable for `SUBMIT_FAILED`, `CONFIRM_TIMEOUT`, `NOT_YET_VALID`, `STILL_LIVE`, and
+ * `CANNOT_OBSERVE` with the reason `unconfirmed`; for no other code.
  */
 export class TxPlanError<
   C extends TxPlanErrorCode = TxPlanErrorCode,

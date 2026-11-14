@@ -607,6 +607,15 @@ const isFunction = (value: unknown, name: string) =>
   value !== null &&
   typeof (value as Record<string, unknown>)[name] === "function";
 
+/**
+ * A wallet given as a submitter, by its wallet methods: what it throws on `submitTx` is never a
+ * refusal of the ledger
+ */
+export const isWallet = (value: object) =>
+  isFunction(value, "getChangeAddress") ||
+  isFunction(value, "signTxWitnesses") ||
+  isFunction(value, "signTx");
+
 /** A wallet of the Mesh 1.9 kind: `getUtxosHex` of `MeshWallet`, `_walletInstance` of `BrowserWallet` */
 const isMeshWallet = (signer: object) =>
   "getUtxosHex" in signer || "_walletInstance" in signer;

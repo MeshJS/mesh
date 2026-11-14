@@ -12,6 +12,7 @@ import type {
   StoredTxPlanJSON,
   TxAttempt,
   TxAttemptStatus,
+  TxInclusion,
   TxPlanJSON,
   TxPlanStatus,
   TxPlanStore,
@@ -173,12 +174,20 @@ describe("public entrypoint", () => {
       expect(publicApi).not.toHaveProperty(name);
   });
 
-  it("exports the class of a built transaction and its sign options, and not its factory", () => {
+  it("exports the class of a built transaction, its sign options and its inclusion, and not its factory", () => {
     const sign: SignTxOptions = { signers: [], partial: false };
     expect(sign.partial).toBe(false);
+    const found: TxInclusion = { txHash: "00".repeat(32), slot: 1 };
+    expect(found.slot).toBe(1);
     expect(typeof publicApi.StandaloneTx).toBe("function");
-    expect(typeof publicApi.StandaloneTx.prototype.sign).toBe("function");
-    expect(publicApi).not.toHaveProperty("standaloneTx");
+    for (const method of ["sign", "addWitnesses", "submit", "awaitInclusion"])
+      expect(
+        typeof (
+          publicApi.StandaloneTx.prototype as unknown as Record<string, unknown>
+        )[method],
+      ).toBe("function");
+    for (const name of ["standaloneTx", "NO_REBUILD", "isWallet"])
+      expect(publicApi).not.toHaveProperty(name);
   });
 
   it("exports the store types and functions, and not the record encoding", async () => {
