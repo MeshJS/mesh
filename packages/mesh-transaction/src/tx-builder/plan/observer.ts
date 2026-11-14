@@ -1,6 +1,7 @@
 import type { IFetcher } from "@meshsdk/common";
 import { CachedFetcher } from "@meshsdk/common";
 
+import type { SubmitFailureReason } from "../errors";
 import type { OutRef } from "../parts/types";
 
 // What a plan reads from the chain, and how it reads what a provider throws. Every read goes
@@ -92,6 +93,169 @@ export const errorFact = (
 
 /** A submission refused by the ledger, as far as the thrown value says so */
 export const isRefusal = (error: unknown) => errorFact(error) === "rejected";
+
+/**
+ * The codes of a connection that failed, was reset or timed out, as Node's sockets, DNS and TLS,
+ * its `fetch` (undici) and axios set them on an error or on its `cause`
+ */
+const TRANSPORT_CODES: ReadonlySet<string> = new Set([
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "ECONNABORTED",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "EAI_FAIL",
+  "ETIMEDOUT",
+  "EHOSTUNREACH",
+  "EHOSTDOWN",
+  "ENETUNREACH",
+  "ENETDOWN",
+  "EPIPE",
+  "ERR_NETWORK",
+  "ERR_SOCKET_CONNECTION_TIMEOUT",
+  "ERR_TLS_HANDSHAKE_TIMEOUT",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_HEADERS_TIMEOUT",
+  "UND_ERR_BODY_TIMEOUT",
+  "UND_ERR_SOCKET",
+]);
+
+/** One field of a value; a getter or a proxy that throws tells nothing */
+const fieldOf = (value: unknown, name: string): unknown => {
+  if (typeof value !== "object" || value === null) return undefined;
+  try {
+    return (value as Record<string, unknown>)[name];
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * The numeric `code` of a thrown value, as a wallet's error carries it; a getter or a proxy
+ * that throws tells nothing
+ */
+export const numericCodeOf = (error: unknown): number | undefined => {
+  const code = fieldOf(error, "code");
+  return typeof code === "number" ? code : undefined;
+};
+
+/** An HTTP status, when the value is a whole number from 100 to 599 */
+const httpStatusOf = (value: unknown): number | undefined =>
+  typeof value === "number" &&
+  Number.isInteger(value) &&
+  value >= 100 &&
+  value <= 599
+    ? value
+    : undefined;
+
+const reasonOfKind = (kind: string): SubmitFailureReason =>
+  kind === "unavailable" || kind === "rateLimited" || kind === "unauthorized"
+    ? kind
+    : "unknown";
+
+const reasonOfStatus = (status: number): SubmitFailureReason => {
+  if (status === 429) return "rateLimited";
+  if (status === 401 || status === 403) return "unauthorized";
+  if (status === 408 || status === 425 || status >= 500) return "unavailable";
+  return "unknown";
+};
+
+/**
+ * The reason of a gRPC status, as a `ConnectError` carries it in `code`: Unauthenticated (16)
+ * and PermissionDenied (7) `unauthorized`, ResourceExhausted (8) `rateLimited`, Unavailable
+ * (14) and DeadlineExceeded (4) `unavailable`; any other undefined
+ */
+const reasonOfGrpcCode = (code: number): SubmitFailureReason | undefined => {
+  if (code === 16 || code === 7) return "unauthorized";
+  if (code === 8) return "rateLimited";
+  if (code === 14 || code === 4) return "unavailable";
+  return undefined;
+};
+
+/** A failed connection: a code of the list, or the name `TimeoutError` */
+const isTransportFailure = (code: unknown, name: unknown) =>
+  (typeof code === "string" && TRANSPORT_CODES.has(code)) ||
+  name === "TimeoutError";
+
+/**
+ * What a thrown value says of a failed submission, read from its fields and never from the
+ * text of an error. A refusal of the ledger, as `errorFact` reads it, decides first: `refused`.
+ * Else a string `kind` decides: `unavailable`, `rateLimited` and `unauthorized` are the reason,
+ * any other kind is `unknown`, and a status never overrides it. Else an HTTP `status` decides:
+ * 429 `rateLimited`, 401 and 403 `unauthorized`, 408, 425 and 500 to 599 `unavailable`, any
+ * other `unknown`. Else the gRPC status of a `ConnectError` (`name` "ConnectError" and a whole
+ * number `code`): 16 and 7 `unauthorized`, 8 `rateLimited`, 14 and 4 `unavailable`. Else a
+ * string `code` of the value or of its `cause` that is of a connection that failed, was reset
+ * or timed out, or the name `TimeoutError` of either, is `unavailable`; everything else is
+ * `unknown`. A thrown string that is a JSON object is read by its `status` and its `code`, as a
+ * provider that throws its HTTP answer as text gives them. `status` is the value's own, when it
+ * is a whole number from 100 to 599.
+ */
+export const submitFailure = (
+  error: unknown,
+): { reason: SubmitFailureReason; status?: number } => {
+  let value: unknown = error;
+  let kind: unknown;
+  let name: unknown;
+  let cause: unknown;
+  if (typeof error === "string") {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(error);
+    } catch {
+      return { reason: "unknown" };
+    }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+      return { reason: "unknown" };
+    value = parsed;
+  } else if (typeof error === "object" && error !== null) {
+    kind = fieldOf(error, "kind");
+    name = fieldOf(error, "name");
+    cause = fieldOf(error, "cause");
+  } else return { reason: "unknown" };
+  const status = httpStatusOf(fieldOf(value, "status"));
+  const withStatus = status === undefined ? {} : { status };
+  if (errorFact(error) === "rejected")
+    return { reason: "refused", ...withStatus };
+  if (typeof kind === "string")
+    return { reason: reasonOfKind(kind), ...withStatus };
+  if (status !== undefined) return { reason: reasonOfStatus(status), status };
+  const code = fieldOf(value, "code");
+  if (name === "ConnectError" && Number.isInteger(code)) {
+    const reason = reasonOfGrpcCode(code as number);
+    if (reason !== undefined) return { reason };
+  }
+  if (
+    isTransportFailure(code, name) ||
+    isTransportFailure(fieldOf(cause, "code"), fieldOf(cause, "name"))
+  )
+    return { reason: "unavailable" };
+  return { reason: "unknown" };
+};
+
+/** The words of each reason: what the submitter's error says, and no more */
+const SUBMIT_FAILURE_WORDS: Record<SubmitFailureReason, string> = {
+  unavailable:
+    "the submitter's error is a failed, reset or timed-out connection or request, or a server that did not take the request",
+  rateLimited: "the submitter's error is a rate limit or an exhausted quota",
+  unauthorized:
+    "the submitter's error is an authorization failure, such as a wrong API key",
+  refused:
+    "the submitter's error is a refusal of the ledger, which proves nothing here",
+  unknown: "the submitter's error does not give a reason this library reads",
+};
+
+/** The words of a failed submission's reason, with its HTTP status, for the start of a message */
+export const submitFailureText = ({
+  reason,
+  status,
+}: {
+  reason: SubmitFailureReason;
+  status?: number;
+}): string =>
+  status === undefined
+    ? SUBMIT_FAILURE_WORDS[reason]
+    : `${SUBMIT_FAILURE_WORDS[reason]} (HTTP ${status})`;
 
 /** The provider itself, past any `CachedFetcher` around it */
 export const unwrapProvider = (provider: IFetcher): IFetcher => {

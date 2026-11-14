@@ -4,7 +4,7 @@ import { setFlagsFromString } from "node:v8";
 import { runInNewContext } from "node:vm";
 import { bech32 } from "bech32";
 
-import { mnemonicToEntropy } from "@meshsdk/common";
+import { mnemonicToEntropy, ProviderError } from "@meshsdk/common";
 import {
   DEFAULT_PROTOCOL_PARAMETERS,
   DEFAULT_V1_COST_MODEL_LIST,
@@ -2500,6 +2500,67 @@ describe("R7: submit sends signedTx only", () => {
     if (outcome === "REJECTED") {
       const { details, retryable } = error as TxPlanError<"REJECTED">;
       expect([details, retryable]).toEqual([{ otherLive: [] }, false]);
+    }
+  });
+
+  it("no reason of SUBMIT_FAILED changes what a later refusal does, and its details show nothing of the transaction, a key or an answer", async () => {
+    const BODY = "the provider's answer body";
+    const reasons: [string, (built: BuiltTx) => unknown][] = [
+      [
+        "unavailable",
+        (built) =>
+          new ProviderError(BODY, {
+            kind: "unavailable",
+            status: 503,
+            body: { tx: built.signedTx, text: BODY },
+          }),
+      ],
+      [
+        "rateLimited",
+        (built) =>
+          JSON.stringify({
+            data: { tx: built.signedTx, text: BODY },
+            headers: {},
+            status: 429,
+          }),
+      ],
+      [
+        "unauthorized",
+        (built) => ({ status: 401, data: built.signedTx, text: BODY }),
+      ],
+      [
+        "unknown",
+        (built) =>
+          Object.assign(new Error(BODY), { tx: built.signedTx, keys: keys }),
+      ],
+    ];
+    const secrets = secretsOf(...keys.all);
+    for (const [reason, thrown] of reasons) {
+      const { built, provider } = await signed();
+      const s = scripted();
+      s.answers.push(() => {
+        throw thrown(built);
+      });
+      const error = await caught(() =>
+        built.submit({ submitter: s.submitter }),
+      );
+      expect(codeOf(error)).toBe("SUBMIT_FAILED");
+      const { details } = error as TxPlanError<"SUBMIT_FAILED">;
+      expect(details.reason).toBe(reason);
+      expect(
+        Object.keys(details).every((k) => k === "reason" || k === "status"),
+      ).toBe(true);
+      const text = JSON.stringify(details);
+      for (const part of [built.signedTx!, built.txHash, BODY])
+        expect(text).not.toContain(part);
+      expect(shown(details, secrets)).toEqual([]);
+      // The delivery may have gone through: the refusal proves nothing, and nothing is read
+      s.answers.push(() => {
+        throw refusal();
+      });
+      expect(await built.submit({ submitter: s.submitter })).toBe(built);
+      expect(provider.control.calls).toEqual([]);
+      expect(s.sent).toEqual([built.signedTx, built.signedTx]);
     }
   });
 

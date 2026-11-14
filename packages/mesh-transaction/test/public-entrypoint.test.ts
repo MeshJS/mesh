@@ -11,6 +11,7 @@ import type {
   SignOptions,
   SignTxOptions,
   StoredTxPlanJSON,
+  SubmitFailureReason,
   TxAttempt,
   TxAttemptStatus,
   TxInclusion,
@@ -134,6 +135,20 @@ describe("public entrypoint", () => {
     };
     expect(json.attempts[0]?.status).toBe("sent");
     expect(publicApi).not.toHaveProperty("advancePlan");
+  });
+
+  it("exports the type of the reason of SUBMIT_FAILED, and not the function that reads it", () => {
+    // The exact type is checked by the compiler in submitFailureCases
+    const reasons: SubmitFailureReason[] = [
+      "unavailable",
+      "rateLimited",
+      "unauthorized",
+      "refused",
+      "unknown",
+    ];
+    expect(reasons).toHaveLength(5);
+    for (const name of ["submitFailure", "submitFailureText", "numericCodeOf"])
+      expect(publicApi).not.toHaveProperty(name);
   });
 
   it("exports the deadline and wait types, and not the chain observer", () => {
@@ -280,4 +295,25 @@ export const statusCases = () => {
   void attemptStatuses;
   void planStatuses;
   void waitTargets;
+};
+
+/** Checked by the compiler only: the exact reasons of SUBMIT_FAILED, and its details as narrowed */
+export const submitFailureCases = (error: unknown) => {
+  const reasons: Equal<
+    SubmitFailureReason,
+    "unavailable" | "rateLimited" | "unauthorized" | "refused" | "unknown"
+  > = true;
+  void reasons;
+  if (publicApi.TxError.is(error, "SUBMIT_FAILED")) {
+    const reason: Equal<typeof error.details.reason, SubmitFailureReason> =
+      true;
+    const status: Equal<typeof error.details.status, number | undefined> = true;
+    const walletCode: Equal<
+      typeof error.details.walletCode,
+      number | undefined
+    > = true;
+    void reason;
+    void status;
+    void walletCode;
+  }
 };

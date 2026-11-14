@@ -22,6 +22,7 @@ export {
   type NetworkMismatchDetails,
   type PartFailure,
   type PartGaps,
+  type SubmitFailureReason,
   type TxPlanErrorCode,
   type TxPlanErrorDetails,
 } from "./errors";

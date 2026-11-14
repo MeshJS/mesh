@@ -91,7 +91,10 @@ import {
   chainObserver,
   isRefusal,
   keepsAddressCache,
+  numericCodeOf,
   searchThenTip,
+  submitFailure,
+  submitFailureText,
   unwrapProvider,
 } from "./observer";
 
@@ -911,8 +914,9 @@ export class TxPlan {
    * @throws TxPlanError EXPIRED `{ unsent: true }` for a `built` or `signed` attempt past its
    *   `until` by the tip, read again after signing; nothing sent. NOT_YET_VALID before an
    *   attempt's `invalidBefore`; MISSING_SIGNATURES; MISSING_SUBMITTER; SUBMIT_FAILED when the
-   *   outcome of a delivery is unknown (the same call sends the same bytes); REJECTED when the
-   *   ledger refused it and every earlier delivery; EXPIRED, ORPHANED with the other live
+   *   outcome of a delivery is unknown (the same call sends the same bytes), with
+   *   `details.reason` and `details.status` as the submitter's error gives them; REJECTED when
+   *   the ledger refused it and every earlier delivery; EXPIRED, ORPHANED with the other live
    *   attempts; SCRIPT_FAILED; CONFIRM_TIMEOUT after `timeoutMs`; CANNOT_OBSERVE (`noValidity`)
    *   for a Plutus attempt found without its validity, (`noDepth`) for an attempt found without
    *   block heights, and the probe's reasons; INVALID_STATE (`terminal`) in `abandoned` and when
@@ -3447,18 +3451,16 @@ export class TxPlan {
         return failure;
       }
     }
-    const walletCode =
-      wallet &&
-      typeof error === "object" &&
-      error !== null &&
-      typeof (error as { code?: unknown }).code === "number"
-        ? ((error as { code: number }).code as number)
-        : undefined;
+    const walletCode = wallet ? numericCodeOf(error) : undefined;
+    const failure = submitFailure(error);
     return this.#error(
       "SUBMIT_FAILED",
-      "the outcome of the delivery is unknown: the attempt may be on its way; the same send() sends the same bytes again",
+      `${submitFailureText(failure)}; the outcome of the delivery is unknown: the attempt may be on its way; the same send() sends the same bytes again`,
       {
-        details: walletCode === undefined ? {} : { walletCode },
+        details: {
+          ...failure,
+          ...(walletCode !== undefined && { walletCode }),
+        },
         cause: error,
         txHash: attempt.txHash,
       },
@@ -3559,18 +3561,16 @@ export class TxPlan {
   }
 
   #failedResend(attempt: AttemptRecord, submitter: ISubmitter, error: unknown) {
-    const code =
-      isWallet(submitter) &&
-      typeof error === "object" &&
-      error !== null &&
-      typeof (error as { code?: unknown }).code === "number"
-        ? (error as { code: number }).code
-        : undefined;
+    const walletCode = isWallet(submitter) ? numericCodeOf(error) : undefined;
+    const failure = submitFailure(error);
     return this.#error(
       "SUBMIT_FAILED",
-      "sending the same bytes again failed, and its outcome is unknown: the attempt stays sent; the same send() sends them again",
+      `${submitFailureText(failure)}; sending the same bytes again failed, and its outcome is unknown: the attempt stays sent; the same send() sends them again`,
       {
-        details: code === undefined ? {} : { walletCode: code },
+        details: {
+          ...failure,
+          ...(walletCode !== undefined && { walletCode }),
+        },
         cause: error,
         txHash: attempt.txHash,
       },

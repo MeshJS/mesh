@@ -1,7 +1,7 @@
 import { getEventListeners } from "node:events";
 import { inspect } from "node:util";
 
-import { CachedFetcher } from "@meshsdk/common";
+import { CachedFetcher, ProviderError } from "@meshsdk/common";
 import {
   Action,
   DEFAULT_PROTOCOL_PARAMETERS,
@@ -51,6 +51,7 @@ import {
   readPlan,
   unquoted,
 } from "../../src/tx-builder/plan/json";
+import { submitFailureText } from "../../src/tx-builder/plan/observer";
 import { readTransaction, withWitnesses } from "../../src/tx-builder/sign";
 import { alwaysSucceedCbor, baseAddress } from "../test-util";
 import { hashSigner, keysSigner, TestKey, testKey } from "./hash-signer-util";
@@ -2045,7 +2046,7 @@ describe("BuiltTx.submit", () => {
     const { code, details, retryable, cause, message } =
       error as TxPlanError<"SUBMIT_FAILED">;
     expect([code, retryable]).toEqual(["SUBMIT_FAILED", true]);
-    expect(details).toEqual({});
+    expect(details).toEqual({ reason: "unknown" });
     expect(cause).toBe(thrown);
     expect(message.endsWith(NO_REBUILD)).toBe(true);
     // The same call through the provider: refused, which proves nothing now, and nothing is read
@@ -2252,6 +2253,254 @@ describe("BuiltTx.submit", () => {
       expect(code).toBe("SUBMIT_FAILED");
       expect(details.walletCode).toBe(walletCode);
       expect(cause).toBe(thrown);
+      expect(viaProvider.searches).toEqual([]);
+    },
+  );
+
+  it.each<[string, unknown, Record<string, unknown>]>([
+    [
+      "a ProviderError unavailable",
+      new ProviderError("x", { kind: "unavailable", status: 503 }),
+      { reason: "unavailable", status: 503 },
+    ],
+    [
+      "a ProviderError rateLimited",
+      new ProviderError("x", { kind: "rateLimited", status: 429 }),
+      { reason: "rateLimited", status: 429 },
+    ],
+    [
+      "a ProviderError unauthorized",
+      new ProviderError("x", { kind: "unauthorized", status: 403 }),
+      { reason: "unauthorized", status: 403 },
+    ],
+    [
+      "an HTTP answer 429 as text",
+      JSON.stringify({ data: {}, headers: {}, status: 429 }),
+      { reason: "rateLimited", status: 429 },
+    ],
+    [
+      "an HTTP answer 500 as text",
+      JSON.stringify({ data: "secret body", headers: {}, status: 500 }),
+      { reason: "unavailable", status: 500 },
+    ],
+    [
+      "no response, as text",
+      JSON.stringify({ code: "ECONNREFUSED", message: "connect" }),
+      { reason: "unavailable" },
+    ],
+    [
+      "fetch failed",
+      new TypeError("fetch failed", { cause: { code: "ECONNRESET" } }),
+      { reason: "unavailable" },
+    ],
+    [
+      "a timeout",
+      new DOMException("timed out", "TimeoutError"),
+      { reason: "unavailable" },
+    ],
+    ["a status 404", { status: 404 }, { reason: "unknown", status: 404 }],
+    ["an Error", new Error("socket hang up"), { reason: "unknown" }],
+    ["undefined", undefined, { reason: "unknown" }],
+  ])(
+    "is SUBMIT_FAILED with the reason the submitter's error gives, for %s; a later refusal then returns",
+    async (_, thrown, details) => {
+      const viaProvider = fakeProvider({
+        submitTx: () => {
+          throw refusal();
+        },
+      });
+      const { built } = await signedFixture({ provider: viaProvider.provider });
+      const lossy = recorder(() => {
+        throw thrown;
+      });
+      const error = await caught(() =>
+        built.submit({ submitter: lossy.submitter }),
+      );
+      expect(error).toBeInstanceOf(TxPlanError);
+      const failed = error as TxPlanError<"SUBMIT_FAILED">;
+      expect([failed.code, failed.retryable]).toEqual(["SUBMIT_FAILED", true]);
+      expect(failed.details).toEqual(details);
+      expect(failed.cause).toBe(thrown);
+      expect(
+        failed.message.startsWith(`${submitFailureText(failed.details)}; `),
+      ).toBe(true);
+      expect(
+        failed.message.includes(
+          "; the outcome of the delivery is unknown: the transaction may be on its way; the same submit() sends the same bytes again. ",
+        ),
+      ).toBe(true);
+      expect(failed.message.endsWith(NO_REBUILD)).toBe(true);
+      expect(failed.message).not.toContain("secret body");
+      expect(viaProvider.searches).toEqual([]);
+      // The delivery may have gone through: a refusal of the same bytes proves nothing
+      expect(await built.submit()).toBe(built);
+      expect(viaProvider.sent).toEqual([built.signedTx]);
+      expect(viaProvider.searches).toEqual([]);
+    },
+  );
+
+  it("says the status in the message when the submitter's error carries one", async () => {
+    const { built } = await signedFixture({
+      provider: fakeProvider().provider,
+    });
+    const lossy = recorder(() => {
+      throw new ProviderError("x", { kind: "rateLimited", status: 429 });
+    });
+    const error = (await caught(() =>
+      built.submit({ submitter: lossy.submitter }),
+    )) as TxPlanError<"SUBMIT_FAILED">;
+    expect(
+      error.message.startsWith(
+        "the submitter's error is a rate limit or an exhausted quota (HTTP 429); the outcome of the delivery is unknown: ",
+      ),
+    ).toBe(true);
+  });
+
+  it("is REJECTED, with no reason, when the ledger refuses the first delivery", async () => {
+    const viaProvider = fakeProvider({
+      submitTx: () => {
+        throw new ProviderError("x", { kind: "rejected", status: 400 });
+      },
+    });
+    const { built } = await signedFixture({ provider: viaProvider.provider });
+    const error = (await caught(() =>
+      built.submit(),
+    )) as TxPlanError<"REJECTED">;
+    expect(error.code).toBe("REJECTED");
+    expect(error.details).toEqual({ otherLive: [] });
+    expect(viaProvider.searches).toEqual([built.txHash]);
+  });
+
+  it.each<[string, unknown, Record<string, unknown>]>([
+    [
+      "a CIP-30 TxSendError",
+      { code: 2, info: "failure" },
+      { reason: "unknown", walletCode: 2 },
+    ],
+    [
+      "a wallet error that carries an HTTP status",
+      { code: 1, status: 503 },
+      { reason: "unavailable", status: 503, walletCode: 1 },
+    ],
+    [
+      "a refusal of the ledger",
+      { kind: "rejected", status: 400 },
+      { reason: "refused", status: 400 },
+    ],
+  ])(
+    "gives a wallet's failure its reason beside its walletCode: %s",
+    async (_, thrown, details) => {
+      const viaProvider = fakeProvider();
+      const { built } = await signedFixture({ provider: viaProvider.provider });
+      const wallet = {
+        signTx: async () => "",
+        submitTx: async () => {
+          throw thrown;
+        },
+      };
+      const error = (await caught(() =>
+        built.submit({ submitter: wallet }),
+      )) as TxPlanError<"SUBMIT_FAILED">;
+      expect(error.code).toBe("SUBMIT_FAILED");
+      expect(error.details).toEqual(details);
+      expect(viaProvider.searches).toEqual([]);
+    },
+  );
+
+  it.each<[string, () => unknown, Record<string, unknown>]>([
+    [
+      "a ProviderError rejected",
+      () => new ProviderError("x", { kind: "rejected", status: 400 }),
+      { reason: "refused", status: 400 },
+    ],
+    [
+      "the text of an HTTP answer 400",
+      () =>
+        JSON.stringify({
+          data: { status_code: 400, error: "Bad Request" },
+          headers: {},
+          status: 400,
+        }),
+      { reason: "refused", status: 400 },
+    ],
+  ])(
+    "is SUBMIT_FAILED refused when a wallet passes on a refusal of the ledger, %s; a later refusal then returns",
+    async (_, thrown, details) => {
+      const viaProvider = fakeProvider({
+        submitTx: () => {
+          throw refusal();
+        },
+      });
+      const { built } = await signedFixture({ provider: viaProvider.provider });
+      const error = thrown();
+      const wallet = {
+        signTx: async () => "",
+        submitTx: async () => {
+          throw error;
+        },
+      };
+      const failed = (await caught(() =>
+        built.submit({ submitter: wallet }),
+      )) as TxPlanError<"SUBMIT_FAILED">;
+      expect([failed.code, failed.retryable]).toEqual(["SUBMIT_FAILED", true]);
+      expect(failed.details).toEqual(details);
+      expect(failed.cause).toBe(error);
+      expect(
+        failed.message.startsWith(
+          "the submitter's error is a refusal of the ledger, which proves nothing here (HTTP 400); the outcome of the delivery is unknown: the transaction may be on its way; the same submit() sends the same bytes again. ",
+        ),
+      ).toBe(true);
+      expect(failed.message.endsWith(NO_REBUILD)).toBe(true);
+      expect(viaProvider.searches).toEqual([]);
+      // The wallet's delivery may have gone through: a refusal of the same bytes proves nothing
+      expect(await built.submit()).toBe(built);
+      expect(viaProvider.sent).toEqual([built.signedTx]);
+      expect(viaProvider.searches).toEqual([]);
+    },
+  );
+
+  it.each<[string, () => unknown]>([
+    [
+      "a revoked Proxy",
+      () => {
+        const { proxy, revoke } = Proxy.revocable({ code: 2 }, {});
+        revoke();
+        return proxy;
+      },
+    ],
+    [
+      "a value whose code getter throws",
+      () =>
+        Object.defineProperty({}, "code", {
+          get() {
+            throw new Error("no");
+          },
+        }),
+    ],
+  ])(
+    "is SUBMIT_FAILED when a wallet throws %s, and a later refusal then returns",
+    async (_, thrown) => {
+      const viaProvider = fakeProvider({
+        submitTx: () => {
+          throw refusal();
+        },
+      });
+      const { built } = await signedFixture({ provider: viaProvider.provider });
+      const error = thrown();
+      const wallet = {
+        signTx: async () => "",
+        submitTx: async () => {
+          throw error;
+        },
+      };
+      const failed = (await caught(() =>
+        built.submit({ submitter: wallet }),
+      )) as TxPlanError<"SUBMIT_FAILED">;
+      expect(failed).toBeInstanceOf(TxPlanError);
+      expect([failed.code, failed.retryable]).toEqual(["SUBMIT_FAILED", true]);
+      expect(failed.details).toEqual({ reason: "unknown" });
+      expect(failed.cause).toBe(error);
+      expect(await built.submit()).toBe(built);
       expect(viaProvider.searches).toEqual([]);
     },
   );

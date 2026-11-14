@@ -342,6 +342,28 @@ export const TX_PLAN_ERROR_CODES = Object.keys({
   MISSING_ID: true,
 } satisfies Record<TxPlanErrorCode, true>) as TxPlanErrorCode[];
 
+/**
+ * What the submitter's error says of a failed submission. No reason says that the bytes did not
+ * arrive: a `SUBMIT_FAILED` of any reason is an unknown outcome, and the same call sends the
+ * same bytes again.
+ * - `"unavailable"`: a connection that failed, was reset or timed out, whoever closed it (a
+ *   reset or an abort on the caller's side can carry the same code), or a server that did not
+ *   take the request (HTTP 408, 425, 5xx; gRPC Unavailable, DeadlineExceeded)
+ * - `"rateLimited"`: a rate limit or an exhausted quota (HTTP 429; gRPC ResourceExhausted)
+ * - `"unauthorized"`: an authorization failure, such as a wrong API key (HTTP 401, 403; gRPC
+ *   Unauthenticated, PermissionDenied)
+ * - `"refused"`: the ledger refused this delivery, and the attempt is not rejected by it: an
+ *   earlier delivery of the same bytes may land, a parent attempt is not in a block yet, or a
+ *   wallet submitted, whose refusal is never taken as the ledger's. The same call sends the
+ *   same bytes again; only the code `REJECTED` means refused for good
+ * - `"unknown"`: the error gives none of these
+ *
+ * Read from a refusal of the ledger first, else a provider error's `kind`, else an HTTP
+ * `status`, else the gRPC status of a `ConnectError`, else the `code` of a failed connection
+ */
+export type SubmitFailureReason =
+  "unavailable" | "rateLimited" | "unauthorized" | "refused" | "unknown";
+
 /** `details` of a plan error, by code; codes not listed carry none */
 export type TxPlanErrorDetails = {
   /** The CIP-30 code, if any; an aborted signal is ABORTED */
@@ -357,8 +379,18 @@ export type TxPlanErrorDetails = {
   NOT_YET_VALID: { waitMs: number };
   /** Every key whose signature is missing, with the roles it is needed in */
   MISSING_SIGNATURES: { missing: RequiredKey[] };
-  /** The CIP-30 code when a wallet submitted: TxSendError Refused 1, Failure 2 */
-  SUBMIT_FAILED: { walletCode?: number };
+  /**
+   * `reason` and `status`: what the submitter's error says of the failure, read from its fields
+   * alone; `walletCode`: the CIP-30 code when a wallet submitted (TxSendError Refused 1,
+   * Failure 2). None of them changes what the error means: whatever the reason, the bytes may
+   * have arrived, the outcome is unknown, and the same call sends the same bytes again
+   */
+  SUBMIT_FAILED: {
+    reason: SubmitFailureReason;
+    /** The HTTP status the submitter's error carries, a whole number from 100 to 599 */
+    status?: number;
+    walletCode?: number;
+  };
   /** `otherLive`: a plan's other attempts that may still land; empty from a transaction */
   REJECTED: { otherLive: string[]; tipAgeMs?: number };
   /** `unsent`: the plan never sent this attempt */

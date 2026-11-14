@@ -91,7 +91,19 @@ describe("Chains of plans on TxEmulator", () => {
       child.send({ submitter: forwarding(emulator) }),
     )) as TxPlanError<"SUBMIT_FAILED">;
     expectCode(error, "SUBMIT_FAILED");
+    expect(error.retryable).toBe(true);
+    expect(error.details).toEqual({ reason: "refused", status: 400 });
+    expect(
+      error.message.startsWith(
+        "the submitter's error is a refusal of the ledger, which proves nothing here (HTTP 400); the outcome of the delivery is unknown: the attempt may be on its way; ",
+      ),
+    ).toBe(true);
     expect(child.status).toBe("sent");
+    expect(recordOf(child).attempts[0]).toMatchObject({
+      status: "sent",
+      sends: 1,
+      refused: 1,
+    });
     // Once the parent is in a block, the child lands
     await emulator.submitTx(parent.signedTx!);
     await child.send({ waitFor: "included" });
@@ -572,10 +584,20 @@ describe("Chains of plans with several parents, failed parents and pinned select
     );
     await child.build();
     // The node does not know the second parent's output: its refusal says nothing
-    const error = await caught(child.send({ submitter: forwarding(emulator) }));
+    const error = (await caught(
+      child.send({ submitter: forwarding(emulator) }),
+    )) as TxPlanError<"SUBMIT_FAILED">;
     expectCode(error, "SUBMIT_FAILED");
+    expect(error.retryable).toBe(true);
+    expect(error.details).toEqual({ reason: "refused", status: 400 });
+    expect(
+      error.message.startsWith(
+        "the submitter's error is a refusal of the ledger, which proves nothing here (HTTP 400); the outcome of the delivery is unknown: the attempt may be on its way; ",
+      ),
+    ).toBe(true);
     expect(child.status).toBe("sent");
     expect(child.attempts[0]!.status).toBe("sent");
+    expect(recordOf(child).attempts[0]).toMatchObject({ sends: 1, refused: 1 });
     // Once both parents are in a block, the child lands
     await emulator.submitTx(second.signedTx!);
     await child.send({ waitFor: "included", submitter: forwarding(emulator) });

@@ -1,5 +1,7 @@
 import { jest } from "@jest/globals";
 
+import { ProviderError } from "@meshsdk/common";
+
 import type { BuildEvent, TxPlanError } from "../../../src/tx-builder";
 import {
   output,
@@ -238,6 +240,258 @@ describe("TxPlan.send on TxEmulator", () => {
     expect(walletError.details.walletCode).toBe(1);
     expect(viaWallet.status).toBe("sent");
   });
+
+  it.each<[string, () => unknown, Record<string, unknown>]>([
+    [
+      "unavailable",
+      () => new ProviderError("x", { kind: "unavailable", status: 503 }),
+      { reason: "unavailable", status: 503 },
+    ],
+    [
+      "rateLimited",
+      () => JSON.stringify({ data: {}, headers: {}, status: 429 }),
+      { reason: "rateLimited", status: 429 },
+    ],
+    [
+      "unauthorized",
+      () => ({ status: 401 }),
+      { reason: "unauthorized", status: 401 },
+    ],
+    [
+      "unknown",
+      () => new Error("the connection was reset"),
+      { reason: "unknown" },
+    ],
+  ])(
+    "gives SUBMIT_FAILED the reason %s from send(), advance() and a resend, and the outcome stays unknown",
+    async (_, thrown, details) => {
+      const { builder, wallet } = await setup();
+      const failing = () =>
+        submitterOf(async () => {
+          throw thrown();
+        });
+      const refusing = submitterOf(async () => {
+        throw { kind: "rejected" };
+      });
+      for (const step of ["send", "advance"] as const) {
+        const plan = builder.plan(pay(), { payer: wallet });
+        const error = (await caught(
+          plan[step]({ submitter: failing() }),
+        )) as TxPlanError<"SUBMIT_FAILED">;
+        expectCode(error, "SUBMIT_FAILED");
+        expect(error.retryable).toBe(true);
+        expect(error.details).toEqual(details);
+        expect(error.message).toMatch(
+          /^the submitter's error .*; the outcome of the delivery is unknown: the attempt may be on its way/,
+        );
+        expect(plan.status).toBe("sent");
+        expect(recordOf(plan).attempts[0]).toMatchObject({
+          sends: 1,
+          refused: 0,
+        });
+
+        // The same bytes again, failing the same way
+        const again = (await caught(
+          plan[step]({ submitter: failing() }),
+        )) as TxPlanError<"SUBMIT_FAILED">;
+        expectCode(again, "SUBMIT_FAILED");
+        expect(again.details).toEqual(details);
+        expect(again.message).toMatch(
+          /^the submitter's error .*; sending the same bytes again failed/,
+        );
+        expect(plan.status).toBe("sent");
+
+        // A refusal after a delivery that may have gone through proves nothing
+        await plan[step]({ submitter: refusing });
+        expect(plan.status).toBe("sent");
+        expect(recordOf(plan).attempts[0]!.sends).toBe(1);
+      }
+    },
+  );
+
+  it("gives a wallet's failure its reason beside its walletCode", async () => {
+    const { builder, wallet } = await setup();
+    const plan = builder.plan(pay(), { payer: wallet });
+    const error = (await caught(
+      plan.send({
+        submitter: {
+          signTx: async () => "",
+          submitTx: async () => {
+            throw { code: 2, info: "failure", status: 503 };
+          },
+        } as never,
+      }),
+    )) as TxPlanError<"SUBMIT_FAILED">;
+    expectCode(error, "SUBMIT_FAILED");
+    expect(error.details).toEqual({
+      reason: "unavailable",
+      status: 503,
+      walletCode: 2,
+    });
+    expect(plan.status).toBe("sent");
+  });
+
+  it.each<[string, () => unknown]>([
+    [
+      "a ProviderError rejected",
+      () => new ProviderError("x", { kind: "rejected", status: 400 }),
+    ],
+    [
+      "the text of an HTTP answer 400",
+      () =>
+        JSON.stringify({
+          data: { status_code: 400, error: "Bad Request" },
+          headers: {},
+          status: 400,
+        }),
+    ],
+  ])(
+    "is SUBMIT_FAILED refused when a wallet passes on a refusal of the ledger, %s, and the attempt stays sent",
+    async (_, thrown) => {
+      const { builder, wallet } = await setup();
+      const refusingWallet = {
+        signTx: async () => "",
+        submitTx: async () => {
+          throw thrown();
+        },
+      } as never;
+      const plan = builder.plan(pay(), { payer: wallet });
+      const error = (await caught(
+        plan.send({ submitter: refusingWallet }),
+      )) as TxPlanError<"SUBMIT_FAILED">;
+      expectCode(error, "SUBMIT_FAILED");
+      expect(error.retryable).toBe(true);
+      expect(error.details).toEqual({ reason: "refused", status: 400 });
+      expect(
+        error.message.startsWith(
+          "the submitter's error is a refusal of the ledger, which proves nothing here (HTTP 400); the outcome of the delivery is unknown: the attempt may be on its way; ",
+        ),
+      ).toBe(true);
+      expect(plan.status).toBe("sent");
+      expect(recordOf(plan).attempts[0]).toMatchObject({
+        status: "sent",
+        sends: 1,
+        refused: 0,
+      });
+
+      // The same bytes again through the wallet: refused the same way, nothing recorded
+      const again = (await caught(
+        plan.send({ submitter: refusingWallet }),
+      )) as TxPlanError<"SUBMIT_FAILED">;
+      expectCode(again, "SUBMIT_FAILED");
+      expect(again.details).toEqual({ reason: "refused", status: 400 });
+      expect(
+        again.message.startsWith(
+          "the submitter's error is a refusal of the ledger, which proves nothing here (HTTP 400); sending the same bytes again failed",
+        ),
+      ).toBe(true);
+      expect(recordOf(plan).attempts[0]).toMatchObject({
+        status: "sent",
+        sends: 1,
+        refused: 0,
+      });
+
+      // A refusal of the ledger after it proves nothing either
+      await plan.send({
+        submitter: submitterOf(async () => {
+          throw { kind: "rejected" };
+        }),
+      });
+      expect(plan.status).toBe("sent");
+    },
+  );
+
+  it("is SUBMIT_FAILED refused when an earlier delivery whose answer was lost has no refusal, and the attempt stays sent", async () => {
+    const { builder, wallet } = await setup();
+    const made = builder.plan(pay(), { payer: wallet });
+    await made.build();
+    await made.sign({ signers: wallet });
+    expect(made.status).toBe("signed");
+    // A delivery recorded earlier, whose answer never came: no sequence of events of one record
+    // gives a signed attempt with one, so the record is written by hand
+    const record = recordOf(made);
+    const plan = planOver(builder, {
+      ...record,
+      attempts: [{ ...record.attempts[0]!, sends: 1 }],
+    });
+    const refusing = submitterOf(async () => {
+      throw new ProviderError("x", { kind: "rejected", status: 400 });
+    });
+    const error = (await caught(
+      plan.send({ submitter: refusing }),
+    )) as TxPlanError<"SUBMIT_FAILED">;
+    expectCode(error, "SUBMIT_FAILED");
+    expect(error.retryable).toBe(true);
+    expect(error.details).toEqual({ reason: "refused", status: 400 });
+    expect(
+      error.message.startsWith(
+        "the submitter's error is a refusal of the ledger, which proves nothing here (HTTP 400); the outcome of the delivery is unknown: ",
+      ),
+    ).toBe(true);
+    expect(recordOf(plan).attempts[0]).toMatchObject({
+      status: "sent",
+      sends: 2,
+      refused: 1,
+    });
+
+    // The same bytes again, refused: it proves nothing, and nothing is recorded
+    await plan.send({ submitter: refusing });
+    expect(plan.status).toBe("sent");
+    expect(recordOf(plan).attempts[0]).toMatchObject({
+      status: "sent",
+      sends: 2,
+      refused: 1,
+    });
+  });
+
+  it.each<[string, () => unknown]>([
+    [
+      "a revoked Proxy",
+      () => {
+        const { proxy, revoke } = Proxy.revocable({ code: 2 }, {});
+        revoke();
+        return proxy;
+      },
+    ],
+    [
+      "a value whose code getter throws",
+      () =>
+        Object.defineProperty({}, "code", {
+          get() {
+            throw new Error("no");
+          },
+        }),
+    ],
+  ])(
+    "is SUBMIT_FAILED when a wallet throws %s, on the first delivery and on the same bytes again",
+    async (_, thrown) => {
+      const { builder, wallet } = await setup();
+      const throwing = {
+        signTx: async () => "",
+        submitTx: async () => {
+          throw thrown();
+        },
+      } as never;
+      const plan = builder.plan(pay(), { payer: wallet });
+      const first = (await caught(
+        plan.send({ submitter: throwing }),
+      )) as TxPlanError<"SUBMIT_FAILED">;
+      expectCode(first, "SUBMIT_FAILED");
+      expect(first.details).toEqual({ reason: "unknown" });
+      expect(plan.status).toBe("sent");
+      const again = (await caught(
+        plan.send({ submitter: throwing }),
+      )) as TxPlanError<"SUBMIT_FAILED">;
+      expectCode(again, "SUBMIT_FAILED");
+      expect(again.details).toEqual({ reason: "unknown" });
+      expect(again.message).toMatch(/sending the same bytes again failed/);
+      expect(recordOf(plan).attempts[0]).toMatchObject({
+        status: "sent",
+        sends: 1,
+        refused: 0,
+      });
+    },
+  );
 
   it("sends the same bytes again on sent, and a refusal of them proves nothing", async () => {
     const { emulator, builder, wallet } = await setup();

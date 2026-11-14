@@ -18,7 +18,13 @@ import {
   DEFAULT_TIMEOUT_MS,
 } from "./plan/deadlines";
 import { decodeBuilt, encodeBuilt, unquoted, UnreadContent } from "./plan/json";
-import { chainObserver, isRefusal } from "./plan/observer";
+import {
+  chainObserver,
+  isRefusal,
+  numericCodeOf,
+  submitFailure,
+  submitFailureText,
+} from "./plan/observer";
 import {
   canSign,
   countedWitnesses,
@@ -362,14 +368,6 @@ const pause = (ms: number, signal: AbortSignal | undefined) =>
     signal?.addEventListener("abort", onAbort, { once: true });
   });
 
-/** The CIP-30 code of what a wallet threw, when it carries a numeric one */
-const walletCodeOf = (error: unknown) =>
-  typeof error === "object" &&
-  error !== null &&
-  typeof (error as { code?: unknown }).code === "number"
-    ? (error as { code: number }).code
-    : undefined;
-
 /** The keys in a message: each hash with its roles */
 const keysText = (keys: readonly RequiredKey[]) =>
   keys.map((k) => `${k.keyHash} (${k.roles.join(", ")})`).join("; ");
@@ -685,9 +683,10 @@ export class BuiltTx implements BuiltTxData {
    *   MISSING_SUBMITTER with nothing to submit through: nothing is sent. REJECTED when the
    *   ledger refuses the bytes, no delivery of this object may have gone through and the
    *   transaction is not found, or the provider cannot be asked; the object does not know what
-   *   another process sent. SUBMIT_FAILED (retryable) when the outcome is unknown, for a wallet
-   *   with `details.walletCode`: the same call sends the same bytes. The submitter's error is
-   *   the `cause`
+   *   another process sent. SUBMIT_FAILED (retryable) when the outcome is unknown, with
+   *   `details.reason` and `details.status` as the submitter's error gives them, and for a wallet
+   *   `details.walletCode`: the same call sends the same bytes. The submitter's error is the
+   *   `cause`
    * @throws TxBuildError INVALID_OPTION for options that are not an object (a submitter given
    *   in their place among them: give it as `{ submitter }`) or have a member other than these,
    *   a submitter without `submitTx` or a signal that is not an AbortSignal; `details.value` is
@@ -728,12 +727,16 @@ export class BuiltTx implements BuiltTxData {
       }
       if (outcome.taken) return this;
       if (!outcome.refused) {
-        const walletCode = wallet ? walletCodeOf(outcome.error) : undefined;
+        const failure = submitFailure(outcome.error);
+        const walletCode = wallet ? numericCodeOf(outcome.error) : undefined;
         throw new TxPlanError(
           "SUBMIT_FAILED",
-          `the outcome of the delivery is unknown: the transaction may be on its way; the same submit() sends the same bytes again. ${NO_REBUILD}`,
+          `${submitFailureText(failure)}; the outcome of the delivery is unknown: the transaction may be on its way; the same submit() sends the same bytes again. ${NO_REBUILD}`,
           {
-            details: walletCode === undefined ? {} : { walletCode },
+            details: {
+              ...failure,
+              ...(walletCode !== undefined && { walletCode }),
+            },
             cause: outcome.error,
           },
         );
