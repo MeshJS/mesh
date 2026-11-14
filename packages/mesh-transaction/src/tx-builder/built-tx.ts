@@ -29,6 +29,8 @@ import {
   canSign,
   countedWitnesses,
   isWallet,
+  payerHasNothingLeft,
+  payerWitnesses,
   readTransaction,
   signerWitnesses,
   toSigners,
@@ -627,7 +629,8 @@ export class BuiltTx implements BuiltTxData {
       const keys = this.#asked.filter(({ keyHash }) => !signed.has(keyHash));
       const byDefault = signer === payer;
       // The payer is not asked when nothing is left for it to give
-      if (byDefault && keys.length === 0 && !this.#bootstrapsMissing()) break;
+      if (byDefault && payerHasNothingLeft(keys, this.#held, this.#bootstraps))
+        break;
       const offered = await abortable(
         signerWitnesses(signer, this.#raw, { keys, signal }),
         signal,
@@ -635,14 +638,7 @@ export class BuiltTx implements BuiltTxData {
       );
       // The payer gives only the keys it was asked for: the other keys the fee counts are left
       // to the signers an application names and to addWitnesses
-      const asked = new Set(keys.map(({ keyHash }) => keyHash));
-      this.#keep(
-        byDefault
-          ? offered.filter(
-              (w) => w.kind === "bootstrap" || asked.has(w.keyHash),
-            )
-          : offered,
-      );
+      this.#keep(byDefault ? payerWitnesses(offered, keys) : offered);
     }
     const missing = this.missing;
     if (partial === false && missing.length > 0)
@@ -958,13 +954,6 @@ export class BuiltTx implements BuiltTxData {
     } catch {
       throw unreadableSigner("threw");
     }
-  }
-
-  /** Whether the transaction spends from a Byron address whose bootstrap witness is not held */
-  #bootstrapsMissing() {
-    return (
-      this.#held.filter((w) => w.kind === "bootstrap").length < this.#bootstraps
-    );
   }
 
   /** Keeps the offered witnesses the fee counts, against what is held at this moment */

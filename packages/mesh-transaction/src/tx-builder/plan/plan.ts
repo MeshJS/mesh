@@ -52,7 +52,9 @@ import { toPayerSource } from "../payer";
 import {
   countedWitnesses,
   isWallet,
+  payerHasNothingLeft,
   payerSigner,
+  payerWitnesses,
   readTransaction,
   readWitnessArgument,
   signerWitnesses,
@@ -837,9 +839,14 @@ export class TxPlan {
    * have not signed yet, a signer of transaction hashes each with its roles, and is not asked
    * when none is left), and records the witnesses it got: those of the keys the fee counts (the
    * keys the attempt needs and those its native scripts name, and `extraKeyWitnesses` more);
-   * others are dropped. With every needed key the attempt is `signed`; else it stays `built` and
-   * `missing` lists the rest. A signer is waited for no longer than the attempt's `until`, by the
-   * tip read once before asking.
+   * others are dropped. The payer, asked when the call names no signer, is not asked when every
+   * key it could be asked for has signed and no bootstrap witness is missing, whatever its form,
+   * and only its witnesses of the keys it was asked for, and
+   * bootstrap witnesses, are recorded: the witnesses of other keys the fee counts come from the
+   * signers named in a call and from `addWitnesses`. `send()` and `advance()` sign by the same
+   * rules. With every needed key the attempt is `signed`; else it stays `built` and `missing`
+   * lists the rest. A signer is waited for no longer than the attempt's `until`, by the tip read
+   * once before asking.
    * @throws TxPlanError MISSING_SIGNATURES when nobody can sign: no signers given (an empty
    *   list gives none), and a payer that cannot sign;
    *   SIGN_DECLINED, SIGNER_FAILED (`timeout` past the deadline, also without asking when no
@@ -860,7 +867,7 @@ export class TxPlan {
       const signers = given ?? this.#payerSigner(state);
       if (signers === undefined) throw this.#missingSignatures();
       const tip = await this.#readTip(state, signal);
-      await this.#signWith(state, signers, tip, signal);
+      await this.#signWith(state, signers, tip, signal, given === undefined);
       return this;
     });
   }
@@ -2990,13 +2997,20 @@ export class TxPlan {
    * Asks each signer once for the current attempt, sharing the time left to its `until` by the
    * tip; records what each gives as it comes. A signer that takes a list of keys is handed those
    * that have not signed yet: a wallet their hashes, a signer of hashes each with its roles and
-   * the call's signal; a signer of hashes is skipped when no key is left
+   * the call's signal; a signer of hashes is skipped when no key is left.
+   *
+   * The payer, asked when the call names no signer, is not asked when nothing is left for it to
+   * give, whatever its form, and only its witnesses of the keys it was asked for, and bootstrap
+   * witnesses, are recorded: the witnesses of other keys the fee counts come from the signers
+   * named in a call and from `addWitnesses`
+   * @param byDefault The signer is the plan's payer, asked because the call names no signer
    */
   async #signWith(
     state: PlanState,
     signers: readonly Signer[],
     tip: Tip | undefined,
     signal: AbortSignal | undefined,
+    byDefault: boolean,
   ) {
     const since = state.storeReads;
     const attempt = currentAttempt(state.record)!;
@@ -3020,6 +3034,16 @@ export class TxPlan {
       const unsigned = keys.filter(({ keyHash }) => !signed.has(keyHash));
       // A signer of hashes is not asked when nothing is left for it to sign
       if (unsigned.length === 0 && signsHashes(signer)) continue;
+      // Nor is the payer, when nothing is left for it to give
+      if (
+        byDefault &&
+        payerHasNothingLeft(
+          unsigned,
+          recordedWitnesses(now),
+          built.signers.byronAddresses.length,
+        )
+      )
+        continue;
       const left = endsAt === undefined ? undefined : endsAt - Date.now();
       if (left !== undefined && left <= 0) throw timeout();
       const offered = await abortable(
@@ -3036,7 +3060,12 @@ export class TxPlan {
         CALL,
       );
       if (offered === TIMED_OUT) throw timeout();
-      await this.#record(state, attempt, offered, since);
+      await this.#record(
+        state,
+        attempt,
+        byDefault ? payerWitnesses(offered, unsigned) : offered,
+        since,
+      );
     }
   }
 
@@ -3189,7 +3218,13 @@ export class TxPlan {
           if (signedHere) throw this.#missingSignatures();
           const signers = call.signers ?? this.#payerSigner(state);
           if (signers === undefined) throw this.#missingSignatures();
-          await this.#signWith(state, signers, tip, call.signal);
+          await this.#signWith(
+            state,
+            signers,
+            tip,
+            call.signal,
+            call.signers === undefined,
+          );
           signedHere = true;
           acted = true;
           continue;

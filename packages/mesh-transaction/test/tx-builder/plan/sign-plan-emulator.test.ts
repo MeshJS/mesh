@@ -22,6 +22,7 @@ import {
   validity,
 } from "../../../src/tx-builder";
 import { recordOf } from "../../../src/tx-builder/plan/plan";
+import { cip30Wallet } from "../../cip30-wallet";
 import { hashSigner, keysSigner, testKey } from "../hash-signer-util";
 import {
   builderOf,
@@ -30,6 +31,7 @@ import {
   setup,
   submitterOf,
   walletOf,
+  words,
 } from "./plan-emulator-util";
 import { watchStore } from "./store-util";
 
@@ -476,6 +478,160 @@ describe("TxPlan signing on TxEmulator", () => {
     await extra.send({ waitFor: "included" });
     expect(extra.status).toBe("final");
   });
+});
+
+describe("TxPlan on TxEmulator: the payer gives only the keys it is asked for", () => {
+  type Wallet = Awaited<ReturnType<typeof walletOf>>;
+
+  /**
+   * A CIP-30 payer over the funded wallet whose `signTx` answers with the witness of the account
+   * it is on, recording each request
+   */
+  const switchingPayer = async (
+    emulator: Parameters<typeof cip30Wallet>[0]["fetcher"],
+    first: Wallet,
+  ) => {
+    const api = await cip30Wallet({ words, fetcher: emulator });
+    let account = first;
+    const calls: string[] = [];
+    const payer = {
+      ...api,
+      signTx: async (tx: string) => {
+        calls.push(tx);
+        return signWitnesses(account, tx);
+      },
+    };
+    return { payer, calls, onAccount: (wallet: Wallet) => (account = wallet) };
+  };
+
+  const recordedKeys = (plan: Parameters<typeof recordOf>[0]) =>
+    recordOf(plan)
+      .attempts[0]!.witnesses.map((w) => w.keyHash)
+      .sort();
+
+  it("keeps no witness of another account from the payer in sign(), with room for one, and the co-signer's witness added later is kept", async () => {
+    const { emulator, builder, wallet } = await setup();
+    const other = await walletOf(1);
+    const coSigner = await walletOf(2);
+    const payerKey = await keyOf(wallet);
+    const coSignerKey = await keyOf(coSigner);
+    const { payer, calls, onAccount } = await switchingPayer(emulator, other);
+    const plan = builder.plan(pay(), { payer, extraKeyWitnesses: 1 });
+    await plan.build();
+    await plan.sign();
+    expect(calls).toHaveLength(1);
+    expect(recordedKeys(plan)).toEqual([]);
+    expect(plan.status).toBe("built");
+    await plan.addWitnesses(await signWitnesses(coSigner, plan.built!.tx));
+    expect(recordedKeys(plan)).toEqual([coSignerKey]);
+    onAccount(wallet);
+    await plan.sign();
+    expect(calls).toHaveLength(2);
+    expect(plan.status).toBe("signed");
+    expect(await signedBy(plan.signedTx!)).toEqual(
+      [payerKey, coSignerKey].sort(),
+    );
+    await plan.send({ waitFor: "included" });
+    expect(plan.status).toBe("final");
+  });
+
+  it("keeps no witness of another account from the payer in send(), with room for one, and the co-signer's witness added later is kept", async () => {
+    const { emulator, builder, wallet, provider } = await setup();
+    const other = await walletOf(1);
+    const coSigner = await walletOf(2);
+    const payerKey = await keyOf(wallet);
+    const coSignerKey = await keyOf(coSigner);
+    const { payer, calls, onAccount } = await switchingPayer(emulator, other);
+    const plan = builder.plan(pay(), { payer, extraKeyWitnesses: 1 });
+    expectCode(await caught(plan.send()), "MISSING_SIGNATURES");
+    expect(calls).toHaveLength(1);
+    expect(recordedKeys(plan)).toEqual([]);
+    expect(plan.status).toBe("built");
+    expect(provider.control.count("submitTx")).toBe(0);
+    await plan.addWitnesses(await signWitnesses(coSigner, plan.built!.tx));
+    expect(recordedKeys(plan)).toEqual([coSignerKey]);
+    onAccount(wallet);
+    await plan.send({ waitFor: "included" });
+    expect(calls).toHaveLength(2);
+    expect(plan.status).toBe("final");
+    expect(recordedKeys(plan)).toEqual([payerKey, coSignerKey].sort());
+  });
+
+  it("keeps the payer's own witness and drops the other one it gives with it, where a signer named fills the slot", async () => {
+    const { emulator, builder, wallet } = await setup();
+    const other = await walletOf(1);
+    const payerKey = await keyOf(wallet);
+    const otherKey = await keyOf(other);
+    const api = await cip30Wallet({ words, fetcher: emulator });
+    const both = {
+      signTx: async (tx: string) =>
+        addWitnesses(
+          tx,
+          await signWitnesses(wallet, tx),
+          await signWitnesses(other, tx),
+        ),
+    };
+    const options = { extraKeyWitnesses: 1 };
+
+    const byPayer = builder.plan(pay(), {
+      ...options,
+      payer: { ...api, signTx: both.signTx },
+    });
+    await byPayer.build();
+    await byPayer.sign();
+    expect(await signedBy(byPayer.signedTx!)).toEqual([payerKey]);
+
+    const named = builder.plan(pay(), { ...options, payer: wallet });
+    await named.build();
+    await named.sign({ signers: both });
+    expect(await signedBy(named.signedTx!)).toEqual(
+      [payerKey, otherKey].sort(),
+    );
+    await named.send({ waitFor: "included" });
+    expect(named.status).toBe("final");
+
+    // The same through send()
+    const viaSend = builder.plan(pay(), { ...options, payer: wallet });
+    await viaSend.send({ signers: both, waitFor: "included" });
+    expect(viaSend.status).toBe("final");
+    expect(recordedKeys(viaSend)).toEqual([payerKey, otherKey].sort());
+  });
+
+  it.each(["a CIP-30 api", "a signTxWitnesses wallet"] as const)(
+    "does not ask %s again when every key has signed",
+    async (form) => {
+      const { emulator, builder } = await setup();
+      const api = await cip30Wallet({ words, fetcher: emulator });
+      let calls = 0;
+      const payer =
+        form === "a CIP-30 api"
+          ? {
+              ...api,
+              signTx: (tx: string) => {
+                calls += 1;
+                return api.signTx(tx);
+              },
+            }
+          : {
+              ...api,
+              signTxWitnesses: (tx: string, keyHashes?: string[]) => {
+                calls += 1;
+                return api.wallet.signTxWitnesses(tx, keyHashes);
+              },
+            };
+      const plan = builder.plan(pay(), { payer });
+      await plan.build();
+      await plan.sign();
+      expect(plan.status).toBe("signed");
+      expect(calls).toBe(1);
+      await plan.sign();
+      await plan.sign({ signers: [] });
+      expect(calls).toBe(1);
+      await plan.send({ waitFor: "included" });
+      expect(plan.status).toBe("final");
+      expect(calls).toBe(1);
+    },
+  );
 });
 
 describe("TxPlan with a key signer on TxEmulator", () => {

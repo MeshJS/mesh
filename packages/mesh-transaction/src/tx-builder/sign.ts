@@ -1133,6 +1133,36 @@ export const countedWitnesses = (
 };
 
 /**
+ * What a payer asked when a call names no signer gives that is offered for keeping: its witnesses
+ * of the keys it was asked for in that call, and bootstrap witnesses (`countedWitnesses` caps
+ * those). A witness of any other key is dropped, even where the fee counts one more: the other
+ * keys come from the signers a call names and from `addWitnesses`
+ * @param asked The keys the payer was asked for in the call
+ */
+export const payerWitnesses = (
+  offered: readonly KeyWitness[],
+  asked: readonly { readonly keyHash: string }[],
+): KeyWitness[] => {
+  const keys = new Set(asked.map(({ keyHash }) => keyHash));
+  return offered.filter((w) => w.kind === "bootstrap" || keys.has(w.keyHash));
+};
+
+/**
+ * Whether a payer asked when a call names no signer has nothing left to give, whatever its form:
+ * no key it could be asked for is left, and no bootstrap witness the fee counts is missing
+ * @param left The keys it would be asked for: those that have not signed yet
+ * @param held The witnesses the transaction holds
+ * @param bootstraps The bootstrap witnesses the fee counts: one per Byron address spent from
+ */
+export const payerHasNothingLeft = (
+  left: readonly unknown[],
+  held: readonly KeyWitness[],
+  bootstraps: number,
+) =>
+  left.length === 0 &&
+  held.filter((w) => w.kind === "bootstrap").length >= bootstraps;
+
+/**
  * Adds the vkey and bootstrap witnesses of each witness set or full transaction once. Only the
  * transaction's own witness set changes; every other element stays byte for byte.
  * @throws TxPlanError INVALID_WITNESS for an argument that cannot be decoded, or holding a
