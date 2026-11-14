@@ -2,8 +2,9 @@
 
 **Status:** implemented in `packages/mesh-transaction/src/tx-builder/`: `assembleTxPrototype`,
 `TxBuilder`, `TxPlan` with its stores (`TxPlanStore`, `memoryPlanStore`, `checkPlanStore`),
-and the free signing functions. `MeshTxBuilder` is `@deprecated` and builds on `TxBuilder`. This
-document is the design record for that work; the [package README][readme] holds the recipes.
+`StandaloneTx`, `keySigner` and the free signing functions. `MeshTxBuilder` is `@deprecated` and
+builds on `TxBuilder`. This document is the design record for that work; the
+[package README][readme] holds the recipes.
 
 ## Problem
 
@@ -43,8 +44,9 @@ Three layers, usable separately:
   orders the transaction and numbers its redeemers.
 - **`builder.build(parts?, options?)`** — takes parts as the part builders return them (one part,
   or nested lists, where `false`, `null` and `undefined` are skipped), reads the payer, fills in
-  what the parts leave open, balances, evaluates, and returns a `BuiltTx`: the unsigned
-  transaction with everything the build decided, as plain data, with no deadline and no anchor.
+  what the parts leave open, balances, evaluates, and returns a `StandaloneTx`: the unsigned
+  transaction with everything the build decided as its data, and the calls that sign that one
+  body, submit it and look for it; no deadline and no anchor.
 - **`builder.plan(parts?, options?)`** — a `TxPlan`: one payment, carried to a final state
   through attempts that all spend one common input, so at most one lands. Signing, submission and
   waiting are its steps.
@@ -73,7 +75,7 @@ state of a payment lives in its `TxPlan`, and with a `store` in the store's reco
 - **No wallet in the builder.** Who pays is the `payer` of each build or plan; who signs is the
   call's `signers`, else the plan's payer; who submits is the call's `submitter`, else the
   builder's, else the provider. `build` returns an unsigned transaction: signing, submission and
-  waiting are steps of a `TxPlan`, or of the free signing functions.
+  waiting are steps of a `TxPlan`, or of the `StandaloneTx` a build returns.
 - **No built-in protocol parameters.** `params` is used whole, else the provider is read; with
   neither, the constructor throws `MISSING_PARAMETER`.
 - **No second builder beside `MeshTxBuilder`.** `MeshTxBuilder` is `@deprecated` and keeps its
@@ -423,6 +425,48 @@ one are in the README: [Plans][r-plans], [Servers][r-servers],
 
 ## Signing without a plan
 
+`build()` and `finalize()` return a `StandaloneTx`: one built transaction as an object. Its own
+members are the `BuiltTx` data, read-only, so it goes wherever that data goes (`after`,
+`utxosAfter`, `outputOf`) and copies as plain data. The object itself is frozen; the data nested in
+its members is the build's own and can be changed, and nothing that is signed or sent is read from
+it. Beside them it holds the witnesses given to it and has `sign({ signers, partial?, signal? })`,
+`addWitnesses(...)`, `submit({ submitter?, signal? })`,
+`awaitInclusion({ timeoutMs?, pollMs?, signal? })`, `signedTx` (only when no key is missing),
+`partialTx` (the witnesses held so far, for a party that signs next in another program), `missing`
+and `toJSON()`, with `builder.restore(json)` to bring it back in another process. The object is one
+body: its bytes and hash are fixed when it is made, no call builds or edits a transaction, a
+repeated `submit()` sends the same bytes, and `awaitInclusion()` promises one sighting in a block
+and no more, each look bounded by the time left. It is not a second lifecycle: no deadline, no
+anchor, no statuses, no replacement and no store; those are a plan's, and a plan's `build()` returns
+the data without these calls, since a plan signs and sends its own attempts. Do not rebuild to
+retry: a retry is the same call on the same object ([The path without a lifecycle][r-no-lifecycle]).
+
+- **Keeping.** A signature is kept once per key, after it verifies against the body: the keys
+  asked for, as many other keys as the build's `extraKeyWitnesses` (none after `finalize`), and
+  as many bootstrap witnesses as the transaction spends from Byron addresses.
+- **A refusal.** `submit()` decides on settled facts. After a delivery of the object that was
+  taken, or whose answer was lost, a refusal is no error and the call returns; a delivery that
+  has not answered yet is waited for, and decides. Otherwise one look for the transaction: found,
+  the call returns; not found, or the provider cannot be asked, it is `REJECTED`
+  (`otherLive: []`), and the message says which. The call's `signal` stops the waiting. The
+  messages of `SUBMIT_FAILED`, `REJECTED` and `CONFIRM_TIMEOUT` from the object end with the rule
+  not to build another transaction to retry it.
+- **The JSON** carries the data of the build with `signers` as built, the witnesses held, the
+  build's `extraKeyWitnesses`, and a mark for a delivery taken, of unknown outcome, or in flight
+  when it was written. `restore` makes no request and refuses a record whose transaction holds
+  witnesses (they go in `witnesses`), whose hash is not its body's, whose witnesses are not of its
+  body (`INVALID_OPTION`), of another network (`NETWORK_MISMATCH`), or with content it does not
+  read (`INVALID_STATE`, `recordVersion`); its errors quote nothing of the record but its
+  network.
+
+A signer is a wallet, `keySigner(key)` over a private key, or the application's own
+`signTxHash(request)` (an object with it, or the function), which is told the hash and the keys
+still needed, `{ txHash, keys?, tx, signal? }` with each key `{ keyHash, roles }` (roles of
+`SignerRole`, and `"nativeScript"` for a key a native script names), and answers with
+`{ vkey, signature }` pairs; a plan hands its signers the same keys. Signers belong to the call,
+a key lives only inside the signer `keySigner` returns, and signing sends nothing. The free
+functions below stay as the lower layer, for code without a builder:
+
 ```ts
 import type {
   RequiredKeys,
@@ -447,17 +491,14 @@ declare function requiredSigners(
 ): TxSigners;
 ```
 
-`build()`, these functions, the provider's `submitTx` and `awaitTransactionConfirmation()` of
-`@meshsdk/common` make the path without a lifecycle: no deadline and no anchor, so a retry sends
-the same bytes and never rebuilds ([The path without a lifecycle][r-no-lifecycle]). `addWitnesses`
-and `signedKeyHashes` return promises, unlike the synchronous forms first proposed: checking a
-signature waits for the Ed25519 library to start, so every refusal of theirs is a rejected
-promise. `finalize` completes an edited or hand-assembled prototype: it hashes it again, prices it
-for its signers and takes a fee increase from the change output at `changeAddress`. It looks up
-no UTxO (every input, reference input and collateral input is given in `inputs`, else
-`UTXO_NOT_FOUND`), runs no script and changes no collateral; parameters and cost models still
-come from `params` and `costModels` or the provider. It refuses (`DUPLICATE_PART`, `details.item`)
-a prototype that names an output twice among its inputs, its reference inputs or its collateral
+`addWitnesses` and `signedKeyHashes` return promises, unlike the synchronous forms first proposed:
+checking a signature waits for the Ed25519 library to start, so every refusal of theirs is a
+rejected promise. `finalize` completes an edited or hand-assembled prototype: it hashes it again,
+prices it for its signers and takes a fee increase from the change output at `changeAddress`. It
+looks up no UTxO (every input, reference input and collateral input is given in `inputs`, else
+`UTXO_NOT_FOUND`), runs no script and changes no collateral; parameters and cost models still come
+from `params` and `costModels` or the provider. It refuses (`DUPLICATE_PART`, `details.item`) a
+prototype that names an output twice among its inputs, its reference inputs or its collateral
 inputs, or reads an output it spends, and repairs nothing: a prototype made by hand fixes the
 positions its redeemers may rely on.
 
@@ -474,8 +515,9 @@ and `TxError.is(error, ...codes)` cover the whole tree, across copies of the pac
 - `TxBuildError`, never retryable, comes from the options, the payer, assembly, resolution,
   balancing, evaluation and serialization; `EVALUATION_FAILED` maps each failure to its part and
   label.
-- `TxPlanError` comes from signing, sending, observing, the lifecycle and the store, and also
-  carries `planId`, `status`, `txHash` and, not enumerable, `plan`. Retryable:
+- `TxPlanError` comes from signing, sending, observing, the lifecycle and the store, of a plan or
+  of a `StandaloneTx`; one raised by a plan also carries `planId`, `status`, `txHash` and, not
+  enumerable, `plan`. Retryable:
   `SUBMIT_FAILED`, `CONFIRM_TIMEOUT`, `NOT_YET_VALID`, `STILL_LIVE` and `CANNOT_OBSERVE` with
   `unconfirmed`.
 
@@ -490,9 +532,11 @@ rule.
   the normal form, every refusal, and the conversions both ways; `utxo-forms.test.ts`: one build
   from each form gives the same transaction.
 - `builder.test.ts` and the unit tests beside it (`payer`, `selection`, `chain`, `network`,
-  `result`, `sign`, `add`, `errors`, ...): balancing, deposits and refunds of every kind,
-  resolution and fetch counts, the evaluation loop and its errors, collateral choices, payer
-  forms, `after`, the signing functions.
+  `result`, `sign`, `key-signer`, `standalone`, `add`, `errors`, ...): balancing, deposits and
+  refunds of every kind, resolution and fetch counts, the evaluation loop and its errors,
+  collateral choices, payer forms, `after`, the signing functions, signers and the transaction
+  `build()` returns; `sign-safety` holds the rules that keep a key inside its signer and a
+  signature tied to its body.
 - On `@meshsdk/scalus-emulator`, whose ledger rules check balance, fee, deposits, witnesses,
   redeemer indices and hashes: `assemble-emulator`, `builder-emulator` (script spends through a
   reference script, Plutus mints and burns, script and key withdrawals, certificates, DRep
@@ -500,13 +544,13 @@ rule.
   `evaluator-emulator`, `network-emulator`, `payer-emulator`, `selection-emulator`,
   `traps-emulator`.
 - On `TxEmulator` of `@meshsdk/tx-emulator`: `add-emulator`, `chain-emulator`, `finalize-emulator`,
-  `redeemer-emulator`, `script-witness-emulator`, `sign-emulator`, `validity-emulator`; the plan
-  tests under `plan/` that need a chain, beside the state machine's own tests (`state-table`,
-  `state-rules`, `state-random`) and those of the record and stores (`json`, `store`); the old
-  `MeshTxBuilder`'s adapter tests (`test/mesh-tx-builder/legacy-adapter-*`); and the README
-  doc-test, `test/readme.test.ts`, which runs the task lines of the README's first example as they
-  stand there and checks that its table of errors names every code. See
-  [Testing on the emulator][r-testing].
+  `redeemer-emulator`, `script-witness-emulator`, `sign-emulator`, `standalone-emulator`,
+  `validity-emulator`; the plan tests under `plan/` that need a chain, beside the state machine's
+  own tests (`state-table`, `state-rules`, `state-random`) and those of the record and stores
+  (`json`, `store`); the old `MeshTxBuilder`'s adapter tests
+  (`test/mesh-tx-builder/legacy-adapter-*`); and the README doc-test, `test/readme.test.ts`, which
+  runs the task lines of the README's first example as they stand there and checks that its table of
+  errors names every code. See [Testing on the emulator][r-testing].
 
 ## Open items
 

@@ -43,16 +43,19 @@ input, its _anchor_, so at most one attempt can land, and every step can be repe
 call without paying twice. A plan's time is the time of the chain's tip; local timers only set
 the pace of waiting.
 
-The builder holds no wallet: who pays is the `payer` of each build or plan, who signs is the
-payer unless a call names `signers`, and who submits is the call's `submitter`, else the
-builder's, else the provider. The builder holds its network, provider, settings, the provider's
-shared cache and the parts added with `.add()`; it holds no payer and no state of a transaction,
-which lives in its `TxPlan`. One builder builds any number of transactions, concurrently
-included.
+The builder holds no wallet: who pays is the `payer` of each build or plan, who signs is named by
+the call that signs (in a plan the payer signs unless the call names `signers`), and who submits
+is the call's `submitter`, else the builder's, else the provider. The builder holds its network,
+provider, settings, the provider's shared cache and the parts added with `.add()`; it holds no
+payer and no state of a transaction: that lives in the `TxPlan`, or in the `StandaloneTx` a
+build returns. One builder builds any number of transactions, concurrently included.
 
-`builder.build(parts, { payer })` gives a transaction without a lifecycle: plain data, with no
-deadline and no anchor. It is the preview of an order, the way to build without a provider, and
-the start of a transaction balanced or edited by hand. Do not rebuild it to retry: see
+`builder.build(parts, { payer })` returns one transaction on its own, a `StandaloneTx`: the data
+of the build, and the calls that sign that one body, submit it and look for it (`sign()`,
+`addWitnesses()`, `submit()`, `awaitInclusion()`). It has no deadline, no anchor and no
+replacement. It is the preview of an order, the way to build without a provider, the start of a
+transaction balanced or edited by hand, and a transaction whose outcome the application follows
+itself. Do not rebuild it to retry: see
 [The path without a lifecycle](#the-path-without-a-lifecycle).
 
 The examples below use these names, defined by the application: `provider` (a
@@ -92,8 +95,10 @@ network, parameters and cost models it builds on, as data: `new TxBuilder({ ...s
 on them without reading; it throws `MISSING_PARAMETER` when there are no cost models),
 `slotAt(time)` and `timeAt(slot)` on its slot clock, `scriptAddress(script, stake?)` and
 `rewardAddress(credential)` on its network, `serialize(prototype)`, `finalize(prototype, { inputs,
-changeAddress? })`, `readPayer(payer)`, and its options as read-only fields (`builder.params` and
-`builder.costModels` are what was given, never what was read).
+changeAddress? })`, `restore(json)`, `readPayer(payer)`, and its options as read-only fields
+(`builder.params` and `builder.costModels` are what was given, never what was read). `build()` and
+`finalize()` return a `StandaloneTx`, and `restore(json)` brings one back from its JSON; see
+[The path without a lifecycle](#the-path-without-a-lifecycle).
 
 ### Accumulated parts
 
@@ -134,13 +139,14 @@ that is not a part.
 
 ## Payer, signer, submitter
 
-| `payer`                                                   | Build                                                                                         | Sign                                                    | Submit                                                                                     | Wait                             | Record and `resume`                                                                                 |
-| --------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------- | --------------------------------------------------------------------------------------------------- |
-| a wallet                                                  | read at the build: network, change address, UTxOs                                             | the wallet, when the call names no `signers`            | the call's `submitter` or the builder's, else the provider; a wallet only as a `submitter` | the provider                     | the change address only; the wallet is given to `resume` again                                      |
-| an address (bech32 or hex)                                | its UTxOs through the provider, past the cache                                                | the call's `signers`, or `addWitnesses`                 | the same                                                                                   | the same                         | the change address; for a new attempt the address is given again, to `resume` or `build({ payer })` |
-| a snapshot `{ changeAddress, utxos }`                     | nothing is read; a CIP-30 snapshot (hex address, UTxOs in CBOR) is converted without requests | the same                                                | the same                                                                                   | the same                         | the change address; a snapshot serves one attempt, a new one goes to `build({ payer })`             |
-| offline: `params`, `costModels`, a snapshot, `knownUtxos` | `build()` without requests                                                                    | a cold signer on `built.tx`; the free signing functions | later, online, without a plan: `submitTx` of the provider, the same bytes                  | `awaitTransactionConfirmation()` | no plan record                                                                                      |
-| without balancing                                         | `assembleTxPrototype`, `finalize`                                                             | the same                                                | the same                                                                                   | the same                         | no plan record                                                                                      |
+| What is built                                             | Build                                                                                         | Sign                                                                  | Submit                                                                                     | Wait                         | Record                                                                                              |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------- | --------------------------------------------------------------------------------------------------- |
+| a plan, its `payer` a wallet                              | read at the build: network, change address, UTxOs                                             | the wallet, when the call names no `signers`                          | the call's `submitter` or the builder's, else the provider; a wallet only as a `submitter` | the provider                 | the change address only; the wallet is given to `resume` again                                      |
+| a plan, its `payer` an address (bech32 or hex)            | its UTxOs through the provider, past the cache                                                | the call's `signers`, or `addWitnesses`                               | the same                                                                                   | the same                     | the change address; for a new attempt the address is given again, to `resume` or `build({ payer })` |
+| a plan, its `payer` a snapshot `{ changeAddress, utxos }` | nothing is read; a CIP-30 snapshot (hex address, UTxOs in CBOR) is converted without requests | the same                                                              | the same                                                                                   | the same                     | the change address; a snapshot serves one attempt, a new one goes to `build({ payer })`             |
+| a transaction of `build()`, with any of these payers      | as for a plan                                                                                 | `built.sign({ signers })`: the call's signers; `built.addWitnesses()` | `built.submit()`: the same                                                                 | `built.awaitInclusion()`     | no plan record; `JSON.stringify(built)`, and `builder.restore(json)` in another process             |
+| offline: `params`, `costModels`, a snapshot, `knownUtxos` | `build()` without requests                                                                    | the same; a cold signer gets `built.tx`                               | later, on a builder with a provider, or with a `submitter` in the call                     | on a builder with a provider | the same                                                                                            |
+| without balancing                                         | `assembleTxPrototype`, `finalize`                                                             | the same                                                              | the same                                                                                   | the same                     | the same                                                                                            |
 
 A build without a payer is `MISSING_PAYER`, and its message names the forms. The builder has no
 default payer. Without a wallet the other errors are `MISSING_SIGNATURES` (nobody to sign),
@@ -150,22 +156,143 @@ neither the recorded change address nor the recorded anchor, and `MISSING_STORE`
 a builder without a store. `builder.readPayer(payer)` turns any form into a `PayerSnapshot`
 (bech32 address, `Utxo`s); a snapshot needs no request and no provider.
 
-**Who signs.** The call's `signers` (`sign()`, `send()`, `advance()`), else the plan's payer when
-it can sign; else `MISSING_SIGNATURES`, and nothing is sent. The builder has no signer. The builder
-puts the witnesses in itself: only the transaction's witness set changes, and witnesses of keys the
-fee does not count (an extra key a wallet signs with) are dropped. A key that did not sign is in
-`plan.missing`, and the attempt stays `built`.
+**Who signs.** In a plan: the call's `signers` (`sign()`, `send()`, `advance()`), else the plan's
+payer when it can sign. For a transaction of `build()`: the `signers` of `built.sign()`. With
+nobody, `MISSING_SIGNATURES`, and nothing is sent. The builder has no signer: each call names its
+own, one or a list, and each is asked once, in order, for the keys that have not signed yet. The
+library puts the witnesses in: every witness is verified against the body, only the
+transaction's witness set changes, and witnesses of keys the fee does not count (an extra key a
+wallet signs with, beyond the build's `extraKeyWitnesses`) are dropped. A key that did not sign
+is in `missing` (`plan.missing`, `built.missing`), with the roles it is needed in; a plan's
+attempt stays `built`. The kinds of signer are in [Signers](#signers).
 
-**Who submits.** The call's `submitter` (`send()`, `advance()`), else the builder's, else the
-provider; with none, `MISSING_SUBMITTER`. A wallet submits only when it is given as a `submitter`
-object: there is no `"payer"` value. A CIP-30 api with `submitTx`, a `BrowserWallet` and a
-`MeshWallet` with a submitter fit; `canSubmit(api)` narrows a `Cip30WalletApi` to `ISubmitter`. The
-call's `submitter` is given in every call that should go through it, after `resume` too; a call
-without it sends the same bytes, with the same `txHash`, through the builder's submitter or the
-provider. A builder of one user in a browser may hold the wallet as its own `submitter`. A failed
-`submitTx` of a wallet (CIP-30 `TxSendError`: Refused 1, Failure 2) is `SUBMIT_FAILED` with
-`details.walletCode`: the outcome is unknown, and the same bytes are safe to send again. Reading
-and sending may be split: a `provider` reads, a `submitter` sends.
+**Who submits.** The call's `submitter` (`send()`, `advance()`, `built.submit()`), else the
+builder's, else the provider; with none, `MISSING_SUBMITTER`. A wallet submits only when it is
+given as a `submitter` object: there is no `"payer"` value. A CIP-30 api with `submitTx`, a
+`BrowserWallet` and a `MeshWallet` with a submitter fit; `canSubmit(api)` narrows a
+`Cip30WalletApi` to `ISubmitter`. The call's `submitter` is given in every call that should go
+through it, after `resume` or `restore` too; a call without it sends the same bytes, with the
+same `txHash`, through the builder's submitter or the provider. A builder of one user in a
+browser may hold the wallet as its own `submitter`. A failed `submitTx` of a wallet (CIP-30
+`TxSendError`: Refused 1, Failure 2) is `SUBMIT_FAILED` with `details.walletCode`: the outcome is
+unknown, and the same bytes are safe to send again. Reading and sending may be split: a
+`provider` reads, a `submitter` sends.
+
+### Signers
+
+Every call that takes `signers` (`built.sign()`, `plan.sign()`, `plan.send()`, `plan.advance()`)
+takes the same kinds of signer, one or a list:
+
+| Signer                     | Given as                                                                                                                         | How it is asked                                                                                                                                             |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a wallet                   | a CIP-30 api, a `MeshWallet`, a `BrowserWallet`, any object with `signTxWitnesses(tx, keyHashes?)` or `signTx(tx, partialSign?)` | with the transaction; it answers with a CBOR witness set. `signTxWitnesses` is handed the hashes of the keys still needed, `signTx` chooses its keys itself |
+| a private key              | `keySigner(key)`                                                                                                                 | with the transaction's hash; it signs when its key is among the keys still needed                                                                           |
+| the application's own code | an object with `signTxHash(request)`, or that function itself                                                                    | with the transaction's hash and the keys still needed, each with its roles; it answers with `{ vkey, signature }` for each key it holds                     |
+
+```ts
+import type { TxHashSigner } from "@meshsdk/transaction";
+import { keySigner, output, TxPlanError } from "@meshsdk/transaction";
+
+const built = await builder.build(
+  output({ address: recipient, value: { lovelace: 5_000_000n } }),
+  { payer: treasuryAddress },
+);
+
+// The application's own code: a key service that signs a hash and knows nothing of transactions
+const service: TxHashSigner = {
+  async signTxHash({ txHash, keys }) {
+    const held = (keys ?? []).filter(({ keyHash }) => vault.has(keyHash));
+    if (held.length > 0 && !(await operatorApproves(txHash)))
+      throw new TxPlanError("SIGN_DECLINED", "the operator declined");
+    return Promise.all(
+      held.map(async ({ keyHash }) => ({
+        vkey: vault.publicKey(keyHash), // the Ed25519 public key, 32 bytes in hex
+        signature: await vault.sign(keyHash, txHash), // Ed25519 over the 32 bytes of txHash, 64 bytes in hex
+      })),
+    );
+  },
+};
+
+// One of:
+await built.sign({ signers: wallet }); // a wallet
+await built.sign({ signers: keySigner(process.env.TREASURY_SKEY!) }); // a private key: here the cborHex of a cardano-cli payment.skey
+await built.sign({ signers: service }); // the application's own code
+await built.sign({ signers: (request) => service.signTxHash(request) }); // the function itself is a signer too
+await built.sign({ signers: [wallet, keySigner(stakeKey), service] }); // several: each is asked for the keys that have not signed yet
+
+await built.submit(); // MISSING_SIGNATURES, and nothing sent, while built.missing is not empty
+
+// A plan takes the same signers, in each call that signs
+await plan.send({
+  signers: keySigner(process.env.TREASURY_SKEY!),
+  waitFor: "included",
+});
+```
+
+`built.sign({ signers })` adds the signatures its signers give and returns the same object.
+`built.missing` lists the keys that have not signed yet, each with its roles, and
+`built.signedTx` is the signed transaction once none is missing; `built.tx` stays the unsigned
+one. By default a key still missing is no error, so parties sign one after another, one call
+each; with `partial: false` the call throws `MISSING_SIGNATURES` when a key is still missing
+after its signers were asked, and what they gave stays. `submit()` checks the same before it
+sends. No signer at all is `MISSING_SIGNATURES` in every case. A party that signs in another
+program gets `built.partialTx`, the transaction with the witnesses held so far (`tx` itself while
+none is held), for example for a wallet's `signTx(tx, true)`, and what it gives back goes to
+`built.addWitnesses()`; the ledger refuses `partialTx` while a key is missing. Every witness is
+verified against the body; those of the keys the fee counts are kept, each once (the keys asked
+for, as many other keys as the build's `extraKeyWitnesses`, and as many bootstrap witnesses as
+the transaction spends from Byron addresses), and any other is dropped. There is no deadline
+here: give the call a `signal` to stop waiting for a signer.
+
+**A private key.** `keySigner(key)` reads the key from text:
+
+| Key                               | Text                                                                                                                                                                                                                                                                         |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| an Ed25519 signing key, 32 bytes  | hex; the `cborHex` of a cardano-cli signing key file (`5820…`); bech32 `ed25519_sk`, `addr_sk`, `stake_sk`, `drep_sk`, `cc_cold_sk`, `cc_hot_sk`, `pool_sk`, `policy_sk`, `addr_shared_sk`, `stake_shared_sk`                                                                |
+| an extended signing key, 64 bytes | hex of the 64 bytes; the `cborHex` of a cardano-cli extended signing key file (`5880…`); bech32 `ed25519e_sk` of the 64 bytes; bech32 `addr_xsk`, `stake_xsk`, `drep_xsk`, `cc_cold_xsk`, `cc_hot_xsk`, `pool_xsk`, `addr_shared_xsk`, `stake_shared_xsk` of 96 or 128 bytes |
+
+A key file (`5880…`) carries the key's public key and its chain code beside it. A bech32
+`*_xsk` carries its chain code (96 bytes) or its public key, then its chain code (128 bytes); one
+of 64 bytes is refused. The public key, where there is one, is checked; the chain code is not
+used. A mnemonic, a root key (`xprv`, `root_xsk`) and an account key (`acct_xsk`) need a
+derivation path: give them to a wallet (`MeshWallet`). 64 bytes that are a 32-byte key followed
+by its public key are refused: give the first 32 bytes.
+
+The key goes to `keySigner` and nowhere else: `signers: key` and `signers: { privateKey: key }`
+are `INVALID_OPTION`. It stays inside the signer: `JSON.stringify(signer)` is `{}`, and the key is
+in no error, `details`, trace event, plan record or JSON of a transaction. A malformed key is
+`INVALID_OPTION`, thrown by `keySigner` itself; the error names the form and the length of what
+was given, never the text. An extended key is checked once more at its first use, before anything
+is signed (that it is not a 32-byte key followed by its public key, and that the public key the
+text states is its own): a key that fails it is refused at every use, and the call that asked it
+throws `SIGNER_FAILED`. Asked for a list of keys, the signer signs only when its key hash is among
+them, so one list of signers serves every transaction; asked without keys
+(`signWitnesses(signer, tx)` with no `keyHashes`), it signs with its key, needed or not. It signs
+only the hash of the transaction it is shown.
+
+**The application's own code.** `signTxHash`, or the function given in its place, gets `txHash`,
+the hash of the transaction's body (32 bytes in hex; the signature is over these 32 bytes, not
+over the hex text), `keys`, the keys that have not signed yet, `tx`, the transaction in CBOR hex
+for a signer that checks what it signs, and the call's `signal`. Each entry of `keys` is
+`{ keyHash, roles }`. The roles say why the key is asked for: the roles the transaction needs its
+signature in (`"input"`, `"collateral"`, `"certificate"`, `"withdrawal"`, `"vote"`, `"proposal"`,
+`"guard"`, `"poolOwner"`), each once, and `"nativeScript"` when a native script of the
+transaction names the key. One key may have several, and a key with `"nativeScript"` alone need
+not sign: the script decides. The roles are for the signer's own decision and display: the
+library takes nothing from them. The request and its lists are frozen. The signer answers with
+`{ vkey, signature }` in hex for each key it holds, an empty list when it holds none; it is not
+called when no key is left to sign. Every signature is verified before it is used, and the key
+hash is taken from `vkey`: an answer of another shape, or a signature that does not verify
+against `txHash`, is `SIGNER_FAILED`. To decline, the signer throws
+`new TxPlanError("SIGN_DECLINED", reason)`; anything else it throws is `SIGNER_FAILED` with it as
+the `cause`, and its message is quoted, so it must hold no secret. A signer that needs the whole
+transaction and answers with a witness set, such as a hardware wallet, implements
+`signTxWitnesses(tx, keyHashes?)` instead.
+
+A key signer and a signer of hashes give vkey witnesses only. The bootstrap witness of a Byron
+address comes from a wallet, and neither a `StandaloneTx` nor a plan waits for it: a transaction
+sent without it is refused by the ledger. Whether the signatures satisfy a native script is not
+checked either: its keys are asked for, and the script decides.
 
 ### A browser wallet
 
@@ -360,7 +487,7 @@ replacement cannot.
 ```ts
 import { message, TxError } from "@meshsdk/transaction";
 
-const preview = await builder.build(pay, { payer: api }); // a preview without a plan: data, no deadline, nothing recorded or sent
+const preview = await builder.build(pay, { payer: api }); // a preview without a plan: no deadline, nothing recorded, signed or sent
 showOrder(preview); // an edit of the order before it is confirmed is a new preview; the plan is made on confirmation
 const first = builder.plan(pay, { payer: api }); // the CIP-30 api pays and signs
 await first.build();
@@ -435,10 +562,15 @@ A transaction built by a machine with a provider and signed elsewhere is an ordi
 ```ts
 const plan = builder.plan(pay, { payer: coldAddress });
 const { tx } = await plan.build(); // unsigned: goes to the cold signer
+// on the cold machine, which has no builder: a wallet's signTx(tx, true), or a key:
+//   const witnessSet = await signWitnesses(keySigner(coldKey), tx);
 // ... later, with the witness set or the signed transaction it returns:
 await plan.addWitnesses(witnessSet); // INVALID_WITNESS (wrongBody) for a witness of another body
 await plan.send({ waitFor: "included" });
 ```
+
+Without a plan the same goes through the transaction of `build()`: `built.tx` out,
+`built.addWitnesses(witnessSet)` back, `built.submit()`.
 
 A body that already went to a signer or to the network is never turned into a plan: a plan
 with the same parts is another transaction, and both could land.
@@ -610,7 +742,7 @@ export async function buildPayment(
   return { tx }; // the body without signatures
 }
 
-// the browser: const witnessSet = await signWitnesses(api, tx); a full transaction from the wallet works too
+// the browser: const witnessSet = await api.signTx(tx, true); a full transaction from the wallet works too
 
 export async function submitPayment(orderId: string, witnessSet: string) {
   const plan = await builder.resume(orderId); // any instance
@@ -925,7 +1057,8 @@ await claim.send({ waitFor: "included" });
   (`deadlines`). They are never read from the builder again: neither `resume` nor a change of
   `planDefaults` changes them.
 - **Waiting**: `waitFor`, `timeoutMs`, `pollMs` (`WaitOptions`). They are options of a call of
-  `send()` and `advance()`, and are not recorded. `pollMs` also has a builder default: the pace of
+  `send()` and `advance()` (`timeoutMs` and `pollMs` also of `awaitInclusion()` of a transaction
+  of `build()`), and are not recorded. `pollMs` also has a builder default: the pace of
   polling depends on the provider's limits. `signal` in the same options aborts the whole call.
 - **`resendMs`**: a builder default only; not written into a plan.
 
@@ -1183,23 +1316,100 @@ the parent's attempt.
 
 ## The path without a lifecycle
 
-`builder.build()`, the free signing functions, the provider's `submitTx` and
-`awaitTransactionConfirmation()` from `@meshsdk/common`: no deadline and no anchor. **Do not
-rebuild to retry**: a new build may choose other inputs, and both transactions may land; a retry
-sends the same bytes. Only these go this way: a build without a provider, a build without
-balancing (`assembleTxPrototype`, `finalize`), and a body a plan did not build. A body that went
-to a signer or to the network is not turned into a plan: a plan with the same parts is
-another transaction. `validity({ until })` gives such a body a deadline of its own. There are no
-statuses on this path. `awaitTransactionConfirmation()` returns at the first block and sees neither
-depth nor rollbacks, nor whether a script failed (read `validContract` from the provider's
-`fetchTxInfo`); its timeout (`TxConfirmTimeoutError`) and a refusal of `submitTx` do not mean "not
-paid": the application concludes that itself, not before the body's `until` and a margin for
-rollbacks. An aborted `signal` rejects it with `signal.reason`.
+`builder.build(parts, { payer })` returns a `StandaloneTx`: one built transaction on its own. It
+is the data of the build (a `BuiltTx`: see [The result](#the-result)) and the calls that sign
+that one body, take signatures made elsewhere, submit it and look for it.
+
+```ts
+import { output } from "@meshsdk/transaction";
+
+const built = await builder.build(
+  output({ address: recipient, value: { lovelace: 5_000_000n } }),
+  { payer: wallet },
+);
+await built.sign({ signers: wallet }); // adds the wallet's witnesses; built.missing lists the keys still without one
+await built.submit(); // MISSING_SIGNATURES, and nothing sent, while a key is missing
+const { slot } = await built.awaitInclusion(); // found in a block: one sighting, which a rollback can undo
+```
+
+| `StandaloneTx`                                   |                                                                                                                                                                                                                                                |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sign({ signers, partial? })`                    | signs with the call's [signers](#signers), each asked for the keys that have not signed yet, and keeps what they give. With `partial: false` a key still missing is `MISSING_SIGNATURES`                                                       |
+| `addWitnesses(...witnessSets)`                   | adds witness sets, or full transactions from a wallet or another party, each checked against the body                                                                                                                                          |
+| `missing`, `signedTx`, `partialTx`               | the keys that have not signed yet, with their roles; the transaction with every signature, once none is missing; the transaction with the signatures held so far, for a party that signs next in another program (`tx` stays the unsigned one) |
+| `submit({ submitter? })`                         | hands `signedTx` to the call's `submitter`, else the builder's, else the provider: the same bytes every time it is called                                                                                                                      |
+| `awaitInclusion({ timeoutMs?, pollMs? })`        | looks for the transaction until the provider finds it in a block, and returns `{ txHash, slot, block, blockHeight }` as far as the provider gives them                                                                                         |
+| `JSON.stringify(built)`, `builder.restore(json)` | the transaction with its signatures as JSON, and back, in this process or another                                                                                                                                                              |
+
+`sign()`, `addWitnesses()` and `submit()` return the object, and two calls at once are safe: a
+witness is kept once per key, whoever gives it first. `sign()`, `submit()` and `awaitInclusion()`
+take a `signal` that stops their waiting. A plan's `build()` and `plan.built` give the data alone,
+without these calls: a plan signs and sends its own attempts.
+
+**One object is one body.** It has no deadline, no anchor, no statuses and no replacement, and
+nothing it does builds another transaction. **Do not rebuild to retry**: a new build may choose
+other inputs, and both transactions may land. A retry is the same call on the same object; this
+one tries three times, then leaves the outcome to the application:
+
+```ts
+import { TxError } from "@meshsdk/transaction";
+
+let sent = false;
+for (let tries = 1; ; tries++) {
+  try {
+    if (!sent) await built.submit();
+    sent = true;
+    await built.awaitInclusion({ timeoutMs: 10 * 60_000 });
+    break; // found in a block
+  } catch (error) {
+    if (tries === 3) throw error; // the application decides what follows, never by a new build
+    if (TxError.is(error, "SUBMIT_FAILED")) continue; // a lost answer: the same bytes again, then look
+    if (TxError.is(error, "CONFIRM_TIMEOUT")) continue; // not found yet, which is not "not paid": look again
+    throw error; // REJECTED, SCRIPT_FAILED, ...: no retry, and no new build
+  }
+}
+```
+
+- `SUBMIT_FAILED`: the outcome is unknown, and the bytes may be on their way. The same `submit()`
+  sends them again, and then the transaction is looked for. A refusal of that repeat proves nothing
+  and is no error: the first delivery may have landed. A refusal while another delivery of the
+  object has not answered waits for it, and is decided by its outcome.
+- `REJECTED`: the ledger refused the bytes, no delivery of this object may have gone through, and
+  one look does not find the transaction: the message says whether the provider does not find it
+  or could not be asked. A refusal of bytes the provider already finds is no error. The object
+  does not know what another process sent, or this program before a restart: look for the
+  transaction before concluding anything.
+- `CONFIRM_TIMEOUT`: not found in a block within `timeoutMs` (120 000 by default; a look that
+  has not answered by then counts as not found). It does not mean "not paid": the application
+  concludes that itself, not before the body's `until` and a margin for rollbacks.
+  `validity({ until })` gives the body that deadline. The same `awaitInclusion()` looks again.
+- `awaitInclusion()` returns at the first block that holds the transaction, as a plan's
+  `included`: it sees neither depth nor rollbacks, and nothing here waits for `final`. It does
+  read whether the scripts passed: `SCRIPT_FAILED` for a transaction in a block with
+  `is_valid = false`, and `CANNOT_OBSERVE` (`noValidity`) when a transaction that runs a Plutus
+  script is found and the provider does not say; a provider that cannot search is
+  `CANNOT_OBSERVE` (`noSearch`). It sends nothing and changes nothing, and it can be called
+  before `submit()` and for a transaction another process sent.
+
+The messages of `SUBMIT_FAILED`, `REJECTED` and `CONFIRM_TIMEOUT` from the object end with the
+same rule: do not build another transaction to retry it.
+
+A payment that has to be repeated safely, replaced by a fresh attempt, followed to `final` or
+kept across a crash is a [plan](#plans). This path is for the rest: a preview, a build without a
+provider, a build without balancing (`assembleTxPrototype`, `finalize`), a transaction whose
+outcome the application follows itself. A body that went to a signer or to the network is not
+turned into a plan: a plan with the same parts is another transaction.
 
 ### Offline, and a deterministic build
 
 ```ts
-import { output, spend, TxBuilder, validity } from "@meshsdk/transaction";
+import {
+  keySigner,
+  output,
+  spend,
+  TxBuilder,
+  validity,
+} from "@meshsdk/transaction";
 
 const offline = new TxBuilder({ network: "preprod", params, costModels }); // neither provider nor wallet
 const built = await offline.build(
@@ -1210,25 +1420,46 @@ const built = await offline.build(
   ],
   { payer: { changeAddress, utxos }, knownUtxos: [depositUtxo] }, // nothing is read
 );
-const unsignedCbor = built.tx; // the same arguments give the same bytes; it goes to a cold signer
-// a cold signer of a build with a provider is an ordinary plan: build(), addWitnesses(), send()
-// later, online, with the signed bytes, on the path without a lifecycle (a plan is made only from parts):
-// await provider.submitTx(signedCbor); // a lost answer: the same bytes again; never rebuild
-// await awaitTransactionConfirmation(provider, built.txHash); // the first block; a timeout is not "not paid"
+await built.sign({ signers: keySigner(coldKey) }); // or: built.tx to a cold signer, built.addWitnesses() with what comes back
+await file.write("payment.json", JSON.stringify(built)); // the transaction, its data and its signatures
+
+// later, in a process with a provider:
+const online = new TxBuilder({ network: "preprod", provider });
+const again = await online.restore(JSON.parse(await file.read("payment.json")));
+await again.submit(); // a lost answer: the same call again; never a new build
+await again.awaitInclusion(); // the first block; a timeout is not "not paid"
 ```
 
 With a payer given as a snapshot, explicit `params` and `costModels` (for example
 `...await builder.chain()` saved earlier) and the local evaluator, a build makes no request but the
-lookups its parts ask for, and the same arguments give the same bytes and `txHash`.
+lookups its parts ask for, and the same arguments give the same bytes and `txHash`. A builder
+without a provider signs and writes the transaction; there `submit()` needs a `submitter`, in the
+call or the builder's (`MISSING_SUBMITTER` without one), and `awaitInclusion()` a provider
+(`MISSING_FETCHER`).
+
+The JSON holds the data of the build, the signatures and the number of the build's
+`extraKeyWitnesses`, and marks a delivery that may have gone through (taken, of unknown outcome,
+or still on its way when it was written): the object restored treats a refusal as the one that
+wrote it would. `restore` makes no request: it reads the record, checks that its transaction is
+the unsigned one and that `txHash` is the hash of its body, and verifies every signature it
+holds, else `INVALID_OPTION` (`json`). A record of another network is `NETWORK_MISMATCH`; one of
+another kind, of a newer version or with content this library does not read is `INVALID_STATE`
+(`recordVersion`). Its errors quote nothing of the record but its network. A plan's JSON goes to
+`resume`, not to `restore`. A cold signer of a build with a provider is an ordinary plan:
+`build()`, `addWitnesses()`, `send()`.
 
 ### Signing functions
 
-| Function                                      |                                                                                                                                                                                                                                                                              |
-| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `await signWitnesses(signer, tx, keyHashes?)` | the signer's witness set: `signTxWitnesses(tx, keyHashes)` when it has it, else `signTx`. The answer is returned whole, not filtered by `keyHashes`: a wallet that signs with an extra key gives an extra witness, which can put the fee below the minimum (a plan drops it) |
-| `await addWitnesses(tx, ...witnessSets)`      | `tx` with the vkey and bootstrap witnesses of each witness set or full transaction added; only the witness set changes. `INVALID_WITNESS` with `details.argument`, counted from 0; an empty string is `undecodable`                                                          |
-| `await signedKeyHashes(tx)`                   | the key hashes whose witness in `tx` verifies against its body                                                                                                                                                                                                               |
-| `requiredSigners(tx, spent)`                  | who must sign a transaction built elsewhere, given the UTxO of every input and collateral input (`UTXO_NOT_FOUND` for a missing one), and of reference inputs for the native scripts they hold, in any form of `UtxoInput`; each key with its roles, as the build gives them |
+The lower layer, which a `StandaloneTx` and a plan are made of. It is for code that has no
+builder: a page that only signs with a wallet, a cold machine, a server that checks a transaction
+it did not build.
+
+| Function                                      |                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `await signWitnesses(signer, tx, keyHashes?)` | the signer's witness set: `signTxWitnesses(tx, keyHashes)` when it has it, else `signTxHash` (an object with it, or a function), whose signatures are verified, else `signTx`. A signer of hashes gets `keys` with empty `roles`, and no `keys` without `keyHashes`. The answer is returned whole, not filtered by `keyHashes`: a wallet that signs with an extra key gives an extra witness, which can put the fee below the minimum (a `StandaloneTx` and a plan drop it) |
+| `await addWitnesses(tx, ...witnessSets)`      | `tx` with the vkey and bootstrap witnesses of each witness set or full transaction added; only the witness set changes. `INVALID_WITNESS` with `details.argument`, counted from 0; an empty string is `undecodable`                                                                                                                                                                                                                                                         |
+| `await signedKeyHashes(tx)`                   | the key hashes whose witness in `tx` verifies against its body                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `requiredSigners(tx, spent)`                  | who must sign a transaction built elsewhere, given the UTxO of every input and collateral input (`UTXO_NOT_FOUND` for a missing one), and of reference inputs for the native scripts they hold, in any form of `UtxoInput`; each key with its roles, as the build gives them                                                                                                                                                                                                |
 
 `addWitnesses` and `signedKeyHashes` return promises. Bad arguments (a `tx` that is not a
 transaction, a signer that cannot sign, a malformed `spent`) are `TxBuildError` `INVALID_OPTION`;
@@ -1238,20 +1469,26 @@ transaction, a signer that cannot sign, a malformed `spent`) are `TxBuildError` 
 ```ts
 import {
   addWitnesses,
+  keySigner,
+  requiredSigners,
   signedKeyHashes,
   signWitnesses,
 } from "@meshsdk/transaction";
 
-const built = await builder.build(parts, { payer: wallet });
-const witnessSet = await signWitnesses(
-  wallet,
-  built.tx,
-  built.signers.keyHashes,
-);
-const signed = await addWitnesses(built.tx, witnessSet);
+// A cold machine: no builder, a key, the transaction it was handed
+const mine = await signWitnesses(keySigner(coldKey), tx);
+
+// A server that checks a transaction it did not build
+const needed = requiredSigners(tx, spent).keyHashes;
+const signed = await addWitnesses(tx, mine);
 const signedBy = await signedKeyHashes(signed);
-const txHash = await provider.submitTx(signed); // a lost answer: submitTx(signed) again, never a new build
+const complete = needed.every((keyHash) => signedBy.includes(keyHash));
 ```
+
+For a hash without its transaction, `awaitTransactionConfirmation(provider, txHash)` of
+`@meshsdk/common` waits for the first block and reads nothing of the answer: it sees neither depth
+nor rollbacks, nor whether the scripts passed (read `validContract` from the provider's
+`fetchTxInfo`), and its timeout (`TxConfirmTimeoutError`) does not mean "not paid".
 
 ### Assembling without balancing
 
@@ -1265,11 +1502,9 @@ minFee }`.
 
 ```ts
 import {
-  addWitnesses,
   assembleTxPrototype,
   message,
   output,
-  signWitnesses,
   spend,
   toUtxo,
 } from "@meshsdk/transaction";
@@ -1290,10 +1525,8 @@ const { prototype } = assembleTxPrototype(
   { fee }, // ordering and the auxiliary data hash done; the balance is not checked
 );
 const final = await builder.finalize(prototype, { inputs: [input] }); // hashes again, checks the fee against the signed size
-const witnessSet = await signWitnesses(wallet, final.tx);
-const txHash = await provider.submitTx(
-  await addWitnesses(final.tx, witnessSet),
-);
+await final.sign({ signers: wallet });
+await final.submit();
 ```
 
 `finalize` looks nothing up: `inputs` holds the UTxO of every input, reference input and collateral
@@ -1301,7 +1534,8 @@ input of the body, in any form of `UtxoInput` (`UTXO_NOT_FOUND` for a missing on
 run again: redeemers keep the units the prototype states, so after an edit a script can see, build
 again from parts. Collateral is not changed: a raised fee that it no longer covers is
 `INSUFFICIENT_COLLATERAL`, until the caller raises `total_collateral` and lowers the collateral
-return. Key witnesses of the prototype are dropped: the result is unsigned. The result has no parts:
+return. Key witnesses of the prototype are dropped: the result is unsigned, a `StandaloneTx` as
+from `build()`, whose fee prices no witness of a key it does not need. The result has no parts:
 `parts` and `selectedInputs` are empty, redeemers carry no `part`, outputs no `label`, and `change`
 holds every output at `changeAddress`, a payment to that address included. A prototype that names
 an output twice among its inputs, its reference inputs or its collateral inputs, or reads an output
@@ -1337,7 +1571,7 @@ const final = await builder.finalize(edited, {
   ],
   changeAddress: built.change[0]!.address,
 });
-// final goes to signing and submitTx on this path: it is a body a plan did not build
+// final signs and submits on this path: final.sign(), final.submit()
 ```
 
 ## Parts
@@ -1552,6 +1786,7 @@ converting by hand:
 import { spend } from "@meshsdk/transaction";
 
 const [first] = await provider.fetchAddressUTxOs(userAddress); // a Mesh UTxO
+if (first === undefined) throw new Error("no UTxO at the address");
 const part = spend.pubKey({ utxo: first }); // part.utxo is a Utxo
 ```
 
@@ -1588,6 +1823,10 @@ decoder refuses included) and for an object of both forms or of neither; from an
 for the payer's UTxOs and `UTXO_NOT_FOUND` for an out ref looked up. The reason is the `cause`.
 
 ## The result
+
+`built` is a `StandaloneTx`: its own members are the data below, and `{ ...built }` or
+`structuredClone(built)` is that data as a plain `BuiltTx`, which is also what a plan's `built`
+is.
 
 ```ts
 const built = await builder.build(pay, { payer: wallet });
@@ -1683,14 +1922,14 @@ try {
 Every error has `code`, `message`, and where they apply `part`, `label`, `details` and `cause` (the
 error it was raised from, such as the provider's `ProviderError` or the wallet's error).
 `retryable: true` means only: the same call, repeated no earlier than `retryAfterMs`, is safe and
-may pass. A `TxPlanError` also carries `planId`, `status` (when thrown), `txHash` (the attempt
-it is about) and `plan` (the object as it is now). `TxPartError.is` is `TxError.is`: tell a part
-error by its code. The builder throws no `RangeError`: a bad option or argument is
-`INVALID_OPTION`, a missing label `UNKNOWN_LABEL`; an aborted `signal` is `ABORTED` in every call of
-the builder and of a plan.
+may pass. A `TxPlanError` of a plan also carries `planId`, `status` (when thrown), `txHash` (the
+attempt it is about) and `plan` (the object as it is now); one of a `StandaloneTx` carries none of
+them. `TxPartError.is` is `TxError.is`: tell a part error by its code. The builder throws no
+`RangeError`: a bad option or argument is `INVALID_OPTION`, a missing label `UNKNOWN_LABEL`; an
+aborted `signal` is `ABORTED` in every call of the builder, of a plan and of a `StandaloneTx`.
 With `MISSING_SIGNATURES`, `MISSING_SUBMITTER`, `NOT_YET_VALID` and `INPUTS_SPENT` nothing went to
 the network. No code means "the payment did not go through": only the status `abandoned` does, as
-every `TxPlanError` message says.
+every message of a plan's `TxPlanError` says.
 
 | Code                       | Class          | When                                                                                                                                                                                                                                                                                                       | `details`                                                                                                  | Retryable                                                   |
 | -------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -1720,7 +1959,7 @@ every `TxPlanError` message says.
 | `FEE_TOO_LOW`              | `TxBuildError` | the `fee` given is below the final transaction's minimum fee                                                                                                                                                                                                                                               | `{ fee, minFee }`                                                                                          | no                                                          |
 | `FEE_NOT_CONVERGED`        | `TxBuildError` | balancing did not settle on a fee within its rounds                                                                                                                                                                                                                                                        | none                                                                                                       | no                                                          |
 | `UNSUPPORTED_SERIALIZER`   | `TxBuildError` | the serializer cannot serialize a `TransactionPrototype`, throws, or answers with something that is not a transaction                                                                                                                                                                                      | none                                                                                                       | no                                                          |
-| `NETWORK_MISMATCH`         | `TxBuildError` | an address, UTxO, wallet, provider or plan record of another network than the builder's                                                                                                                                                                                                                    | `{ expected, found }`; `found[].role`: `payer`, `wallet`, `provider`, `utxo`, `output`, `record`, ...      | no                                                          |
+| `NETWORK_MISMATCH`         | `TxBuildError` | an address, UTxO, wallet, provider, plan record or JSON of a transaction of another network than the builder's                                                                                                                                                                                             | `{ expected, found }`; `found[].role`: `payer`, `wallet`, `provider`, `utxo`, `output`, `record`, ...      | no                                                          |
 | `MISSING_PAYER`            | `TxBuildError` | a build without a payer; a new attempt of a plan whose object has no payer, or only the snapshot an earlier attempt used                                                                                                                                                                                   | none                                                                                                       | no                                                          |
 | `PROVIDER_FAILED`          | `TxBuildError` | a provider read that no other code names failed: reward balances, the payer's UTxOs (the `cause`); a failed read of an out ref or of parameters keeps its own code                                                                                                                                         | `{ operation }`                                                                                            | no                                                          |
 | `INVALID_REDEEMER`         | `TxBuildError` | a redeemer function threw, asked for an item the transaction does not hold, or returned data that is not Plutus data                                                                                                                                                                                       | `{ reason, ref? }`                                                                                         | no                                                          |
@@ -1729,23 +1968,23 @@ every `TxPlanError` message says.
 | `ABORTED`                  | `TxBuildError` | the call's `signal` aborted it, in any call; `cause` is the signal's reason                                                                                                                                                                                                                                | none                                                                                                       | no                                                          |
 | `NOT_SERIALIZABLE`         | `TxBuildError` | a part holds a redeemer function: `toJSON()`, and `builder.plan()` on a builder with a store                                                                                                                                                                                                               | none                                                                                                       | no                                                          |
 | `WALLET_FAILED`            | `TxBuildError` | reading the payer from a wallet failed, or its answer cannot be read                                                                                                                                                                                                                                       | `{ walletCode? }`                                                                                          | no                                                          |
-| `INVALID_OPTION`           | `TxBuildError` | an option or argument of a value not accepted, also of a public function (`details.option` names the argument)                                                                                                                                                                                             | `{ option, value, allowed }`                                                                               | no                                                          |
+| `INVALID_OPTION`           | `TxBuildError` | an option or argument of a value not accepted, also of a public function (`details.option` names the argument); for a signer or a key, `details.value` is only its JavaScript type                                                                                                                         | `{ option, value, allowed }`                                                                               | no                                                          |
 | `UNKNOWN_LABEL`            | `TxBuildError` | `outputOf` with a label no output has                                                                                                                                                                                                                                                                      | `{ label, labels }`                                                                                        | no                                                          |
-| `SIGN_DECLINED`            | `TxPlanError`  | the signer declined (CIP-30 UserDeclined); nothing changed, asking again is the application's choice                                                                                                                                                                                                       | none                                                                                                       | no                                                          |
-| `SIGNER_FAILED`            | `TxPlanError`  | the signer failed, timed out at the attempt's deadline, or changed accounts                                                                                                                                                                                                                                | `{ reason: "error" \| "timeout" \| "accountChanged", walletCode? }`                                        | no                                                          |
+| `SIGN_DECLINED`            | `TxPlanError`  | the signer declined (CIP-30 UserDeclined, or a signer that throws `SIGN_DECLINED`); what earlier signers in the same call gave is kept, and nothing else changed; asking again is the application's choice                                                                                                 | none                                                                                                       | no                                                          |
+| `SIGNER_FAILED`            | `TxPlanError`  | the signer failed, timed out at the attempt's deadline, or changed accounts, or answered with a signature that does not verify or a witness that is not of this body                                                                                                                                       | `{ reason: "error" \| "timeout" \| "accountChanged", walletCode? }`                                        | no                                                          |
 | `INVALID_WITNESS`          | `TxPlanError`  | a witness that cannot be decoded, is not of this body, or is of a replaced attempt                                                                                                                                                                                                                         | `{ reason: "undecodable" \| "wrongBody" \| "staleAttempt", argument, keyHash? }`                           | no                                                          |
-| `MISSING_SIGNATURES`       | `TxPlanError`  | nobody can sign, or keys are still missing before a delivery; nothing sent                                                                                                                                                                                                                                 | `{ missing: RequiredKey[] }`, each `{ keyHash, roles }`                                                    | no                                                          |
+| `MISSING_SIGNATURES`       | `TxPlanError`  | nobody can sign, or keys are still missing before a delivery, or from `built.sign({ partial: false })` and `built.submit()`; nothing sent                                                                                                                                                                  | `{ missing: RequiredKey[] }`, each `{ keyHash, roles }`                                                    | no                                                          |
 | `MISSING_SUBMITTER`        | `TxPlanError`  | no submitter: none in the call, the builder or the provider; nothing sent                                                                                                                                                                                                                                  | none                                                                                                       | no                                                          |
 | `NOT_YET_VALID`            | `TxPlanError`  | the attempt's lower bound is ahead of the tip; nothing sent                                                                                                                                                                                                                                                | `{ waitMs }`                                                                                               | yes, `retryAfterMs` = `waitMs`                              |
-| `SUBMIT_FAILED`            | `TxPlanError`  | the outcome of a delivery is unknown; the same bytes are safe to send again                                                                                                                                                                                                                                | `{ walletCode? }`                                                                                          | yes                                                         |
-| `REJECTED`                 | `TxPlanError`  | the ledger refused the attempt, and every earlier delivery of it: `build()`, then `send()`, when `otherLive` is empty                                                                                                                                                                                      | `{ otherLive, tipAgeMs? }`                                                                                 | no                                                          |
-| `CONFIRM_TIMEOUT`          | `TxPlanError`  | `waitFor` was not reached within `timeoutMs`; the status does not change                                                                                                                                                                                                                                   | `{ waitedFor: "included" \| "final", timeoutMs }`                                                          | yes                                                         |
+| `SUBMIT_FAILED`            | `TxPlanError`  | the outcome of a delivery is unknown; the same bytes are safe to send again; also from `submit()` of a transaction                                                                                                                                                                                         | `{ walletCode? }`                                                                                          | yes                                                         |
+| `REJECTED`                 | `TxPlanError`  | the ledger refused the attempt, and every earlier delivery of it: `build()`, then `send()`, when `otherLive` is empty; also from `submit()` of a transaction, when no delivery of it may have gone through and the provider does not find it or cannot be asked (`otherLive` empty)                        | `{ otherLive, tipAgeMs? }`                                                                                 | no                                                          |
+| `CONFIRM_TIMEOUT`          | `TxPlanError`  | `waitFor` was not reached within `timeoutMs`; the status does not change; also from `awaitInclusion()` of a transaction, which waits for `included`                                                                                                                                                        | `{ waitedFor: "included" \| "final", timeoutMs }`                                                          | yes                                                         |
 | `EXPIRED`                  | `TxPlanError`  | the attempt's deadline and margin passed and it is not on chain (`unsent`: never delivered): `build()`, then `send()`, or `advance()` with a signer                                                                                                                                                        | `{ otherLive, unsent?, tipAgeMs? }`                                                                        | no                                                          |
-| `SCRIPT_FAILED`            | `TxPlanError`  | the attempt landed with a failed script and its collateral was taken: a new plan with fixed parts after `abandon()`                                                                                                                                                                                        | none                                                                                                       | no                                                          |
+| `SCRIPT_FAILED`            | `TxPlanError`  | the attempt landed with a failed script and its collateral was taken: a new plan with fixed parts after `abandon()`; also from `awaitInclusion()` of a transaction                                                                                                                                         | none                                                                                                       | no                                                          |
 | `ORPHANED`                 | `TxPlanError`  | the parent attempt it builds on is dead, or the parent has no live attempt: rebuild the parent, then the child                                                                                                                                                                                             | `{ otherLive }`                                                                                            | no                                                          |
-| `CANNOT_OBSERVE`           | `TxPlanError`  | the provider cannot follow plans (`noTip`, `noSearch`, `noDepth`, `noValidity`, `addressCache`), or confirmed nothing this time (`unconfirmed`)                                                                                                                                                            | `{ reason }`                                                                                               | only `unconfirmed`, `retryAfterMs` = the builder's `pollMs` |
+| `CANNOT_OBSERVE`           | `TxPlanError`  | the provider cannot follow plans (`noTip`, `noSearch`, `noDepth`, `noValidity`, `addressCache`), or confirmed nothing this time (`unconfirmed`); also `noSearch` and `noValidity` from `awaitInclusion()` of a transaction                                                                                 | `{ reason }`                                                                                               | only `unconfirmed`, `retryAfterMs` = the builder's `pollMs` |
 | `ATTEMPT_ON_CHAIN`         | `TxPlanError`  | `abandon()` found an attempt in a block: the plan paid; not a failure, `advance()` shows `final`                                                                                                                                                                                                           | `{ landed }`                                                                                               | no                                                          |
-| `INVALID_STATE`            | `TxPlanError`  | the call does not fit the plan: its status, a terminal plan, the closing mark (go on with `advance()`), a 17th attempt, a Plutus deadline past the horizon, a record this library does not read                                                                                                            | `{ reason: "status" \| "terminal" \| "closing" \| "tooManyAttempts" \| "pastHorizon" \| "recordVersion" }` | no                                                          |
+| `INVALID_STATE`            | `TxPlanError`  | the call does not fit the plan: its status, a terminal plan, the closing mark (go on with `advance()`), a 17th attempt, a Plutus deadline past the horizon, a record this library does not read, also from `restore` of a transaction's JSON                                                               | `{ reason: "status" \| "terminal" \| "closing" \| "tooManyAttempts" \| "pastHorizon" \| "recordVersion" }` | no                                                          |
 | `STILL_LIVE`               | `TxPlanError`  | an attempt may still land: `abandon()` before `safeAfter`, or a new attempt that has to wait                                                                                                                                                                                                               | `{ txHashes, safeAfter }`                                                                                  | yes, `retryAfterMs` until `safeAfter` by the tip's time     |
 | `PAYER_MISMATCH`           | `TxPlanError`  | the payer of a new attempt has neither the recorded change address nor the recorded anchor                                                                                                                                                                                                                 | `{ recorded, given }`                                                                                      | no                                                          |
 | `INPUTS_SPENT`             | `TxPlanError`  | inputs the parts name are spent and no earlier attempt is found: a hint, not a reason for a new plan; nothing sent                                                                                                                                                                                         | `{ inputs }`                                                                                               | no                                                          |
@@ -1800,7 +2039,9 @@ it("locks, refuses the wrong key, unlocks after the deadline", async () => {
     validator: "scalus",
     network: "preprod",
   });
-  const [owner, beneficiary, attacker] = [0, 1, 2].map(walletOf);
+  const owner = walletOf(0);
+  const beneficiary = walletOf(1);
+  const attacker = walletOf(2);
   for (const wallet of [owner, beneficiary, attacker])
     emulator.fund(await wallet.getChangeAddress(), { lovelace: 100_000_000n });
   const builder = new TxBuilder({
