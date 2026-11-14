@@ -176,7 +176,10 @@ export type StepPlanEvent =
       readonly tip?: StepTip;
       readonly sightings?: readonly TxSighting[];
     }
-  /** The decision that the plan signs and sends nothing more; `replacedBy` names the plan made in its place */
+  /**
+   * The decision that the plan signs and sends nothing more; `replacedBy` names the plan made in
+   * its place
+   */
   | { readonly type: "stop"; readonly replacedBy?: string };
 
 /** Why an event is refused */
@@ -339,7 +342,10 @@ export const emptyStepPlan = (
   options: init.options,
 });
 
-/** The record with these steps and this mark, its status worked out again and its revision one higher */
+/**
+ * The record with these steps and this mark, its status worked out again and its revision one
+ * higher
+ */
 const next = (
   json: StepPlanRecord,
   changes: Partial<Pick<StepPlanRecord, "steps" | "stopped" | "replacedBy">>,

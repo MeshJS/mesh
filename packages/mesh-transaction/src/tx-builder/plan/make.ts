@@ -45,7 +45,10 @@ import {
 // ends at the plan's one deadline. Nothing is signed and nothing is sent. Nothing here is
 // exported from the package.
 
-/** One entry of a step's parts: a part, a part linked to an earlier step, a nested list, or a value that is skipped */
+/**
+ * One entry of a step's parts: a part, a part linked to an earlier step, a nested list, or a
+ * value that is skipped
+ */
 export type StepPartEntry =
   TxPart | LinkedPart | false | null | undefined | readonly StepPartEntry[];
 
