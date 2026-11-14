@@ -238,20 +238,74 @@ const start = async (read: ReadKey): Promise<Started> => {
 
 const HASH_ALLOWED = "the hash of a transaction body, 32 bytes in hex";
 
+const REQUEST_ALLOWED = "{ txHash, keys?, tx }";
+const KEYS_ALLOWED = "a list of { keyHash, roles }";
+
+/** Whether a value is a list; a revoked proxy is not */
+const isList = (value: unknown) => {
+  try {
+    return Array.isArray(value);
+  } catch {
+    return false;
+  }
+};
+
+/** The key hash of an entry of a request's `keys`, in lower case, if it has one */
+const hashOf = (asked: unknown) => {
+  if (typeof asked !== "object" || asked === null) return undefined;
+  const { keyHash } = asked as Record<string, unknown>;
+  return typeof keyHash === "string" ? keyHash.toLowerCase() : undefined;
+};
+
+/**
+ * The key hashes a request's `keys` name, read by index without calling a method of the list: a
+ * list that cannot be read is INVALID_OPTION, never another error
+ */
+const askedHashes = (keys: unknown[]) => {
+  try {
+    const hashes: (string | undefined)[] = [];
+    for (let i = 0, length = keys.length; i < length; i++)
+      hashes.push(hashOf(keys[i]));
+    return hashes;
+  } catch {
+    throw invalidRequest(
+      "keys",
+      keys,
+      KEYS_ALLOWED,
+      "a list whose entries cannot be read",
+    );
+  }
+};
+
+/** The members of a request, read once: a request whose members cannot be read is INVALID_OPTION */
+const membersOf = (request: object) => {
+  try {
+    const { txHash, tx, keys } = request as Record<string, unknown>;
+    return { txHash, tx, keys };
+  } catch {
+    throw invalidRequest(
+      "request",
+      request,
+      REQUEST_ALLOWED,
+      "an object whose members cannot be read",
+    );
+  }
+};
+
 /**
  * The hash a request asks to be signed, in lower case, when it is the hash of the body of the
  * transaction the request shows
- * @throws TxBuildError INVALID_OPTION (`request`, `txHash`, `tx`, `keyHashes`) otherwise
+ * @throws TxBuildError INVALID_OPTION (`request`, `txHash`, `tx`, `keys`) otherwise
  */
 const requestedHash = (request: unknown) => {
   if (typeof request !== "object" || request === null)
     throw invalidRequest(
       "request",
       request,
-      "{ txHash, keyHashes?, tx }",
+      REQUEST_ALLOWED,
       `a value of type ${typeOf(request)}`,
     );
-  const { txHash, tx, keyHashes } = request as Record<string, unknown>;
+  const { txHash, tx, keys } = membersOf(request);
   if (typeof txHash !== "string" || !/^[0-9a-fA-F]{64}$/.test(txHash))
     throw invalidRequest(
       "txHash",
@@ -261,12 +315,12 @@ const requestedHash = (request: unknown) => {
         ? `text of ${plural(txHash.length, "character")}`
         : `a value of type ${typeOf(txHash)}`,
     );
-  if (keyHashes !== undefined && !Array.isArray(keyHashes))
+  if (keys !== undefined && !isList(keys))
     throw invalidRequest(
-      "keyHashes",
-      keyHashes,
-      "a list of key hashes in hex",
-      `a value of type ${typeOf(keyHashes)}`,
+      "keys",
+      keys,
+      KEYS_ALLOWED,
+      `a value of type ${typeOf(keys)}`,
     );
   let bodyHash: string;
   try {
@@ -287,15 +341,19 @@ const requestedHash = (request: unknown) => {
       HASH_ALLOWED,
       "a hash that is not the hash of the body of tx",
     );
-  return { txHash: bodyHash, keyHashes: keyHashes as unknown[] | undefined };
+  return {
+    txHash: bodyHash,
+    keys: keys === undefined ? undefined : askedHashes(keys as unknown[]),
+  };
 };
 
 /**
  * A signer over one Ed25519 signing key, for every place that takes `signers`. It signs a
- * transaction's hash when the hash of its key is among the keys asked for, and answers with
- * nothing when it is not; asked without a list (`signWitnesses(signer, tx)`), it signs. It signs
- * only a `txHash` that is the hash of the body of the `tx` it is shown: any other request is
- * TxBuildError INVALID_OPTION, which a caller of signers reads as SIGNER_FAILED.
+ * transaction's hash when the hash of its key is among the request's `keys`, whatever their
+ * roles, and answers with nothing when it is not; asked without `keys`
+ * (`signWitnesses(signer, tx)`), it signs. It signs only a `txHash` that is the hash of the body
+ * of the `tx` it is shown: any other request is TxBuildError INVALID_OPTION, which a caller of
+ * signers reads as SIGNER_FAILED.
  *
  * The key is read here, once, and kept inside the signer: it is no property of it, and is in no
  * error, trace event or plan record. `JSON.stringify(signer)` is `{}`.
@@ -329,16 +387,11 @@ export function keySigner(key: string): TxHashSigner {
     async signTxHash(
       request: TxHashRequest,
     ): Promise<readonly TxHashSignature[]> {
-      const { txHash, keyHashes } = requestedHash(request);
+      const { txHash, keys } = requestedHash(request);
       started ??= start(read);
       const { privateKey, vkey, keyHash } = await started;
-      if (
-        keyHashes !== undefined &&
-        !keyHashes.some(
-          (hash) => typeof hash === "string" && hash.toLowerCase() === keyHash,
-        )
-      )
-        return [];
+      // Its own key is looked for by hash; the roles do not change what it signs
+      if (keys !== undefined && !keys.includes(keyHash)) return [];
       return [{ vkey, signature: privateKey.sign(HexBlob(txHash)).hex() }];
     },
   });

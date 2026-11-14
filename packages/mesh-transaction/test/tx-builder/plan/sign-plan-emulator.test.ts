@@ -1,15 +1,18 @@
 import { randomBytes } from "node:crypto";
 
+import type { NativeScript } from "@meshsdk/core";
 import {
   deserializeAddress,
   pubKeyAddress,
   serializeAddressObj,
+  serializeRewardAddress,
 } from "@meshsdk/core";
 import { Crypto } from "@meshsdk/core-cst";
 
 import type { BuiltTx, Signer, TxPlanError } from "../../../src/tx-builder";
 import {
   addWitnesses,
+  certificate,
   guard,
   keySigner,
   signWitnesses,
@@ -527,7 +530,9 @@ describe.each(["object", "callback"] as const)(
       expect(signer.requests).toHaveLength(1);
       expect(signer.requests[0]!.txHash).toBe(built.txHash);
       expect(signer.requests[0]!.tx).toBe(built.tx);
-      expect(signer.requests[0]!.keyHashes).toEqual([key.keyHash]);
+      expect(signer.requests[0]!.keys).toEqual([
+        { keyHash: key.keyHash, roles: ["input"] },
+      ]);
       await viaSign.send({ waitFor: "included" });
       expect(viaSign.status).toBe("final");
 
@@ -585,9 +590,10 @@ describe.each(["object", "callback"] as const)(
         [payerKey, first.keyHash, second.keyHash].sort(),
       );
       expect(both.requests).toHaveLength(1);
-      expect([...both.requests[0]!.keyHashes!].sort()).toEqual(
-        [first.keyHash, second.keyHash].sort(),
-      );
+      expect(both.requests[0]!.keys).toEqual([
+        { keyHash: first.keyHash, roles: ["guard"] },
+        { keyHash: second.keyHash, roles: ["guard"] },
+      ]);
       expect(both.requests[0]!.signal).toBe(controller.signal);
       // Nothing left: the signer of hashes is not asked, a wallet still is, with an empty list
       expect(late.requests).toEqual([]);
@@ -605,9 +611,86 @@ describe.each(["object", "callback"] as const)(
       await after.build();
       const cosigner = keysSigner(form, first);
       await after.sign({ signers: [wallet, cosigner.signer] });
-      expect(cosigner.requests[0]!.keyHashes).toEqual([first.keyHash]);
+      expect(cosigner.requests[0]!.keys).toEqual([
+        { keyHash: first.keyHash, roles: ["guard"] },
+      ]);
       expect("signal" in cosigner.requests[0]!).toBe(false);
       expect(after.status).toBe("signed");
+    });
+
+    it("asks with the roles of the attempt's keys: payment, stake and native script keys, each once, the list shrinking as keys sign", async () => {
+      const { emulator, builder } = await setup();
+      const payment = testKey();
+      const stake = testKey();
+      const named = testKey();
+      emulator.fund(payment.address, { lovelace: 100_000_000n });
+      // A script that the payment key and a key only the script names both sign
+      const native: NativeScript = {
+        type: "all",
+        scripts: [
+          { type: "sig", keyHash: payment.keyHash },
+          { type: "sig", keyHash: named.keyHash },
+        ],
+      };
+      const scriptAddress = builder.scriptAddress(native);
+      // Too little to pay on its own: the payer's input is selected too
+      emulator.fund(scriptAddress, { lovelace: 2_000_000n });
+
+      const plan = builder.plan(
+        [
+          // The guard comes first: the roles keep the order of SignerRole all the same
+          guard.pubKey({ keyHash: payment.keyHash }),
+          certificate.stakeRegistration({
+            stake: serializeRewardAddress(stake.keyHash),
+          }),
+          spend.native({
+            utxo: emulator.utxos({ address: scriptAddress })[0]!,
+            script: native,
+          }),
+          pay(),
+        ],
+        { payer: payment.address },
+      );
+      const built = await plan.build();
+      expect(built.signers.keys).toEqual([
+        { keyHash: payment.keyHash, roles: ["input", "guard"] },
+        { keyHash: stake.keyHash, roles: ["certificate"] },
+      ]);
+
+      const first = keysSigner(form, payment);
+      const rest = keysSigner(form, stake, named);
+      await plan.sign({ signers: [first.signer, rest.signer] });
+
+      // Every key of the attempt: the required ones in the order of signers.keys, the payment
+      // key also named by the script, then the key only the script names
+      const request = first.requests[0]!;
+      expect(request.keys).toEqual([
+        { keyHash: payment.keyHash, roles: ["input", "guard", "nativeScript"] },
+        { keyHash: stake.keyHash, roles: ["certificate"] },
+        { keyHash: named.keyHash, roles: ["nativeScript"] },
+      ]);
+      expect("keyHashes" in request).toBe(false);
+      expect(Object.isFrozen(request)).toBe(true);
+      expect(Object.isFrozen(request.keys)).toBe(true);
+      expect(
+        request.keys!.every(
+          (key) => Object.isFrozen(key) && Object.isFrozen(key.roles),
+        ),
+      ).toBe(true);
+      // The next signer is asked only for the keys that have not signed
+      expect(rest.requests[0]!.keys).toEqual([
+        { keyHash: stake.keyHash, roles: ["certificate"] },
+        { keyHash: named.keyHash, roles: ["nativeScript"] },
+      ]);
+      // What a signer is handed is a copy: the attempt's data is unchanged
+      expect(built.signers.keys[0]!.roles).toEqual(["input", "guard"]);
+
+      expect(plan.status).toBe("signed");
+      expect(await signedBy(plan.signedTx!)).toEqual(
+        [payment.keyHash, stake.keyHash, named.keyHash].sort(),
+      );
+      await plan.send({ waitFor: "included" });
+      expect(plan.status).toBe("final");
     });
 
     it("is SIGNER_FAILED for a signature that does not verify, SIGN_DECLINED for a decline, and changes nothing", async () => {

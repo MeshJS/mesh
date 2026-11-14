@@ -29,6 +29,20 @@ import {
   signersOf,
 } from "./witnesses";
 
+/** A key a signer of transaction hashes is asked for, with every role it is asked in */
+export type AskedKey = {
+  /** The key hash (blake2b-224 of the public key), in lower-case hex */
+  readonly keyHash: string;
+  /**
+   * Why the key is asked for, each role once: the roles the transaction needs its signature in,
+   * in the order of the members of `SignerRole`, then `"nativeScript"` when a native script the
+   * transaction runs names the key. A key with `"nativeScript"` alone is not required: the
+   * script may be satisfied without it. Empty when the caller named the key and not why
+   * (`signWitnesses` with key hashes)
+   */
+  readonly roles: readonly (SignerRole | "nativeScript")[];
+};
+
 /** What a signer of transaction hashes is asked: one call for one transaction */
 export type TxHashRequest = {
   /**
@@ -37,12 +51,11 @@ export type TxHashRequest = {
    */
   readonly txHash: string;
   /**
-   * The keys asked for, as key hashes (blake2b-224 of the public key) in lower-case hex: the
-   * keys the transaction needs and those its native scripts name that have not signed yet.
-   * Absent only when `signWitnesses` is called without `keyHashes`: the signer then chooses its
-   * keys itself
+   * The keys asked for, without those that have signed already: the keys the transaction needs,
+   * then those only its native scripts name. Absent only when `signWitnesses` is called without
+   * key hashes: the signer then chooses its keys itself
    */
-  readonly keyHashes?: readonly string[];
+  readonly keys?: readonly AskedKey[];
   /** The transaction `txHash` is the hash of, in CBOR hex, for a signer that checks what it signs */
   readonly tx: string;
   /** The signal of the call that asks, if it has one: the signer may stop its own request on it */
@@ -685,21 +698,28 @@ export const toSigners = (signers: unknown): Signer[] | undefined => {
   return signers.length === 0 ? undefined : (signers as Signer[]);
 };
 
-/** Calls a signer that takes the transaction, the way it takes it */
+/**
+ * Calls a signer that takes the transaction, the way it takes it; one with `signTxWitnesses` is
+ * handed the hashes of the keys asked for
+ */
 const callSigner = (
   signer: Signer,
   form: "witnesses" | "mesh" | "cip30",
   tx: string,
-  keyHashes?: RequiredKeys,
+  keys?: readonly AskedKey[],
 ) => {
   if (form === "witnesses") {
     const { signTxWitnesses } = signer as Extract<
       Signer,
       { signTxWitnesses: unknown }
     >;
-    return keyHashes === undefined
+    return keys === undefined
       ? signTxWitnesses.call(signer, tx)
-      : signTxWitnesses.call(signer, tx, keyHashes);
+      : signTxWitnesses.call(
+          signer,
+          tx,
+          keys.map(({ keyHash }) => keyHash),
+        );
   }
   const { signTx } = signer as Extract<Signer, { signTx: unknown }>;
   return form === "mesh"
@@ -804,15 +824,23 @@ const askHashSigner = async (
   signer: Signer,
   form: "hash" | "callback",
   raw: RawTx,
-  keyHashes: RequiredKeys | undefined,
+  keys: readonly AskedKey[] | undefined,
   signal: AbortSignal | undefined,
 ): Promise<string> => {
   // Nothing is left to sign: the signer is not asked
-  if (keyHashes !== undefined && keyHashes.length === 0) return "a0";
+  if (keys !== undefined && keys.length === 0) return "a0";
+  // A copy frozen at every level: the signer can change nothing the caller holds
   const request: TxHashRequest = Object.freeze({
     txHash: raw.txId,
-    ...(keyHashes !== undefined && {
-      keyHashes: Object.freeze(keyHashes.map((hash) => hash.toLowerCase())),
+    ...(keys !== undefined && {
+      keys: Object.freeze(
+        keys.map(({ keyHash, roles }) =>
+          Object.freeze({
+            keyHash: keyHash.toLowerCase(),
+            roles: Object.freeze([...roles]),
+          }),
+        ),
+      ),
     }),
     tx: raw.hex,
     ...(signal !== undefined && { signal }),
@@ -832,23 +860,21 @@ const askHashSigner = async (
 /**
  * Asks one signer for its witnesses of a transaction, as `signWitnesses` does
  * @param signer A value `canSign` accepts
- * @param keyHashes The keys asked for, handed to a signer with `signTxWitnesses` or of hashes
+ * @param keys The keys asked for: a signer with `signTxWitnesses` is handed their hashes, a
+ *   signer of hashes the list with the roles, and is not asked when it is empty
  * @param signal Handed to a signer of hashes in its request
  */
 export const askSigner = async (
   signer: Signer,
   raw: RawTx,
-  {
-    keyHashes,
-    signal,
-  }: { keyHashes?: RequiredKeys; signal?: AbortSignal } = {},
+  { keys, signal }: { keys?: readonly AskedKey[]; signal?: AbortSignal } = {},
 ): Promise<string> => {
   const form = signerForm(signer)!;
   if (form === "hash" || form === "callback")
-    return askHashSigner(signer, form, raw, keyHashes, signal);
+    return askHashSigner(signer, form, raw, keys, signal);
   let answer: unknown;
   try {
-    answer = await callSigner(signer, form, raw.hex, keyHashes);
+    answer = await callSigner(signer, form, raw.hex, keys);
   } catch (error) {
     throw signerError(error);
   }
@@ -863,26 +889,31 @@ export const askSigner = async (
   }
 };
 
+const KEY_HASHES_ALLOWED = "a list of key hashes in hex";
+
 /**
  * A signer's witnesses as a CBOR witness set, never the transaction. Calls
- * `signTxWitnesses(tx, keyHashes)` when the signer has it; else `signTxHash({ txHash, keyHashes,
- * tx })`, or the signer itself when it is a function, each of whose signatures is verified
- * against the transaction's hash; else `signTx`: `signTx(tx, true, false)` on a Mesh wallet,
+ * `signTxWitnesses(tx, keyHashes)` when the signer has it; else `signTxHash({ txHash, keys, tx })`,
+ * or the signer itself when it is a function, each of whose signatures is verified against the
+ * transaction's hash; else `signTx`: `signTx(tx, true, false)` on a Mesh wallet,
  * `signTx(tx, true)` on a CIP-30 api. A full transaction in the answer is reduced to the
  * witnesses it adds.
- * @param keyHashes The keys asked for. A signer with `signTxWitnesses` or of hashes is handed the
- *   list, and a signer of hashes is not asked when it is empty; any other signer chooses its keys
- *   itself. The answer is returned whole and is not filtered by the list
+ * @param keyHashes The keys asked for. A signer with `signTxWitnesses` is handed the list; a
+ *   signer of hashes is handed it as `keys`, one entry per hash in the same order, each with
+ *   empty `roles` since the call does not say why, and is not asked when it is empty; without
+ *   the list its request has no `keys`. Any other signer chooses its keys itself. The answer is
+ *   returned whole and is not filtered by the list
  * @throws TxPlanError SIGN_DECLINED when the user declines (CIP-30 code 2) or the signer throws
  *   `TxPlanError` SIGN_DECLINED; SIGNER_FAILED when the signer fails otherwise, answers with
  *   something that is neither a witness set nor a transaction, or (a signer of hashes) with
  *   something that is not a list of `{ vkey, signature }` or holds a signature that does not
  *   verify. The signer's own error is the `cause`.
  * @throws TxBuildError INVALID_OPTION for a `signer` that is none of the forms of `Signer` (a
- *   private key given as it is among them: `keySigner(key)` makes a signer of it), and for a `tx`
- *   that is not a transaction; the signer is not called. For the signer, `details.value` is only
- *   the JavaScript type of what was given, never the value: something passed as a signer may
- *   hold keys, and `details` is data a logger prints
+ *   private key given as it is among them: `keySigner(key)` makes a signer of it), for a
+ *   `keyHashes` that is not a list of texts, and for a `tx` that is not a transaction; the signer
+ *   is not called. For the signer and `keyHashes`, `details.value` is only the JavaScript type of
+ *   what was given, never the value: something passed as a signer may hold keys, and `details`
+ *   is data a logger prints
  */
 export async function signWitnesses(
   signer: Signer,
@@ -890,7 +921,30 @@ export async function signWitnesses(
   keyHashes?: RequiredKeys,
 ): Promise<string> {
   if (!canSign(signer)) throw invalidSigner("signer", signer);
-  return askSigner(signer, readTransaction(tx), { keyHashes });
+  if (keyHashes !== undefined) {
+    const entry = Array.isArray(keyHashes)
+      ? keyHashes.findIndex((hash) => typeof hash !== "string")
+      : -2;
+    if (entry !== -1)
+      throw new TxBuildError(
+        "INVALID_OPTION",
+        `invalid keyHashes: expected ${KEY_HASHES_ALLOWED}; got ${
+          entry === -2
+            ? `a value of type ${typeOf(keyHashes)}`
+            : `a list whose entry ${entry} is of type ${typeOf(keyHashes[entry])}`
+        }`,
+        {
+          details: {
+            option: "keyHashes",
+            value: typeOf(keyHashes),
+            allowed: KEY_HASHES_ALLOWED,
+          },
+        },
+      );
+  }
+  return askSigner(signer, readTransaction(tx), {
+    keys: keyHashes?.map((keyHash) => ({ keyHash, roles: [] })),
+  });
 }
 
 const invalidWitness = (

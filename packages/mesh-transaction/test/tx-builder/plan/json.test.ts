@@ -1170,6 +1170,53 @@ describe("readPlan", () => {
     expect(error.planId).toBe("pay-1");
   });
 
+  it("refuses required keys that are not those of keyHashes with known roles, naming the member", () => {
+    const signers = (json: any) => json.attempts[1].built.signers;
+    const [first] = signers(base).keys;
+    expect(first.roles.length).toBeGreaterThan(0);
+    const cases: [(json: any) => void, RegExp][] = [
+      // The shape of a required key before it listed its roles
+      [
+        (json) => delete signers(json).keys[0].roles,
+        /signers\.keys\[0\]\.roles is none, not a list/,
+      ],
+      [
+        (json) => (signers(json).keys[0].roles = "input"),
+        /signers\.keys\[0\]\.roles is "input", not a list/,
+      ],
+      [
+        (json) => (signers(json).keys[0].roles = ["payer"]),
+        /signers\.keys\[0\]\.roles\[0\]: the signer role "payer"/,
+      ],
+      [
+        (json) => (signers(json).keys[0].roles = ["toString"]),
+        /signers\.keys\[0\]\.roles\[0\]: the signer role "toString"/,
+      ],
+      [
+        (json) => (signers(json).keys[0] = first.keyHash),
+        /signers\.keys\[0\] is "[0-9a-f]+", not an object/,
+      ],
+      [
+        (json) => delete signers(json).keys[0].keyHash,
+        /signers\.keys\[0\]\.keyHash is none, not a text/,
+      ],
+      [
+        (json) => (signers(json).keys[0].neededBy = []),
+        /signers\.keys\[0\]\.neededBy, a member this library does not know/,
+      ],
+      [
+        (json) => (signers(json).keys[0].keyHash = "ab".repeat(28)),
+        /signers\.keys does not name the keys of keyHashes/,
+      ],
+      [
+        (json) => signers(json).keys.push({ ...first }),
+        /signers\.keys does not name the keys of keyHashes/,
+      ],
+    ];
+    for (const [change, message] of cases)
+      expectUnread(() => readPlan(changed(change)), message);
+  });
+
   it("refuses a UTxO of another shape wherever the record holds one", () => {
     // A UTxO in the Mesh form, which a record does not hold
     const mesh = {

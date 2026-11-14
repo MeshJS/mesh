@@ -4,6 +4,7 @@ import type { AnchorKind, AttemptRecord, PlanRecord } from "./core";
 import type { TxAttemptStatus, TxPlanJSON, TxPlanStatus } from "./types";
 import { NOT_UNPAID, TxBuildError, TxPlanError } from "../errors";
 import { freeze } from "../parts/normalize";
+import { ROLE_ORDER } from "../witnesses";
 import { planStatus } from "./core";
 
 // The record of a plan as data: what `toJSON()` returns and a store holds. The encoding keeps
@@ -987,10 +988,40 @@ const utxos = (value: unknown, path: string) =>
 const builtOutputs = (value: unknown, path: string) =>
   list(value, path).map((item, i) => builtOutputValue(item, `${path}[${i}]`));
 
+/**
+ * The keys a transaction needs, each `{ keyHash, roles }` with roles this library knows: the same
+ * keys, in the same order, as `keyHashes`. A signer is asked for these keys, and the witnesses
+ * kept are theirs
+ */
+const requiredKeys = (
+  value: unknown,
+  keyHashes: readonly string[],
+  path: string,
+) => {
+  const keys = list(value, path).map((item, i) => {
+    const at = `${path}[${i}]`;
+    const key = object(item, at);
+    known(key, ["keyHash", "roles"], at);
+    const roles = texts(key.roles, `${at}.roles`);
+    roles.forEach((role, j) => {
+      if (!Object.prototype.hasOwnProperty.call(ROLE_ORDER, role))
+        unread(`${at}.roles[${j}]: the signer role ${show(role)}`);
+    });
+    return { keyHash: text(key.keyHash, `${at}.keyHash`), roles };
+  });
+  if (
+    keys.length !== keyHashes.length ||
+    keys.some(({ keyHash }, i) => keyHash !== keyHashes[i])
+  )
+    unread(`${path} does not name the keys of keyHashes, in their order`);
+  return keys;
+};
+
 const decodeBuilt = (value: unknown, path: string): BuiltTx => {
   const json = object(value, path);
   known(json, BUILT_MEMBERS, path);
   const signers = object(json.signers, `${path}.signers`);
+  const keyHashes = texts(signers.keyHashes, `${path}.signers.keyHashes`);
   const built: Obj = {
     tx: text(json.tx, `${path}.tx`),
     txHash: text(json.txHash, `${path}.txHash`),
@@ -1013,8 +1044,8 @@ const decodeBuilt = (value: unknown, path: string): BuiltTx => {
     change: builtOutputs(json.change, `${path}.change`),
     signers: {
       ...signers,
-      keyHashes: texts(signers.keyHashes, `${path}.signers.keyHashes`),
-      keys: list(signers.keys, `${path}.signers.keys`),
+      keyHashes,
+      keys: requiredKeys(signers.keys, keyHashes, `${path}.signers.keys`),
       byronAddresses: texts(
         signers.byronAddresses,
         `${path}.signers.byronAddresses`,

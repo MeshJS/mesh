@@ -30,6 +30,7 @@ import {
 } from "@meshsdk/core-cst";
 import { AppWallet, BrowserWallet, MeshWallet } from "@meshsdk/wallet";
 
+import type { AskedKey } from "../../src/tx-builder";
 import * as publicApi from "../../src";
 import {
   addWitnesses,
@@ -67,6 +68,7 @@ import {
 } from "../../src/tx-builder";
 import { feeForSize } from "../../src/tx-builder/fee";
 import { askSigner, readTransaction } from "../../src/tx-builder/sign";
+import { askedKeys, countedKeys } from "../../src/tx-builder/witnesses";
 import {
   alwaysSucceedCbor,
   baseAddress,
@@ -1148,6 +1150,32 @@ describe("signWitnesses", () => {
   });
 
   it.each([
+    ["a set", new Set(keyHashes), "object", "a value of type object"],
+    ["a text", keyHashes[0], "string", "a value of type string"],
+    ["a list holding a number", [7], "object", "entry 0 is of type number"],
+  ])(
+    "refuses %s as keyHashes, naming only its type, before calling any signer",
+    async (_, given, type, got) => {
+      const wallet = recording(["signTxWitnesses"], async () => paymentSet);
+      const hashes = hashSigner("object", () => []);
+      for (const signer of [wallet.signer, hashes.signer]) {
+        const error = await buildError(
+          () => signWitnesses(signer, tx, given as never),
+          "INVALID_OPTION",
+        );
+        expect(error.details).toEqual({
+          option: "keyHashes",
+          value: type,
+          allowed: "a list of key hashes in hex",
+        });
+        expect(error.message).toContain(got);
+      }
+      expect(wallet.calls).toEqual([]);
+      expect(hashes.requests).toEqual([]);
+    },
+  );
+
+  it.each([
     ["an empty object", {}, "object"],
     ["undefined", undefined, "undefined"],
     ["null", null, "null"],
@@ -1435,9 +1463,17 @@ describe("signWitnesses with a signer of transaction hashes", () => {
       const request = asked.requests[0]!;
       expect(request.txHash).toBe(txHash);
       expect(request.txHash).toBe(readTransaction(tx).txId);
-      expect(request.keyHashes).toEqual([key.keyHash, "ab".repeat(28)]);
+      expect(request.keys).toEqual([
+        { keyHash: key.keyHash, roles: [] },
+        { keyHash: "ab".repeat(28), roles: [] },
+      ]);
+      expect("keyHashes" in request).toBe(false);
       expect(Object.isFrozen(request)).toBe(true);
-      expect(Object.isFrozen(request.keyHashes)).toBe(true);
+      expect(Object.isFrozen(request.keys)).toBe(true);
+      for (const entry of request.keys!) {
+        expect(Object.isFrozen(entry)).toBe(true);
+        expect(Object.isFrozen(entry.roles)).toBe(true);
+      }
       expect(request.tx).toBe(tx);
       expect("signal" in request).toBe(false);
       // The list given is not the one handed on, and is left as it was
@@ -1448,15 +1484,16 @@ describe("signWitnesses with a signer of transaction hashes", () => {
       expect(await signedKeyHashes(signed)).toEqual([key.keyHash]);
     });
 
-    it("is asked without keyHashes when none are given, and with the call's signal", async () => {
+    it("is asked without keys when no key hashes are given, and with the call's signal", async () => {
       const key = testKey();
       const asked = hashSigner(form, (r) => [key.answer(r.txHash)]);
       await signWitnesses(asked.signer, tx);
+      expect("keys" in asked.requests[0]!).toBe(false);
       expect("keyHashes" in asked.requests[0]!).toBe(false);
 
       const signal = new AbortController().signal;
       const result = await askSigner(asked.signer, readTransaction(tx), {
-        keyHashes: [key.keyHash],
+        keys: [{ keyHash: key.keyHash, roles: ["input"] }],
         signal,
       });
       expect(asked.requests[1]!.signal).toBe(signal);
@@ -1746,6 +1783,119 @@ describe("signWitnesses with a signer of transaction hashes", () => {
 /** The witness set of a transaction, in hex */
 const witnessSetOf = (tx: string) => topItems(tx)[1]!;
 
+describe("askedKeys", () => {
+  const [a, b, c, d] = [1, 2, 3, 4].map((n) => keyHashHex(n));
+  const sig = (keyHash: string) => ({
+    type: "SCRIPT_PUBKEY" as const,
+    value: { addr_keyhash: keyHash },
+  });
+  const signers: Pick<TxSigners, "keys" | "nativeScripts"> = {
+    keys: [
+      { keyHash: a!, roles: ["input", "guard"] },
+      { keyHash: b!, roles: ["certificate"] },
+    ],
+    nativeScripts: [
+      {
+        type: "SCRIPT_ALL",
+        value: {
+          native_scripts: [
+            sig(c!),
+            sig(b!),
+            {
+              type: "SCRIPT_N_OF_K",
+              value: { n: 1n, native_scripts: [sig(d!), sig(c!)] },
+            },
+          ],
+        },
+      },
+      { type: "SCRIPT_ANY", value: { native_scripts: [sig(b!)] } },
+    ],
+  };
+
+  it("lists the required keys with their roles, then the keys only native scripts name", () => {
+    expect(askedKeys(signers)).toEqual([
+      { keyHash: a, roles: ["input", "guard"] },
+      { keyHash: b, roles: ["certificate", "nativeScript"] },
+      { keyHash: c, roles: ["nativeScript"] },
+      { keyHash: d, roles: ["nativeScript"] },
+    ]);
+    // The keys the fee counts are their hashes
+    expect(countedKeys(signers)).toEqual([a, b, c, d]);
+    // The roles given are not changed
+    expect(signers.keys[1]!.roles).toEqual(["certificate"]);
+  });
+
+  it("is the required keys alone without native scripts, and empty for none", () => {
+    expect(askedKeys({ keys: signers.keys, nativeScripts: [] })).toEqual(
+      signers.keys,
+    );
+    expect(askedKeys({ keys: [], nativeScripts: [] })).toEqual([]);
+  });
+
+  it("lists a key named in upper case once, in lower case, as a witness names it", () => {
+    const upper: Pick<TxSigners, "keys" | "nativeScripts"> = {
+      keys: [
+        { keyHash: a!, roles: ["input"] },
+        { keyHash: b!.toUpperCase(), roles: ["guard"] },
+        { keyHash: b!, roles: ["certificate"] },
+      ],
+      nativeScripts: [
+        {
+          type: "SCRIPT_ALL",
+          value: {
+            native_scripts: [sig(a!.toUpperCase()), sig(c!.toUpperCase())],
+          },
+        },
+        sig(c!),
+      ],
+    };
+    expect(askedKeys(upper)).toEqual([
+      { keyHash: a, roles: ["input", "nativeScript"] },
+      { keyHash: b, roles: ["certificate", "guard"] },
+      { keyHash: c, roles: ["nativeScript"] },
+    ]);
+    expect(countedKeys(upper)).toEqual([a, b, c]);
+  });
+});
+
+describe("askSigner with asked keys", () => {
+  let tx: string;
+  let paymentSet: string;
+  beforeAll(async () => {
+    await Crypto.ready();
+    tx = (await payment()).tx;
+    paymentSet = await paymentWitnesses(tx);
+  });
+  const keys: AskedKey[] = [
+    { keyHash: "ab".repeat(28), roles: ["input", "nativeScript"] },
+    { keyHash: "cd".repeat(28), roles: ["nativeScript"] },
+  ];
+
+  it("hands a wallet the hashes of the keys, and a signer of hashes the keys with their roles", async () => {
+    const wallet = recording(["signTxWitnesses"], async () => paymentSet);
+    await askSigner(wallet.signer, readTransaction(tx), { keys });
+    expect(wallet.calls).toEqual([
+      {
+        method: "signTxWitnesses",
+        args: [tx, ["ab".repeat(28), "cd".repeat(28)]],
+      },
+    ]);
+
+    for (const form of ["object", "callback"] as const) {
+      const asked = hashSigner(form, () => []);
+      await askSigner(asked.signer, readTransaction(tx), { keys });
+      const request = asked.requests[0]!;
+      expect(request.keys).toEqual(keys);
+      // A frozen copy: the signer changes nothing the caller holds
+      expect(request.keys).not.toBe(keys);
+      expect(request.keys![0]).not.toBe(keys[0]);
+      expect(request.keys![0]!.roles).not.toBe(keys[0]!.roles);
+      expect(Object.isFrozen(request.keys![0]!.roles)).toBe(true);
+      expect(Object.isFrozen(keys)).toBe(false);
+    }
+  });
+});
+
 describe("types", () => {
   it("compile as declared", async () => {
     const meshWallet: Signer = wallets.payment;
@@ -1756,13 +1906,27 @@ describe("types", () => {
       signTxWitnesses: async () => "a0",
     };
     const ofHashes: TxHashSigner = {
-      signTxHash: async ({ txHash, keyHashes, tx, signal }) => {
-        void [txHash, keyHashes, tx, signal];
+      signTxHash: async ({ txHash, keys, tx, signal }) => {
+        void [txHash, keys, tx, signal];
         return [];
       },
     };
     const callback: SignTxHash = async (request) =>
-      request.keyHashes === undefined ? [] : [];
+      request.keys === undefined ? [] : [];
+    const roles: SignTxHash = async ({ keys }) =>
+      (keys ?? []).some(({ roles }) => roles.includes("nativeScript"))
+        ? []
+        : [];
+    // @ts-expect-error: the request names its keys in keys, with their roles
+    const oldList: SignTxHash = async ({ keyHashes }) => (void keyHashes, []);
+    const pushes: SignTxHash = async ({ keys }) => {
+      // @ts-expect-error: the roles of an asked key are read only
+      keys![0]!.roles.push("guard");
+      return [];
+    };
+    // @ts-expect-error: a role is a SignerRole or "nativeScript"
+    const unknownRole: AskedKey = { keyHash: "", roles: ["script"] };
+    void [roles, oldList, pushes, unknownRole];
     const signers: Signer[] = [ofHashes, callback, async () => []];
     // @ts-expect-error: a signer of hashes answers with signatures, not a witness set
     const witnessSetCallback: Signer = async () => "a0";

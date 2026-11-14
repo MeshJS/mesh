@@ -42,7 +42,10 @@ export const builtTx = (spec: {
     inputs: [...spec.inputs],
     signers: {
       keyHashes: [...(spec.keys ?? [])],
-      keys: [],
+      keys: (spec.keys ?? []).map((keyHash) => ({
+        keyHash,
+        roles: ["input"],
+      })),
       byronAddresses: [],
       nativeScripts: [],
     },

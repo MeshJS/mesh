@@ -129,9 +129,21 @@ const asBuildError = (error: unknown) => {
   return error as TxBuildError<"INVALID_OPTION">;
 };
 
-/** The witness a signer of hashes answers for the recorded transaction */
+/**
+ * The witness a signer of hashes answers for the recorded transaction, asked for these keys as
+ * inputs
+ */
 const answerOf = (signer: TxHashSigner, keyHashes?: readonly string[]) =>
-  signer.signTxHash({ txHash, tx, ...(keyHashes && { keyHashes }) });
+  signer.signTxHash({
+    txHash,
+    tx,
+    ...(keyHashes && {
+      keys: keyHashes.map((keyHash) => ({
+        keyHash,
+        roles: ["input"] as const,
+      })),
+    }),
+  });
 
 /** The fixtures that need the crypto library: built once */
 const fixtures = async () => {
@@ -573,6 +585,25 @@ describe("keySigner", () => {
       expect(await answerOf(signer, [])).toEqual([]);
       expect(await answerOf(signer)).toEqual([recorded]);
 
+      // The roles do not change what it signs, and an entry without a key hash names no key
+      const asked = (keys: unknown[]) =>
+        signer.signTxHash({ txHash, tx, keys } as never);
+      for (const roles of [[], ["nativeScript"], ["guard", "nativeScript"]])
+        expect(await asked([{ keyHash: recordedKeyHash, roles }])).toEqual([
+          recorded,
+        ]);
+      expect(
+        await asked([recordedKeyHash, null, { roles: ["input"] }]),
+      ).toEqual([]);
+      // A request that still names keyHashes is a request without keys: it signs
+      expect(
+        await signer.signTxHash({
+          txHash,
+          tx,
+          keyHashes: ["ab".repeat(28)],
+        } as never),
+      ).toEqual([recorded]);
+
       // As a signer of signWitnesses
       expect(await signWitnesses(signer, tx, ["ab".repeat(28)])).toBe("a0");
       const signed = await addWitnesses(tx, await signWitnesses(signer, tx));
@@ -589,11 +620,7 @@ describe("keySigner", () => {
         ["no hash", { tx }, "txHash"],
         ["no transaction", { txHash }, "tx"],
         ["a tx that is not a transaction", { txHash, tx: "00" }, "tx"],
-        [
-          "keyHashes that are not a list",
-          { txHash, tx, keyHashes: rfc.keyHash },
-          "keyHashes",
-        ],
+        ["keys that are not a list", { txHash, tx, keys: rfc.keyHash }, "keys"],
         ["no request", undefined, "request"],
       ];
       const signedAnyway: string[] = [];
@@ -610,6 +637,53 @@ describe("keySigner", () => {
       // The hash of the other transaction, shown with it, is signed
       const hashOfOther = (await signWitnesses(signer, otherTx)) !== "a0";
       expect(hashOfOther).toBe(true);
+    });
+
+    it("reads keys by index, and refuses a request it cannot read with its own message", async () => {
+      const signer = keySigner(f.extended);
+      // A list whose own methods say it names every key names none of them
+      const lying = Object.assign([{ keyHash: "ab".repeat(28), roles: [] }], {
+        some: () => true,
+        includes: () => true,
+      });
+      const proxied = new Proxy([] as unknown[], {
+        get: (target, key, receiver) =>
+          key === "some" || key === "includes"
+            ? () => true
+            : Reflect.get(target, key, receiver),
+      });
+      for (const keys of [lying, proxied])
+        expect(await signer.signTxHash({ txHash, tx, keys } as never)).toEqual(
+          [],
+        );
+      // A getter that throws, on an entry, on the list or on the request, is INVALID_OPTION
+      const throwing = () => {
+        throw new Error("FOREIGN TEXT");
+      };
+      const entry = Object.defineProperty({}, "keyHash", { get: throwing });
+      const list = new Proxy([] as unknown[], {
+        get: (target, key, receiver) =>
+          key === "length" ? throwing() : Reflect.get(target, key, receiver),
+      });
+      const request = Object.defineProperty({ txHash, tx }, "keys", {
+        get: throwing,
+        enumerable: true,
+      });
+      const cases: [unknown, string][] = [
+        [{ txHash, tx, keys: [entry] }, "keys"],
+        [{ txHash, tx, keys: list }, "keys"],
+        [request, "request"],
+      ];
+      for (const [asked, option] of cases) {
+        const error = await caught(() => signer.signTxHash(asked as never));
+        expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
+        const { details, message, cause } =
+          error as TxBuildError<"INVALID_OPTION">;
+        expect(details.option).toBe(option);
+        expect(details.value).toBe("object");
+        expect(message.includes("FOREIGN")).toBe(false);
+        expect(cause).toBeUndefined();
+      }
     });
 
     it("is one frozen member, which shows nothing of the key", async () => {

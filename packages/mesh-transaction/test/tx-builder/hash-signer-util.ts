@@ -61,10 +61,12 @@ export const hashSigner = (
 
 /** A signer of hashes that signs with each of these keys that it is asked for */
 export const keysSigner = (form: "object" | "callback", ...keys: TestKey[]) =>
-  hashSigner(form, ({ txHash, keyHashes }) =>
+  hashSigner(form, ({ txHash, keys: asked }) =>
     keys
       .filter(
-        (key) => keyHashes === undefined || keyHashes.includes(key.keyHash),
+        (key) =>
+          asked === undefined ||
+          asked.some(({ keyHash }) => keyHash === key.keyHash),
       )
       .map((key) => key.answer(txHash)),
   );

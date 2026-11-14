@@ -23,6 +23,7 @@ import type {
   TxPart,
   Utxo,
 } from "./parts/types";
+import type { AskedKey } from "./sign";
 import { nativeScriptToPrototype } from "./parts/normalize";
 
 /** Who has to sign a transaction: key hashes, and Byron addresses spent from */
@@ -46,7 +47,7 @@ export type SignerRole =
   | "poolOwner";
 
 /** The place of each member of `SignerRole` in `RequiredKey.roles`: the order of the members */
-const ROLE_ORDER: Record<SignerRole, number> = {
+export const ROLE_ORDER: Record<SignerRole, number> = {
   input: 0,
   collateral: 1,
   certificate: 2,
@@ -323,17 +324,38 @@ export const txSigners = (parts: readonly TxPart[]): TxSigners =>
   signersOf(collectSigners(parts));
 
 /**
- * The keys the fee of a transaction counts, each once: the keys it needs, then those its native
- * scripts name, every one of which may sign
+ * The keys a signer is asked for, each once with every role it is asked in: the keys the
+ * transaction needs, in the order of `signers.keys`, with their roles; then the keys only its
+ * native scripts name. A key a native script names has `"nativeScript"` after its other roles.
+ * Hashes are compared and listed in lower case, as a witness's key hash is: a script may name a
+ * key in upper case
  */
-export const countedKeys = (
-  signers: Pick<TxSigners, "keyHashes" | "nativeScripts">,
-): string[] => {
-  const keys = new Set(signers.keyHashes);
+export const askedKeys = (
+  signers: Pick<TxSigners, "keys" | "nativeScripts">,
+): AskedKey[] => {
+  const keys = new Map<string, (SignerRole | "nativeScript")[]>();
+  for (const { keyHash, roles } of signers.keys) {
+    const hash = keyHash.toLowerCase();
+    const known = keys.get(hash) as SignerRole[] | undefined;
+    if (known === undefined) keys.set(hash, [...roles]);
+    else
+      keys.set(
+        hash,
+        [...new Set([...known, ...roles])].sort(
+          (a, b) => ROLE_ORDER[a] - ROLE_ORDER[b],
+        ),
+      );
+  }
+  const named = (keyHash: string) => {
+    const hash = keyHash.toLowerCase();
+    const roles = keys.get(hash);
+    if (roles === undefined) keys.set(hash, ["nativeScript"]);
+    else if (!roles.includes("nativeScript")) roles.push("nativeScript");
+  };
   const visit = (script: NativeScriptPrototype) => {
     switch (script.type) {
       case "SCRIPT_PUBKEY":
-        keys.add(script.value.addr_keyhash);
+        named(script.value.addr_keyhash);
         return;
       case "SCRIPT_ALL":
       case "SCRIPT_ANY":
@@ -345,8 +367,16 @@ export const countedKeys = (
     }
   };
   signers.nativeScripts.forEach(visit);
-  return Array.from(keys);
+  return Array.from(keys, ([keyHash, roles]) => ({ keyHash, roles }));
 };
+
+/**
+ * The keys the fee of a transaction counts, each once: the keys it needs, then those its native
+ * scripts name, every one of which may sign. The hashes of `askedKeys`
+ */
+export const countedKeys = (
+  signers: Pick<TxSigners, "keys" | "nativeScripts">,
+): string[] => askedKeys(signers).map(({ keyHash }) => keyHash);
 
 /** What was collected, as `TxSigners` */
 export const signersOf = (collected: Collected): TxSigners => {
