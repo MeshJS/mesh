@@ -348,7 +348,10 @@ const readRawTx = (hex: string): RawTx => {
   };
 };
 
-/** The error for a `tx` argument that cannot be read as a transaction */
+/**
+ * The error for a `tx` argument that cannot be read as a transaction. A private key may be given
+ * there by mistake, so `details.value` names only its JavaScript type, never the value
+ */
 const invalidTx = (tx: unknown, cause?: unknown) =>
   new TxBuildError(
     "INVALID_OPTION",
@@ -356,7 +359,7 @@ const invalidTx = (tx: unknown, cause?: unknown) =>
     {
       details: {
         option: "tx",
-        value: tx,
+        value: tx === null ? "null" : typeof tx,
         allowed: "a transaction in CBOR hex",
       },
       ...(cause !== undefined && { cause }),
@@ -920,9 +923,9 @@ const KEY_HASHES_ALLOWED = "a list of key hashes in hex";
  * @throws TxBuildError INVALID_OPTION for a `signer` that is none of the forms of `Signer` (a
  *   private key given as it is among them: `keySigner(key)` makes a signer of it), for a
  *   `keyHashes` that is not a list of texts, and for a `tx` that is not a transaction; the signer
- *   is not called. For the signer and `keyHashes`, `details.value` is only the JavaScript type of
- *   what was given, never the value: something passed as a signer may hold keys, and `details`
- *   is data a logger prints
+ *   is not called. `details.value` is only the JavaScript type of what was given, never the
+ *   value: something passed as a signer or as `tx` may be or hold a key, and `details` is data a
+ *   logger prints
  */
 export async function signWitnesses(
   signer: Signer,
@@ -1087,7 +1090,8 @@ export const countedWitnesses = (
  * @throws TxPlanError INVALID_WITNESS for an argument that cannot be decoded, or holding a
  *   witness that does not verify against the body; `details.argument` is the index of that
  *   argument among `witnesses`, counted from 0
- * @throws TxBuildError INVALID_OPTION for a `tx` that is not a transaction
+ * @throws TxBuildError INVALID_OPTION for a `tx` that is not a transaction; `details.value` is
+ *   only the JavaScript type of what was given
  */
 export async function addWitnesses(
   tx: string,
@@ -1099,7 +1103,8 @@ export async function addWitnesses(
 
 /**
  * Key hashes whose vkey witness in `tx` verifies against its body
- * @throws TxBuildError INVALID_OPTION for a `tx` that is not a transaction
+ * @throws TxBuildError INVALID_OPTION for a `tx` that is not a transaction; `details.value` is
+ *   only the JavaScript type of what was given
  */
 export async function signedKeyHashes(tx: string): Promise<string[]> {
   const raw = readTransaction(tx);

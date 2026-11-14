@@ -615,9 +615,10 @@ describe("signedKeyHashes", () => {
       const result = run();
       expect(result).toBeInstanceOf(Promise);
       const error = await buildError(() => result, "INVALID_OPTION");
+      // Only the JavaScript type of what was given: a key may be given there by mistake
       expect(error.details).toEqual({
         option: "tx",
-        value: tx,
+        value: typeof tx,
         allowed: "a transaction in CBOR hex",
       });
       // Hex is handed to the decoder, whose error is the cause

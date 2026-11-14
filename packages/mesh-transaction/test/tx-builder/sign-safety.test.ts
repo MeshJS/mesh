@@ -39,10 +39,12 @@ import type {
 } from "../../src/tx-builder";
 import type { KeyWitness } from "../../src/tx-builder/sign";
 import {
+  addWitnesses,
   guard,
   keySigner,
   memoryPlanStore,
   output,
+  requiredSigners,
   signedKeyHashes,
   signWitnesses,
   spend,
@@ -729,6 +731,50 @@ describe("R1: key material never leaves the signer object", () => {
     for (const value of [built, built.toJSON(), plan.toJSON(), plan])
       expect(shown(value, secrets)).toEqual([]);
     expect(built.missing).toHaveLength(2);
+  });
+
+  it("a key given as tx to a signing function is refused, with an error that shows nothing of it", async () => {
+    const wallet = { signTxWitnesses: async () => "a0" };
+    const calls: [string, (value: unknown) => unknown][] = [
+      ["signWitnesses", (v) => signWitnesses(wallet, v as never)],
+      ["addWitnesses", (v) => addWitnesses(v as never)],
+      ["addWitnesses with a set", (v) => addWitnesses(v as never, "a0")],
+      ["signedKeyHashes", (v) => signedKeyHashes(v as never)],
+      ["requiredSigners", (v) => requiredSigners(v as never, [])],
+    ];
+    const leaks: string[] = [];
+    let refusals = 0;
+    for (const fixture of [...keys.all, seedKey()])
+      for (const [encoding, key] of Object.entries(fixture.encodings)) {
+        const shapes: [string, unknown][] = [
+          ["as it is", key],
+          ["in a list", [key]],
+          ["as { privateKey }", { privateKey: key }],
+        ];
+        for (const [shape, value] of shapes)
+          for (const [call, run] of calls) {
+            const where = `${fixture.name} (${encoding}) ${shape} to ${call}`;
+            const error = await caught(() => run(value));
+            refusals += 1;
+            if (!TxError.is(error, "INVALID_OPTION")) {
+              leaks.push(`${where}: not INVALID_OPTION`);
+              continue;
+            }
+            // The details name the JavaScript type of what was given, and nothing else of it
+            expect(error.details).toEqual({
+              option: "tx",
+              value: typeof value,
+              allowed: "a transaction in CBOR hex",
+            });
+            for (const name of shown(error, { ...secrets, ...givenText(key) }))
+              leaks.push(`${where}: ${name}`);
+          }
+      }
+    expect(leaks).toEqual([]);
+    const encodings = [...keys.all, seedKey()].flatMap((f) =>
+      Object.keys(f.encodings),
+    );
+    expect(refusals).toBe(encodings.length * 3 * calls.length);
   });
 
   it("a signer that fails, declines, or answers with a key shows nothing of it on any path that signs", async () => {
