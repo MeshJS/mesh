@@ -340,6 +340,32 @@ export const pricedSigners = (parts: readonly TxPart[]): Signers => {
 export const txSigners = (parts: readonly TxPart[]): TxSigners =>
   signersOf(collectSigners(parts));
 
+/**
+ * The keys the fee of a transaction counts, each once: the keys it needs, then those its native
+ * scripts name, every one of which may sign
+ */
+export const countedKeys = (
+  signers: Pick<TxSigners, "keyHashes" | "nativeScripts">,
+): string[] => {
+  const keys = new Set(signers.keyHashes);
+  const visit = (script: NativeScriptPrototype) => {
+    switch (script.type) {
+      case "SCRIPT_PUBKEY":
+        keys.add(script.value.addr_keyhash);
+        return;
+      case "SCRIPT_ALL":
+      case "SCRIPT_ANY":
+      case "SCRIPT_N_OF_K":
+        script.value.native_scripts.forEach(visit);
+        return;
+      default:
+        return;
+    }
+  };
+  signers.nativeScripts.forEach(visit);
+  return Array.from(keys);
+};
+
 /** What was collected, as `TxSigners` */
 export const signersOf = (collected: Collected): TxSigners => {
   const keys = Array.from(collected.keys.values());

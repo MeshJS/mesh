@@ -59,6 +59,10 @@ export {
   signedKeyHashes,
   signWitnesses,
   type Signer,
+  type SignTxHash,
+  type TxHashRequest,
+  type TxHashSignature,
+  type TxHashSigner,
 } from "./sign";
 export { TxPlan } from "./plan/plan";
 export { checkPlanStore, memoryPlanStore } from "./plan/store";

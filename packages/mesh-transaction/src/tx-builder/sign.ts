@@ -29,9 +29,74 @@ import {
   signersOf,
 } from "./witnesses";
 
-/** Something that signs: a wallet, or a raw CIP-30 api (`signTx(tx, partialSign)`) */
+/** What a signer of transaction hashes is asked: one call for one transaction */
+export type TxHashRequest = {
+  /**
+   * The hash to sign: blake2b-256 of the transaction's body, 32 bytes in lower-case hex. It is
+   * signed as its 32 bytes, not as its hex text, and nothing else is to be signed
+   */
+  readonly txHash: string;
+  /**
+   * The keys asked for, as key hashes (blake2b-224 of the public key) in lower-case hex: the
+   * keys the transaction needs and those its native scripts name that have not signed yet.
+   * Absent only when `signWitnesses` is called without `keyHashes`: the signer then chooses its
+   * keys itself
+   */
+  readonly keyHashes?: readonly string[];
+  /** The transaction `txHash` is the hash of, in CBOR hex, for a signer that checks what it signs */
+  readonly tx: string;
+  /** The signal of the call that asks, if it has one: the signer may stop its own request on it */
+  readonly signal?: AbortSignal;
+};
+
+/** A signature of a transaction hash, with the public key it verifies with */
+export type TxHashSignature = {
+  /** The Ed25519 public key, 32 bytes in hex */
+  readonly vkey: string;
+  /** The Ed25519 signature of the 32 bytes of `txHash`, 64 bytes in hex */
+  readonly signature: string;
+};
+
+/**
+ * A signer that signs the hash of a transaction and needs to know nothing else of it: a key
+ * service, a hardware module, a remote signer.
+ *
+ * `signTxHash` answers with a signature for each key asked for that it holds, and with an empty
+ * list when it holds none; it is not called when no key is left to sign. Every signature is
+ * verified against `txHash` with its `vkey` before it is used, and the key hash is always taken
+ * from `vkey`: an answer that is not such a list, or a signature that does not verify, is
+ * SIGNER_FAILED. To decline, throw `new TxPlanError("SIGN_DECLINED", reason)`; anything else
+ * thrown is SIGNER_FAILED with it as the `cause`, and its message is quoted: keep secrets out of
+ * it. A signer that needs the whole transaction and answers with a CBOR witness set implements
+ * `signTxWitnesses(tx, keyHashes?)` instead.
+ */
+export type TxHashSigner = {
+  signTxHash(request: TxHashRequest): Promise<readonly TxHashSignature[]>;
+};
+
+/**
+ * The callback form of a signer of transaction hashes: the function is called exactly as
+ * `signTxHash` of a `TxHashSigner` is, with the same request, and its answer and its errors are
+ * read the same way. It is called without a `this`
+ */
+export type SignTxHash = (
+  request: TxHashRequest,
+) => Promise<readonly TxHashSignature[]>;
+
+/**
+ * Something that signs. The forms are told apart by their methods, the first found in this order:
+ * - `signTxWitnesses(tx, keyHashes?)`: a Mesh wallet, or own code that takes the transaction and
+ *   answers with a CBOR witness set;
+ * - `signTxHash(request)`: a signer of transaction hashes;
+ * - `signTx(tx, partialSign?)`: a CIP-30 api, or a Mesh 1.9 wallet.
+ *
+ * A function with none of these methods is a signer of transaction hashes in its callback form
+ * (`SignTxHash`). A private key is not a signer as it is.
+ */
 export type Signer =
   | { signTxWitnesses(tx: string, keyHashes?: RequiredKeys): Promise<string> }
+  | TxHashSigner
+  | SignTxHash
   | {
       signTx(
         tx: string,
@@ -498,10 +563,14 @@ export const verifies = (witness: KeyWitness, txId: string) => {
 const USER_DECLINED = 2;
 const ACCOUNT_CHANGE = -4;
 
-/** The error of a signer whose call rejected, read by its `code`, without instanceof */
+/**
+ * The error of a signer whose call rejected, read by its `code`, without instanceof. A signer's
+ * own SIGN_DECLINED is raised again as a new error, with it as the `cause`: the error the caller
+ * gets may be given the context of a plan, and the signer's is left as it was thrown
+ */
 const signerError = (error: unknown) => {
   const walletCode = walletCodeOf(error);
-  if (walletCode === USER_DECLINED)
+  if (walletCode === USER_DECLINED || TxPlanError.is(error, "SIGN_DECLINED"))
     return new TxPlanError(
       "SIGN_DECLINED",
       `the signer declined to sign: ${errorText(error)}`,
@@ -525,13 +594,41 @@ const isFunction = (value: unknown, name: string) =>
   value !== null &&
   typeof (value as Record<string, unknown>)[name] === "function";
 
-/** A signer by its shape: it has `signTxWitnesses` or `signTx` */
-export const canSign = (value: unknown): value is Signer =>
-  isFunction(value, "signTxWitnesses") || isFunction(value, "signTx");
+/** A wallet of the Mesh 1.9 kind: `getUtxosHex` of `MeshWallet`, `_walletInstance` of `BrowserWallet` */
+const isMeshWallet = (signer: object) =>
+  "getUtxosHex" in signer || "_walletInstance" in signer;
 
-const SIGNER_ALLOWED = "an object with signTxWitnesses or signTx";
+/**
+ * How a signer is asked, by its methods, the first found: `signTxWitnesses`, `signTxHash`, then
+ * `signTx` of a Mesh 1.9 wallet or of a CIP-30 api; a function with none of them is the callback
+ * form of `signTxHash`
+ * @returns undefined for a value that cannot sign
+ */
+export const signerForm = (
+  value: unknown,
+): "witnesses" | "hash" | "callback" | "mesh" | "cip30" | undefined => {
+  if (isFunction(value, "signTxWitnesses")) return "witnesses";
+  if (isFunction(value, "signTxHash")) return "hash";
+  if (isFunction(value, "signTx"))
+    return isMeshWallet(value as object) ? "mesh" : "cip30";
+  if (typeof value === "function") return "callback";
+  return undefined;
+};
+
+/** Whether a signer is asked with the hash of the transaction: `signTxHash` or its callback form */
+export const signsHashes = (signer: Signer) => {
+  const form = signerForm(signer);
+  return form === "hash" || form === "callback";
+};
+
+/** A signer by its shape: one of the forms of `Signer` */
+export const canSign = (value: unknown): value is Signer =>
+  signerForm(value) !== undefined;
+
+const SIGNER_ALLOWED =
+  "an object with signTxWitnesses, signTxHash or signTx, or a function that signs a transaction hash";
 const SIGNERS_ALLOWED =
-  "a signer (signTxWitnesses or signTx), or a list of them";
+  "a signer (signTxWitnesses, signTxHash, signTx, or a function that signs a transaction hash), or a list of them";
 
 /** The JavaScript type of a value, with `null` told apart */
 const typeOf = (value: unknown) => (value === null ? "null" : typeof value);
@@ -539,7 +636,7 @@ const typeOf = (value: unknown) => (value === null ? "null" : typeof value);
 /** What a value given as a signer is, named by its type only */
 const signerKind = (value: unknown) => {
   const type = typeOf(value);
-  return type === "object" ? "an object without either" : type;
+  return type === "object" ? "an object without any of them" : type;
 };
 
 /**
@@ -582,13 +679,14 @@ export const toSigners = (signers: unknown): Signer[] | undefined => {
   return signers.length === 0 ? undefined : (signers as Signer[]);
 };
 
-/** A wallet of the Mesh 1.9 kind: `getUtxosHex` of `MeshWallet`, `_walletInstance` of `BrowserWallet` */
-const isMeshWallet = (signer: object) =>
-  "getUtxosHex" in signer || "_walletInstance" in signer;
-
-/** Calls the signer the way it takes a transaction to sign */
-const callSigner = (signer: Signer, tx: string, keyHashes?: RequiredKeys) => {
-  if (isFunction(signer, "signTxWitnesses")) {
+/** Calls a signer that takes the transaction, the way it takes it */
+const callSigner = (
+  signer: Signer,
+  form: "witnesses" | "mesh" | "cip30",
+  tx: string,
+  keyHashes?: RequiredKeys,
+) => {
+  if (form === "witnesses") {
     const { signTxWitnesses } = signer as Extract<
       Signer,
       { signTxWitnesses: unknown }
@@ -598,7 +696,7 @@ const callSigner = (signer: Signer, tx: string, keyHashes?: RequiredKeys) => {
       : signTxWitnesses.call(signer, tx, keyHashes);
   }
   const { signTx } = signer as Extract<Signer, { signTx: unknown }>;
-  return isMeshWallet(signer)
+  return form === "mesh"
     ? signTx.call(signer, tx, true, false)
     : signTx.call(signer, tx, true);
 };
@@ -623,32 +721,128 @@ const answerWitnessSet = (answer: unknown, raw: RawTx): string => {
   return writeWitnessSet(added, tagged);
 };
 
+/** The SIGNER_FAILED of an answer of a signer of hashes that cannot be used */
+const unusableSignatures = (what: string) =>
+  new TxPlanError("SIGNER_FAILED", `the signer answered with ${what}`, {
+    details: { reason: "error" },
+  });
+
 /**
- * A signer's witnesses as a CBOR witness set, never the transaction. Calls
- * `signTxWitnesses(tx, keyHashes)` when the signer has it, else `signTx`: `signTx(tx, true, false)`
- * on a Mesh wallet, `signTx(tx, true)` on a CIP-30 api. A full transaction in the answer is reduced
- * to the witnesses it adds.
- * @param keyHashes The keys asked for. Only a signer with `signTxWitnesses` is handed the list;
- *   any other signer chooses its keys itself. The answer is returned whole and is not filtered
- *   by the list
- * @throws TxPlanError SIGN_DECLINED when the user declines; SIGNER_FAILED when the signer fails
- *   otherwise, or answers with something that is neither a witness set nor a transaction. The
- *   signer's own error is the `cause`.
- * @throws TxBuildError INVALID_OPTION for a `signer` with neither `signTxWitnesses` nor `signTx`,
- *   and for a `tx` that is not a transaction; the signer is not called. For the signer,
- *   `details.value` is only the JavaScript type of what was given, never the value: something
- *   passed as a signer may hold keys, and `details` is data a logger prints
+ * The `vkey` and `signature` of each entry of the answer of a signer of hashes, copied once.
+ * The answer is read by index and length only, never through its own methods; a getter, a
+ * proxy or anything else that throws while it is read makes the answer unusable, and what it
+ * threw is neither the error nor its `cause`
  */
-export async function signWitnesses(
+const readHashAnswer = (answer: unknown) => {
+  let entries: { vkey: unknown; signature: unknown }[];
+  try {
+    if (!Array.isArray(answer)) return undefined;
+    const list = answer as unknown[];
+    const length = list.length;
+    entries = [];
+    for (let index = 0; index < length; index++) {
+      const entry = list[index];
+      if (typeof entry === "object" && entry !== null) {
+        const { vkey, signature } = entry as Record<string, unknown>;
+        entries.push({ vkey, signature });
+      } else entries.push({ vkey: undefined, signature: undefined });
+    }
+  } catch {
+    throw unusableSignatures("a list that could not be read");
+  }
+  return entries;
+};
+
+/**
+ * The witnesses of the answer of a signer of hashes, each verified against the transaction's
+ * hash with its own key; the key hash is taken from the key. Neither the answer nor a value in
+ * it is quoted in an error
+ */
+const hashAnswerWitnesses = async (
+  answer: unknown,
+  raw: RawTx,
+): Promise<KeyWitness[]> => {
+  const entries = readHashAnswer(answer);
+  if (entries === undefined)
+    throw unusableSignatures(
+      `a value of type ${typeOf(answer)}, not a list of { vkey, signature }`,
+    );
+  await Crypto.ready();
+  const witnesses: KeyWitness[] = [];
+  for (const [index, { vkey, signature }] of entries.entries()) {
+    if (!isHex(vkey) || vkey.length !== 64)
+      throw unusableSignatures(
+        `entry ${index}, whose vkey is not a public key of 32 bytes in hex`,
+      );
+    if (!isHex(signature) || signature.length !== 128)
+      throw unusableSignatures(
+        `entry ${index}, whose signature is not 64 bytes in hex`,
+      );
+    const witness: KeyWitness = {
+      kind: "vkey",
+      vkey: vkey.toLowerCase(),
+      signature: signature.toLowerCase(),
+      keyHash: Crypto.blake2b.hash(HexBlob(vkey.toLowerCase()), 28).toString(),
+    };
+    if (!verifies(witness, raw.txId))
+      throw unusableSignatures(
+        `a signature of key ${witness.keyHash} (entry ${index}) that does not verify against the transaction's hash`,
+      );
+    witnesses.push(witness);
+  }
+  return newWitnesses(witnesses);
+};
+
+/** Asks a signer of hashes, in either form, and returns its verified signatures as a witness set */
+const askHashSigner = async (
   signer: Signer,
-  tx: string,
-  keyHashes?: RequiredKeys,
-): Promise<string> {
-  if (!canSign(signer)) throw invalidSigner("signer", signer);
-  const raw = readTransaction(tx);
+  form: "hash" | "callback",
+  raw: RawTx,
+  keyHashes: RequiredKeys | undefined,
+  signal: AbortSignal | undefined,
+): Promise<string> => {
+  // Nothing is left to sign: the signer is not asked
+  if (keyHashes !== undefined && keyHashes.length === 0) return "a0";
+  const request: TxHashRequest = Object.freeze({
+    txHash: raw.txId,
+    ...(keyHashes !== undefined && {
+      keyHashes: Object.freeze(keyHashes.map((hash) => hash.toLowerCase())),
+    }),
+    tx: raw.hex,
+    ...(signal !== undefined && { signal }),
+  });
   let answer: unknown;
   try {
-    answer = await callSigner(signer, tx, keyHashes);
+    answer =
+      form === "hash"
+        ? await (signer as TxHashSigner).signTxHash(request)
+        : await (signer as SignTxHash)(request);
+  } catch (error) {
+    throw signerError(error);
+  }
+  return writeWitnessSet(await hashAnswerWitnesses(answer, raw), false);
+};
+
+/**
+ * Asks one signer for its witnesses of a transaction, as `signWitnesses` does
+ * @param signer A value `canSign` accepts
+ * @param keyHashes The keys asked for, handed to a signer with `signTxWitnesses` or of hashes
+ * @param signal Handed to a signer of hashes in its request
+ */
+export const askSigner = async (
+  signer: Signer,
+  raw: RawTx,
+  {
+    keyHashes,
+    signal,
+  }: { keyHashes?: RequiredKeys; signal?: AbortSignal } = {},
+): Promise<string> => {
+  const form = signerForm(signer)!;
+  if (form === "hash" || form === "callback")
+    return askHashSigner(signer, form, raw, keyHashes, signal);
+  let answer: unknown;
+  try {
+    answer = await callSigner(signer, form, raw.hex, keyHashes);
   } catch (error) {
     throw signerError(error);
   }
@@ -661,6 +855,36 @@ export async function signWitnesses(
       { details: { reason: "error" }, cause: error },
     );
   }
+};
+
+/**
+ * A signer's witnesses as a CBOR witness set, never the transaction. Calls
+ * `signTxWitnesses(tx, keyHashes)` when the signer has it; else `signTxHash({ txHash, keyHashes,
+ * tx })`, or the signer itself when it is a function, each of whose signatures is verified
+ * against the transaction's hash; else `signTx`: `signTx(tx, true, false)` on a Mesh wallet,
+ * `signTx(tx, true)` on a CIP-30 api. A full transaction in the answer is reduced to the
+ * witnesses it adds.
+ * @param keyHashes The keys asked for. A signer with `signTxWitnesses` or of hashes is handed the
+ *   list, and a signer of hashes is not asked when it is empty; any other signer chooses its keys
+ *   itself. The answer is returned whole and is not filtered by the list
+ * @throws TxPlanError SIGN_DECLINED when the user declines (CIP-30 code 2) or the signer throws
+ *   `TxPlanError` SIGN_DECLINED; SIGNER_FAILED when the signer fails otherwise, answers with
+ *   something that is neither a witness set nor a transaction, or (a signer of hashes) with
+ *   something that is not a list of `{ vkey, signature }` or holds a signature that does not
+ *   verify. The signer's own error is the `cause`.
+ * @throws TxBuildError INVALID_OPTION for a `signer` that is none of the forms of `Signer` (a
+ *   private key given as it is among them), and for a `tx` that is not a transaction; the signer
+ *   is not called. For the signer, `details.value` is only the JavaScript type of what was given,
+ *   never the value: something passed as a signer may hold keys, and `details` is data a logger
+ *   prints
+ */
+export async function signWitnesses(
+  signer: Signer,
+  tx: string,
+  keyHashes?: RequiredKeys,
+): Promise<string> {
+  if (!canSign(signer)) throw invalidSigner("signer", signer);
+  return askSigner(signer, readTransaction(tx), { keyHashes });
 }
 
 const invalidWitness = (

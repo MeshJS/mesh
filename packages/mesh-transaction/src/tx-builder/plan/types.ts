@@ -132,7 +132,11 @@ export type ResumeOptions = {
  * never written
  */
 export type SendOptions = WaitOptions & {
-  /** Who signs an attempt that still needs signatures; else the plan's payer, if it can sign */
+  /**
+   * Who signs an attempt that still needs signatures; else the plan's payer, if it can sign.
+   * Each is asked once, in order; a signer that takes a list of keys is handed those that have
+   * not signed yet, and a signer of transaction hashes is not asked when none is left
+   */
   signers?: Signer | readonly Signer[];
   /**
    * Who submits; else the builder's submitter, else the provider. A wallet submits only when it
@@ -143,7 +147,11 @@ export type SendOptions = WaitOptions & {
 
 /** The options of one call of `sign()` */
 export type SignOptions = {
-  /** Who signs; else the plan's payer, if it can sign */
+  /**
+   * Who signs; else the plan's payer, if it can sign. Each is asked once, in order; a signer that
+   * takes a list of keys is handed those that have not signed yet, and a signer of transaction
+   * hashes is not asked when none is left
+   */
   signers?: Signer | readonly Signer[];
   /** Aborts the call with ABORTED; signatures already recorded stay */
   signal?: AbortSignal;

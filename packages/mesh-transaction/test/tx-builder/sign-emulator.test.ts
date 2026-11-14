@@ -6,6 +6,7 @@ import {
   signWitnesses as signWitnessesOfCore,
   UTxO,
 } from "@meshsdk/core";
+import { Crypto } from "@meshsdk/core-cst";
 import { TxEmulator, TxResult } from "@meshsdk/tx-emulator";
 import { AppWallet, MeshWallet } from "@meshsdk/wallet";
 
@@ -25,6 +26,7 @@ import {
 } from "../../src/tx-builder";
 import { cip30Wallet } from "../cip30-wallet";
 import { alwaysSucceedCbor, baseAddress, vestingCbor } from "../test-util";
+import { keysSigner, testKey } from "./hash-signer-util";
 
 const words = Array(24).fill("solution");
 const recipient = baseAddress(2);
@@ -274,6 +276,46 @@ describe.each(["scalus", "cquisitor"] as const)(
       );
       expect(await emulator.submitTx(second)).toBe(built.txHash);
     });
+
+    it.each(["object", "callback"] as const)(
+      "signs a payment and a key the transaction requires with a signer of hashes (%s)",
+      async (form) => {
+        const { emulator, builder } = await setup(validator);
+        await Crypto.ready();
+        const payer = testKey();
+        const cosigner = testKey();
+        emulator.fund(payer.address, { lovelace: 100_000_000n });
+        const built = await builder.build(
+          [
+            output({ address: recipient, value: { lovelace: 5_000_000n } }),
+            guard.pubKey({ keyHash: cosigner.keyHash }),
+          ],
+          { payer: payer.address },
+        );
+        expectAgrees(built);
+        expect([...built.signers.keyHashes].sort()).toEqual(
+          [payer.keyHash, cosigner.keyHash].sort(),
+        );
+
+        // Without the signatures the ledger refuses it
+        const unsigned = await emulator.simulate(built.tx);
+        expect(unsigned.accepted).toBe(false);
+        expect(rules(unsigned)).toContain(missingKeyRule[validator]);
+
+        const signer = keysSigner(form, payer, cosigner);
+        const witnesses = await signWitnesses(
+          signer.signer,
+          built.tx,
+          built.signers.keyHashes,
+        );
+        expect(signer.requests[0]!.txHash).toBe(built.txHash);
+        const signed = await addWitnesses(built.tx, witnesses);
+        expect((await signedKeyHashes(signed)).sort()).toEqual(
+          [payer.keyHash, cosigner.keyHash].sort(),
+        );
+        expect(await emulator.submitTx(signed)).toBe(built.txHash);
+      },
+    );
   },
 );
 

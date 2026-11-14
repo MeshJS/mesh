@@ -44,16 +44,18 @@ import { collateral, spend, validity } from "../parts";
 import { outRefOf, plainUtxo, utxoKey } from "../parts/utxo";
 import { toPayerSource } from "../payer";
 import {
+  askSigner,
   canSign,
   readTransaction,
   readWitnessArgument,
-  signWitnesses,
+  signsHashes,
   toSigners,
   verifies,
   withWitnesses,
   witnessesToAdd,
   writeWitnessSet,
 } from "../sign";
+import { countedKeys } from "../witnesses";
 import {
   advancePlan,
   currentAttempt,
@@ -263,7 +265,9 @@ const isFunction = (value: unknown, name: string) =>
 
 /** A wallet given as a submitter: its errors are never refusals of the ledger */
 const isWallet = (value: object) =>
-  isFunction(value, "getChangeAddress") || canSign(value);
+  isFunction(value, "getChangeAddress") ||
+  isFunction(value, "signTxWitnesses") ||
+  isFunction(value, "signTx");
 
 const isAbortSignal = (value: unknown): value is AbortSignal =>
   typeof value === "object" &&
@@ -433,29 +437,6 @@ const answeredHash = (answer: unknown): string | undefined => {
     .trim()
     .toLowerCase();
   return /^[0-9a-f]{64}$/.test(hash) ? hash : undefined;
-};
-
-/** The keys a native script names, every one of which the fee counts */
-const nativeKeys = (
-  scripts: BuiltTx["signers"]["nativeScripts"],
-): Set<string> => {
-  const keys = new Set<string>();
-  const visit = (script: (typeof scripts)[number]) => {
-    switch (script.type) {
-      case "SCRIPT_PUBKEY":
-        keys.add(script.value.addr_keyhash);
-        return;
-      case "SCRIPT_ALL":
-      case "SCRIPT_ANY":
-      case "SCRIPT_N_OF_K":
-        script.value.native_scripts.forEach(visit);
-        return;
-      default:
-        return;
-    }
-  };
-  scripts.forEach(visit);
-  return keys;
 };
 
 /** An attempt as the public `TxAttempt`: without the library's fields */
@@ -872,11 +853,13 @@ export class TxPlan {
 
   /**
    * Signs the current attempt with the call's signers, else with the plan's payer when it can
-   * sign, each asked once, and records the witnesses it got: those of the keys the fee counts
-   * (the keys the attempt needs and those its native scripts name, and `extraKeyWitnesses`
-   * more); others are dropped. With every needed key the attempt is `signed`; else it stays
-   * `built` and `missing` lists the rest. A signer is waited for no longer than the attempt's
-   * `until`, by the tip read once before asking.
+   * sign, each asked once, in order (a signer that takes a list of keys is handed those that
+   * have not signed yet, and a signer of transaction hashes is not asked when none is left), and
+   * records the witnesses it got: those of the keys the fee counts (the keys the attempt needs
+   * and those its native scripts name, and `extraKeyWitnesses` more); others are dropped. With
+   * every needed key the attempt is `signed`; else it stays `built` and `missing` lists the rest.
+   * A signer is waited for no longer than the attempt's `until`, by the tip read once before
+   * asking.
    * @throws TxPlanError MISSING_SIGNATURES when nobody can sign: no signers given (an empty
    *   list gives none), and a payer that cannot sign;
    *   SIGN_DECLINED, SIGNER_FAILED (`timeout` past the deadline, also without asking when no
@@ -3020,7 +3003,9 @@ export class TxPlan {
 
   /**
    * Asks each signer once for the current attempt, sharing the time left to its `until` by the
-   * tip; records what each gives as it comes
+   * tip; records what each gives as it comes. A signer that takes a list of keys is handed those
+   * that have not signed yet, and a signer of hashes, the call's signal too; a signer of hashes
+   * is skipped when no key is left
    */
   async #signWith(
     state: PlanState,
@@ -3031,12 +3016,7 @@ export class TxPlan {
     const since = state.storeReads;
     const attempt = currentAttempt(state.record)!;
     const built = attempt.built!;
-    const keys = [
-      ...new Set([
-        ...built.signers.keyHashes,
-        ...nativeKeys(built.signers.nativeScripts),
-      ]),
-    ];
+    const keys = countedKeys(built.signers);
     const raw = readTransaction(built.tx);
     const timeout = () =>
       this.#error(
@@ -3047,10 +3027,18 @@ export class TxPlan {
     const endsAt =
       tip === undefined ? undefined : Date.now() + (attempt.until - tip.timeMs);
     for (const signer of signers) {
+      // The keys that have not signed yet, by the record as it is now
+      const now =
+        state.record.attempts.find((a) => a.txHash === attempt.txHash) ??
+        attempt;
+      const signed = new Set(now.witnesses.map((w) => w.keyHash));
+      const unsigned = keys.filter((key) => !signed.has(key));
+      // A signer of hashes is not asked when nothing is left for it to sign
+      if (unsigned.length === 0 && signsHashes(signer)) continue;
       const left = endsAt === undefined ? undefined : endsAt - Date.now();
       if (left !== undefined && left <= 0) throw timeout();
       const answer = await abortable(
-        within(signWitnesses(signer, built.tx, keys), left),
+        within(askSigner(signer, raw, { keyHashes: unsigned, signal }), left),
         signal,
         CALL,
       );
@@ -3123,10 +3111,7 @@ export class TxPlan {
     offered: readonly KeyWitness[],
   ): Witness[] {
     const built = attempt.built!;
-    const priced = new Set([
-      ...built.signers.keyHashes,
-      ...nativeKeys(built.signers.nativeScripts),
-    ]);
+    const priced = new Set(countedKeys(built.signers));
     // Counted against the record as it is now, which may hold more than when the call started
     const now =
       record.attempts.find((a) => a.txHash === attempt.txHash) ?? attempt;

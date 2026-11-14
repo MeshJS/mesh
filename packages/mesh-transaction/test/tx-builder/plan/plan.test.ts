@@ -324,15 +324,11 @@ describe("TxBuilder.plan", () => {
       "ed25519_sk",
       bech32.toWords(Buffer.from(key, "hex")),
     );
-    const marker = `source-${randomBytes(8).toString("hex")}`;
-    // A function whose source text holds the marker and the key
-    const sourceHolder = new Function(`return "${marker} ${key}";`);
     const cases: [string, unknown, string, string[]][] = [
       ["a key in hex", key, "string", [key, key.toUpperCase()]],
       ["a key in bech32", bech32Key, "string", [bech32Key]],
       ["a list holding a key", [key], "object", [key]],
       ["an object holding a key", { privateKey: key }, "object", [key]],
-      ["a function", sourceHolder, "function", [marker, key]],
     ];
 
     /** Every text an error shows: its message, stack, details and cause, as printed and as JSON */
@@ -356,7 +352,7 @@ describe("TxBuilder.plan", () => {
           );
           expect(error.details.option).toBe("signers");
           expect(error.details.allowed).toBe(
-            "a signer (signTxWitnesses or signTx), or a list of them",
+            "a signer (signTxWitnesses, signTxHash, signTx, or a function that signs a transaction hash), or a list of them",
           );
           // Compared as a boolean: on a failure the value given is not printed
           expect(error.details.value === type).toBe(true);
@@ -396,6 +392,25 @@ describe("TxBuilder.plan", () => {
       // The signer is taken: the call goes on to the draft, which has no attempt to sign
       const error = await caught(plan.sign({ signers: signer }));
       expect(TxError.is(error, "INVALID_STATE")).toBe(true);
+    });
+
+    it("takes a bare function as a signer of transaction hashes, without calling it", async () => {
+      const { provider } = countingProvider();
+      const builder = new TxBuilder({ network: "preprod", provider });
+      const plan = builder.plan(pay(), { payer: baseAddress(9) });
+      let called = 0;
+      const signer = async () => {
+        called++;
+        return [];
+      };
+      // The signer is taken: the call goes on to the draft, which has no attempt to sign
+      const error = await caught(plan.sign({ signers: signer }));
+      expect(TxError.is(error, "INVALID_STATE")).toBe(true);
+      for (const method of ["send", "advance"] as const) {
+        const failed = await caught(plan[method]({ signers: [signer] }));
+        expect(TxError.is(failed, "INVALID_OPTION")).toBe(false);
+      }
+      expect(called).toBe(0);
     });
   });
 

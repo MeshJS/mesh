@@ -1,15 +1,18 @@
 import { deserializeAddress } from "@meshsdk/core";
+import { Crypto } from "@meshsdk/core-cst";
 
-import type { TxPlanError } from "../../../src/tx-builder";
+import type { Signer, TxPlanError } from "../../../src/tx-builder";
 import {
   addWitnesses,
   guard,
   signWitnesses,
   spend,
   TxError,
+  TxPlanError as TxPlanErrorClass,
   validity,
 } from "../../../src/tx-builder";
 import { recordOf } from "../../../src/tx-builder/plan/plan";
+import { hashSigner, keysSigner, testKey } from "../hash-signer-util";
 import {
   caught,
   pay,
@@ -434,3 +437,204 @@ describe("TxPlan signing on TxEmulator", () => {
     expect(extra.status).toBe("final");
   });
 });
+
+describe.each(["object", "callback"] as const)(
+  "TxPlan with a signer of transaction hashes (%s) on TxEmulator",
+  (form) => {
+    beforeAll(() => Crypto.ready());
+
+    it("signs in sign(), send() and advance()", async () => {
+      const { emulator, builder } = await setup();
+      const key = testKey();
+      emulator.fund(key.address, { lovelace: 100_000_000n });
+
+      const viaSign = builder.plan(pay(), { payer: key.address });
+      const built = await viaSign.build();
+      const signer = keysSigner(form, key);
+      await viaSign.sign({ signers: signer.signer });
+      expect(viaSign.status).toBe("signed");
+      expect(await signedBy(viaSign.signedTx!)).toEqual([key.keyHash]);
+      expect(signer.requests).toHaveLength(1);
+      expect(signer.requests[0]!.txHash).toBe(built.txHash);
+      expect(signer.requests[0]!.tx).toBe(built.tx);
+      expect(signer.requests[0]!.keyHashes).toEqual([key.keyHash]);
+      await viaSign.send({ waitFor: "included" });
+      expect(viaSign.status).toBe("final");
+
+      const viaSend = builder.plan(pay(), { payer: key.address });
+      await viaSend.send({
+        signers: keysSigner(form, key).signer,
+        waitFor: "included",
+      });
+      expect(viaSend.status).toBe("final");
+
+      const viaAdvance = builder.plan(pay(), { payer: key.address });
+      await viaAdvance.advance({
+        signers: [keysSigner(form, key).signer],
+        waitFor: "included",
+      });
+      expect(viaAdvance.status).toBe("final");
+    });
+
+    it("hands each signer the keys not signed yet, skips a signer of hashes with none left, and passes the signal", async () => {
+      const { builder, wallet } = await setup();
+      const payerKey = await keyOf(wallet);
+      const first = testKey();
+      const second = testKey();
+      const lists: (readonly string[] | undefined)[] = [];
+      /** The payer's wallet, recording the keys it is asked for */
+      const recorded = (
+        ...[tx, keyHashes]: Parameters<typeof wallet.signTxWitnesses>
+      ) => {
+        lists.push(keyHashes);
+        return wallet.signTxWitnesses(tx, keyHashes);
+      };
+      const plan = builder.plan(
+        [
+          pay(),
+          guard.pubKey({ keyHash: first.keyHash }),
+          guard.pubKey({ keyHash: second.keyHash }),
+        ],
+        { payer: wallet },
+      );
+      await plan.build();
+      const both = keysSigner(form, first, second);
+      const late = keysSigner(form, first, second);
+      const controller = new AbortController();
+      await plan.sign({
+        signers: [
+          { signTxWitnesses: recorded },
+          both.signer,
+          late.signer,
+          { signTxWitnesses: recorded },
+        ],
+        signal: controller.signal,
+      });
+      expect(plan.status).toBe("signed");
+      expect([...lists[0]!].sort()).toEqual(
+        [payerKey, first.keyHash, second.keyHash].sort(),
+      );
+      expect(both.requests).toHaveLength(1);
+      expect([...both.requests[0]!.keyHashes!].sort()).toEqual(
+        [first.keyHash, second.keyHash].sort(),
+      );
+      expect(both.requests[0]!.signal).toBe(controller.signal);
+      // Nothing left: the signer of hashes is not asked, a wallet still is, with an empty list
+      expect(late.requests).toEqual([]);
+      expect(lists).toHaveLength(2);
+      expect(lists[1]).toEqual([]);
+      expect(await signedBy(plan.signedTx!)).toEqual(
+        [payerKey, first.keyHash, second.keyHash].sort(),
+      );
+
+      // A signer of hashes after a wallet is asked only for what the wallet left
+      const after = builder.plan(
+        [pay(), guard.pubKey({ keyHash: first.keyHash })],
+        { payer: wallet },
+      );
+      await after.build();
+      const cosigner = keysSigner(form, first);
+      await after.sign({ signers: [wallet, cosigner.signer] });
+      expect(cosigner.requests[0]!.keyHashes).toEqual([first.keyHash]);
+      expect("signal" in cosigner.requests[0]!).toBe(false);
+      expect(after.status).toBe("signed");
+    });
+
+    it("is SIGNER_FAILED for a signature that does not verify, SIGN_DECLINED for a decline, and changes nothing", async () => {
+      const { builder, wallet } = await setup();
+      const key = testKey();
+      const plan = builder.plan(
+        [pay(), guard.pubKey({ keyHash: key.keyHash })],
+        { payer: wallet },
+      );
+      const built = await plan.build();
+      const forged = hashSigner(form, () => [
+        { vkey: key.vkey, signature: key.sign("cd".repeat(32)) },
+      ]);
+      const failed = (await caught(
+        plan.sign({ signers: [wallet, forged.signer] }),
+      )) as TxPlanError<"SIGNER_FAILED">;
+      expectCode(failed, "SIGNER_FAILED");
+      expect(failed.details.reason).toBe("error");
+      expect(plan.status).toBe("built");
+      // The wallet's signature, asked first, is kept
+      expect(plan.missing.map((k) => k.keyHash)).toEqual([key.keyHash]);
+
+      const declined = new TxPlanErrorClass("SIGN_DECLINED", "not today");
+      const declining = hashSigner(form, () => Promise.reject(declined));
+      const error = await caught(plan.send({ signers: declining.signer }));
+      expectCode(error, "SIGN_DECLINED");
+      expect(error).not.toBe(declined);
+      expect((error as TxPlanError).cause).toBe(declined);
+      expect(plan.status).toBe("built");
+      expect(plan.txHash).toBe(built.txHash);
+      expect(plan.attempts).toHaveLength(1);
+
+      await plan.sign({ signers: keysSigner(form, key).signer });
+      expect(plan.status).toBe("signed");
+    });
+
+    it("waits for a signer of hashes no longer than the attempt's deadline", async () => {
+      const { builder, wallet } = await setup();
+      const key = testKey();
+      const plan = builder.plan(
+        [pay(), guard.pubKey({ keyHash: key.keyHash })],
+        { payer: wallet, ttlMs: 1_000 },
+      );
+      await plan.build();
+      const silent = hashSigner(form, () => new Promise(() => undefined));
+      const error = (await caught(
+        plan.sign({ signers: silent.signer }),
+      )) as TxPlanError<"SIGNER_FAILED">;
+      expectCode(error, "SIGNER_FAILED");
+      expect(error.details.reason).toBe("timeout");
+      expect(silent.requests).toHaveLength(1);
+      expect(plan.status).toBe("built");
+    }, 10_000);
+
+    it("does not hold a signer of hashes with no key left to the attempt's deadline", async () => {
+      const { builder, wallet } = await setup();
+      const realNow = Date.now;
+      /** The payer's wallet, which signs every key; the clock is then past the deadline */
+      const lateWallet = {
+        signTxWitnesses: async (
+          ...[tx, keyHashes]: Parameters<typeof wallet.signTxWitnesses>
+        ) => {
+          const witnesses = await wallet.signTxWitnesses(tx, keyHashes);
+          Date.now = () => realNow() + 3_600_000;
+          return witnesses;
+        },
+      };
+      /** The error of `sign` with the wallet and then `next`, or undefined when it signs */
+      const signWith = async (
+        plan: ReturnType<typeof builder.plan>,
+        next: Signer,
+      ): Promise<unknown> => {
+        try {
+          await plan.sign({ signers: [lateWallet, next] });
+          return undefined;
+        } catch (error) {
+          return error;
+        } finally {
+          Date.now = realNow;
+        }
+      };
+
+      const plan = builder.plan(pay(), { payer: wallet, ttlMs: 60_000 });
+      await plan.build();
+      const hashes = keysSigner(form, testKey());
+      expect(await signWith(plan, hashes.signer)).toBeUndefined();
+      expect(hashes.requests).toEqual([]);
+      expect(plan.status).toBe("signed");
+
+      // The deadline has passed: a wallet asked next is not waited for
+      const other = builder.plan(pay(), { payer: wallet, ttlMs: 60_000 });
+      await other.build();
+      const timedOut = (await signWith(other, {
+        signTxWitnesses: () => Promise.resolve("a0"),
+      })) as TxPlanError<"SIGNER_FAILED">;
+      expectCode(timedOut, "SIGNER_FAILED");
+      expect(timedOut.details.reason).toBe("timeout");
+    });
+  },
+);

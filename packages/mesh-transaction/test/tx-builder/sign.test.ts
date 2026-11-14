@@ -18,6 +18,7 @@ import {
 import {
   CborReader,
   CborWriter,
+  Crypto,
   HexBlob,
   keyHashToRewardAddress,
   scriptHashToRewardAddress,
@@ -47,12 +48,14 @@ import {
   requiredSigners,
   signedKeyHashes,
   Signer,
+  SignTxHash,
   signWitnesses,
   spend,
   toUtxo,
   TxBuilder,
   TxBuildError,
   TxError,
+  TxHashSigner,
   TxPlanError,
   TxPlanErrorCode,
   TxPlanErrorDetails,
@@ -63,12 +66,14 @@ import {
   withdrawal,
 } from "../../src/tx-builder";
 import { feeForSize } from "../../src/tx-builder/fee";
+import { askSigner, readTransaction } from "../../src/tx-builder/sign";
 import {
   alwaysSucceedCbor,
   baseAddress,
   keyHashHex,
   vrfKeyHashHex,
 } from "../test-util";
+import { hashSigner, TestKey, testKey } from "./hash-signer-util";
 import { ref } from "./utxo-util";
 
 const network = "preprod";
@@ -1143,7 +1148,8 @@ describe("signWitnesses", () => {
     expect(error.details).toEqual({
       option: "signer",
       value: type,
-      allowed: "an object with signTxWitnesses or signTx",
+      allowed:
+        "an object with signTxWitnesses, signTxHash or signTx, or a function that signs a transaction hash",
     });
     expect(error.message).not.toContain("secret");
   });
@@ -1301,6 +1307,7 @@ describe("signWitnesses", () => {
   describe("a failing signer", () => {
     const forms: [string, string[], object][] = [
       ["signTxWitnesses", ["signTxWitnesses"], {}],
+      ["signTxHash", ["signTxHash"], {}],
       ["a Mesh wallet", ["signTx"], { getUtxosHex: () => [] }],
       ["a CIP-30 api", ["signTx"], {}],
     ];
@@ -1323,6 +1330,18 @@ describe("signWitnesses", () => {
         { code: -2, info: "x" },
         "SIGNER_FAILED",
         { reason: "error", walletCode: -2 },
+      ],
+      [
+        "a TxPlanError SIGN_DECLINED",
+        new TxPlanError("SIGN_DECLINED", "no"),
+        "SIGN_DECLINED",
+        undefined,
+      ],
+      [
+        "a TxPlanError of another code",
+        new TxPlanError("MISSING_ID", "no"),
+        "SIGNER_FAILED",
+        { reason: "error" },
       ],
       ["an Error", new Error("x"), "SIGNER_FAILED", { reason: "error" }],
       ["a string", "x", "SIGNER_FAILED", { reason: "error" }],
@@ -1382,6 +1401,336 @@ describe("signWitnesses", () => {
   });
 });
 
+describe("signWitnesses with a signer of transaction hashes", () => {
+  let tx: string;
+  let txHash: string;
+  let paymentSet: string;
+  beforeAll(async () => {
+    await Crypto.ready();
+    tx = (await payment()).tx;
+    txHash = txIdOf(tx);
+    paymentSet = await paymentWitnesses(tx);
+  });
+
+  describe.each(["object", "callback"] as const)("as %s", (form) => {
+    it("is asked with the body's hash, the keys in lower case, and the transaction", async () => {
+      const key = testKey();
+      const asked = hashSigner(form, (r) => [key.answer(r.txHash)]);
+      const keyHashes = [key.keyHash.toUpperCase(), "ab".repeat(28)];
+      const result = await signWitnesses(asked.signer, tx, keyHashes);
+
+      expect(asked.requests).toHaveLength(1);
+      const request = asked.requests[0]!;
+      expect(request.txHash).toBe(txHash);
+      expect(request.txHash).toBe(readTransaction(tx).txId);
+      expect(request.keyHashes).toEqual([key.keyHash, "ab".repeat(28)]);
+      expect(Object.isFrozen(request)).toBe(true);
+      expect(Object.isFrozen(request.keyHashes)).toBe(true);
+      expect(request.tx).toBe(tx);
+      expect("signal" in request).toBe(false);
+      // The list given is not the one handed on, and is left as it was
+      expect(keyHashes[0]).toBe(key.keyHash.toUpperCase());
+
+      expect(vkeysOfSet(result)).toEqual([key.vkey]);
+      const signed = await addWitnesses(tx, result);
+      expect(await signedKeyHashes(signed)).toEqual([key.keyHash]);
+    });
+
+    it("is asked without keyHashes when none are given, and with the call's signal", async () => {
+      const key = testKey();
+      const asked = hashSigner(form, (r) => [key.answer(r.txHash)]);
+      await signWitnesses(asked.signer, tx);
+      expect("keyHashes" in asked.requests[0]!).toBe(false);
+
+      const signal = new AbortController().signal;
+      const result = await askSigner(asked.signer, readTransaction(tx), {
+        keyHashes: [key.keyHash],
+        signal,
+      });
+      expect(asked.requests[1]!.signal).toBe(signal);
+      expect(vkeysOfSet(result)).toEqual([key.vkey]);
+    });
+
+    it("is not asked when no key is left to sign", async () => {
+      const asked = hashSigner(form, () => []);
+      expect(await signWitnesses(asked.signer, tx, [])).toBe("a0");
+      expect(asked.requests).toEqual([]);
+    });
+
+    it("reads an empty answer as the empty witness set", async () => {
+      const asked = hashSigner(form, () => []);
+      expect(await signWitnesses(asked.signer, tx, ["ab".repeat(28)])).toBe(
+        "a0",
+      );
+      expect(asked.requests).toHaveLength(1);
+    });
+
+    it("keeps a key's signature once, and one of a key not asked for", async () => {
+      const key = testKey();
+      const other = testKey();
+      const asked = hashSigner(form, (r) => [
+        key.answer(r.txHash),
+        key.answer(r.txHash),
+        other.answer(r.txHash),
+      ]);
+      const result = await signWitnesses(asked.signer, tx, [key.keyHash]);
+      expect(vkeysOfSet(result)).toEqual([key.vkey, other.vkey]);
+    });
+
+    it.each([
+      ["a value that is not a list", () => ({})],
+      ["null", () => null],
+      ["a witness set", () => "a0"],
+      ["an entry that is not an object", () => ["ab"]],
+      [
+        "an entry without a signature",
+        (k: TestKey, h: string) => [{ vkey: k.vkey, h }],
+      ],
+      [
+        "a vkey as bytes",
+        (k: TestKey, h: string) => [
+          { vkey: Buffer.from(k.vkey, "hex"), signature: k.sign(h) },
+        ],
+      ],
+      [
+        "a signature as bytes",
+        (k: TestKey, h: string) => [
+          { vkey: k.vkey, signature: Buffer.from(k.sign(h), "hex") },
+        ],
+      ],
+      [
+        "a vkey of 31 bytes",
+        (k: TestKey, h: string) => [
+          { vkey: k.vkey.slice(2), signature: k.sign(h) },
+        ],
+      ],
+      [
+        "a signature of another hash",
+        (k: TestKey) => [{ vkey: k.vkey, signature: k.sign("cd".repeat(32)) }],
+      ],
+      [
+        "a signature of the hash's hex text",
+        (k: TestKey, h: string) => [
+          {
+            vkey: k.vkey,
+            signature: k.sign(Buffer.from(h, "utf8").toString("hex")),
+          },
+        ],
+      ],
+      [
+        "another key's vkey",
+        (k: TestKey, h: string) => [
+          { vkey: testKey().vkey, signature: k.sign(h) },
+        ],
+      ],
+      [
+        "a good signature followed by one that does not verify",
+        (k: TestKey, h: string) => [
+          k.answer(h),
+          { vkey: k.vkey, signature: k.sign("cd".repeat(32)) },
+        ],
+      ],
+    ])("refuses %s as SIGNER_FAILED", async (_, answer) => {
+      const key = testKey();
+      const asked = hashSigner(form, (r) =>
+        (answer as (k: TestKey, h: string) => unknown)(key, r.txHash),
+      );
+      const error = await planError(
+        () => signWitnesses(asked.signer, tx, [key.keyHash]),
+        "SIGNER_FAILED",
+      );
+      expect(error.details).toEqual({ reason: "error" });
+      expect(error.cause).toBeUndefined();
+      expect(asked.requests).toHaveLength(1);
+    });
+
+    it("declines on a TxPlanError SIGN_DECLINED or a CIP-30 code 2, and fails on anything else", async () => {
+      const declined = new TxPlanError("SIGN_DECLINED", "the operator said no");
+      for (const [thrown, code] of [
+        [declined, "SIGN_DECLINED"],
+        [{ code: 2, info: "no" }, "SIGN_DECLINED"],
+        [new Error("down"), "SIGNER_FAILED"],
+        ["down", "SIGNER_FAILED"],
+      ] as const) {
+        const asked = hashSigner(form, () => Promise.reject(thrown));
+        const error = await planError(
+          () => signWitnesses(asked.signer, tx, ["ab".repeat(28)]),
+          code,
+        );
+        expect(error.cause).toBe(thrown);
+        if (code === "SIGNER_FAILED")
+          expect(error.details).toEqual({ reason: "error" });
+      }
+      // A new error: the signer's own is left as it was thrown
+      const error = await planError(
+        () =>
+          signWitnesses(
+            hashSigner(form, () => Promise.reject(declined)).signer,
+            tx,
+            ["ab".repeat(28)],
+          ),
+        "SIGN_DECLINED",
+      );
+      expect(error).not.toBe(declined);
+      expect(error.message).toContain("the operator said no");
+      expect(declined.message).toBe("the operator said no");
+    });
+
+    it("fails on a signer that throws at once", async () => {
+      const thrown = new Error("thrown at once");
+      let calls = 0;
+      // Throws during the call itself, before any promise exists
+      const throwing = () => {
+        calls++;
+        throw thrown;
+      };
+      const signer: Signer =
+        form === "object"
+          ? { signTxHash: throwing as TxHashSigner["signTxHash"] }
+          : (throwing as SignTxHash);
+      const error = await planError(
+        () => signWitnesses(signer, tx, ["ab".repeat(28)]),
+        "SIGNER_FAILED",
+      );
+      expect(calls).toBe(1);
+      expect(error.cause).toBe(thrown);
+      expect(error.details).toEqual({ reason: "error" });
+    });
+
+    it.each([
+      [
+        "an entry whose vkey getter throws",
+        (k: TestKey, h: string, thrown: unknown) => [
+          {
+            get vkey(): string {
+              throw thrown;
+            },
+            signature: k.sign(h),
+          },
+        ],
+      ],
+      [
+        "a list whose reading throws",
+        (_k: TestKey, _h: string, thrown: unknown) =>
+          // Not a thenable, so the signer's promise resolves to it
+          new Proxy([], {
+            get(_target, name) {
+              if (name === "then") return undefined;
+              throw thrown;
+            },
+          }),
+      ],
+    ])(
+      "refuses %s as SIGNER_FAILED, without what was thrown",
+      async (_, answer) => {
+        const key = testKey();
+        for (const thrown of [
+          new Error("thrown while read"),
+          new TxPlanError("SIGN_DECLINED", "thrown while read"),
+        ]) {
+          const asked = hashSigner(form, (r) => answer(key, r.txHash, thrown));
+          const error = await planError(
+            () => signWitnesses(asked.signer, tx, [key.keyHash]),
+            "SIGNER_FAILED",
+          );
+          expect(error).not.toBe(thrown);
+          expect(error.details).toEqual({ reason: "error" });
+          expect(error.cause).toBeUndefined();
+          expect(error.message.includes("thrown while read")).toBe(false);
+          // The thrown error is left as it was
+          expect(thrown.message).toBe("thrown while read");
+        }
+      },
+    );
+
+    it("reads the answer by index, never through its own methods", async () => {
+      const key = testKey();
+      const asked = hashSigner(form, (r) => {
+        const list = [key.answer(r.txHash)];
+        for (const name of ["entries", "values", Symbol.iterator] as const)
+          Object.defineProperty(list, name, {
+            value: () => {
+              throw new Error("not to be called");
+            },
+          });
+        return list;
+      });
+      const result = await signWitnesses(asked.signer, tx, [key.keyHash]);
+      expect(vkeysOfSet(result)).toEqual([key.vkey]);
+    });
+  });
+
+  it("calls the callback form without a this, and signTxHash on its object", async () => {
+    const callback = hashSigner("callback", () => []);
+    await signWitnesses(callback.signer, tx, ["ab".repeat(28)]);
+    expect(callback.self).toEqual([undefined]);
+    const object = hashSigner("object", () => []);
+    await signWitnesses(object.signer, tx, ["ab".repeat(28)]);
+    expect(object.self).toEqual([object.signer]);
+  });
+
+  it("tells the forms apart by their methods: signTxWitnesses, signTxHash, then signTx", async () => {
+    const key = testKey();
+    const calls: string[] = [];
+    const method = (name: string, answer: () => unknown) => async () => {
+      calls.push(name);
+      return answer();
+    };
+    const witnesses = method("signTxWitnesses", () => paymentSet);
+    const hash = method("signTxHash", () => [key.answer(txHash)]);
+    const signTx = method("signTx", () => paymentSet);
+
+    const cases: [unknown, string][] = [
+      [
+        { signTxWitnesses: witnesses, signTxHash: hash, signTx },
+        "signTxWitnesses",
+      ],
+      [{ signTxHash: hash, signTx }, "signTxHash"],
+      [{ signTx }, "signTx"],
+      [
+        Object.assign(
+          method("callback", () => []),
+          { signTxHash: hash },
+        ),
+        "signTxHash",
+      ],
+      [
+        Object.assign(
+          method("callback", () => []),
+          { signTx },
+        ),
+        "signTx",
+      ],
+      [
+        Object.assign(
+          method("callback", () => []),
+          { signTxHash: "no" },
+        ),
+        "callback",
+      ],
+    ];
+    for (const [signer, called] of cases) {
+      calls.length = 0;
+      await signWitnesses(signer as Signer, tx, [key.keyHash]);
+      expect(calls).toEqual([called]);
+    }
+  });
+
+  it("is a signer only by its methods: other values are refused, naming only their type", async () => {
+    for (const [value, type] of [
+      [{ signTxHash: "not a function" }, "object"],
+      ["ab".repeat(32), "string"],
+      [[async () => []], "object"],
+    ] as const) {
+      const error = await buildError(
+        () => signWitnesses(value as unknown as Signer, tx),
+        "INVALID_OPTION",
+      );
+      expect(error.details.value).toBe(type);
+    }
+  });
+});
+
 /** The witness set of a transaction, in hex */
 const witnessSetOf = (tx: string) => topItems(tx)[1]!;
 
@@ -1394,7 +1743,21 @@ describe("types", () => {
     const withWitnesses: Signer = {
       signTxWitnesses: async () => "a0",
     };
-    void [meshWallet, fromCip30, browser, withWitnesses];
+    const ofHashes: TxHashSigner = {
+      signTxHash: async ({ txHash, keyHashes, tx, signal }) => {
+        void [txHash, keyHashes, tx, signal];
+        return [];
+      },
+    };
+    const callback: SignTxHash = async (request) =>
+      request.keyHashes === undefined ? [] : [];
+    const signers: Signer[] = [ofHashes, callback, async () => []];
+    // @ts-expect-error: a signer of hashes answers with signatures, not a witness set
+    const witnessSetCallback: Signer = async () => "a0";
+    // @ts-expect-error: the request is read only
+    const writes: SignTxHash = async (request) => ((request.txHash = ""), []);
+    void [meshWallet, fromCip30, browser, withWitnesses, signers];
+    void [witnessSetCallback, writes];
 
     // @ts-expect-error: no such code
     const noSigner: TxPlanErrorCode = "NO_SIGNER";
