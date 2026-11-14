@@ -123,10 +123,12 @@ import {
 import { givenAsSigner, optionsObject, typeOf } from "./options";
 import {
   errorText,
+  fail,
   freeze,
   isWholeNumber,
   outRefString,
   paymentCredential,
+  toStepLink,
 } from "./parts/normalize";
 import {
   outputAsUtxo,
@@ -462,10 +464,64 @@ const invalidParts = (entry: unknown, reason: string) =>
     details: { option: "parts", value: entry, allowed: PARTS_ALLOWED },
   });
 
+/** The members a part linked to an earlier step has beside kind, label and link, by its kind */
+const LINKED_MEMBERS: Readonly<
+  Partial<Record<TxPart["kind"], readonly string[]>>
+> = { spend: ["witness"], referenceInput: [], collateral: [] };
+
+/**
+ * Refuses a part linked to an earlier step that the part builders could not have made: a kind
+ * that takes no link, a member such a part does not have or lacks, and a link that is not
+ * `{ step, output }`, or `{ step, change: true }` in a spend by key. A hand-made object and a
+ * part read from JSON are read as strictly as the record reads a linked part
+ * @throws TxBuildError INVALID_OPTION (`parts`) for the kind and the members; TxPartError
+ *   INVALID_OUT_REF for the link, as the part builders give it
+ */
+const checkLinked = (part: TxPart & { link: unknown }) => {
+  const members = LINKED_MEMBERS[part.kind];
+  if (members === undefined)
+    throw invalidParts(
+      part,
+      `a part of kind ${part.kind} linked to an earlier step: only spend, referenceInput and collateral take a link; give parts made by the part builders`,
+    );
+  const record = part as unknown as Record<string, unknown>;
+  const allowed = ["kind", "label", "link", ...members];
+  const extra = Object.keys(record).find((key) => !allowed.includes(key));
+  const missing = members.find(
+    (member) => record[member] === undefined || record[member] === null,
+  );
+  if (extra !== undefined || missing !== undefined)
+    throw invalidParts(
+      part,
+      `a part of kind ${part.kind} linked to an earlier step ${extra !== undefined ? `with the member ${extra}` : `without ${missing}`}; give parts made by the part builders`,
+    );
+  const ctx = {
+    part: part.kind,
+    ...(typeof part.label === "string" && { label: part.label }),
+  };
+  const { link } = part;
+  if (typeof link !== "object" || link === null || Array.isArray(link))
+    fail(
+      ctx,
+      "INVALID_OUT_REF",
+      `expected a link { step, output } to an output of an earlier step; got ${describe(link)}`,
+    );
+  const witness = record.witness as { type?: unknown } | undefined;
+  toStepLink(
+    ctx,
+    link as Record<string, unknown>,
+    part.kind === "spend" && witness?.type === "key",
+  );
+};
+
 /** Refuses a part without a member its kind always has */
-const checkMembers = (part: TxPart) => {
-  // A part linked to an earlier step holds `link` in place of `input`: refuseLinked judges it
-  if ("link" in part) return;
+const checkMembers = (part: TxPart, links = false) => {
+  // A part linked to an earlier step holds `link` in place of `input`: a plan reads it
+  // strictly, and refuseLinked refuses it anywhere else
+  if ("link" in part) {
+    if (links) checkLinked(part as TxPart & { link: unknown });
+    return;
+  }
   const member = missingMember(part);
   if (member !== undefined)
     throw invalidParts(
@@ -484,10 +540,14 @@ const refuseLinked = (parts: TxPart[]): TxPart[] => {
 /**
  * The parts of a `PartsInput`, in order: nested lists flattened depth first, `false`, `null` and
  * `undefined` dropped
- * @param options.links Parts linked to an earlier step are kept, for a plan that fills them in
+ * @param options.links Parts linked to an earlier step are kept, for a plan that fills them in,
+ *   each read as strictly as a record reads it
  * @throws TxBuildError INVALID_OPTION for an entry that is none of these, and for a part that
  *   lacks a member its kind always has; UNRESOLVED (the gap `link`) for parts linked to an
- *   earlier step of a plan, unless `links` is set
+ *   earlier step of a plan, unless `links` is set; with `links`, INVALID_OPTION for a linked
+ *   part the part builders could not have made
+ * @throws TxPartError INVALID_OUT_REF, with `links`, for a link that is not `{ step, output }`,
+ *   or `{ step, change: true }` in a spend by key
  */
 export const flattenParts = (
   input: unknown,
@@ -497,7 +557,7 @@ export const flattenParts = (
     options?.links === true ? parts : refuseLinked(parts);
   if (!Array.isArray(input)) {
     if (isPart(input)) {
-      checkMembers(input);
+      checkMembers(input, options?.links === true);
       return linked([input]);
     }
     throw invalidParts(
@@ -521,7 +581,7 @@ export const flattenParts = (
         entry,
         `an entry is neither a part nor a list: ${describe(entry)}; give parts made by the part builders`,
       );
-    checkMembers(entry);
+    checkMembers(entry, options?.links === true);
     parts.push(entry);
   };
   visit(input);

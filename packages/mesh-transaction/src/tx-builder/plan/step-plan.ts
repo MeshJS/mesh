@@ -704,8 +704,8 @@ export class StepPlan {
    * chain shows.
    *
    * A refusal of the ledger counts only when no delivery of the step may have gone through, a
-   * search after it does not find the step, and every step it stands on is found in a block by
-   * that search. A refusal that does not count proves nothing: a call that waits goes on waiting
+   * search after it does not find the step, and every step and every transaction of `after` it
+   * stands on is found in a block by that search. A refusal that does not count proves nothing: a call that waits goes on waiting
    * and sends the same bytes again; a call with `waitFor: "sent"` throws SUBMIT_FAILED (`refused`)
    * when no delivery of the step may have gone through.
    *
@@ -1743,9 +1743,11 @@ export class StepPlan {
   ): Promise<Sent> {
     const wallet = isWallet(submitter);
     if (!wallet && isRefusal(error)) {
-      const parents = step.standsOn.map(
-        (name) => stepIn(state.record, name)!.txHash,
-      );
+      // The steps it stands on, and the transactions of `after` it stands on
+      const parents = [
+        ...step.standsOn.map((name) => stepIn(state.record, name)!.txHash),
+        ...(step.after ?? []),
+      ];
       const { searches } = await abortable(
         searchThenTip(state.observer, [step.txHash, ...parents]),
         signal,
@@ -1796,7 +1798,7 @@ export class StepPlan {
         outcome: "unconfirmed",
         error: this.#error(
           "SUBMIT_FAILED",
-          `the ledger refused it while ${standingInBlock ? "the search does not tell whether it is on chain" : "a step it stands on is not found in a block"}: the refusal proves nothing; the same call sends the same bytes again`,
+          `the ledger refused it while ${standingInBlock ? "the search does not tell whether it is on chain" : "a step or a transaction of after it stands on is not found in a block"}: the refusal proves nothing; the same call sends the same bytes again`,
           {
             details: { ...submitFailure(error), reason: "refused" },
             cause: error,

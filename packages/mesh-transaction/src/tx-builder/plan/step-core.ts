@@ -67,6 +67,12 @@ export type StepRecord = {
    * the order of the plan
    */
   readonly standsOn: readonly string[];
+  /**
+   * The hashes of the transactions given in `after` whose outputs it spends, reads or puts up as
+   * collateral, in the order of `after`; absent when none. A refusal of the step proves nothing
+   * while one of them is not in a block
+   */
+  readonly after?: readonly string[];
   /** The transaction, as built; never changed */
   readonly built: BuiltTxData;
   /**
@@ -157,7 +163,13 @@ export type TxSighting =
 /** A step as an event appends it; the state machine gives it its status and counts */
 export type NewStep = Pick<
   StepRecord,
-  "name" | "kind" | "standsOn" | "built" | "extraKeyWitnesses" | "given"
+  | "name"
+  | "kind"
+  | "standsOn"
+  | "after"
+  | "built"
+  | "extraKeyWitnesses"
+  | "given"
 > & {
   /** Witnesses it holds already, verified against its body */
   readonly witnesses?: readonly KeyWitness[];
@@ -190,8 +202,8 @@ export type StepPlanEvent =
   /**
    * The ledger refused a recorded delivery of the step. `found`: what a search made after the
    * refusal said of the step. `standingInBlock`: a search made after the refusal found in a
-   * block every step it stands on and every other transaction it spends from that is not
-   * known to be on chain. Absent: not known
+   * block every step it stands on and every transaction of `after` it stands on. Absent: not
+   * known
    */
   | {
       readonly type: "answer";
@@ -301,6 +313,23 @@ export const keyHashOfVkey = (vkey: unknown): string | undefined => {
 };
 
 /**
+ * The hashes of the transactions whose outputs a transaction spends, reads or puts up as
+ * collateral, lower-cased, each once
+ */
+export const sourcesOf = (
+  built: Pick<BuiltTxData, "inputs" | "referenceInputs" | "collateral">,
+): string[] =>
+  Array.from(
+    new Set(
+      [
+        ...built.inputs,
+        ...(built.referenceInputs ?? []),
+        ...(built.collateral?.inputs ?? []),
+      ].map((utxo) => utxo.txHash.toLowerCase()),
+    ),
+  );
+
+/**
  * The earlier steps a transaction stands on: those whose hash is the transaction of one of its
  * inputs, reference inputs or collateral inputs, in the order of `earlier`
  */
@@ -308,13 +337,7 @@ export const standsOnOf = (
   built: Pick<BuiltTxData, "inputs" | "referenceInputs" | "collateral">,
   earlier: readonly Pick<StepRecord, "name" | "txHash">[],
 ): string[] => {
-  const sources = new Set(
-    [
-      ...built.inputs,
-      ...(built.referenceInputs ?? []),
-      ...(built.collateral?.inputs ?? []),
-    ].map((utxo) => utxo.txHash.toLowerCase()),
-  );
+  const sources = new Set(sourcesOf(built));
   return earlier
     .filter((step) => sources.has(step.txHash.toLowerCase()))
     .map((step) => step.name);
@@ -517,6 +540,32 @@ const newStepProblem = (
     sources.some((name) => !step.standsOn.includes(name))
   )
     return `step ${quoted} stands on [${step.standsOn.join(", ")}], and its transaction spends, reads or puts up outputs of [${sources.join(", ")}]`;
+  return afterProblem(step, earlier);
+};
+
+/**
+ * Why the transactions of `after` a step is given as standing on cannot be: each is one its
+ * transaction spends, reads or puts up an output of, none twice, and none a step of the plan
+ */
+export const afterProblem = (
+  step: Pick<StepRecord, "name" | "after" | "built">,
+  earlier: readonly Pick<StepRecord, "txHash">[],
+): string | undefined => {
+  const after = step.after ?? [];
+  const quoted = JSON.stringify(step.name);
+  if (step.after !== undefined && after.length === 0)
+    return `step ${quoted} stands on no transaction of after, and names the list`;
+  if (new Set(after).size !== after.length)
+    return `step ${quoted} names a transaction of after twice`;
+  const sources = new Set(sourcesOf(step.built));
+  for (const txHash of after) {
+    if (!sources.has(txHash.toLowerCase()))
+      return `step ${quoted} stands on the transaction ${txHash} of after, and spends, reads or puts up no output of it`;
+    if (
+      earlier.some((each) => each.txHash.toLowerCase() === txHash.toLowerCase())
+    )
+      return `step ${quoted} names the transaction ${txHash} of a step of the plan among those of after`;
+  }
   return undefined;
 };
 
@@ -556,6 +605,8 @@ const append = (
       status: "built",
       txHash: step.built.txHash,
       standsOn: [...step.standsOn],
+      ...(step.after !== undefined &&
+        step.after.length > 0 && { after: [...step.after] }),
       built: step.built,
       witnesses,
       ...(step.extraKeyWitnesses !== undefined &&

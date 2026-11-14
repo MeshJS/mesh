@@ -96,6 +96,24 @@ describe("TxBuilder: why a transaction is too large", () => {
     expect(error.details.size).toBeGreaterThan(params.maxTxSize);
   });
 
+  it("is not cause selection when one selected input with its tokens would not fit either", async () => {
+    const builder = new TxBuilder({ network, params });
+    // The one input selection takes carries more tokens than a transaction can hold
+    const tokens: Record<string, bigint> = {};
+    for (let i = 0; i < 400; i++)
+      tokens[`${i.toString(16).padStart(56, "c")}${"ab".repeat(16)}`] = 1n;
+    const laden: Utxo = {
+      ...utxo(ada(1_100)),
+      value: { lovelace: ada(1_100), ...tokens },
+    };
+    const error = await tooLarge(() =>
+      builder.build(pay(ada(1_000)), {
+        payer: { changeAddress: wallet, utxos: [laden] },
+      }),
+    );
+    expect(error.details.cause).toBe("parts");
+  });
+
   it("is cause parts when the parts spend every input themselves and selection adds none", async () => {
     const builder = new TxBuilder({ network, params });
     const inputs = utxos(600, ada(2));

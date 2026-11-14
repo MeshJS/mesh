@@ -33,6 +33,7 @@ import { chainObserver } from "./observer";
 import {
   advanceStepPlan,
   emptyStepPlan,
+  sourcesOf,
   standsOnOf,
   stepPlanUntil,
 } from "./step-core";
@@ -98,6 +99,8 @@ export type MadeStep = {
   readonly built: BuiltTxData;
   /** The names of the earlier steps whose outputs it spends, reads or puts up as collateral */
   readonly standsOn: readonly string[];
+  /** The hashes of the transactions of `after` whose outputs it spends, reads or puts up */
+  readonly after?: readonly string[];
   readonly given: StepGiven;
   readonly extraKeyWitnesses?: number;
 };
@@ -418,8 +421,9 @@ const fillOne = (part: LinkedPart, output: BuiltOutput): TxPart => {
  * their places; a link to all the change becomes one part for each change output, none when
  * there is none
  * @throws TxBuildError INVALID_OPTION (`steps`) for a link to a step that is not before this
- *   one, or to an output past the last; UNKNOWN_LABEL for a label no output of that step has;
- *   TxPartError for an output the part cannot take (its lock, its datum)
+ *   one, to an output past the last, or to an output an earlier step spends, naming that step;
+ *   UNKNOWN_LABEL for a label no output of that step has; TxPartError for an output the part
+ *   cannot take (its lock, its datum)
  */
 const fillLinks = (
   parts: readonly (TxPart | LinkedPart)[],
@@ -437,9 +441,18 @@ const fillLinks = (
           ? `a link names step ${JSON.stringify(link.step)}, which is not before step ${JSON.stringify(name)}: a step names only the steps before it`
           : `a link names step ${JSON.stringify(link.step)}, which the plan does not have`,
       );
-    return linkedOutputs(link, before.built).map((output) =>
-      fillOne(part, output),
-    );
+    const outputs = linkedOutputs(link, before.built);
+    for (const output of outputs) {
+      const key = utxoKey(plainUtxo(output));
+      const taker = earlier.find((step) =>
+        step.built.inputs.some((input) => utxoKey(input) === key),
+      );
+      if (taker !== undefined)
+        throw invalidSteps(
+          `a link names ${"change" in link ? "the change" : `output ${JSON.stringify(link.output)}`} of step ${JSON.stringify(link.step)}, which step ${JSON.stringify(taker.name)} spends already: the change of a step goes to the next step of its payer, so a link to change names the step just before`,
+        );
+    }
+    return outputs.map((output) => fillOne(part, output));
   });
 
 /* ---------------------------------------------------------------------------------------------
@@ -451,10 +464,19 @@ const spendsFrom = (part: TxPart, txHash: string) =>
   part.kind === "spend" &&
   part.input.transaction_id.toLowerCase() === txHash.toLowerCase();
 
+/** Whether a part spends, reads or puts up an output of the transaction with this hash */
+const standsOnTx = (part: TxPart, txHash: string) =>
+  (part.kind === "spend" ||
+    part.kind === "referenceInput" ||
+    part.kind === "collateral") &&
+  part.input.transaction_id.toLowerCase() === txHash.toLowerCase();
+
 /**
  * The change of the step before, of the same payer, that this step spends when its parts spend
  * no output of that step: its first change output at the payer's change address, key-locked,
- * spent by no earlier step, not put up as collateral by the parts, and taken by `canSelect`
+ * spent by no earlier step, not put up as collateral by the parts, and taken by `canSelect`.
+ * Undefined when there is no step before or the parts spend an output of it; else, when no
+ * change can be spent, why not
  */
 const changeToSpend = (
   parts: readonly TxPart[],
@@ -462,7 +484,7 @@ const changeToSpend = (
   changeAddress: string,
   earlier: readonly MadeStep[],
   canSelect: ((utxo: Utxo) => boolean) | undefined,
-): Utxo | undefined => {
+): Utxo | { readonly none: string } | undefined => {
   if (previous === undefined) return undefined;
   if (parts.some((part) => spendsFrom(part, previous.built.txHash)))
     return undefined;
@@ -484,15 +506,22 @@ const changeToSpend = (
       return false;
     }
   };
-  const change = previous.built.change.find(
-    (output) =>
-      output.address === changeAddress &&
-      isKeyLocked(output) &&
-      !spent.has(utxoKey(output)) &&
-      !putUp.has(utxoKey(output)) &&
-      selectable(output),
+  const mine = previous.built.change.filter(
+    (output) => output.address === changeAddress && isKeyLocked(output),
   );
-  return change === undefined ? undefined : plainUtxo(change);
+  const free = mine.filter(
+    (output) => !spent.has(utxoKey(output)) && !putUp.has(utxoKey(output)),
+  );
+  const change = free.find(selectable);
+  if (change !== undefined) return plainUtxo(change);
+  return {
+    none:
+      mine.length === 0
+        ? "it leaves no change at the payer's change address"
+        : free.length === 0
+          ? "its change is spent by an earlier step or put up as collateral by this one"
+          : "canSelect does not let its change through",
+  };
 };
 
 /**
@@ -584,14 +613,20 @@ const dataOptions = (options: StepOptions, changeAddress?: string) => {
  * Builds a plan of steps. Every body is built by this call, in order: each payer is read once,
  * and each step is built on the payer's UTxOs as the steps before it leave them. A step spends
  * the change that the step before it of the same payer leaves at the payer's change address,
- * unless it spends an output of that step already. A part linked to an earlier step is filled in
- * from that step's own transaction and checked as a part given the output in full. A step whose
- * parts give no end of validity ends at the plan's deadline, the tip's time plus `ttlMs`.
- * Nothing is signed and nothing is sent; the first record of the plan comes with the steps.
+ * unless it spends an output of that step already, so the steps of one payer form a chain the
+ * ledger keeps in order. A part linked to an earlier step is read as strictly as a record reads
+ * it, filled in from that step's own transaction and checked as a part given the output in
+ * full. The transactions of `after` a step spends, reads or puts up an output of are recorded
+ * with it. A step whose parts give no end of validity ends at the plan's deadline, the tip's
+ * time plus `ttlMs`. Nothing is signed and nothing is sent; the first record of the plan comes
+ * with the steps.
  * @throws TxBuildError INVALID_OPTION (`steps`) for a step of no known form, a name that is
  *   empty, a whole number or reserved, more than 32 steps, named steps on a builder that holds
  *   parts from `add` or with `sendAllTo` or `fee` among the plan's options, a link to a step that
- *   is not before it or to an output past the last, a label several outputs of the step have;
+ *   is not before it, to an output past the last or to an output an earlier step spends, a label
+ *   several outputs of the step have, and a step that can stand on the step before it of its
+ *   payer neither by its change nor by an output its parts name; INVALID_OPTION (`parts`) and
+ *   TxPartError INVALID_OUT_REF for a linked part the part builders could not have made;
  *   UNKNOWN_LABEL for a label no output of the step has; every error of building a step, with
  *   the step's name at the start of its message
  * @throws TxPlanError CANNOT_OBSERVE (`noTip`) when the tip cannot be read; INVALID_STATE
@@ -664,13 +699,24 @@ export const makePlan = async (
       const previous = [...made]
         .reverse()
         .find((each) => owner.get(each.name) === changeAddress);
-      const change = changeToSpend(
+      const found = changeToSpend(
         filled,
         previous,
         changeAddress,
         made,
         own.canSelect ?? options.canSelect,
       );
+      // The steps of one payer form a chain the ledger keeps in order: a step stands on the
+      // step before it of its payer, by its change or by an output its parts name
+      if (
+        found !== undefined &&
+        "none" in found &&
+        !filled.some((part) => standsOnTx(part, previous!.built.txHash))
+      )
+        throw invalidSteps(
+          `step ${JSON.stringify(name)} cannot stand on step ${JSON.stringify(previous!.name)}, the step before it of the same payer: ${found.none}, so step ${JSON.stringify(name)} could land before it. Link step ${JSON.stringify(name)} to an output of step ${JSON.stringify(previous!.name)}, or make it a plan of its own`,
+        );
+      const change = found === undefined || "none" in found ? undefined : found;
       const parts = withDeadline(
         builder,
         change === undefined
@@ -712,6 +758,13 @@ export const makePlan = async (
         own.payer === undefined ? undefined : changeAddress,
       );
       owner.set(name, changeAddress);
+      const sources = new Set(sourcesOf(built));
+      const after = before
+        .map((tx) => tx.txHash)
+        .filter(
+          (txHash, i, all) =>
+            sources.has(txHash.toLowerCase()) && all.indexOf(txHash) === i,
+        );
       made.push({
         name,
         built,
@@ -719,6 +772,7 @@ export const makePlan = async (
           built,
           made.map((each) => ({ name: each.name, txHash: each.built.txHash })),
         ),
+        ...(after.length > 0 && { after }),
         given: {
           parts: step.parts,
           ...(data !== undefined && { options: data }),
@@ -756,6 +810,7 @@ export const makePlan = async (
     name: step.name,
     built: step.built,
     standsOn: step.standsOn,
+    ...(step.after !== undefined && { after: step.after }),
     given: step.given,
     ...(step.extraKeyWitnesses !== undefined && {
       extraKeyWitnesses: step.extraKeyWitnesses,

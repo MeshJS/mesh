@@ -41,6 +41,7 @@ import {
   utxos,
 } from "./json";
 import {
+  afterProblem,
   isDeadStep,
   isUnlandedStep,
   missingKeys,
@@ -63,6 +64,8 @@ export type TxStepJSON = {
   readonly seen?: { readonly slot: number; readonly block?: string };
   /** The names of the steps it stands on; absent when none */
   readonly standsOn?: readonly string[];
+  /** The hashes of the transactions of `after` it stands on; absent when none */
+  readonly after?: readonly string[];
   readonly sends: number;
   readonly refused: number;
   /** The transaction with the witnesses it holds, as the JSON of a `BuiltTx` */
@@ -140,6 +143,7 @@ const encodeStep = (step: StepRecord): TxStepJSON => ({
     },
   }),
   ...(step.standsOn.length > 0 && { standsOn: [...step.standsOn] }),
+  ...(step.after !== undefined && { after: [...step.after] }),
   sends: step.sends,
   refused: step.refused,
   tx: {
@@ -365,6 +369,7 @@ const STEP_MEMBERS = [
   "txHash",
   "seen",
   "standsOn",
+  "after",
   "sends",
   "refused",
   "tx",
@@ -418,6 +423,9 @@ const decodeStep = (
     txHash,
     ...(seen !== undefined && { seen }),
     standsOn,
+    ...(json.after !== undefined && {
+      after: texts(json.after, `${path}.after`),
+    }),
     built: tx.built,
     witnesses: tx.witnesses,
     ...(tx.extraKeyWitnesses !== undefined && {
@@ -442,6 +450,8 @@ const decodeStep = (
     unread(
       `${path}.standsOn names [${standsOn.join(", ")}], and the transaction spends, reads or puts up outputs of the earlier steps [${sources.join(", ")}]`,
     );
+  const after = afterProblem(step, earlier);
+  if (after !== undefined) unread(`${path}.after: ${after}`);
   const landedOrFailed =
     step.status === "included" ||
     step.status === "final" ||

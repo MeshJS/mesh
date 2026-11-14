@@ -785,6 +785,18 @@ describe("appending steps", () => {
     expect(stepPlanUntil(json)).toBe(UNTIL);
   });
 
+  it("keeps the transactions of after a step stands on", () => {
+    const json = planOf([
+      {
+        name: "a",
+        built: stepTx({ txHash: hash(0xa0), inputs: [utxo(hash(0xee))] }),
+        standsOn: [],
+        after: [hash(0xee)],
+      },
+    ]);
+    expect(stepOf(json, "a").after).toEqual([hash(0xee)]);
+  });
+
   it("takes witnesses a step holds already", () => {
     const json = planOf([
       { ...chainStep("a", 0, { keys: [K1] }), witnesses: [witnessOf(K1)] },
@@ -829,6 +841,10 @@ describe("appending steps", () => {
         },
       ],
       [{ ...b, kind: "consolidation" as const, given: { parts: [] } }],
+      // A transaction of after it does not spend from, a step of the plan as one, none listed
+      [{ ...b, after: [hash(0xee)] }],
+      [{ ...b, after: [hash(0xa0)] }],
+      [{ ...b, after: [] }],
       // A step cannot stand on a step after it
       [{ ...b, standsOn: ["c"] }, chainStep("c", 2)],
     ];

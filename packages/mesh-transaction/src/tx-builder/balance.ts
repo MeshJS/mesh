@@ -972,16 +972,22 @@ export const balance = (
 
   /**
    * Why a round's transaction is larger than the ledger allows: `"selection"` when the parts fit
-   * with one of the selected inputs, a change holding only the tokens the parts leave over and
-   * the round's collateral; `"parts"` when they do not, or when selection added no input. It
-   * assembles and serializes one transaction more, and is asked only when the round fails.
+   * with one of the selected inputs, a change holding the tokens the parts leave over and those
+   * of that input, and the round's collateral; `"parts"` when they do not, or when selection
+   * added no input. It assembles and serializes one transaction more, and is asked only when the
+   * round fails.
    */
   const causeOfSize = (
     fee: bigint,
     collateral: BalancedCollateral | undefined,
   ): "selection" | "parts" => {
     if (selected.length === 0) return "parts";
-    const left = subtractValues(flow.consumed, flow.produced);
+    const one = selected[0]!;
+    // The input comes with its tokens, which go to the change
+    const left = addValues(subtractValues(flow.consumed, flow.produced), {
+      coin: 0n,
+      assets: valueOf(one.value).assets,
+    });
     const tokens = new Map(Array.from(left.assets).filter(([, n]) => n > 0n));
     let change: TransactionOutputPrototype[];
     try {
@@ -992,7 +998,7 @@ export const balance = (
     }
     const trial: TxPart[] = [
       ...core,
-      spendPart(selected[0]!),
+      spendPart(one),
       ...change.map(outputPart),
       ...(collateral ? collateralParts(collateral) : []),
     ];

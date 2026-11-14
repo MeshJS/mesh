@@ -142,6 +142,15 @@ describe("the record of a plan of steps", () => {
     }
   });
 
+  it("keeps the transactions of after a step stands on", () => {
+    const json = JSON.parse(JSON.stringify(encodeStepPlan(firstRecord())));
+    const source = fixture.steps[0]!.built.inputs[0]!.txHash;
+    json.steps[0].after = [source];
+    const read = readStepPlan(json);
+    expect(read.steps[0]!.after).toEqual([source]);
+    expect(encodeStepPlan(read).steps[0]!.after).toEqual([source]);
+  });
+
   it("is read only with the id it has, when an id is asked for", () => {
     const json = encodeStepPlan(firstRecord());
     expect(readStepPlan(json, "order-7").id).toBe("order-7");
@@ -172,6 +181,17 @@ describe("the record of a plan of steps", () => {
         /attempts/,
       ],
       ["rev 0", (j) => (j.rev = 0), /rev/],
+      [
+        "a transaction of after the step does not spend from",
+        (j) => (j.steps[0].after = ["ee".repeat(32)]),
+        /after/,
+      ],
+      [
+        "a step of the plan among the transactions of after",
+        (j) => (j.steps[1].after = [j.steps[0].txHash]),
+        /after/,
+      ],
+      ["an empty list of after", (j) => (j.steps[0].after = []), /after/],
       ["no step", (j) => (j.steps = []), /steps/],
       ["a plan status it does not know", (j) => (j.status = "open"), /status/],
       [
