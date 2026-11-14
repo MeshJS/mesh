@@ -433,15 +433,21 @@ const refuseLinked = (parts: TxPart[]): TxPart[] => {
 /**
  * The parts of a `PartsInput`, in order: nested lists flattened depth first, `false`, `null` and
  * `undefined` dropped
+ * @param options.links Parts linked to an earlier step are kept, for a plan that fills them in
  * @throws TxBuildError INVALID_OPTION for an entry that is none of these, and for a part that
  *   lacks a member its kind always has; UNRESOLVED (the gap `link`) for parts linked to an
- *   earlier step of a plan
+ *   earlier step of a plan, unless `links` is set
  */
-export const flattenParts = (input: unknown): TxPart[] => {
+export const flattenParts = (
+  input: unknown,
+  options?: { links?: boolean },
+): TxPart[] => {
+  const linked = (parts: TxPart[]) =>
+    options?.links === true ? parts : refuseLinked(parts);
   if (!Array.isArray(input)) {
     if (isPart(input)) {
       checkMembers(input);
-      return refuseLinked([input]);
+      return linked([input]);
     }
     throw invalidParts(
       input,
@@ -468,7 +474,7 @@ export const flattenParts = (input: unknown): TxPart[] => {
     parts.push(entry);
   };
   visit(input);
-  return refuseLinked(parts);
+  return linked(parts);
 };
 
 /** The parts of a builder made by the constructor: none */
