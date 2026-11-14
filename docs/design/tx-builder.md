@@ -2,7 +2,7 @@
 
 **Status:** implemented in `packages/mesh-transaction/src/tx-builder/`: `assembleTxPrototype`,
 `TxBuilder`, `TxPlan` with its stores (`TxPlanStore`, `memoryPlanStore`, `checkPlanStore`),
-`StandaloneTx`, `keySigner` and the free signing functions. `MeshTxBuilder` is `@deprecated` and
+`BuiltTx`, `keySigner` and the free signing functions. `MeshTxBuilder` is `@deprecated` and
 builds on `TxBuilder`. This document is the design record for that work; the
 [package README][readme] holds the recipes.
 
@@ -44,7 +44,7 @@ Three layers, usable separately:
   orders the transaction and numbers its redeemers.
 - **`builder.build(parts?, options?)`** — takes parts as the part builders return them (one part,
   or nested lists, where `false`, `null` and `undefined` are skipped), reads the payer, fills in
-  what the parts leave open, balances, evaluates, and returns a `StandaloneTx`: the unsigned
+  what the parts leave open, balances, evaluates, and returns a `BuiltTx`: the unsigned
   transaction with everything the build decided as its data, and the calls that sign that one
   body, submit it and look for it; no deadline and no anchor.
 - **`builder.plan(parts?, options?)`** — a `TxPlan`: one payment, carried to a final state
@@ -75,7 +75,7 @@ state of a payment lives in its `TxPlan`, and with a `store` in the store's reco
 - **No wallet in the builder.** Who pays is the `payer` of each build or plan; who signs is the
   call's `signers`, else the plan's payer; who submits is the call's `submitter`, else the
   builder's, else the provider. `build` returns an unsigned transaction: signing, submission and
-  waiting are steps of a `TxPlan`, or of the `StandaloneTx` a build returns.
+  waiting are steps of a `TxPlan`, or of the `BuiltTx` a build returns.
 - **No built-in protocol parameters.** `params` is used whole, else the provider is read; with
   neither, the constructor throws `MISSING_PARAMETER`.
 - **No second builder beside `MeshTxBuilder`.** `MeshTxBuilder` is `@deprecated` and keeps its
@@ -162,20 +162,20 @@ is `INVALID_REDEEMER`.
 | `planDefaults?`    | `ttlMs`, `expiryMarginMs`, `confirmations` copied into each plan when it is made; `pollMs`, `resendMs` |
 | `store?`           | a `TxPlanStore`, where the records of this builder's plans are kept                                    |
 
-| `BuildOptions`       |                                                                                                   |
-| -------------------- | ------------------------------------------------------------------------------------------------- |
-| `payer?`             | who pays and gets the change: a wallet, an address or a snapshot; `MISSING_PAYER` without one     |
-| `canSelect?`         | which of the payer's UTxOs may be selected, for payment and for collateral                        |
-| `coinSelection?`     | a `SelectInputs` function in place of the built-in selection; change stays with the built-in rule |
-| `sendAllTo?`         | spend every selectable UTxO and send what is left to this address                                 |
-| `after?`             | `BuiltTx` or `TxPlan` (its current attempt), or a list: transactions the provider has not seen    |
-| `knownUtxos?`        | outputs the parts may name by out ref that the provider may not know yet                          |
-| `fee?`               | goes into the body as given; `FEE_TOO_LOW { fee, minFee }` when the final minimum is higher       |
-| `registeredPools?`   | operators whose pool registration is an update, taking no deposit                                 |
-| `extraKeyWitnesses?` | signatures expected beyond those the parts call for                                               |
-| `topUpCollateral?`   | `true` by default: given collateral inputs that do not cover are topped up from the payer's UTxOs |
-| `collateralReturn?`  | `true` by default; `false`: lovelace-only collateral inputs forfeited whole, no return, no total  |
-| `signal?`, `trace?`  | abort the build (`ABORTED`); receive its steps, for diagnostics                                   |
+| `BuildOptions`       |                                                                                                    |
+| -------------------- | -------------------------------------------------------------------------------------------------- |
+| `payer?`             | who pays and gets the change: a wallet, an address or a snapshot; `MISSING_PAYER` without one      |
+| `canSelect?`         | which of the payer's UTxOs may be selected, for payment and for collateral                         |
+| `coinSelection?`     | a `SelectInputs` function in place of the built-in selection; change stays with the built-in rule  |
+| `sendAllTo?`         | spend every selectable UTxO and send what is left to this address                                  |
+| `after?`             | `BuiltTxData` or `TxPlan` (its current attempt), or a list: transactions the provider has not seen |
+| `knownUtxos?`        | outputs the parts may name by out ref that the provider may not know yet                           |
+| `fee?`               | goes into the body as given; `FEE_TOO_LOW { fee, minFee }` when the final minimum is higher        |
+| `registeredPools?`   | operators whose pool registration is an update, taking no deposit                                  |
+| `extraKeyWitnesses?` | signatures expected beyond those the parts call for                                                |
+| `topUpCollateral?`   | `true` by default: given collateral inputs that do not cover are topped up from the payer's UTxOs  |
+| `collateralReturn?`  | `true` by default; `false`: lovelace-only collateral inputs forfeited whole, no return, no total   |
+| `signal?`, `trace?`  | abort the build (`ABORTED`); receive its steps, for diagnostics                                    |
 
 The constructor reads nothing and checks every option at once (`MISSING_PARAMETER` with neither
 `provider` nor `params`). The README details the options under [Builder options][r-builder-options]
@@ -244,7 +244,7 @@ with a `hash` that is not its own is refused. A part refuses with the code of th
 (text that is not UTxO CBOR is `INVALID_OUT_REF`), an option with `INVALID_OPTION`, a wallet's or
 provider's answer with the code of that read.
 
-**One way out.** Everything the builder returns holds `Utxo`s: `BuiltTx` (with
+**One way out.** Everything the builder returns holds `Utxo`s: `BuiltTxData` (with
 `collateral.return`, the output the collateral return becomes if a script fails), `PayerSnapshot`,
 the callbacks `canSelect` and `coinSelection` (which answers out refs), the parts and the records
 of plans. `toMeshUtxo` writes a `Utxo` as a Mesh `UTxO`; the builder hands an evaluator its UTxOs
@@ -367,7 +367,7 @@ the script data and auxiliary data hashes are taken again from the bytes it prod
 transaction re-serialized if they differ; a serializer that throws or answers with something that
 is not a transaction is `UNSUPPORTED_SERIALIZER`.
 
-The `BuiltTx` holds the transaction, its hash and prototype, and what the build decided: fee,
+The `BuiltTxData` holds the transaction, its hash and prototype, and what the build decided: fee,
 execution units, redeemers, resolved inputs, and outputs and change as labelled `Utxo`s, collateral,
 the keys that must sign with the roles each is needed in (`signers`), validity, network, warnings
 and the resolved parts; see [The result][r-result].
@@ -394,7 +394,7 @@ plan is `draft` until its first attempt is built. Its options are the build opti
 `signal`, with parent plans in `after`, an `id`, and the deadlines `ttlMs`, `expiryMarginMs` and
 `confirmations`, written into the plan when it is made and never read from the builder again.
 
-- **Attempts and the anchor.** Every attempt is a `BuiltTx` of the plan's parts, and all of them
+- **Attempts and the anchor.** Every attempt is a `BuiltTxData` of the plan's parts, and all of them
   spend one common input, the anchor, so at most one can land. In `draft`, `send()` and
   `advance()` build the first attempt; after that only `build()`, or `advance()` with a signer
   where `send()` would throw `EXPIRED` or `ORPHANED` and no other attempt is live, makes a new
@@ -425,8 +425,8 @@ one are in the README: [Plans][r-plans], [Servers][r-servers],
 
 ## Signing without a plan
 
-`build()` and `finalize()` return a `StandaloneTx`: one built transaction as an object. Its own
-members are the `BuiltTx` data, read-only, so it goes wherever that data goes (`after`,
+`build()` and `finalize()` return a `BuiltTx`: one built transaction as an object. Its own
+members are the `BuiltTxData` data, read-only, so it goes wherever that data goes (`after`,
 `utxosAfter`, `outputOf`) and copies as plain data. The object itself is frozen; the data nested in
 its members is the build's own and can be changed, and nothing that is signed or sent is read from
 it. Beside them it holds the witnesses given to it and has `sign({ signers, partial?, signal? })`,
@@ -516,7 +516,7 @@ and `TxError.is(error, ...codes)` cover the whole tree, across copies of the pac
   balancing, evaluation and serialization; `EVALUATION_FAILED` maps each failure to its part and
   label.
 - `TxPlanError` comes from signing, sending, observing, the lifecycle and the store, of a plan or
-  of a `StandaloneTx`; one raised by a plan also carries `planId`, `status`, `txHash` and, not
+  of a `BuiltTx`; one raised by a plan also carries `planId`, `status`, `txHash` and, not
   enumerable, `plan`. Retryable:
   `SUBMIT_FAILED`, `CONFIRM_TIMEOUT`, `NOT_YET_VALID`, `STILL_LIVE` and `CANNOT_OBSERVE` with
   `unconfirmed`.
@@ -532,7 +532,7 @@ rule.
   the normal form, every refusal, and the conversions both ways; `utxo-forms.test.ts`: one build
   from each form gives the same transaction.
 - `builder.test.ts` and the unit tests beside it (`payer`, `selection`, `chain`, `network`,
-  `result`, `sign`, `key-signer`, `standalone`, `add`, `errors`, ...): balancing, deposits and
+  `result`, `sign`, `key-signer`, `built-tx`, `add`, `errors`, ...): balancing, deposits and
   refunds of every kind, resolution and fetch counts, the evaluation loop and its errors,
   collateral choices, payer forms, `after`, the signing functions, signers and the transaction
   `build()` returns; `sign-safety` holds the rules that keep a key inside its signer and a
@@ -544,7 +544,7 @@ rule.
   `evaluator-emulator`, `network-emulator`, `payer-emulator`, `selection-emulator`,
   `traps-emulator`.
 - On `TxEmulator` of `@meshsdk/tx-emulator`: `add-emulator`, `chain-emulator`, `finalize-emulator`,
-  `redeemer-emulator`, `script-witness-emulator`, `sign-emulator`, `standalone-emulator`,
+  `redeemer-emulator`, `script-witness-emulator`, `sign-emulator`, `built-tx-emulator`,
   `validity-emulator`; the plan tests under `plan/` that need a chain, beside the state machine's
   own tests (`state-table`, `state-rules`, `state-random`) and those of the record and stores
   (`json`, `store`); the old `MeshTxBuilder`'s adapter tests

@@ -16,7 +16,7 @@ import {
 
 import {
   BuildOptions,
-  BuiltTx,
+  BuiltTxData,
   collateral,
   collateralReturn,
   OutputDatum,
@@ -153,7 +153,7 @@ const build = (
   });
 
 /** The collateral parts of a built transaction, by out ref, with their labels */
-const collateralLabels = (built: BuiltTx) =>
+const collateralLabels = (built: BuiltTxData) =>
   built.parts.flatMap((p) =>
     p.kind === "collateral"
       ? [[`${p.input.transaction_id}#${p.input.index}`, p.label] as const]
@@ -161,7 +161,7 @@ const collateralLabels = (built: BuiltTx) =>
   );
 
 /** Checks that the collateral inputs hold exactly the total and the return, token by token */
-const expectBalanced = (built: BuiltTx) => {
+const expectBalanced = (built: BuiltTxData) => {
   const { inputs, total, return: returned } = built.collateral!;
   const held: Record<string, bigint> = {};
   for (const u of inputs)

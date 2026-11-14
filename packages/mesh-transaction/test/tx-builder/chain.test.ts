@@ -23,7 +23,7 @@ import {
   BuildEvent,
   BuildOptions,
   BuiltOutput,
-  BuiltTx,
+  BuiltTxData,
   collateral,
   output,
   OutputDatum,
@@ -69,7 +69,7 @@ const pay = (n: number, label?: string) =>
     ...(label !== undefined && { label }),
   });
 
-const build = (parts: ReturnType<typeof pay>[]): Promise<BuiltTx> =>
+const build = (parts: ReturnType<typeof pay>[]): Promise<BuiltTxData> =>
   new TxBuilder({ network: "preprod", params }).build(parts, {
     payer: { changeAddress: wallet, utxos: [funds] },
   });
@@ -229,7 +229,7 @@ const buildWith = (
   parts: PartsInput,
   options: BuildOptions,
   builder = offline(),
-): Promise<BuiltTx> => builder.build(parts, options);
+): Promise<BuiltTxData> => builder.build(parts, options);
 
 describe("TxBuilder: after", () => {
   it("does not select the inputs of after, and selects its change", async () => {
@@ -766,7 +766,7 @@ describe("TxBuilder: after", () => {
   it("checks the network of the outputs of after", async () => {
     const tx1 = await buildWith(pay(10), { payer: snapshot(owned(100)) });
     const mainnet = serializeAddressObj(pubKeyAddress(keyHashHex(1)), 1);
-    const moved: BuiltTx = {
+    const moved: BuiltTxData = {
       ...tx1,
       outputs: tx1.outputs.map((o, i) =>
         i === 0 ? { ...o, address: mainnet } : o,

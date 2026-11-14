@@ -2,7 +2,13 @@ import { CachedFetcher } from "@meshsdk/core";
 import { ScalusEmulator } from "@meshsdk/scalus-emulator";
 import { BrowserWallet, MeshWallet } from "@meshsdk/wallet";
 
-import { BuiltTx, output, Payer, TxBuilder, Utxo } from "../../src/tx-builder";
+import {
+  BuiltTxData,
+  output,
+  Payer,
+  TxBuilder,
+  Utxo,
+} from "../../src/tx-builder";
 import { cip30Wallet } from "../cip30-wallet";
 import { baseAddress } from "../test-util";
 import { asMesh } from "./utxo-util";
@@ -23,7 +29,7 @@ describe("TxBuilder payers on the emulator", () => {
 
   const pay = () =>
     output({ address: recipient, value: { lovelace: 5_000_000n } });
-  const submit = async (built: BuiltTx) => {
+  const submit = async (built: BuiltTxData) => {
     const txHash = await emulator.submitTx(await wallet.signTx(built.tx));
     expect(txHash).toBe(built.txHash);
   };
@@ -116,7 +122,7 @@ describe("TxBuilder payers on the emulator", () => {
         submitter: provider,
       });
       await shared.init();
-      const outRefs = (built: BuiltTx) =>
+      const outRefs = (built: BuiltTxData) =>
         built.inputs.map((u) => `${u.txHash}#${u.outputIndex}`);
 
       const first = await onProvider.build(pay(), { payer: shared });

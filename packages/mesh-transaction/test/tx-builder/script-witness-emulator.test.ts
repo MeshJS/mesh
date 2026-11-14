@@ -11,7 +11,7 @@ import { MeshWallet } from "@meshsdk/wallet";
 
 import {
   BuildOptions,
-  BuiltTx,
+  BuiltTxData,
   minFee,
   mint,
   output,
@@ -36,7 +36,7 @@ const keyOf = (u: UTxO | Utxo) => {
   const { txHash, outputIndex } = "input" in u ? u.input : u;
   return `${txHash}#${outputIndex}`;
 };
-const spends = (built: BuiltTx, utxo: UTxO) =>
+const spends = (built: BuiltTxData, utxo: UTxO) =>
   built.inputs.some((u) => keyOf(u) === keyOf(utxo));
 const pay = (lovelace: bigint) =>
   output({ address: recipient, value: { lovelace } });
@@ -109,7 +109,7 @@ const setup = async (
       payer: { changeAddress: address, utxos: emulator.utxos({ address }) },
       ...options,
     });
-  const submit = async (built: BuiltTx) =>
+  const submit = async (built: BuiltTxData) =>
     emulator.submit(await wallet.signTx(built.tx));
   const params = await emulator.fetchProtocolParameters();
   const costModels = await emulator.fetchCostModels();
@@ -117,18 +117,18 @@ const setup = async (
    * The fee covers the transaction as built, and is below what it costs with the script
    * attached again: no round priced the copy that was left out
    */
-  const feeContext = (built: BuiltTx) => ({
+  const feeContext = (built: BuiltTxData) => ({
     params,
     vkeyWitnesses: built.signers.keyHashes.length,
     inputs: [...built.inputs, ...built.referenceInputs],
   });
   /** The fee covers the transaction as built */
-  const expectFeeCovers = (built: BuiltTx) =>
+  const expectFeeCovers = (built: BuiltTxData) =>
     expect(built.fee).toBeGreaterThanOrEqual(
       minFee(built.prototype, feeContext(built)),
     );
   const expectFeeWithoutCopy = (
-    built: BuiltTx,
+    built: BuiltTxData,
     copy: { plutus_v3_scripts: string[] } | { native_scripts: unknown[] },
   ) => {
     const context = feeContext(built);
@@ -136,11 +136,11 @@ const setup = async (
     const withCopy = {
       ...built.prototype,
       witness_set: { ...built.prototype.witness_set, ...copy },
-    } as BuiltTx["prototype"];
+    } as BuiltTxData["prototype"];
     expect(built.fee).toBeLessThan(minFee(withCopy, context));
   };
   /** The script data hash commits to the cost model of Plutus V3, which the input's copy runs */
-  const expectV3ScriptData = (built: BuiltTx) => {
+  const expectV3ScriptData = (built: BuiltTxData) => {
     const hash = built.prototype.body.script_data_hash;
     expect(hash).toBe(scriptDataHashOf(built.tx, new Set(["V3"]), costModels));
     expect(hash).not.toBe(scriptDataHashOf(built.tx, new Set(), costModels));

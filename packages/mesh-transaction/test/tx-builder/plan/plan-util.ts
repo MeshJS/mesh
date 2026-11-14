@@ -1,4 +1,4 @@
-import type { BuiltTx, Utxo } from "../../../src/tx-builder";
+import type { BuiltTxData, Utxo } from "../../../src/tx-builder";
 import {
   Advanced,
   advancePlan,
@@ -35,7 +35,7 @@ export const builtTx = (spec: {
   keys?: readonly string[];
   until?: number;
   plutus?: boolean;
-}): BuiltTx =>
+}): BuiltTxData =>
   ({
     tx: "84a0",
     txHash: spec.txHash,
@@ -61,7 +61,7 @@ export const builtTx = (spec: {
           },
         ]
       : [],
-  }) as unknown as BuiltTx;
+  }) as unknown as BuiltTxData;
 
 /** A build event spending `anchors` (and `extra` inputs) */
 export const buildEvent = (spec: {

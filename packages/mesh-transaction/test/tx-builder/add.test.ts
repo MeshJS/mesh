@@ -29,7 +29,7 @@ import type {
   Utxo,
 } from "../../src/tx-builder";
 import {
-  BuiltTx,
+  BuiltTxData,
   certificate,
   collateralReturn,
   guard,
@@ -149,7 +149,7 @@ const B = pay("B", 3);
 const C = pay("C", 4);
 
 /** The labels of the outputs, in body order; the change as "change" */
-const outputs = (built: BuiltTx) =>
+const outputs = (built: BuiltTxData) =>
   built.outputs.map((out) => (out.change ? "change" : out.label));
 
 const rejected = async (build: Promise<unknown>) => {

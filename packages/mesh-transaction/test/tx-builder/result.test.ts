@@ -32,6 +32,7 @@ import {
   Assets,
   BuildEvent,
   BuiltTx,
+  BuiltTxData,
   certificate,
   collateral,
   collateralReturn,
@@ -41,7 +42,6 @@ import {
   OutputScript,
   referenceInput,
   spend,
-  StandaloneTx,
   toUtxo,
   TxBuilder,
   TxBuildError,
@@ -162,7 +162,7 @@ const scriptSpend = (spent: UtxoInput = locked(), label?: string) =>
 const plainUtxos = (utxos: readonly UtxoInput[]) => utxos.map((u) => toUtxo(u));
 
 /** The minimum fee of the transaction once signed by `signers` keys */
-const signedMinFee = (built: BuiltTx, signers: number) => {
+const signedMinFee = (built: BuiltTxData, signers: number) => {
   const witnessBytes =
     signers === 0 ? 0 : 101 * signers + (signers < 24 ? 1 : 2) + 1 + 1;
   // Reference scripts held by the inputs and reference inputs are priced too
@@ -177,13 +177,13 @@ const signedMinFee = (built: BuiltTx, signers: number) => {
     params,
   );
 };
-const expectFeeFor = (built: BuiltTx, signers: number) => {
+const expectFeeFor = (built: BuiltTxData, signers: number) => {
   const min = signedMinFee(built, signers);
   expect(built.fee).toBeGreaterThanOrEqual(min - 88n);
   expect(built.fee).toBeLessThanOrEqual(min + 88n);
 };
 
-describe("BuiltTx: outputs and change", () => {
+describe("BuiltTxData: outputs and change", () => {
   it("lists every output as a UTxO of the transaction, in body order, with its part's label", async () => {
     const unit = mockTokenUnit(1);
     const built = await builder().build(
@@ -419,7 +419,7 @@ describe("BuiltTx: outputs and change", () => {
   });
 });
 
-describe("BuiltTx: reference inputs", () => {
+describe("BuiltTxData: reference inputs", () => {
   it("lists the UTxOs read by reference inputs and reference scripts, in body order", async () => {
     const holder = utxo(lovelace(ada(20)), { script: plutusRef });
     const read = utxo(lovelace(ada(2)), { datum: unitInline });
@@ -469,8 +469,8 @@ describe("BuiltTx: reference inputs", () => {
   });
 });
 
-describe("BuiltTx: signers", () => {
-  const roles = (built: BuiltTx, keyHash: string) =>
+describe("BuiltTxData: signers", () => {
+  const roles = (built: BuiltTxData, keyHash: string) =>
     built.signers.keys.find((k) => k.keyHash === keyHash)?.roles;
 
   it("names each key with the role it is needed in", async () => {
@@ -779,7 +779,7 @@ describe("BuiltTx: signers", () => {
   });
 });
 
-describe("BuiltTx: redeemers, validity and network", () => {
+describe("BuiltTxData: redeemers, validity and network", () => {
   it("reports redeemer units as bigints and the redeemer data in CBOR", async () => {
     const events: BuildEvent[] = [];
     const built = await builder().build([scriptSpend(locked(), "unlock")], {
@@ -876,9 +876,9 @@ describe("BuiltTx: redeemers, validity and network", () => {
   });
 });
 
-describe("BuiltTx: warnings", () => {
+describe("BuiltTxData: warnings", () => {
   afterEach(() => jest.restoreAllMocks());
-  const codes = (built: BuiltTx) => built.warnings.map((w) => w.code);
+  const codes = (built: BuiltTxData) => built.warnings.map((w) => w.code);
 
   describe.each([
     ["a payment", [] as TxPart[]],
@@ -981,7 +981,7 @@ describe("BuiltTx: warnings", () => {
   });
 });
 
-describe("BuiltTx: plain data", () => {
+describe("BuiltTxData: plain data", () => {
   it("survives structuredClone unchanged", async () => {
     const b = builder();
     const built = await b.build(
@@ -1023,7 +1023,7 @@ describe("BuiltTx: plain data", () => {
         walk(member, `${path}.${key}`);
     };
     // The result is the object of the transaction; each of its members is plain data
-    expect(built).toBeInstanceOf(StandaloneTx);
+    expect(built).toBeInstanceOf(BuiltTx);
     for (const [key, member] of Object.entries(built))
       walk(member, `built.${key}`);
     expect(notPlain).toEqual([]);
@@ -1032,7 +1032,7 @@ describe("BuiltTx: plain data", () => {
       ["spread", { ...built }],
       ["structuredClone", structuredClone(built)],
     ] as const) {
-      expect(copy).not.toBeInstanceOf(StandaloneTx);
+      expect(copy).not.toBeInstanceOf(BuiltTx);
       walk(copy, name);
       expect(Object.keys(copy)).toEqual(Object.keys(built));
     }

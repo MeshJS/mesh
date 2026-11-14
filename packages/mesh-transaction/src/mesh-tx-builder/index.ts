@@ -34,7 +34,7 @@ import {
 
 import type {
   BuildOptions,
-  BuiltTx,
+  BuiltTxData,
   DeclaredOutputs,
 } from "../tx-builder/builder";
 import type { BodyParts } from "./body-parts";
@@ -311,7 +311,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
    * outputs read through the fetcher, or the values that stand in for them
    */
   private buildBody = async (): Promise<{
-    built: BuiltTx;
+    built: BuiltTxData;
     translated: BodyParts;
     known: ReadonlyMap<string, UTxO>;
     costModels?: number[][];
@@ -592,7 +592,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
    * a transaction running Plutus scripts was built with
    */
   private describeBuilt = (
-    built: BuiltTx,
+    built: BuiltTxData,
     translated: BodyParts,
     known: ReadonlyMap<string, UTxO>,
     costModels: number[][] | undefined,

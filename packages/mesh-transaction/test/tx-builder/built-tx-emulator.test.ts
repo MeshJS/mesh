@@ -9,6 +9,7 @@ import { MeshWallet } from "@meshsdk/wallet";
 
 import {
   addWitnesses,
+  BuiltTx,
   certificate,
   keySigner,
   output,
@@ -16,7 +17,6 @@ import {
   Signer,
   signWitnesses,
   spend,
-  StandaloneTx,
   TxBuilder,
   TxHashRequest,
   TxHashSigner,
@@ -127,7 +127,7 @@ const registration = async (validator: "scalus" | "cquisitor") => {
 };
 
 describe.each(["scalus", "cquisitor"] as const)(
-  "StandaloneTx on TxEmulator (%s)",
+  "BuiltTx on TxEmulator (%s)",
   (validator) => {
     it("signs with each form of signer alone, and with all of them together", async () => {
       const { emulator, wallet, build, pubKeyHash, stakeCredentialHash } =
@@ -147,7 +147,7 @@ describe.each(["scalus", "cquisitor"] as const)(
       ];
       for (const [name, signers] of forms) {
         const built = await build();
-        expect(built).toBeInstanceOf(StandaloneTx);
+        expect(built).toBeInstanceOf(BuiltTx);
         expect(await built.sign({ signers, partial: false })).toBe(built);
         expect([name, built.missing]).toEqual([name, []]);
         expect((await signedKeyHashes(built.signedTx!)).sort()).toEqual(
@@ -264,7 +264,7 @@ describe.each(["scalus", "cquisitor"] as const)(
         inputs: built.inputs,
         changeAddress: address,
       });
-      expect(final).toBeInstanceOf(StandaloneTx);
+      expect(final).toBeInstanceOf(BuiltTx);
       const keys = await seedKeys();
       await final.sign({ signers: [keys.payment, keys.stake] });
       expect(await emulator.submitTx(final.signedTx!)).toBe(final.txHash);
@@ -322,7 +322,7 @@ const wrapped = async (
 const QUICK = { timeoutMs: 2_000, pollMs: 10 } as const;
 
 describe.each(["scalus", "cquisitor"] as const)(
-  "StandaloneTx submitted on TxEmulator (%s)",
+  "BuiltTx submitted on TxEmulator (%s)",
   (validator) => {
     it("is built, signed, submitted and found in a block", async () => {
       const { emulator, builder, wallet, address } = await wrapped(validator);
@@ -489,7 +489,7 @@ describe.each(["scalus", "cquisitor"] as const)(
         evaluator: emulator,
       });
       const restored = await other.restore(JSON.parse(text));
-      expect(restored).toBeInstanceOf(StandaloneTx);
+      expect(restored).toBeInstanceOf(BuiltTx);
       expect({ ...restored }).toEqual({ ...built });
       expect(restored.partialTx).toBe(built.partialTx);
       // What is held is not enough for the ledger

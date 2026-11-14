@@ -35,7 +35,7 @@ import * as publicApi from "../../src";
 import {
   addWitnesses,
   Assets,
-  BuiltTx,
+  BuiltTxData,
   certificate,
   collateral,
   guard,
@@ -309,11 +309,11 @@ const normalized = (signers: TxSigners) => {
   };
 };
 /** The UTxOs of a built transaction's inputs and collateral */
-const spentBy = (built: BuiltTx) => [
+const spentBy = (built: BuiltTxData) => [
   ...built.inputs,
   ...(built.collateral?.inputs ?? []),
 ];
-const expectAgrees = (built: BuiltTx, spent = spentBy(built)) =>
+const expectAgrees = (built: BuiltTxData, spent = spentBy(built)) =>
   expect(normalized(requiredSigners(built.tx, spent))).toEqual(
     normalized(built.signers),
   );

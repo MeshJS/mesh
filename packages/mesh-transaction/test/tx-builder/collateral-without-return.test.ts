@@ -16,7 +16,7 @@ import {
 
 import {
   BuildOptions,
-  BuiltTx,
+  BuiltTxData,
   collateral,
   collateralReturn,
   OutputDatum,
@@ -147,7 +147,7 @@ const build = (
   });
 
 /** The collateral fields of the serialized body */
-const bodyCollateral = (built: BuiltTx) => {
+const bodyCollateral = (built: BuiltTxData) => {
   const body = Transaction.fromCbor(TxCBOR(built.tx)).body();
   return {
     inputs: (body.collateral()?.values() ?? []).map(
@@ -162,7 +162,10 @@ const bodyCollateral = (built: BuiltTx) => {
  * Checks a collateral without a return: lovelace-only inputs, all of their lovelace at stake and
  * at least what the fee calls for, and the transaction states neither a return nor a total
  */
-const expectAtStake = (built: BuiltTx, limit = params.maxCollateralInputs) => {
+const expectAtStake = (
+  built: BuiltTxData,
+  limit = params.maxCollateralInputs,
+) => {
   const { inputs, total } = built.collateral!;
   expect(built.collateral!.return).toBeUndefined();
   expect(Object.keys(built.collateral!)).toEqual(["inputs", "total"]);

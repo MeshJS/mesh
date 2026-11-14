@@ -1,7 +1,12 @@
 import type { CachedFetcher, ISubmitter } from "@meshsdk/common";
 
 import type { SelectInputs } from "../balance";
-import type { BuildEvent, BuildOptions, BuiltTx, TxBuilder } from "../builder";
+import type {
+  BuildEvent,
+  BuildOptions,
+  BuiltTxData,
+  TxBuilder,
+} from "../builder";
 import type { TxPlanErrorCode, TxPlanErrorDetails } from "../errors";
 import type { OutRef, TxPart, Utxo } from "../parts/types";
 import type {
@@ -112,7 +117,7 @@ type BuilderInternals = {
     source: PayerSource,
     flat: readonly TxPart[],
     options: BuildOptions | undefined,
-  ): Promise<BuiltTx>;
+  ): Promise<BuiltTxData>;
   readonly cache?: CachedFetcher;
 };
 
@@ -494,7 +499,7 @@ const lowKey = (ref: Readonly<OutRef>) =>
 /** A parent attempt a new attempt of a child stands on */
 type ParentBase = {
   readonly attempt: AttemptRecord;
-  readonly built: BuiltTx;
+  readonly built: BuiltTxData;
   /** Known to be in a block: the child's deadline is then its own */
   readonly inBlock: boolean;
   readonly planId?: string;
@@ -650,7 +655,7 @@ export class TxPlan {
    * The landed attempt's transaction, else the current one's; `built.tx` is unsigned. Undefined
    * while the plan has no attempt
    */
-  get built(): BuiltTx | undefined {
+  get built(): BuiltTxData | undefined {
     return shownAttempt(stateOf(this).record)?.built;
   }
 
@@ -773,7 +778,10 @@ export class TxPlan {
    *   plan with `sendAllTo` none of whose earlier UTxOs is left; ABORTED; and every error of
    *   building the transaction, FEE_TOO_LOW for an attempt the plan's `fee` does not cover
    */
-  build(options?: { payer?: Payer; signal?: AbortSignal }): Promise<BuiltTx> {
+  build(options?: {
+    payer?: Payer;
+    signal?: AbortSignal;
+  }): Promise<BuiltTxData> {
     return this.#run(async (state) => {
       const { payer, signal } = options ?? {};
       checkCallOptions({ signal });
@@ -793,7 +801,7 @@ export class TxPlan {
   async #buildStep(
     state: PlanState,
     signal: AbortSignal | undefined,
-  ): Promise<BuiltTx> {
+  ): Promise<BuiltTxData> {
     const record = state.record;
     const status = planStatus(record);
     const current = currentAttempt(record);
@@ -2081,7 +2089,7 @@ export class TxPlan {
     state: PlanState,
     signal: AbortSignal | undefined,
     knownTip?: Tip,
-  ): Promise<BuiltTx> {
+  ): Promise<BuiltTxData> {
     // The record the call starts from: one read from the store after this is another writer's
     const since = state.storeReads;
     const started = currentAttempt(state.record)?.txHash;
@@ -2394,7 +2402,7 @@ export class TxPlan {
    * After a search of every attempt: the landed one's transaction; SCRIPT_FAILED when one was
    * found with `is_valid = false`
    */
-  #landedOrFailed(state: PlanState): BuiltTx | undefined {
+  #landedOrFailed(state: PlanState): BuiltTxData | undefined {
     const landed = landedAttempt(state.record);
     if (landed) return landed.built;
     if (state.record.attempts.some((attempt) => attempt.status === "failed"))
@@ -2565,11 +2573,11 @@ export class TxPlan {
    */
   async #checkInputs(
     state: PlanState,
-    built: BuiltTx | undefined,
+    built: BuiltTxData | undefined,
     bases: readonly ParentBase[],
     signal: AbortSignal | undefined,
     unread: ReadonlySet<string> = new Set(),
-  ): Promise<BuiltTx | undefined> {
+  ): Promise<BuiltTxData | undefined> {
     const stale = this.#staleParentRefs(state, bases);
     const staleKeys = new Set(stale.map(lowKey));
     const standing = new Set(
@@ -2630,7 +2638,7 @@ export class TxPlan {
     state: PlanState,
     tip: Tip,
     signal: AbortSignal | undefined,
-  ): Promise<boolean | BuiltTx> {
+  ): Promise<boolean | BuiltTxData> {
     const anchor = generalAnchor(state.record);
     if (anchor?.kind !== "payer") return false;
     const listed = await abortable(
@@ -2897,7 +2905,7 @@ export class TxPlan {
    */
   async #anchorsOf(
     state: PlanState,
-    built: BuiltTx,
+    built: BuiltTxData,
     utxos: readonly Utxo[],
     bases: readonly ParentBase[],
     newAnchor: boolean,
@@ -2930,7 +2938,7 @@ export class TxPlan {
    */
   async #firstAnchor(
     state: PlanState,
-    built: BuiltTx,
+    built: BuiltTxData,
     utxos: readonly Utxo[],
     signal: AbortSignal | undefined,
   ): Promise<{ utxo: Utxo; kind: AnchorKind }> {

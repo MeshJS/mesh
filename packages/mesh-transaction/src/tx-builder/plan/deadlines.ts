@@ -5,7 +5,7 @@ import { TxBuildError } from "../errors";
 
 // The deadlines of plans and the waiting of their calls: the built-in values, the order in
 // which the builder's defaults, a plan's options and a call's options override them, and the
-// check of every value. `awaitInclusion()` of a `StandaloneTx` waits by the same defaults and
+// check of every value. `awaitInclusion()` of a `BuiltTx` waits by the same defaults and
 // checks. Nothing here is exported from the package.
 
 /** The builder's `planDefaults`: the three deadlines and the pace of waiting */

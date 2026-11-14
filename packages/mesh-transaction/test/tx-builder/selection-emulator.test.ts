@@ -4,7 +4,7 @@ import { MeshWallet } from "@meshsdk/wallet";
 
 import {
   Assets,
-  BuiltTx,
+  BuiltTxData,
   output,
   toUtxo,
   TxBuilder,
@@ -63,7 +63,7 @@ describe("TxBuilder selection on the emulator", () => {
     await wallet.init();
     builder = new TxBuilder({ network: "preview", provider: emulator });
   };
-  const submit = async (built: BuiltTx) => {
+  const submit = async (built: BuiltTxData) => {
     const txHash = await emulator.submitTx(await wallet.signTx(built.tx));
     expect(txHash).toBe(built.txHash);
   };

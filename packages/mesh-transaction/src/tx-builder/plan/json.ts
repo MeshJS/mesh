@@ -1,4 +1,4 @@
-import type { BuiltTx } from "../builder";
+import type { BuiltTxData } from "../builder";
 import type { TxPart } from "../parts/types";
 import type { AnchorKind, AttemptRecord, PlanRecord } from "./core";
 import type { TxAttemptStatus, TxPlanJSON, TxPlanStatus } from "./types";
@@ -11,7 +11,7 @@ import { planStatus } from "./core";
 // the shapes of the parts and of the record and writes every `bigint` as its decimal string, at
 // its own field; the reader knows those fields and puts the `bigint`s back. The reader refuses a
 // record it cannot read whole: a newer version, another kind, or content this library does not
-// know. The data of a build is encoded and read the same way in the JSON of a `StandaloneTx`.
+// know. The data of a build is encoded and read the same way in the JSON of a `BuiltTx`.
 // Nothing here is exported from the package.
 
 /** The record format this library writes */
@@ -118,7 +118,7 @@ export const encodeParts = (parts: readonly TxPart[]): unknown[] =>
   });
 
 /** The data of a build as a record holds it: plain JSON data, every `bigint` as its decimal string */
-export const encodeBuilt = (built: BuiltTx): unknown => {
+export const encodeBuilt = (built: BuiltTxData): unknown => {
   const { parts, ...rest } = built;
   return { ...(plain(rest, "built") as object), parts: encodeParts(parts) };
 };
@@ -1012,7 +1012,7 @@ const BUILT_MEMBERS = [
   "parts",
 ] as const;
 
-/** The members of the objects inside the data of a build, as `BuiltTx` declares them */
+/** The members of the objects inside the data of a build, as `BuiltTxData` declares them */
 const SIGNERS_MEMBERS = [
   "keyHashes",
   "keys",
@@ -1092,7 +1092,7 @@ const requiredKeys = (
  * The data of a build back from its encoding
  * @throws UnreadContent for content this library does not know or cannot read, naming it
  */
-export const decodeBuilt = (value: unknown, path: string): BuiltTx => {
+export const decodeBuilt = (value: unknown, path: string): BuiltTxData => {
   const json = object(value, path);
   known(json, BUILT_MEMBERS, path);
   const signers = object(json.signers, `${path}.signers`);
@@ -1160,7 +1160,7 @@ export const decodeBuilt = (value: unknown, path: string): BuiltTx => {
       VALIDITY_MEMBERS,
       `${path}.validity`,
     );
-  return built as unknown as BuiltTx;
+  return built as unknown as BuiltTxData;
 };
 
 const outRefValue = (value: unknown, path: string) => {

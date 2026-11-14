@@ -34,7 +34,7 @@ export {
   type BuildEvent,
   type PartEntry,
   type PartsInput,
-  type BuiltTx,
+  type BuiltTxData,
   type BuiltRedeemer,
   type BuiltOutput,
   type BuildWarning,
@@ -67,11 +67,11 @@ export {
 } from "./sign";
 export { keySigner } from "./key-signer";
 export {
-  StandaloneTx,
+  BuiltTx,
   type SignTxOptions,
-  type StandaloneTxJSON,
+  type BuiltTxJSON,
   type TxInclusion,
-} from "./standalone";
+} from "./built-tx";
 export { TxPlan } from "./plan/plan";
 export { checkPlanStore, memoryPlanStore } from "./plan/store";
 export type {

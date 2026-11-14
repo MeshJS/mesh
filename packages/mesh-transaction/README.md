@@ -47,10 +47,10 @@ The builder holds no wallet: who pays is the `payer` of each build or plan, who 
 the call that signs (in a plan the payer signs unless the call names `signers`), and who submits
 is the call's `submitter`, else the builder's, else the provider. The builder holds its network,
 provider, settings, the provider's shared cache and the parts added with `.add()`; it holds no
-payer and no state of a transaction: that lives in the `TxPlan`, or in the `StandaloneTx` a
+payer and no state of a transaction: that lives in the `TxPlan`, or in the `BuiltTx` a
 build returns. One builder builds any number of transactions, concurrently included.
 
-`builder.build(parts, { payer })` returns one transaction on its own, a `StandaloneTx`: the data
+`builder.build(parts, { payer })` returns one transaction on its own, a `BuiltTx`: the data
 of the build, and the calls that sign that one body, submit it and look for it (`sign()`,
 `addWitnesses()`, `submit()`, `awaitInclusion()`). It has no deadline, no anchor and no
 replacement. It is the preview of an order, the way to build without a provider, the start of a
@@ -97,7 +97,7 @@ on them without reading; it throws `MISSING_PARAMETER` when there are no cost mo
 `rewardAddress(credential)` on its network, `serialize(prototype)`, `finalize(prototype, { inputs,
 changeAddress? })`, `restore(json)`, `readPayer(payer)`, and its options as read-only fields
 (`builder.params` and `builder.costModels` are what was given, never what was read). `build()` and
-`finalize()` return a `StandaloneTx`, and `restore(json)` brings one back from its JSON; see
+`finalize()` return a `BuiltTx`, and `restore(json)` brings one back from its JSON; see
 [The path without a lifecycle](#the-path-without-a-lifecycle).
 
 ### Accumulated parts
@@ -290,7 +290,7 @@ transaction and answers with a witness set, such as a hardware wallet, implement
 `signTxWitnesses(tx, keyHashes?)` instead.
 
 A key signer and a signer of hashes give vkey witnesses only. The bootstrap witness of a Byron
-address comes from a wallet, and neither a `StandaloneTx` nor a plan waits for it: a transaction
+address comes from a wallet, and neither a `BuiltTx` nor a plan waits for it: a transaction
 sent without it is refused by the ledger. Whether the signatures satisfy a native script is not
 checked either: its keys are asked for, and the script decides.
 
@@ -335,8 +335,8 @@ of [New plan instead of an old one](#new-plan-instead-of-an-old-one). Parts that
 signature of a DRep key (DRep certificates, a vote cast by a DRep key) are signed by a browser
 wallet connected with the CIP-95 extension: `enable({ extensions: [{ cip: 95 }] })` on the wallet's
 entry in `window.cardano`, or `BrowserWallet.enable(name, [{ cip: 95 }])`. The builder calls nothing
-of CIP-95: it calls `signTx` and compares the keys that signed with `BuiltTx.signers`; a key that
-did not sign stays in `plan.missing`, and `send()` throws `MISSING_SIGNATURES`.
+of CIP-95: it calls `signTx` and compares the keys that signed with `BuiltTxData.signers`; a key
+that did not sign stays in `plan.missing`, and `send()` throws `MISSING_SIGNATURES`.
 
 **Wallet forms.** A wallet given as the payer comes in one of these forms:
 
@@ -417,7 +417,7 @@ an output is spent in the parts of another plan, only at `final`.
 | `abandon()`                    | records the decision to close (the _closing mark_, shown by `plan.closing`; after it `build()`, `sign()`, `addWitnesses()` and `send()` throw `INVALID_STATE` (`closing`)), and closes the plan when no attempt can land                                                                                |
 | `toJSON()`                     | the plan as plain JSON data                                                                                                                                                                                                                                                                             |
 
-It also shows `id`, `status`, `built` (the landed attempt's `BuiltTx`, else the current one's;
+It also shows `id`, `status`, `built` (the landed attempt's `BuiltTxData`, else the current one's;
 `built.tx` is unsigned), `signedTx`, `txHash` (it may change with a new attempt before `included`:
 the stable key of a payment is `id`), `missing`, `attempts`, `live`, `landed` and `closing`.
 
@@ -1316,8 +1316,8 @@ the parent's attempt.
 
 ## The path without a lifecycle
 
-`builder.build(parts, { payer })` returns a `StandaloneTx`: one built transaction on its own. It
-is the data of the build (a `BuiltTx`: see [The result](#the-result)) and the calls that sign
+`builder.build(parts, { payer })` returns a `BuiltTx`: one built transaction on its own. It
+is the data of the build (a `BuiltTxData`: see [The result](#the-result)) and the calls that sign
 that one body, take signatures made elsewhere, submit it and look for it.
 
 ```ts
@@ -1332,7 +1332,7 @@ await built.submit(); // MISSING_SIGNATURES, and nothing sent, while a key is mi
 const { slot } = await built.awaitInclusion(); // found in a block: one sighting, which a rollback can undo
 ```
 
-| `StandaloneTx`                                   |                                                                                                                                                                                                                                                |
+| `BuiltTx`                                        |                                                                                                                                                                                                                                                |
 | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `sign({ signers, partial? })`                    | signs with the call's [signers](#signers), each asked for the keys that have not signed yet, and keeps what they give. With `partial: false` a key still missing is `MISSING_SIGNATURES`                                                       |
 | `addWitnesses(...witnessSets)`                   | adds witness sets, or full transactions from a wallet or another party, each checked against the body                                                                                                                                          |
@@ -1450,16 +1450,16 @@ another kind, of a newer version or with content this library does not read is `
 
 ### Signing functions
 
-The lower layer, which a `StandaloneTx` and a plan are made of. It is for code that has no
+The lower layer, which a `BuiltTx` and a plan are made of. It is for code that has no
 builder: a page that only signs with a wallet, a cold machine, a server that checks a transaction
 it did not build.
 
-| Function                                      |                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `await signWitnesses(signer, tx, keyHashes?)` | the signer's witness set: `signTxWitnesses(tx, keyHashes)` when it has it, else `signTxHash` (an object with it, or a function), whose signatures are verified, else `signTx`. A signer of hashes gets `keys` with empty `roles`, and no `keys` without `keyHashes`. The answer is returned whole, not filtered by `keyHashes`: a wallet that signs with an extra key gives an extra witness, which can put the fee below the minimum (a `StandaloneTx` and a plan drop it) |
-| `await addWitnesses(tx, ...witnessSets)`      | `tx` with the vkey and bootstrap witnesses of each witness set or full transaction added; only the witness set changes. `INVALID_WITNESS` with `details.argument`, counted from 0; an empty string is `undecodable`                                                                                                                                                                                                                                                         |
-| `await signedKeyHashes(tx)`                   | the key hashes whose witness in `tx` verifies against its body                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `requiredSigners(tx, spent)`                  | who must sign a transaction built elsewhere, given the UTxO of every input and collateral input (`UTXO_NOT_FOUND` for a missing one), and of reference inputs for the native scripts they hold, in any form of `UtxoInput`; each key with its roles, as the build gives them                                                                                                                                                                                                |
+| Function                                      |                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `await signWitnesses(signer, tx, keyHashes?)` | the signer's witness set: `signTxWitnesses(tx, keyHashes)` when it has it, else `signTxHash` (an object with it, or a function), whose signatures are verified, else `signTx`. A signer of hashes gets `keys` with empty `roles`, and no `keys` without `keyHashes`. The answer is returned whole, not filtered by `keyHashes`: a wallet that signs with an extra key gives an extra witness, which can put the fee below the minimum (a `BuiltTx` and a plan drop it) |
+| `await addWitnesses(tx, ...witnessSets)`      | `tx` with the vkey and bootstrap witnesses of each witness set or full transaction added; only the witness set changes. `INVALID_WITNESS` with `details.argument`, counted from 0; an empty string is `undecodable`                                                                                                                                                                                                                                                    |
+| `await signedKeyHashes(tx)`                   | the key hashes whose witness in `tx` verifies against its body                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `requiredSigners(tx, spent)`                  | who must sign a transaction built elsewhere, given the UTxO of every input and collateral input (`UTXO_NOT_FOUND` for a missing one), and of reference inputs for the native scripts they hold, in any form of `UtxoInput`; each key with its roles, as the build gives them                                                                                                                                                                                           |
 
 `addWitnesses` and `signedKeyHashes` return promises. Bad arguments (a `tx` that is not a
 transaction, a signer that cannot sign, a malformed `spent`) are `TxBuildError` `INVALID_OPTION`;
@@ -1534,7 +1534,7 @@ input of the body, in any form of `UtxoInput` (`UTXO_NOT_FOUND` for a missing on
 run again: redeemers keep the units the prototype states, so after an edit a script can see, build
 again from parts. Collateral is not changed: a raised fee that it no longer covers is
 `INSUFFICIENT_COLLATERAL`, until the caller raises `total_collateral` and lowers the collateral
-return. Key witnesses of the prototype are dropped: the result is unsigned, a `StandaloneTx` as
+return. Key witnesses of the prototype are dropped: the result is unsigned, a `BuiltTx` as
 from `build()`, whose fee prices no witness of a key it does not need. The result has no parts:
 `parts` and `selectedInputs` are empty, redeemers carry no `part`, outputs no `label`, and `change`
 holds every output at `changeAddress`, a payment to that address included. A prototype that names
@@ -1764,7 +1764,7 @@ import { output } from "@meshsdk/transaction";
 output({ address: utxo.address, value: utxo.value, datum: utxo.datum });
 ```
 
-**Returned.** Every UTxO the builder returns is a `Utxo`: `BuiltTx.inputs`, `selectedInputs`,
+**Returned.** Every UTxO the builder returns is a `Utxo`: `BuiltTxData.inputs`, `selectedInputs`,
 `referenceInputs`, `outputs` and `change` (`BuiltOutput`: a `Utxo` with `label` and `change`),
 `collateral.inputs` and `collateral.return` (the output the return becomes if a script fails:
 output `outputs.length` of `txHash`), `outputOf`, `readPayer(payer).utxos`, the argument of
@@ -1824,8 +1824,8 @@ for the payer's UTxOs and `UTXO_NOT_FOUND` for an out ref looked up. The reason 
 
 ## The result
 
-`built` is a `StandaloneTx`: its own members are the data below, and `{ ...built }` or
-`structuredClone(built)` is that data as a plain `BuiltTx`, which is also what a plan's `built`
+`built` is a `BuiltTx`: its own members are the data below, and `{ ...built }` or
+`structuredClone(built)` is that data as a plain `BuiltTxData`, which is also what a plan's `built`
 is.
 
 ```ts
@@ -1882,7 +1882,7 @@ for no time, where on a known network it keeps them until the epoch ends.
 | `canSelect`                   | which of the payer's UTxOs may be selected for payment and collateral; UTxOs the parts read and script-locked UTxOs are never selected; it gets a `Utxo`                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `coinSelection`               | a `SelectInputs` function that replaces the built-in selection of this build (each token from its largest holders, then lovelace), called `(need, candidates, context)`: `need` is an `Assets` (`lovelace` always there, a token only when short), the candidates are `Utxo`s; it returns out refs (the candidates themselves will do), and every one must name a candidate (`INVALID_SELECTION`); an entry without a string `txHash` and a number `outputIndex`, a Mesh `UTxO` among them, is `INVALID_OPTION`; the change stays with the built-in rule |
 | `sendAllTo`                   | spend every selectable UTxO and send what is left to this address                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `after`                       | `BuiltTx` or `TxPlan` (its current attempt), or a list: transactions not yet seen by the provider. Their inputs are not selected, their change at this build's change address is, their outputs can be named by out ref without a lookup                                                                                                                                                                                                                                                                                                                 |
+| `after`                       | `BuiltTxData` or `TxPlan` (its current attempt), or a list: transactions not yet seen by the provider. Their inputs are not selected, their change at this build's change address is, their outputs can be named by out ref without a lookup                                                                                                                                                                                                                                                                                                             |
 | `knownUtxos`                  | outputs the parts may name by out ref that the provider may not know yet, in any form of `UtxoInput`, handed to every evaluator; listing one makes it neither selectable nor unselectable (a payer UTxO listed here may still be selected). A plan checks them at `builder.plan()`, and records them as `Utxo`s                                                                                                                                                                                                                                          |
 | `fee`                         | goes into the body as given; `FEE_TOO_LOW { fee, minFee }` when the final transaction's minimum fee is higher; `FEE_ABOVE_MINIMUM` warns when it is above                                                                                                                                                                                                                                                                                                                                                                                                |
 | `registeredPools`             | operator key hashes of pools already registered                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
@@ -1923,10 +1923,10 @@ Every error has `code`, `message`, and where they apply `part`, `label`, `detail
 error it was raised from, such as the provider's `ProviderError` or the wallet's error).
 `retryable: true` means only: the same call, repeated no earlier than `retryAfterMs`, is safe and
 may pass. A `TxPlanError` of a plan also carries `planId`, `status` (when thrown), `txHash` (the
-attempt it is about) and `plan` (the object as it is now); one of a `StandaloneTx` carries none of
+attempt it is about) and `plan` (the object as it is now); one of a `BuiltTx` carries none of
 them. `TxPartError.is` is `TxError.is`: tell a part error by its code. The builder throws no
 `RangeError`: a bad option or argument is `INVALID_OPTION`, a missing label `UNKNOWN_LABEL`; an
-aborted `signal` is `ABORTED` in every call of the builder, of a plan and of a `StandaloneTx`.
+aborted `signal` is `ABORTED` in every call of the builder, of a plan and of a `BuiltTx`.
 With `MISSING_SIGNATURES`, `MISSING_SUBMITTER`, `NOT_YET_VALID` and `INPUTS_SPENT` nothing went to
 the network. No code means "the payment did not go through": only the status `abandoned` does, as
 every message of a plan's `TxPlanError` says.
@@ -1995,17 +1995,17 @@ every message of a plan's `TxPlanError` says.
 | `MISSING_STORE`            | `TxPlanError`  | `resume` on a builder without a store                                                                                                                                                                                                                                                                      | none                                                                                                       | no                                                          |
 | `MISSING_ID`               | `TxPlanError`  | a plan on a builder with a store without an `id`                                                                                                                                                                                                                                                           | none                                                                                                       | no                                                          |
 
-Warnings do not stop a build: `BuiltTx.warnings` lists `VALID_FROM_FUTURE` (the lower bound starts
-after the local clock's time), `COLLATERAL_FORFEITED` (collateral without a collateral return: all
-of it is at stake) and `FEE_ABOVE_MINIMUM` (the `fee` given is above the minimum). A plan tells
-`trace` `{ type: "warning", code: "HASH_MISMATCH", txHash, reportedHash }` when a submitter answers
-with another hash; the hash is kept in `TxAttempt.reportedHash` as a note.
+Warnings do not stop a build: `BuiltTxData.warnings` lists `VALID_FROM_FUTURE` (the lower bound
+starts after the local clock's time), `COLLATERAL_FORFEITED` (collateral without a collateral
+return: all of it is at stake) and `FEE_ABOVE_MINIMUM` (the `fee` given is above the minimum). A
+plan tells `trace` `{ type: "warning", code: "HASH_MISMATCH", txHash, reportedHash }` when a
+submitter answers with another hash; the hash is kept in `TxAttempt.reportedHash` as a note.
 
 The lists the library gives out are open: part kinds, `SignerRole`, redeemer tags,
 `LanguageVersion`, native script variants, plan and attempt statuses, the values of `reason`,
 `cause` and `role` in `details`, and warning codes. A minor version may add a value. Code that
 switches on them has a default branch, and code meant to outlive a ledger era reads the fields of
-`BuiltTx` (`signers`, `inputs`, `outputs`, `redeemers`, `parts`), not `prototype`.
+`BuiltTxData` (`signers`, `inputs`, `outputs`, `redeemers`, `parts`), not `prototype`.
 
 ## Testing on the emulator
 
@@ -2226,18 +2226,18 @@ signatures are kept and behave the same or very close, though the final CBOR may
 - `reset()` also clears a fee set with `setFee()`, and keeps the protocol parameters;
   `protocolParams()` calls merge in call order.
 
-| Member                                                                                                                                                                                                             | State               | Replacement                                                                      |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------- | -------------------------------------------------------------------------------- |
-| the fluent methods `txIn` … `inputForEvaluation`, `complete()`, `completeSync()`, `completeUnbalanced()`, `completeUnbalancedSync()`, `completeSigning()`, `submitTx()`, `reset()`, the fields                     | kept                | —                                                                                |
-| `calculateMinLovelaceForOutput`, `calculateFee`, `getActualFee`, `calculateFeeForSerializedTx`, `calculateRefScriptFee`, `calculateRedeemersFee`, `getTotalExecutionUnits`, `getSerializedSize`, `serializeMockTx` | kept                | for new code: `minCoin`, `minFee` and the fields of `BuiltTx` (`fee`, `exUnits`) |
-| `selectUtxos`                                                                                                                                                                                                      | removed             | `TxBuilder.build(parts, { payer })`: selection is the builder's                  |
-| `updateByTxPrototype`                                                                                                                                                                                              | removed             | the body is written back by `complete()`                                         |
-| `getUtxosForSelection`                                                                                                                                                                                             | removed             | `payer.utxos` (or `selectUtxosFrom()`)                                           |
-| `completeCostModels`                                                                                                                                                                                               | removed             | `TxBuilder`'s `costModels` option, or the provider                               |
-| `evaluateRedeemers`                                                                                                                                                                                                | removed             | the builder evaluates the balanced transaction; the `evaluator` option           |
-| `sortTxParts`, `sortInputs`, `sortMints`, `sortWithdrawals`, `sortVotes`, `sortProposals`                                                                                                                          | removed             | the builder orders every item by the ledger's rules                              |
-| the protected members (`completeTxParts`, `sanitizeOutputs`, `getUTxOInfo`, `complete…Info`, `is…Complete`, ...)                                                                                                   | removed             | —                                                                                |
-| `txEvaluationMultiplier`                                                                                                                                                                                           | kept, `@deprecated` | multiplies nothing                                                               |
+| Member                                                                                                                                                                                                             | State               | Replacement                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------- | ------------------------------------------------------------------------------------ |
+| the fluent methods `txIn` … `inputForEvaluation`, `complete()`, `completeSync()`, `completeUnbalanced()`, `completeUnbalancedSync()`, `completeSigning()`, `submitTx()`, `reset()`, the fields                     | kept                | —                                                                                    |
+| `calculateMinLovelaceForOutput`, `calculateFee`, `getActualFee`, `calculateFeeForSerializedTx`, `calculateRefScriptFee`, `calculateRedeemersFee`, `getTotalExecutionUnits`, `getSerializedSize`, `serializeMockTx` | kept                | for new code: `minCoin`, `minFee` and the fields of `BuiltTxData` (`fee`, `exUnits`) |
+| `selectUtxos`                                                                                                                                                                                                      | removed             | `TxBuilder.build(parts, { payer })`: selection is the builder's                      |
+| `updateByTxPrototype`                                                                                                                                                                                              | removed             | the body is written back by `complete()`                                             |
+| `getUtxosForSelection`                                                                                                                                                                                             | removed             | `payer.utxos` (or `selectUtxosFrom()`)                                               |
+| `completeCostModels`                                                                                                                                                                                               | removed             | `TxBuilder`'s `costModels` option, or the provider                                   |
+| `evaluateRedeemers`                                                                                                                                                                                                | removed             | the builder evaluates the balanced transaction; the `evaluator` option               |
+| `sortTxParts`, `sortInputs`, `sortMints`, `sortWithdrawals`, `sortVotes`, `sortProposals`                                                                                                                          | removed             | the builder orders every item by the ledger's rules                                  |
+| the protected members (`completeTxParts`, `sanitizeOutputs`, `getUTxOInfo`, `complete…Info`, `is…Complete`, ...)                                                                                                   | removed             | —                                                                                    |
+| `txEvaluationMultiplier`                                                                                                                                                                                           | kept, `@deprecated` | multiplies nothing                                                                   |
 
 `txEvaluationMultiplier` is `@deprecated` and multiplies nothing: a redeemer's execution units are
 the evaluation of the final transaction, and a value other than 1 makes the first `complete()` of

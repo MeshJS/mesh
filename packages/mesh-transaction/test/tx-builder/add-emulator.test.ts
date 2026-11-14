@@ -2,7 +2,7 @@ import { mConStr0 } from "@meshsdk/core";
 import { TxEmulator } from "@meshsdk/tx-emulator";
 import { MeshWallet } from "@meshsdk/wallet";
 
-import { BuiltTx, output, spend, TxBuilder } from "../../src/tx-builder";
+import { BuiltTxData, output, spend, TxBuilder } from "../../src/tx-builder";
 import { alwaysSucceedCbor, baseAddress } from "../test-util";
 import { ref } from "./utxo-util";
 
@@ -42,7 +42,7 @@ describe("TxBuilder.add on TxEmulator", () => {
     wallet = await fundedWallet(emulator);
   });
 
-  const submit = async (built: BuiltTx) =>
+  const submit = async (built: BuiltTxData) =>
     expect(await emulator.submitTx(await wallet.signTx(built.tx))).toBe(
       built.txHash,
     );

@@ -176,7 +176,7 @@ export type NetworkMismatchDetails = {
       | "collateralReturn"
       | "withdrawal"
       | "rewardAccount"
-      /** The network a plan's record, or the JSON of a `StandaloneTx`, was written for */
+      /** The network a plan's record, or the JSON of a `BuiltTx`, was written for */
       | "record";
     address?: string;
     networkId?: number;
@@ -238,7 +238,7 @@ export type TxBuildErrorDetails = {
 
 /**
  * Codes of a `TxPlanError`: signing, submitting and waiting for the chain, by a plan or by a
- * `StandaloneTx`, any step of a plan, and its store
+ * `BuiltTx`, any step of a plan, and its store
  */
 export type TxPlanErrorCode =
   /** The signer declined to sign */
@@ -383,7 +383,7 @@ export type TxPlanErrorDetails = {
   /**
    * `closing`: the plan carries the closing mark; `recordVersion`: the record is of a newer
    * format, another kind, or holds content this library does not know: a plan's record, or the
-   * JSON of a `StandaloneTx` given to `restore`, whose error quotes none of its values
+   * JSON of a `BuiltTx` given to `restore`, whose error quotes none of its values
    */
   INVALID_STATE: {
     reason:
@@ -600,7 +600,7 @@ export const NOT_UNPAID =
 
 /**
  * The sentence the messages of SUBMIT_FAILED, REJECTED and CONFIRM_TIMEOUT end with when a
- * `StandaloneTx` raises them: a second build of the same payment may land beside the first
+ * `BuiltTx` raises them: a second build of the same payment may land beside the first
  */
 export const NO_REBUILD =
   "Do not build another transaction to retry it: a new build may select other inputs, and both may land.";

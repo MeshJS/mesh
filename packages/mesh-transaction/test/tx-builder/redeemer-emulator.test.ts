@@ -12,7 +12,7 @@ import { TxEmulator } from "@meshsdk/tx-emulator";
 import { MeshWallet } from "@meshsdk/wallet";
 
 import {
-  BuiltTx,
+  BuiltTxData,
   mint,
   output,
   OutputDatum,
@@ -94,7 +94,7 @@ describe.each(["scalus", "cquisitor"] as const)(
         provider: emulator,
         evaluator: emulator,
       });
-      const submit = async (built: BuiltTx) =>
+      const submit = async (built: BuiltTxData) =>
         expect(await emulator.submitTx(await wallet.signTx(built.tx))).toBe(
           built.txHash,
         );

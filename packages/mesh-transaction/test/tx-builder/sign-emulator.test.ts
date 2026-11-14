@@ -16,7 +16,7 @@ import { AppWallet, MeshWallet } from "@meshsdk/wallet";
 
 import {
   addWitnesses,
-  BuiltTx,
+  BuiltTxData,
   certificate,
   guard,
   keySigner,
@@ -90,7 +90,7 @@ const normalized = (signers: TxSigners) => {
   };
 };
 /** `requiredSigners` of the serialized transaction agrees with what the build reports */
-const expectAgrees = (built: BuiltTx) =>
+const expectAgrees = (built: BuiltTxData) =>
   expect(
     normalized(
       requiredSigners(built.tx, [

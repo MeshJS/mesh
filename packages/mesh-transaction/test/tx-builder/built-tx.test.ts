@@ -21,6 +21,8 @@ import type { KeyWitness } from "../../src/tx-builder/sign";
 import {
   addWitnesses,
   BuiltTx,
+  BuiltTxData,
+  BuiltTxJSON,
   collateral,
   collateralReturn,
   guard,
@@ -30,8 +32,6 @@ import {
   signedKeyHashes,
   Signer,
   spend,
-  StandaloneTx,
-  StandaloneTxJSON,
   TxBuilder,
   TxBuilderOptions,
   TxBuildError,
@@ -77,7 +77,7 @@ const utxoAt = (address: string, lovelace = ada(100)): Utxo => ({
   value: { lovelace },
 });
 
-/** The members of `BuiltTx` a build without collateral and validity has */
+/** The members of `BuiltTxData` a build without collateral and validity has */
 const BUILT_MEMBERS = [
   "tx",
   "txHash",
@@ -184,10 +184,10 @@ const keyOf = (keyHash: string, ...roles: AskedKey["roles"]) => ({
   roles,
 });
 
-describe("StandaloneTx: the object", () => {
+describe("BuiltTx: the object", () => {
   it("is an instance of the class whose own members are exactly the data of the build, frozen", async () => {
     const { built } = await fixture();
-    expect(built).toBeInstanceOf(StandaloneTx);
+    expect(built).toBeInstanceOf(BuiltTx);
     expect(Object.keys(built)).toEqual(BUILT_MEMBERS);
     expect(Reflect.ownKeys(built)).toEqual(BUILT_MEMBERS);
     expect(Object.isFrozen(built)).toBe(true);
@@ -210,9 +210,7 @@ describe("StandaloneTx: the object", () => {
       "partialTx",
       "missing",
     ])
-      expect(Object.getOwnPropertyNames(StandaloneTx.prototype)).toContain(
-        name,
-      );
+      expect(Object.getOwnPropertyNames(BuiltTx.prototype)).toContain(name);
   });
 
   it("copies as the same plain data", async () => {
@@ -220,7 +218,7 @@ describe("StandaloneTx: the object", () => {
     const spread = { ...built };
     const cloned = structuredClone(built);
     for (const copy of [spread, cloned]) {
-      expect(copy).not.toBeInstanceOf(StandaloneTx);
+      expect(copy).not.toBeInstanceOf(BuiltTx);
       expect(Object.getPrototypeOf(Object.getPrototypeOf(copy))).toBeNull();
       expect(Object.keys(copy)).toEqual(BUILT_MEMBERS);
     }
@@ -282,12 +280,12 @@ describe("StandaloneTx: the object", () => {
     const { builder: planBuilder, address } = await setup();
     const plan = planBuilder.plan(pay(), { payer: address });
     const data = await plan.build();
-    expect(data).not.toBeInstanceOf(StandaloneTx);
+    expect(data).not.toBeInstanceOf(BuiltTx);
     expect("sign" in data).toBe(false);
-    expect(plan.built).not.toBeInstanceOf(StandaloneTx);
+    expect(plan.built).not.toBeInstanceOf(BuiltTx);
     // A plan takes plans only as `after`
     const built = await planBuilder.build(pay(), { payer: address });
-    expect(built).toBeInstanceOf(StandaloneTx);
+    expect(built).toBeInstanceOf(BuiltTx);
     const error = await caught(() =>
       planBuilder.plan(pay(), {
         payer: address,
@@ -311,7 +309,7 @@ describe("StandaloneTx: the object", () => {
         [output({ address: recipient, value: { lovelace: ada(2) } })],
         { payer: { changeAddress: payer.address, utxos: [] }, after: given },
       );
-      expect(next).toBeInstanceOf(StandaloneTx);
+      expect(next).toBeInstanceOf(BuiltTx);
       expect(next.inputs.map(ref)).toEqual(built.change.map(ref));
     }
   });
@@ -322,7 +320,7 @@ describe("StandaloneTx: the object", () => {
       inputs: built.inputs,
       changeAddress: payer.address,
     });
-    expect(final).toBeInstanceOf(StandaloneTx);
+    expect(final).toBeInstanceOf(BuiltTx);
     expect(Object.isFrozen(final)).toBe(true);
     // The keys of the body, in the body's order
     expect(
@@ -341,7 +339,7 @@ describe("StandaloneTx: the object", () => {
 
   it("types: build and finalize give the class, a plan's build the data alone", async () => {
     const { built } = await fixture();
-    const data: BuiltTx = built;
+    const data: BuiltTxData = built;
     expect(data).toBe(built);
     const { builder: planBuilder, address } = await setup();
     const attempt = await planBuilder.plan(pay(), { payer: address }).build();
@@ -358,7 +356,7 @@ describe("StandaloneTx: the object", () => {
   });
 });
 
-describe("StandaloneTx.sign", () => {
+describe("BuiltTx.sign", () => {
   describe("its options", () => {
     const secret =
       "ed25519_sk1n8u6zhjphv3hf7mkt3h03y4lqhkr0lrzk4m3k35ydxdeffegeldsauu57r";
@@ -864,7 +862,7 @@ describe("StandaloneTx.sign", () => {
   });
 });
 
-describe("StandaloneTx.addWitnesses", () => {
+describe("BuiltTx.addWitnesses", () => {
   it("takes witness sets and full transactions, several in a call", async () => {
     const { built, payer, guardKey } = await fixture();
     const other = (await fixture()).built;
@@ -934,7 +932,7 @@ describe("StandaloneTx.addWitnesses", () => {
   });
 });
 
-describe("StandaloneTx.partialTx", () => {
+describe("BuiltTx.partialTx", () => {
   it("is tx while nothing is held, holds what is held, and is signedTx once complete", async () => {
     const { built, payer, guardKey } = await fixture();
     expect(built.partialTx).toBe(built.tx);
@@ -962,7 +960,7 @@ describe("StandaloneTx.partialTx", () => {
   });
 });
 
-describe("StandaloneTx: what a request is", () => {
+describe("BuiltTx: what a request is", () => {
   it("is frozen at every level, and changing a member of it is refused", async () => {
     const { built, payer } = await fixture();
     let request: TxHashRequest | undefined;
@@ -1102,7 +1100,7 @@ const onFakeClock = async (run: () => Promise<void>) => {
   }
 };
 
-describe("StandaloneTx.submit", () => {
+describe("BuiltTx.submit", () => {
   it("sends through the call's submitter, else the builder's, else the provider", async () => {
     const call = recorder();
     const own = recorder();
@@ -1682,7 +1680,7 @@ describe("StandaloneTx.submit", () => {
   });
 });
 
-describe("StandaloneTx.awaitInclusion", () => {
+describe("BuiltTx.awaitInclusion", () => {
   it("returns what the provider's answer gave of the block when it finds the transaction at once", async () => {
     const viaProvider = fakeProvider({
       fetchTxInfo: (hash) =>
@@ -2023,17 +2021,17 @@ describe("StandaloneTx.awaitInclusion", () => {
   );
 });
 
-describe("StandaloneTx as JSON, and TxBuilder.restore", () => {
+describe("BuiltTx as JSON, and TxBuilder.restore", () => {
   /** The JSON as another process gets it: written as text and parsed */
-  const throughText = (built: StandaloneTx) =>
-    JSON.parse(JSON.stringify(built)) as StandaloneTxJSON;
+  const throughText = (built: BuiltTx) =>
+    JSON.parse(JSON.stringify(built)) as BuiltTxJSON;
 
   /** A text no error may hold: put where a value of the JSON stands */
   const MARK = "do-not-quote-7f3a";
 
   /** A refusal of `restore`: its error, checked to quote nothing of the JSON and to have no cause */
   const refusedRestore = async (b: TxBuilder, json: unknown) => {
-    const error = await caught(() => b.restore(json as StandaloneTxJSON));
+    const error = await caught(() => b.restore(json as BuiltTxJSON));
     expect(error).toBeInstanceOf(Error);
     const { message, details, cause } = error as TxBuildError;
     expect(message.includes(MARK)).toBe(false);
@@ -2058,7 +2056,7 @@ describe("StandaloneTx as JSON, and TxBuilder.restore", () => {
       "witnesses",
     ]);
     expect([json.kind, json.version, json.txHash]).toEqual([
-      "StandaloneTx",
+      "BuiltTx",
       1,
       built.txHash,
     ]);
@@ -2069,7 +2067,7 @@ describe("StandaloneTx as JSON, and TxBuilder.restore", () => {
 
     const other = builder();
     const restored = await other.restore(throughText(built));
-    expect(restored).toBeInstanceOf(StandaloneTx);
+    expect(restored).toBeInstanceOf(BuiltTx);
     expect(Object.isFrozen(restored)).toBe(true);
     expect(Object.keys(restored)).toEqual(Object.keys(built));
     expect({ ...restored }).toEqual({ ...built });
@@ -2336,7 +2334,7 @@ describe("StandaloneTx as JSON, and TxBuilder.restore", () => {
       expect(details).toEqual({
         option: "json",
         value: "object",
-        allowed: "the JSON of a StandaloneTx, as its toJSON() writes it",
+        allowed: "the JSON of a BuiltTx, as its toJSON() writes it",
       });
       expect(message).toContain("must be the unsigned one");
       expect(message).toContain("its signatures go in witnesses");
@@ -2414,7 +2412,7 @@ describe("StandaloneTx as JSON, and TxBuilder.restore", () => {
   describe("the signers it writes", () => {
     /** The keys a signer over every key of the fixture is asked for, and the transaction it signs */
     const signedBy = async (
-      tx: StandaloneTx,
+      tx: BuiltTx,
       ...keys: TestKey[]
     ): Promise<{ asked: unknown; signedTx: string | undefined }> => {
       const { signer, requests } = keysSigner("object", ...keys);
@@ -2422,7 +2420,7 @@ describe("StandaloneTx as JSON, and TxBuilder.restore", () => {
       return { asked: requests[0]?.keys, signedTx: tx.signedTx };
     };
 
-    it.each<[string, (signers: BuiltTx["signers"], drop: string) => void]>([
+    it.each<[string, (signers: BuiltTxData["signers"], drop: string) => void]>([
       ["keyHashes reversed", (signers) => signers.keyHashes.reverse()],
       [
         "a key taken out of keys and keyHashes",
@@ -2636,7 +2634,7 @@ describe("StandaloneTx as JSON, and TxBuilder.restore", () => {
 
     const cases: [
       string,
-      () => Promise<{ built: StandaloneTx; builder: TxBuilder }>,
+      () => Promise<{ built: BuiltTx; builder: TxBuilder }>,
     ][] = [
       [
         "redeemers of three tags, a validity with both bounds, collateral without a return and every warning",
@@ -2804,7 +2802,7 @@ describe("StandaloneTx as JSON, and TxBuilder.restore", () => {
       expect((error as TxBuildError<"INVALID_OPTION">).details).toEqual({
         option: "json",
         value: "object",
-        allowed: "the JSON of a StandaloneTx, as its toJSON() writes it",
+        allowed: "the JSON of a BuiltTx, as its toJSON() writes it",
       });
     });
 
@@ -2914,9 +2912,7 @@ describe("StandaloneTx as JSON, and TxBuilder.restore", () => {
       expect((deep as Error).message).toContain("built.fee is a string");
     });
 
-    it.each<
-      [string, (json: StandaloneTxJSON, other: StandaloneTxJSON) => unknown]
-    >([
+    it.each<[string, (json: BuiltTxJSON, other: BuiltTxJSON) => unknown]>([
       [
         "a txHash that is not the hash of its body",
         (json, other) => ({ ...json, txHash: other.txHash }),
@@ -2954,7 +2950,7 @@ describe("StandaloneTx as JSON, and TxBuilder.restore", () => {
       expect((error as TxBuildError<"INVALID_OPTION">).details).toEqual({
         option: "json",
         value: "object",
-        allowed: "the JSON of a StandaloneTx, as its toJSON() writes it",
+        allowed: "the JSON of a BuiltTx, as its toJSON() writes it",
       });
     });
 
@@ -3010,7 +3006,7 @@ describe("StandaloneTx as JSON, and TxBuilder.restore", () => {
     const plan = b.plan(pay(), { payer: address, id: "pay-1" });
     await plan.build();
     const planError = await caught(() =>
-      b.restore(plan.toJSON() as unknown as StandaloneTxJSON),
+      b.restore(plan.toJSON() as unknown as BuiltTxJSON),
     );
     expect(TxPlanError.is(planError, "INVALID_STATE")).toBe(true);
     expect((planError as TxPlanError<"INVALID_STATE">).details.reason).toBe(
@@ -3033,7 +3029,7 @@ describe("StandaloneTx as JSON, and TxBuilder.restore", () => {
 
   it("types: restore takes the JSON, and toJSON gives it", async () => {
     const { built, builder: b } = await fixture();
-    const json: StandaloneTxJSON = built.toJSON();
+    const json: BuiltTxJSON = built.toJSON();
     expect((await b.restore(json)).txHash).toBe(built.txHash);
     // @ts-expect-error: the data of a build is not its JSON
     await expect(b.restore({ ...built })).rejects.toThrow(TxBuildError);

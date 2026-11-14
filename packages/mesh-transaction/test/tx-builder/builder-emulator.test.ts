@@ -14,7 +14,7 @@ import { ScalusEmulator } from "@meshsdk/scalus-emulator";
 import { BrowserWallet, MeshWallet } from "@meshsdk/wallet";
 
 import {
-  BuiltTx,
+  BuiltTxData,
   certificate,
   donation,
   mint,
@@ -73,7 +73,7 @@ describe("TxBuilder on the emulator", () => {
 
   const utxos = () => provider.fetchAddressUTxOs(address);
   const signWith = async (
-    built: BuiltTx,
+    built: BuiltTxData,
     signers: ("payment" | "stake" | "drep")[],
   ) => {
     let tx = built.tx;
@@ -82,11 +82,11 @@ describe("TxBuilder on the emulator", () => {
     return tx;
   };
   const submit = async (
-    built: BuiltTx,
+    built: BuiltTxData,
     signers: ("payment" | "stake" | "drep")[] = ["payment"],
   ) => submitSigned(built, await signWith(built, signers));
   // Checks the fee of a transaction signed outside this file's wallets, then submits it
-  const submitSigned = async (built: BuiltTx, tx: string) => {
+  const submitSigned = async (built: BuiltTxData, tx: string) => {
     // The fee is the minimum for the signed transaction, or a few bytes' worth above it: the
     // wallet encodes its key witnesses without the set tag the placeholders carry
     const { body } = built.prototype;
@@ -321,7 +321,7 @@ describe("TxBuilder on the emulator", () => {
     // One wallet object for both keys: the one the fixture's payment wallet is
     const wallet = wallets.payment;
     const { pubKeyHash, stakeCredentialHash } = deserializeAddress(address);
-    const signOnce = async (built: BuiltTx) => {
+    const signOnce = async (built: BuiltTxData) => {
       const witnessSet = await wallet.signTxWitnesses(built.tx, [
         pubKeyHash,
         stakeCredentialHash,

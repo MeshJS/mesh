@@ -14,7 +14,7 @@ import { MeshWallet } from "@meshsdk/wallet";
 
 import {
   Assets,
-  BuiltTx,
+  BuiltTxData,
   OutputDatum,
   OutputScript,
   spend,
@@ -77,7 +77,7 @@ describe("TxBuilder's evaluators on the emulator", () => {
   let address: string;
   let walletUtxos: UTxO[];
 
-  const submit = async (built: BuiltTx) =>
+  const submit = async (built: BuiltTxData) =>
     provider.submitTx(await wallet.signTx(built.tx));
   const unlock = (exUnits?: { mem: number; steps: number }) =>
     spend.plutus({

@@ -5,7 +5,7 @@ import { MeshWallet } from "@meshsdk/wallet";
 
 import {
   Assets,
-  BuiltTx,
+  BuiltTxData,
   collateral,
   output,
   OutputDatum,
@@ -88,7 +88,7 @@ describe("TxBuilder's input traps on the emulator", () => {
       },
     );
   // The ledger accepts the signed transaction under the hash the builder gave it
-  const submit = async (emulator: ScalusEmulator, built: BuiltTx) =>
+  const submit = async (emulator: ScalusEmulator, built: BuiltTxData) =>
     expect(await emulator.submitTx(await wallet.signTx(built.tx))).toBe(
       built.txHash,
     );

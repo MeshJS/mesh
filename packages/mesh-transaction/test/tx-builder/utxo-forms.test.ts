@@ -18,7 +18,7 @@ import {
 } from "@meshsdk/core-cst";
 
 import {
-  BuiltTx,
+  BuiltTxData,
   collateral,
   minFee,
   output,
@@ -149,7 +149,7 @@ const scenario = (f: Form, builder = offline()) =>
   );
 
 /** The UTxOs a built transaction spends, reads and puts up, in the form `f` */
-const namedIn = (built: BuiltTx, f: Form) => {
+const namedIn = (built: BuiltTxData, f: Form) => {
   const byKey = new Map(fixtures.map((u) => [key(u), u]));
   return [
     ...built.inputs,

@@ -21,7 +21,7 @@ import {
 
 import {
   BuildOptions,
-  BuiltTx,
+  BuiltTxData,
   output,
   OutputDatum,
   OutRef,
@@ -174,9 +174,9 @@ const recording = (
   return { coinSelection, calls };
 };
 
-const outputsAt = (built: BuiltTx, address: string) =>
+const outputsAt = (built: BuiltTxData, address: string) =>
   built.prototype.body.outputs.filter((o) => o.address === address);
-const tokensOf = (outputs: BuiltTx["prototype"]["body"]["outputs"]) => {
+const tokensOf = (outputs: BuiltTxData["prototype"]["body"]["outputs"]) => {
   const tokens = new Map<string, bigint>();
   for (const o of outputs)
     for (const [policy, assets] of Object.entries(o.amount.multiasset ?? {}))
@@ -187,7 +187,7 @@ const tokensOf = (outputs: BuiltTx["prototype"]["body"]["outputs"]) => {
         );
   return tokens;
 };
-const lovelaceIn = (outputs: BuiltTx["prototype"]["body"]["outputs"]) =>
+const lovelaceIn = (outputs: BuiltTxData["prototype"]["body"]["outputs"]) =>
   outputs.reduce((total, o) => total + BigInt(o.amount.coin), 0n);
 const sumOf = (utxos: readonly Utxo[], unit = "lovelace") =>
   utxos.reduce((total, u) => total + quantityOf(u, unit), 0n);

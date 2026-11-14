@@ -21,7 +21,7 @@ import {
 } from "@meshsdk/core-cst";
 
 import type {
-  BuiltTx,
+  BuiltTxData,
   OutputDatum,
   OutputScript,
   TxPart,
@@ -664,7 +664,7 @@ describe("the encoding of parts", () => {
 });
 
 describe("the encoding of a built transaction", () => {
-  it("gives back a BuiltTx with a Plutus script, collateral and a native signer, bigints as bigints", async () => {
+  it("gives back a BuiltTxData with a Plutus script, collateral and a native signer, bigints as bigints", async () => {
     const built = await scriptTx(funds(50_000_000n));
     expect(built.collateral).toBeDefined();
     expect(built.signers.nativeScripts).toHaveLength(1);
@@ -679,7 +679,7 @@ describe("the encoding of a built transaction", () => {
     expect(json.signers.nativeScripts[0].value.n).toBe("1");
     expect(JSON.parse(JSON.stringify(encoded))).toStrictEqual(encoded);
 
-    const read = readPlan(encoded).attempts[0]!.built as BuiltTx;
+    const read = readPlan(encoded).attempts[0]!.built as BuiltTxData;
     expect(read).toEqual(built);
     expect(read.fee).toBe(built.fee);
     expect(read.exUnits.mem).toBe(5000n);
@@ -695,7 +695,7 @@ describe("the encoding of a built transaction", () => {
     expect(spent.witness.script.script.value.n).toBe(1n);
   });
 
-  it("gives back the UTxOs of a BuiltTx with tokens, datums and scripts, quantities as bigints", async () => {
+  it("gives back the UTxOs of a BuiltTxData with tokens, datums and scripts, quantities as bigints", async () => {
     const unit = mockTokenUnit(1);
     const payer = utxoAt(
       0,
@@ -752,7 +752,7 @@ describe("the encoding of a built transaction", () => {
     expect(JSON.parse(JSON.stringify(encoded))).toStrictEqual(encoded);
 
     const record = readPlan(encoded);
-    const read = record.attempts[0]!.built as BuiltTx;
+    const read = record.attempts[0]!.built as BuiltTxData;
     expect(read).toEqual(built);
     expect(read.outputs).toEqual(built.outputs);
     expect(read.inputs).toEqual(built.inputs);
@@ -779,7 +779,7 @@ const PARTS = (): TxPart[] => [
 ];
 
 /** A draft with parts and data options, and a build event for each transaction */
-const recordWith = (builts: readonly BuiltTx[]): PlanRecord => {
+const recordWith = (builts: readonly BuiltTxData[]): PlanRecord => {
   const start = draftPlan({
     id: "pay-1",
     network: "preprod",

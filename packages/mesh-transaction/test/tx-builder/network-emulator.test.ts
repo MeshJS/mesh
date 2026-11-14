@@ -5,7 +5,7 @@ import { MeshWallet } from "@meshsdk/wallet";
 
 import {
   Assets,
-  BuiltTx,
+  BuiltTxData,
   output,
   OutputDatum,
   spend,
@@ -41,7 +41,7 @@ describe("TxBuilder's network and chain on the emulator", () => {
   let address: string;
   let locked: Utxo;
 
-  const submit = async (built: BuiltTx) =>
+  const submit = async (built: BuiltTxData) =>
     expect(await provider.submitTx(await wallet.signTx(built.tx))).toBe(
       built.txHash,
     );

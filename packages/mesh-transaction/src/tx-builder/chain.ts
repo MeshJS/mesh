@@ -4,7 +4,7 @@ import type {
 } from "@meshsdk/common";
 import { Address, plutusDataVariantToCardano } from "@meshsdk/core-cst";
 
-import type { BuiltOutput, BuiltTx } from "./builder";
+import type { BuiltOutput, BuiltTxData } from "./builder";
 import type { OutputDatum, TxPart, Utxo, UtxoInput } from "./parts/types";
 import { invalidArgument, TxBuildError } from "./errors";
 import {
@@ -230,7 +230,7 @@ const isChange = (output: BuiltOutput) => output.change === true;
  */
 export const utxosAfter = (
   utxos: readonly UtxoInput[],
-  built: BuiltTx | readonly BuiltTx[],
+  built: BuiltTxData | readonly BuiltTxData[],
   owns: (output: BuiltOutput) => boolean = isChange,
 ): Utxo[] => {
   if (!Array.isArray(utxos))
@@ -249,9 +249,9 @@ export const utxosAfter = (
       );
     }
   });
-  const txs: readonly BuiltTx[] = Array.isArray(built)
+  const txs: readonly BuiltTxData[] = Array.isArray(built)
     ? built
-    : [built as BuiltTx];
+    : [built as BuiltTxData];
   for (const tx of txs)
     if (
       !isObject(tx) ||
@@ -276,7 +276,7 @@ export const utxosAfter = (
  *   outputs have, when none matches; INVALID_OPTION for a `built` without a list of `outputs`,
  *   and a `label` that is not a string
  */
-export const outputOf = (built: BuiltTx, label: string): BuiltOutput => {
+export const outputOf = (built: BuiltTxData, label: string): BuiltOutput => {
   if (!isObject(built) || !Array.isArray(built.outputs))
     throw invalidArgument(
       "built",

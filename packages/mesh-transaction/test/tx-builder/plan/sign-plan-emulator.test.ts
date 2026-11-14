@@ -9,7 +9,7 @@ import {
 } from "@meshsdk/core";
 import { Crypto } from "@meshsdk/core-cst";
 
-import type { BuiltTx, Signer, TxPlanError } from "../../../src/tx-builder";
+import type { BuiltTxData, Signer, TxPlanError } from "../../../src/tx-builder";
 import {
   addWitnesses,
   certificate,
@@ -217,8 +217,8 @@ describe("TxPlan signing on TxEmulator", () => {
       [...list].sort((a, b) => a.keyHash.localeCompare(b.keyHash));
     expect(byHash(plan.built!.signers.keys)).toStrictEqual(byHash(keys));
     const json = plan.toJSON();
-    const recorded = (json.attempts[0] as unknown as { built: BuiltTx }).built
-      .signers.keys;
+    const recorded = (json.attempts[0] as unknown as { built: BuiltTxData })
+      .built.signers.keys;
     expect(recorded).toStrictEqual(plan.built!.signers.keys);
     expect(await store.load("pay")).toStrictEqual(json);
 

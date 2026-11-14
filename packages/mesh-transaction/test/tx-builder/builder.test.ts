@@ -45,7 +45,7 @@ import {
   BuildEvent,
   BuildOptions,
   BuiltRedeemer,
-  BuiltTx,
+  BuiltTxData,
   certificate,
   collateral,
   collateralReturn,
@@ -228,7 +228,7 @@ const tokensOf = (u: UtxoInput) =>
 
 /** Lovelace in = lovelace out, with the given deposits and refunds */
 const expectBalanced = (
-  built: BuiltTx,
+  built: BuiltTxData,
   { deposits = 0n, refunds = 0n } = {},
 ) => {
   const { body } = built.prototype;
@@ -245,7 +245,7 @@ const expectBalanced = (
 };
 
 /** The minimum fee of the transaction once signed by `signers` keys */
-const signedMinFee = (built: BuiltTx, signers: number) => {
+const signedMinFee = (built: BuiltTxData, signers: number) => {
   // A key witness adds its key, signature and their framing: 101 bytes, plus the set header
   const tx = Transaction.fromCbor(TxCBOR(built.tx));
   const unsignedSize = built.tx.length / 2;
@@ -1810,7 +1810,7 @@ describe("TxBuilder: scripts", () => {
       });
       return { built, fees };
     };
-    const minFeeOf = (built: BuiltTx) =>
+    const minFeeOf = (built: BuiltTxData) =>
       minFee(built.prototype, {
         params,
         vkeyWitnesses: built.signers.keyHashes.length,
@@ -2016,10 +2016,10 @@ describe("TxBuilder: UTxOs left out of selection", () => {
   ) => spend.plutus({ utxo: from, script, redeemer: { data: mConStr0([]) } });
   const pay = (n: number) =>
     output({ address: recipient, value: { lovelace: ada(n) } });
-  const inputsOf = (built: BuiltTx) =>
+  const inputsOf = (built: BuiltTxData) =>
     built.prototype.body.inputs.map((i) => `${i.transaction_id}#${i.index}`);
   const keyOf = utxoKeyOf;
-  const referencesOf = (built: BuiltTx) =>
+  const referencesOf = (built: BuiltTxData) =>
     (built.prototype.body.reference_inputs ?? []).map(
       (i) => `${i.transaction_id}#${i.index}`,
     );
@@ -4560,7 +4560,7 @@ describe("TxBuilder: finalize", () => {
     utxos: [utxo(lovelace(ada(100))), ...extra],
   });
   /** Every UTxO the body names: inputs, reference inputs and collateral */
-  const named = (built: BuiltTx) => [
+  const named = (built: BuiltTxData) => [
     ...built.inputs,
     ...built.referenceInputs,
     ...(built.collateral?.inputs ?? []),
@@ -4593,7 +4593,7 @@ describe("TxBuilder: finalize", () => {
     return { built, holder };
   };
   /** The prototype with its fee lowered, so that finalize must raise it */
-  const underpaid = (built: BuiltTx, by = 10_000n) => {
+  const underpaid = (built: BuiltTxData, by = 10_000n) => {
     const edited = structuredClone(built.prototype);
     edited.body.fee = (built.fee - by).toString();
     return edited;
@@ -4821,7 +4821,7 @@ describe("TxBuilder: finalize", () => {
         inputs: [funded],
         changeAddress: wallet,
       });
-    const coins = (built: BuiltTx) =>
+    const coins = (built: BuiltTxData) =>
       built.prototype.body.outputs.map((o) => BigInt(o.amount.coin));
 
     it("refuses when the only output there holds just its minimum", async () => {

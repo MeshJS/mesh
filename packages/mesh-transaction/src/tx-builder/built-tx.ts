@@ -1,6 +1,6 @@
 import type { CachedFetcher, ISubmitter } from "@meshsdk/common";
 
-import type { BuiltTx, TxBuilder } from "./builder";
+import type { BuiltTxData, TxBuilder } from "./builder";
 import type { AskedKey, KeyWitness, RawTx, Signer } from "./sign";
 import type { RequiredKey } from "./witnesses";
 import {
@@ -62,7 +62,7 @@ type Look = "found" | "notFound" | "unknown";
 const REFUSED =
   "the ledger refused the transaction, and no delivery of it by this object may have gone through";
 
-/** The options of one call of `sign()` of a `StandaloneTx` */
+/** The options of one call of `sign()` of a `BuiltTx` */
 export type SignTxOptions = {
   /** Who signs: one signer or several, asked one after another in this order */
   signers: Signer | readonly Signer[];
@@ -89,13 +89,13 @@ export type TxInclusion = {
 };
 
 /**
- * A `StandaloneTx` as data, in its encoded form: what `toJSON()` returns. Plain JSON data:
+ * A `BuiltTx` as data, in its encoded form: what `toJSON()` returns. Plain JSON data:
  * every `bigint` stands as its decimal string. Applications read `kind`, `version` and `txHash`;
  * the rest is the library's.
  */
-export type StandaloneTxJSON = {
-  /** Always `"StandaloneTx"`: what kind of record this is */
-  readonly kind: "StandaloneTx";
+export type BuiltTxJSON = {
+  /** Always `"BuiltTx"`: what kind of record this is */
+  readonly kind: "BuiltTx";
   /** The record format; this release writes 1 */
   readonly version: number;
   /** The hash of the transaction's body */
@@ -116,10 +116,10 @@ export type StandaloneTxJSON = {
   readonly delivered?: true;
 };
 
-/** The record format of `StandaloneTxJSON` this library writes and reads */
+/** The record format of `BuiltTxJSON` this library writes and reads */
 const RECORD_VERSION = 1;
 
-/** The members of `StandaloneTxJSON` */
+/** The members of `BuiltTxJSON` */
 const RECORD_MEMBERS: readonly string[] = [
   "kind",
   "version",
@@ -319,8 +319,8 @@ const keysText = (keys: readonly RequiredKey[]) =>
  * One built transaction, on its own: what `builder.build()` and `builder.finalize()` return, and
  * `builder.restore()` brings back.
  *
- * It is a `BuiltTx`: every member of it is here as the object's own read-only data, so it goes
- * wherever a `BuiltTx` goes (`after`, `utxosAfter`, `outputOf`), and `{ ...built }` or
+ * It is a `BuiltTxData`: every member of it is here as the object's own read-only data, so it goes
+ * wherever a `BuiltTxData` goes (`after`, `utxosAfter`, `outputOf`), and `{ ...built }` or
  * `structuredClone(built)` is that data as a plain object. Beside the data it holds the
  * witnesses given to it, and it has the calls that sign this one body, take witnesses made
  * elsewhere, submit it and look for it: `tx` stays the unsigned transaction, `partialTx` is it
@@ -343,64 +343,64 @@ const keysText = (keys: readonly RequiredKey[]) =>
  *
  * Two calls at once are safe: a witness is kept once per key, whoever gives it first.
  */
-export class StandaloneTx implements BuiltTx {
+export class BuiltTx implements BuiltTxData {
   /** The unsigned transaction, in CBOR hex */
-  declare readonly tx: BuiltTx["tx"];
-  declare readonly txHash: BuiltTx["txHash"];
+  declare readonly tx: BuiltTxData["tx"];
+  declare readonly txHash: BuiltTxData["txHash"];
   /**
    * The transaction as a value, exactly as serialized. It follows the transaction format of the
-   * current ledger era; code meant to outlive an era reads the other members of `BuiltTx`.
+   * current ledger era; code meant to outlive an era reads the other members of `BuiltTxData`.
    */
-  declare readonly prototype: BuiltTx["prototype"];
-  declare readonly fee: BuiltTx["fee"];
+  declare readonly prototype: BuiltTxData["prototype"];
+  declare readonly fee: BuiltTxData["fee"];
   /** Total execution units of the transaction's redeemers */
-  declare readonly exUnits: BuiltTx["exUnits"];
-  declare readonly redeemers: BuiltTx["redeemers"];
+  declare readonly exUnits: BuiltTxData["exUnits"];
+  declare readonly redeemers: BuiltTxData["redeemers"];
   /** Every input spent, resolved, in the transaction's order */
-  declare readonly inputs: BuiltTx["inputs"];
+  declare readonly inputs: BuiltTxData["inputs"];
   /** The inputs added to pay for the transaction */
-  declare readonly selectedInputs: BuiltTx["selectedInputs"];
+  declare readonly selectedInputs: BuiltTxData["selectedInputs"];
   /** The reference inputs, resolved, in the transaction's order */
-  declare readonly referenceInputs: BuiltTx["referenceInputs"];
+  declare readonly referenceInputs: BuiltTxData["referenceInputs"];
   /**
    * Every output as a UTxO of `txHash`, in body order, with its part's label. The collateral
    * return is not among them.
    */
-  declare readonly outputs: BuiltTx["outputs"];
+  declare readonly outputs: BuiltTxData["outputs"];
   /**
    * The change outputs, as UTxOs of `txHash`, in body order; each is also in `outputs`. A build
    * made before this transaction is seen by the provider passes it as `after`; when that build
    * has the same change address, it can then select this change.
    */
-  declare readonly change: BuiltTx["change"];
+  declare readonly change: BuiltTxData["change"];
   /**
    * The collateral, when the transaction runs Plutus scripts; of a transaction completed by
    * `finalize`, whenever the body has collateral inputs
    */
-  declare readonly collateral?: BuiltTx["collateral"];
+  declare readonly collateral?: BuiltTxData["collateral"];
   /** The keys that must sign, each with the roles it is needed in */
-  declare readonly signers: BuiltTx["signers"];
+  declare readonly signers: BuiltTxData["signers"];
   /**
    * The validity interval, with the bounds the transaction has: in slots, and the POSIX
    * milliseconds those slots start at on the builder's network
    */
-  declare readonly validity?: BuiltTx["validity"];
+  declare readonly validity?: BuiltTxData["validity"];
   /** The network the transaction was built for */
-  declare readonly network: BuiltTx["network"];
+  declare readonly network: BuiltTxData["network"];
   /** What is worth knowing about the transaction and did not stop the build; often empty */
-  declare readonly warnings: BuiltTx["warnings"];
+  declare readonly warnings: BuiltTxData["warnings"];
   /**
    * Every part of the transaction, resolved, the ones added by balancing included; empty on a
    * transaction completed by `finalize`
    */
-  declare readonly parts: BuiltTx["parts"];
+  declare readonly parts: BuiltTxData["parts"];
 
   /** The transaction as built, read once: what is signed, whatever the members say later */
   readonly #raw: RawTx;
   /** The keys that must sign, copied: what `missing` lists */
   readonly #keys: readonly RequiredKey[];
   /** `signers` as built, copied: what the JSON writes, whatever the member says later */
-  readonly #signers: BuiltTx["signers"];
+  readonly #signers: BuiltTxData["signers"];
   /** The keys a signer is asked for: those that must sign, then those native scripts name */
   readonly #asked: readonly AskedKey[];
   /** The keys the fee counts a vkey witness for */
@@ -433,7 +433,7 @@ export class StandaloneTx implements BuiltTx {
   /** Made by `builder.build()`, `builder.finalize()` and `builder.restore()` only */
   private constructor(
     builder: TxBuilder,
-    built: BuiltTx,
+    built: BuiltTxData,
     extraKeys: number,
     restored?: RestoredState,
   ) {
@@ -747,11 +747,11 @@ export class StandaloneTx implements BuiltTx {
    * they stand: they are the application's view of the data, and decide nothing that is signed,
    * asked for or sent
    */
-  toJSON(): StandaloneTxJSON {
+  toJSON(): BuiltTxJSON {
     const held = this.#held;
     const delivered = this.#delivered || this.#sending.size > 0;
     return {
-      kind: "StandaloneTx",
+      kind: "BuiltTx",
       version: RECORD_VERSION,
       txHash: this.#raw.txId,
       built: encodeBuilt({ ...this, signers: this.#signers }) as Record<
@@ -855,29 +855,29 @@ const internals = (builder: TxBuilder) =>
   builder as unknown as BuilderInternals;
 
 /**
- * A `StandaloneTx` of the data of a build: the object `build()`, `finalize()` and `restore()`
+ * A `BuiltTx` of the data of a build: the object `build()`, `finalize()` and `restore()`
  * return
  * @param builder The builder that made it: it submits through it and looks through its provider
  * @param extraKeys The build's `extraKeyWitnesses`: witnesses of other keys its fee counts
  * @param restored What a restored object starts from: its transaction read, its witnesses
  *   verified, and its mark of a delivery
  */
-export const standaloneTx = (
+export const makeBuiltTx = (
   builder: TxBuilder,
-  built: BuiltTx,
+  built: BuiltTxData,
   extraKeys = 0,
   restored?: RestoredState,
-): StandaloneTx =>
+): BuiltTx =>
   new (
-    StandaloneTx as unknown as new (
+    BuiltTx as unknown as new (
       builder: TxBuilder,
-      built: BuiltTx,
+      built: BuiltTxData,
       extraKeys: number,
       restored?: RestoredState,
-    ) => StandaloneTx
+    ) => BuiltTx
   )(builder, built, extraKeys, restored);
 
-const JSON_ALLOWED = "the JSON of a StandaloneTx, as its toJSON() writes it";
+const JSON_ALLOWED = "the JSON of a BuiltTx, as its toJSON() writes it";
 
 /**
  * A JSON `restore` does not take. It names no value of what was given: the JavaScript type of
@@ -906,9 +906,9 @@ const readRecord = (json: Record<string, unknown>) =>
     const unread = (what: string): never => {
       throw new UnreadContent(what);
     };
-    if (json.kind !== "StandaloneTx")
+    if (json.kind !== "BuiltTx")
       unread(
-        'its kind is not "StandaloneTx": this library reads the JSON of a StandaloneTx here',
+        'its kind is not "BuiltTx": this library reads the JSON of a BuiltTx here',
       );
     const version = json.version;
     if (!Number.isSafeInteger(version) || (version as number) < 1)
@@ -956,10 +956,10 @@ const readRecord = (json: Record<string, unknown>) =>
  *   transaction's body, a witness that is not of that body;
  *   NETWORK_MISMATCH for a transaction of another network than the builder's
  */
-export const restoreStandalone = async (
+export const restoreBuiltTx = async (
   builder: TxBuilder,
   json: unknown,
-): Promise<StandaloneTx> => {
+): Promise<BuiltTx> => {
   // A copy, so that the object shares nothing with the value given, and a check that the value
   // is JSON data
   let copy: unknown;
@@ -1036,7 +1036,7 @@ export const restoreStandalone = async (
         );
       throw notRead("witnesses is not a witness set this library reads");
     }
-  return standaloneTx(builder, built, record.extraKeys, {
+  return makeBuiltTx(builder, built, record.extraKeys, {
     raw,
     held,
     delivered: record.delivered,

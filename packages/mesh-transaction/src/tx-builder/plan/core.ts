@@ -1,4 +1,4 @@
-import type { BuiltTx } from "../builder";
+import type { BuiltTxData } from "../builder";
 import type { OutRef, Utxo } from "../parts/types";
 import type {
   TxAttempt,
@@ -43,12 +43,12 @@ export type AttemptRecord = TxAttempt & {
    * The built transaction. Every attempt holds its own while the plan is not terminal; a final
    * plan keeps it on the landed attempt only, an abandoned one on the current attempt only
    */
-  readonly built?: BuiltTx;
+  readonly built?: BuiltTxData;
   /** The anchors it spends: one, or a parent attempt's output and the general anchor */
   readonly anchors: readonly OutRef[];
   /** The parent attempts (`txHash`) whose outputs it spends; absent when none */
   readonly dependsOn?: readonly string[];
-  /** The key hashes that must sign: `BuiltTx.signers.keyHashes` */
+  /** The key hashes that must sign: `BuiltTxData.signers.keyHashes` */
   readonly keys: readonly string[];
   /** The witnesses collected, at most one per key hash, never replaced */
   readonly witnesses: readonly Witness[];
@@ -60,7 +60,7 @@ export type AttemptRecord = TxAttempt & {
 
 /**
  * The record as the state machine reads and writes it, in memory: the parts as `TxPart`s and the
- * transactions as `BuiltTx`s, with their `bigint`s. `encodePlan` gives its `TxPlanJSON`
+ * transactions as `BuiltTxData`s, with their `bigint`s. `encodePlan` gives its `TxPlanJSON`
  */
 export type PlanRecord = Omit<TxPlanJSON, "attempts" | "anchor"> & {
   readonly attempts: readonly AttemptRecord[];
@@ -102,7 +102,7 @@ export type TxPlanEvent =
    */
   | {
       readonly type: "build";
-      readonly built: BuiltTx;
+      readonly built: BuiltTxData;
       readonly anchors: readonly {
         readonly utxo: Utxo;
         readonly kind: AnchorKind;

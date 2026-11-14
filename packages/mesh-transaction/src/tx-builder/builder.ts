@@ -39,6 +39,7 @@ import type {
   SelectInputs,
   TxCollateral,
 } from "./balance";
+import type { BuiltTx, BuiltTxJSON } from "./built-tx";
 import type { ChainedTx } from "./chain";
 import type { PartFailure } from "./errors";
 import type {
@@ -63,7 +64,6 @@ import type {
   TxPlanStore,
 } from "./plan/types";
 import type { GovernanceDeposits } from "./resolve";
-import type { StandaloneTx, StandaloneTxJSON } from "./standalone";
 import type { TxSigners } from "./witnesses";
 import { abortable, throwIfAborted } from "./abort";
 import { checkPartRepeats, checkPrototypeRepeats } from "./assemble";
@@ -77,6 +77,7 @@ import {
   refusedBy,
   totalExUnits,
 } from "./balance";
+import { makeBuiltTx, restoreBuiltTx } from "./built-tx";
 import {
   bodyOutputs,
   foldTransactions,
@@ -123,7 +124,6 @@ import { checkPlanDefaults } from "./plan/deadlines";
 import { createPlan, resumePlan, TxPlan } from "./plan/plan";
 import { resolveParts, resolveValidity } from "./resolve";
 import { bodySigners, readTransaction } from "./sign";
-import { restoreStandalone, standaloneTx } from "./standalone";
 import { placeholderWitnesses, signersOf, txSigners } from "./witnesses";
 
 /**
@@ -302,7 +302,7 @@ export type BuildOptions = {
    * `plan.built`; one without an attempt is INVALID_OPTION. Their outputs and `knownUtxos`,
    * not the payer's UTxOs, are what an evaluator without `acceptsKnownUtxos` is handed.
    */
-  after?: BuiltTx | TxPlan | readonly (BuiltTx | TxPlan)[];
+  after?: BuiltTxData | TxPlan | readonly (BuiltTxData | TxPlan)[];
   /**
    * Outputs the parts may name by out ref that the provider may not know yet; never selected.
    * Being listed here makes no UTxO selectable and takes none out of selection: one the payer
@@ -720,7 +720,7 @@ const refuseCollateralReturn = (parts: readonly TxPart[]): void => {
 export type BuiltRedeemer = {
   tag: AssembledRedeemer["tag"];
   index: number;
-  /** Execution units, as bigint like `BuiltTx.exUnits` */
+  /** Execution units, as bigint like `BuiltTxData.exUnits` */
   exUnits: { mem: bigint; steps: bigint };
   /** The redeemer data, in CBOR hex, as the transaction carries it */
   data: string;
@@ -763,15 +763,15 @@ export type BuiltOutput = Utxo & {
 
 /**
  * A transaction built and balanced, ready to sign. Plain data. `build()` and `finalize()` return
- * it as a `StandaloneTx`; a plan's `built` is this data.
+ * it as a `BuiltTx`; a plan's `built` is this data.
  */
-export type BuiltTx = {
+export type BuiltTxData = {
   /** The unsigned transaction, in CBOR hex */
   tx: string;
   txHash: string;
   /**
    * The transaction as a value, exactly as serialized. It follows the transaction format of the
-   * current ledger era; code meant to outlive an era reads the other members of `BuiltTx`.
+   * current ledger era; code meant to outlive an era reads the other members of `BuiltTxData`.
    */
   prototype: TransactionPrototype;
   fee: bigint;
@@ -1324,7 +1324,7 @@ export class TxBuilder {
    *
    * The result has no parts: `parts` and `selectedInputs` are empty, redeemers carry no `part`
    * and outputs no `label`. `change` holds every output at `changeAddress`, a payment to that
-   * address included; without `changeAddress` it is empty. The result is a `StandaloneTx`, as
+   * address included; without `changeAddress` it is empty. The result is a `BuiltTx`, as
    * from `build`.
    *
    * ```ts
@@ -1351,7 +1351,7 @@ export class TxBuilder {
   async finalize(
     prototype: TransactionPrototype,
     context: { inputs: readonly UtxoInput[]; changeAddress?: string },
-  ): Promise<StandaloneTx> {
+  ): Promise<BuiltTx> {
     const { inputs, changeAddress: changeTo } = context ?? {};
     if (!Array.isArray(inputs))
       throw invalidOption("inputs", inputs, FINALIZE_INPUTS_ALLOWED);
@@ -1556,7 +1556,7 @@ export class TxBuilder {
         changeOutputs.has(i) ? { ...utxo, change: true as const } : utxo,
     );
     const validity = validityOf(final.body, this.network);
-    return standaloneTx(this, {
+    return makeBuiltTx(this, {
       tx,
       txHash,
       prototype: final,
@@ -1599,7 +1599,7 @@ export class TxBuilder {
 
   /**
    * Builds a balanced, unsigned transaction from the parts added with `add`, followed by `parts`
-   * (none when omitted), and returns it as a `StandaloneTx`: the data of the build, with the
+   * (none when omitted), and returns it as a `BuiltTx`: the data of the build, with the
    * calls that sign, submit and look for that one transaction. The builder is not changed: the
    * parts it holds are never replaced by what the build makes of them. A part of a kind a
    * transaction holds once, given both here and among the held parts, is DUPLICATE_PART, as
@@ -1665,20 +1665,20 @@ export class TxBuilder {
   async build(
     parts: PartsInput = [],
     options?: BuildOptions,
-  ): Promise<StandaloneTx> {
+  ): Promise<BuiltTx> {
     // Nothing can be read without a payer: that comes first, then the parts, then the options'
     // types, then the network of what the build is given, all before any request
     const source = toPayerSource(options?.payer);
     // A plan builds through buildList and keeps plain data; only this call makes the object.
     // The object keeps the witnesses of as many other keys as the fee was priced for
     const built = await this.buildList(source, this.withAdded(parts), options);
-    return standaloneTx(this, built, options?.extraKeyWitnesses ?? 0);
+    return makeBuiltTx(this, built, options?.extraKeyWitnesses ?? 0);
   }
 
   /**
-   * A `StandaloneTx` from its JSON: the transaction another process built, or this one before a
+   * A `BuiltTx` from its JSON: the transaction another process built, or this one before a
    * restart, with the witnesses it held. It makes no request. The record is believed as a
-   * `BuiltTx` the application kept is: give it what the application wrote itself. Its
+   * `BuiltTxData` the application kept is: give it what the application wrote itself. Its
    * transaction is read again: it must be the unsigned one, `txHash` must be the hash of its
    * body, and every witness the record holds is verified against that body.
    *
@@ -1700,8 +1700,8 @@ export class TxBuilder {
    *   body; `details.value` is only the JavaScript type of what was given; NETWORK_MISMATCH for a
    *   transaction built for another network
    */
-  restore(json: StandaloneTxJSON): Promise<StandaloneTx> {
-    return restoreStandalone(this, json);
+  restore(json: BuiltTxJSON): Promise<BuiltTx> {
+    return restoreBuiltTx(this, json);
   }
 
   /**
@@ -1809,7 +1809,7 @@ export class TxBuilder {
     source: PayerSource,
     flat: readonly TxPart[],
     options: BuildOptions | undefined,
-  ): Promise<BuiltTx> {
+  ): Promise<BuiltTxData> {
     const { sendAllTo, after, knownUtxos } = checkBuildOptions(options ?? {});
     const declared = (
       options as { [DECLARED_OUTPUTS]?: DeclaredOutputs } | undefined
@@ -2375,7 +2375,7 @@ export class TxBuilder {
     costModels: number[][],
     warnings: BuildWarning[],
     fee: bigint | undefined,
-  ): BuiltTx {
+  ): BuiltTxData {
     const { assembled } = balanced;
     const total = totalExUnits(assembled);
     if (
@@ -2670,7 +2670,7 @@ const referencedUtxos = (parts: readonly TxPart[]): Map<string, Utxo> => {
 const validityOf = (
   body: TransactionPrototype["body"],
   network: NetworkConfig,
-): BuiltTx["validity"] => {
+): BuiltTxData["validity"] => {
   const before = body.validity_start_interval;
   const hereafter = body.ttl;
   if (
@@ -2678,7 +2678,7 @@ const validityOf = (
     (hereafter === undefined || hereafter === null)
   )
     return undefined;
-  const validity: NonNullable<BuiltTx["validity"]> = {};
+  const validity: NonNullable<BuiltTxData["validity"]> = {};
   if (before !== undefined && before !== null) {
     validity.invalidBefore = Number(before);
     validity.from = timeAt(network, BigInt(before));

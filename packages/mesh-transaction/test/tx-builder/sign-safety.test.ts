@@ -30,8 +30,8 @@ import { MeshWallet } from "@meshsdk/wallet";
 
 import type {
   BuildEvent,
+  BuiltTxJSON,
   Signer,
-  StandaloneTxJSON,
   TxBuilderOptions,
   TxHashRequest,
   TxPlanStore,
@@ -40,6 +40,7 @@ import type {
 import type { KeyWitness } from "../../src/tx-builder/sign";
 import {
   addWitnesses,
+  BuiltTx,
   guard,
   keySigner,
   memoryPlanStore,
@@ -48,7 +49,6 @@ import {
   signedKeyHashes,
   signWitnesses,
   spend,
-  StandaloneTx,
   TxBuilder,
   TxBuildError,
   TxError,
@@ -855,7 +855,7 @@ describe("R1: key material never leaves the signer object", () => {
       ];
     };
     const paths: [string, (signer: Signer) => Promise<unknown>][] = [
-      ["StandaloneTx.sign", (s) => built.sign({ signers: s })],
+      ["BuiltTx.sign", (s) => built.sign({ signers: s })],
       ["signWitnesses", (s) => signWitnesses(s, built.tx)],
       ...PLAN_CALLS.map((call): [string, (s: Signer) => Promise<unknown>] => [
         `plan.${call}`,
@@ -921,7 +921,7 @@ describe("R1: key material never leaves the signer object", () => {
       look("a structured clone", structuredClone(built));
       const json = JSON.stringify(built);
       look("the JSON", json);
-      const restored = await b.restore(JSON.parse(json) as StandaloneTxJSON);
+      const restored = await b.restore(JSON.parse(json) as BuiltTxJSON);
       look("the object restored", restored);
       look("the JSON of the object restored", JSON.stringify(restored));
       look("signWitnesses", await signWitnesses(signers[0]!, built.tx));
@@ -1389,7 +1389,7 @@ describe("R3: a signature is accepted only after it verifies", () => {
       await built.addWitnesses(witnessSetOf(guardKey.answer(built.txHash)));
       await check(`signedTx (${form}, addWitnesses)`, built.signedTx, built.tx);
       const json = JSON.stringify(built);
-      const restored = await b.restore(JSON.parse(json) as StandaloneTxJSON);
+      const restored = await b.restore(JSON.parse(json) as BuiltTxJSON);
       await check(`signedTx restored (${form})`, restored.signedTx, built.tx);
       await check(`partialTx restored (${form})`, restored.partialTx, built.tx);
     }
@@ -1610,7 +1610,7 @@ describe("R3: a signature is accepted only after it verifies", () => {
     const built = await payment(b, key.keyHash, [other.keyHash]);
     const otherBuilt = await payment(b, key.keyHash, [], ada(7));
     await built.sign({ signers: keysSigner("object", other).signer });
-    const json = JSON.parse(JSON.stringify(built)) as StandaloneTxJSON;
+    const json = JSON.parse(JSON.stringify(built)) as BuiltTxJSON;
     const forgedWitness = (signature: string, vkey = key.vkey): KeyWitness => ({
       kind: "vkey",
       vkey,
@@ -1650,9 +1650,7 @@ describe("R3: a signature is accepted only after it verifies", () => {
         ],
       ];
       for (const [where, variant] of variants) {
-        const error = await caught(() =>
-          b.restore(variant as StandaloneTxJSON),
-        );
+        const error = await caught(() => b.restore(variant as BuiltTxJSON));
         if (
           !TxError.is(error, "INVALID_OPTION") ||
           error.details.option !== "json"
@@ -1800,7 +1798,7 @@ describe("R4: signing sends nothing", () => {
       submitter.control.mode = mode;
       await built.sign({ signers: keySigner(keys.extended.hex) });
       const json = JSON.stringify(built);
-      const restored = await b.restore(JSON.parse(json) as StandaloneTxJSON);
+      const restored = await b.restore(JSON.parse(json) as BuiltTxJSON);
       await restored.sign({
         signers: [
           hashSigner("callback", () => []).signer,
@@ -1958,7 +1956,7 @@ describe("R5: an extended key is used only if it is one", () => {
         ],
         ["signWitnesses", () => signWitnesses(keySigner(text), built.tx)],
         [
-          "StandaloneTx.sign",
+          "BuiltTx.sign",
           () => built.sign({ signers: keySigner(text), partial: false }),
         ],
         ...PLAN_CALLS.map((call): [string, () => Promise<unknown>] => [
@@ -2049,7 +2047,7 @@ describe("R6: one object, one body", () => {
     for (const [name, run] of steps) {
       const result = await run();
       if (built.tx !== tx || built.txHash !== txHash) changed.push(name);
-      if (result instanceof StandaloneTx && result.tx !== tx)
+      if (result instanceof BuiltTx && result.tx !== tx)
         changed.push(`${name}: result`);
     }
     expect(changed).toEqual([]);
@@ -2238,7 +2236,7 @@ describe("R7: submit sends signedTx only", () => {
   const table: [
     string,
     ((hash: unknown) => unknown) | undefined,
-    (built: StandaloneTx, s: ReturnType<typeof scripted>) => Promise<unknown>,
+    (built: BuiltTx, s: ReturnType<typeof scripted>) => Promise<unknown>,
     "returns" | "REJECTED",
     number,
   ][] = [

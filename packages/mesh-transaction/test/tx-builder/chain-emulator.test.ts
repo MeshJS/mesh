@@ -3,7 +3,7 @@ import { TxEmulator, TxResult } from "@meshsdk/tx-emulator";
 import { MeshWallet } from "@meshsdk/wallet";
 
 import {
-  BuiltTx,
+  BuiltTxData,
   certificate,
   mint,
   output,
@@ -75,7 +75,7 @@ describe.each(["scalus", "cquisitor"] as const)(
 
       // The wallet of each key signs, and only those
       const keyOf = { payment: pubKeyHash, stake: stakeCredentialHash };
-      const signWith = async (tx: BuiltTx, skip?: string) => {
+      const signWith = async (tx: BuiltTxData, skip?: string) => {
         let signed = tx.tx;
         for (const role of ["payment", "stake"] as const) {
           const keyHash = keyOf[role];
@@ -128,7 +128,7 @@ const chainSetup = async (validator: "scalus" | "cquisitor") => {
     changeAddress: address,
     utxos: emulator.utxos({ address }),
   });
-  const sign = (built: BuiltTx) => wallet.signTx(built.tx);
+  const sign = (built: BuiltTxData) => wallet.signTx(built.tx);
   return { emulator, builder, address, snapshot, sign };
 };
 
@@ -161,7 +161,7 @@ describe.each(["scalus", "cquisitor"] as const)(
     it("builds three transactions on one read of the payer, folded with utxosAfter", async () => {
       const { emulator, builder, address, sign } = await chainSetup(validator);
       let payer = await builder.readPayer(address);
-      const built: BuiltTx[] = [];
+      const built: BuiltTxData[] = [];
       for (const lovelace of [10_000_000n, 7_000_000n, 3_000_000n]) {
         const tx = await builder.build(pay(alice, lovelace), { payer });
         built.push(tx);

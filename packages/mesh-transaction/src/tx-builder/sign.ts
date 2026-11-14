@@ -1017,7 +1017,7 @@ export const witnessesToAdd = async (
 };
 
 /**
- * Asks one signer for its witnesses of a transaction, as a plan and a `StandaloneTx` do: the
+ * Asks one signer for its witnesses of a transaction, as a plan and a `BuiltTx` do: the
  * keys not signed yet are handed to it as `askSigner` hands them, and a signer of hashes is not
  * asked when none is left
  * @param keys The keys asked for, without those that have signed

@@ -5,7 +5,7 @@ import { MeshWallet } from "@meshsdk/wallet";
 import {
   addWitnesses,
   assembleTxPrototype,
-  BuiltTx,
+  BuiltTxData,
   guard,
   message,
   output,
@@ -54,7 +54,7 @@ const setup = async (validator: "scalus" | "cquisitor") => {
 const signed = async (wallet: MeshWallet, tx: string) =>
   addWitnesses(tx, await signWitnesses(wallet, tx));
 
-const coins = (built: BuiltTx) =>
+const coins = (built: BuiltTxData) =>
   built.prototype.body.outputs.map((o) => BigInt(o.amount.coin));
 
 describe.each(["scalus", "cquisitor"] as const)(

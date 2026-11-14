@@ -4,7 +4,7 @@ import { TxEmulator } from "@meshsdk/tx-emulator";
 import { MeshWallet } from "@meshsdk/wallet";
 
 import {
-  BuiltTx,
+  BuiltTxData,
   guard,
   NetworkMismatchDetails,
   output,
@@ -106,7 +106,7 @@ describe("TxBuilder validity on TxEmulator", () => {
         ],
         { payer: beneficiary.payer() },
       );
-    const submit = async (built: BuiltTx) =>
+    const submit = async (built: BuiltTxData) =>
       expect(
         await emulator.submitTx(await beneficiary.wallet.signTx(built.tx)),
       ).toBe(built.txHash);

@@ -1,5 +1,6 @@
 import type {
   Assets,
+  BuiltTxJSON,
   OutputDatum,
   OutputScript,
   PlanDeadlines,
@@ -9,7 +10,6 @@ import type {
   SendOptions,
   SignOptions,
   SignTxOptions,
-  StandaloneTxJSON,
   StoredTxPlanJSON,
   TxAttempt,
   TxAttemptStatus,
@@ -43,7 +43,7 @@ describe("public entrypoint", () => {
     "utxosAfter",
     "signWitnesses",
     "keySigner",
-    "StandaloneTx",
+    "BuiltTx",
     "addWitnesses",
     "signedKeyHashes",
     "requiredSigners",
@@ -180,30 +180,30 @@ describe("public entrypoint", () => {
     expect(sign.partial).toBe(false);
     const found: TxInclusion = { txHash: "00".repeat(32), slot: 1 };
     expect(found.slot).toBe(1);
-    expect(typeof publicApi.StandaloneTx).toBe("function");
+    expect(typeof publicApi.BuiltTx).toBe("function");
     for (const method of ["sign", "addWitnesses", "submit", "awaitInclusion"])
       expect(
         typeof (
-          publicApi.StandaloneTx.prototype as unknown as Record<string, unknown>
+          publicApi.BuiltTx.prototype as unknown as Record<string, unknown>
         )[method],
       ).toBe("function");
-    for (const name of ["standaloneTx", "NO_REBUILD", "isWallet"])
+    for (const name of ["makeBuiltTx", "NO_REBUILD", "isWallet"])
       expect(publicApi).not.toHaveProperty(name);
   });
 
   it("exports the JSON type of a built transaction and restore, and not their encoding", () => {
-    const json: StandaloneTxJSON = {
-      kind: "StandaloneTx",
+    const json: BuiltTxJSON = {
+      kind: "BuiltTx",
       version: 1,
       txHash: "00".repeat(32),
       built: {},
       delivered: true,
     };
-    expect(json.kind).toBe("StandaloneTx");
-    expect(typeof publicApi.StandaloneTx.prototype.toJSON).toBe("function");
+    expect(json.kind).toBe("BuiltTx");
+    expect(typeof publicApi.BuiltTx.prototype.toJSON).toBe("function");
     expect(typeof publicApi.TxBuilder.prototype.restore).toBe("function");
     for (const name of [
-      "restoreStandalone",
+      "restoreBuiltTx",
       "encodeBuilt",
       "decodeBuilt",
       "unquoted",
