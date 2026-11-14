@@ -1,3 +1,4 @@
+import type { TransactionPrototype } from "@meshsdk/common";
 import {
   Address,
   CborReader,
@@ -126,6 +127,8 @@ const State = Serialization.CborReaderState;
 /** Witness-set keys of vkey and bootstrap witnesses */
 const VKEYS = 0;
 const BOOTSTRAPS = 2;
+/** The first byte of CBOR null */
+const NULL = 0xf6;
 /** The CBOR tag of a set */
 const SET_TAG = 258;
 
@@ -309,16 +312,28 @@ const witnessesOf = (set: WitnessSet) => [
   ...(set.bootstraps?.witnesses ?? []),
 ];
 
-/** A transaction read as its raw top-level items */
-export type RawTx = {
+/** A transaction read as its raw top-level items, nothing of it decoded into a value */
+export type RawItems = {
   hex: string;
-  transaction: Transaction;
   top: Container;
   witnessSet: WitnessSet;
   /** The blake2b-256 hash of the body bytes */
   txId: string;
   /** Whether the body writes its input set with the set tag */
   taggedSets: boolean;
+};
+
+/**
+ * A transaction read as its raw top-level items, and its parts decoded into values once. Each
+ * decode of a part takes a time that grows with the data it carries, so the parts are read here
+ * and never decoded again; they are shared, and nothing changes them
+ */
+export type RawTx = RawItems & {
+  body: Serialization.TransactionBody;
+  witnesses: Serialization.TransactionWitnessSet;
+  auxiliaryData?: Serialization.AuxiliaryData;
+  /** The validity flag: true for a transaction of three items, which has none */
+  isValid: boolean;
 };
 
 const bodyUsesSetTag = (body: Uint8Array) => {
@@ -333,18 +348,45 @@ const bodyUsesSetTag = (body: Uint8Array) => {
   return false;
 };
 
-const readRawTx = (hex: string): RawTx => {
-  const transaction = Transaction.fromCbor(HexBlob(hex) as never);
+const readRawItems = (hex: string): RawItems => {
   const top = readContainer(Buffer.from(hex, "hex"), "array");
-  if (top.items.length < 3)
-    throw new Error("a transaction has at least three items");
+  // A transaction is an array of definite length: the body, the witness set, the validity
+  // flag when it has four items, and the auxiliary data or null
+  if (!top.definite || top.items.length < 3 || top.items.length > 4)
+    throw new Error(
+      "a transaction is an array of three or four items, of definite length",
+    );
   return {
     hex,
-    transaction,
     top,
     witnessSet: readWitnessSet(top.items[1]!),
     txId: Crypto.blake2b.hash(HexBlob(toHex(top.items[0]!)), 32).toString(),
     taggedSets: bodyUsesSetTag(top.items[0]!),
+  };
+};
+
+const readRawTx = (hex: string): RawTx => {
+  const items = readRawItems(hex);
+  const [body, witnessSet, ...rest] = items.top.items;
+  let isValid = true;
+  if (rest.length === 2) {
+    const reader = readerOf(rest.shift()!);
+    isValid = reader.readBoolean();
+    expectFinished(reader);
+  }
+  const auxiliaryData = rest[0]![0] === NULL ? undefined : rest[0]!;
+  return {
+    ...items,
+    body: Serialization.TransactionBody.fromCbor(HexBlob(toHex(body!))),
+    witnesses: Serialization.TransactionWitnessSet.fromCbor(
+      HexBlob(toHex(witnessSet!)),
+    ),
+    ...(auxiliaryData && {
+      auxiliaryData: Serialization.AuxiliaryData.fromCbor(
+        HexBlob(toHex(auxiliaryData)),
+      ),
+    }),
+    isValid,
   };
 };
 
@@ -367,7 +409,7 @@ const invalidTx = (tx: unknown, cause?: unknown) =>
   );
 
 /**
- * Reads `tx` as a transaction
+ * Reads `tx` as a transaction, its parts decoded once
  * @throws TxBuildError INVALID_OPTION for a value that is not the CBOR of a transaction whose
  *   vkey and bootstrap witnesses can be read
  */
@@ -375,6 +417,26 @@ export const readTransaction = (tx: unknown): RawTx => {
   if (!isHex(tx)) throw invalidTx(tx);
   try {
     return readRawTx(tx);
+  } catch (error) {
+    throw invalidTx(tx, error);
+  }
+};
+
+/**
+ * Reads `tx` as the raw items of a transaction, with its vkey and bootstrap witnesses, which the
+ * value decoder judges as it judges them in a whole transaction; nothing else is decoded
+ * @throws TxBuildError INVALID_OPTION as `readTransaction`
+ */
+export const readTransactionItems = (tx: unknown): RawItems => {
+  if (!isHex(tx)) throw invalidTx(tx);
+  try {
+    const items = readRawItems(tx);
+    const { vkeys, bootstraps } = items.witnessSet;
+    for (const item of vkeys?.items ?? [])
+      Serialization.VkeyWitness.fromCbor(HexBlob(toHex(item)));
+    for (const item of bootstraps?.items ?? [])
+      Serialization.BootstrapWitness.fromCbor(HexBlob(toHex(item)));
+    return items;
   } catch (error) {
     throw invalidTx(tx, error);
   }
@@ -513,6 +575,38 @@ export const newWitnesses = (
     seen.add(key);
     return true;
   });
+};
+
+/**
+ * The transaction without its vkey and bootstrap entries: the unsigned transaction of a signed
+ * one. Only the witness set changes: its other entries stay byte for byte and in their order,
+ * and its header is written again when it states a length. The body and everything after the
+ * witness set stay byte for byte. A transaction with neither entry is returned as it is.
+ */
+export const withoutKeyWitnesses = (raw: RawItems): string => {
+  const { witnessSet, top } = raw;
+  const kept = witnessSet.entries.filter(
+    (e) => e.key !== VKEYS && e.key !== BOOTSTRAPS,
+  );
+  if (kept.length === witnessSet.entries.length) return raw.hex;
+  const { map } = witnessSet;
+  const header = map.definite
+    ? new CborWriter().writeStartMap(kept.length).encode()
+    : map.header;
+  const newSet = concat(
+    header,
+    ...kept.flatMap((e) => [e.keyBytes, e.value]),
+    map.trailer,
+  );
+  return toHex(
+    concat(
+      top.header,
+      top.items[0]!,
+      newSet,
+      ...top.items.slice(2),
+      top.trailer,
+    ),
+  );
 };
 
 /**
@@ -1292,33 +1386,41 @@ export function requiredSigners(
 }
 
 /**
+ * The body of a transaction as a value, without its proposals, its outputs and its collateral
+ * return: of the proposals only the policy hash is needed, read from the actions as they are,
+ * and the outputs need no signature (the value decoder does not read an output at a Byron
+ * address)
+ * @throws TxBuildError INVALID_OPTION for a body that cannot be read
+ */
+const bodyToSign = (raw: RawTx): TransactionPrototype["body"] => {
+  try {
+    const items = Serialization.TransactionBody.fromCbor(raw.body.toCbor());
+    items.setProposalProcedures(undefined as never);
+    items.setOutputs([]);
+    items.setCollateralReturn(undefined as never);
+    return transactionPrototypeFromCardano(
+      new Transaction(items, new Serialization.TransactionWitnessSet()),
+    ).body;
+  } catch (error) {
+    throw invalidTx(raw.hex, error);
+  }
+};
+
+/**
  * What a serialized transaction needs signed, as `requiredSigners` works it out, with the hashes
  * of the scripts its body calls for: the payment credentials of its spent inputs, its minted
  * policies, the script credentials of its withdrawals, certificates and voters, and the policy
  * hashes of its proposals
+ * @param body The body as a value, when the caller has read it already; else it is read here
  * @throws TxBuildError UTXO_NOT_FOUND for an input or collateral input whose UTxO is not in
  *   `spent`; INVALID_OPTION for a body that cannot be read
  */
 export const bodySigners = (
   raw: RawTx,
   spent: readonly Utxo[],
+  body: TransactionPrototype["body"] = bodyToSign(raw),
 ): { collected: Collected; scripts: Set<string> } => {
-  const tx = raw.hex;
-  // Only the body is decoded, and without its proposals: of those only the policy hash is
-  // needed, read below from the actions as they are
-  const proposals = raw.transaction.body().proposalProcedures()?.values() ?? [];
-  let body: ReturnType<typeof transactionPrototypeFromCardano>["body"];
-  try {
-    const items = Serialization.TransactionBody.fromCbor(
-      raw.transaction.body().toCbor(),
-    );
-    items.setProposalProcedures(undefined as never);
-    body = transactionPrototypeFromCardano(
-      new Transaction(items, new Serialization.TransactionWitnessSet()),
-    ).body;
-  } catch (error) {
-    throw invalidTx(tx, error);
-  }
+  const proposals = raw.body.proposalProcedures()?.values() ?? [];
   const given = new Map<string, Utxo>();
   for (const utxo of spent)
     given.set(outRefKey(utxo.txHash, utxo.outputIndex), utxo);
@@ -1394,8 +1496,7 @@ export const bodySigners = (
   for (const policyId of Object.keys(body.mint ?? {})) scripts.add(policyId);
 
   // Native scripts the witness set holds, then those held by given UTxOs the transaction reads
-  for (const native of raw.transaction.witnessSet().nativeScripts()?.values() ??
-    [])
+  for (const native of raw.witnesses.nativeScripts()?.values() ?? [])
     addNativeScript(collected, nativeScriptEntry(native));
   for (const input of [...body.inputs, ...(body.reference_inputs ?? [])]) {
     const native = nativeScriptRef(

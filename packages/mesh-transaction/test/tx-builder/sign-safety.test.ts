@@ -56,6 +56,7 @@ import {
 } from "../../src/tx-builder";
 import { readTransaction, withWitnesses } from "../../src/tx-builder/sign";
 import { alwaysSucceedCbor, baseAddress } from "../test-util";
+import * as cbor from "./cbor-util";
 import { hashSigner, keysSigner, TestKey, testKey } from "./hash-signer-util";
 import { pay, setup, walletOf } from "./plan/plan-emulator-util";
 
@@ -2809,6 +2810,328 @@ describe("R8: awaitInclusion changes nothing", () => {
         ).awaitInclusion()
       ).blockHeight,
     ).toBe(1200);
+  });
+});
+
+/* ---------------------------------------------------------------------------------------------
+ * A transaction given as CBOR
+ * ------------------------------------------------------------------------------------------- */
+
+describe("the rules for an object made by fromCbor", () => {
+  /**
+   * A transaction written by hand, in a body form, that the key of its input and the key of
+   * RFC 8032's first test vector, as a guard, must sign; it comes with the witnesses of the keys
+   * of `signedBy`
+   */
+  const handMade = async (
+    form: cbor.BodyForm = "odd",
+    signedBy: ("payer" | "stranger" | "guard")[] = ["payer"],
+  ) => {
+    await Crypto.ready();
+    const payer = testKey();
+    const stranger = testKey();
+    const body = cbor.body(form, {
+      to: `60${payer.keyHash}`,
+      extra: [[cbor.uint(14), cbor.arr(cbor.bytes(rfc.keyHash))]],
+    });
+    const txHash = cbor.txHashOf(body);
+    const witnesses = signedBy.map((who) =>
+      who === "guard"
+        ? cbor.arr(
+            cbor.bytes(rfc.vkey),
+            cbor.bytes(
+              Crypto.Ed25519PrivateKey.fromNormalHex(rfc.key)
+                .sign(HexBlob(txHash))
+                .hex(),
+            ),
+          )
+        : cbor.vkeyWitness(who === "payer" ? payer : stranger, txHash),
+    );
+    const utxo: Utxo = {
+      txHash: cbor.TX_IN,
+      outputIndex: 0,
+      address: payer.address,
+      value: { lovelace: ada(10) },
+    };
+    return {
+      payer,
+      stranger,
+      body,
+      txHash,
+      text: cbor.tx(
+        body,
+        witnesses.length === 0
+          ? cbor.map()
+          : cbor.map([cbor.uint(0), cbor.arr(...witnesses)]),
+      ),
+      unsigned: cbor.tx(body),
+      utxo,
+      knownUtxos: [utxo],
+    };
+  };
+  /** The guard's key, as a signer */
+  const guardSigner = () => keySigner(rfc.key);
+
+  it("keeps no signer of a call and no payer: the signers go while the object and its builder live", async () => {
+    await Crypto.ready();
+    const b = offline();
+    const refs: [string, WeakRef<object>][] = [];
+    const make = async () => {
+      const given = await handMade("odd", []);
+      const built = await b.fromCbor(given.text, {
+        knownUtxos: given.knownUtxos,
+      });
+      const signing = keysSigner("object", given.payer).signer;
+      const callback = keysSigner("callback", given.stranger).signer;
+      const guard = guardSigner();
+      const failing = hashSigner("object", () => {
+        throw new Error("down");
+      }).signer;
+      await caught(() => built.sign({ signers: failing }));
+      await built.sign({ signers: [signing, callback, guard] });
+      const found = reachable(built);
+      for (const signer of [signing, callback, guard, failing])
+        expect(found.has(signer)).toBe(false);
+      refs.push(
+        ["a signer of hashes", new WeakRef(signing as object)],
+        ["a callback", new WeakRef(callback as object)],
+        ["a key signer", new WeakRef(guard as object)],
+        ["a signer that failed", new WeakRef(failing as object)],
+        ["the UTxOs given", new WeakRef(given.knownUtxos)],
+      );
+      return built;
+    };
+    const built = await make();
+    const held = { held: true };
+    const holder = [held];
+    const control = new WeakRef(held);
+    const kept: string[] = [];
+    for (const [name, ref] of refs)
+      if (!(await isCollected(ref))) kept.push(name);
+    expect(kept).toEqual([]);
+    expect(await isCollected(control)).toBe(false);
+    expect(holder).toHaveLength(1);
+    expect(built.signedTx).toBeDefined();
+    // It has no payer: sign() without signers names nobody
+    expect(codeOf(await caught(() => built.sign()))).toBe("MISSING_SIGNATURES");
+    expect(codeOf(await caught(() => built.sign({ signers: [] })))).toBe(
+      "MISSING_SIGNATURES",
+    );
+  });
+
+  it("hands a signer the hash of the body bytes given and the unsigned transaction, in every body encoding", async () => {
+    for (const form of ["odd", "tagged", "plain"] as const) {
+      const given = await handMade(form);
+      const built = await offline().fromCbor(given.text, {
+        knownUtxos: given.knownUtxos,
+      });
+      expect(built.txHash === given.txHash).toBe(true);
+      expect(built.tx === given.unsigned).toBe(true);
+      // A recording signer of hashes that signs with the guard's key, and the key signer itself,
+      // which refuses a hash that is not of the body of the transaction it is handed
+      const recorded = hashSigner("object", (request) =>
+        guardSigner().signTxHash(request),
+      );
+      await built.sign({ signers: recorded.signer });
+      expect(recorded.requests).toHaveLength(1);
+      const [request] = recorded.requests;
+      expect(request!.txHash === given.txHash).toBe(true);
+      expect(request!.tx === given.unsigned).toBe(true);
+      expect(bodyHashOf(request!.tx) === given.txHash).toBe(true);
+      const other = await offline().fromCbor(given.text, {
+        knownUtxos: given.knownUtxos,
+      });
+      await other.sign({ signers: guardSigner() });
+      for (const object of [built, other]) {
+        expect(object.missing).toEqual([]);
+        expect(cbor.topItems(object.signedTx!)[0]).toBe(given.body);
+        expect(await problemsOf(object.signedTx!, given.unsigned)).toEqual([]);
+      }
+      expect(other.signedTx).toBe(built.signedTx);
+    }
+  });
+
+  it("every witness of every partialTx and signedTx verifies, the ones it came with among them", async () => {
+    for (const form of ["odd", "tagged", "plain"] as const) {
+      const given = await handMade(form, ["payer", "stranger"]);
+      const b = offline();
+      const built = await b.fromCbor(given.text, {
+        knownUtxos: given.knownUtxos,
+      });
+      expect(await problemsOf(built.partialTx, built.tx)).toEqual([]);
+      expect(witnessKeys(built.partialTx)).toEqual(
+        [given.payer.keyHash, given.stranger.keyHash].sort(),
+      );
+      expect(built.signedTx).toBeUndefined();
+      const restored = await b.restore(JSON.parse(JSON.stringify(built)));
+      expect(restored.partialTx).toBe(built.partialTx);
+      await built.addWitnesses(await signWitnesses(guardSigner(), built.tx));
+      await restored.sign({ signers: guardSigner() });
+      for (const object of [built, restored]) {
+        expect(await problemsOf(object.partialTx, object.tx)).toEqual([]);
+        expect(await problemsOf(object.signedTx!, given.unsigned)).toEqual([]);
+        expect(witnessKeys(object.signedTx!)).toEqual(
+          [given.payer.keyHash, given.stranger.keyHash, rfc.keyHash].sort(),
+        );
+      }
+      // Every witness it came with stands in signedTx as it was given
+      const fully = await handMade(form, ["payer", "guard"]);
+      const done = await b.fromCbor(fully.text, {
+        knownUtxos: fully.knownUtxos,
+      });
+      expect(await problemsOf(done.signedTx!, fully.unsigned)).toEqual([]);
+      expect(done.signedTx).toBe(fully.text);
+    }
+  });
+
+  it.each(["record", "throw"] as const)(
+    "fromCbor calls no submitter and no signer, and sign and addWitnesses of its object call no provider (%s)",
+    async (mode) => {
+      const given = await handMade("odd");
+      const provider = watched({
+        fetchUTxOs: async () => [given.utxo],
+      });
+      const submitter = watched();
+      const b = offline({
+        provider: provider.object as unknown as TxBuilderOptions["provider"],
+        submitter: submitter.object as unknown as TxBuilderOptions["submitter"],
+      });
+      // A signer given in place of the options is refused, and not asked
+      const misplaced = keysSigner("object", given.payer);
+      expect(
+        codeOf(
+          await caught(() => b.fromCbor(given.text, misplaced.signer as never)),
+        ),
+      ).toBe("INVALID_OPTION");
+      expect(misplaced.requests).toEqual([]);
+      const built = await b.fromCbor(given.text);
+      expect(provider.control.calls).toEqual(["fetchUTxOs"]);
+      expect(submitter.control.calls).toEqual([]);
+      provider.control.calls.length = 0;
+      provider.control.mode = mode;
+      submitter.control.mode = mode;
+      const recorded = keysSigner("callback", given.stranger);
+      await built.sign({ signers: recorded.signer });
+      await built.addWitnesses(await signWitnesses(guardSigner(), built.tx));
+      expect(built.signedTx).toBeDefined();
+      void built.partialTx;
+      void built.missing;
+      const restored = await b.restore(JSON.parse(JSON.stringify(built)));
+      await restored.addWitnesses(built.signedTx!);
+      expect(provider.control.calls).toEqual([]);
+      expect(submitter.control.calls).toEqual([]);
+    },
+  );
+
+  it("no call changes tx or txHash, a recording submitter sees one body only, and changing a member changes nothing signed or sent", async () => {
+    const given = await handMade("odd");
+    const sent: string[] = [];
+    const provider = watched({
+      fetchTxInfo: (hash) => foundInfo(hash as string),
+    });
+    const b = offline({
+      provider: provider.object as unknown as TxBuilderOptions["provider"],
+      submitter: {
+        submitTx: async (tx: string) => {
+          sent.push(tx);
+          return "";
+        },
+      },
+    });
+    const built = await b.fromCbor(given.text, {
+      knownUtxos: given.knownUtxos,
+    });
+    const { tx, txHash } = built;
+    const loose = built as unknown as Record<string, unknown>;
+    const attempts = [
+      () => {
+        loose.tx = cbor.tx(cbor.body("plain", { to: "60".padEnd(58, "4") }));
+      },
+      () => Object.defineProperty(built, "txHash", { value: "00".repeat(32) }),
+      () => {
+        (built.signers.keyHashes as string[]).length = 0;
+        (built.signers.keys as unknown[]).length = 0;
+      },
+      () => {
+        (built.inputs as unknown[]).length = 0;
+      },
+      () => {
+        (built.outputs[0] as { address: string }).address = recipient;
+      },
+      () => {
+        (built.prototype as { body: { fee: string } }).body.fee = "1";
+      },
+    ];
+    for (const attempt of attempts)
+      try {
+        attempt();
+      } catch {
+        // A frozen member refuses the change
+      }
+    const changed: string[] = [];
+    const steps: [string, () => Promise<unknown>][] = [
+      ["sign", () => built.sign({ signers: guardSigner() })],
+      ["toJSON", async () => built.toJSON()],
+      ["submit", () => built.submit()],
+      ["awaitInclusion", () => built.awaitInclusion()],
+      ["restore", () => b.restore(JSON.parse(JSON.stringify(built)))],
+    ];
+    let restored: BuiltTx | undefined;
+    for (const [name, run] of steps) {
+      const result = await run();
+      if (built.tx !== tx || built.txHash !== txHash) changed.push(name);
+      if (result instanceof BuiltTx) restored = result;
+    }
+    expect(changed).toEqual([]);
+    expect(tx === given.unsigned && txHash === given.txHash).toBe(true);
+    expect(built.missing).toEqual([]);
+    expect(await problemsOf(built.signedTx!, given.unsigned)).toEqual([]);
+    await restored!.submit();
+    expect(restored!.tx === tx && restored!.txHash === txHash).toBe(true);
+    expect(sent).toHaveLength(2);
+    expect(new Set(sent).size).toBe(1);
+    expect(bodyHashOf(sent[0]!) === given.txHash).toBe(true);
+    expect(cbor.topItems(sent[0]!)[0]).toBe(given.body);
+  });
+
+  it("submit sends nothing while a key is missing, and signedTx and nothing else once none is", async () => {
+    const provider = watched();
+    const sent: string[] = [];
+    const submitter = {
+      submitTx: async (tx: string) => {
+        sent.push(tx);
+        return "";
+      },
+    };
+    const b = offline({
+      provider: provider.object as unknown as TxBuilderOptions["provider"],
+      submitter,
+    });
+    const none = await handMade("tagged", []);
+    const one = await handMade("tagged", ["payer", "stranger"]);
+    const objects = [
+      await b.fromCbor(none.text, { knownUtxos: none.knownUtxos }),
+      await b.fromCbor(one.text, { knownUtxos: one.knownUtxos }),
+    ];
+    objects.push(await b.restore(JSON.parse(JSON.stringify(objects[1]))));
+    for (const built of objects)
+      for (const options of [undefined, { submitter }]) {
+        const error = await caught(() => built.submit(options));
+        expect(codeOf(error)).toBe("MISSING_SIGNATURES");
+      }
+    expect(sent).toEqual([]);
+    expect(provider.control.calls).toEqual([]);
+    const [, signedLater] = objects;
+    await signedLater!.sign({ signers: guardSigner() });
+    await signedLater!.submit();
+    expect(sent).toEqual([signedLater!.signedTx]);
+    // A transaction that came with every signature it needs sends the bytes given
+    const fully = await handMade("odd", ["payer", "guard"]);
+    const done = await b.fromCbor(fully.text.toUpperCase(), {
+      knownUtxos: fully.knownUtxos,
+    });
+    await done.submit();
+    expect(sent).toEqual([signedLater!.signedTx, fully.text]);
   });
 });
 

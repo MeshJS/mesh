@@ -73,6 +73,7 @@ import {
   keyWitnessTags,
   readTransaction,
   readWitnessArgument,
+  withoutKeyWitnesses,
   withWitnesses,
   writeWitnessSet,
 } from "../../src/tx-builder/sign";
@@ -83,6 +84,7 @@ import {
   keyHashHex,
   vrfKeyHashHex,
 } from "../test-util";
+import * as cbor from "./cbor-util";
 import { hashSigner, TestKey, testKey } from "./hash-signer-util";
 import { ref } from "./utxo-util";
 
@@ -700,6 +702,123 @@ describe("the set tag of the key witnesses", () => {
     // Empty entries, tagged and plain
     expect(tagsOf("a200d901028002d9010280")).toEqual({});
     expect(tagsOf("a200800280")).toEqual({});
+  });
+});
+
+describe("withoutKeyWitnesses", () => {
+  /** A vkey witness and a bootstrap witness of new keys over a transaction hash, as hex */
+  const keyWitnesses = (txId: string) => {
+    const vkey = cbor.vkeyWitness(testKey(), txId);
+    const key = testKey();
+    const bootstrap = cbor.arr(
+      cbor.bytes(key.vkey),
+      cbor.bytes(key.sign(txId)),
+      cbor.bytes("00".repeat(32)),
+      cbor.bytes("a0"),
+    );
+    return { vkey, bootstrap };
+  };
+  /** Plutus data in odd encodings, and a native script: entries that are not key witnesses */
+  const datums = cbor.arrIndef(
+    cbor.constr0Indef(cbor.uint64(1), cbor.chunkedBytes("cafe")),
+  );
+  const nativeScripts = cbor.arr(
+    cbor.arr(cbor.uint(0), cbor.bytes("22".repeat(28))),
+  );
+
+  it("returns a transaction without key witnesses as it is", async () => {
+    await Crypto.ready();
+    const to = `60${"33".repeat(28)}`;
+    for (const form of ["tagged", "plain", "odd"] as const) {
+      const body = cbor.body(form, { to });
+      for (const set of [
+        cbor.map(),
+        cbor.map([cbor.uint(4), datums]),
+        cbor.mapIndef([cbor.uint(4), datums], [cbor.uint(1), nativeScripts]),
+      ]) {
+        const given = cbor.tx(body, set, { aux: "f6" });
+        expect(withoutKeyWitnesses(readTransaction(given))).toBe(given);
+      }
+    }
+  });
+
+  it("takes out both entries and nothing else of one that has them", async () => {
+    await Crypto.ready();
+    const to = `60${"33".repeat(28)}`;
+    for (const form of ["tagged", "plain", "odd"] as const) {
+      const body = cbor.body(form, { to });
+      const { vkey, bootstrap } = keyWitnesses(cbor.txHashOf(body));
+      const vkeys = [
+        cbor.arr(vkey),
+        cbor.tag258(cbor.arr(vkey)),
+        cbor.arrIndef(vkey),
+      ];
+      for (const vkeyEntry of vkeys) {
+        const others: [string, string][] = [
+          [cbor.uint(4), datums],
+          [cbor.uint(1), nativeScripts],
+        ];
+        const cases: [string, string][] = [
+          // A stated length: written again for the entries left
+          [
+            cbor.map(
+              [cbor.uint(4), datums],
+              [cbor.uint(0), vkeyEntry],
+              [cbor.uint(2), cbor.arr(bootstrap)],
+              [cbor.uint(1), nativeScripts],
+            ),
+            cbor.map(...others),
+          ],
+          // An indefinite length: its header and its break stay
+          [
+            cbor.mapIndef(
+              [cbor.uint(4), datums],
+              [cbor.uint(0), vkeyEntry],
+              [cbor.uint(1), nativeScripts],
+              [cbor.uint(2), cbor.tag258(cbor.arr(bootstrap))],
+            ),
+            cbor.mapIndef(...others),
+          ],
+          // A key written in two bytes, and an empty bootstrap entry, are taken out too
+          [
+            cbor.map(
+              [cbor.uint(4), datums],
+              ["1800", vkeyEntry],
+              [cbor.uint(2), cbor.arr()],
+              [cbor.uint(1), nativeScripts],
+            ),
+            cbor.map(...others),
+          ],
+          // Only key witnesses: an empty witness set is left
+          [
+            cbor.map(
+              [cbor.uint(0), vkeyEntry],
+              [cbor.uint(2), cbor.arr(bootstrap)],
+            ),
+            cbor.map(),
+          ],
+        ];
+        for (const [set, left] of cases)
+          for (const rest of [
+            { valid: "f5", aux: "f6" },
+            { valid: "f4", aux: cbor.map([cbor.uint(0), cbor.uint(1)]) },
+          ]) {
+            const given = cbor.tx(body, set, rest);
+            const raw = readTransaction(given);
+            const unsigned = withoutKeyWitnesses(raw);
+            expect(unsigned).toBe(cbor.tx(body, left, rest));
+            // The body and the items after the witness set stay byte for byte
+            expect(cbor.topItems(unsigned)[0]).toBe(body);
+            expect(cbor.topItems(unsigned).slice(2)).toEqual(
+              cbor.topItems(given).slice(2),
+            );
+            const read = readTransaction(unsigned);
+            expect(read.txId).toBe(raw.txId);
+            expect(read.witnessSet.vkeys).toBeUndefined();
+            expect(read.witnessSet.bootstraps).toBeUndefined();
+          }
+      }
+    }
   });
 });
 

@@ -1,4 +1,5 @@
 import type { LanguageVersion, UTxO } from "@meshsdk/common";
+import type { Serialization } from "@meshsdk/core-cst";
 import {
   Address,
   CborReader,
@@ -19,6 +20,7 @@ import type {
   UtxoInput,
 } from "./types";
 import { TxBuildError } from "../errors";
+import { itemEnd } from "../tx-scan";
 import { emptyValue, toAssets } from "../value";
 
 /*
@@ -150,11 +152,10 @@ const normalValue = (
   return toAssets(value);
 };
 
-/** Whether `hex` is exactly one CBOR item, with no bytes after it */
+/** Whether `hex` is exactly one well-formed CBOR item, with no bytes after it */
 export const isOneItem = (hex: string) => {
-  const reader = new CborReader(HexBlob(hex));
-  reader.skipValue();
-  return reader.getBytesRemaining() === 0;
+  const bytes = Buffer.from(hex, "hex");
+  return itemEnd(bytes) === bytes.length;
 };
 
 /**
@@ -175,6 +176,18 @@ const readInlineData = (at: string, what: string, content: unknown) => {
   }
   return data;
 };
+
+/**
+ * The CBOR of inline Plutus data the value decoder has read as such already, checked to be
+ * nothing more than that one item, and kept byte for byte
+ */
+const decodedInlineData = (at: string, data: string) =>
+  isOneItem(data)
+    ? data.toLowerCase()
+    : problem(
+        "datum",
+        `${at}: its inline datum is not Plutus data: bytes follow the data`,
+      );
 
 const inlineDatum = (content: string): OutputDatum => ({
   type: "inline",
@@ -374,12 +387,21 @@ const fromCbor = (cbor: string): Utxo => {
       error,
     );
   }
-  const ref = readOutRefMembers(
-    unspent.input().transactionId().toString(),
-    Number(unspent.input().index()),
+  return fromOutput(
+    readOutRefMembers(
+      unspent.input().transactionId().toString(),
+      Number(unspent.input().index()),
+    ),
+    unspent.output(),
   );
+};
+
+/** A UTxO from its out ref and its output as decoded: what the output holds, byte for byte */
+const fromOutput = (
+  ref: OutRef,
+  output: Serialization.TransactionOutput,
+): Utxo => {
   const at = describe(ref);
-  const output = unspent.output();
   const amount = output.amount();
   const datum = output.datum();
   const inline = datum?.asInlineData()?.toCbor().toString();
@@ -394,7 +416,7 @@ const fromCbor = (cbor: string): Utxo => {
     ]),
     ...withDatum(
       inline !== undefined
-        ? inlineDatum(readInlineData(at, "its inline datum", inline))
+        ? inlineDatum(decodedInlineData(at, inline))
         : dataHash !== undefined
           ? hashDatum(at, dataHash)
           : undefined,
@@ -585,6 +607,18 @@ export const readOutRef = (given: unknown): OutRef => {
   }
   return readOutRefMembers(given.txHash, given.outputIndex);
 };
+
+/**
+ * An output of a decoded transaction as the UTxO it becomes, checked as any UTxO given is. Its
+ * inline datum and its reference script are the bytes the transaction holds, not a value written
+ * again
+ * @throws UtxoError for an output a `Utxo` cannot hold
+ */
+export const outputAsUtxo = (
+  txHash: string,
+  outputIndex: number,
+  output: Serialization.TransactionOutput,
+): Utxo => fromOutput(readOutRefMembers(txHash, outputIndex), output);
 
 /** The out ref of an output, with exactly the members `txHash` and `outputIndex` */
 export const outRefOf = (ref: Readonly<OutRef>): OutRef => ({

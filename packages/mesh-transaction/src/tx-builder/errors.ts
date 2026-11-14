@@ -23,7 +23,10 @@ export type TxBuildErrorCode =
   | "INVALID_COLLATERAL"
   /** Something has to be looked up, and the builder has no provider */
   | "MISSING_FETCHER"
-  /** An output referenced by the transaction does not exist, or could not be fetched */
+  /**
+   * An output referenced by the transaction does not exist, or could not be fetched; of a
+   * transaction given as CBOR, also an output that is spent and that the provider does not list
+   */
   | "UTXO_NOT_FOUND"
   /** A protocol parameter the transaction needs is not known */
   | "MISSING_PARAMETER"
@@ -53,7 +56,10 @@ export type TxBuildErrorCode =
   | "FEE_NOT_CONVERGED"
   /** The serializer cannot serialize a `TransactionPrototype` */
   | "UNSUPPORTED_SERIALIZER"
-  /** An address, wallet, provider or plan record of another network than the builder's */
+  /**
+   * An address, wallet, provider, plan record or transaction given as CBOR of another network
+   * than the builder's
+   */
   | "NETWORK_MISMATCH"
   /** No `payer` says who pays */
   | "MISSING_PAYER"
@@ -163,7 +169,10 @@ export type InsufficientFundsDetails = {
   };
 };
 
-/** An address, wallet, provider or plan record of another network than the builder's */
+/**
+ * An address, wallet, provider, plan record or transaction given as CBOR of another network than
+ * the builder's
+ */
 export type NetworkMismatchDetails = {
   expected: { name: string; networkId: 0 | 1 };
   found: {
@@ -177,7 +186,9 @@ export type NetworkMismatchDetails = {
       | "withdrawal"
       | "rewardAccount"
       /** The network a plan's record, or the JSON of a `BuiltTx`, was written for */
-      | "record";
+      | "record"
+      /** The network id the body of a transaction given as CBOR states */
+      | "body";
     address?: string;
     networkId?: number;
     network?: string;
@@ -253,7 +264,10 @@ export type TxPlanErrorCode =
   | "SIGN_DECLINED"
   /** The signer failed, timed out, or changed accounts */
   | "SIGNER_FAILED"
-  /** A witness set that cannot be used for the transaction */
+  /**
+   * A witness set that cannot be used for the transaction; or a transaction given as CBOR that
+   * holds a signature that is not of its body
+   */
   | "INVALID_WITNESS"
   /** Keys the transaction needs have not signed it */
   | "MISSING_SIGNATURES"

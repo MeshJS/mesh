@@ -153,13 +153,18 @@ export const checkNetworks = (
   const [only] = found.length === 1 ? found : [];
   const listed = found
     .map((f) => {
+      if (f.role === "body") return `its body states network id ${f.networkId}`;
       const where = `${f.part ?? f.role}${f.label !== undefined ? ` "${f.label}"` : ""}`;
       return `${where} ${f.address ?? ""} (network id ${f.networkId})`;
     })
     .join(", ");
   throw new TxBuildError(
     "NETWORK_MISMATCH",
-    `the builder is for network ${network.name} (network id ${network.networkId}), and the transaction names ${found.length === 1 ? "an address" : "addresses"} of another network: ${listed}`,
+    `the builder is for network ${network.name} (network id ${network.networkId}), and the transaction ${
+      found.some((f) => f.role === "body")
+        ? "is of another network"
+        : `names ${found.length === 1 ? "an address" : "addresses"} of another network`
+    }: ${listed}`,
     {
       ...(only?.part !== undefined && { part: only.part, label: only.label }),
       details: {

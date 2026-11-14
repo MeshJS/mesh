@@ -137,8 +137,9 @@ export type BuiltTxJSON = {
    */
   readonly witnesses?: string;
   /**
-   * The library's: how many witnesses of keys the transaction does not need its fee counts,
-   * the build's `extraKeyWitnesses`; written only when above 0
+   * The library's: how many witnesses of keys the transaction does not need it keeps: the
+   * build's `extraKeyWitnesses`, or as many as a transaction made by `fromCbor` came with;
+   * written only when above 0
    */
   readonly extraKeyWitnesses?: number;
   /**
@@ -162,11 +163,14 @@ const RECORD_MEMBERS: readonly string[] = [
   "delivered",
 ];
 
-/** What a restored object starts from beside the data: read from its JSON and verified */
+/**
+ * What an object that was not built here starts from beside the data: read from its JSON, or
+ * from the transaction given as CBOR, and verified
+ */
 export type RestoredState = {
   /** The transaction of the data, read once */
   readonly raw: RawTx;
-  /** The witnesses of the JSON, each verified against the body */
+  /** The witnesses it came with, each verified against the body */
   readonly held: readonly KeyWitness[];
   /** A delivery of it was taken, or its outcome is unknown */
   readonly delivered: boolean;
@@ -292,7 +296,8 @@ const keysText = (keys: readonly RequiredKey[]) =>
   keys.map((k) => `${k.keyHash} (${k.roles.join(", ")})`).join("; ");
 
 /**
- * One built transaction, on its own: what `builder.build()` and `builder.finalize()` return, and
+ * One built transaction, on its own: what `builder.build()` and `builder.finalize()` return,
+ * what `builder.fromCbor()` makes of a transaction that exists only as CBOR, and what
  * `builder.restore()` brings back.
  *
  * It is a `BuiltTxData`: every member of it is here as the object's own read-only data, so it goes
@@ -312,8 +317,8 @@ const keysText = (keys: readonly RequiredKey[]) =>
  * An object made by `build()` keeps the payer of its build when that payer has a signing method
  * at the build, as a plan's payer signs: a wallet, or a snapshot object that carries such a
  * method; it is never written by `toJSON()`. A payer given as an address, or as an object
- * without a signing method, is not kept, and an object made by `finalize()` or `restore()`
- * holds no payer: it signs with the signers named in `sign({ signers })`, or takes witnesses
+ * without a signing method, is not kept, and an object made by `finalize()`, `fromCbor()` or
+ * `restore()` holds no payer: it signs with the signers named in `sign({ signers })`, or takes witnesses
  * made elsewhere.
  *
  * ```ts
@@ -333,12 +338,18 @@ const keysText = (keys: readonly RequiredKey[]) =>
  * Two calls at once are safe: a witness is kept once per key, whoever gives it first.
  */
 export class BuiltTx implements BuiltTxData {
-  /** The unsigned transaction, in CBOR hex */
+  /**
+   * The unsigned transaction, in CBOR hex. From `fromCbor`, the transaction given without its
+   * vkey and bootstrap witnesses, every other byte as given
+   */
   declare readonly tx: BuiltTxData["tx"];
+  /** The hash of the body of `tx` */
   declare readonly txHash: BuiltTxData["txHash"];
   /**
-   * The transaction as a value, exactly as serialized. It follows the transaction format of the
-   * current ledger era; code meant to outlive an era reads the other members of `BuiltTxData`.
+   * The transaction as a value. Of a build, exactly what `tx` was serialized from. From
+   * `fromCbor`, what `tx` reads as: serializing it again need not give the same bytes or the
+   * same hash. It follows the transaction format of the current ledger era; code meant to
+   * outlive an era reads the other members of `BuiltTxData`.
    */
   declare readonly prototype: BuiltTxData["prototype"];
   declare readonly fee: BuiltTxData["fee"];
@@ -347,7 +358,7 @@ export class BuiltTx implements BuiltTxData {
   declare readonly redeemers: BuiltTxData["redeemers"];
   /** Every input spent, resolved, in the transaction's order */
   declare readonly inputs: BuiltTxData["inputs"];
-  /** The inputs added to pay for the transaction */
+  /** The inputs added to pay for the transaction; none from `finalize` and from `fromCbor` */
   declare readonly selectedInputs: BuiltTxData["selectedInputs"];
   /** The reference inputs, resolved, in the transaction's order */
   declare readonly referenceInputs: BuiltTxData["referenceInputs"];
@@ -359,12 +370,14 @@ export class BuiltTx implements BuiltTxData {
   /**
    * The change outputs, as UTxOs of `txHash`, in body order; each is also in `outputs`. A build
    * made before this transaction is seen by the provider passes it as `after`; when that build
-   * has the same change address, it can then select this change.
+   * has the same change address, it can then select this change. Empty from `fromCbor`: which
+   * outputs of a transaction built elsewhere are change is not known.
    */
   declare readonly change: BuiltTxData["change"];
   /**
    * The collateral, when the transaction runs Plutus scripts; of a transaction completed by
-   * `finalize`, whenever the body has collateral inputs
+   * `finalize` or made by `fromCbor`, whenever the body has collateral inputs, in the body's
+   * order
    */
   declare readonly collateral?: BuiltTxData["collateral"];
   /** The keys that must sign, each with the roles it is needed in */
@@ -374,13 +387,20 @@ export class BuiltTx implements BuiltTxData {
    * milliseconds those slots start at on the builder's network
    */
   declare readonly validity?: BuiltTxData["validity"];
-  /** The network the transaction was built for */
+  /**
+   * The network the transaction was built for; from `fromCbor`, the builder's network, which
+   * the transaction was checked against
+   */
   declare readonly network: BuiltTxData["network"];
-  /** What is worth knowing about the transaction and did not stop the build; often empty */
+  /**
+   * What is worth knowing about the transaction and did not stop the build; often empty. From
+   * `fromCbor`, the codes that follow from the bytes and the UTxOs: VALID_FROM_FUTURE,
+   * COLLATERAL_FORFEITED and COLLATERAL_RETURN_ELSEWHERE
+   */
   declare readonly warnings: BuiltTxData["warnings"];
   /**
    * Every part of the transaction, resolved, the ones added by balancing included; empty on a
-   * transaction completed by `finalize`
+   * transaction completed by `finalize` or made by `fromCbor`
    */
   declare readonly parts: BuiltTxData["parts"];
 
@@ -396,7 +416,10 @@ export class BuiltTx implements BuiltTxData {
   readonly #counted: ReadonlySet<string>;
   /** The bootstrap witnesses the fee counts: one per Byron address spent from */
   readonly #bootstraps: number;
-  /** The vkey witnesses of other keys the fee counts: the build's `extraKeyWitnesses` */
+  /**
+   * The vkey witnesses of other keys the fee counts: the build's `extraKeyWitnesses`, or those a
+   * transaction from CBOR came with
+   */
   readonly #extraKeys: number;
   /** The witnesses held, each verified against the body, in the order they were kept */
   readonly #held: KeyWitness[] = [];
@@ -430,7 +453,7 @@ export class BuiltTx implements BuiltTxData {
    */
   readonly #payer?: Signer;
 
-  /** Made by `builder.build()`, `builder.finalize()` and `builder.restore()` only */
+  /** Made by `builder.build()`, `builder.finalize()`, `builder.fromCbor()` and `builder.restore()` only */
   private constructor(
     builder: TxBuilder,
     built: BuiltTxData,
@@ -443,8 +466,7 @@ export class BuiltTx implements BuiltTxData {
     this.#payer = restored === undefined ? payer : undefined;
     this.#raw = restored?.raw ?? readTransaction(built.tx);
     // Read from the transaction itself: its witness set holds redeemers
-    this.#plutus =
-      (this.#raw.transaction.witnessSet().redeemers()?.size() ?? 0) > 0;
+    this.#plutus = (this.#raw.witnesses.redeemers()?.size() ?? 0) > 0;
     this.#signers = structuredClone(built.signers);
     this.#keys = Object.freeze(
       built.signers.keys.map(({ keyHash, roles }) =>
@@ -545,7 +567,7 @@ export class BuiltTx implements BuiltTxData {
       const missing = this.missing;
       throw new TxPlanError(
         "MISSING_SIGNATURES",
-        `nobody can sign: name signers in sign({ signers }), or add witnesses with addWitnesses; the object holds no payer that signs (an address, a snapshot or a wallet without a signing method is none, and so is an object made by finalize() or restore()); ${
+        `nobody can sign: name signers in sign({ signers }), or add witnesses with addWitnesses; the object holds no payer that signs (an address, a snapshot or a wallet without a signing method is none, and so is an object made by finalize(), fromCbor() or restore()); ${
           missing.length === 0
             ? "every key the transaction needs has signed it"
             : `${missing.length} key(s) the transaction needs have not signed it`
@@ -906,11 +928,12 @@ const internals = (builder: TxBuilder) =>
   builder as unknown as BuilderInternals;
 
 /**
- * A `BuiltTx` of the data of a build: the object `build()`, `finalize()` and `restore()`
- * return
+ * A `BuiltTx` of the data of a build: the object `build()`, `finalize()`, `fromCbor()` and
+ * `restore()` return
  * @param builder The builder that made it: it submits through it and looks through its provider
- * @param extraKeys The build's `extraKeyWitnesses`: witnesses of other keys its fee counts
- * @param restored What a restored object starts from: its transaction read, its witnesses
+ * @param extraKeys The build's `extraKeyWitnesses`: witnesses of other keys its fee counts; of a
+ *   transaction from CBOR, the number of such witnesses it came with
+ * @param restored What an object not built here starts from: its transaction read, its witnesses
  *   verified, the set tags they came with, and its mark of a delivery
  * @param payer The payer the build read, when it can sign: the signer of `sign()` without
  *   signers. A restored object takes none

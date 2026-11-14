@@ -24,10 +24,16 @@ import {
   timeAt,
 } from "@meshsdk/common";
 import {
+  Address,
+  CborReader,
   CborWriter,
+  Crypto,
+  HexBlob,
   OfflineEvaluatorScalus,
   plutusDataVariantToCardano,
+  Serialization,
   Transaction,
+  transactionPrototypeFromCardano,
   transactionPrototypeToHex,
   TxCBOR,
 } from "@meshsdk/core-cst";
@@ -42,6 +48,7 @@ import type {
 import type { BuiltTx, BuiltTxJSON } from "./built-tx";
 import type { ChainedTx } from "./chain";
 import type { PartFailure } from "./errors";
+import type { NetworkEntry } from "./network";
 import type {
   CredentialInput,
   OutputPart,
@@ -64,7 +71,7 @@ import type {
   TxPlanStore,
 } from "./plan/types";
 import type { GovernanceDeposits } from "./resolve";
-import type { Signer } from "./sign";
+import type { RawTx, Signer } from "./sign";
 import type { TxSigners } from "./witnesses";
 import { abortable, throwIfAborted } from "./abort";
 import {
@@ -92,7 +99,7 @@ import {
   spentByTransactions,
   toKnownUtxos,
 } from "./chain";
-import { TxBuildError } from "./errors";
+import { TxBuildError, TxPlanError } from "./errors";
 import {
   bodyRefScriptSize,
   checkProtocol,
@@ -113,13 +120,21 @@ import {
   scriptAddressOn,
   utxoEntry,
 } from "./network";
+import { givenAsSigner, optionsObject, typeOf } from "./options";
 import {
   errorText,
   freeze,
   isWholeNumber,
   outRefString,
+  paymentCredential,
 } from "./parts/normalize";
-import { plainUtxo, readUtxo, toMeshUtxo, utxoKey } from "./parts/utxo";
+import {
+  outputAsUtxo,
+  plainUtxo,
+  readUtxo,
+  toMeshUtxo,
+  utxoKey,
+} from "./parts/utxo";
 import {
   givenPayerEntries,
   readPayerSource,
@@ -128,9 +143,24 @@ import {
 } from "./payer";
 import { checkPlanDefaults } from "./plan/deadlines";
 import { createPlan, resumePlan, TxPlan } from "./plan/plan";
-import { resolveParts, resolveValidity } from "./resolve";
-import { bodySigners, payerSigner, readTransaction } from "./sign";
-import { placeholderWitnesses, signersOf, txSigners } from "./witnesses";
+import { fetchTxOutputs, resolveParts, resolveValidity } from "./resolve";
+import {
+  bodySigners,
+  keyWitnessTags,
+  newWitnesses,
+  payerSigner,
+  readTransaction,
+  readTransactionItems,
+  verifies,
+  withoutKeyWitnesses,
+} from "./sign";
+import { scanTransaction, TxScanError } from "./tx-scan";
+import {
+  countedKeys,
+  placeholderWitnesses,
+  signersOf,
+  txSigners,
+} from "./witnesses";
 
 /**
  * What the builder reads the chain through: every read, the tip and the search; submits when it
@@ -746,7 +776,10 @@ export type BuiltRedeemer = {
   exUnits: { mem: bigint; steps: bigint };
   /** The redeemer data, in CBOR hex, as the transaction carries it */
   data: string;
-  /** The part the redeemer belongs to; absent on a transaction completed by `finalize`, which has no parts */
+  /**
+   * The part the redeemer belongs to; absent on a transaction completed by `finalize` or made by
+   * `fromCbor`, which have no parts
+   */
   part?: AssembledRedeemer["part"];
   label?: string;
 };
@@ -757,14 +790,24 @@ export type BuildWarning = {
    * - `VALID_FROM_FUTURE`: the slot of the transaction's lower bound starts after the current
    *   time of the local clock
    * - `COLLATERAL_FORFEITED`: the transaction puts up collateral and has no collateral return:
-   *   all of the collateral is at stake. It comes with `collateralReturn: false`, and when what
-   *   is left of the collateral inputs is too small to be returned
+   *   all of the collateral is at stake. It comes with `collateralReturn: false`, when what is
+   *   left of the collateral inputs is too small to be returned, and for a transaction made by
+   *   `fromCbor` whose body has collateral inputs and no return
+   * - `COLLATERAL_RETURN_ELSEWHERE`: a collateral input is held by another payment credential
+   *   than the one the collateral return pays: if a script fails, every collateral input of
+   *   such a holder leaves it, however small the total collateral the body states, and whoever
+   *   submits the transaction can mark it as failing. The message names those lovelace. Only
+   *   from `fromCbor`
    * - `FEE_ABOVE_MINIMUM`: the `fee` given is above the minimum fee of the transaction
    *
    * The list is open: later versions may add codes, so code that reads it keeps a default
    * branch.
    */
-  code: "VALID_FROM_FUTURE" | "COLLATERAL_FORFEITED" | "FEE_ABOVE_MINIMUM";
+  code:
+    | "VALID_FROM_FUTURE"
+    | "COLLATERAL_FORFEITED"
+    | "COLLATERAL_RETURN_ELSEWHERE"
+    | "FEE_ABOVE_MINIMUM";
   message: string;
   /** The kind of the part it is about */
   part?: TxPart["kind"];
@@ -778,22 +821,30 @@ export type BuiltOutput = Utxo & {
   readonly label?: string;
   /**
    * Set on change outputs: those at the payer's change address that took change; of a
-   * transaction completed by `finalize`, every output at its `changeAddress`
+   * transaction completed by `finalize`, every output at its `changeAddress`; on no output of a
+   * transaction made by `fromCbor`
    */
   readonly change?: true;
 };
 
 /**
  * A transaction built and balanced, ready to sign. Plain data. `build()` and `finalize()` return
- * it as a `BuiltTx`; a plan's `built` is this data.
+ * it as a `BuiltTx`; a plan's `built` is this data. `fromCbor()` returns the same data of a
+ * transaction it did not build: read from its bytes and from the UTxOs of its inputs.
  */
 export type BuiltTxData = {
-  /** The unsigned transaction, in CBOR hex */
+  /**
+   * The unsigned transaction, in CBOR hex. From `fromCbor`, the transaction given without its
+   * vkey and bootstrap witnesses, every other byte as given
+   */
   tx: string;
+  /** The hash of the body of `tx` */
   txHash: string;
   /**
-   * The transaction as a value, exactly as serialized. It follows the transaction format of the
-   * current ledger era; code meant to outlive an era reads the other members of `BuiltTxData`.
+   * The transaction as a value. Of a build, exactly what `tx` was serialized from. From
+   * `fromCbor`, what `tx` reads as: serializing it again need not give the same bytes or the
+   * same hash. It follows the transaction format of the current ledger era; code meant to
+   * outlive an era reads the other members of `BuiltTxData`.
    */
   prototype: TransactionPrototype;
   fee: bigint;
@@ -802,7 +853,7 @@ export type BuiltTxData = {
   redeemers: BuiltRedeemer[];
   /** Every input spent, resolved, in the transaction's order */
   inputs: Utxo[];
-  /** The inputs added to pay for the transaction */
+  /** The inputs added to pay for the transaction; none from `finalize` and from `fromCbor` */
   selectedInputs: Utxo[];
   /** The reference inputs, resolved, in the transaction's order */
   referenceInputs: Utxo[];
@@ -814,14 +865,16 @@ export type BuiltTxData = {
   /**
    * The change outputs, as UTxOs of `txHash`, in body order; each is also in `outputs`. A build
    * made before this transaction is seen by the provider passes it as `after`; when that build
-   * has the same change address, it can then select this change.
+   * has the same change address, it can then select this change. Empty from `fromCbor`: which
+   * outputs of a transaction built elsewhere are change is not known.
    */
   change: BuiltOutput[];
   /**
    * The collateral, when the transaction runs Plutus scripts; of a transaction completed by
-   * `finalize`, whenever the body has collateral inputs. The inputs given by `collateral` parts
-   * come first, in their order, then those the builder added to them or chose. Built with
-   * `collateralReturn: false`, it has no `return`, and `total` is all the lovelace of the inputs.
+   * `finalize` or made by `fromCbor`, whenever the body has collateral inputs, in the body's
+   * order. The inputs given by `collateral` parts come first, in their order, then those the
+   * builder added to them or chose. Built with `collateralReturn: false`, it has no `return`,
+   * and `total` is all the lovelace of the inputs.
    */
   collateral?: TxCollateral;
   /** The keys that must sign, each with the roles it is needed in */
@@ -836,13 +889,20 @@ export type BuiltTxData = {
     from?: number;
     until?: number;
   };
-  /** The network the transaction was built for */
+  /**
+   * The network the transaction was built for; from `fromCbor`, the builder's network, which
+   * the transaction was checked against
+   */
   network: { name: string; networkId: 0 | 1 };
-  /** What is worth knowing about the transaction and did not stop the build; often empty */
+  /**
+   * What is worth knowing about the transaction and did not stop the build; often empty. From
+   * `fromCbor`, the codes that follow from the bytes and the UTxOs: VALID_FROM_FUTURE,
+   * COLLATERAL_FORFEITED and COLLATERAL_RETURN_ELSEWHERE
+   */
   warnings: BuildWarning[];
   /**
    * Every part of the transaction, resolved, the ones added by balancing included; empty on a
-   * transaction completed by `finalize`
+   * transaction completed by `finalize` or made by `fromCbor`
    */
   parts: TxPart[];
 };
@@ -1720,7 +1780,8 @@ export class TxBuilder {
    * restart, with the witnesses it held. It makes no request. The record is believed as a
    * `BuiltTxData` the application kept is: give it what the application wrote itself. Its
    * transaction is read again: it must be the unsigned one, `txHash` must be the hash of its
-   * body, and every witness the record holds is verified against that body.
+   * body, and every witness the record holds is verified against that body. A transaction made
+   * by `fromCbor` is written and restored the same way.
    *
    * ```ts
    * await db.put(orderId, JSON.stringify(built));
@@ -1742,6 +1803,376 @@ export class TxBuilder {
    */
   restore(json: BuiltTxJSON): Promise<BuiltTx> {
     return restoreBuiltTx(this, json);
+  }
+
+  /**
+   * A `BuiltTx` of a transaction that exists only as CBOR: one built elsewhere, or built here
+   * and kept as its bytes alone. Nothing is built or balanced: the object is that transaction,
+   * with the calls that sign it, take witnesses made elsewhere, submit it and look for it.
+   *
+   * ```ts
+   * const tx = await builder.fromCbor(txCbor);
+   * await tx.sign({ signers: wallet });
+   * await tx.submit();
+   * await tx.awaitInclusion();
+   * ```
+   *
+   * What is signed is the body as given, byte for byte, and `txHash` is the hash of those
+   * bytes. Before any of them is decoded, the bytes are walked once, and a transaction is
+   * refused that cannot be read in one way, or in reasonable time:
+   * - larger than the protocol's maximum transaction size: the `maxTxSize` of the `params` the
+   *   builder was given, else 16 384 bytes, the value of mainnet, preprod and preview (no
+   *   parameters are asked for);
+   * - not an array of four items: the forms of the eras before Alonzo are not read;
+   * - nested deeper than 64 levels, the CBOR inside a byte string counted, or with that CBOR
+   *   written in chunks;
+   * - carrying more nested data (Plutus data, metadata, scripts) than the value decoder reads
+   *   in about a second;
+   * - with a map in its body, witness set, redeemers or auxiliary data that repeats a key, or
+   *   redeemers that name one purpose twice: decoders read these in different ways, so no
+   *   member could show the one reading a ledger takes.
+   *
+   * Once decoded, a transaction a ledger does not take is refused as well: a negative fee, a
+   * token quantity of zero in an output or the mint, an out ref named twice among the inputs,
+   * the collateral inputs or the reference inputs, and an output address with bytes after the
+   * address they hold. Reading takes a time that grows with the data the transaction carries:
+   * within these limits up to about a second on a laptop, on the thread that calls it, which
+   * runs nothing else meanwhile. A server that reads transactions of strangers reads them off
+   * its request path, in a worker of its own.
+   *
+   * The members are read from the same bytes and from the UTxOs of the
+   * transaction's inputs, collateral inputs and reference inputs: those of `knownUtxos` as
+   * given, the rest through the provider's shared cache, one request for each transaction they
+   * come from, at most eight at a time. The call waits for the provider as long as it takes to
+   * answer, and takes no signal. A UTxO is taken only under the out ref the body names, and is
+   * believed as the provider or the caller gives it. `inputs`, `referenceInputs` and
+   * `collateral` are those UTxOs; `signers` is worked out from them and the body: the keys that
+   * must sign, each with its roles, the Byron addresses spent from and the native scripts that
+   * run. These members are only as true as the provider's answers and as `knownUtxos`.
+   *
+   * `tx` is the transaction without its vkey and bootstrap witnesses, every other byte as
+   * given. The witnesses it came with are verified against the body and held: every vkey
+   * witness, each key once, and as many bootstrap witnesses as it spends from Byron addresses.
+   * What is added later is kept as `sign()` keeps it: of the keys the transaction needs or its
+   * native scripts name. A transaction that came with every signature it needs has nothing in
+   * `missing`, and `submit()` sends it at once. `partialTx` and `signedTx` write the witnesses
+   * held with the set tag the transaction wrote its own with: the `signedTx` of a transaction
+   * that came with every signature differs from the bytes given in the encoding of its
+   * key-witness entries only, and is never longer than they are where those entries came with
+   * witnesses.
+   *
+   * It is someone else's transaction, and the ledger judges it: its fee, its balance, its
+   * scripts, its validity interval and whether its inputs are unspent are not checked.
+   * `selectedInputs`, `change` and `parts` are empty, outputs carry no `label` and redeemers no
+   * `part`; `prototype` is the transaction read as a value, and serializing it again need not
+   * give the same bytes; `warnings` holds VALID_FROM_FUTURE, COLLATERAL_FORFEITED and
+   * COLLATERAL_RETURN_ELSEWHERE when they apply. The object has no payer: `sign()` is given
+   * `signers`. It does not know whether the transaction was sent already: `awaitInclusion()`
+   * looks for it, and `submit()` returns when the ledger refuses bytes the provider already
+   * finds. The parts this builder holds from `add` are not read.
+   *
+   * The validity flag is outside the signed body: whoever submits the transaction can mark it
+   * as failing, and a node that takes it so spends its collateral inputs and pays only the
+   * collateral return. A key whose UTxO the transaction puts up as collateral is in `missing`
+   * with the role `collateral`; read it, and `warnings`, before signing. COLLATERAL_FORFEITED
+   * says there is no collateral return, and COLLATERAL_RETURN_ELSEWHERE that a collateral input
+   * is held by another payment credential than the one the return pays, with the lovelace such
+   * holders lose, however small the total collateral the body states.
+   * @param txCbor The transaction, in CBOR hex
+   * @param options.knownUtxos UTxOs the transaction spends, reads or puts up as collateral, used
+   *   as given and not looked up: the outputs of a transaction the provider has not seen yet,
+   *   spent outputs a provider does not list, or all of them on a builder without a provider.
+   *   Each in any form the builder takes a UTxO in; two entries that name one output must be
+   *   alike; one the transaction does not name is checked as any other, and not used. They must
+   *   be the caller's own data, never taken from the party that made the transaction: the
+   *   object's view of the inputs, and of who must sign, is only as true as these UTxOs, and a
+   *   wallet signs its own inputs whatever the object shows. The same holds for the provider:
+   *   the view is only as true as its answers
+   * @throws TxBuildError INVALID_OPTION (`tx`) for a value that is not a transaction in CBOR hex
+   *   that this library reads: one the walk or the checks above refuse, or proposing a protocol
+   *   parameter change, which this library does not read from CBOR; and for a transaction whose
+   *   validity flag is false: a node that takes it takes its collateral. `details.value` is only
+   *   the JavaScript type of what was given. INVALID_OPTION (`options`) for options that are not
+   *   an object or hold a member other than `knownUtxos`, with the JavaScript type alone;
+   *   (`knownUtxos`) for what is not a list of UTxOs, and for two entries that name one output
+   *   and differ. NETWORK_MISMATCH for a transaction, or a UTxO, of another network than the
+   *   builder's. UTXO_NOT_FOUND `{ input }` for an input, collateral input or reference input
+   *   whose UTxO is neither given nor found, or could not be read (the provider's error is the
+   *   `cause`); MISSING_FETCHER when one has to be read and the builder has no provider
+   * @throws TxPlanError INVALID_WITNESS (`wrongBody`) `{ argument: 0, keyHash }` for a
+   *   transaction that holds a signature that is not of its body
+   */
+  async fromCbor(
+    txCbor: string,
+    options?: { knownUtxos?: readonly UtxoInput[] },
+  ): Promise<BuiltTx> {
+    // What is given in place of the options may be or hold a key: only its type is named
+    const { knownUtxos } = optionsObject(
+      options,
+      ["knownUtxos"],
+      FROM_CBOR_OPTIONS_ALLOWED,
+      [SIGNER_IN_PLACE],
+    );
+    const known = new Map<string, Utxo>();
+    for (const utxo of toKnownUtxos(knownUtxos)) {
+      const key = utxoKey(utxo);
+      const before = known.get(key);
+      // One output, two views of it: neither can be shown as the truth
+      if (before && utxoText(before) !== utxoText(utxo))
+        throw new TxBuildError(
+          "INVALID_OPTION",
+          `invalid knownUtxos: two entries name the output ${key} and differ`,
+          {
+            details: {
+              option: "knownUtxos",
+              value: typeOf(knownUtxos),
+              allowed: KNOWN_UTXOS_ONCE,
+            },
+          },
+        );
+      known.set(key, utxo);
+    }
+
+    // The bytes are walked once before any of them is decoded into a value: a map that repeats a
+    // key is read in different ways by different decoders, and size and depth are bounded. The
+    // size is the protocol's maximum where the builder holds parameters; none are asked for
+    const text = typeof txCbor === "string" ? txCbor.toLowerCase() : txCbor;
+    try {
+      scanTransaction(text, this.params?.maxTxSize);
+    } catch (error) {
+      if (!(error instanceof TxScanError)) throw error;
+      throw refusedTx(txCbor, `invalid tx: ${error.message}`);
+    }
+    // The bytes given are read as raw items only; hex stands in lower case, as everywhere
+    const given = readTransactionItems(text);
+    // The unsigned transaction: the same bytes without the vkey and bootstrap entries. It is the
+    // one transaction decoded into values; every member below is read from it, and the object
+    // signs it
+    const tx = withoutKeyWitnesses(given);
+    const raw = readTransaction(tx);
+    const txHash = raw.txId;
+    if (txHash !== given.txId)
+      throw new Error("the body changed while its witnesses were taken out");
+    if (!raw.isValid)
+      throw refusedTx(
+        txCbor,
+        "invalid tx: the transaction states that its scripts fail (its validity flag is false): a node that takes it takes its collateral",
+      );
+
+    const decodedBody = raw.body;
+    const proposals = decodedBody.proposalProcedures()?.values() ?? [];
+    if (
+      proposals.some(
+        (proposal) =>
+          proposal.kind() ===
+          Serialization.GovernanceActionKind.ParameterChange,
+      )
+    )
+      throw refusedTx(
+        txCbor,
+        "the transaction proposes a protocol parameter change, which this library does not read from CBOR; the transaction itself may be valid",
+      );
+    // What the decoder takes and a ledger does not: no member could show it as a ledger reads it
+    const unread = unreadForm(decodedBody);
+    if (unread) throw refusedTx(txCbor, `invalid tx: ${unread}`);
+    let prototype: TransactionPrototype;
+    let outputs: Utxo[];
+    let collateralReturn: Utxo | undefined;
+    try {
+      // The outputs as the body holds them: an inline datum and a reference script keep their
+      // bytes
+      const decoded = decodedBody.outputs();
+      outputs = decoded.map((output, i) => outputAsUtxo(txHash, i, output));
+      const returned = decodedBody.collateralReturn();
+      collateralReturn =
+        returned && outputAsUtxo(txHash, decoded.length, returned);
+      prototype = prototypeOf(raw, outputs, collateralReturn);
+    } catch (error) {
+      throw refusedTx(
+        txCbor,
+        `invalid tx: the transaction holds what this library does not read: ${errorText(error)}`,
+        error,
+      );
+    }
+    const { body } = prototype;
+    // Read from the decoded body: the prototype holds every id but 1 as the same value
+    const networkId = decodedBody.networkId();
+    checkNetworks(this.network, [
+      ...bodyEntries(
+        body,
+        outputs,
+        collateralReturn,
+        networkId === undefined ? undefined : Number(networkId),
+      ),
+      ...Array.from(known.values(), (utxo) => utxoEntry(utxo)),
+    ]);
+
+    // The witnesses the transaction came with, each verified against the body from the witness
+    // set read above, before any request, as everything that needs none. A key whose witness
+    // stands twice is held once: every copy verifies, whatever its place
+    await Crypto.ready();
+    const came = [
+      ...(given.witnessSet.vkeys?.witnesses ?? []),
+      ...(given.witnessSet.bootstraps?.witnesses ?? []),
+    ];
+    for (const witness of came)
+      if (!verifies(witness, txHash)) throw notOfBody(witness.keyHash);
+    const held = newWitnesses(came);
+
+    // The UTxO of every out ref the body names: given, else read through the shared cache,
+    // which answers from what it holds, once per transaction hash and all at once
+    const named: { input: BodyOutRef; role: string }[][] = [
+      body.inputs.map((input) => ({ input, role: "spends" })),
+      (body.collateral ?? []).map((input) => ({
+        input,
+        role: "puts up as collateral",
+      })),
+      (body.reference_inputs ?? []).map((input) => ({ input, role: "reads" })),
+    ];
+    const unknown = named
+      .flat()
+      .filter(({ input }) => !known.has(bodyOutRefKey(input)));
+    const read = new Map<string, Utxo>();
+    if (unknown.length > 0) {
+      const { cache } = this;
+      if (!cache)
+        throw new TxBuildError(
+          "MISSING_FETCHER",
+          `the UTxOs of ${unknown.map(({ input }) => outRefString(input)).join(", ")} have to be read, and the builder has no provider: give them in knownUtxos`,
+        );
+      // The first out ref of each transaction, which an error of its read is about
+      const first = new Map<string, BodyOutRef>();
+      for (const { input } of unknown) {
+        const hash = input.transaction_id.toLowerCase();
+        if (!first.has(hash)) first.set(hash, input);
+      }
+      // A few reads at a time: a transaction that names many others is not a burst of requests
+      const queue = Array.from(first);
+      const reader = async () => {
+        for (let next = queue.shift(); next; next = queue.shift()) {
+          const [hash, input] = next;
+          const listed = await fetchTxOutputs(
+            cache,
+            hash,
+            (reason, cause) =>
+              new TxBuildError(
+                "UTXO_NOT_FOUND",
+                `fetching the outputs of ${hash} failed: ${reason}`,
+                {
+                  details: {
+                    input: {
+                      txHash: input.transaction_id,
+                      outputIndex: input.index,
+                    },
+                  },
+                  cause,
+                },
+              ),
+          );
+          // Only an output of the transaction asked for is taken, under its own out ref
+          for (const utxo of listed)
+            if (utxo.txHash === hash) read.set(utxoKey(utxo), utxo);
+        }
+      };
+      try {
+        await Promise.all(
+          Array.from({ length: Math.min(READS_AT_ONCE, queue.length) }, reader),
+        );
+      } finally {
+        // After a failed read no other is started
+        queue.length = 0;
+      }
+    }
+    const [spent, collateral, references] = named.map((list) =>
+      list.map(({ input, role }): Utxo => {
+        const key = bodyOutRefKey(input);
+        const utxo = known.get(key) ?? read.get(key);
+        if (utxo) return utxo;
+        throw new TxBuildError(
+          "UTXO_NOT_FOUND",
+          `the UTxO of ${outRefString(input)}, which the transaction ${role}, is not found: it does not exist, is spent already, or the provider has not seen it yet; give it in knownUtxos`,
+          {
+            details: {
+              input: { txHash: input.transaction_id, outputIndex: input.index },
+            },
+          },
+        );
+      }),
+    ) as [Utxo[], Utxo[], Utxo[]];
+    // What was read is checked for its network once found
+    checkNetworks(
+      this.network,
+      [...spent, ...collateral, ...references]
+        .filter((utxo) => !known.has(utxoKey(utxo)))
+        .map((utxo) => utxoEntry(utxo)),
+    );
+
+    // Who must sign, from the body and those UTxOs
+    const { collected } = bodySigners(
+      raw,
+      [...spent, ...collateral, ...references],
+      body,
+    );
+    const signers = signersOf(collected);
+    // The witnesses of other keys the transaction came with stay in it: what its maker put in
+    // is not taken out. They use up what the object keeps of keys it does not ask for
+    const counted = new Set(countedKeys(signers));
+    const extraKeys = held.filter(
+      (w) => w.kind === "vkey" && !counted.has(w.keyHash),
+    ).length;
+
+    const decodedRedeemers = raw.witnesses.redeemers()?.values() ?? [];
+    const validity = validityOf(body, this.network);
+    const future =
+      validity?.invalidBefore === undefined
+        ? undefined
+        : validFromFuture(validity.invalidBefore, this.network, Date.now());
+    const forfeited = collateralForfeited(body);
+    const elsewhere = collateralElsewhere(collateral, collateralReturn);
+    return makeBuiltTx(
+      this,
+      {
+        tx,
+        txHash,
+        prototype,
+        fee: BigInt(body.fee),
+        exUnits: prototypeExUnits(prototype),
+        // The data of each redeemer as the transaction carries it; the prototype lists them in
+        // the same order
+        redeemers: (prototype.witness_set.redeemers ?? []).map((r, i) => ({
+          tag: r.tag.type,
+          index: Number(r.index),
+          exUnits: {
+            mem: BigInt(r.ex_units.mem),
+            steps: BigInt(r.ex_units.steps),
+          },
+          data: decodedRedeemers[i]!.data().toCbor().toString(),
+        })),
+        inputs: spent,
+        selectedInputs: [],
+        referenceInputs: references,
+        outputs,
+        change: [],
+        ...(collateral.length > 0 && {
+          collateral: {
+            inputs: collateral,
+            total: collateralTotal(body, collateral),
+            ...(collateralReturn && { return: collateralReturn }),
+          },
+        }),
+        signers,
+        ...(validity && { validity }),
+        network: { name: this.network.name, networkId: this.network.networkId },
+        warnings: [
+          ...(future ? [future] : []),
+          ...(forfeited ? [forfeited] : []),
+          ...(elsewhere ? [elsewhere] : []),
+        ],
+        parts: [],
+      },
+      extraKeys,
+      { raw, held, delivered: false, tags: keyWitnessTags(given.witnessSet) },
+    );
   }
 
   /**
@@ -2392,11 +2823,14 @@ export class TxBuilder {
       const resolved = resolveValidity(part, this.network);
       if (resolved.invalidBefore === undefined) return resolved;
       now ??= Date.now();
-      const start = timeAt(this.network, BigInt(resolved.invalidBefore));
-      if (start > now)
+      const warning = validFromFuture(
+        resolved.invalidBefore,
+        this.network,
+        now,
+      );
+      if (warning)
         warnings.push({
-          code: "VALID_FROM_FUTURE",
-          message: `the transaction is valid from slot ${resolved.invalidBefore}, which starts in ${start - now} ms by the local clock; nodes refuse it until their tip reaches that slot`,
+          ...warning,
           part: "validity",
           ...(part.label !== undefined && { label: part.label }),
         });
@@ -2481,8 +2915,7 @@ export class TxBuilder {
     // Parts with a redeemer function are reported with the data it returned for this transaction
     const computed = computedParts(assembled);
     // Collateral without a return is forfeited whole if a script fails
-    const forfeited =
-      (body.collateral?.length ?? 0) > 0 && !body.collateral_return;
+    const forfeited = collateralForfeited(body);
     return {
       tx,
       txHash,
@@ -2520,14 +2953,7 @@ export class TxBuilder {
       network: { name: this.network.name, networkId: this.network.networkId },
       warnings: [
         ...warnings,
-        ...(forfeited
-          ? [
-              {
-                code: "COLLATERAL_FORFEITED" as const,
-                message: `the transaction has no collateral return: all of its collateral${body.total_collateral ? `, ${body.total_collateral} lovelace,` : ""} is forfeited if a script fails`,
-              },
-            ]
-          : []),
+        ...(forfeited ? [forfeited] : []),
         ...(fee !== undefined && balanced.minFee < balanced.fee
           ? [
               {
@@ -2703,6 +3129,301 @@ const referencedUtxos = (parts: readonly TxPart[]): Map<string, Utxo> => {
   }
   return read;
 };
+
+/**
+ * The warning for a lower bound whose slot starts after `now`, the time of the local clock;
+ * undefined for one that has started
+ */
+const validFromFuture = (
+  invalidBefore: string | number,
+  network: NetworkConfig,
+  now: number,
+): BuildWarning | undefined => {
+  const start = timeAt(network, BigInt(invalidBefore));
+  return start > now
+    ? {
+        code: "VALID_FROM_FUTURE",
+        message: `the transaction is valid from slot ${invalidBefore}, which starts in ${start - now} ms by the local clock; nodes refuse it until their tip reaches that slot`,
+      }
+    : undefined;
+};
+
+/** The holder of an address: its payment credential, or a Byron address itself */
+const holderOf = (address: string) => {
+  const parsed = Address.fromString(address);
+  const credential = parsed ? paymentCredential(parsed) : undefined;
+  return credential ? `${credential.type} ${credential.hash}` : address;
+};
+
+/**
+ * The warning for collateral inputs of a holder the collateral return does not pay. The validity
+ * flag is outside the signed body, so whoever submits the transaction can mark it as failing:
+ * the collateral inputs are then spent, and their holders get back only what the return pays
+ * them. A holder the return does not pay loses all of its collateral inputs, whatever the total
+ * collateral the body states. Holders are told apart by payment credential, a Byron address by
+ * its text; the lovelace named are those of the inputs of every holder the return does not pay
+ */
+const collateralElsewhere = (
+  inputs: readonly Utxo[],
+  returned: Utxo | undefined,
+): BuildWarning | undefined => {
+  if (!returned || inputs.length === 0) return undefined;
+  const to = holderOf(returned.address);
+  const others = inputs.filter((utxo) => holderOf(utxo.address) !== to);
+  if (others.length === 0) return undefined;
+  const lovelace = others.reduce((sum, utxo) => sum + utxo.value.lovelace, 0n);
+  const tokens = others.some((utxo) => Object.keys(utxo.value).length > 1);
+  return {
+    code: "COLLATERAL_RETURN_ELSEWHERE",
+    message: `the collateral return pays a payment credential that holds ${others.length === inputs.length ? "none" : "only some"} of the collateral inputs: if a script fails, the ${lovelace} lovelace${tokens ? " and the tokens" : ""} of the collateral inputs of other holders go to the return's holder or to the fee, however small the total collateral the body states; the validity flag is not signed, so whoever submits the transaction can mark it as failing`,
+  };
+};
+
+/** The warning for a body that puts up collateral and has no collateral return */
+const collateralForfeited = (
+  body: TransactionPrototype["body"],
+): BuildWarning | undefined =>
+  (body.collateral?.length ?? 0) > 0 && !body.collateral_return
+    ? {
+        code: "COLLATERAL_FORFEITED",
+        message: `the transaction has no collateral return: all of its collateral${body.total_collateral ? `, ${body.total_collateral} lovelace,` : ""} is forfeited if a script fails`,
+      }
+    : undefined;
+
+/** The address bytes an output is written with, in hex, read from its CBOR as given */
+const writtenAddress = (output: Serialization.TransactionOutput) => {
+  const reader = new CborReader(output.toCbor());
+  if (reader.peekState() === Serialization.CborReaderState.StartArray) {
+    reader.readStartArray();
+    return Buffer.from(reader.readByteString()).toString("hex");
+  }
+  const length = reader.readStartMap();
+  for (let i = 0; length === null || i < length; i++) {
+    if (reader.readInt() === 0n)
+      return Buffer.from(reader.readByteString()).toString("hex");
+    reader.skipValue();
+  }
+  return undefined;
+};
+
+/**
+ * What a decoded body holds that the value decoder takes and a ledger does not, in words that
+ * quote nothing of it; undefined for none: a negative fee, a token quantity of zero in an output
+ * or the mint, an out ref named twice in one set, an output address with bytes after the
+ * address they hold
+ */
+const unreadForm = (
+  body: Serialization.TransactionBody,
+): string | undefined => {
+  if (body.fee() < 0n) return "its fee is negative";
+  const returned = body.collateralReturn();
+  const outputs: [string, Serialization.TransactionOutput][] = [
+    ...body
+      .outputs()
+      .map((output, i): [string, typeof output] => [`output ${i}`, output]),
+    ...(returned
+      ? [["its collateral return", returned] as [string, typeof returned]]
+      : []),
+  ];
+  for (const [name, output] of outputs) {
+    for (const quantity of output.amount().multiasset()?.values() ?? [])
+      if (quantity === 0n) return `${name} holds a token in a quantity of zero`;
+    if (writtenAddress(output) !== output.address().toBytes().toLowerCase())
+      return `the address of ${name} has bytes after the address they hold`;
+  }
+  for (const quantity of body.mint()?.values() ?? [])
+    if (quantity === 0n) return "its mint holds a token in a quantity of zero";
+  const sets: [
+    string,
+    readonly Serialization.TransactionInput[] | undefined,
+  ][] = [
+    ["inputs", body.inputs().values()],
+    ["collateral inputs", body.collateral()?.values()],
+    ["reference inputs", body.referenceInputs()?.values()],
+  ];
+  for (const [name, inputs] of sets) {
+    const seen = new Set<string>();
+    for (const input of inputs ?? []) {
+      const ref = `${input.transactionId()}#${input.index()}`;
+      if (seen.has(ref)) return `its ${name} name one output twice`;
+      seen.add(ref);
+    }
+  }
+  return undefined;
+};
+
+const FROM_CBOR_OPTIONS_ALLOWED = "an object { knownUtxos? }";
+
+const KNOWN_UTXOS_ONCE =
+  "a list of UTxOs in which the entries that name one output are alike";
+
+/** The reads of `fromCbor` that run at the same time, at most */
+const READS_AT_ONCE = 8;
+
+/** A UTxO as a text, equal for two UTxOs that hold the same */
+const utxoText = (utxo: Utxo) =>
+  JSON.stringify(utxo, (_, value: unknown) =>
+    typeof value === "bigint"
+      ? `${value}n`
+      : typeof value === "object" && value !== null && !Array.isArray(value)
+        ? Object.fromEntries(
+            Object.entries(value).sort(([a], [b]) => (a < b ? -1 : 1)),
+          )
+        : value,
+  );
+
+/** The error for a witness inside a transaction that is not of its body */
+const notOfBody = (keyHash: string | undefined) =>
+  new TxPlanError(
+    "INVALID_WITNESS",
+    `the transaction holds a signature of key ${keyHash} that is not of its body: it was made for another transaction, or the body was changed after it`,
+    {
+      details: {
+        reason: "wrongBody",
+        argument: 0,
+        ...(keyHash !== undefined && { keyHash }),
+      },
+    },
+  );
+
+/** An address the value decoder reads, standing in for a Byron address while it reads an output */
+const STAND_IN = Address.fromBytes(HexBlob(`60${"00".repeat(28)}`));
+
+/**
+ * The transaction as a value, from its parts decoded once. The value decoder writes every output
+ * address in bech32, which a Byron address has no form in: such an output is read with a
+ * stand-in address, and its address is then the base58 text `outputs` shows
+ * @param outputs The outputs, read from the same body
+ */
+const prototypeOf = (
+  raw: RawTx,
+  outputs: readonly Utxo[],
+  collateralReturn: Utxo | undefined,
+): TransactionPrototype => {
+  const decoded = raw.body.outputs();
+  const returned = raw.body.collateralReturn();
+  const isByron = (output: Serialization.TransactionOutput) =>
+    output.address().asByron() !== undefined;
+  const byron = decoded.some(isByron) || (returned && isByron(returned));
+  const standIn = (output: Serialization.TransactionOutput) => {
+    if (!isByron(output)) return output;
+    const copy = new Serialization.TransactionOutput(STAND_IN, output.amount());
+    const datum = output.datum();
+    if (datum) copy.setDatum(datum);
+    const scriptRef = output.scriptRef();
+    if (scriptRef) copy.setScriptRef(scriptRef);
+    return copy;
+  };
+  // With a Byron output, the body is read through a view whose outputs stand in for those at
+  // Byron addresses; every other member is the decoded body's, which is not changed
+  const read = byron
+    ? new Proxy(raw.body, {
+        get: (target, name) => {
+          if (name === "outputs") {
+            const shown = decoded.map(standIn);
+            return () => shown;
+          }
+          if (name === "collateralReturn") {
+            const shown = returned && standIn(returned);
+            return () => shown;
+          }
+          const member: unknown = Reflect.get(target, name, target);
+          return typeof member === "function" ? member.bind(target) : member;
+        },
+      })
+    : raw.body;
+  // The converter reads these four members of a transaction: each gives a part decoded once,
+  // where the transaction's own would decode it again
+  const prototype = transactionPrototypeFromCardano({
+    body: () => read,
+    witnessSet: () => raw.witnesses,
+    auxiliaryData: () => raw.auxiliaryData,
+    isValid: () => raw.isValid,
+  } as unknown as Transaction);
+  if (!byron) return prototype;
+  prototype.body.outputs.forEach((output, i) => {
+    output.address = outputs[i]!.address;
+  });
+  if (prototype.body.collateral_return && collateralReturn)
+    prototype.body.collateral_return.address = collateralReturn.address;
+  return prototype;
+};
+
+/** A signer given in place of the options of `fromCbor` */
+const SIGNER_IN_PLACE = {
+  is: givenAsSigner,
+  hint: "a signer is given to sign() of the object it returns",
+};
+
+/**
+ * A transaction `fromCbor` does not take. A private key may be given there by mistake, so the
+ * message and `details.value` name only its JavaScript type, never the value
+ * @param message Why, in words that quote nothing of what was given
+ */
+const refusedTx = (txCbor: unknown, message: string, cause?: unknown) =>
+  new TxBuildError("INVALID_OPTION", message, {
+    details: {
+      option: "tx",
+      value: typeOf(txCbor),
+      allowed: "a transaction in CBOR hex",
+    },
+    ...(cause !== undefined && { cause }),
+  });
+
+/** An out ref of a transaction body */
+type BodyOutRef = { transaction_id: string; index: number };
+
+/** The key of an out ref of a body, as `utxoKey` writes the out ref of a UTxO */
+const bodyOutRefKey = (input: BodyOutRef) =>
+  `${input.transaction_id.toLowerCase()}#${input.index}`;
+
+/**
+ * Every address the body of a transaction names beside its inputs, and the network id it states,
+ * as entries of the network check
+ * @param networkId The network id the body states, if it states one
+ */
+const bodyEntries = (
+  body: TransactionPrototype["body"],
+  outputs: readonly Utxo[],
+  collateralReturn: Utxo | undefined,
+  networkId: number | undefined,
+): NetworkEntry[] => [
+  ...(networkId === undefined ? [] : [{ role: "body" as const, networkId }]),
+  ...outputs.map((utxo) => ({
+    role: "output" as const,
+    address: utxo.address,
+  })),
+  ...(collateralReturn
+    ? [
+        {
+          role: "collateralReturn" as const,
+          address: collateralReturn.address,
+        },
+      ]
+    : []),
+  ...Object.keys(body.withdrawals ?? {}).map((address) => ({
+    role: "withdrawal" as const,
+    address,
+  })),
+  ...(body.certs ?? []).flatMap((certificate) =>
+    certificate.type === "POOL_REGISTRATION"
+      ? [
+          {
+            role: "rewardAccount" as const,
+            address: certificate.value.pool_params.reward_account,
+          },
+        ]
+      : [],
+  ),
+  ...(body.voting_proposals ?? []).flatMap((proposal) => [
+    { role: "rewardAccount" as const, address: proposal.reward_account },
+    ...(proposal.governance_action.type === "TREASURY_WITHDRAWALS_ACTION"
+      ? Object.keys(proposal.governance_action.value.withdrawals).map(
+          (address) => ({ role: "rewardAccount" as const, address }),
+        )
+      : []),
+  ]),
+];
 
 /**
  * The validity interval of a transaction body, with the bounds it has, in slots and in the POSIX

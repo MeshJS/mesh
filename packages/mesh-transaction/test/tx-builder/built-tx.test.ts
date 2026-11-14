@@ -18,6 +18,7 @@ import {
 import {
   CborWriter,
   Crypto,
+  Serialization,
   Transaction,
   transactionPrototypeToHex,
   TxCBOR,
@@ -3444,13 +3445,20 @@ describe("BuiltTx as JSON, and TxBuilder.restore", () => {
       submitter: failing() as TxBuilderOptions["submitter"],
     });
     const json = throughText(built);
-    const reads = jest.spyOn(Transaction, "fromCbor");
+    // Each part of it is decoded once
+    const bodies = jest.spyOn(Serialization.TransactionBody, "fromCbor");
+    const witnessSets = jest.spyOn(
+      Serialization.TransactionWitnessSet,
+      "fromCbor",
+    );
     try {
       const restored = await b.restore(json);
-      expect(reads).toHaveBeenCalledTimes(1);
+      expect(bodies).toHaveBeenCalledTimes(1);
+      expect(witnessSets).toHaveBeenCalledTimes(1);
       expect(restored.signedTx).toBe(built.signedTx);
     } finally {
-      reads.mockRestore();
+      bodies.mockRestore();
+      witnessSets.mockRestore();
     }
     expect(calls).toEqual([]);
   });

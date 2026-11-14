@@ -70,7 +70,7 @@ export type GivenInPlace = {
 };
 
 /** A signer, or what reads as one: a value whose signing method throws when it is read */
-const givenAsSigner = (value: unknown) => {
+export const givenAsSigner = (value: unknown) => {
   try {
     return canSign(value);
   } catch {

@@ -93,6 +93,41 @@ export const inputsOf = (part: TxPart): TransactionInputPrototype[] => {
 };
 
 /**
+ * The outputs of a transaction as the provider lists them, each checked as the payer's UTxOs
+ * are and copied: the answer may be shared through a cache, and parts freeze what they hold. A
+ * provider that answers with nothing gives an empty list.
+ * @param notFound Makes the error of a read that failed, from why and what it was raised from
+ */
+export const fetchTxOutputs = async (
+  provider: IFetcher,
+  txHash: string,
+  notFound: (reason: string, cause: unknown) => TxBuildError,
+): Promise<Utxo[]> => {
+  let answer: unknown;
+  try {
+    answer = await provider.fetchUTxOs(txHash);
+  } catch (error) {
+    throw notFound(errorText(error), error);
+  }
+  if (answer === undefined || answer === null) return [];
+  if (!Array.isArray(answer))
+    throw notFound(
+      "the answer is not a list",
+      new Error("the answer is not a list"),
+    );
+  return answer.map((entry: unknown, i) => {
+    try {
+      return readUtxo(entry);
+    } catch (error) {
+      throw notFound(
+        `entry ${i} of the answer is not a UTxO: ${errorText(error)}`,
+        error,
+      );
+    }
+  });
+};
+
+/**
  * Looks up every output the parts read and the builder does not know yet: once per transaction
  * hash, all hashes at once.
  */
@@ -153,31 +188,8 @@ const fetchMissing = async (
             cause,
           },
         );
-      let answer: unknown;
-      try {
-        answer = await provider.fetchUTxOs(txHash);
-      } catch (error) {
-        throw notFound(errorText(error), error);
-      }
-      // Checked as the payer's UTxOs are, and copied: the answer may be shared through a
-      // cache, and parts freeze what they hold
-      if (answer === undefined || answer === null) return;
-      if (!Array.isArray(answer))
-        throw notFound(
-          "the answer is not a list",
-          new Error("the answer is not a list"),
-        );
-      const utxos = answer.map((entry: unknown, i) => {
-        try {
-          return readUtxo(entry);
-        } catch (error) {
-          throw notFound(
-            `entry ${i} of the answer is not a UTxO: ${errorText(error)}`,
-            error,
-          );
-        }
-      });
-      for (const utxo of utxos) ctx.known.set(utxoKey(utxo), utxo);
+      for (const utxo of await fetchTxOutputs(provider, txHash, notFound))
+        ctx.known.set(utxoKey(utxo), utxo);
     }),
   );
   for (const inputs of missing.values()) {

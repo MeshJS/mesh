@@ -34,6 +34,7 @@ import {
 } from "../../src/tx-builder";
 import {
   describeScriptRef,
+  outputAsUtxo,
   outRefOf,
   plainUtxo,
   readOutRef,
@@ -48,6 +49,7 @@ import {
 } from "../../src/tx-builder/parts/utxo";
 import { toAssets, valueOf } from "../../src/tx-builder/value";
 import { alwaysSucceedCbor, baseAddress, keyHashHex } from "../test-util";
+import * as cbor from "./cbor-util";
 
 const address = baseAddress(1);
 const byron = "Ae2tdPwUPEZ4YjgvykNpoFeYUxoyhNj2kg8KfKWN2FizsSpLUPv68MpTVDo";
@@ -1126,6 +1128,71 @@ describe("Utxo helpers", () => {
   function full(): Utxo {
     return { ...inline.utxo, script: v3.utxo.script! };
   }
+});
+
+describe("outputAsUtxo", () => {
+  const addressHex = Address.fromBech32(address).toBytes().toString();
+  /** An output as a map, with an inline datum and a reference script, in these bytes */
+  const outputOf = (datum: string, scriptRef: string, at = addressHex) =>
+    TransactionOutput.fromCbor(
+      HexBlob(
+        cbor.map(
+          [cbor.uint(0), cbor.bytes(at)],
+          [cbor.uint(1), cbor.uint(2_000_000)],
+          [cbor.uint(2), cbor.arr(cbor.uint(1), `d818${cbor.bytes(datum)}`)],
+          [cbor.uint(3), `d818${cbor.bytes(scriptRef)}`],
+        ),
+      ),
+    );
+  const nativeRef = `8200${nativeCbor}`;
+  const plutusRefBytes = `8203${cbor.bytes(single)}`;
+
+  it("gives an output of a decoded transaction with its inline datum and its reference script byte for byte", () => {
+    const datums = [
+      cbor.constr0(cbor.uint(1), cbor.bytes("cafe")),
+      cbor.constr0Indef(cbor.uint(1), cbor.bytes("cafe")),
+      cbor.constr0(cbor.uint64(1), cbor.bytes("cafe")),
+      cbor.constr0(cbor.uint(1), cbor.chunkedBytes("cafe")),
+    ];
+    for (const datum of datums)
+      for (const scriptRef of [nativeRef, plutusRefBytes]) {
+        const utxo = outputAsUtxo(hash(7), 3, outputOf(datum, scriptRef));
+        expect(utxo).toEqual(readUtxo(utxo));
+        expect(utxo.txHash).toBe(hash(7));
+        expect(utxo.outputIndex).toBe(3);
+        expect(utxo.address).toBe(address);
+        expect(utxo.value).toEqual({ lovelace: 2_000_000n });
+        expect(utxo.datum).toEqual({
+          type: "inline",
+          data: { type: "CBOR", content: datum },
+        });
+        expect(scriptRefOf(utxo.script!)).toBe(scriptRef);
+        expect(utxo.script!.hash).toBe(refHash(scriptRef));
+      }
+  });
+
+  it("refuses what a Utxo cannot hold", () => {
+    const datum = cbor.constr0(cbor.uint(1));
+    const kind = (run: () => unknown) => {
+      try {
+        run();
+        return "accepted";
+      } catch (error) {
+        if (error instanceof UtxoError) return error.kind;
+        throw error;
+      }
+    };
+    const rewardHex = Address.fromBech32(reward).toBytes().toString();
+    expect(
+      kind(() =>
+        outputAsUtxo(hash(7), 0, outputOf(datum, nativeRef, rewardHex)),
+      ),
+    ).toBe("address");
+    const good = outputOf(datum, nativeRef);
+    expect(kind(() => outputAsUtxo("zz", 0, good))).toBe("outRef");
+    expect(kind(() => outputAsUtxo(hash(7), 65536, good))).toBe("outRef");
+    expect(kind(() => outputAsUtxo(hash(7), 65535, good))).toBe("accepted");
+  });
 });
 
 describe("value of a Utxo", () => {
