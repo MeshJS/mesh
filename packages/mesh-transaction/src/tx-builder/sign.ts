@@ -563,6 +563,19 @@ export const writeWitnessSet = (
   return toHex(writer.encode());
 };
 
+/**
+ * The key hashes witnesses sign for: those of their vkey witnesses. A bootstrap witness signs for
+ * a Byron address the transaction spends from, never for a key hash, whatever key made it: the
+ * ledger takes it for the address its key and attributes make
+ */
+export const keysSignedBy = (
+  witnesses: readonly {
+    readonly kind: KeyWitness["kind"];
+    readonly keyHash: string;
+  }[],
+): Set<string> =>
+  new Set(witnesses.filter((w) => w.kind === "vkey").map((w) => w.keyHash));
+
 /** Keeps a witness of each public key once, leaving out those `held` has, in order */
 export const newWitnesses = (
   witnesses: readonly KeyWitness[],

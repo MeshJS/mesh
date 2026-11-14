@@ -77,10 +77,12 @@ import {
   advancePlan,
   currentAttempt,
   draftPlan,
+  keysComplete,
   landedAttempt,
   liveAttempts,
   MAX_ATTEMPTS,
   planStatus,
+  recordedSigners,
   safeAfter,
 } from "./core";
 import {
@@ -478,14 +480,15 @@ const viewOf = (attempt: AttemptRecord): TxAttempt => {
 const recordedWitnesses = (attempt: AttemptRecord): KeyWitness[] =>
   attempt.witnesses.flatMap((w) => readWitnessArgument(w.witness).witnesses);
 
-const keysComplete = (attempt: AttemptRecord) =>
-  attempt.keys.every((key) => attempt.witnesses.some((w) => w.keyHash === key));
-
 const SIGNED = new WeakMap<AttemptRecord, string>();
 
 /** The attempt's transaction with its recorded witnesses; undefined while a key is missing */
 const signedTxOf = (attempt: AttemptRecord): string | undefined => {
-  if (attempt.built === undefined || !keysComplete(attempt)) return undefined;
+  if (
+    attempt.built === undefined ||
+    !keysComplete(attempt.keys, attempt.witnesses)
+  )
+    return undefined;
   let tx = SIGNED.get(attempt);
   if (tx === undefined) {
     tx = withWitnesses(
@@ -707,7 +710,7 @@ export class TxPlan {
   get missing(): readonly RequiredKey[] {
     const attempt = shownAttempt(stateOf(this).record);
     if (attempt?.built === undefined) return [];
-    const signed = new Set(attempt.witnesses.map((w) => w.keyHash));
+    const signed = recordedSigners(attempt.witnesses);
     return attempt.built.signers.keys.filter((key) => !signed.has(key.keyHash));
   }
 
@@ -3090,7 +3093,7 @@ export class TxPlan {
       const now =
         state.record.attempts.find((a) => a.txHash === attempt.txHash) ??
         attempt;
-      const signed = new Set(now.witnesses.map((w) => w.keyHash));
+      const signed = recordedSigners(now.witnesses);
       const unsigned = keys.filter(({ keyHash }) => !signed.has(keyHash));
       // A signer of hashes is not asked when nothing is left for it to sign
       if (unsigned.length === 0 && signsHashes(signer)) continue;

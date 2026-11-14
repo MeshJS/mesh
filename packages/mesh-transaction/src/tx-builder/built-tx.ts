@@ -43,6 +43,7 @@ import {
   canSign,
   countedWitnesses,
   isWallet,
+  keysSignedBy,
   keyWitnessTags,
   payerHasNothingLeft,
   payerWitnesses,
@@ -517,10 +518,11 @@ export class BuiltTx implements BuiltTxData {
 
   /**
    * The keys the transaction needs that have not signed yet, each with its roles. Keys that
-   * only a native script names are never listed
+   * only a native script names are never listed. A key signs by a vkey witness: a bootstrap
+   * witness of it counts for a Byron address the transaction spends from, not for the key
    */
   get missing(): readonly RequiredKey[] {
-    const signed = new Set(this.#held.map((w) => w.keyHash));
+    const signed = keysSignedBy(this.#held);
     return Object.freeze(this.#keys.filter((k) => !signed.has(k.keyHash)));
   }
 
@@ -578,7 +580,7 @@ export class BuiltTx implements BuiltTxData {
     for (const signer of signers) {
       throwIfAborted(signal, CALL);
       // The keys that have not signed yet, by what is held now
-      const signed = new Set(this.#held.map((w) => w.keyHash));
+      const signed = keysSignedBy(this.#held);
       const keys = this.#asked.filter(({ keyHash }) => !signed.has(keyHash));
       const byDefault = signer === payer;
       // The payer is not asked when nothing is left for it to give

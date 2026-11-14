@@ -6,7 +6,7 @@ import type {
   TxPlanJSON,
   TxPlanStatus,
 } from "./types";
-import { readWitnessArgument } from "../sign";
+import { keysSignedBy, readWitnessArgument } from "../sign";
 
 // The state machine of a plan: a pure function from a record and an event to the next record.
 // It makes no request and reads no clock; every time it compares comes in the event or the
@@ -308,8 +308,27 @@ const witnessKind = (witness: Witness) => {
   }
 };
 
-const keysComplete = (keys: readonly string[], witnesses: readonly Witness[]) =>
-  keys.every((key) => witnesses.some((w) => w.keyHash === key));
+/**
+ * The key hashes recorded witnesses sign for, as `keysSignedBy` counts them. A record whose
+ * witness reads as a bootstrap witness signs for no key; any other is counted by the key it
+ * names, as the record says
+ */
+export const recordedSigners = (witnesses: readonly Witness[]) =>
+  keysSignedBy(
+    witnesses.map((w) => ({
+      keyHash: w.keyHash,
+      kind: witnessKind(w) === "bootstrap" ? "bootstrap" : "vkey",
+    })),
+  );
+
+/** Whether every key of `keys` has signed by the recorded witnesses */
+export const keysComplete = (
+  keys: readonly string[],
+  witnesses: readonly Witness[],
+) => {
+  const signed = recordedSigners(witnesses);
+  return keys.every((key) => signed.has(key));
+};
 
 /**
  * Applies one event to a plan's record. The answer is the next record, with `status` worked

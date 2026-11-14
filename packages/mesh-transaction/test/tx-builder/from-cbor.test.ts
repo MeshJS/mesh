@@ -771,6 +771,75 @@ describe("a bootstrap witness beside a vkey witness of one key", () => {
       bootstraps: [key.vkey],
     });
   });
+
+  it("signs for no key with a bootstrap witness alone: the key of a Shelley input stays missing, in a BuiltTx and in a plan, until its vkey witness comes", async () => {
+    await Crypto.ready();
+    const { key, body, txHash, knownUtxos } = twoInputs();
+    const bootstrapOnly = (hash: string) =>
+      cbor.map([cbor.uint(2), cbor.arr(bootstrapWitness(key, hash))]);
+    const vkeyOnly = (hash: string) =>
+      cbor.map([cbor.uint(0), cbor.arr(cbor.vkeyWitness(key, hash))]);
+    const b = offline("mainnet");
+    const made = await b.fromCbor(cbor.tx(body, bootstrapOnly(txHash)), {
+      knownUtxos,
+    });
+    expect(made.missing.map((k) => k.keyHash)).toEqual([key.keyHash]);
+    expect(made.signedTx).toBeUndefined();
+    // sign() asks for the key, and its vkey witness completes the transaction
+    const { signer, requests } = keysSigner("object", key);
+    await made.sign({ signers: signer });
+    expect(requests[0]!.keys!.map((k) => k.keyHash)).toEqual([key.keyHash]);
+    expect(made.missing).toEqual([]);
+    expect(keysOf(made.signedTx!)).toEqual({
+      vkeys: [key.vkey],
+      bootstraps: [key.vkey],
+    });
+    // Given with both witnesses, nothing is missing
+    const both = await b.fromCbor(
+      cbor.tx(
+        body,
+        cbor.map(
+          [cbor.uint(0), cbor.arr(cbor.vkeyWitness(key, txHash))],
+          [cbor.uint(2), cbor.arr(bootstrapWitness(key, txHash))],
+        ),
+      ),
+      { knownUtxos },
+    );
+    expect(both.missing).toEqual([]);
+    expect(both.signedTx).toBeDefined();
+
+    // A plan of the same spend counts the same
+    const parts = [
+      spend.pubKey({ utxo: utxoAt(addressOf(key, 1), ada(5)) }),
+      spend.pubKey({ utxo: utxoAt(BYRON, ada(5)) }),
+      output({ address: addressOf(key, 1), value: { lovelace: ada(3) } }),
+    ];
+    const payer = {
+      changeAddress: addressOf(key, 1),
+      utxos: [utxoAt(addressOf(key, 1))],
+    };
+    const tip = {
+      fetchLatestBlock: async () => ({ slot: "1", height: 1 }),
+      fetchAddressUTxOs: async () => [],
+      fetchTxInfo: async () => {
+        throw new Error("not found");
+      },
+    } as unknown as TxBuilderOptions["provider"];
+    const plan = offline("mainnet", { provider: tip }).plan(parts, { payer });
+    await plan.build();
+    const planHash = plan.built!.txHash;
+    await plan.addWitnesses(bootstrapOnly(planHash));
+    expect(plan.status).toBe("built");
+    expect(plan.missing.map((k) => k.keyHash)).toEqual([key.keyHash]);
+    expect(plan.signedTx).toBeUndefined();
+    await plan.addWitnesses(vkeyOnly(planHash));
+    expect(plan.status).toBe("signed");
+    expect(plan.missing).toEqual([]);
+    expect(keysOf(plan.signedTx!)).toEqual({
+      vkeys: [key.vkey],
+      bootstraps: [key.vkey],
+    });
+  });
 });
 
 describe("TxBuilder.fromCbor: collateral returned to someone else", () => {
