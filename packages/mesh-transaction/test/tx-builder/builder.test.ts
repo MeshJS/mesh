@@ -1160,10 +1160,11 @@ describe("TxBuilder: resolution", () => {
       expect(spends.details).toEqual({
         item: `${ghost.txHash}#${ghost.outputIndex}`,
       });
-      const read = await twice([
-        referenceInput({ utxo: ghost, label: "read" }),
+      const putUp = await twice([
+        collateral({ utxo: ghost }),
+        collateral({ utxo: ghost, label: "again" }),
       ]);
-      expect(read).toMatchObject({ part: "referenceInput", label: "read" });
+      expect(putUp).toMatchObject({ part: "collateral", label: "again" });
       // Neither the payer, the out ref nor the parameters were read
       expect(reads).toEqual([]);
       expect(calls).toEqual({});
@@ -2082,15 +2083,20 @@ describe("TxBuilder: UTxOs left out of selection", () => {
     await expectBuildError(build(parts(), [oracle]), "INSUFFICIENT_COLLATERAL");
   });
 
-  it("rejects a reference input the transaction also spends", async () => {
+  it("spends an output a reference input also names, and does not read it, in either order", async () => {
     const both = utxo(lovelace(ada(10)));
-    await expectBuildError(
-      build(
-        [spend.pubKey({ utxo: both }), referenceInput({ utxo: both }), pay(2)],
-        [],
-      ),
-      "DUPLICATE_PART",
-    );
+    const oracle = utxo(lovelace(ada(5)));
+    const read = referenceInput({ utxo: both });
+    for (const parts of [
+      [spend.pubKey({ utxo: both }), read, referenceInput({ utxo: oracle })],
+      [referenceInput({ utxo: oracle }), read, spend.pubKey({ utxo: both })],
+    ]) {
+      const built = await build([...parts, pay(2)], []);
+      expect(inputsOf(built)).toEqual([keyOf(both)]);
+      expect(referencesOf(built)).toEqual([keyOf(oracle)]);
+      expect(built.inputs).toEqual([both]);
+      expect(built.referenceInputs).toEqual([oracle]);
+    }
   });
 
   it("does not spend a UTxO a collateral part puts up", async () => {
@@ -4681,6 +4687,76 @@ describe("TxBuilder: finalize", () => {
     expect(final.fee).toBeGreaterThan(
       minFee(final.prototype, { params, vkeyWitnesses: 0 }),
     );
+  });
+
+  it("refuses a prototype that names an output twice, or reads an output it spends", async () => {
+    const { built } = await plutusSpend();
+    const [input] = built.prototype.body.inputs;
+    const [reference] = built.prototype.body.reference_inputs!;
+    const [put] = built.prototype.body.collateral!;
+    const keyOf = (i: { transaction_id: string; index: number }) =>
+      `${i.transaction_id.toLowerCase()}#${i.index}`;
+    const upper = (i: { transaction_id: string; index: number }) => ({
+      ...i,
+      transaction_id: i.transaction_id.toUpperCase(),
+    });
+    const cases: [
+      string,
+      (body: TransactionPrototype["body"]) => void,
+      string,
+      string,
+    ][] = [
+      [
+        "an input twice",
+        (body) => body.inputs.push(upper(input!)),
+        keyOf(input!),
+        "twice in the inputs",
+      ],
+      [
+        "a reference input twice",
+        (body) => body.reference_inputs!.push({ ...reference! }),
+        keyOf(reference!),
+        "twice in the reference inputs",
+      ],
+      [
+        "a collateral input twice",
+        (body) => body.collateral!.push({ ...put! }),
+        keyOf(put!),
+        "twice in the collateral inputs",
+      ],
+      [
+        "an input read",
+        (body) => body.reference_inputs!.push({ ...input! }),
+        keyOf(input!),
+        "both spent and read",
+      ],
+      [
+        "an input read, its hash in another case",
+        (body) => body.reference_inputs!.push(upper(input!)),
+        keyOf(input!),
+        "both spent and read",
+      ],
+    ];
+    for (const [, edit, item, says] of cases) {
+      const edited = structuredClone(built.prototype);
+      edit(edited.body);
+      const error = await expectBuildError(
+        builder().finalize(edited, {
+          inputs: named(built),
+          changeAddress: wallet,
+        }),
+        "DUPLICATE_PART",
+      );
+      expect(error.details).toEqual({ item });
+      expect(error.part).toBeUndefined();
+      expect(error.message).toContain(says);
+      expect(error.message).toContain("the prototype must hold it once");
+    }
+    // The same prototype without the repeat is finalized as built
+    const final = await builder().finalize(built.prototype, {
+      inputs: named(built),
+    });
+    expect(final.tx).toBe(built.tx);
   });
 
   it("takes the change address in hex or bech32, and refuses one that is no address, or inputs that are no UTxOs", async () => {

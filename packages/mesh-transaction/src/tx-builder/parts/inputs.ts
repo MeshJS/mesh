@@ -221,7 +221,10 @@ export const spend = {
 /**
  * Read an output without spending it: its datum and reference script become visible to the
  * transaction's scripts. Given by out ref, the part assembles as it is, since only the out ref
- * goes into the body; `build()` still reads the output.
+ * goes into the body; `build()` still reads the output. One output read by several parts is one
+ * reference input; an output the transaction also spends is not a reference input at all: its
+ * datum and reference script are visible as those of a spent input. The part never makes its
+ * output spent, and selection never takes it.
  * @param params.utxo The output, by reference or in full
  * @param params.label Name echoed in errors about this part
  */

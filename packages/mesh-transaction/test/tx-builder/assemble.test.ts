@@ -382,6 +382,76 @@ describe("assembleTxPrototype: transaction contents", () => {
     expect(prototype.body.script_data_hash).toMatch(/^[0-9a-f]{64}$/);
   });
 
+  it("spends an output a reference input part also names, and does not read it, in either order", () => {
+    const spent = utxo("aa".repeat(32), 3);
+    const read = referenceInput({ utxo: spent, label: "oracle" });
+    const other = referenceInput({ utxo: utxo("bb".repeat(32), 1) });
+    for (const parts of [
+      [spend.pubKey({ utxo: spent }), read, other],
+      [read, other, spend.pubKey({ utxo: spent })],
+    ]) {
+      const { body } = assembleTxPrototype(parts, options).prototype;
+      expect(body.inputs).toEqual([
+        { transaction_id: "aa".repeat(32), index: 3 },
+      ]);
+      expect(body.reference_inputs).toEqual([
+        { transaction_id: "bb".repeat(32), index: 1 },
+      ]);
+    }
+    // With no other output read, the body has no reference inputs
+    const { body } = assembleTxPrototype(
+      [read, spend.pubKey({ utxo: spent })],
+      options,
+    ).prototype;
+    expect(body.reference_inputs).toBeUndefined();
+  });
+
+  it("holds one reference input for an output several parts read", () => {
+    const holder = utxo("cc".repeat(32), 0, walletAddress, {
+      script: plutusRef,
+    });
+    const { body } = assembleTxPrototype(
+      [
+        referenceInput({ utxo: holder }),
+        spend.plutus({
+          utxo: scriptUtxo("aa".repeat(32), 0),
+          script: { reference: holder },
+          redeemer: redeemer(1),
+        }),
+        referenceInput({ utxo: holder, label: "again" }),
+        referenceInput({ utxo: { txHash: "CC".repeat(32), outputIndex: 0 } }),
+      ],
+      options,
+    ).prototype;
+    expect(body.reference_inputs).toEqual([
+      { transaction_id: "cc".repeat(32), index: 0 },
+    ]);
+  });
+
+  it("spends a script output that holds its own script, read by a reference input part too", () => {
+    const holder = utxo("aa".repeat(32), 0, scriptAddress, {
+      datum: unitInline,
+      script: plutusRef,
+    });
+    const { prototype, languages } = assembleTxPrototype(
+      [
+        referenceInput({ utxo: holder }),
+        spend.plutus({
+          utxo: holder,
+          script: { reference: holder },
+          redeemer: redeemer(1),
+        }),
+      ],
+      options,
+    );
+    expect(prototype.body.inputs).toEqual([
+      { transaction_id: "aa".repeat(32), index: 0 },
+    ]);
+    expect(prototype.body.reference_inputs).toBeUndefined();
+    expect(prototype.witness_set.plutus_v3_scripts).toBeUndefined();
+    expect(languages).toEqual(new Set(["V3"]));
+  });
+
   it("assembles a reference input given by out ref alone; a collateral needs its output", () => {
     const read = { txHash: "cc".repeat(32), outputIndex: 2 };
     const { prototype } = assembleTxPrototype(
@@ -691,28 +761,6 @@ describe("assembleTxPrototype: errors", () => {
       "DUPLICATE_PART",
     );
     expect(error.details).toEqual({ item });
-  });
-
-  it("rejects a reference input the transaction also spends", () => {
-    const spent = utxo("aa".repeat(32), 3);
-    const read = referenceInput({ utxo: spent, label: "oracle" });
-    for (const parts of [
-      [spend.pubKey({ utxo: spent }), read],
-      [read, spend.pubKey({ utxo: spent })],
-    ]) {
-      const error = expectBuildError(
-        () => assembleTxPrototype(parts, options),
-        "DUPLICATE_PART",
-      );
-      expect(error).toMatchObject({
-        part: "referenceInput",
-        label: "oracle",
-        details: { item: `${"aa".repeat(32)}#3` },
-      });
-      expect(error.message).toContain(
-        `${"aa".repeat(32)}#3 is also spent by this transaction`,
-      );
-    }
   });
 
   it("allows a script read from the output it spends, and collateral that is read", () => {
@@ -1236,6 +1284,39 @@ describe("assembleTxPrototype: redeemer functions", () => {
     expect((asked[2] as TxBuildError<"INVALID_REDEEMER">).details).toEqual({
       reason: "notAReferenceInput",
       ref: `${"99".repeat(32)}#0`,
+    });
+  });
+
+  it("finds an output a reference input part names and the transaction spends among the inputs only", () => {
+    const both = utxo("bb".repeat(32), 0);
+    const asked: unknown[] = [];
+    const parts = [
+      referenceInput({ utxo: both }),
+      spend.plutus({
+        utxo: scriptUtxo("aa".repeat(32), 0),
+        script: plutusScript,
+        redeemer: {
+          data: (tx) => {
+            asked.push(tx.input(both));
+            try {
+              tx.referenceInput(both);
+            } catch (error) {
+              asked.push(error);
+            }
+            return 0;
+          },
+          exUnits: budget,
+        },
+      }),
+      spend.pubKey({ utxo: both }),
+    ];
+    assembleTxPrototype(parts, options);
+
+    expect(asked[0]).toBe(1);
+    expect(asked[1]).toBeInstanceOf(TxBuildError);
+    expect((asked[1] as TxBuildError<"INVALID_REDEEMER">).details).toEqual({
+      reason: "notAReferenceInput",
+      ref: `${"bb".repeat(32)}#0`,
     });
   });
 

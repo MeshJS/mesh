@@ -66,7 +66,7 @@ import type { GovernanceDeposits } from "./resolve";
 import type { StandaloneTx, StandaloneTxJSON } from "./standalone";
 import type { TxSigners } from "./witnesses";
 import { abortable, throwIfAborted } from "./abort";
-import { checkPartRepeats } from "./assemble";
+import { checkPartRepeats, checkPrototypeRepeats } from "./assemble";
 import {
   balance,
   collateralCandidates,
@@ -1252,6 +1252,10 @@ export class TxBuilder {
    * and bootstrap witnesses of the prototype are dropped: the result is unsigned, and priced for
    * the keys the prototype calls for, no others. The prototype given is not changed.
    *
+   * The prototype must name each output once among its inputs, once among its reference inputs
+   * and once among its collateral inputs, and must not read an output it spends: it is refused
+   * otherwise, not repaired, since its redeemers may rely on its positions.
+   *
    * The result has no parts: `parts` and `selectedInputs` are empty, redeemers carry no `part`
    * and outputs no `label`. `change` holds every output at `changeAddress`, a payment to that
    * address included; without `changeAddress` it is empty. The result is a `StandaloneTx`, as
@@ -1274,7 +1278,9 @@ export class TxBuilder {
    *   not a list of UTxOs; FEE_NOT_CONVERGED when the fee does not settle; UNSUPPORTED_SERIALIZER
    *   when the builder's serializer throws, or answers with something that is not a transaction
    *   in CBOR hex; MISSING_PARAMETER when the provider's protocol parameters lack a field a
-   *   build reads, or hold one that is not a number
+   *   build reads, or hold one that is not a number; DUPLICATE_PART `{ item }`, the out ref, for
+   *   a prototype whose inputs, reference inputs or collateral inputs name one output twice, or
+   *   whose reference inputs name an output it spends
    */
   async finalize(
     prototype: TransactionPrototype,
@@ -1318,6 +1324,8 @@ export class TxBuilder {
     delete draft.witness_set.vkeys;
     delete draft.witness_set.bootstraps;
     const { body } = draft;
+    // Positions are the prototype's own: a repeat is refused, never dropped
+    checkPrototypeRepeats(body);
     const utxoOf =
       (role: string) =>
       (input: { transaction_id: string; index: number }): Utxo => {

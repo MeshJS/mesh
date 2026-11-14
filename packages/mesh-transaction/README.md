@@ -1283,7 +1283,9 @@ again from parts. Collateral is not changed: a raised fee that it no longer cove
 `INSUFFICIENT_COLLATERAL`, until the caller raises `total_collateral` and lowers the collateral
 return. Key witnesses of the prototype are dropped: the result is unsigned. The result has no parts:
 `parts` and `selectedInputs` are empty, redeemers carry no `part`, outputs no `label`, and `change`
-holds every output at `changeAddress`, a payment to that address included.
+holds every output at `changeAddress`, a payment to that address included. A prototype that names
+an output twice among its inputs, its reference inputs or its collateral inputs, or reads an output
+it spends, is `DUPLICATE_PART` `{ item }`: its positions are its own, so nothing is dropped.
 
 ### Editing a built transaction
 
@@ -1402,6 +1404,10 @@ built.redeemers; // [{ tag: "SPEND", index, exUnits, data, label: "unlock", part
   pass `datum: { data }` for an output holding a datum hash.
 - An attached script that an input or reference input already holds as its reference script is
   left out of the witness set.
+- An output read by several parts is one reference input, and an output the transaction spends is
+  never one: a `referenceInput` part of a spent output adds nothing, since the datum and reference
+  script of a spent input are visible to the scripts already. Selection never spends an output a
+  part only reads.
 
 ## Staking and governance
 
@@ -1672,7 +1678,7 @@ every `TxPlanError` message says.
 | `WITNESS_MISMATCH`         | `TxPartError`  | a witness that cannot authorise its output or credential (a key spend of a script output; in the old `MeshTxBuilder`, a Plutus part without a redeemer)                                                                                                                                                    | none                                                                                                       | no                                                          |
 | `DATUM_MISMATCH`           | `TxPartError`  | a datum choice that does not fit the output spent                                                                                                                                                                                                                                                          | none                                                                                                       | no                                                          |
 | `UNRESOLVED`               | `TxBuildError` | a part still leaves something open that nothing filled in                                                                                                                                                                                                                                                  | `PartGaps[]`: each part's kind, label and gaps                                                             | no                                                          |
-| `DUPLICATE_PART`           | `TxBuildError` | the same input, policy, reward account, voter or collateral input twice; a kind held once given twice; a reference input the transaction spends                                                                                                                                                            | `{ item }`                                                                                                 | no                                                          |
+| `DUPLICATE_PART`           | `TxBuildError` | the same input, policy, reward account, voter or collateral input twice; a kind held once given twice; a prototype given to `finalize` that names an output twice among its inputs, reference inputs or collateral inputs, or reads an output it spends                                                    | `{ item }`                                                                                                 | no                                                          |
 | `INVALID_COLLATERAL`       | `TxBuildError` | collateral inputs that cannot cover the total collateral                                                                                                                                                                                                                                                   | none                                                                                                       | no                                                          |
 | `MISSING_FETCHER`          | `TxBuildError` | something has to be read, and the builder has no provider                                                                                                                                                                                                                                                  | none                                                                                                       | no                                                          |
 | `UTXO_NOT_FOUND`           | `TxBuildError` | an output the transaction names does not exist, could not be read (the provider's error is the `cause`), or is spent by a transaction of `after`                                                                                                                                                           | `{ input }`                                                                                                | no                                                          |

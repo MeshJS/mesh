@@ -12,7 +12,8 @@ export type TxBuildErrorCode =
   | "UNRESOLVED"
   /**
    * Two parts claim what a transaction holds only once: an input, a policy, a voter, ...; or a
-   * reference input names an output the transaction spends
+   * prototype given to `finalize` names one output twice among its inputs, reference inputs or
+   * collateral inputs, or reads an output it spends
    */
   | "DUPLICATE_PART"
   /** Collateral inputs that cannot cover the total collateral */

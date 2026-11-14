@@ -205,6 +205,24 @@ describe.each(["scalus", "cquisitor"] as const)(
       expect(rules(await s.submit(built))).toEqual([]);
     });
 
+    it("spends a script output that holds its own validator, read by a reference input part too", async () => {
+      const s = await setup(validator);
+      s.plain(20n);
+      const own = s.locked(resolveScriptRef(plutusScript));
+      const built = await s.build([
+        referenceInput({ utxo: own }),
+        spend.plutus({ utxo: own, script: { reference: own }, redeemer: unit }),
+      ]);
+
+      expect(spends(built, own)).toBe(true);
+      expect(built.prototype.body.reference_inputs).toBeUndefined();
+      expect(built.referenceInputs).toEqual([]);
+      expect(built.prototype.witness_set.plutus_v3_scripts).toBeUndefined();
+      s.expectV3ScriptData(built);
+      s.expectFeeCovers(built);
+      expect(rules(await s.submit(built))).toEqual([]);
+    });
+
     it.each([
       ["sendAllTo sweeps it", "sweep"],
       ["selection takes it after the plain UTxO in one pass", "selection"],

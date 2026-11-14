@@ -117,14 +117,17 @@ is `INVALID_REDEEMER`.
 
 ### What else assembly decides
 
-- **Conflicts are errors** (`DUPLICATE_PART`, `details.item`): an input spent twice, a reference
-  input the transaction also spends, two mint parts for one policy, two withdrawals from one
-  account, two vote parts for one voter, a collateral input given twice, a second validity
-  interval, network id, donation, treasury value or collateral return, a metadata label given
-  twice (a `message` is label 674). `build` runs the same checks before any request.
+- **Conflicts are errors** (`DUPLICATE_PART`, `details.item`): an input spent twice, two mint
+  parts for one policy, two withdrawals from one account, two vote parts for one voter, a
+  collateral input given twice, a second validity interval, network id, donation, treasury value
+  or collateral return, a metadata label given twice (a `message` is label 674). `build` runs the
+  same checks before any request. Two spend parts of one input stay an error even when they agree:
+  they may carry different scripts and redeemers, and the builder does not choose.
 - **Reference inputs** are the reference input parts plus the outputs witnesses read their
-  scripts from, deduplicated, minus inputs the transaction spends (a spent output's reference
-  script is visible to the transaction anyway).
+  scripts from, each output once, minus inputs the transaction spends: a reference input part of
+  a spent output is no error, and adds nothing (a spent output's datum and reference script are
+  visible to the transaction anyway; a script that looks for the output among the reference
+  inputs fails at the build's evaluation).
 - **Witness scripts** are deduplicated by hash, and an attached script is left out when an output
   the transaction spends or reads holds it as its reference script, as the ledger requires; its
   language still counts in the script data hash. **Datums** (spent hash-datum outputs, embedded
@@ -436,7 +439,10 @@ promise. `finalize` completes an edited or hand-assembled prototype: it hashes i
 for its signers and takes a fee increase from the change output at `changeAddress`. It looks up
 no UTxO (every input, reference input and collateral input is given in `inputs`, else
 `UTXO_NOT_FOUND`), runs no script and changes no collateral; parameters and cost models still
-come from `params` and `costModels` or the provider.
+come from `params` and `costModels` or the provider. It refuses (`DUPLICATE_PART`, `details.item`)
+a prototype that names an output twice among its inputs, its reference inputs or its collateral
+inputs, or reads an output it spends, and repairs nothing: a prototype made by hand fixes the
+positions its redeemers may rely on.
 
 ## Errors
 
