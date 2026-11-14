@@ -2,6 +2,7 @@ import type {
   NewStep,
   StepPlanEvent,
   StepPlanRecord,
+  StepTip,
 } from "../../../src/tx-builder/plan/step-core";
 import {
   advanceStepPlan,
@@ -9,6 +10,7 @@ import {
   liveSteps,
   missingKeys,
   stepPlanUntil,
+  TIP_AHEAD_TOLERANCE_MS,
 } from "../../../src/tx-builder/plan/step-core";
 import {
   accept,
@@ -64,10 +66,12 @@ const chain = (
 
 const txOf = (json: StepPlanRecord, name: string) => stepOf(json, name).txHash;
 
-const tipAt = (timeMs: number, height?: number) => ({
+/** The tip at slot 1000 with this time, read when the local clock showed `clockMs` */
+const tipAt = (timeMs: number, height?: number, clockMs = timeMs) => ({
   slot: 1_000,
   timeMs,
   ...(height !== undefined && { height }),
+  clockMs,
 });
 const PAST = UNTIL + DEADLINES.expiryMarginMs;
 
@@ -86,10 +90,7 @@ const found = (txHash: string, more: object = {}) => ({
   ...more,
 });
 const missing = (txHash: string) => ({ txHash, found: false as const });
-const look = (
-  sightings: object[],
-  tip?: ReturnType<typeof tipAt>,
-): StepPlanEvent =>
+const look = (sightings: object[], tip?: StepTip): StepPlanEvent =>
   ({
     type: "observation",
     ...(tip !== undefined && { tip }),
@@ -280,6 +281,29 @@ describe("a look at the chain", () => {
       expect(after).toBe(open);
     });
 
+    it("needs the local clock past the end of validity and the margin too, and a tip not ahead of it by more than the tolerance", () => {
+      const sightings = [missing(a()), found(SOURCE)];
+      const at = (timeMs: number, clockMs?: number) =>
+        expired(
+          look(sightings, {
+            slot: 1_000,
+            timeMs,
+            ...(clockMs !== undefined && { clockMs }),
+          }),
+        );
+      expect(at(PAST, PAST)).toBe(true);
+      // The clock behind the end and the margin
+      expect(at(PAST, PAST - 1)).toBe(false);
+      // No clock
+      expect(at(PAST)).toBe(false);
+      // A tip ahead of the clock: within the tolerance, and beyond it
+      expect(at(PAST + TIP_AHEAD_TOLERANCE_MS, PAST)).toBe(true);
+      expect(at(PAST + TIP_AHEAD_TOLERANCE_MS + 1, PAST)).toBe(false);
+      // The clock far ahead of the tip changes nothing
+      expect(at(PAST, PAST + 1e9)).toBe(true);
+      expect(at(PAST - 1, PAST + 1e9)).toBe(false);
+    });
+
     it("comes to a step that was never signed", () => {
       const built = planOf([chainStep("a", 0, { keys: [K1] })]);
       expect(
@@ -373,6 +397,132 @@ describe("a look at the chain", () => {
   });
 });
 
+describe("a step called dead", () => {
+  const expiredPlan = () => {
+    const json = acceptAll(chain(2), deliver("a"));
+    return accept(
+      json,
+      look([missing(txOf(json, "a")), found(SOURCE)], tipAt(PAST)),
+    );
+  };
+
+  it("is included, then final, when a look finds it in a block: what the chain shows wins", () => {
+    const json = expiredPlan();
+    expect(json.steps.map((step) => step.status)).toEqual([
+      "expired",
+      "orphaned",
+    ]);
+    expect(json.status).toBe("stopped");
+    const a = txOf(json, "a");
+    const included = accept(
+      json,
+      look([found(a, { blockHeight: 99 })], tipAt(PAST, 100)),
+    );
+    expect(stepOf(included, "a")).toMatchObject({
+      status: "included",
+      seen: { slot: 500 },
+    });
+    // b stays orphaned until a look finds it; the plan does not go on
+    expect(stepOf(included, "b").status).toBe("orphaned");
+    expect(included.status).toBe("stopping");
+    const final = accept(
+      included,
+      look([found(a, { blockHeight: 90 })], tipAt(PAST, 100)),
+    );
+    expect(stepOf(final, "a").status).toBe("final");
+    expect(final.status).toBe("stopped");
+    const b = accept(
+      final,
+      look([found(txOf(json, "b"), { blockHeight: 90 })], tipAt(PAST, 100)),
+    );
+    expect(b.status).toBe("final");
+  });
+
+  it("changes by nothing else: a look that does not find it, finds it invalid, or finds it without its validity", () => {
+    const json = expiredPlan();
+    const a = txOf(json, "a");
+    for (const event of [
+      look([missing(a), found(SOURCE)], tipAt(PAST)),
+      look([found(a, { valid: false })], tipAt(PAST)),
+      deliver("a"),
+      refused("a"),
+      { type: "answer", step: "a", refused: false } as StepPlanEvent,
+    ]) {
+      const result = advanceStepPlan(json, event);
+      if (result.ok) expect(stepOf(result.json, "a").status).toBe("expired");
+    }
+    const plutus = acceptAll(
+      planOf([chainStep("a", 0, { plutus: true })]),
+      deliver("a"),
+    );
+    const dead = accept(
+      plutus,
+      look([missing(txOf(plutus, "a")), found(SOURCE)], tipAt(PAST)),
+    );
+    expect(accept(dead, look([found(txOf(plutus, "a"))]))).toBe(dead);
+  });
+
+  it("leaves a failed step as it is, whatever a later look says", () => {
+    const json = acceptAll(
+      planOf([chainStep("a", 0, { plutus: true })]),
+      deliver("a"),
+    );
+    const a = txOf(json, "a");
+    const failed = accept(json, look([found(a, { valid: false })]));
+    expect(stepOf(failed, "a").status).toBe("failed");
+    expect(accept(failed, look([found(a, { valid: true })]))).toBe(failed);
+    expect(accept(failed, look([missing(a)], tipAt(PAST)))).toBe(failed);
+  });
+});
+
+describe("a delivery", () => {
+  it("is refused for a step a key has not signed", () => {
+    const json = planOf([chainStep("a", 0, { keys: [K1] })]);
+    expect(refusal(json, deliver("a"))).toBe("status");
+    // A step another party sent, rolled back: sent, with the key still missing
+    const a = txOf(json, "a");
+    const sent = acceptAll(
+      json,
+      look([found(a)], tipAt(0, 100)),
+      look([missing(a)], tipAt(0, 100)),
+    );
+    expect(stepOf(sent, "a")).toMatchObject({ status: "sent", sends: 0 });
+    expect(missingKeys(stepOf(sent, "a"))).toEqual([K1]);
+    expect(refusal(sent, deliver("a"))).toBe("status");
+  });
+
+  it("on a plan that is stopping and not marked, takes only a step sent before: the same bytes again", () => {
+    const json = planOf([
+      chainStep("a", 0),
+      {
+        name: "x",
+        built: stepTx({ txHash: hash(0xbb), inputs: [utxo(hash(0xf9))] }),
+        standsOn: [],
+      },
+      {
+        name: "y",
+        built: stepTx({ txHash: hash(0xcc), inputs: [utxo(hash(0xf6))] }),
+        standsOn: [],
+      },
+    ]);
+    const stopping = accept(
+      accept(json, deliver("x")),
+      look([missing(txOf(json, "a")), found(SOURCE)], tipAt(PAST)),
+    );
+    expect(stopping.status).toBe("stopping");
+    expect(stepOf(accept(stopping, deliver("x")), "x")).toMatchObject({
+      status: "sent",
+      sends: 2,
+    });
+    // y was never sent: it does not go for the first time
+    expect(refusal(stopping, deliver("y"))).toBe("status");
+    // A marked plan sends nothing
+    expect(refusal(accept(stopping, { type: "stop" }), deliver("x"))).toBe(
+      "stopped",
+    );
+  });
+});
+
 describe("the plan's status", () => {
   it("is final when every step is, also when the plan is marked", () => {
     const json = chain(2, { confirmations: 0 });
@@ -435,6 +585,7 @@ describe("the plan's status", () => {
       look([missing(txOf(json, "a")), found(SOURCE)], tipAt(PAST)),
     );
     expect(stopping.status).toBe("stopping");
+    // x was never sent: it does not go for the first time
     expect(refusal(stopping, deliver("x"))).toBe("status");
 
     const stopped = acceptAll(chain(1), {
@@ -452,9 +603,11 @@ describe("the plan's status", () => {
       refusal(stopped, { type: "steps", steps: [chainStep("b", 1)] }),
     ).toBe("terminal");
     expect(accept(stopped, { type: "stop" })).toBe(stopped);
-    expect(accept(stopped, look([found(hash(0xa0))], tipAt(PAST)))).toBe(
-      stopped,
-    );
+    // A look still changes it: the step called dead is found in a block, and the plan's status
+    // follows its steps
+    const afterFind = accept(stopped, look([found(hash(0xa0))], tipAt(PAST)));
+    expect(stepOf(afterFind, "a").status).toBe("included");
+    expect(afterFind.status).toBe("pending");
   });
 });
 
@@ -490,6 +643,21 @@ describe("the mark", () => {
 });
 
 describe("signatures", () => {
+  it("change nothing on a step once a delivery of it is recorded: every send is the same bytes", () => {
+    const json = acceptAll(
+      planOf([{ ...chainStep("a", 0, { keys: [K1] }) }]),
+      { type: "signature", step: "a", witnesses: [witnessOf(K1)] },
+      deliver("a"),
+    );
+    expect(
+      accept(json, {
+        type: "signature",
+        step: "a",
+        witnesses: [witnessOf(K2)],
+      }),
+    ).toBe(json);
+  });
+
   const two = () => planOf([chainStep("a", 0, { keys: [K1, K2] })]);
 
   it("keep one witness of each kind per key, vkey witnesses first, and sign the step once every key has a vkey witness", () => {

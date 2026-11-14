@@ -468,10 +468,9 @@ const decodeStep = (
   const deadBelow = standsOn.some((each) =>
     earlier.some((step) => step.name === each && isDeadStep(step)),
   );
-  if (step.status === "orphaned" && !deadBelow)
-    unread(
-      `${path}.status is orphaned, and it stands on no step that will not land`,
-    );
+  // The step it stood on that would not land may have been found in a block since
+  if (step.status === "orphaned" && standsOn.length === 0)
+    unread(`${path}.status is orphaned, and it stands on no step`);
   if (isUnlandedStep(step) && deadBelow)
     unread(
       `${path}.status is ${step.status}, and it stands on a step that will not land`,

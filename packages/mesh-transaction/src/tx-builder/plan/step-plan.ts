@@ -75,6 +75,7 @@ import {
   missingKeys,
   stepPlanUntil,
   stepUntil,
+  tipAheadOfClock,
 } from "./step-core";
 import { encodeStepPlan, readStepPlan } from "./step-json";
 
@@ -86,6 +87,10 @@ import { encodeStepPlan, readStepPlan } from "./step-json";
 
 /** The call an aborted signal names */
 const CALL = "the call";
+
+/** What a call waits for when the tip has passed a step's end of validity */
+const PAST_UNTIL =
+  "the tip has passed its end of validity and it was not sent now: it may still land until the margin has passed and a look does not find it";
 
 /** The sentence every message of an error of a plan of steps ends with */
 export const STEP_NOT_UNPAID =
@@ -311,6 +316,39 @@ const stepIn = (record: StepPlanRecord, name: string) =>
 /** A search that found the transaction */
 const isFound = (search: TxSearch) =>
   search !== undefined && "found" in search && search.found;
+
+/** Whether a step stands on a step that will not land */
+const standsOnDead = (record: StepPlanRecord, step: StepRecord) =>
+  step.standsOn.some((name) => {
+    const below = stepIn(record, name);
+    return below !== undefined && isDeadStep(below);
+  });
+
+/**
+ * Whether a look leaves a step out: the plan never sent it, nobody is known to have sent it, and
+ * a step it stands on is not in a block. It cannot be in a block before that step is
+ */
+const cannotBeSeen = (record: StepPlanRecord, step: StepRecord) =>
+  step.sends === 0 &&
+  step.status !== "sent" &&
+  step.status !== "included" &&
+  step.status !== "failed" &&
+  step.standsOn.some((name) => {
+    const below = stepIn(record, name);
+    return below === undefined || !isLanded(below);
+  });
+
+/** The step a call waits for: the first that is not in a block, else the first not final */
+const waitingOn = (record: StepPlanRecord): StepRecord =>
+  record.steps.find((step) => !isLanded(step)) ??
+  record.steps.find((step) => step.status !== "final") ??
+  record.steps[0]!;
+
+/** Whether the tip has passed the end of a step's validity */
+const pastUntil = (step: StepRecord, tip: StepTip | undefined) => {
+  const until = stepUntil(step);
+  return tip !== undefined && until !== undefined && tip.timeMs >= until;
+};
 
 const SIGNED = new WeakMap<StepRecord, string>();
 
@@ -663,12 +701,19 @@ export class StepPlan {
    * that search. A refusal that does not count proves nothing: a call that waits goes on waiting
    * and sends the same bytes again; a call with `waitFor: "sent"` throws SUBMIT_FAILED (`refused`)
    * when no delivery of the step may have gone through.
+   *
+   * A step whose end of validity the tip has passed is not sent: the call waits until the chain
+   * shows it in a block or dead. A step sent by another party whose witnesses the plan does not
+   * all hold is offered to the call's signers, and waited for. On a plan that does not go on, the
+   * call looks at the chain first; a plan with a step that will not land sends again the same
+   * bytes of the steps it sent that stand on no such step, then throws, and sends no step for
+   * the first time.
    * @throws TxPlanError with the step in `error.step`. REJECTED when the refusal counts: the step
-   *   is `rejected`, and the same call sends the same bytes again. EXPIRED, SCRIPT_FAILED,
-   *   ORPHANED when a step will not land: the plan has stopped. EXPIRED (`unsent` when the plan
-   *   never sent it) for a step past its end of validity by the tip; nothing sent. SUBMIT_FAILED
-   *   when the outcome of a delivery is unknown (retryable). CONFIRM_TIMEOUT after `timeoutMs`
-   *   (retryable). NOT_YET_VALID before a step's lower bound (retryable). MISSING_SIGNATURES,
+   *   is `rejected`, and the same call sends the same bytes again. EXPIRED (`unsent` when the plan
+   *   never sent it), SCRIPT_FAILED, ORPHANED when a step will not land: the plan does not go on.
+   *   SUBMIT_FAILED when the outcome of a delivery is unknown (retryable). CONFIRM_TIMEOUT after
+   *   `timeoutMs`, also while a step past its end of validity may still land (retryable).
+   *   NOT_YET_VALID before a step's lower bound (retryable). MISSING_SIGNATURES,
    *   MISSING_SUBMITTER, SIGN_DECLINED, SIGNER_FAILED: nothing was sent. CANNOT_OBSERVE when the
    *   provider cannot follow the plan. INVALID_STATE (`stopped`) for a plan that was stopped
    * @throws TxBuildError ABORTED; INVALID_OPTION for a wait option out of range, and for options
@@ -696,7 +741,6 @@ export class StepPlan {
       const { signal } = opts;
       await this.#takeStoredIfNewer(state);
       if (state.record.status === "final") return this;
-      this.#refuseMarked(state);
       throwIfAborted(signal, CALL);
       const call: Call = {
         wait,
@@ -713,10 +757,12 @@ export class StepPlan {
   }
 
   /**
-   * One look at the chain: a search for each step that is not final, and for a transaction one
-   * of the inputs of each step not in a block comes from, then the tip. It records what they
-   * show, sends nothing, and throws nothing for what it sees. On a final or stopped plan it
-   * returns at once, without a request.
+   * One look at the chain: a search for each step that is not final, also one called dead, and
+   * for a transaction one of the inputs of each step not in a block comes from, then the tip. A
+   * step the plan never sent that stands on a step not in a block is not searched for. It records
+   * what they show, sends nothing, and throws nothing for what it sees. A step called dead that
+   * is found in a block is included, and the plan's status follows. On a final plan it returns at
+   * once, without a request.
    */
   refresh(): Promise<this> {
     return this.#call(async (state) => {
@@ -838,12 +884,21 @@ export class StepPlan {
   #deadError(state: PlanState, step: StepRecord) {
     const otherLive = this.#otherLive(state, step);
     switch (step.status) {
-      case "expired":
+      case "expired": {
+        const unsent = step.sends === 0;
         return this.#error(
           "EXPIRED",
-          "its end of validity and the margin have passed and it is not on chain: it will not land, and the plan has stopped",
-          { details: { otherLive, ...this.#tipAge(state) }, step },
+          `its end of validity and the margin have passed and it is not on chain${unsent ? ", and the plan never sent it" : ""}: it will not land, and the plan has stopped`,
+          {
+            details: {
+              otherLive,
+              ...(unsent && { unsent: true as const }),
+              ...this.#tipAge(state),
+            },
+            step,
+          },
         );
+      }
       case "orphaned":
         return this.#error(
           "ORPHANED",
@@ -1040,13 +1095,24 @@ export class StepPlan {
    * Observation
    * ----------------------------------------------------------------------------------------- */
 
-  /** The tip as the state machine takes it, with the time its slot starts at */
+  /**
+   * The tip as the state machine takes it, with the time its slot starts at and the local clock;
+   * a tip ahead of the clock by more than the tolerance is told to `trace`
+   */
   #tipOf(state: PlanState, observed: ObservedTip): StepTip {
     const tip: StepTip = {
       slot: observed.slot,
       timeMs: state.builder.timeAt(observed.slot),
       ...(observed.height !== undefined && { height: observed.height }),
+      clockMs: Date.now(),
     };
+    if (tipAheadOfClock(tip))
+      emit(state.trace, {
+        type: "warning",
+        code: "TIP_AHEAD_OF_CLOCK",
+        slot: tip.slot,
+        aheadMs: tip.timeMs - tip.clockMs!,
+      });
     state.lastTip = tip;
     return tip;
   }
@@ -1061,36 +1127,91 @@ export class StepPlan {
   }
 
   /**
-   * One look: a search for each step that is neither final nor dead, and for each step not in a
-   * block with an end of validity, a transaction one of its inputs comes from when no search of
-   * the look covers one already; then the tip. What it shows is recorded; what it cannot tell is
-   * unknown and changes nothing. A find without its slot is unknown.
+   * One look: a search for each step that is not final, dead ones included, but a step the plan
+   * never sent that stands on a step not in a block; for each step searched that is not in a
+   * block and has an end of validity, a transaction one of its inputs comes from when no search
+   * of the look covers one already; then the tip. What it shows is recorded; what it cannot tell
+   * is unknown and changes nothing. A find without its slot is unknown. A step called dead that
+   * the look finds in a block is told to `trace`.
    */
   async #look(
     state: PlanState,
     signal: AbortSignal | undefined,
   ): Promise<Observed> {
-    const record = state.record;
-    const none: Observed = { noValidity: false, noDepth: false };
-    if (isTerminal(record)) return none;
-    const watched = record.steps.filter(
-      (step) => step.status !== "final" && !isDeadStep(step),
-    );
+    let seen: Observed = { noValidity: false, noDepth: false };
+    // Each round searches steps no round of this look searched; a round that finds a step in a
+    // block lets the next one search the steps that stand on it. Every round searches one step
+    // more at least, so a look ends
+    const searched = new Set<string>();
+    for (let round = 0; state.record.status !== "final"; round++) {
+      const record = state.record;
+      const watched = record.steps.filter(
+        (step) =>
+          step.status !== "final" &&
+          !searched.has(step.name) &&
+          !cannotBeSeen(record, step),
+      );
+      if (watched.length === 0 && round > 0) break;
+      for (const step of watched) searched.add(step.name);
+      // A later round takes the tip of the first: a search made after a tip finds nothing deeper
+      // than it is, and does not find what was not there at that tip either
+      const found = await this.#lookOnce(
+        state,
+        watched,
+        signal,
+        round > 0 ? (seen.tip ?? null) : undefined,
+      );
+      seen = {
+        ...(found.tip !== undefined
+          ? { tip: found.tip }
+          : seen.tip !== undefined && { tip: seen.tip }),
+        noValidity: seen.noValidity || found.noValidity,
+        noDepth: seen.noDepth || found.noDepth,
+      };
+      if (watched.length === 0) break;
+    }
+    return seen;
+  }
+
+  /**
+   * One round of a look: a search for each of these steps and the sources, then the tip
+   * @param earlier The tip of an earlier round, taken instead of reading one; `null` for none
+   */
+  async #lookOnce(
+    state: PlanState,
+    watched: readonly StepRecord[],
+    signal: AbortSignal | undefined,
+    earlier?: StepTip | null,
+  ): Promise<Observed> {
     const hashes = watched.map((step) => step.txHash.toLowerCase());
     const sources: string[] = [];
-    for (const step of record.steps) {
+    for (const step of watched) {
       if (!isUnlandedStep(step) || stepUntil(step) === undefined) continue;
       const from = step.built.inputs.map((input) => input.txHash.toLowerCase());
       if (from.some((hash) => hashes.includes(hash) || sources.includes(hash)))
         continue;
       if (from[0] !== undefined) sources.push(from[0]);
     }
-    const { searches, tip: observed } = await abortable(
-      searchThenTip(state.observer, [...hashes, ...sources]),
-      signal,
-      CALL,
-    );
-    const tip = observed && this.#tipOf(state, observed);
+    const all = [...hashes, ...sources];
+    let searches: ReadonlyMap<string, TxSearch>;
+    let tip: StepTip | undefined;
+    if (earlier === undefined) {
+      const read = await abortable(
+        searchThenTip(state.observer, all),
+        signal,
+        CALL,
+      );
+      searches = read.searches;
+      tip = read.tip && this.#tipOf(state, read.tip);
+    } else {
+      const answers = await abortable(
+        Promise.all(all.map((txHash) => state.observer.findTx(txHash))),
+        signal,
+        CALL,
+      );
+      searches = new Map(all.map((txHash, i) => [txHash, answers[i]!]));
+      tip = earlier ?? undefined;
+    }
     const sightings: TxSighting[] = [];
     let noValidity = false;
     let noDepth = false;
@@ -1123,6 +1244,11 @@ export class StepPlan {
         sightings.push(sightingOf(txHash, search));
     }
     const landed = landedSteps(state.record).length;
+    const dead = new Map(
+      state.record.steps
+        .filter(isDeadStep)
+        .map((step) => [step.name, step.status] as const),
+    );
     await this.#write(state, () => ({
       event: {
         type: "observation",
@@ -1132,6 +1258,17 @@ export class StepPlan {
       refused: () => undefined,
     }));
     if (landedSteps(state.record).length > landed) this.#clearVolatile(state);
+    for (const step of state.record.steps) {
+      const was = dead.get(step.name);
+      if (was !== undefined && isLanded(step))
+        emit(state.trace, {
+          type: "warning",
+          code: "DEAD_STEP_FOUND",
+          step: step.name,
+          txHash: step.txHash,
+          was: was as "expired" | "orphaned",
+        });
+    }
     return { ...(tip !== undefined && { tip }), noValidity, noDepth };
   }
 
@@ -1278,7 +1415,8 @@ export class StepPlan {
   /**
    * The loop of `run()`: the first step that is not in a block is signed, sent and waited for;
    * every step before it is in a block. It holds no state of its own but the times of its
-   * sends: every turn starts from the record as it is
+   * sends: every turn starts from the record as it is. A turn starts only once the turn before
+   * it changed the record or waited; else it waits and looks first, so no turn repeats at once
    */
   async #drive(state: PlanState, call: Call) {
     const { waitFor, resendMs } = call.wait;
@@ -1286,24 +1424,37 @@ export class StepPlan {
     let from = call.started;
     const lastSent = new Map<string, number>();
     const signedHere = new Set<string>();
+    // The record the last turn started from, and whether that turn waited; the look of `run()`
+    // before the first turn counts as a wait
+    let previous: StepPlanRecord | undefined;
+    let waited = true;
     for (;;) {
+      if (!waited && state.record === previous)
+        await this.#pauseAndLook(state, call, from, waitingOn(state.record));
+      previous = state.record;
+      waited = false;
       const record = state.record;
       if (record.status === "final") return;
-      this.#refuseStopped(state, true);
+      await this.#refuseHalted(state, call);
       const step = record.steps.find((each) => !isLanded(each));
       if (step === undefined) {
         // Every step is in a block
         if (waitFor !== "final") return;
         const first = record.steps.find((each) => each.status !== "final")!;
         await this.#pauseAndLook(state, call, from, first);
+        waited = true;
         continue;
       }
+      const signers =
+        call.signers ?? (state.signer ? [state.signer] : undefined);
       switch (step.status) {
         case "built": {
-          this.#refusePastUntil(state, step, state.lastTip);
+          if (pastUntil(step, state.lastTip)) {
+            await this.#pauseAndLook(state, call, from, step, PAST_UNTIL);
+            waited = true;
+            continue;
+          }
           if (signedHere.has(step.name)) throw this.#missingSignatures(step);
-          const signers =
-            call.signers ?? (state.signer ? [state.signer] : undefined);
           if (signers === undefined) throw this.#missingSignatures(step);
           await this.#signStep(
             state,
@@ -1322,7 +1473,11 @@ export class StepPlan {
           const tip = signedHere.has(step.name)
             ? ((await this.#readTip(state, call.signal)) ?? state.lastTip)
             : state.lastTip;
-          this.#refusePastUntil(state, step, tip);
+          if (pastUntil(step, tip)) {
+            await this.#pauseAndLook(state, call, from, step, PAST_UNTIL);
+            waited = true;
+            continue;
+          }
           this.#refuseNotYetValid(state, step, tip);
           const sent = await this.#send(state, step.name, call, true);
           if (sent.outcome === "moved") continue;
@@ -1334,9 +1489,30 @@ export class StepPlan {
             return;
           }
           await this.#pauseAndLook(state, call, from, step);
+          waited = true;
           continue;
         }
         case "sent": {
+          if (signedTxOf(step) === undefined) {
+            // Sent by another party, and the plan does not hold every witness of it: the call's
+            // signers are asked once, and the step is waited for like any step sent
+            if (signers !== undefined && !signedHere.has(step.name)) {
+              await this.#signStep(
+                state,
+                step.name,
+                signers,
+                state.lastTip,
+                call.signal,
+                call.signers === undefined,
+              );
+              signedHere.add(step.name);
+              continue;
+            }
+            if (waitFor === "sent") return;
+            await this.#pauseAndLook(state, call, from, step);
+            waited = true;
+            continue;
+          }
           const last = lastSent.get(step.name);
           if (last === undefined || Date.now() - last >= resendMs) {
             const sent = await this.#send(state, step.name, call, false);
@@ -1348,6 +1524,7 @@ export class StepPlan {
             }
           }
           await this.#pauseAndLook(state, call, from, step);
+          waited = true;
           continue;
         }
         default:
@@ -1361,21 +1538,55 @@ export class StepPlan {
   }
 
   /**
+   * INVALID_STATE (`stopped`) for a plan that was stopped. For a plan with a step that will not
+   * land, the error of the first such step, after the same bytes of each step it sent that stands
+   * on no such step went again: a plan that does not go on sends no step for the first time
+   */
+  async #refuseHalted(state: PlanState, call: Call) {
+    this.#refuseMarked(state);
+    if (!state.record.steps.some(isDeadStep)) return;
+    const submitter = this.#submitter(state, call.submitter);
+    if (submitter !== undefined)
+      for (const step of state.record.steps) {
+        const now = stepIn(state.record, step.name)!;
+        if (
+          (now.status !== "sent" && now.status !== "rejected") ||
+          signedTxOf(now) === undefined ||
+          standsOnDead(state.record, now)
+        )
+          continue;
+        try {
+          await this.#send(state, now.name, call, false);
+        } catch (error) {
+          // A refusal that counts is recorded; the plan's own error follows
+          if (!TxPlanError.is(error, "REJECTED")) throw error;
+        }
+      }
+    this.#refuseMarked(state);
+    const dead = state.record.steps.find(isDeadStep);
+    if (dead !== undefined) throw this.#deadError(state, dead);
+  }
+
+  /**
    * One pause of a call that waits, then a look; CONFIRM_TIMEOUT about the step waited for once
    * `timeoutMs` has passed since `from`
+   * @param why What the call waits for, when it is not a block or depth
    */
   async #pauseAndLook(
     state: PlanState,
     call: Call,
     from: number,
     step: StepRecord,
+    why?: string,
   ) {
     const { waitFor, timeoutMs, pollMs } = call.wait;
     const elapsed = Date.now() - from;
     if (elapsed >= timeoutMs)
       throw this.#error(
         "CONFIRM_TIMEOUT",
-        `it did not reach ${waitFor} within ${timeoutMs} ms; nothing changed, and the same call waits on`,
+        why === undefined
+          ? `it did not reach ${waitFor} within ${timeoutMs} ms; nothing changed, and the same call waits on`
+          : `${why}, and ${timeoutMs} ms have passed; the same call waits on`,
         {
           details: {
             waitedFor: waitFor === "final" ? "final" : "included",
@@ -1388,34 +1599,6 @@ export class StepPlan {
     await this.#takeStoredIfNewer(state);
     const seen = await this.#look(state, call.signal);
     this.#refuseUnobservable(seen);
-  }
-
-  /**
-   * EXPIRED for a step not in a block whose end of validity the tip has passed; `unsent` only
-   * when the plan never sent it
-   */
-  #refusePastUntil(
-    state: PlanState,
-    step: StepRecord,
-    tip: StepTip | undefined,
-  ) {
-    const until = stepUntil(step);
-    if (tip === undefined || until === undefined || tip.timeMs < until) return;
-    const unsent = step.sends === 0;
-    throw this.#error(
-      "EXPIRED",
-      unsent
-        ? "it was never sent, and the tip has passed its end of validity: nothing was sent"
-        : "the tip has passed its end of validity: nothing was sent now",
-      {
-        details: {
-          otherLive: this.#otherLive(state, step),
-          ...(unsent && { unsent: true as const }),
-          ...this.#tipAge(state),
-        },
-        step,
-      },
-    );
   }
 
   /** NOT_YET_VALID while the step's lower bound is ahead of the tip */
@@ -1469,24 +1652,17 @@ export class StepPlan {
       state,
       (record) => {
         const now = stepIn(record, name);
-        if (
-          now === undefined ||
-          record.stopped === true ||
-          record.status !== "pending" ||
-          (now.status !== "signed" &&
-            now.status !== "sent" &&
-            now.status !== "rejected") ||
-          signedTxOf(now) === undefined
-        )
+        if (now === undefined || signedTxOf(now) === undefined)
           return { skip: true };
+        // The state machine judges whether the record takes the delivery; a refusal sends nothing
         return {
           event: { type: "delivery", step: name },
-          refused: (refusal) => this.#refused(refusal),
+          refused: () => undefined,
         };
       },
       since,
     );
-    if (delivered === "skipped") return { outcome: "moved" };
+    if (delivered !== "written") return { outcome: "moved" };
     // The bytes of the step as recorded
     const now = stepIn(state.record, name)!;
     const tx = signedTxOf(now)!;

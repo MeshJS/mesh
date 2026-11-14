@@ -36,7 +36,9 @@ export type TxStepStatus =
  * Status of a plan of steps, worked out from its steps and its mark: `final` when every step is
  * final; `stopped` when a step will not land or the plan is marked, and every step is final or
  * will not land; `stopping` when a step will not land or the plan is marked, and a step may
- * still land or be rolled back; `pending` otherwise. Only `final` and `stopped` are terminal.
+ * still land or be rolled back; `pending` otherwise. Only `final` and `stopped` are terminal: a
+ * final plan never changes, and a stopped one changes only by a look that finds one of its steps
+ * in a block, when its status follows its steps again.
  */
 export type StepPlanStatus = "pending" | "stopping" | "stopped" | "final";
 
@@ -109,12 +111,30 @@ export type StepPlanRecord = {
   readonly options: Readonly<Record<string, unknown>>;
 };
 
-/** The provider's tip: its slot, the POSIX ms that slot starts at, and its height when known */
+/**
+ * The provider's tip: its slot, the POSIX ms that slot starts at, its height when known, and the
+ * local clock's time when it was read
+ */
 export type StepTip = {
   readonly slot: number;
   readonly timeMs: number;
   readonly height?: number;
+  /** The local clock when the tip was read, POSIX ms; without it no step expires by this tip */
+  readonly clockMs?: number;
 };
+
+/**
+ * How far the tip's time may be ahead of the local clock, in ms, for the tip to expire a step. A
+ * block is never made for a slot that has not begun, so a tip ahead of the clock shows a clock
+ * that is behind or a provider that is wrong; two minutes covers a clock that drifted, and a tip
+ * further ahead expires nothing
+ */
+export const TIP_AHEAD_TOLERANCE_MS = 120_000;
+
+/** Whether the tip is ahead of the local clock by more than the tolerance */
+export const tipAheadOfClock = (tip: StepTip): boolean =>
+  tip.clockMs !== undefined &&
+  tip.timeMs - tip.clockMs > TIP_AHEAD_TOLERANCE_MS;
 
 /**
  * What a fresh search said about one transaction: a step of the plan, or a transaction one of
@@ -147,13 +167,20 @@ export type StepPlanEvent =
    * is. The first record is this event applied to the empty plan
    */
   | { readonly type: "steps"; readonly steps: readonly NewStep[] }
-  /** Witnesses that were checked against the body of the step */
+  /**
+   * Witnesses that were checked against the body of the step. Once a delivery of the step is
+   * recorded its witnesses are fixed, and the event changes nothing
+   */
   | {
       readonly type: "signature";
       readonly step: string;
       readonly witnesses: readonly KeyWitness[];
     }
-  /** The step is about to be delivered; applied and written before the bytes leave */
+  /**
+   * The step is about to be delivered; applied and written before the bytes leave. A step that
+   * lacks a key is never delivered. A plan that is `stopping` and not marked takes it only for a
+   * step that was sent before and stands on no step that will not land: the same bytes again
+   */
   | { readonly type: "delivery"; readonly step: string }
   /** The submitter took a recorded delivery of the step */
   | { readonly type: "answer"; readonly step: string; readonly refused: false }
@@ -170,7 +197,10 @@ export type StepPlanEvent =
       readonly found?: boolean;
       readonly standingInBlock?: boolean;
     }
-  /** What one look at the chain showed. What is absent is unknown */
+  /**
+   * What one look at the chain showed. What is absent is unknown. A step found in a block is
+   * included, then final by depth, whatever it was called before; a final step never changes
+   */
   | {
       readonly type: "observation";
       readonly tip?: StepTip;
@@ -184,7 +214,7 @@ export type StepPlanEvent =
 
 /** Why an event is refused */
 export type StepRefusal =
-  /** The plan is final or stopped */
+  /** The plan is final or stopped: it takes only looks at the chain and the mark */
   | "terminal"
   /** The plan is marked: it signs and sends nothing more */
   | "stopped"
@@ -551,6 +581,8 @@ const signature = (
   const index = indexOf(json, event.step, "signature");
   if (typeof index !== "number") return index;
   const step = json.steps[index]!;
+  // Every send of a step is the same bytes: the witnesses of a delivered step never change
+  if (step.sends > 0) return { ok: true, json };
   if (!isUnlandedStep(step))
     return refuse(
       "status",
@@ -580,12 +612,8 @@ const delivery = (
   if (json.stopped === true) return marked("delivery");
   const index = indexOf(json, event.step, "delivery");
   if (typeof index !== "number") return index;
-  if (json.status !== "pending")
-    return refuse(
-      "status",
-      `the plan is ${json.status}: a step will not land, and the plan sends nothing more`,
-    );
   const step = json.steps[index]!;
+  const quoted = JSON.stringify(step.name);
   if (
     step.status !== "signed" &&
     step.status !== "sent" &&
@@ -593,8 +621,27 @@ const delivery = (
   )
     return refuse(
       "status",
-      `step ${JSON.stringify(step.name)} is ${step.status}: only a fully signed step that is not in a block is delivered`,
+      `step ${quoted} is ${step.status}: only a fully signed step that is not in a block is delivered`,
     );
+  if (missingKeys(step).length > 0)
+    return refuse(
+      "status",
+      `step ${quoted} lacks the signature of ${missingKeys(step).length} key(s): only a fully signed step is delivered`,
+    );
+  if (json.status !== "pending") {
+    // A plan that does not go on sends no step for the first time; the same bytes of a step
+    // sent before may go again, unless it stands on a step that will not land
+    const again =
+      step.status !== "signed" &&
+      !step.standsOn.some((name) =>
+        json.steps.some((each) => each.name === name && isDeadStep(each)),
+      );
+    if (!again)
+      return refuse(
+        "status",
+        `the plan is ${json.status}: a step will not land, and the plan sends no step for the first time`,
+      );
+  }
   const updated: StepRecord = {
     ...step,
     status: "sent",
@@ -669,6 +716,22 @@ const seenOf = (sighting: Extract<TxSighting, { found: true }>) => ({
   ...(sighting.block !== undefined && { block: sighting.block }),
 });
 
+/**
+ * Whether the tip and the local clock have both passed the end of a step's validity and the
+ * margin, and the tip is not ahead of the clock by more than the tolerance
+ */
+const pastMarginOf = (
+  json: StepPlanRecord,
+  step: StepRecord,
+  tip: StepTip | undefined,
+): boolean => {
+  const until = stepUntil(step);
+  if (tip === undefined || until === undefined || tip.clockMs === undefined)
+    return false;
+  const limit = until + json.deadlines.expiryMarginMs;
+  return tip.timeMs >= limit && tip.clockMs >= limit && !tipAheadOfClock(tip);
+};
+
 /** What the step's own sighting and the tip make of it */
 const byOwnFacts = (
   json: StepPlanRecord,
@@ -676,18 +739,21 @@ const byOwnFacts = (
   event: EventOf<"observation">,
   found: ReadonlyMap<string, TxSighting>,
 ): StepRecord => {
-  // A final step and a step that will not land never change
-  if (step.status === "final" || isDeadStep(step)) return step;
+  // A final step never changes; a failed one is in a block with its collateral taken
+  if (step.status === "final" || step.status === "failed") return step;
   const sighting = found.get(step.txHash.toLowerCase());
   const { tip } = event;
+  // A step called dead changes only when the chain shows it in a block: what the chain shows wins
+  if (isDeadStep(step) && sighting?.found !== true) return step;
 
   if (sighting?.found === true) {
     const plutus = step.built.redeemers.length > 0;
     const valid = sighting.valid ?? (plutus ? undefined : true);
     if (valid === undefined) return step;
     if (valid === false) {
-      // An included step found invalid contradicts the earlier find: no fact either way
-      if (step.status === "included") return step;
+      // An included step found invalid contradicts the earlier find: no fact either way; a
+      // step called dead keeps what it was called
+      if (step.status === "included" || isDeadStep(step)) return step;
       return { ...step, status: "failed", seen: seenOf(sighting) };
     }
     const depth = depthOf(tip, sighting);
@@ -711,11 +777,7 @@ const byOwnFacts = (
       const { seen: _seen, ...rest } = step;
       unlanded = { ...rest, status: "sent" };
     }
-    const until = stepUntil(step);
-    const pastMargin =
-      tip !== undefined &&
-      until !== undefined &&
-      tip.timeMs >= until + json.deadlines.expiryMarginMs;
+    const pastMargin = pastMarginOf(json, step, tip);
     // The same look found a transaction one of its inputs comes from: the search answers and
     // knows the chain before the step
     const sourceFound = step.built.inputs.some(

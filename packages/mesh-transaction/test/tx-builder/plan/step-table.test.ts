@@ -51,12 +51,14 @@ const base = () =>
     },
   ]);
 
-/** The tip at slot 1000, whose time is past `UNTIL` and the margin when `past` */
-const tip = (past: boolean) => ({
-  slot: 1_000,
-  timeMs: past ? UNTIL + DEADLINES.expiryMarginMs : UNTIL - 1,
-  height: 100,
-});
+/**
+ * The tip at slot 1000, whose time is past `UNTIL` and the margin when `past`, read when the
+ * local clock showed the same time
+ */
+const tip = (past: boolean) => {
+  const timeMs = past ? UNTIL + DEADLINES.expiryMarginMs : UNTIL - 1;
+  return { slot: 1_000, timeMs, height: 100, clockMs: timeMs };
+};
 
 const aFinal = {
   txHash: A,
@@ -171,7 +173,10 @@ const EVENTS: Record<string, StepPlanEvent> = {
 
 /**
  * What each event makes of `b`: its status after an accepted event that changed the record,
- * `=` for an accepted event that changed nothing, `!reason` for a refusal
+ * `=` for an accepted event that changed nothing, `!reason` for a refusal. A step with a
+ * recorded delivery takes a signature and changes nothing. A step called dead becomes included
+ * or final when a look finds it in a block; for an orphaned `b` every look finds the expired `a`
+ * final, which changes the record and leaves `b` orphaned
  */
 // prettier-ignore
 const TABLE: Record<TxStepStatus, Record<keyof typeof EVENTS, string>> = {
@@ -179,11 +184,11 @@ const TABLE: Record<TxStepStatus, Record<keyof typeof EVENTS, string>> = {
   signed: { sign: "=", deliver: "sent", refusedCounted: "!status", accepted: "!status", deep: "final", shallow: "included", invalid: "failed", pastMargin: "expired", beforeMargin: "=" },
   sent: { sign: "=", deliver: "sent", refusedCounted: "rejected", accepted: "=", deep: "final", shallow: "included", invalid: "failed", pastMargin: "expired", beforeMargin: "=" },
   rejected: { sign: "=", deliver: "sent", refusedCounted: "!status", accepted: "!status", deep: "final", shallow: "included", invalid: "failed", pastMargin: "expired", beforeMargin: "=" },
-  included: { sign: "!status", deliver: "!status", refusedCounted: "included", accepted: "=", deep: "final", shallow: "=", invalid: "=", pastMargin: "expired", beforeMargin: "sent" },
-  final: { sign: "!status", deliver: "!status", refusedCounted: "=", accepted: "=", deep: "=", shallow: "=", invalid: "=", pastMargin: "=", beforeMargin: "=" },
-  expired: { sign: "!status", deliver: "!status", refusedCounted: "=", accepted: "=", deep: "=", shallow: "=", invalid: "=", pastMargin: "=", beforeMargin: "=" },
-  failed: { sign: "!status", deliver: "!status", refusedCounted: "=", accepted: "=", deep: "=", shallow: "=", invalid: "=", pastMargin: "=", beforeMargin: "=" },
-  orphaned: { sign: "!status", deliver: "!status", refusedCounted: "=", accepted: "=", deep: "=", shallow: "=", invalid: "=", pastMargin: "=", beforeMargin: "=" },
+  included: { sign: "=", deliver: "!status", refusedCounted: "included", accepted: "=", deep: "final", shallow: "=", invalid: "=", pastMargin: "expired", beforeMargin: "sent" },
+  final: { sign: "=", deliver: "!status", refusedCounted: "=", accepted: "=", deep: "=", shallow: "=", invalid: "=", pastMargin: "=", beforeMargin: "=" },
+  expired: { sign: "=", deliver: "!status", refusedCounted: "=", accepted: "=", deep: "final", shallow: "included", invalid: "=", pastMargin: "=", beforeMargin: "=" },
+  failed: { sign: "=", deliver: "!status", refusedCounted: "=", accepted: "=", deep: "=", shallow: "=", invalid: "=", pastMargin: "=", beforeMargin: "=" },
+  orphaned: { sign: "=", deliver: "!status", refusedCounted: "=", accepted: "=", deep: "final", shallow: "included", invalid: "orphaned", pastMargin: "orphaned", beforeMargin: "orphaned" },
 };
 
 const outcome = (json: StepPlanRecord, event: StepPlanEvent) => {

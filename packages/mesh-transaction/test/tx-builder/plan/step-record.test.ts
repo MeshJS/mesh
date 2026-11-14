@@ -314,9 +314,9 @@ describe("the record of a plan of steps", () => {
         /deliveries/,
       ],
       [
-        "orphaned on no dead step",
+        "orphaned on no step",
         (j) => {
-          j.steps[1].status = "orphaned";
+          j.steps[2].status = "orphaned";
           j.status = "stopping";
         },
         /orphaned/,

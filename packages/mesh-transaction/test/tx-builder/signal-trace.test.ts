@@ -591,6 +591,7 @@ describe("TxBuilder: trace", () => {
   it("is typed: a warning event carries its code and both hashes", () => {
     const read = (event: BuildEvent): string[] => {
       if (event.type === "warning") {
+        if (event.code !== "HASH_MISMATCH") return [event.code];
         const code: "HASH_MISMATCH" = event.code;
         return [code, event.txHash, event.reportedHash];
       }

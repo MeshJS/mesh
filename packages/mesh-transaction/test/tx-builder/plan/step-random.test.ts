@@ -7,7 +7,10 @@ import type {
   TxSighting,
 } from "../../../src/tx-builder/plan/step-core";
 import { sameJson } from "../../../src/tx-builder/plan/json";
-import { advanceStepPlan } from "../../../src/tx-builder/plan/step-core";
+import {
+  advanceStepPlan,
+  missingKeys,
+} from "../../../src/tx-builder/plan/step-core";
 import {
   encodeStepPlan,
   readStepPlan,
@@ -126,6 +129,10 @@ const randomEvent = (
             slot: clock.slot,
             timeMs: clock.timeMs,
             ...(r.chance(0.9) && { height: clock.height }),
+            // The local clock: mostly with the tip, sometimes behind it, far behind, or absent
+            ...(r.chance(0.9) && {
+              clockMs: clock.timeMs - r.pick([0, 0, 0, 400, 200_000]),
+            }),
           },
         }),
         sightings,
@@ -163,7 +170,7 @@ const run = (seed: number) => {
   let record = json.json;
   const clock = { timeMs: UNTIL - 3_000, height: 10, slot: 100 };
   for (let i = 0; i < EVENTS; i++) {
-    if (record.status === "final" || record.status === "stopped") break;
+    if (record.status === "final") break;
     const event = deepFreeze(randomEvent(r, record, clock));
     const result = advanceStepPlan(record, event);
     if (!result.ok) continue;
@@ -196,17 +203,39 @@ const run = (seed: number) => {
       );
       if (step.status === "final")
         check(now === step, `${at}: the final step ${step.name} changed`);
-      if (isDead(step))
-        check(now === step, `${at}: the dead step ${step.name} changed`);
-    });
-    for (const step of after.steps)
-      if (step.status === "orphaned")
+      // A step called dead changes only to included or final, by a look that found it valid
+      if (isDead(step) && now !== step) {
+        const sighting =
+          event.type === "observation"
+            ? event.sightings?.find((s) => s.txHash === step.txHash)
+            : undefined;
         check(
-          step.standsOn.some((name) =>
+          (now.status === "included" || now.status === "final") &&
+            sighting?.found === true &&
+            sighting.valid !== false,
+          `${at}: the dead step ${step.name} became ${now.status} without being found in a block`,
+        );
+      }
+      // The witnesses of a delivered step never change: every send is the same bytes
+      if (step.sends > 0)
+        check(
+          now.witnesses === step.witnesses,
+          `${at}: the witnesses of the delivered step ${step.name} changed`,
+        );
+      // A delivery only of a step that lacks no key
+      if (now.sends > step.sends)
+        check(
+          missingKeys(now).length === 0,
+          `${at}: ${step.name} was delivered with a key missing`,
+        );
+      if (now.status === "orphaned" && step.status !== "orphaned")
+        check(
+          now.standsOn.some((name) =>
             after.steps.some((s) => s.name === name && isDead(s)),
           ),
-          `${at}: ${step.name} is orphaned and stands on no dead step`,
+          `${at}: ${step.name} became orphaned and stands on no dead step`,
         );
+    });
     if (SETTLED.has(event.type)) {
       const again = advanceStepPlan(after, event);
       check(

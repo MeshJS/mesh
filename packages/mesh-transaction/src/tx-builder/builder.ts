@@ -277,6 +277,27 @@ export type BuildEvent =
       code: "HASH_MISMATCH";
       txHash: string;
       reportedHash: string;
+    }
+  /**
+   * A look found in a block a step of a plan that was called dead: what the chain shows wins, and
+   * the step is included; sent by a plan, never by a build
+   */
+  | {
+      type: "warning";
+      code: "DEAD_STEP_FOUND";
+      step: string;
+      txHash: string;
+      was: "expired" | "orphaned";
+    }
+  /**
+   * The provider's tip is ahead of the local clock by more than two minutes: that look expires no
+   * step of a plan; sent by a plan, never by a build
+   */
+  | {
+      type: "warning";
+      code: "TIP_AHEAD_OF_CLOCK";
+      slot: number;
+      aheadMs: number;
     };
 
 /** Per-build options */
