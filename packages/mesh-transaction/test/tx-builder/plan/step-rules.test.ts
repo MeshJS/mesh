@@ -1,0 +1,675 @@
+import type {
+  NewStep,
+  StepPlanEvent,
+  StepPlanRecord,
+} from "../../../src/tx-builder/plan/step-core";
+import {
+  advanceStepPlan,
+  landedSteps,
+  liveSteps,
+  missingKeys,
+  stepPlanUntil,
+} from "../../../src/tx-builder/plan/step-core";
+import {
+  accept,
+  acceptAll,
+  DEADLINES,
+  deepFreeze,
+  emptyPlan,
+  hash,
+  keyHash,
+  planOf,
+  refusal,
+  stepOf,
+  stepTx,
+  utxo,
+  witnessOf,
+} from "./step-util";
+
+const K1 = keyHash(1);
+const K2 = keyHash(2);
+const UNTIL = 1_000_000;
+const SOURCE = hash(0xf0);
+
+/** A step of the chain `a` ← `b` ← `c`, each spending an output of the one before */
+const chainStep = (
+  name: string,
+  index: number,
+  spec: { keys?: string[]; until?: number | null; plutus?: boolean } = {},
+): NewStep => {
+  const before = index === 0 ? undefined : hash(0xa0 + index - 1);
+  return {
+    name,
+    built: stepTx({
+      txHash: hash(0xa0 + index),
+      inputs: [before === undefined ? utxo(SOURCE) : utxo(before, 1)],
+      keys: spec.keys,
+      ...(spec.until !== null && { until: spec.until ?? UNTIL }),
+      plutus: spec.plutus,
+    }),
+    standsOn: before === undefined ? [] : [String.fromCharCode(96 + index)],
+  };
+};
+
+const chain = (
+  count = 3,
+  deadlines: Partial<StepPlanRecord["deadlines"]> = {},
+) =>
+  planOf(
+    Array.from({ length: count }, (_, i) =>
+      chainStep(String.fromCharCode(97 + i), i),
+    ),
+    deadlines,
+  );
+
+const txOf = (json: StepPlanRecord, name: string) => stepOf(json, name).txHash;
+
+const tipAt = (timeMs: number, height?: number) => ({
+  slot: 1_000,
+  timeMs,
+  ...(height !== undefined && { height }),
+});
+const PAST = UNTIL + DEADLINES.expiryMarginMs;
+
+const deliver = (step: string): StepPlanEvent => ({ type: "delivery", step });
+const refused = (
+  step: string,
+  facts: { found?: boolean; standingInBlock?: boolean } = {
+    found: false,
+    standingInBlock: true,
+  },
+): StepPlanEvent => ({ type: "answer", step, refused: true, ...facts });
+const found = (txHash: string, more: object = {}) => ({
+  txHash,
+  found: true as const,
+  slot: 500,
+  ...more,
+});
+const missing = (txHash: string) => ({ txHash, found: false as const });
+const look = (
+  sightings: object[],
+  tip?: ReturnType<typeof tipAt>,
+): StepPlanEvent =>
+  ({
+    type: "observation",
+    ...(tip !== undefined && { tip }),
+    sightings,
+  }) as StepPlanEvent;
+
+describe("a refusal of the ledger", () => {
+  const sent = () => accept(chain(1), deliver("a"));
+
+  it("makes the step rejected when every delivery was refused, a search after it does not find the step, and what it stands on is in a block", () => {
+    const json = accept(sent(), refused("a"));
+    expect(stepOf(json, "a")).toMatchObject({
+      status: "rejected",
+      sends: 1,
+      refused: 1,
+    });
+  });
+
+  it("is counted and changes no status while an earlier delivery may have gone through", () => {
+    // The first delivery's answer was lost
+    const json = acceptAll(sent(), deliver("a"), refused("a"));
+    expect(stepOf(json, "a")).toMatchObject({
+      status: "sent",
+      sends: 2,
+      refused: 1,
+    });
+  });
+
+  it("changes no status when the search after it found the step, or did not answer", () => {
+    for (const facts of [
+      { found: true, standingInBlock: true },
+      { standingInBlock: true },
+    ])
+      expect(stepOf(accept(sent(), refused("a", facts)), "a").status).toBe(
+        "sent",
+      );
+  });
+
+  it("changes no status while what the step stands on is not known to be in a block", () => {
+    for (const facts of [
+      { found: false, standingInBlock: false },
+      { found: false },
+    ])
+      expect(stepOf(accept(sent(), refused("a", facts)), "a").status).toBe(
+        "sent",
+      );
+  });
+
+  it("leaves a rejected step that may land: the plan stays pending and the same bytes go again", () => {
+    const json = accept(sent(), refused("a"));
+    expect(json.status).toBe("pending");
+    expect(liveSteps(json).map((step) => step.name)).toEqual(["a"]);
+    expect(stepOf(accept(json, deliver("a")), "a")).toMatchObject({
+      status: "sent",
+      sends: 2,
+      refused: 1,
+    });
+  });
+
+  it("is refused when no recorded delivery is left to answer", () => {
+    expect(refusal(chain(1), refused("a"))).toBe("status");
+    expect(refusal(accept(sent(), refused("a")), refused("a"))).toBe("status");
+    expect(
+      refusal(chain(1), { type: "answer", step: "a", refused: false }),
+    ).toBe("status");
+  });
+
+  it("an accepted answer changes nothing", () => {
+    const json = sent();
+    const result = advanceStepPlan(json, {
+      type: "answer",
+      step: "a",
+      refused: false,
+    });
+    expect(result).toEqual({ ok: true, json });
+    expect(result.ok && result.json).toBe(json);
+  });
+});
+
+describe("a look at the chain", () => {
+  it("makes a step final only by the heights of its block and the tip", () => {
+    const json = accept(chain(1), deliver("a"));
+    const a = txOf(json, "a");
+    const at = (blockHeight: number | undefined, height: number | undefined) =>
+      stepOf(
+        accept(
+          json,
+          look(
+            [found(a, blockHeight === undefined ? {} : { blockHeight })],
+            tipAt(0, height),
+          ),
+        ),
+        "a",
+      ).status;
+    expect(at(97, 100)).toBe("final");
+    expect(at(98, 100)).toBe("included");
+    expect(at(undefined, 100)).toBe("included");
+    expect(at(97, undefined)).toBe("included");
+    // A depth above the slots between the block and the tip is a lie of the heights
+    expect(
+      stepOf(
+        accept(
+          json,
+          look([found(a, { blockHeight: 0, slot: 999 })], tipAt(0, 100)),
+        ),
+        "a",
+      ).status,
+    ).toBe("included");
+    expect(
+      stepOf(
+        accept(
+          accept(chain(1, { confirmations: 0 }), deliver("a")),
+          look([found(a)], tipAt(0)),
+        ),
+        "a",
+      ).status,
+    ).toBe("included");
+  });
+
+  it("takes a find without validity as a fact only for a step that runs no script", () => {
+    const plain = accept(chain(1), deliver("a"));
+    expect(
+      stepOf(accept(plain, look([found(txOf(plain, "a"))])), "a").status,
+    ).toBe("included");
+    const plutus = accept(
+      planOf([{ ...chainStep("a", 0, { plutus: true }) }]),
+      deliver("a"),
+    );
+    expect(accept(plutus, look([found(txOf(plutus, "a"))]))).toBe(plutus);
+    expect(
+      stepOf(
+        accept(plutus, look([found(txOf(plutus, "a"), { valid: false })])),
+        "a",
+      ).status,
+    ).toBe("failed");
+  });
+
+  it("takes an included step that is not found back to sent, and never a final one", () => {
+    const json = accept(chain(1), deliver("a"));
+    const a = txOf(json, "a");
+    const included = accept(
+      json,
+      look([found(a, { block: "blk" })], tipAt(0, 100)),
+    );
+    expect(stepOf(included, "a").seen).toEqual({ slot: 500, block: "blk" });
+    const back = accept(included, look([missing(a)]));
+    expect(stepOf(back, "a").status).toBe("sent");
+    expect(stepOf(back, "a").seen).toBeUndefined();
+    const final = accept(
+      json,
+      look([found(a, { blockHeight: 1 })], tipAt(0, 100)),
+    );
+    expect(final.status).toBe("final");
+    expect(accept(final, look([missing(a)]))).toBe(final);
+  });
+
+  describe("expiry", () => {
+    const json = () => accept(chain(1), deliver("a"));
+    const expired = (event: StepPlanEvent) =>
+      stepOf(accept(json(), event), "a").status === "expired";
+    const a = () => txOf(json(), "a");
+
+    it("needs the tip past the end of validity and the margin, the step not found, and the transaction of an input found by the same look", () => {
+      expect(expired(look([missing(a()), found(SOURCE)], tipAt(PAST)))).toBe(
+        true,
+      );
+      expect(
+        expired(look([missing(a()), found(SOURCE)], tipAt(PAST - 1))),
+      ).toBe(false);
+      expect(expired(look([missing(a())], tipAt(PAST)))).toBe(false);
+      expect(expired(look([missing(a()), missing(SOURCE)], tipAt(PAST)))).toBe(
+        false,
+      );
+      expect(expired(look([found(SOURCE)], tipAt(PAST)))).toBe(false);
+      expect(expired(look([missing(a()), found(SOURCE)]))).toBe(false);
+    });
+
+    it("never comes to a step without an end of validity", () => {
+      const open = accept(
+        planOf([chainStep("a", 0, { until: null })]),
+        deliver("a"),
+      );
+      expect(stepPlanUntil(open)).toBeUndefined();
+      const after = accept(
+        open,
+        look([missing(txOf(open, "a")), found(SOURCE)], tipAt(1e15)),
+      );
+      expect(after).toBe(open);
+    });
+
+    it("comes to a step that was never signed", () => {
+      const built = planOf([chainStep("a", 0, { keys: [K1] })]);
+      expect(
+        stepOf(
+          accept(
+            built,
+            look([missing(txOf(built, "a")), found(SOURCE)], tipAt(PAST)),
+          ),
+          "a",
+        ).status,
+      ).toBe("expired");
+    });
+  });
+
+  describe("orphaned", () => {
+    it("comes in the same look to every step that stands on a dead step, down the chain", () => {
+      const json = acceptAll(chain(3), deliver("a"));
+      const after = accept(
+        json,
+        look([missing(txOf(json, "a")), found(SOURCE)], tipAt(PAST)),
+      );
+      expect(after.steps.map((step) => step.status)).toEqual([
+        "expired",
+        "orphaned",
+        "orphaned",
+      ]);
+      expect(after.status).toBe("stopped");
+    });
+
+    it("never comes to a step that stands on no dead step", () => {
+      const json = planOf([
+        chainStep("a", 0),
+        {
+          name: "x",
+          built: stepTx({ txHash: hash(0xbb), inputs: [utxo(hash(0xf9))] }),
+          standsOn: [],
+        },
+      ]);
+      const after = accept(
+        json,
+        look([missing(txOf(json, "a")), found(SOURCE)], tipAt(PAST)),
+      );
+      expect(stepOf(after, "x").status).toBe("signed");
+      expect(after.status).toBe("stopping");
+    });
+
+    it("comes from a failed step, also to a step that only reads its output or puts it up as collateral", () => {
+      const a = hash(0xa0);
+      const json = planOf([
+        chainStep("a", 0),
+        {
+          name: "reads",
+          built: stepTx({
+            txHash: hash(0xc1),
+            inputs: [utxo(hash(0xf8))],
+            referenceInputs: [utxo(a, 0)],
+          }),
+          standsOn: ["a"],
+        },
+        {
+          name: "collateral",
+          built: stepTx({
+            txHash: hash(0xc2),
+            inputs: [utxo(hash(0xf7))],
+            collateral: [utxo(a, 1)],
+          }),
+          standsOn: ["a"],
+        },
+      ]);
+      const after = accept(
+        accept(json, deliver("a")),
+        look([found(a, { valid: false })]),
+      );
+      expect(after.steps.map((step) => step.status)).toEqual([
+        "failed",
+        "orphaned",
+        "orphaned",
+      ]);
+    });
+
+    it("leaves a step that is in a block as it is", () => {
+      const json = acceptAll(chain(2), deliver("a"));
+      const b = txOf(json, "b");
+      // The chain cannot show this; the record keeps what it was shown of the step itself
+      const after = accept(
+        json,
+        look([missing(txOf(json, "a")), found(SOURCE), found(b)], tipAt(PAST)),
+      );
+      expect(stepOf(after, "b").status).toBe("included");
+    });
+  });
+});
+
+describe("the plan's status", () => {
+  it("is final when every step is, also when the plan is marked", () => {
+    const json = chain(2, { confirmations: 0 });
+    const seen = look(
+      [
+        found(txOf(json, "a"), { blockHeight: 10 }),
+        found(txOf(json, "b"), { blockHeight: 10 }),
+      ],
+      tipAt(0, 10),
+    );
+    expect(accept(json, seen).status).toBe("final");
+    expect(acceptAll(json, { type: "stop" }, seen).status).toBe("final");
+  });
+
+  it("is stopping when marked while a step may land, and stopped once every step is final or dead", () => {
+    const json = acceptAll(chain(1), deliver("a"), { type: "stop" });
+    expect(json.status).toBe("stopping");
+    expect(
+      accept(json, look([missing(txOf(json, "a")), found(SOURCE)], tipAt(PAST)))
+        .status,
+    ).toBe("stopped");
+  });
+
+  it("is stopping, not stopped, while a step is included next to a dead one: it can be rolled back", () => {
+    const json = planOf([
+      chainStep("a", 0),
+      {
+        name: "x",
+        built: stepTx({ txHash: hash(0xbb), inputs: [utxo(hash(0xf9))] }),
+        standsOn: [],
+      },
+    ]);
+    const after = accept(
+      json,
+      look(
+        [missing(txOf(json, "a")), found(SOURCE), found(hash(0xbb))],
+        tipAt(PAST, 100),
+      ),
+    );
+    expect(after.steps.map((step) => step.status)).toEqual([
+      "expired",
+      "included",
+    ]);
+    expect(after.status).toBe("stopping");
+    expect(landedSteps(after).map((step) => step.name)).toEqual(["x"]);
+    expect(liveSteps(after)).toEqual([]);
+  });
+
+  it("refuses a delivery while it is stopping, and every event that would change a terminal plan", () => {
+    const json = planOf([
+      chainStep("a", 0),
+      {
+        name: "x",
+        built: stepTx({ txHash: hash(0xbb), inputs: [utxo(hash(0xf9))] }),
+        standsOn: [],
+      },
+    ]);
+    const stopping = accept(
+      json,
+      look([missing(txOf(json, "a")), found(SOURCE)], tipAt(PAST)),
+    );
+    expect(stopping.status).toBe("stopping");
+    expect(refusal(stopping, deliver("x"))).toBe("status");
+
+    const stopped = acceptAll(chain(1), {
+      type: "observation",
+      tip: tipAt(PAST),
+      sightings: [missing(hash(0xa0)), found(SOURCE)],
+    });
+    expect(stopped.status).toBe("stopped");
+    expect(refusal(stopped, deliver("a"))).toBe("terminal");
+    expect(
+      refusal(stopped, { type: "signature", step: "a", witnesses: [] }),
+    ).toBe("terminal");
+    expect(refusal(stopped, refused("a"))).toBe("terminal");
+    expect(
+      refusal(stopped, { type: "steps", steps: [chainStep("b", 1)] }),
+    ).toBe("terminal");
+    expect(accept(stopped, { type: "stop" })).toBe(stopped);
+    expect(accept(stopped, look([found(hash(0xa0))], tipAt(PAST)))).toBe(
+      stopped,
+    );
+  });
+});
+
+describe("the mark", () => {
+  it("makes the plan sign and send nothing more, and is never removed", () => {
+    const json = accept(planOf([chainStep("a", 0, { keys: [K1] })]), {
+      type: "stop",
+    });
+    expect(json.stopped).toBe(true);
+    expect(
+      refusal(json, {
+        type: "signature",
+        step: "a",
+        witnesses: [witnessOf(K1)],
+      }),
+    ).toBe("stopped");
+    expect(refusal(json, deliver("a"))).toBe("stopped");
+    expect(accept(json, { type: "stop" })).toBe(json);
+  });
+
+  it("names the plan made in its place once; another name is refused", () => {
+    const json = accept(chain(1), { type: "stop", replacedBy: "next" });
+    expect(json).toMatchObject({ stopped: true, replacedBy: "next" });
+    expect(accept(json, { type: "stop", replacedBy: "next" })).toBe(json);
+    expect(accept(json, { type: "stop" })).toBe(json);
+    expect(refusal(json, { type: "stop", replacedBy: "other" })).toBe("status");
+    const marked = accept(chain(1), { type: "stop" });
+    expect(accept(marked, { type: "stop", replacedBy: "next" })).toMatchObject({
+      replacedBy: "next",
+      rev: marked.rev + 1,
+    });
+  });
+});
+
+describe("signatures", () => {
+  const two = () => planOf([chainStep("a", 0, { keys: [K1, K2] })]);
+
+  it("keep one witness of each kind per key, vkey witnesses first, and sign the step once every key has a vkey witness", () => {
+    let json = accept(two(), {
+      type: "signature",
+      step: "a",
+      witnesses: [witnessOf(K2, "bootstrap")],
+    });
+    expect(stepOf(json, "a").status).toBe("built");
+    json = accept(json, {
+      type: "signature",
+      step: "a",
+      witnesses: [witnessOf(K2), witnessOf(K1)],
+    });
+    const a = stepOf(json, "a");
+    expect(a.status).toBe("signed");
+    // A bootstrap witness signs for no key hash, so the vkey witness of the same key is kept
+    expect(a.witnesses.map((w) => [w.keyHash, w.kind])).toEqual([
+      [K2, "vkey"],
+      [K1, "vkey"],
+      [K2, "bootstrap"],
+    ]);
+  });
+
+  it("count for the key their own public key hashes to, never for the key they are named with", () => {
+    const json = accept(two(), {
+      type: "signature",
+      step: "a",
+      witnesses: [
+        { ...witnessOf(keyHash(7)), keyHash: K1 },
+        { ...witnessOf(K2), kind: "bootstrap" },
+      ],
+    });
+    const a = stepOf(json, "a");
+    expect(a.status).toBe("built");
+    expect(missingKeys(a)).toEqual([K1, K2]);
+    expect(a.witnesses.map((w) => w.keyHash)).toEqual([keyHash(7), K2]);
+  });
+
+  it("keep no witness whose public key cannot be read: it counts for no key", () => {
+    const json = two();
+    for (const vkey of ["zz", "", undefined, 7])
+      expect(
+        accept(json, {
+          type: "signature",
+          step: "a",
+          witnesses: [{ ...witnessOf(K1), vkey } as never],
+        }),
+      ).toBe(json);
+  });
+
+  it("keep a witness of a key the body does not ask for, which signs nothing", () => {
+    const json = accept(two(), {
+      type: "signature",
+      step: "a",
+      witnesses: [witnessOf(keyHash(7))],
+    });
+    expect(stepOf(json, "a")).toMatchObject({ status: "built" });
+    expect(stepOf(json, "a").witnesses).toHaveLength(1);
+  });
+
+  it("name a step of the plan", () => {
+    expect(
+      refusal(two(), { type: "signature", step: "z", witnesses: [] }),
+    ).toBe("step");
+    expect(refusal(two(), deliver("z"))).toBe("step");
+    expect(refusal(two(), refused("z"))).toBe("step");
+  });
+});
+
+describe("appending steps", () => {
+  it("makes the first record from the empty plan: revision 1, each step built or signed", () => {
+    const json = planOf([chainStep("a", 0, { keys: [K1] }), chainStep("b", 1)]);
+    expect(json.rev).toBe(1);
+    expect(json.status).toBe("pending");
+    expect(json.steps.map((step) => [step.name, step.status])).toEqual([
+      ["a", "built"],
+      ["b", "signed"],
+    ]);
+    expect(stepPlanUntil(json)).toBe(UNTIL);
+  });
+
+  it("takes witnesses a step holds already", () => {
+    const json = planOf([
+      { ...chainStep("a", 0, { keys: [K1] }), witnesses: [witnessOf(K1)] },
+    ]);
+    expect(stepOf(json, "a").status).toBe("signed");
+  });
+
+  it("leaves every step the plan has as it is", () => {
+    const first = acceptAll(chain(2), deliver("a"));
+    const json = accept(first, { type: "steps", steps: [chainStep("c", 2)] });
+    expect(
+      json.steps.slice(0, 2).every((step, i) => step === first.steps[i]),
+    ).toBe(true);
+    expect(json.steps.map((step) => step.name)).toEqual(["a", "b", "c"]);
+    expect(json.rev).toBe(first.rev + 1);
+  });
+
+  it("changes nothing when the same steps are given again, and refuses a part of them", () => {
+    const steps = [chainStep("a", 0), chainStep("b", 1)];
+    const json = planOf(steps);
+    expect(accept(json, { type: "steps", steps })).toBe(json);
+    expect(
+      refusal(json, { type: "steps", steps: [steps[1]!, chainStep("c", 2)] }),
+    ).toBe("steps");
+  });
+
+  it("refuses names and transactions the plan has, and a step that stands on what it does not spend from", () => {
+    const json = chain(1);
+    const b = chainStep("b", 1);
+    const refusals = [
+      [],
+      [{ ...b, name: "" }],
+      [{ ...b, name: "a" }],
+      [{ ...b, built: stepTx({ txHash: hash(0xa0) }) }],
+      [{ ...b, standsOn: [] }],
+      [{ ...b, standsOn: ["a", "a"] }],
+      [{ ...b, standsOn: ["a", "zz"] }],
+      [
+        {
+          ...b,
+          built: stepTx({ txHash: hash(0xa1), inputs: [utxo(hash(0xf5))] }),
+        },
+      ],
+      [{ ...b, kind: "consolidation" as const, given: { parts: [] } }],
+      // A step cannot stand on a step after it
+      [{ ...b, standsOn: ["c"] }, chainStep("c", 2)],
+    ];
+    for (const steps of refusals)
+      expect(refusal(json, { type: "steps", steps })).toBe("steps");
+  });
+
+  it("is refused on a plan that is marked, stopping or terminal", () => {
+    const c = { type: "steps" as const, steps: [chainStep("c", 2)] };
+    expect(refusal(accept(chain(2), { type: "stop" }), c)).toBe("stopped");
+    const json = planOf([
+      chainStep("a", 0),
+      {
+        name: "x",
+        built: stepTx({ txHash: hash(0xbb), inputs: [utxo(hash(0xf9))] }),
+        standsOn: [],
+      },
+    ]);
+    const stopping = accept(
+      json,
+      look([missing(txOf(json, "a")), found(SOURCE)], tipAt(PAST)),
+    );
+    expect(
+      refusal(stopping, {
+        type: "steps",
+        steps: [
+          {
+            name: "y",
+            built: stepTx({ txHash: hash(0xcc), inputs: [utxo(hash(0xf6))] }),
+            standsOn: [],
+          },
+        ],
+      }),
+    ).toBe("status");
+  });
+});
+
+it("never modifies the record or the event it is given", () => {
+  const json = deepFreeze(chain(3));
+  const events = (
+    [
+      { type: "steps", steps: [chainStep("d", 3)] },
+      deliver("a"),
+      refused("a"),
+      look([missing(txOf(json, "a")), found(SOURCE)], tipAt(PAST)),
+      { type: "stop", replacedBy: "next" },
+      { type: "signature", step: "b", witnesses: [witnessOf(K1)] },
+    ] as StepPlanEvent[]
+  ).map(deepFreeze);
+  let current = json;
+  for (const event of events) {
+    const result = advanceStepPlan(current, event);
+    if (result.ok) current = deepFreeze(result.json);
+  }
+  expect(current.rev).toBeGreaterThan(json.rev);
+  expect(emptyPlan().rev).toBe(0);
+});

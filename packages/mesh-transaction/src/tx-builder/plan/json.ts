@@ -45,7 +45,9 @@ const unread = (message: string): never => {
  * ------------------------------------------------------------------------------------------- */
 
 /** An object that is not a list, `Map`, byte array or other built-in; also of another realm */
-const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+export const isPlainObject = (
+  value: unknown,
+): value is Record<string, unknown> =>
   Object.prototype.toString.call(value) === "[object Object]";
 
 /**
@@ -218,7 +220,7 @@ export const unquoted = <T>(read: () => T): T => {
 const entryPath = (path: string, key: string, index: number) =>
   quoting ? `${path}.${key}` : `${path}[${index}]`;
 
-const show = (value: unknown): string => {
+export const show = (value: unknown): string => {
   if (value === undefined) return "none";
   if (!quoting) {
     if (value === null) return "null";
@@ -232,56 +234,56 @@ const show = (value: unknown): string => {
   return String(value);
 };
 
-type Obj = Record<string, unknown>;
+export type Obj = Record<string, unknown>;
 
-const object = (value: unknown, path: string): Obj => {
+export const object = (value: unknown, path: string): Obj => {
   if (!isPlainObject(value)) unread(`${path} is ${show(value)}, not an object`);
   return value as Obj;
 };
 
-const list = (value: unknown, path: string): unknown[] => {
+export const list = (value: unknown, path: string): unknown[] => {
   if (!Array.isArray(value)) unread(`${path} is ${show(value)}, not a list`);
   return value as unknown[];
 };
 
-const text = (value: unknown, path: string): string => {
+export const text = (value: unknown, path: string): string => {
   if (typeof value !== "string")
     unread(`${path} is ${show(value)}, not a text`);
   return value as string;
 };
 
-const finite = (value: unknown, path: string): number => {
+export const finite = (value: unknown, path: string): number => {
   if (typeof value !== "number" || !Number.isFinite(value))
     unread(`${path} is ${show(value)}, not a number`);
   return value as number;
 };
 
-const count = (value: unknown, path: string): number => {
+export const count = (value: unknown, path: string): number => {
   if (!Number.isSafeInteger(value) || (value as number) < 0)
     unread(`${path} is ${show(value)}, not a whole number of 0 or more`);
   return value as number;
 };
 
-const flag = (value: unknown, path: string): boolean => {
+export const flag = (value: unknown, path: string): boolean => {
   if (typeof value !== "boolean")
     unread(`${path} is ${show(value)}, not true or false`);
   return value as boolean;
 };
 
-const texts = (value: unknown, path: string): string[] =>
+export const texts = (value: unknown, path: string): string[] =>
   list(value, path).map((item, i) => text(item, `${path}[${i}]`));
 
 const DECIMAL = /^(?:0|-?[1-9][0-9]*)$/;
 
 /** A `bigint` written as its decimal string */
-const integer = (value: unknown, path: string): bigint => {
+export const integer = (value: unknown, path: string): bigint => {
   if (typeof value !== "string" || !DECIMAL.test(value))
     unread(`${path} is ${show(value)}, not a decimal integer`);
   return BigInt(value as string);
 };
 
 /** Refuses a member that is not among those named */
-const known = (json: Obj, members: readonly string[], path: string) => {
+export const known = (json: Obj, members: readonly string[], path: string) => {
   for (const key of Object.keys(json))
     if (!members.includes(key))
       unread(
@@ -291,7 +293,7 @@ const known = (json: Obj, members: readonly string[], path: string) => {
       );
 };
 
-const optional = <T>(
+export const optional = <T>(
   json: Obj,
   key: string,
   read: (value: unknown, path: string) => T,
@@ -1133,7 +1135,7 @@ const exUnits = (value: unknown, path: string) => {
   };
 };
 
-const utxos = (value: unknown, path: string) =>
+export const utxos = (value: unknown, path: string) =>
   list(value, path).map((item, i) => utxoValue(item, `${path}[${i}]`));
 
 const builtOutputs = (value: unknown, path: string) =>
@@ -1373,7 +1375,7 @@ const decodeOptions = (value: unknown, path: string): Obj => {
   return options;
 };
 
-const decodeNetwork = (value: unknown, path: string) => {
+export const decodeNetwork = (value: unknown, path: string) => {
   if (typeof value === "string") {
     if (value === "") unread(`${path} is an empty text`);
     return value;
@@ -1388,7 +1390,7 @@ const decodeNetwork = (value: unknown, path: string) => {
   return json as TxPlanJSON["network"];
 };
 
-const decodeDeadlines = (value: unknown, path: string) => {
+export const decodeDeadlines = (value: unknown, path: string) => {
   const json = object(value, path);
   known(json, ["ttlMs", "expiryMarginMs", "confirmations"], path);
   const ttlMs = finite(json.ttlMs, `${path}.ttlMs`);
