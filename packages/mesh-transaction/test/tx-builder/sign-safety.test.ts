@@ -1072,6 +1072,12 @@ const collectGarbage = (() => {
   };
 })();
 
+/**
+ * The time a test that waits for collections is given: each full collection takes longer on the
+ * heap of a worker that has run many suites, and on a loaded machine
+ */
+const COLLECTION_TIMEOUT_MS = 60_000;
+
 /** Whether the value a weak reference points to is collected, after a few collections */
 const isCollected = async (ref: WeakRef<object>) => {
   for (let i = 0; i < 10; i++) {
@@ -1192,54 +1198,58 @@ describe("R1, added: the object keeps no signer, and the payer of its build only
     },
   );
 
-  it("lets the signers and the payer go: they are collected while the object and its builder live", async () => {
-    await Crypto.ready();
-    const b = offline();
-    const refs: [string, WeakRef<object>][] = [];
-    const make = async () => {
-      const payer = testKey();
-      const guardKey = testKey();
-      const snapshot = {
-        changeAddress: payer.address,
-        utxos: [utxoAt(payer.address)],
+  it(
+    "lets the signers and the payer go: they are collected while the object and its builder live",
+    async () => {
+      await Crypto.ready();
+      const b = offline();
+      const refs: [string, WeakRef<object>][] = [];
+      const make = async () => {
+        const payer = testKey();
+        const guardKey = testKey();
+        const snapshot = {
+          changeAddress: payer.address,
+          utxos: [utxoAt(payer.address)],
+        };
+        const built = await b.build(
+          [
+            output({ address: recipient, value: { lovelace: ada(5) } }),
+            guard.pubKey({ keyHash: guardKey.keyHash }),
+          ],
+          { payer: snapshot, trace },
+        );
+        const signing = keysSigner("object", payer).signer;
+        const callback = keysSigner("callback", guardKey).signer;
+        const failing = hashSigner("object", () => {
+          throw new Error("down");
+        }).signer;
+        await caught(() => built.sign({ signers: failing }));
+        await built.sign({ signers: [signing, callback] });
+        refs.push(
+          ["the payer", new WeakRef(snapshot)],
+          ["a signer of hashes", new WeakRef(signing as object)],
+          ["a callback", new WeakRef(callback as object)],
+          ["a signer that failed", new WeakRef(failing as object)],
+        );
+        return built;
       };
-      const built = await b.build(
-        [
-          output({ address: recipient, value: { lovelace: ada(5) } }),
-          guard.pubKey({ keyHash: guardKey.keyHash }),
-        ],
-        { payer: snapshot, trace },
-      );
-      const signing = keysSigner("object", payer).signer;
-      const callback = keysSigner("callback", guardKey).signer;
-      const failing = hashSigner("object", () => {
-        throw new Error("down");
-      }).signer;
-      await caught(() => built.sign({ signers: failing }));
-      await built.sign({ signers: [signing, callback] });
-      refs.push(
-        ["the payer", new WeakRef(snapshot)],
-        ["a signer of hashes", new WeakRef(signing as object)],
-        ["a callback", new WeakRef(callback as object)],
-        ["a signer that failed", new WeakRef(failing as object)],
-      );
-      return built;
-    };
-    const built = await make();
-    // The control: a value something still holds is not collected
-    const held = { held: true };
-    const holder = [held];
-    const control = new WeakRef(held);
-    const kept: string[] = [];
-    for (const [name, ref] of refs)
-      if (!(await isCollected(ref))) kept.push(name);
-    expect(kept).toEqual([]);
-    expect(await isCollected(control)).toBe(false);
-    // The object and its builder are alive and complete
-    expect(holder).toHaveLength(1);
-    expect(built.signedTx).toBeDefined();
-    expect(b.network.name).toBe("preprod");
-  });
+      const built = await make();
+      // The control: a value something still holds is not collected
+      const held = { held: true };
+      const holder = [held];
+      const control = new WeakRef(held);
+      const kept: string[] = [];
+      for (const [name, ref] of refs)
+        if (!(await isCollected(ref))) kept.push(name);
+      expect(kept).toEqual([]);
+      expect(await isCollected(control)).toBe(false);
+      // The object and its builder are alive and complete
+      expect(holder).toHaveLength(1);
+      expect(built.signedTx).toBeDefined();
+      expect(b.network.name).toBe("preprod");
+    },
+    COLLECTION_TIMEOUT_MS,
+  );
 
   it("keeps the payer of its build, when it can sign, where nothing shows it: not its members, its JSON, its printing, its errors or the trace", async () => {
     await Crypto.ready();
@@ -1309,97 +1319,109 @@ describe("R1, added: the object keeps no signer, and the payer of its build only
     }
   });
 
-  it("does not keep a payer without a signing method, a snapshot or a wallet, and keeps a snapshot that carries one while the object lives", async () => {
-    await Crypto.ready();
-    const b = offline();
-    const holder: { signing?: BuiltTx } = {};
-    const buildFor = (payer: object) =>
-      b.build([output({ address: recipient, value: { lovelace: ada(5) } })], {
-        payer: payer as never,
-        trace,
-      });
-    const make = async () => {
-      const key = testKey();
-      const { payer } = signingPayer(key, "snapshot");
-      const plain = {
-        changeAddress: key.address,
-        utxos: [utxoAt(key.address)],
-      };
-      const watching = {
-        getChangeAddress: payer.getChangeAddress,
-        getUtxos: payer.getUtxos,
-      };
-      const signing = { ...plain, signTxHash: payer.signTxHash };
-      const unkept = [await buildFor(plain), await buildFor(watching)];
-      holder.signing = await buildFor(signing);
-      return {
-        unkept,
-        unkeptRefs: [new WeakRef(plain), new WeakRef(watching)],
-        signing: new WeakRef(signing),
-      };
-    };
-    const { unkept, unkeptRefs, signing } = await make();
-    for (const ref of unkeptRefs) expect(await isCollected(ref)).toBe(true);
-    for (const built of unkept)
-      expect(codeOf(await caught(() => built.sign()))).toBe(
-        "MISSING_SIGNATURES",
-      );
-    expect(await isCollected(signing)).toBe(false);
-    await holder.signing!.sign({ partial: false });
-    expect(holder.signing!.signedTx).toBeDefined();
-    const built = new WeakRef(holder.signing!);
-    delete holder.signing;
-    expect(await isCollected(built)).toBe(true);
-    expect(await isCollected(signing)).toBe(true);
-  });
-
-  it("holds no payer in an object restored from JSON or made by finalize(): the wallet that paid goes while they live", async () => {
-    await Crypto.ready();
-    const b = offline();
-    let ref: WeakRef<object> | undefined;
-    const make = async () => {
-      const key = testKey();
-      const { payer } = signingPayer(key, "restored");
-      const built = await b.build(
-        [output({ address: recipient, value: { lovelace: ada(5) } })],
-        { payer, trace },
-      );
-      ref = new WeakRef(payer);
-      return {
-        restored: await b.restore(JSON.parse(JSON.stringify(built))),
-        final: await b.finalize(structuredClone(built.prototype), {
-          inputs: built.inputs,
+  it(
+    "does not keep a payer without a signing method, a snapshot or a wallet, and keeps a snapshot that carries one while the object lives",
+    async () => {
+      await Crypto.ready();
+      const b = offline();
+      const holder: { signing?: BuiltTx } = {};
+      const buildFor = (payer: object) =>
+        b.build([output({ address: recipient, value: { lovelace: ada(5) } })], {
+          payer: payer as never,
+          trace,
+        });
+      const make = async () => {
+        const key = testKey();
+        const { payer } = signingPayer(key, "snapshot");
+        const plain = {
           changeAddress: key.address,
-        }),
+          utxos: [utxoAt(key.address)],
+        };
+        const watching = {
+          getChangeAddress: payer.getChangeAddress,
+          getUtxos: payer.getUtxos,
+        };
+        const signing = { ...plain, signTxHash: payer.signTxHash };
+        const unkept = [await buildFor(plain), await buildFor(watching)];
+        holder.signing = await buildFor(signing);
+        return {
+          unkept,
+          unkeptRefs: [new WeakRef(plain), new WeakRef(watching)],
+          signing: new WeakRef(signing),
+        };
       };
-    };
-    const { restored, final } = await make();
-    expect(await isCollected(ref!)).toBe(true);
-    for (const built of [restored, final])
-      expect(codeOf(await caught(() => built.sign()))).toBe(
-        "MISSING_SIGNATURES",
-      );
-  });
+      const { unkept, unkeptRefs, signing } = await make();
+      for (const ref of unkeptRefs) expect(await isCollected(ref)).toBe(true);
+      for (const built of unkept)
+        expect(codeOf(await caught(() => built.sign()))).toBe(
+          "MISSING_SIGNATURES",
+        );
+      expect(await isCollected(signing)).toBe(false);
+      await holder.signing!.sign({ partial: false });
+      expect(holder.signing!.signedTx).toBeDefined();
+      const built = new WeakRef(holder.signing!);
+      delete holder.signing;
+      expect(await isCollected(built)).toBe(true);
+      expect(await isCollected(signing)).toBe(true);
+    },
+    COLLECTION_TIMEOUT_MS,
+  );
 
-  it("keeps a wallet that paid while the object lives, and lets it go with the object", async () => {
-    const { builder } = await setup();
-    const holder: { built?: BuiltTx } = {};
-    const make = async () => {
-      const wallet = await walletOf();
-      const built = await builder.build(pay(), { payer: wallet, trace });
-      await built.sign();
-      holder.built = built;
-      return new WeakRef(wallet);
-    };
-    const wallet = await make();
-    // The object signs with it: it is held while the object is
-    expect(await isCollected(wallet)).toBe(false);
-    expect(holder.built!.signedTx).toBeDefined();
-    const built = new WeakRef(holder.built!);
-    delete holder.built;
-    expect(await isCollected(built)).toBe(true);
-    expect(await isCollected(wallet)).toBe(true);
-  });
+  it(
+    "holds no payer in an object restored from JSON or made by finalize(): the wallet that paid goes while they live",
+    async () => {
+      await Crypto.ready();
+      const b = offline();
+      let ref: WeakRef<object> | undefined;
+      const make = async () => {
+        const key = testKey();
+        const { payer } = signingPayer(key, "restored");
+        const built = await b.build(
+          [output({ address: recipient, value: { lovelace: ada(5) } })],
+          { payer, trace },
+        );
+        ref = new WeakRef(payer);
+        return {
+          restored: await b.restore(JSON.parse(JSON.stringify(built))),
+          final: await b.finalize(structuredClone(built.prototype), {
+            inputs: built.inputs,
+            changeAddress: key.address,
+          }),
+        };
+      };
+      const { restored, final } = await make();
+      expect(await isCollected(ref!)).toBe(true);
+      for (const built of [restored, final])
+        expect(codeOf(await caught(() => built.sign()))).toBe(
+          "MISSING_SIGNATURES",
+        );
+    },
+    COLLECTION_TIMEOUT_MS,
+  );
+
+  it(
+    "keeps a wallet that paid while the object lives, and lets it go with the object",
+    async () => {
+      const { builder } = await setup();
+      const holder: { built?: BuiltTx } = {};
+      const make = async () => {
+        const wallet = await walletOf();
+        const built = await builder.build(pay(), { payer: wallet, trace });
+        await built.sign();
+        holder.built = built;
+        return new WeakRef(wallet);
+      };
+      const wallet = await make();
+      // The object signs with it: it is held while the object is
+      expect(await isCollected(wallet)).toBe(false);
+      expect(holder.built!.signedTx).toBeDefined();
+      const built = new WeakRef(holder.built!);
+      delete holder.built;
+      expect(await isCollected(built)).toBe(true);
+      expect(await isCollected(wallet)).toBe(true);
+    },
+    COLLECTION_TIMEOUT_MS,
+  );
 });
 
 /* ---------------------------------------------------------------------------------------------
@@ -2896,52 +2918,58 @@ describe("the rules for an object made by fromCbor", () => {
   /** The guard's key, as a signer */
   const guardSigner = () => keySigner(rfc.key);
 
-  it("keeps no signer of a call and no payer: the signers go while the object and its builder live", async () => {
-    await Crypto.ready();
-    const b = offline();
-    const refs: [string, WeakRef<object>][] = [];
-    const make = async () => {
-      const given = await handMade("odd", []);
-      const built = await b.fromCbor(given.text, {
-        knownUtxos: given.knownUtxos,
-      });
-      const signing = keysSigner("object", given.payer).signer;
-      const callback = keysSigner("callback", given.stranger).signer;
-      const guard = guardSigner();
-      const failing = hashSigner("object", () => {
-        throw new Error("down");
-      }).signer;
-      await caught(() => built.sign({ signers: failing }));
-      await built.sign({ signers: [signing, callback, guard] });
-      const found = reachable(built);
-      for (const signer of [signing, callback, guard, failing])
-        expect(found.has(signer)).toBe(false);
-      refs.push(
-        ["a signer of hashes", new WeakRef(signing as object)],
-        ["a callback", new WeakRef(callback as object)],
-        ["a key signer", new WeakRef(guard as object)],
-        ["a signer that failed", new WeakRef(failing as object)],
-        ["the UTxOs given", new WeakRef(given.knownUtxos)],
+  it(
+    "keeps no signer of a call and no payer: the signers go while the object and its builder live",
+    async () => {
+      await Crypto.ready();
+      const b = offline();
+      const refs: [string, WeakRef<object>][] = [];
+      const make = async () => {
+        const given = await handMade("odd", []);
+        const built = await b.fromCbor(given.text, {
+          knownUtxos: given.knownUtxos,
+        });
+        const signing = keysSigner("object", given.payer).signer;
+        const callback = keysSigner("callback", given.stranger).signer;
+        const guard = guardSigner();
+        const failing = hashSigner("object", () => {
+          throw new Error("down");
+        }).signer;
+        await caught(() => built.sign({ signers: failing }));
+        await built.sign({ signers: [signing, callback, guard] });
+        const found = reachable(built);
+        for (const signer of [signing, callback, guard, failing])
+          expect(found.has(signer)).toBe(false);
+        refs.push(
+          ["a signer of hashes", new WeakRef(signing as object)],
+          ["a callback", new WeakRef(callback as object)],
+          ["a key signer", new WeakRef(guard as object)],
+          ["a signer that failed", new WeakRef(failing as object)],
+          ["the UTxOs given", new WeakRef(given.knownUtxos)],
+        );
+        return built;
+      };
+      const built = await make();
+      const held = { held: true };
+      const holder = [held];
+      const control = new WeakRef(held);
+      const kept: string[] = [];
+      for (const [name, ref] of refs)
+        if (!(await isCollected(ref))) kept.push(name);
+      expect(kept).toEqual([]);
+      expect(await isCollected(control)).toBe(false);
+      expect(holder).toHaveLength(1);
+      expect(built.signedTx).toBeDefined();
+      // It has no payer: sign() without signers names nobody
+      expect(codeOf(await caught(() => built.sign()))).toBe(
+        "MISSING_SIGNATURES",
       );
-      return built;
-    };
-    const built = await make();
-    const held = { held: true };
-    const holder = [held];
-    const control = new WeakRef(held);
-    const kept: string[] = [];
-    for (const [name, ref] of refs)
-      if (!(await isCollected(ref))) kept.push(name);
-    expect(kept).toEqual([]);
-    expect(await isCollected(control)).toBe(false);
-    expect(holder).toHaveLength(1);
-    expect(built.signedTx).toBeDefined();
-    // It has no payer: sign() without signers names nobody
-    expect(codeOf(await caught(() => built.sign()))).toBe("MISSING_SIGNATURES");
-    expect(codeOf(await caught(() => built.sign({ signers: [] })))).toBe(
-      "MISSING_SIGNATURES",
-    );
-  });
+      expect(codeOf(await caught(() => built.sign({ signers: [] })))).toBe(
+        "MISSING_SIGNATURES",
+      );
+    },
+    COLLECTION_TIMEOUT_MS,
+  );
 
   it("hands a signer the hash of the body bytes given and the unsigned transaction, in every body encoding", async () => {
     for (const form of ["odd", "tagged", "plain"] as const) {
