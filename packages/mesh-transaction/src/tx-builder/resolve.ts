@@ -39,7 +39,7 @@ import {
   toPlutusScriptSource,
   withKnownHash,
 } from "./parts/normalize";
-import { readUtxo, utxoKey } from "./parts/utxo";
+import { readOutRef, readUtxo, utxoKey } from "./parts/utxo";
 
 /** Deposits the protocol parameters on `Protocol` leave out */
 export type GovernanceDeposits = {
@@ -92,16 +92,28 @@ export const inputsOf = (part: TxPart): TransactionInputPrototype[] => {
   return inputs;
 };
 
+/** The out ref an entry of a provider's answer names, or undefined where it names none */
+const listedOutRef = (entry: unknown): OutRef | undefined => {
+  try {
+    return readOutRef(entry);
+  } catch {
+    return undefined;
+  }
+};
+
 /**
  * The outputs of a transaction as the provider lists them, each checked as the payer's UTxOs
  * are and copied: the answer may be shared through a cache, and parts freeze what they hold. A
  * provider that answers with nothing gives an empty list.
  * @param notFound Makes the error of a read that failed, from why and what it was raised from
+ * @param wanted The out refs to read: an entry that names another is passed over unread. Without
+ *   it every entry is read
  */
 export const fetchTxOutputs = async (
   provider: IFetcher,
   txHash: string,
   notFound: (reason: string, cause: unknown) => TxBuildError,
+  wanted?: (ref: OutRef) => boolean,
 ): Promise<Utxo[]> => {
   let answer: unknown;
   try {
@@ -115,9 +127,15 @@ export const fetchTxOutputs = async (
       "the answer is not a list",
       new Error("the answer is not a list"),
     );
-  return answer.map((entry: unknown, i) => {
+  const read: Utxo[] = [];
+  answer.forEach((entry: unknown, i) => {
+    if (wanted) {
+      // An entry whose out ref cannot be read is read whole, and its error names why
+      const ref = listedOutRef(entry);
+      if (ref && !wanted(ref)) return;
+    }
     try {
-      return readUtxo(entry);
+      read.push(readUtxo(entry));
     } catch (error) {
       throw notFound(
         `entry ${i} of the answer is not a UTxO: ${errorText(error)}`,
@@ -125,6 +143,7 @@ export const fetchTxOutputs = async (
       );
     }
   });
+  return read;
 };
 
 /**

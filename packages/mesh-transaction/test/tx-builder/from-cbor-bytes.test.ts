@@ -668,6 +668,57 @@ describe("TxBuilder.fromCbor › the size and the depth it reads", () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(asked).toHaveLength(8);
   });
+
+  it("reads only the outputs the body names of each transaction the provider lists", async () => {
+    const made = "e0".repeat(32);
+    const listed = (address: unknown, outputIndex: number) => ({
+      input: { txHash: made, outputIndex },
+      output: {
+        address,
+        amount: [{ unit: "lovelace", quantity: "2000000" }],
+      },
+    });
+    // Beside the output named, outputs no UTxO can be read from: an address that is no address,
+    // and a datum that is no data
+    const answer = [
+      listed("not an address", 0),
+      listed(key.address, 1),
+      {
+        ...listed(key.address, 2),
+        output: { ...listed(key.address, 2).output, plutusData: "ff" },
+      },
+    ];
+    const provider = {
+      fetchUTxOs: async () => answer,
+    } as unknown as IFetcher;
+    const reading = (index: number) =>
+      new TxBuilder({ network: "preprod", params, provider }).fromCbor(
+        tx(
+          map(
+            [uint(0), tag258(arr(arr(bytes(made), uint(index))))],
+            [uint(1), arr(pay(key))],
+            [uint(2), uint(170_000)],
+          ),
+        ),
+      );
+    const read = await reading(1);
+    expect(read.inputs.map((utxo) => utxo.outputIndex)).toEqual([1]);
+    // Named, such an output is refused as before
+    for (const index of [0, 2]) {
+      const error = await caught(() => reading(index));
+      expect(TxError.is(error, "UTXO_NOT_FOUND")).toBe(true);
+      expect((error as Error).message).toContain(
+        `entry ${index} of the answer is not a UTxO`,
+      );
+    }
+    // An entry whose out ref cannot be read is read whole, and refused
+    answer.push({ input: { txHash: made } } as never);
+    const error = await caught(() => reading(1));
+    expect(TxError.is(error, "UTXO_NOT_FOUND")).toBe(true);
+    expect((error as Error).message).toContain(
+      "entry 3 of the answer is not a UTxO",
+    );
+  });
 });
 
 describe("TxBuilder.fromCbor › the CBOR inside a byte string, and the time data takes", () => {
@@ -871,6 +922,108 @@ describe("TxBuilder.fromCbor › the CBOR inside a byte string, and the time dat
       knownUtxos: knownUtxos(),
     });
   }, 60_000);
+});
+
+describe("TxBuilder.fromCbor › a key the decoder does not read", () => {
+  const UNKNOWN =
+    "holds a key this library does not read, which a decoder that does not know it reads in a different way";
+  const refusedAs = async (given: string, place: string) =>
+    expectRefused(
+      await caught(() =>
+        offline().fromCbor(given, { knownUtxos: knownUtxos() }),
+      ),
+      given,
+      `invalid tx: a map in ${place} ${UNKNOWN}`,
+    );
+
+  it("refuses a body whose unknown key would make the decoder read a ttl or a fee the bytes do not hold", async () => {
+    const lawful: [string, string][] = [
+      [uint(0), inputs()],
+      [uint(1), arr(arr(bytes(`60${key.keyHash}`), uint(9_600_000)))],
+      [uint(2), uint(400_000)],
+    ];
+    // The value 3 of key 25 read as the key of 500, a ttl; the value 2 as the key of a second fee
+    for (const extra of [
+      [
+        [uint(25), uint(3)],
+        [uint(500), uint(77)],
+      ],
+      [
+        [uint(25), uint(2)],
+        [uint(5_000_000), uint(77)],
+      ],
+    ] as [string, string][][])
+      await refusedAs(tx(map(...lawful, ...extra)), "its body");
+    // Key 6, the update proposals of the eras before Conway, and a key after 22
+    for (const extra of [
+      [uint(6), arr(map(), uint(1))],
+      [uint(23), uint(0)],
+      [uint(12), uint(0)],
+    ] as [string, string][])
+      await refusedAs(tx(map(...lawful, extra)), "its body");
+    const made = await offline().fromCbor(tx(map(...lawful)), {
+      knownUtxos: knownUtxos(),
+    });
+    expect(made.fee).toBe(400_000n);
+  });
+
+  it("refuses an output, or a collateral return, whose unknown key would make the decoder read an inline datum the bytes do not hold", async () => {
+    // {0: address, 1: value, 4: 2, [1, 24(h'182a')]: 5}: the value 2 read as the datum's key
+    const output = map(
+      [uint(0), bytes(`60${key.keyHash}`)],
+      [uint(1), uint(3_000_000)],
+      [uint(4), uint(2)],
+      [arr(uint(1), `d818${bytes("182a")}`), uint(5)],
+    );
+    await refusedAs(
+      tx(
+        map(
+          [uint(0), inputs()],
+          [uint(1), arr(output)],
+          [uint(2), uint(170_000)],
+        ),
+      ),
+      "an output of its body",
+    );
+    await refusedAs(
+      tx(
+        map(
+          [uint(0), inputs()],
+          [uint(1), arr(pay(key))],
+          [uint(2), uint(170_000)],
+          [uint(13), tag258(arr(arr(bytes(IN), uint(1))))],
+          [uint(16), output],
+        ),
+      ),
+      "an output of its body",
+    );
+    // An output in the array form has no keys
+    const listed = tx(
+      map(
+        [uint(0), inputs()],
+        [uint(1), arr(arr(bytes(`60${key.keyHash}`), uint(3_000_000)))],
+        [uint(2), uint(170_000)],
+      ),
+    );
+    expect(
+      (await offline().fromCbor(listed, { knownUtxos: knownUtxos() })).tx,
+    ).toBe(listed);
+  });
+
+  it("refuses a witness set with a key after 7, and auxiliary data in the tagged form with a key after 4", async () => {
+    await refusedAs(tx(bodyWith(), map([uint(8), arr()])), "its witness set");
+    await refusedAs(
+      tx(bodyWith(), map(), { aux: `d90103${map([uint(5), arr()])}` }),
+      "its auxiliary data",
+    );
+    // Metadata in the plain form is a map of labels, any of which is read
+    const labels = tx(bodyWith(), map(), {
+      aux: map([uint(9_999), uint(1)], [uint(5), uint(2)]),
+    });
+    expect(
+      (await offline().fromCbor(labels, { knownUtxos: knownUtxos() })).tx,
+    ).toBe(labels);
+  });
 });
 
 describe("TxBuilder.fromCbor › forms a decoder takes and a ledger does not", () => {

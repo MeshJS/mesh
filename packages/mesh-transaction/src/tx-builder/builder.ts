@@ -796,8 +796,9 @@ export type BuildWarning = {
    * - `COLLATERAL_RETURN_ELSEWHERE`: a collateral input is held by another payment credential
    *   than the one the collateral return pays: if a script fails, every collateral input of
    *   such a holder leaves it, however small the total collateral the body states, and whoever
-   *   submits the transaction can mark it as failing. The message names those lovelace. Only
-   *   from `fromCbor`
+   *   submits the transaction can mark it as failing. The message names each holder that loses,
+   *   by an address of its collateral inputs, with the lovelace it loses: those of its inputs,
+   *   less what the return pays it. Only from `fromCbor`
    * - `FEE_ABOVE_MINIMUM`: the `fee` given is above the minimum fee of the transaction
    *
    * The list is open: later versions may add codes, so code that reads it keeps a default
@@ -1830,15 +1831,22 @@ export class TxBuilder {
    *   in about a second;
    * - with a map in its body, witness set, redeemers or auxiliary data that repeats a key, or
    *   redeemers that name one purpose twice: decoders read these in different ways, so no
-   *   member could show the one reading a ledger takes.
+   *   member could show the one reading a ledger takes;
+   * - with a key the value decoder does not read, in the format of the Conway era, in its body,
+   *   an output, its witness set or its auxiliary data in the tagged form: the decoder would read
+   *   the value of that key as the next key, and the members after it would not be the bytes.
    *
    * Once decoded, a transaction a ledger does not take is refused as well: a negative fee, a
    * token quantity of zero in an output or the mint, an out ref named twice among the inputs,
    * the collateral inputs or the reference inputs, and an output address with bytes after the
    * address they hold. Reading takes a time that grows with the data the transaction carries:
    * within these limits up to about a second on a laptop, on the thread that calls it, which
-   * runs nothing else meanwhile. A server that reads transactions of strangers reads them off
-   * its request path, in a worker of its own.
+   * runs nothing else meanwhile. The UTxOs it names add the time of their bytes alone: their
+   * data is not decoded (an inline datum is checked by a walk over its bytes and kept as they
+   * are, and a reference script is decoded only once found nested no deeper than 64 levels), and
+   * of each transaction the provider lists, only the outputs the body names are read. A server
+   * that reads transactions of strangers reads them off its request path, in a worker of its
+   * own.
    *
    * The members are read from the same bytes and from the UTxOs of the
    * transaction's inputs, collateral inputs and reference inputs: those of `knownUtxos` as
@@ -1876,8 +1884,9 @@ export class TxBuilder {
    * collateral return. A key whose UTxO the transaction puts up as collateral is in `missing`
    * with the role `collateral`; read it, and `warnings`, before signing. COLLATERAL_FORFEITED
    * says there is no collateral return, and COLLATERAL_RETURN_ELSEWHERE that a collateral input
-   * is held by another payment credential than the one the return pays, with the lovelace such
-   * holders lose, however small the total collateral the body states.
+   * is held by another payment credential than the one the return pays, with the lovelace each
+   * holder loses, the return's own holder too, however small the total collateral the body
+   * states.
    * @param txCbor The transaction, in CBOR hex
    * @param options.knownUtxos UTxOs the transaction spends, reads or puts up as collateral, used
    *   as given and not looked up: the outputs of a transaction the provider has not seen yet,
@@ -2040,11 +2049,16 @@ export class TxBuilder {
           "MISSING_FETCHER",
           `the UTxOs of ${unknown.map(({ input }) => outRefString(input)).join(", ")} have to be read, and the builder has no provider: give them in knownUtxos`,
         );
-      // The first out ref of each transaction, which an error of its read is about
+      // The first out ref of each transaction, which an error of its read is about, and the
+      // indices the body names of it: only those outputs are read
       const first = new Map<string, BodyOutRef>();
+      const indices = new Map<string, Set<number>>();
       for (const { input } of unknown) {
         const hash = input.transaction_id.toLowerCase();
         if (!first.has(hash)) first.set(hash, input);
+        const named = indices.get(hash) ?? new Set<number>();
+        named.add(input.index);
+        indices.set(hash, named);
       }
       // A few reads at a time: a transaction that names many others is not a burst of requests
       const queue = Array.from(first);
@@ -2068,6 +2082,8 @@ export class TxBuilder {
                   cause,
                 },
               ),
+            (ref) =>
+              ref.txHash === hash && indices.get(hash)!.has(ref.outputIndex),
           );
           // Only an output of the transaction asked for is taken, under its own out ref
           for (const utxo of listed)
@@ -3156,12 +3172,13 @@ const holderOf = (address: string) => {
 };
 
 /**
- * The warning for collateral inputs of a holder the collateral return does not pay. The validity
- * flag is outside the signed body, so whoever submits the transaction can mark it as failing:
- * the collateral inputs are then spent, and their holders get back only what the return pays
- * them. A holder the return does not pay loses all of its collateral inputs, whatever the total
- * collateral the body states. Holders are told apart by payment credential, a Byron address by
- * its text; the lovelace named are those of the inputs of every holder the return does not pay
+ * The warning for collateral inputs of more than one holder, or of holders the collateral return
+ * does not pay. The validity flag is outside the signed body, so whoever submits the transaction
+ * can mark it as failing: the collateral inputs are then spent, and their holders get back only
+ * what the return pays them. Each holder that loses is named by the address of its first
+ * collateral input, with the lovelace it loses: those of its inputs, less what the return pays
+ * it. Holders are told apart by payment credential, a Byron address by its text. One holder
+ * whose return comes back to it is not warned: `collateral.total` is what it loses
  */
 const collateralElsewhere = (
   inputs: readonly Utxo[],
@@ -3169,13 +3186,41 @@ const collateralElsewhere = (
 ): BuildWarning | undefined => {
   if (!returned || inputs.length === 0) return undefined;
   const to = holderOf(returned.address);
-  const others = inputs.filter((utxo) => holderOf(utxo.address) !== to);
-  if (others.length === 0) return undefined;
-  const lovelace = others.reduce((sum, utxo) => sum + utxo.value.lovelace, 0n);
-  const tokens = others.some((utxo) => Object.keys(utxo.value).length > 1);
+  const holders = new Map<
+    string,
+    { address: string; lovelace: bigint; tokens: boolean }
+  >();
+  for (const utxo of inputs) {
+    const holder = holderOf(utxo.address);
+    const held = holders.get(holder) ?? {
+      address: utxo.address,
+      lovelace: 0n,
+      tokens: false,
+    };
+    held.lovelace += utxo.value.lovelace;
+    held.tokens ||= Object.keys(utxo.value).length > 1;
+    holders.set(holder, held);
+  }
+  if (holders.size === 1 && holders.has(to)) return undefined;
+  const losses: string[] = [];
+  for (const [holder, held] of holders) {
+    const paid = holder === to;
+    const lost = held.lovelace - (paid ? returned.value.lovelace : 0n);
+    // The tokens of the inputs all go to the return, so only a holder it does not pay loses them
+    const tokens = !paid && held.tokens;
+    if (lost > 0n || tokens)
+      losses.push(
+        `${held.address} loses ${lost > 0n ? lost : 0n} lovelace${tokens ? " and the tokens of its inputs" : ""}`,
+      );
+  }
+  if (losses.length === 0) return undefined;
+  const listed =
+    losses.length === 1
+      ? losses[0]
+      : `${losses.slice(0, -1).join(", ")} and ${losses[losses.length - 1]}`;
   return {
     code: "COLLATERAL_RETURN_ELSEWHERE",
-    message: `the collateral return pays a payment credential that holds ${others.length === inputs.length ? "none" : "only some"} of the collateral inputs: if a script fails, the ${lovelace} lovelace${tokens ? " and the tokens" : ""} of the collateral inputs of other holders go to the return's holder or to the fee, however small the total collateral the body states; the validity flag is not signed, so whoever submits the transaction can mark it as failing`,
+    message: `the collateral return pays a payment credential that holds ${holders.has(to) ? "only some" : "none"} of the collateral inputs: if a script fails, ${listed}, however small the total collateral the body states; the validity flag is not signed, so whoever submits the transaction can mark it as failing`,
   };
 };
 

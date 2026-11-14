@@ -564,6 +564,83 @@ describe("TxBuilder.fromCbor: the object", () => {
     }
   });
 
+  it("shows in prototype every pair of a map that repeats a key, in a datum, redeemer data and metadata, and keeps their bytes", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const datum = "a201020103";
+    const redeemerData = "a20741aa0741bb";
+    const output = cbor.map(
+      [cbor.uint(0), cbor.bytes(addressHex(key))],
+      [cbor.uint(1), cbor.uint(3_000_000)],
+      [cbor.uint(2), cbor.arr(cbor.uint(1), `d818${cbor.bytes(datum)}`)],
+    );
+    const body = cbor.map(
+      [
+        cbor.uint(0),
+        cbor.tag258(cbor.arr(cbor.arr(cbor.bytes(cbor.TX_IN), cbor.uint(0)))),
+      ],
+      [cbor.uint(1), cbor.arr(output)],
+      [cbor.uint(2), cbor.uint(170_000)],
+    );
+    const redeemers = cbor.arr(
+      cbor.arr(
+        cbor.uint(0),
+        cbor.uint(0),
+        redeemerData,
+        cbor.arr(cbor.uint(1000), cbor.uint(2000)),
+      ),
+    );
+    const given = cbor.tx(body, cbor.map([cbor.uint(5), redeemers]), {
+      aux: cbor.map([cbor.uint(1), "a205010502"]),
+    });
+    const made = await offline().fromCbor(given, {
+      knownUtxos: [handUtxo(key.address)],
+    });
+    const int = (value: bigint) => ({ type: "INTEGER", value });
+    expect(made.prototype.body.outputs[0]!.plutus_data).toEqual({
+      type: "DATA",
+      value: {
+        type: "MANUAL",
+        data: {
+          type: "MAP",
+          value: [
+            [int(1n), int(2n)],
+            [int(1n), int(3n)],
+          ],
+        },
+      },
+    });
+    expect(made.prototype.witness_set.redeemers![0]!.data).toEqual({
+      type: "MANUAL",
+      data: {
+        type: "MAP",
+        value: [
+          [int(7n), { type: "BYTES", value: "aa" }],
+          [int(7n), { type: "BYTES", value: "bb" }],
+        ],
+      },
+    });
+    expect(made.prototype.auxiliary_data!.metadata!["1"]).toEqual({
+      type: "MAP",
+      value: [
+        [
+          { type: "INT", value: 5n },
+          { type: "INT", value: 1n },
+        ],
+        [
+          { type: "INT", value: 5n },
+          { type: "INT", value: 2n },
+        ],
+      ],
+    });
+    // The members that carry bytes keep them
+    expect(made.outputs[0]!.datum).toEqual({
+      type: "inline",
+      data: { type: "CBOR", content: datum },
+    });
+    expect(made.redeemers[0]!.data).toBe(redeemerData);
+  });
+
   it("reads upper-case hex as the same transaction, and gives tx in lower case", async () => {
     await Crypto.ready();
     const key = testKey();
@@ -856,10 +933,24 @@ describe("TxBuilder.fromCbor: collateral returned to someone else", () => {
   /** A bech32 address of its bytes in hex */
   const bech32Of = (hex: string) =>
     Address.fromBytes(HexBlob(hex)).toBech32() as string;
-  const elsewhere = (lovelace: bigint, some: boolean, tokens = false) => ({
-    code: "COLLATERAL_RETURN_ELSEWHERE",
-    message: `the collateral return pays a payment credential that holds ${some ? "only some" : "none"} of the collateral inputs: if a script fails, the ${lovelace} lovelace${tokens ? " and the tokens" : ""} of the collateral inputs of other holders go to the return's holder or to the fee, however small the total collateral the body states; the validity flag is not signed, so whoever submits the transaction can mark it as failing`,
-  });
+  /** The warning, with each holder that loses: its address, its lovelace lost, its tokens lost */
+  const elsewhere = (
+    some: boolean,
+    ...losses: [string, bigint, boolean?][]
+  ) => {
+    const named = losses.map(
+      ([address, lovelace, tokens]) =>
+        `${address} loses ${lovelace} lovelace${tokens ? " and the tokens of its inputs" : ""}`,
+    );
+    const listed =
+      named.length === 1
+        ? named[0]
+        : `${named.slice(0, -1).join(", ")} and ${named[named.length - 1]}`;
+    return {
+      code: "COLLATERAL_RETURN_ELSEWHERE",
+      message: `the collateral return pays a payment credential that holds ${some ? "only some" : "none"} of the collateral inputs: if a script fails, ${listed}, however small the total collateral the body states; the validity flag is not signed, so whoever submits the transaction can mark it as failing`,
+    };
+  };
 
   let user: TestKey;
   let maker: TestKey;
@@ -922,7 +1013,7 @@ describe("TxBuilder.fromCbor: collateral returned to someone else", () => {
       ],
       [handUtxo(user.address, 1, ada(500)), handUtxo(user.address, 2, ada(7))],
     );
-    expect(all.warnings).toEqual([elsewhere(ada(507), false)]);
+    expect(all.warnings).toEqual([elsewhere(false, [user.address, ada(507)])]);
     expect(all.collateral!.total).toBe(ada(5));
     // One input of the maker beside the user's, returned to the maker: the user's alone, however
     // large the return
@@ -933,9 +1024,9 @@ describe("TxBuilder.fromCbor: collateral returned to someone else", () => {
       ],
       [handUtxo(user.address, 1, ada(500)), handUtxo(maker.address, 2, ada(7))],
     );
-    expect(mixed.warnings).toEqual([elsewhere(ada(500), true)]);
-    // The same returned to the user: the maker's input leaves the maker, which is the maker's
-    // own business, and the warning names it all the same
+    expect(mixed.warnings).toEqual([elsewhere(true, [user.address, ada(500)])]);
+    // The same returned to the user: the user gets back 495 of its 500 ada, and the maker's input
+    // leaves the maker, which is the maker's own business; the warning names both
     const toUser = await warningsOf(
       [
         [cbor.uint(13), collateralOf(1, 2)],
@@ -943,7 +1034,9 @@ describe("TxBuilder.fromCbor: collateral returned to someone else", () => {
       ],
       [handUtxo(user.address, 1, ada(500)), handUtxo(maker.address, 2, ada(7))],
     );
-    expect(toUser.warnings).toEqual([elsewhere(ada(7), true)]);
+    expect(toUser.warnings).toEqual([
+      elsewhere(true, [user.address, ada(5)], [maker.address, ada(7)]),
+    ]);
     // Several inputs of one holder beside the return's holder: their sum
     const several = await warningsOf(
       [
@@ -957,7 +1050,9 @@ describe("TxBuilder.fromCbor: collateral returned to someone else", () => {
         handUtxo(user.address, 4, ada(3)),
       ],
     );
-    expect(several.warnings).toEqual([elsewhere(ada(123), true)]);
+    expect(several.warnings).toEqual([
+      elsewhere(true, [user.address, ada(123)]),
+    ]);
   });
 
   it("tells holders by payment credential and its kind: a script holder paid at a base address of its script is paid, a key of the same hash is another holder", async () => {
@@ -979,7 +1074,7 @@ describe("TxBuilder.fromCbor: collateral returned to someone else", () => {
       ],
       knownUtxos,
     );
-    expect(other.warnings).toEqual([elsewhere(ada(9), false)]);
+    expect(other.warnings).toEqual([elsewhere(false, [scriptHolder, ada(9)])]);
   });
 
   it("counts lovelace only, says so when the inputs of other holders hold tokens, and the tokens of the return lower nothing", async () => {
@@ -1007,7 +1102,9 @@ describe("TxBuilder.fromCbor: collateral returned to someone else", () => {
       ],
       [withToken],
     );
-    expect(tokens.warnings).toEqual([elsewhere(ada(50), false, true)]);
+    expect(tokens.warnings).toEqual([
+      elsewhere(false, [user.address, ada(50), true]),
+    ]);
     // Tokens in the return alone: lovelace only, and no word of tokens
     const plain = await warningsOf(
       [
@@ -1028,7 +1125,74 @@ describe("TxBuilder.fromCbor: collateral returned to someone else", () => {
       ],
       [handUtxo(user.address, 1, ada(50))],
     );
-    expect(plain.warnings).toEqual([elsewhere(ada(50), false)]);
+    expect(plain.warnings).toEqual([elsewhere(false, [user.address, ada(50)])]);
+  });
+
+  it("names what each holder loses, the return's own holder too: inputs of 500 and 7 ada with 10 ada returned to the first lose 490 and 7 ada", async () => {
+    const made = await warningsOf(
+      [
+        [cbor.uint(13), collateralOf(1, 2)],
+        [cbor.uint(16), returnedTo(addressHex(user), cbor.uint(10_000_000))],
+        [cbor.uint(17), cbor.uint(497_000_000)],
+      ],
+      [handUtxo(user.address, 1, ada(500)), handUtxo(maker.address, 2, ada(7))],
+    );
+    expect(made.collateral!.total).toBe(ada(497));
+    expect(made.warnings).toEqual([
+      elsewhere(true, [user.address, ada(490)], [maker.address, ada(7)]),
+    ]);
+  });
+
+  it("names each of three holders that loses, in the order of their first collateral input", async () => {
+    const other = testKey();
+    const knownUtxos = [
+      handUtxo(user.address, 1, ada(500)),
+      handUtxo(other.address, 2, ada(300)),
+      handUtxo(maker.address, 3, ada(7)),
+    ];
+    // Returned to the maker, which gets back more than it put in
+    const toMaker = await warningsOf(
+      [
+        [cbor.uint(13), collateralOf(1, 2, 3)],
+        [cbor.uint(16), returnedTo(addressHex(maker))],
+      ],
+      knownUtxos,
+    );
+    expect(toMaker.warnings).toEqual([
+      elsewhere(true, [user.address, ada(500)], [other.address, ada(300)]),
+    ]);
+    // Returned to the second, 10 ada of its 300
+    const toOther = await warningsOf(
+      [
+        [cbor.uint(13), collateralOf(1, 2, 3)],
+        [cbor.uint(16), returnedTo(addressHex(other), cbor.uint(10_000_000))],
+      ],
+      knownUtxos,
+    );
+    expect(toOther.warnings).toEqual([
+      elsewhere(
+        true,
+        [user.address, ada(500)],
+        [other.address, ada(290)],
+        [maker.address, ada(7)],
+      ),
+    ]);
+    // Returned to none of them
+    const toStranger = await warningsOf(
+      [
+        [cbor.uint(13), collateralOf(1, 2, 3)],
+        [cbor.uint(16), returnedTo(addressHex(stake))],
+      ],
+      knownUtxos,
+    );
+    expect(toStranger.warnings).toEqual([
+      elsewhere(
+        false,
+        [user.address, ada(500)],
+        [other.address, ada(300)],
+        [maker.address, ada(7)],
+      ),
+    ]);
   });
 });
 

@@ -29,6 +29,7 @@ import { alwaysFailCbor, alwaysSucceedCbor } from "../test-util";
 import {
   arr,
   bytes,
+  head,
   map,
   mapPairs,
   tag258,
@@ -115,6 +116,82 @@ const sortedKeys = (signers: BuiltTx["signers"]) =>
 describe.each(["scalus", "cquisitor"] as const)(
   "TxBuilder.fromCbor on TxEmulator (%s)",
   (validator) => {
+    it("reads at once a stranger's transaction that names outputs on the chain whose inline datums nest deep", async () => {
+      await Crypto.ready();
+      const emulator = await TxEmulator.create({
+        validator,
+        network: "preprod",
+        slot: 100_000_000,
+      });
+      const maker = testKey();
+      const user = testKey();
+      const spent = emulator.fund(user.address, { lovelace: 50_000_000n });
+      // On the chain: a transaction of three outputs whose datums nest 120 deep around 15 000
+      // zeros, and one of two outputs whose datums are lists nested 2 000 and 4 000 deep
+      const datums = {
+        wide: `${"81".repeat(120)}${head(4, 15_000)}${"00".repeat(15_000)}`,
+        deep: `${"81".repeat(2_000)}80`,
+        deeper: `${"81".repeat(4_000)}80`,
+      };
+      const wide = "e1".repeat(32);
+      const deep = "e2".repeat(32);
+      const onChain = (txHash: string, outputIndex: number, datum: string) => ({
+        input: { txHash, outputIndex },
+        output: {
+          address: maker.address,
+          amount: [{ unit: "lovelace", quantity: "80000000" }],
+          plutusData: datum,
+        },
+      });
+      emulator.addUtxos([
+        ...[0, 1, 2].map((i) => onChain(wide, i, datums.wide)),
+        onChain(deep, 0, datums.deep),
+        onChain(deep, 1, datums.deeper),
+      ]);
+      // The maker's small transaction: it spends the user's UTxO and reads one output of each
+      const strangers = txOf(
+        map(
+          [
+            uint(0),
+            tag258(
+              arr(
+                arr(bytes(spent.input.txHash), uint(spent.input.outputIndex)),
+              ),
+            ),
+          ],
+          [uint(1), arr(arr(bytes(`60${maker.keyHash}`), uint(49_000_000)))],
+          [uint(2), uint(1_000_000)],
+          [
+            uint(18),
+            tag258(
+              arr(
+                arr(bytes(wide), uint(0)),
+                arr(bytes(deep), uint(0)),
+                arr(bytes(deep), uint(1)),
+              ),
+            ),
+          ],
+        ),
+      );
+      const start = performance.now();
+      const made = await new TxBuilder({
+        network: "preprod",
+        provider: emulator,
+      }).fromCbor(strangers);
+      // Milliseconds; decoded, the first datum took seconds, and the last exhausted the stack.
+      // The bound leaves room for a loaded machine
+      expect(performance.now() - start).toBeLessThan(1_500);
+      expect(made.referenceInputs.map((utxo) => utxo.datum)).toEqual(
+        [datums.wide, datums.deep, datums.deeper].map((content) => ({
+          type: "inline",
+          data: { type: "CBOR", content },
+        })),
+      );
+      expect(made.missing).toEqual([
+        { keyHash: user.keyHash, roles: ["input"] },
+      ]);
+    }, 60_000);
+
     it("lets a co-signer sign what the maker left, submit it and find it in a block", async () => {
       const { emulator, maker, coSigner, wallet, address } =
         await setup(validator);
@@ -514,8 +591,7 @@ describe.each(["scalus", "cquisitor"] as const)(
       expect(made.warnings).toEqual([
         {
           code: "COLLATERAL_RETURN_ELSEWHERE",
-          message:
-            "the collateral return pays a payment credential that holds only some of the collateral inputs: if a script fails, the 500000000 lovelace of the collateral inputs of other holders go to the return's holder or to the fee, however small the total collateral the body states; the validity flag is not signed, so whoever submits the transaction can mark it as failing",
+          message: `the collateral return pays a payment credential that holds only some of the collateral inputs: if a script fails, ${user.address} loses 500000000 lovelace, however small the total collateral the body states; the validity flag is not signed, so whoever submits the transaction can mark it as failing`,
         },
       ]);
       expect(made.missing).toContainEqual({

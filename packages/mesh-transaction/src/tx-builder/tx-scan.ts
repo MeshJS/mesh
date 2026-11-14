@@ -55,6 +55,8 @@ type Role =
   | "tx"
   | "body"
   | "inBody"
+  | "outputs"
+  | "output"
   | "witnessSet"
   | "redeemers"
   | "redeemer"
@@ -67,6 +69,7 @@ type Role =
 const CHECKED: Partial<Record<Role, string>> = {
   body: "its body",
   inBody: "its body",
+  output: "its body",
   witnessSet: "its witness set",
   redeemers: "the redeemers of its witness set",
   aux: "its auxiliary data",
@@ -519,6 +522,42 @@ type Frame = {
   itemsBefore: number;
 };
 
+/** The integers from `from` to `to` as `keyText` writes them */
+const keysFrom = (from: number, to: number) =>
+  Array.from({ length: to - from + 1 }, (_, i) => `0:${from + i}`);
+
+/*
+ * The keys of the maps whose values the value decoder reads by key, as it reads them in the
+ * format of the Conway era. It does not skip the value of a key it does not know: it reads that
+ * value as the next key, and what it shows after it is not what the bytes hold. So a transaction
+ * with another key in these maps is refused. A later era's keys need these lists raised.
+ */
+/** The keys of a transaction body: 0 to 5, 7 to 9, 11, and 13 to 22 */
+const BODY_KEYS: ReadonlySet<string> = new Set([
+  ...keysFrom(0, 5),
+  ...keysFrom(7, 9),
+  ...keysFrom(11, 11),
+  ...keysFrom(13, 22),
+]);
+/** The keys of an output in the map form: its address, value, datum and reference script */
+const OUTPUT_KEYS: ReadonlySet<string> = new Set(keysFrom(0, 3));
+/** The keys of a witness set: 0 to 7 */
+const WITNESS_SET_KEYS: ReadonlySet<string> = new Set(keysFrom(0, 7));
+/** The keys of auxiliary data in the tagged form: its metadata, native and Plutus scripts */
+const AUXILIARY_DATA_KEYS: ReadonlySet<string> = new Set(keysFrom(0, 4));
+
+/** The roles whose maps hold only known keys, each with its keys and the place a message names */
+const KNOWN_KEYS: Partial<Record<Role, [ReadonlySet<string>, string]>> = {
+  body: [BODY_KEYS, "its body"],
+  output: [OUTPUT_KEYS, "an output of its body"],
+  witnessSet: [WITNESS_SET_KEYS, "its witness set"],
+  auxMap: [AUXILIARY_DATA_KEYS, "its auxiliary data"],
+};
+
+/** The key 1 of a body, its outputs, and 16, its collateral return, as `keyText` writes them */
+const OUTPUTS_KEY = "0:1";
+const COLLATERAL_RETURN_KEY = "0:16";
+
 /** The key 5 of a witness set, its redeemers, as `keyText` writes it */
 const REDEEMERS_KEY = "0:5";
 /** The key 0 of tagged auxiliary data, its metadata, as `keyText` writes it */
@@ -538,6 +577,15 @@ const roleOfItem = (frame: Frame): Role => {
             ? "aux"
             : "plain";
     case "body":
+      // The value of a key, which follows it
+      if (frame.walked % 2 === 1 && frame.lastKey === OUTPUTS_KEY)
+        return "outputs";
+      if (frame.walked % 2 === 1 && frame.lastKey === COLLATERAL_RETURN_KEY)
+        return "output";
+      return "inBody";
+    case "outputs":
+      return frame.kind === "array" ? "output" : "inBody";
+    case "output":
     case "inBody":
       return "inBody";
     case "witnessSet":
@@ -574,6 +622,9 @@ const roleOfItem = (frame: Frame): Role => {
  *   of the map form, the tag and index of each item of the array form; not their data), and the
  *   auxiliary data, its metadata map in each of its three forms. Plutus data may repeat the keys
  *   of its maps, so the data of datums and redeemers is not compared;
+ * - with a key the value decoder does not read in its body, an output in the map form, its
+ *   witness set or its auxiliary data in the tagged form: the decoder would read the value of
+ *   that key as the next key;
  * - that is not one well-formed CBOR item. A byte string that holds CBOR that is not well-formed
  *   is passed over, and the decoder judges it.
  * @throws TxScanError with the reason, which quotes none of the bytes
@@ -619,6 +670,11 @@ const scanBytes = (bytes: Uint8Array) => {
         );
       frame.keys.add(key);
       frame.lastKey = key;
+      const known = KNOWN_KEYS[frame.role];
+      if (known && !known[0].has(key))
+        throw new TxScanError(
+          `a map in ${known[1]} holds a key this library does not read, which a decoder that does not know it reads in a different way`,
+        );
     }
     // A redeemer of the array form names its purpose by its first two items, its tag and index
     if (
