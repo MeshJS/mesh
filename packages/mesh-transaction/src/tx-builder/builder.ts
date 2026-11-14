@@ -63,7 +63,7 @@ import type {
   TxPlanStore,
 } from "./plan/types";
 import type { GovernanceDeposits } from "./resolve";
-import type { StandaloneTx } from "./standalone";
+import type { StandaloneTx, StandaloneTxJSON } from "./standalone";
 import type { TxSigners } from "./witnesses";
 import { abortable, throwIfAborted } from "./abort";
 import { checkPartRepeats } from "./assemble";
@@ -121,7 +121,7 @@ import { checkPlanDefaults } from "./plan/deadlines";
 import { createPlan, resumePlan, TxPlan } from "./plan/plan";
 import { resolveParts, resolveValidity } from "./resolve";
 import { bodySigners, readTransaction } from "./sign";
-import { standaloneTx } from "./standalone";
+import { restoreStandalone, standaloneTx } from "./standalone";
 import { placeholderWitnesses, signersOf, txSigners } from "./witnesses";
 
 /**
@@ -1595,6 +1595,35 @@ export class TxBuilder {
     // The object keeps the witnesses of as many other keys as the fee was priced for
     const built = await this.buildList(source, this.withAdded(parts), options);
     return standaloneTx(this, built, options?.extraKeyWitnesses ?? 0);
+  }
+
+  /**
+   * A `StandaloneTx` from its JSON: the transaction another process built, or this one before a
+   * restart, with the witnesses it held. It makes no request. The record is believed as a
+   * `BuiltTx` the application kept is: give it what the application wrote itself. Its
+   * transaction is read again: it must be the unsigned one, `txHash` must be the hash of its
+   * body, and every witness the record holds is verified against that body.
+   *
+   * ```ts
+   * await db.put(orderId, JSON.stringify(built));
+   * const again = await builder.restore(JSON.parse(await db.get(orderId)));
+   * ```
+   *
+   * The object restored is on this builder: it submits through its submitter or provider, and
+   * looks through its provider. It holds the witnesses of the JSON, and a delivery the JSON marks
+   * as taken or of unknown outcome counts as on its way, as it did for the object that wrote it.
+   * An error quotes nothing of the JSON but its network, in the `details` of NETWORK_MISMATCH. A
+   * plan's JSON is not read here: `resume` reads it.
+   * @throws TxPlanError INVALID_STATE (`recordVersion`) for a record of another kind, a newer
+   *   version, or with content this library does not read
+   * @throws TxBuildError INVALID_OPTION (`json`) for a value that is no record, a record whose
+   *   transaction holds a vkey or bootstrap witness (signatures go in its `witnesses`), whose
+   *   `txHash` is not the hash of its transaction, or that holds a witness that is not of its
+   *   body; `details.value` is only the JavaScript type of what was given; NETWORK_MISMATCH for a
+   *   transaction built for another network
+   */
+  restore(json: StandaloneTxJSON): Promise<StandaloneTx> {
+    return restoreStandalone(this, json);
   }
 
   /**

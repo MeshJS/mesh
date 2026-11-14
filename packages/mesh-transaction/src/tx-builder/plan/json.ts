@@ -11,7 +11,8 @@ import { planStatus } from "./core";
 // the shapes of the parts and of the record and writes every `bigint` as its decimal string, at
 // its own field; the reader knows those fields and puts the `bigint`s back. The reader refuses a
 // record it cannot read whole: a newer version, another kind, or content this library does not
-// know. Nothing here is exported from the package.
+// know. The data of a build is encoded and read the same way in the JSON of a `StandaloneTx`.
+// Nothing here is exported from the package.
 
 /** The record format this library writes */
 export const PLAN_RECORD_VERSION = 1;
@@ -116,7 +117,8 @@ export const encodeParts = (parts: readonly TxPart[]): unknown[] =>
     return plain(part, `parts[${i}]`);
   });
 
-const encodeBuilt = (built: BuiltTx): unknown => {
+/** The data of a build as a record holds it: plain JSON data, every `bigint` as its decimal string */
+export const encodeBuilt = (built: BuiltTx): unknown => {
   const { parts, ...rest } = built;
   return { ...(plain(rest, "built") as object), parts: encodeParts(parts) };
 };
@@ -189,8 +191,37 @@ export const sameJson = (a: unknown, b: unknown): boolean => {
  * Reading: small checks
  * ------------------------------------------------------------------------------------------- */
 
+/**
+ * Whether a refusal quotes the values it names. The reader of a plan's record does; the JSON of a
+ * transaction is read `unquoted`, and its refusals name paths and JavaScript types alone
+ */
+let quoting = true;
+
+/**
+ * Runs a reader whose refusals quote no value of what it reads: in place of a value they name its
+ * JavaScript type, and in place of a member name that is not the library's, its place
+ */
+export const unquoted = <T>(read: () => T): T => {
+  const before = quoting;
+  quoting = false;
+  try {
+    return read();
+  } finally {
+    quoting = before;
+  }
+};
+
+/** The place of the entry `key`, the `index`-th, of a map whose keys are data */
+const entryPath = (path: string, key: string, index: number) =>
+  quoting ? `${path}.${key}` : `${path}[${index}]`;
+
 const show = (value: unknown): string => {
   if (value === undefined) return "none";
+  if (!quoting) {
+    if (value === null) return "null";
+    if (Array.isArray(value)) return "a list";
+    return typeof value === "object" ? "an object" : `a ${typeof value}`;
+  }
   if (typeof value === "string")
     return JSON.stringify(value.length > 80 ? `${value.slice(0, 80)}…` : value);
   if (Array.isArray(value)) return "a list";
@@ -245,7 +276,9 @@ const known = (json: Obj, members: readonly string[], path: string) => {
   for (const key of Object.keys(json))
     if (!members.includes(key))
       unread(
-        `${path === "" ? "" : `${path}.`}${key}, a member this library does not know`,
+        quoting
+          ? `${path === "" ? "" : `${path}.`}${key}, a member this library does not know`
+          : `${path === "" ? "" : `${path}: `}a member this library does not know`,
       );
 };
 
@@ -559,9 +592,9 @@ const transaction = (value: unknown, path: string): unknown => {
         ? aux.metadata
         : Object.fromEntries(
             Object.entries(object(aux.metadata, `${at}.metadata`)).map(
-              ([label, item]) => [
+              ([label, item], i) => [
                 label,
-                metadatum(item, `${at}.metadata.${label}`),
+                metadatum(item, entryPath(`${at}.metadata`, label, i)),
               ],
             ),
           );
@@ -669,9 +702,9 @@ const utxoValue = (value: unknown, path: string, marks = false): Obj => {
     outputIndex: count(json.outputIndex, `${path}.outputIndex`),
     address: text(json.address, `${path}.address`),
     value: Object.fromEntries(
-      Object.entries(assets).map(([unit, quantity]) => [
+      Object.entries(assets).map(([unit, quantity], i) => [
         unit,
-        integer(quantity, `${path}.value.${unit}`),
+        integer(quantity, entryPath(`${path}.value`, unit, i)),
       ]),
     ),
     ...optional(json, "datum", datumValue, path),
@@ -973,10 +1006,42 @@ const BUILT_MEMBERS = [
   "parts",
 ] as const;
 
+/** The members of the objects inside the data of a build, as `BuiltTx` declares them */
+const SIGNERS_MEMBERS = [
+  "keyHashes",
+  "keys",
+  "byronAddresses",
+  "nativeScripts",
+] as const;
+const REDEEMER_MEMBERS = [
+  "tag",
+  "index",
+  "exUnits",
+  "data",
+  "part",
+  "label",
+] as const;
+const COLLATERAL_MEMBERS = ["inputs", "total", "return"] as const;
+const VALIDITY_MEMBERS = [
+  "invalidBefore",
+  "invalidHereafter",
+  "from",
+  "until",
+] as const;
+const NETWORK_MEMBERS = ["name", "networkId"] as const;
+const WARNING_MEMBERS = ["code", "message", "part", "label"] as const;
+
+/** An object holding only the members named */
+const member = (value: unknown, members: readonly string[], path: string) => {
+  const json = object(value, path);
+  known(json, members, path);
+  return json;
+};
+
 const exUnits = (value: unknown, path: string) => {
   const json = object(value, path);
+  known(json, ["mem", "steps"], path);
   return {
-    ...json,
     mem: integer(json.mem, `${path}.mem`),
     steps: integer(json.steps, `${path}.steps`),
   };
@@ -1017,10 +1082,15 @@ const requiredKeys = (
   return keys;
 };
 
-const decodeBuilt = (value: unknown, path: string): BuiltTx => {
+/**
+ * The data of a build back from its encoding
+ * @throws UnreadContent for content this library does not know or cannot read, naming it
+ */
+export const decodeBuilt = (value: unknown, path: string): BuiltTx => {
   const json = object(value, path);
   known(json, BUILT_MEMBERS, path);
   const signers = object(json.signers, `${path}.signers`);
+  known(signers, SIGNERS_MEMBERS, `${path}.signers`);
   const keyHashes = texts(signers.keyHashes, `${path}.signers.keyHashes`);
   const built: Obj = {
     tx: text(json.tx, `${path}.tx`),
@@ -1031,6 +1101,7 @@ const decodeBuilt = (value: unknown, path: string): BuiltTx => {
     redeemers: list(json.redeemers, `${path}.redeemers`).map((item, i) => {
       const at = `${path}.redeemers[${i}]`;
       const redeemer = object(item, at);
+      known(redeemer, REDEEMER_MEMBERS, at);
       return {
         ...redeemer,
         exUnits: exUnits(redeemer.exUnits, `${at}.exUnits`),
@@ -1057,15 +1128,17 @@ const decodeBuilt = (value: unknown, path: string): BuiltTx => {
         nativeScript(item, `${path}.signers.nativeScripts[${i}]`),
       ),
     },
-    network: object(json.network, `${path}.network`),
-    warnings: list(json.warnings, `${path}.warnings`),
+    network: member(json.network, NETWORK_MEMBERS, `${path}.network`),
+    warnings: list(json.warnings, `${path}.warnings`).map((item, i) =>
+      member(item, WARNING_MEMBERS, `${path}.warnings[${i}]`),
+    ),
     parts: list(json.parts, `${path}.parts`).map((item, i) =>
       decodePart(item, `${path}.parts[${i}]`),
     ),
   };
   if (json.collateral !== undefined) {
     const at = `${path}.collateral`;
-    const collateral = object(json.collateral, at);
+    const collateral = member(json.collateral, COLLATERAL_MEMBERS, at);
     built.collateral = {
       ...collateral,
       inputs: utxos(collateral.inputs, `${at}.inputs`),
@@ -1076,7 +1149,11 @@ const decodeBuilt = (value: unknown, path: string): BuiltTx => {
     };
   }
   if (json.validity !== undefined)
-    built.validity = object(json.validity, `${path}.validity`);
+    built.validity = member(
+      json.validity,
+      VALIDITY_MEMBERS,
+      `${path}.validity`,
+    );
   return built as unknown as BuiltTx;
 };
 

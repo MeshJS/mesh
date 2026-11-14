@@ -2,10 +2,13 @@ import { getEventListeners } from "node:events";
 
 import { CachedFetcher } from "@meshsdk/common";
 import {
+  Action,
   DEFAULT_PROTOCOL_PARAMETERS,
   DEFAULT_V1_COST_MODEL_LIST,
   DEFAULT_V2_COST_MODEL_LIST,
   DEFAULT_V3_COST_MODEL_LIST,
+  IEvaluator,
+  mConStr0,
   NativeScript,
   Protocol,
   pubKeyAddress,
@@ -14,16 +17,21 @@ import {
 import { CborWriter, Crypto, Transaction, TxCBOR } from "@meshsdk/core-cst";
 
 import type { AskedKey } from "../../src/tx-builder";
+import type { KeyWitness } from "../../src/tx-builder/sign";
 import {
   addWitnesses,
   BuiltTx,
+  collateral,
+  collateralReturn,
   guard,
+  mint,
   output,
   outputOf,
   signedKeyHashes,
   Signer,
   spend,
   StandaloneTx,
+  StandaloneTxJSON,
   TxBuilder,
   TxBuilderOptions,
   TxBuildError,
@@ -32,9 +40,18 @@ import {
   TxPlanError,
   Utxo,
   utxosAfter,
+  validity,
+  withdrawal,
 } from "../../src/tx-builder";
 import { NO_REBUILD } from "../../src/tx-builder/errors";
-import { baseAddress } from "../test-util";
+import {
+  decodeBuilt,
+  encodeBuilt,
+  readPlan,
+  unquoted,
+} from "../../src/tx-builder/plan/json";
+import { readTransaction, withWitnesses } from "../../src/tx-builder/sign";
+import { alwaysSucceedCbor, baseAddress } from "../test-util";
 import { hashSigner, keysSigner, TestKey, testKey } from "./hash-signer-util";
 import { pay, setup } from "./plan/plan-emulator-util";
 import { ref } from "./utxo-util";
@@ -2004,4 +2021,1021 @@ describe("StandaloneTx.awaitInclusion", () => {
       expect(viaProvider.searches).toEqual([]);
     },
   );
+});
+
+describe("StandaloneTx as JSON, and TxBuilder.restore", () => {
+  /** The JSON as another process gets it: written as text and parsed */
+  const throughText = (built: StandaloneTx) =>
+    JSON.parse(JSON.stringify(built)) as StandaloneTxJSON;
+
+  /** A text no error may hold: put where a value of the JSON stands */
+  const MARK = "do-not-quote-7f3a";
+
+  /** A refusal of `restore`: its error, checked to quote nothing of the JSON and to have no cause */
+  const refusedRestore = async (b: TxBuilder, json: unknown) => {
+    const error = await caught(() => b.restore(json as StandaloneTxJSON));
+    expect(error).toBeInstanceOf(Error);
+    const { message, details, cause } = error as TxBuildError;
+    expect(message.includes(MARK)).toBe(false);
+    expect(JSON.stringify(details ?? {}).includes(MARK)).toBe(false);
+    expect(cause).toBeUndefined();
+    return error;
+  };
+
+  it("writes plain JSON data, and restore gives back the same data with the witnesses held", async () => {
+    const { built, payer, guardKey, scriptKey } = await fixture({
+      native: true,
+    });
+    await built.sign({
+      signers: keysSigner("object", payer, scriptKey).signer,
+    });
+    const json = built.toJSON();
+    expect(Object.keys(json)).toEqual([
+      "kind",
+      "version",
+      "txHash",
+      "built",
+      "witnesses",
+    ]);
+    expect([json.kind, json.version, json.txHash]).toEqual([
+      "StandaloneTx",
+      1,
+      built.txHash,
+    ]);
+    // Plain JSON data: written and read back, it is the same, bigints standing as text
+    expect(JSON.parse(JSON.stringify(built))).toEqual(json);
+    expect(json.built.fee).toBe(String(built.fee));
+    expect(JSON.stringify(json).includes(built.partialTx)).toBe(false);
+
+    const other = builder();
+    const restored = await other.restore(throughText(built));
+    expect(restored).toBeInstanceOf(StandaloneTx);
+    expect(Object.isFrozen(restored)).toBe(true);
+    expect(Object.keys(restored)).toEqual(Object.keys(built));
+    expect({ ...restored }).toEqual({ ...built });
+    expect(restored.tx).toBe(built.tx);
+    expect(restored.partialTx).toBe(built.partialTx);
+    expect(restored.missing).toEqual(built.missing);
+    expect(restored.signedTx).toBeUndefined();
+    // Signing goes on where it stopped: only the guard key is asked for
+    const { signer, requests } = keysSigner("object", guardKey);
+    await restored.sign({ signers: signer });
+    expect(requests[0]!.keys).toEqual([keyOf(guardKey.keyHash, "guard")]);
+    await built.sign({ signers: keysSigner("object", guardKey).signer });
+    expect(restored.signedTx).toBe(built.signedTx);
+    // A JSON of the restored object restores the same again
+    expect(throughText(restored)).toEqual(throughText(built));
+  });
+
+  it("writes no witnesses, no extraKeyWitnesses and no delivered mark while there are none", async () => {
+    const { built, builder: b } = await fixture();
+    const json = built.toJSON();
+    expect(Object.keys(json)).toEqual(["kind", "version", "txHash", "built"]);
+    const restored = await b.restore(json);
+    expect(restored.partialTx).toBe(built.tx);
+    expect(restored.missing).toEqual(built.missing);
+    // The JSON given is not kept: changing it later changes nothing
+    (json.built as { fee: string }).fee = "1";
+    (json.built.network as { name: string }).name = "mainnet";
+    expect(restored.fee).toBe(built.fee);
+    expect(restored.network).toEqual({ name: "preprod", networkId: 0 });
+  });
+
+  it("keeps the witness of another key the fee was priced for", async () => {
+    await Crypto.ready();
+    const payer = testKey();
+    const coSigner = testKey();
+    const b = builder();
+    const built = await b.build(
+      output({ address: recipient, value: { lovelace: ada(5) } }),
+      {
+        payer: { changeAddress: payer.address, utxos: [utxoAt(payer.address)] },
+        extraKeyWitnesses: 1,
+      },
+    );
+    await built.addWitnesses(witnessSet(built.txHash, payer, coSigner));
+    const json = throughText(built);
+    expect(json.extraKeyWitnesses).toBe(1);
+    const restored = await b.restore(json);
+    expect(vkeysOf(restored.signedTx!).vkeys).toEqual([
+      payer.vkey,
+      coSigner.vkey,
+    ]);
+    expect(restored.signedTx).toBe(built.signedTx);
+    // Without the member the witness of the other key is not kept
+    const { extraKeyWitnesses: _extra, ...without } = json;
+    const dropped = await b.restore(without);
+    expect(vkeysOf(dropped.signedTx!).vkeys).toEqual([payer.vkey]);
+    expect(throughText(dropped).extraKeyWitnesses).toBeUndefined();
+  });
+
+  describe("the mark of a delivery", () => {
+    /** A builder whose provider refuses every transaction and finds none */
+    const refusing = () => {
+      const viaProvider = fakeProvider({
+        submitTx: () => {
+          throw refusal();
+        },
+      });
+      return {
+        ...viaProvider,
+        builder: new TxBuilder({
+          network: "preprod",
+          params,
+          costModels,
+          provider: viaProvider.provider,
+        }),
+      };
+    };
+
+    it("is written after a delivery was taken, and a restored object treats a later refusal as the original does", async () => {
+      const { built } = await signedFixture();
+      const before = throughText(built);
+      expect(before.delivered).toBeUndefined();
+      await built.submit({ submitter: recorder().submitter });
+      const json = throughText(built);
+      expect(json.delivered).toBe(true);
+
+      const later = refusing();
+      const restored = await later.builder.restore(json);
+      // The bytes may have landed: a refusal proves nothing, and nothing is looked for
+      expect(await restored.submit()).toBe(restored);
+      expect(later.sent).toEqual([built.signedTx]);
+      expect(later.searches).toEqual([]);
+      expect(throughText(restored).delivered).toBe(true);
+      // Without the mark the same refusal is REJECTED
+      const fresh = refusing();
+      const unsent = await fresh.builder.restore(before);
+      expect(codeOf(await caught(() => unsent.submit()))).toBe("REJECTED");
+      expect(fresh.searches).toEqual([built.txHash]);
+    });
+
+    it("is written after a delivery whose outcome is unknown", async () => {
+      const { built } = await signedFixture();
+      const lossy = recorder(() => {
+        throw new Error("socket hang up");
+      });
+      expect(
+        codeOf(
+          await caught(() => built.submit({ submitter: lossy.submitter })),
+        ),
+      ).toBe("SUBMIT_FAILED");
+      expect(throughText(built).delivered).toBe(true);
+    });
+
+    it("is not written after a refusal, and is written for a delivery still on its way", async () => {
+      const { built } = await signedFixture();
+      const refused = recorder(() => {
+        throw refusal();
+      });
+      await caught(() => built.submit({ submitter: refused.submitter }));
+      expect(throughText(built).delivered).toBeUndefined();
+
+      const answer = gate<string>();
+      const sending = track(
+        built.submit({ submitter: { submitTx: () => answer.promise } }),
+      );
+      await settle();
+      expect(sending.done).toBe(false);
+      // Its outcome is unknown at this moment: the bytes may land
+      const json = throughText(built);
+      expect(Object.keys(json)).toEqual([
+        "kind",
+        "version",
+        "txHash",
+        "built",
+        "witnesses",
+        "delivered",
+      ]);
+      expect(json.delivered).toBe(true);
+      answer.resolve("");
+      await settle();
+      expect(sending.returned).toBe(built);
+      expect(throughText(built).delivered).toBe(true);
+    });
+
+    it("lets a process that restores the JSON written while a delivery was on its way return on a refusal", async () => {
+      const { built } = await signedFixture();
+      // A slow submitter holds the bytes, and the process that handed them off ends here
+      const slow = gate<string>();
+      const sending = track(
+        built.submit({ submitter: { submitTx: () => slow.promise } }),
+      );
+      await settle();
+      expect(sending.done).toBe(false);
+      const text = JSON.stringify(built);
+
+      // Another process: the node refuses, since the first delivery spent the inputs, and one
+      // look would not find it yet
+      const later = refusing();
+      const restored = await later.builder.restore(JSON.parse(text));
+      expect(await restored.submit()).toBe(restored);
+      expect(later.sent).toEqual([built.signedTx]);
+      expect(later.searches).toEqual([]);
+      expect(throughText(restored).delivered).toBe(true);
+    });
+  });
+
+  it("restores on a builder without a provider, which signs, and submits with the call's submitter", async () => {
+    const viaProvider = fakeProvider();
+    const { built, payer, guardKey } = await fixture({
+      builder: { provider: viaProvider.provider },
+    });
+    await built.sign({ signers: keysSigner("callback", payer).signer });
+    const offline = builder();
+    const restored = await offline.restore(throughText(built));
+    await restored.sign({ signers: keysSigner("object", guardKey).signer });
+    expect(restored.missing).toEqual([]);
+    expect((await signedKeyHashes(restored.signedTx!)).sort()).toEqual(
+      [payer.keyHash, guardKey.keyHash].sort(),
+    );
+    expect(codeOf(await caught(() => restored.submit()))).toBe(
+      "MISSING_SUBMITTER",
+    );
+    expect(codeOf(await caught(() => restored.awaitInclusion()))).toBe(
+      "MISSING_FETCHER",
+    );
+    const call = recorder();
+    await restored.submit({ submitter: call.submitter });
+    expect(call.sent).toEqual([restored.signedTx]);
+    // The object restored uses the builder it is restored on, not the one that built it
+    expect(viaProvider.sent).toEqual([]);
+    expect(viaProvider.searches).toEqual([]);
+  });
+
+  it("makes no request", async () => {
+    const { built } = await signedFixture();
+    const viaProvider = fakeProvider();
+    const own = recorder();
+    const b = new TxBuilder({
+      network: "preprod",
+      params,
+      costModels,
+      provider: viaProvider.provider,
+      submitter: own.submitter,
+    });
+    await b.restore(throughText(built));
+    expect(viaProvider.searches).toEqual([]);
+    expect(viaProvider.sent).toEqual([]);
+    expect(own.sent).toEqual([]);
+  });
+
+  it("reads the transaction once, and makes no call of a provider or a submitter that fail on every call", async () => {
+    const { built } = await signedFixture();
+    const calls: string[] = [];
+    /** An object every member of which is a function that fails, recording its name */
+    const failing = () =>
+      new Proxy(
+        {},
+        {
+          get: (_, name) =>
+            name === "then"
+              ? undefined
+              : () => {
+                  calls.push(String(name));
+                  throw new Error("no call is expected");
+                },
+        },
+      );
+    const b = new TxBuilder({
+      network: "preprod",
+      params,
+      costModels,
+      provider: failing() as TxBuilderOptions["provider"],
+      submitter: failing() as TxBuilderOptions["submitter"],
+    });
+    const json = throughText(built);
+    const reads = jest.spyOn(Transaction, "fromCbor");
+    try {
+      const restored = await b.restore(json);
+      expect(reads).toHaveBeenCalledTimes(1);
+      expect(restored.signedTx).toBe(built.signedTx);
+    } finally {
+      reads.mockRestore();
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it("accepts an extraKeyWitnesses of 0, and writes none", async () => {
+    const { built, payer, builder: b } = await fixture();
+    await built.addWitnesses(witnessSet(built.txHash, payer));
+    const restored = await b.restore({
+      ...throughText(built),
+      extraKeyWitnesses: 0,
+    });
+    expect(restored.partialTx).toBe(built.partialTx);
+    expect(throughText(restored)).toEqual(throughText(built));
+    expect("extraKeyWitnesses" in restored.toJSON()).toBe(false);
+  });
+
+  describe("a record whose transaction is signed", () => {
+    /** The refusal of a record whose transaction holds a witness */
+    const expectSignedTxRefused = (error: unknown, ...hidden: string[]) => {
+      expect(TxBuildError.is(error, "INVALID_OPTION")).toBe(true);
+      const { message, details } = error as TxBuildError<"INVALID_OPTION">;
+      expect(details).toEqual({
+        option: "json",
+        value: "object",
+        allowed: "the JSON of a StandaloneTx, as its toJSON() writes it",
+      });
+      expect(message).toContain("must be the unsigned one");
+      expect(message).toContain("its signatures go in witnesses");
+      for (const text of hidden) expect(message.includes(text)).toBe(false);
+    };
+
+    it("refuses a forged witness inside built.tx", async () => {
+      const { built, payer } = await fixture();
+      const forger = testKey();
+      // The payer's public key with a signature of another key, inside the transaction
+      const forged: KeyWitness = {
+        kind: "vkey",
+        vkey: payer.vkey,
+        signature: forger.sign(built.txHash),
+        keyHash: payer.keyHash,
+      };
+      const json = throughText(built);
+      const tx = withWitnesses(readTransaction(built.tx), [forged]);
+      const error = await refusedRestore(builder(), {
+        ...json,
+        built: { ...json.built, tx },
+      });
+      expectSignedTxRefused(error, forged.vkey, forged.signature);
+    });
+
+    it("refuses the object's own partialTx as built.tx, which would leave its key missing", async () => {
+      const { built, payer } = await fixture();
+      await built.sign({ signers: keysSigner("object", payer).signer });
+      const json = throughText(built);
+      // With the witnesses in the transaction and none in the record
+      const { witnesses: _held, ...unsigned } = json;
+      for (const record of [json, unsigned]) {
+        const error = await refusedRestore(builder(), {
+          ...record,
+          built: { ...record.built, tx: built.partialTx },
+        });
+        expectSignedTxRefused(error, payer.vkey);
+      }
+    });
+
+    it("refuses a bootstrap witness inside built.tx", async () => {
+      const { built } = await fixture();
+      const key = testKey();
+      const bootstrap: KeyWitness = {
+        kind: "bootstrap",
+        vkey: key.vkey,
+        signature: key.sign(built.txHash),
+        chainCode: "00".repeat(32),
+        attributes: "a0",
+        keyHash: key.keyHash,
+      };
+      const json = throughText(built);
+      const tx = withWitnesses(readTransaction(built.tx), [bootstrap]);
+      const error = await refusedRestore(builder(), {
+        ...json,
+        built: { ...json.built, tx },
+      });
+      expectSignedTxRefused(error, key.vkey);
+    });
+
+    it("restores what toJSON writes of a partly and of a fully signed object", async () => {
+      const { built, payer, guardKey } = await fixture();
+      await built.sign({ signers: keysSigner("object", payer).signer });
+      const partly = await builder().restore(throughText(built));
+      expect(partly.partialTx).toBe(built.partialTx);
+      expect(partly.missing).toEqual(built.missing);
+      await built.sign({ signers: keysSigner("object", guardKey).signer });
+      expect(built.signedTx).toBeDefined();
+      const fully = await builder().restore(throughText(built));
+      expect(fully.signedTx).toBe(built.signedTx);
+      expect(fully.missing).toEqual([]);
+    });
+  });
+
+  describe("the signers it writes", () => {
+    /** The keys a signer over every key of the fixture is asked for, and the transaction it signs */
+    const signedBy = async (
+      tx: StandaloneTx,
+      ...keys: TestKey[]
+    ): Promise<{ asked: unknown; signedTx: string | undefined }> => {
+      const { signer, requests } = keysSigner("object", ...keys);
+      await tx.sign({ signers: signer });
+      return { asked: requests[0]?.keys, signedTx: tx.signedTx };
+    };
+
+    it.each<[string, (signers: BuiltTx["signers"], drop: string) => void]>([
+      ["keyHashes reversed", (signers) => signers.keyHashes.reverse()],
+      [
+        "a key taken out of keys and keyHashes",
+        (signers, drop) => {
+          const at = signers.keyHashes.indexOf(drop);
+          signers.keyHashes.splice(at, 1);
+          signers.keys.splice(at, 1);
+        },
+      ],
+    ])(
+      "are those of the build after %s: the restored object asks and waits as the original does",
+      async (_, change) => {
+        const { built, payer, guardKey, scriptKey } = await fixture({
+          native: true,
+        });
+        const signers = structuredClone(built.signers);
+        const missing = built.missing;
+        change(built.signers, guardKey.keyHash);
+        expect(built.signers).not.toEqual(signers);
+
+        const restored = await builder().restore(throughText(built));
+        expect(restored.signers).toEqual(signers);
+        expect(restored.missing).toEqual(missing);
+        expect(throughText(restored).built.signers).toEqual(
+          throughText(built).built.signers,
+        );
+        // Without the guard key's signature it is not complete
+        await restored.sign({
+          signers: keysSigner("object", payer, scriptKey).signer,
+        });
+        expect(restored.signedTx).toBeUndefined();
+        expect(restored.missing).toEqual([keyOf(guardKey.keyHash, "guard")]);
+
+        const again = await builder().restore(throughText(built));
+        const ofOriginal = await signedBy(built, payer, guardKey, scriptKey);
+        const ofRestored = await signedBy(again, payer, guardKey, scriptKey);
+        expect(ofRestored.asked).toEqual([
+          keyOf(guardKey.keyHash, "guard"),
+          keyOf(payer.keyHash, "input"),
+          keyOf(scriptKey.keyHash, "nativeScript"),
+        ]);
+        expect(ofRestored).toEqual(ofOriginal);
+        expect(ofRestored.signedTx).toBeDefined();
+      },
+    );
+
+    it("writes another nested member as it stands, which changes nothing signed or asked", async () => {
+      const { built, payer, guardKey } = await fixture();
+      const missing = built.missing;
+      (built.outputs[0]!.value as { lovelace: bigint }).lovelace = 1n;
+      const restored = await builder().restore(throughText(built));
+      expect(restored.outputs[0]!.value.lovelace).toBe(1n);
+      expect(restored.tx).toBe(built.tx);
+      expect(restored.txHash).toBe(built.txHash);
+      expect(restored.missing).toEqual(missing);
+      const ofOriginal = await signedBy(built, payer, guardKey);
+      const ofRestored = await signedBy(restored, payer, guardKey);
+      expect(ofRestored).toEqual(ofOriginal);
+      expect(ofRestored.signedTx).toBeDefined();
+    });
+  });
+
+  describe("rich data", () => {
+    const TAGS: Action["tag"][] = [
+      "SPEND",
+      "MINT",
+      "CERT",
+      "REWARD",
+      "VOTE",
+      "PROPOSE",
+    ];
+    /** Prices every redeemer of a transaction at fixed units */
+    const fakeEvaluator: IEvaluator = {
+      evaluateTx: async (tx) =>
+        (
+          Transaction.fromCbor(TxCBOR(tx)).witnessSet().redeemers()?.values() ??
+          []
+        ).map((r) => ({
+          tag: TAGS[r.tag()]!,
+          index: Number(r.index()),
+          budget: { mem: 1000, steps: 2000 },
+        })),
+    };
+    const plutus = { code: alwaysSucceedCbor, version: "V3" as const };
+    const redeemer = { data: mConStr0([]) };
+    const BYRON = "Ae2tdPwUPEZ4YjgvykNpoFeYUxoyhNj2kg8KfKWN2FizsSpLUPv68MpTVDo";
+
+    const plutusBuilder = (
+      network: "preprod" | "mainnet" = "preprod",
+      provider?: TxBuilderOptions["provider"],
+    ) =>
+      new TxBuilder({
+        network,
+        params,
+        costModels,
+        evaluator: fakeEvaluator,
+        ...(provider !== undefined && { provider }),
+      });
+
+    /** An output the always-succeeding script locks, its datum inline */
+    const locked = (b: TxBuilder, lovelace = ada(10)): Utxo => ({
+      ...utxoAt(b.scriptAddress(plutus), lovelace),
+      datum: { type: "inline", data: { type: "CBOR", content: "d87980" } },
+    });
+
+    /**
+     * A spend, a mint and a withdrawal of the script, a validity with both bounds that starts
+     * after the clock, collateral without a return and a fee above the minimum: redeemers of
+     * three tags and every warning code
+     */
+    const everyWarning = async () => {
+      await Crypto.ready();
+      const payer = testKey();
+      const b = plutusBuilder();
+      const now = b.timeAt(50_000_000);
+      const clock = jest.spyOn(Date, "now").mockReturnValue(now);
+      try {
+        const built = await b.build(
+          [
+            spend.plutus({ utxo: locked(b), script: plutus, redeemer }),
+            mint.plutus({ script: plutus, redeemer, assets: { abcd: 1n } }),
+            withdrawal.plutus({
+              amount: 0n,
+              script: plutus,
+              redeemer,
+              label: "zero",
+            }),
+            collateral({ utxo: utxoAt(payer.address, ada(2)) }),
+            collateralReturn({
+              address: payer.address,
+              totalCollateral: ada(2),
+            }),
+            validity({
+              invalidBefore: 50_000_010,
+              invalidHereafter: 50_001_000,
+              label: "window",
+            }),
+          ],
+          {
+            payer: {
+              changeAddress: payer.address,
+              utxos: [utxoAt(payer.address)],
+            },
+            fee: ada(1),
+          },
+        );
+        return { built, payer, builder: b };
+      } finally {
+        clock.mockRestore();
+      }
+    };
+
+    /** A spend of the script whose collateral has a return */
+    const withReturn = async () => {
+      await Crypto.ready();
+      const payer = testKey();
+      const b = plutusBuilder();
+      const built = await b.build(
+        [
+          spend.plutus({ utxo: locked(b), script: plutus, redeemer }),
+          output({ address: recipient, value: { lovelace: ada(2) } }),
+        ],
+        {
+          payer: {
+            changeAddress: payer.address,
+            utxos: [utxoAt(payer.address), utxoAt(payer.address, ada(5))],
+          },
+        },
+      );
+      return { built, payer, builder: b };
+    };
+
+    /** A spend of a native script and of a Byron address, on mainnet */
+    const byronAndNative = async () => {
+      await Crypto.ready();
+      const payer = testKey();
+      const scriptKey = testKey();
+      const native: NativeScript = {
+        type: "all",
+        scripts: [
+          { type: "sig", keyHash: scriptKey.keyHash },
+          { type: "after", slot: "1000" },
+        ],
+      };
+      const shelley = serializeAddressObj(pubKeyAddress(payer.keyHash), 1);
+      const b = plutusBuilder("mainnet");
+      const built = await b.build(
+        [
+          spend.native({
+            utxo: utxoAt(b.scriptAddress(native), ada(2)),
+            script: native,
+          }),
+          spend.pubKey({ utxo: utxoAt(BYRON, ada(5)) }),
+          output({ address: shelley, value: { lovelace: ada(10) } }),
+          validity({ invalidBefore: 2_000 }),
+        ],
+        { payer: { changeAddress: shelley, utxos: [utxoAt(shelley)] } },
+      );
+      return { built, payer, scriptKey, builder: b };
+    };
+
+    /** What `finalize` makes of the prototype of the build with every warning */
+    const finalized = async () => {
+      const { built, payer, builder: b } = await everyWarning();
+      const final = await b.finalize(structuredClone(built.prototype), {
+        inputs: [...built.inputs, ...built.collateral!.inputs],
+        changeAddress: payer.address,
+      });
+      return { built: final, payer, builder: b };
+    };
+
+    const cases: [
+      string,
+      () => Promise<{ built: StandaloneTx; builder: TxBuilder }>,
+    ][] = [
+      [
+        "redeemers of three tags, a validity with both bounds, collateral without a return and every warning",
+        everyWarning,
+      ],
+      ["collateral with a return", withReturn],
+      ["signers with a native script and a Byron address", byronAndNative],
+      ["a finalize result", finalized],
+    ];
+
+    it("builds what the cases name", async () => {
+      const { built: warned } = await everyWarning();
+      expect(warned.redeemers.map((r) => r.tag).sort()).toEqual([
+        "MINT",
+        "REWARD",
+        "SPEND",
+      ]);
+      expect(warned.redeemers.some((r) => r.label === "zero")).toBe(true);
+      expect(warned.warnings.map((w) => w.code).sort()).toEqual([
+        "COLLATERAL_FORFEITED",
+        "FEE_ABOVE_MINIMUM",
+        "VALID_FROM_FUTURE",
+      ]);
+      expect(
+        warned.warnings.find((w) => w.code === "VALID_FROM_FUTURE"),
+      ).toMatchObject({ part: "validity", label: "window" });
+      expect(Object.keys(warned.validity!).sort()).toEqual([
+        "from",
+        "invalidBefore",
+        "invalidHereafter",
+        "until",
+      ]);
+      expect(warned.collateral).toBeDefined();
+      expect(warned.collateral!.return).toBeUndefined();
+      const { built: returned } = await withReturn();
+      expect(returned.collateral!.return).toBeDefined();
+      const { built: byron } = await byronAndNative();
+      expect(byron.signers.byronAddresses).toEqual([BYRON]);
+      expect(byron.signers.nativeScripts).toHaveLength(1);
+      const { built: final } = await finalized();
+      expect(final.parts).toEqual([]);
+      expect(final.redeemers.length).toBeGreaterThan(0);
+      expect(final.collateral).toBeDefined();
+    });
+
+    it.each(cases)(
+      "goes through JSON with %s, and both readers of the data of a build give it back",
+      async (_, make) => {
+        const { built, builder: b } = await make();
+        const restored = await b.restore(throughText(built));
+        expect({ ...restored }).toEqual({ ...built });
+        expect(restored.partialTx).toBe(built.partialTx);
+        expect(restored.missing).toEqual(built.missing);
+        expect(throughText(restored)).toEqual(throughText(built));
+        // The reader of a plan's record, and the one restore runs
+        const encoded = JSON.parse(JSON.stringify(encodeBuilt({ ...built })));
+        expect(decodeBuilt(structuredClone(encoded), "built")).toEqual({
+          ...built,
+        });
+        expect(
+          unquoted(() => decodeBuilt(structuredClone(encoded), "built")),
+        ).toEqual({ ...built });
+      },
+    );
+
+    it("goes through JSON holding only bootstrap witnesses", async () => {
+      const { built, builder: b } = await byronAndNative();
+      const key = testKey();
+      await built.addWitnesses(bootstrapSet(built.txHash, key));
+      expect(vkeysOf(built.partialTx)).toEqual({
+        vkeys: [],
+        bootstraps: [key.vkey],
+      });
+      const json = throughText(built);
+      expect(json.witnesses).toBeDefined();
+      const restored = await b.restore(json);
+      expect({ ...restored }).toEqual({ ...built });
+      expect(restored.partialTx).toBe(built.partialTx);
+      expect(restored.missing).toEqual(built.missing);
+      expect(throughText(restored)).toEqual(json);
+    });
+
+    it("signs, after restore, a Plutus build with its redeemers and collateral", async () => {
+      const { built, payer, builder: b } = await withReturn();
+      const restored = await b.restore(throughText(built));
+      await restored.sign({ signers: keysSigner("object", payer).signer });
+      await built.sign({ signers: keysSigner("object", payer).signer });
+      expect(restored.signedTx).toBeDefined();
+      expect(restored.signedTx).toBe(built.signedTx);
+    });
+
+    it("reads whether a Plutus script runs from the transaction, not from the record's redeemers", async () => {
+      const { built } = await withReturn();
+      const json = throughText(built);
+      const viaProvider = fakeProvider({
+        fetchTxInfo: (hash) => foundInfo(hash),
+      });
+      const restored = await plutusBuilder(
+        "preprod",
+        viaProvider.provider,
+      ).restore({ ...json, built: { ...json.built, redeemers: [] } });
+      expect(restored.redeemers).toEqual([]);
+      const error = await caught(() => restored.awaitInclusion());
+      expect(TxPlanError.is(error, "CANNOT_OBSERVE")).toBe(true);
+      expect((error as TxPlanError<"CANNOT_OBSERVE">).details.reason).toBe(
+        "noValidity",
+      );
+    });
+
+    it.each<[string, (built: Record<string, any>) => void]>([
+      ["signers", (built) => (built.signers[MARK] = 1)],
+      ["network", (built) => (built.network[MARK] = 1)],
+      ["validity", (built) => (built.validity[MARK] = 1)],
+      ["collateral", (built) => (built.collateral[MARK] = 1)],
+      ["a redeemer", (built) => (built.redeemers[0][MARK] = 1)],
+      [
+        "the exUnits of a redeemer",
+        (built) => (built.redeemers[0].exUnits[MARK] = 1),
+      ],
+      ["exUnits", (built) => (built.exUnits[MARK] = 1)],
+      ["a warning", (built) => (built.warnings[0][MARK] = 1)],
+    ])(
+      "refuses a member it does not know in %s, in restore and in a plan's reader",
+      async (_, change) => {
+        const { built, builder: b } = await everyWarning();
+        const json = throughText(built);
+        const changed = structuredClone(json.built) as Record<string, any>;
+        change(changed);
+        const error = await refusedRestore(b, { ...json, built: changed });
+        expect(TxPlanError.is(error, "INVALID_STATE")).toBe(true);
+        expect((error as Error).message).toContain(
+          "a member this library does not know",
+        );
+        // A plan's reader names the member, as it names one at the top
+        expect(() => decodeBuilt(structuredClone(changed), "built")).toThrow(
+          new RegExp(`built\\..*${MARK}, a member this library does not know`),
+        );
+      },
+    );
+  });
+
+  describe("what it refuses", () => {
+    it.each<[string, unknown]>([
+      ["undefined", undefined],
+      ["null", null],
+      ["a text", MARK],
+      ["a number", 42],
+      ["a list", [MARK]],
+      ["a function", () => MARK],
+    ])(
+      "refuses %s with INVALID_OPTION (json), naming its type only",
+      async (_, value) => {
+        const error = await refusedRestore(builder(), value);
+        expect(TxBuildError.is(error, "INVALID_OPTION")).toBe(true);
+        const { details } = error as TxBuildError<"INVALID_OPTION">;
+        expect(details.option).toBe("json");
+        expect(details.value).toBe(value === null ? "null" : typeof value);
+      },
+    );
+
+    it("refuses the data of a build, which is no JSON, with INVALID_OPTION (json)", async () => {
+      const { built } = await fixture();
+      const error = await refusedRestore(builder(), { ...built });
+      expect(TxBuildError.is(error, "INVALID_OPTION")).toBe(true);
+      expect((error as TxBuildError<"INVALID_OPTION">).details).toEqual({
+        option: "json",
+        value: "object",
+        allowed: "the JSON of a StandaloneTx, as its toJSON() writes it",
+      });
+    });
+
+    it.each<[string, (json: Record<string, unknown>) => unknown]>([
+      ["another kind", (json) => ({ ...json, kind: MARK })],
+      ["no kind", ({ kind: _kind, ...json }) => json],
+      ["a newer version", (json) => ({ ...json, version: 2 })],
+      ["a version of 0", (json) => ({ ...json, version: 0 })],
+      ["a version as text", (json) => ({ ...json, version: "1" })],
+      ["a member it does not know", (json) => ({ ...json, [MARK]: MARK })],
+      ["a txHash that is not text", (json) => ({ ...json, txHash: 7 })],
+      ["no built", ({ built: _built, ...json }) => json],
+      [
+        "a member of built it does not know",
+        (json) => ({
+          ...json,
+          built: { ...(json.built as object), [MARK]: 1 },
+        }),
+      ],
+      [
+        "a fee that is not a decimal integer",
+        (json) => ({
+          ...json,
+          built: { ...(json.built as object), fee: MARK },
+        }),
+      ],
+      [
+        "an asset quantity that is not a decimal integer",
+        (json) => {
+          const built = structuredClone(json.built) as {
+            outputs: { value: Record<string, unknown> }[];
+          };
+          built.outputs[0]!.value[MARK] = MARK;
+          return { ...json, built };
+        },
+      ],
+      [
+        "a network without its network id",
+        (json) => ({
+          ...json,
+          built: { ...(json.built as object), network: { name: MARK } },
+        }),
+      ],
+      [
+        "a tx that is not a transaction",
+        (json) => ({
+          ...json,
+          built: { ...(json.built as object), tx: `00${MARK}` },
+        }),
+      ],
+      [
+        "witnesses that are not text",
+        (json) => ({ ...json, witnesses: [MARK] }),
+      ],
+      [
+        "witnesses that are no witness set",
+        (json) => ({ ...json, witnesses: "ff" }),
+      ],
+      ["empty witnesses", (json) => ({ ...json, witnesses: "" })],
+      [
+        "a delivered mark that is not true",
+        (json) => ({ ...json, delivered: MARK }),
+      ],
+      [
+        "a negative extraKeyWitnesses",
+        (json) => ({ ...json, extraKeyWitnesses: -1 }),
+      ],
+      [
+        "a fractional extraKeyWitnesses",
+        (json) => ({ ...json, extraKeyWitnesses: 1.5 }),
+      ],
+      [
+        "an extraKeyWitnesses as text",
+        (json) => ({ ...json, extraKeyWitnesses: "1" }),
+      ],
+    ])(
+      "refuses %s with INVALID_STATE (recordVersion), quoting none of it",
+      async (_, change) => {
+        const { built, payer } = await fixture();
+        await built.addWitnesses(witnessSet(built.txHash, payer));
+        const json = throughText(built) as unknown as Record<string, unknown>;
+        const error = await refusedRestore(builder(), change(json));
+        expect(TxPlanError.is(error, "INVALID_STATE")).toBe(true);
+        const { details, retryable, message } =
+          error as TxPlanError<"INVALID_STATE">;
+        expect([details, retryable]).toEqual([
+          { reason: "recordVersion" },
+          false,
+        ]);
+        expect(message).toContain("the JSON of the transaction was not read");
+      },
+    );
+
+    it("names the newer version and the member it does not know without quoting them", async () => {
+      const { built } = await fixture();
+      const json = throughText(built);
+      const newer = await refusedRestore(builder(), { ...json, version: 2 });
+      expect((newer as Error).message).toContain("newer than 1");
+      const unknown = await refusedRestore(builder(), { ...json, [MARK]: 1 });
+      expect((unknown as Error).message).toContain(
+        "a member this library does not know",
+      );
+      const deep = await refusedRestore(builder(), {
+        ...json,
+        built: { ...json.built, fee: MARK },
+      });
+      expect((deep as Error).message).toContain("built.fee is a string");
+    });
+
+    it.each<
+      [string, (json: StandaloneTxJSON, other: StandaloneTxJSON) => unknown]
+    >([
+      [
+        "a txHash that is not the hash of its body",
+        (json, other) => ({ ...json, txHash: other.txHash }),
+      ],
+      [
+        "a built.txHash that is not the hash of its body",
+        (json, other) => ({
+          ...json,
+          built: { ...json.built, txHash: other.txHash },
+        }),
+      ],
+      [
+        "the transaction of another build under its own txHash",
+        (json, other) => ({
+          ...json,
+          built: { ...json.built, tx: other.built.tx },
+        }),
+      ],
+      [
+        "a witness of another body",
+        (json, other) => ({ ...json, witnesses: other.witnesses }),
+      ],
+    ])("refuses %s with INVALID_OPTION (json)", async (_, change) => {
+      const { built, payer } = await fixture();
+      const other = await fixture();
+      await built.addWitnesses(witnessSet(built.txHash, payer));
+      await other.built.addWitnesses(
+        witnessSet(other.built.txHash, other.payer),
+      );
+      const error = await refusedRestore(
+        builder(),
+        change(throughText(built), throughText(other.built)),
+      );
+      expect(TxBuildError.is(error, "INVALID_OPTION")).toBe(true);
+      expect((error as TxBuildError<"INVALID_OPTION">).details).toEqual({
+        option: "json",
+        value: "object",
+        allowed: "the JSON of a StandaloneTx, as its toJSON() writes it",
+      });
+    });
+
+    it("refuses a witness whose signature was changed", async () => {
+      const { built, payer } = await fixture();
+      const wrong = testKey();
+      // The payer's key with a signature of another key
+      const set = new CborWriter()
+        .writeStartMap(1)
+        .writeInt(0)
+        .writeStartArray(1)
+        .writeStartArray(2)
+        .writeByteString(Buffer.from(payer.vkey, "hex"))
+        .writeByteString(Buffer.from(wrong.sign(built.txHash), "hex"))
+        .encodeAsHex();
+      const error = await refusedRestore(builder(), {
+        ...throughText(built),
+        witnesses: set,
+      });
+      expect(TxBuildError.is(error, "INVALID_OPTION")).toBe(true);
+    });
+
+    it("refuses a transaction of another network with NETWORK_MISMATCH", async () => {
+      const { built } = await fixture();
+      const error = await refusedRestore(
+        builder("mainnet"),
+        throughText(built),
+      );
+      expect(TxBuildError.is(error, "NETWORK_MISMATCH")).toBe(true);
+      expect((error as TxBuildError<"NETWORK_MISMATCH">).details).toEqual({
+        expected: { name: "mainnet", networkId: 1 },
+        found: [{ role: "record", network: "preprod", networkId: 0 }],
+      });
+      // The same name with another network id
+      const json = throughText(built);
+      const otherId = await refusedRestore(builder(), {
+        ...json,
+        built: { ...json.built, network: { name: "preprod", networkId: 1 } },
+      });
+      expect(TxBuildError.is(otherId, "NETWORK_MISMATCH")).toBe(true);
+    });
+  });
+
+  it("does not read a plan's JSON, and a plan's reader does not read this one", async () => {
+    const store = {
+      json: undefined as unknown,
+      load: async () => store.json,
+      save: async () => true,
+    };
+    const { builder: b, address } = await setup({
+      builder: { store: store as never },
+    });
+    const plan = b.plan(pay(), { payer: address, id: "pay-1" });
+    await plan.build();
+    const planError = await caught(() =>
+      b.restore(plan.toJSON() as unknown as StandaloneTxJSON),
+    );
+    expect(TxPlanError.is(planError, "INVALID_STATE")).toBe(true);
+    expect((planError as TxPlanError<"INVALID_STATE">).details.reason).toBe(
+      "recordVersion",
+    );
+
+    const built = await b.build(pay(), { payer: address });
+    store.json = throughText(built);
+    for (const read of [() => b.resume("pay-1"), () => readPlan(store.json)]) {
+      const error = await caught(read);
+      expect(TxPlanError.is(error, "INVALID_STATE")).toBe(true);
+      expect((error as TxPlanError<"INVALID_STATE">).details.reason).toBe(
+        "recordVersion",
+      );
+      expect((error as Error).message).toContain(
+        'this library reads "TxPlan" records',
+      );
+    }
+  });
+
+  it("types: restore takes the JSON, and toJSON gives it", async () => {
+    const { built, builder: b } = await fixture();
+    const json: StandaloneTxJSON = built.toJSON();
+    expect((await b.restore(json)).txHash).toBe(built.txHash);
+    // @ts-expect-error: the data of a build is not its JSON
+    await expect(b.restore({ ...built })).rejects.toThrow(TxBuildError);
+  });
 });

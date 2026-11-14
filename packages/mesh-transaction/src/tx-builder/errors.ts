@@ -172,7 +172,7 @@ export type NetworkMismatchDetails = {
       | "collateralReturn"
       | "withdrawal"
       | "rewardAccount"
-      /** The network a plan's record was written for */
+      /** The network a plan's record, or the JSON of a `StandaloneTx`, was written for */
       | "record";
     address?: string;
     networkId?: number;
@@ -286,7 +286,10 @@ export type TxPlanErrorCode =
   | "CANNOT_OBSERVE"
   /** An attempt is on chain */
   | "ATTEMPT_ON_CHAIN"
-  /** The call does not fit the plan's state */
+  /**
+   * The call does not fit the plan's state; or a record is not read: a plan's, or the JSON of a
+   * transaction given to `restore`
+   */
   | "INVALID_STATE"
   /** An attempt may still land */
   | "STILL_LIVE"
@@ -375,7 +378,8 @@ export type TxPlanErrorDetails = {
   };
   /**
    * `closing`: the plan carries the closing mark; `recordVersion`: the record is of a newer
-   * format, another kind, or holds content this library does not know
+   * format, another kind, or holds content this library does not know: a plan's record, or the
+   * JSON of a `StandaloneTx` given to `restore`, whose error quotes none of its values
    */
   INVALID_STATE: {
     reason:

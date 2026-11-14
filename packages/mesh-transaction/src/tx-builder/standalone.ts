@@ -17,6 +17,7 @@ import {
   DEFAULT_POLL_MS,
   DEFAULT_TIMEOUT_MS,
 } from "./plan/deadlines";
+import { decodeBuilt, encodeBuilt, unquoted, UnreadContent } from "./plan/json";
 import { chainObserver, isRefusal } from "./plan/observer";
 import {
   canSign,
@@ -27,6 +28,7 @@ import {
   toSigners,
   withWitnesses,
   witnessesToAdd,
+  writeWitnessSet,
 } from "./sign";
 import { askedKeys } from "./witnesses";
 
@@ -84,6 +86,58 @@ export type TxInclusion = {
   readonly block?: string;
   /** The height of that block */
   readonly blockHeight?: number;
+};
+
+/**
+ * A `StandaloneTx` as data, in its encoded form: what `toJSON()` returns. Plain JSON data:
+ * every `bigint` stands as its decimal string. Applications read `kind`, `version` and `txHash`;
+ * the rest is the library's.
+ */
+export type StandaloneTxJSON = {
+  /** Always `"StandaloneTx"`: what kind of record this is */
+  readonly kind: "StandaloneTx";
+  /** The record format; this release writes 1 */
+  readonly version: number;
+  /** The hash of the transaction's body */
+  readonly txHash: string;
+  /** The library's: the data of the build */
+  readonly built: Record<string, unknown>;
+  /** The library's: the vkey and bootstrap witnesses it holds, as a CBOR witness set in hex */
+  readonly witnesses?: string;
+  /**
+   * The library's: how many witnesses of keys the transaction does not need its fee counts,
+   * the build's `extraKeyWitnesses`; written only when above 0
+   */
+  readonly extraKeyWitnesses?: number;
+  /**
+   * The library's: a delivery of it was taken by a submitter, or its outcome is unknown, one
+   * still on its way when the JSON was written among them
+   */
+  readonly delivered?: true;
+};
+
+/** The record format of `StandaloneTxJSON` this library writes and reads */
+const RECORD_VERSION = 1;
+
+/** The members of `StandaloneTxJSON` */
+const RECORD_MEMBERS: readonly string[] = [
+  "kind",
+  "version",
+  "txHash",
+  "built",
+  "witnesses",
+  "extraKeyWitnesses",
+  "delivered",
+];
+
+/** What a restored object starts from beside the data: read from its JSON and verified */
+type RestoredState = {
+  /** The transaction of the data, read once */
+  readonly raw: RawTx;
+  /** The witnesses of the JSON, each verified against the body */
+  readonly held: readonly KeyWitness[];
+  /** A delivery of it was taken, or its outcome is unknown */
+  readonly delivered: boolean;
 };
 
 /** The JavaScript type of a value, with `null` told apart */
@@ -262,7 +316,8 @@ const keysText = (keys: readonly RequiredKey[]) =>
   keys.map((k) => `${k.keyHash} (${k.roles.join(", ")})`).join("; ");
 
 /**
- * One built transaction, on its own: what `builder.build()` and `builder.finalize()` return.
+ * One built transaction, on its own: what `builder.build()` and `builder.finalize()` return, and
+ * `builder.restore()` brings back.
  *
  * It is a `BuiltTx`: every member of it is here as the object's own read-only data, so it goes
  * wherever a `BuiltTx` goes (`after`, `utxosAfter`, `outputOf`), and `{ ...built }` or
@@ -344,6 +399,8 @@ export class StandaloneTx implements BuiltTx {
   readonly #raw: RawTx;
   /** The keys that must sign, copied: what `missing` lists */
   readonly #keys: readonly RequiredKey[];
+  /** `signers` as built, copied: what the JSON writes, whatever the member says later */
+  readonly #signers: BuiltTx["signers"];
   /** The keys a signer is asked for: those that must sign, then those native scripts name */
   readonly #asked: readonly AskedKey[];
   /** The keys the fee counts a vkey witness for */
@@ -358,7 +415,10 @@ export class StandaloneTx implements BuiltTx {
   #written?: { count: number; tx: string };
   /** The builder that made it: its submitter, provider, cache and `planDefaults` */
   readonly #builder: TxBuilder;
-  /** Whether a Plutus script runs: a find then needs the provider to say that the scripts passed */
+  /**
+   * Whether a Plutus script runs, read from the transaction once (its witness set holds
+   * redeemers): a find then needs the provider to say that the scripts passed
+   */
   readonly #plutus: boolean;
   /**
    * A delivery was taken by a submitter, its outcome is unknown, or the call that handed it off
@@ -370,12 +430,20 @@ export class StandaloneTx implements BuiltTx {
   /** How many deliveries were handed off: a refused call sees one handed off while it looks */
   #handedOff = 0;
 
-  /** Made by `builder.build()` and `builder.finalize()` only */
-  private constructor(builder: TxBuilder, built: BuiltTx, extraKeys: number) {
+  /** Made by `builder.build()`, `builder.finalize()` and `builder.restore()` only */
+  private constructor(
+    builder: TxBuilder,
+    built: BuiltTx,
+    extraKeys: number,
+    restored?: RestoredState,
+  ) {
     Object.assign(this, built);
     this.#builder = builder;
-    this.#raw = readTransaction(built.tx);
-    this.#plutus = built.redeemers.length > 0;
+    this.#raw = restored?.raw ?? readTransaction(built.tx);
+    // Read from the transaction itself: its witness set holds redeemers
+    this.#plutus =
+      (this.#raw.transaction.witnessSet().redeemers()?.size() ?? 0) > 0;
+    this.#signers = structuredClone(built.signers);
     this.#keys = Object.freeze(
       built.signers.keys.map(({ keyHash, roles }) =>
         Object.freeze({ keyHash, roles: Object.freeze([...roles]) }),
@@ -385,6 +453,10 @@ export class StandaloneTx implements BuiltTx {
     this.#counted = new Set(this.#asked.map(({ keyHash }) => keyHash));
     this.#bootstraps = built.signers.byronAddresses.length;
     this.#extraKeys = extraKeys;
+    if (restored !== undefined) {
+      this.#keep(restored.held);
+      this.#delivered = restored.delivered;
+    }
     Object.freeze(this);
   }
 
@@ -662,6 +734,36 @@ export class StandaloneTx implements BuiltTx {
     }
   }
 
+  /**
+   * The transaction as plain JSON data, with the witnesses it holds: `JSON.stringify(built)`
+   * writes it, and `builder.restore(json)` gives the object back, in this process or another.
+   * It holds no signer and no key: the witnesses only. It marks a delivery that was taken or
+   * whose outcome is unknown when this is called, a delivery handed off that has not answered
+   * yet among them: the bytes may land, and the object restored treats a refusal as this one
+   * would.
+   *
+   * `signers` is written as it was built: what the object restored asks for and waits for does
+   * not depend on what was done to that member of this one. The other members are written as
+   * they stand: they are the application's view of the data, and decide nothing that is signed,
+   * asked for or sent
+   */
+  toJSON(): StandaloneTxJSON {
+    const held = this.#held;
+    const delivered = this.#delivered || this.#sending.size > 0;
+    return {
+      kind: "StandaloneTx",
+      version: RECORD_VERSION,
+      txHash: this.#raw.txId,
+      built: encodeBuilt({ ...this, signers: this.#signers }) as Record<
+        string,
+        unknown
+      >,
+      ...(held.length > 0 && { witnesses: writeWitnessSet(held, false) }),
+      ...(this.#extraKeys > 0 && { extraKeyWitnesses: this.#extraKeys }),
+      ...(delivered && { delivered: true as const }),
+    };
+  }
+
   /** The submitter of a call: its own, else the builder's, else the provider when it submits */
   #submitter(given: ISubmitter | undefined): ISubmitter | undefined {
     if (given !== undefined) return given;
@@ -753,19 +855,190 @@ const internals = (builder: TxBuilder) =>
   builder as unknown as BuilderInternals;
 
 /**
- * A `StandaloneTx` of the data of a build: the object `build()` and `finalize()` return
+ * A `StandaloneTx` of the data of a build: the object `build()`, `finalize()` and `restore()`
+ * return
  * @param builder The builder that made it: it submits through it and looks through its provider
  * @param extraKeys The build's `extraKeyWitnesses`: witnesses of other keys its fee counts
+ * @param restored What a restored object starts from: its transaction read, its witnesses
+ *   verified, and its mark of a delivery
  */
 export const standaloneTx = (
   builder: TxBuilder,
   built: BuiltTx,
   extraKeys = 0,
+  restored?: RestoredState,
 ): StandaloneTx =>
   new (
     StandaloneTx as unknown as new (
       builder: TxBuilder,
       built: BuiltTx,
       extraKeys: number,
+      restored?: RestoredState,
     ) => StandaloneTx
-  )(builder, built, extraKeys);
+  )(builder, built, extraKeys, restored);
+
+const JSON_ALLOWED = "the JSON of a StandaloneTx, as its toJSON() writes it";
+
+/**
+ * A JSON `restore` does not take. It names no value of what was given: the JavaScript type of
+ * the value, and what is wrong with it
+ */
+const invalidJson = (json: unknown, reason?: string) =>
+  new TxBuildError(
+    "INVALID_OPTION",
+    `invalid json: ${
+      reason ?? `expected ${JSON_ALLOWED}; got a value of type ${typeOf(json)}`
+    }`,
+    { details: { option: "json", value: typeOf(json), allowed: JSON_ALLOWED } },
+  );
+
+/** A JSON whose content this library does not read; `what` quotes none of it */
+const notRead = (what: string) =>
+  new TxPlanError(
+    "INVALID_STATE",
+    `the JSON of the transaction was not read: ${what}. Use a version of this library that reads it`,
+    { details: { reason: "recordVersion" } },
+  );
+
+/** The content of a JSON whose shape is an object, read; its refusals quote none of it */
+const readRecord = (json: Record<string, unknown>) =>
+  unquoted(() => {
+    const unread = (what: string): never => {
+      throw new UnreadContent(what);
+    };
+    if (json.kind !== "StandaloneTx")
+      unread(
+        'its kind is not "StandaloneTx": this library reads the JSON of a StandaloneTx here',
+      );
+    const version = json.version;
+    if (!Number.isSafeInteger(version) || (version as number) < 1)
+      unread("its version is not a whole number from 1");
+    if ((version as number) > RECORD_VERSION)
+      unread(
+        `its version is newer than ${RECORD_VERSION}, the version this library reads`,
+      );
+    for (const key of Object.keys(json))
+      if (!RECORD_MEMBERS.includes(key))
+        unread("it holds a member this library does not know");
+    if (typeof json.txHash !== "string") unread("txHash is not a text");
+    const built = decodeBuilt(json.built, "built");
+    const { name, networkId } = built.network as Record<string, unknown>;
+    if (typeof name !== "string" || (networkId !== 0 && networkId !== 1))
+      unread("built.network is not a network name with its network id, 0 or 1");
+    if (json.witnesses !== undefined && typeof json.witnesses !== "string")
+      unread("witnesses is not a text");
+    const extraKeys = json.extraKeyWitnesses;
+    if (
+      extraKeys !== undefined &&
+      (!Number.isSafeInteger(extraKeys) || (extraKeys as number) < 0)
+    )
+      unread("extraKeyWitnesses is not a whole number of 0 or more");
+    if (json.delivered !== undefined && json.delivered !== true)
+      unread("delivered is not true");
+    return {
+      txHash: json.txHash as string,
+      built,
+      witnesses: json.witnesses as string | undefined,
+      extraKeys: (extraKeys as number | undefined) ?? 0,
+      delivered: json.delivered === true,
+    };
+  });
+
+/**
+ * The object of a JSON `toJSON()` wrote, on this builder: read whole, its transaction read
+ * again and found unsigned, its hash compared, every witness verified against the body and kept
+ * by the rule `sign()` keeps them by. An error quotes nothing of the JSON but its network, in
+ * the `details` of NETWORK_MISMATCH; nothing is requested
+ * @throws TxPlanError INVALID_STATE (`recordVersion`) for another kind, a newer version, a
+ *   member or content this library does not read
+ * @throws TxBuildError INVALID_OPTION (`json`) for a value that is not JSON data of an object, a
+ *   transaction that holds a vkey or bootstrap witness, a `txHash` that is not the hash of its
+ *   transaction's body, a witness that is not of that body;
+ *   NETWORK_MISMATCH for a transaction of another network than the builder's
+ */
+export const restoreStandalone = async (
+  builder: TxBuilder,
+  json: unknown,
+): Promise<StandaloneTx> => {
+  // A copy, so that the object shares nothing with the value given, and a check that the value
+  // is JSON data
+  let copy: unknown;
+  try {
+    copy = JSON.parse(JSON.stringify(json));
+  } catch {
+    throw invalidJson(json);
+  }
+  if (typeof copy !== "object" || copy === null || Array.isArray(copy))
+    throw invalidJson(json);
+  let record: ReturnType<typeof readRecord>;
+  try {
+    record = readRecord(copy as Record<string, unknown>);
+  } catch (error) {
+    if (error instanceof UnreadContent) throw notRead(error.message);
+    throw error;
+  }
+  const { built } = record;
+  const own = builder.network;
+  if (
+    built.network.name !== own.name ||
+    built.network.networkId !== own.networkId
+  )
+    throw new TxBuildError(
+      "NETWORK_MISMATCH",
+      `the transaction was built for another network than the builder's, ${own.name} (network id ${own.networkId}): restore it with a builder of its network`,
+      {
+        details: {
+          expected: { name: own.name, networkId: own.networkId },
+          found: [
+            {
+              role: "record",
+              network: built.network.name,
+              networkId: built.network.networkId,
+            },
+          ],
+        },
+      },
+    );
+  let raw: RawTx;
+  try {
+    raw = readTransaction(built.tx);
+  } catch {
+    throw notRead(
+      "built.tx is not a transaction in CBOR hex this library reads",
+    );
+  }
+  // The transaction of a JSON is the unsigned one, as toJSON writes it: a witness inside it
+  // would be held unverified, and would hide that its key has not signed
+  const { vkeys, bootstraps } = raw.witnessSet;
+  if (
+    (vkeys?.witnesses.length ?? 0) > 0 ||
+    (bootstraps?.witnesses.length ?? 0) > 0
+  )
+    throw invalidJson(
+      json,
+      "the transaction of the record must be the unsigned one, without a vkey or bootstrap witness: its signatures go in witnesses",
+    );
+  if (raw.txId !== record.txHash || raw.txId !== built.txHash)
+    throw invalidJson(
+      json,
+      "its txHash is not the hash of the body of its transaction",
+    );
+  let held: KeyWitness[] = [];
+  if (record.witnesses !== undefined)
+    try {
+      held = await witnessesToAdd(raw, [record.witnesses]);
+    } catch (error) {
+      if (!TxPlanError.is(error, "INVALID_WITNESS")) throw error;
+      if (error.details.reason === "wrongBody")
+        throw invalidJson(
+          json,
+          "it holds a witness that is not of the body of its transaction",
+        );
+      throw notRead("witnesses is not a witness set this library reads");
+    }
+  return standaloneTx(builder, built, record.extraKeys, {
+    raw,
+    held,
+    delivered: record.delivered,
+  });
+};

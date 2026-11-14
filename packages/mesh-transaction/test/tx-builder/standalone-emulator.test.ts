@@ -472,6 +472,41 @@ describe.each(["scalus", "cquisitor"] as const)(
       });
     });
 
+    it("is signed in part by one builder, restored from JSON by another, which signs the rest, submits it and finds it", async () => {
+      const { emulator, built, pubKeyHash, stakeCredentialHash } =
+        await registration(validator);
+      const keys = await seedKeys();
+      await built.sign({ signers: keys.payment });
+      expect(built.missing.map((k) => k.keyHash)).toEqual([
+        stakeCredentialHash,
+      ]);
+      const text = JSON.stringify(built);
+
+      // Another process: a builder of its own on the same chain
+      const other = new TxBuilder({
+        network: "preprod",
+        provider: emulator,
+        evaluator: emulator,
+      });
+      const restored = await other.restore(JSON.parse(text));
+      expect(restored).toBeInstanceOf(StandaloneTx);
+      expect({ ...restored }).toEqual({ ...built });
+      expect(restored.partialTx).toBe(built.partialTx);
+      // What is held is not enough for the ledger
+      const early = await emulator.simulate(restored.partialTx);
+      expect(rules(early)).toContain(missingKeyRule[validator]);
+
+      await restored.sign({ signers: keys.stake, partial: false });
+      expect((await signedKeyHashes(restored.signedTx!)).sort()).toEqual(
+        [pubKeyHash, stakeCredentialHash].sort(),
+      );
+      expect(await restored.submit()).toBe(restored);
+      expect((await restored.awaitInclusion(QUICK)).txHash).toBe(built.txHash);
+      // The original finds it too, and a JSON written after the delivery carries its mark
+      expect((await built.awaitInclusion(QUICK)).txHash).toBe(built.txHash);
+      expect(restored.toJSON().delivered).toBe(true);
+    });
+
     it("builds after an unsent transaction, and both are submitted in order and found", async () => {
       const { emulator, builder, wallet, address } = await wrapped(validator);
       const first = await builder.build(

@@ -69,6 +69,7 @@ export { keySigner } from "./key-signer";
 export {
   StandaloneTx,
   type SignTxOptions,
+  type StandaloneTxJSON,
   type TxInclusion,
 } from "./standalone";
 export { TxPlan } from "./plan/plan";

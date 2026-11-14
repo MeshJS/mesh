@@ -9,6 +9,7 @@ import type {
   SendOptions,
   SignOptions,
   SignTxOptions,
+  StandaloneTxJSON,
   StoredTxPlanJSON,
   TxAttempt,
   TxAttemptStatus,
@@ -187,6 +188,26 @@ describe("public entrypoint", () => {
         )[method],
       ).toBe("function");
     for (const name of ["standaloneTx", "NO_REBUILD", "isWallet"])
+      expect(publicApi).not.toHaveProperty(name);
+  });
+
+  it("exports the JSON type of a built transaction and restore, and not their encoding", () => {
+    const json: StandaloneTxJSON = {
+      kind: "StandaloneTx",
+      version: 1,
+      txHash: "00".repeat(32),
+      built: {},
+      delivered: true,
+    };
+    expect(json.kind).toBe("StandaloneTx");
+    expect(typeof publicApi.StandaloneTx.prototype.toJSON).toBe("function");
+    expect(typeof publicApi.TxBuilder.prototype.restore).toBe("function");
+    for (const name of [
+      "restoreStandalone",
+      "encodeBuilt",
+      "decodeBuilt",
+      "unquoted",
+    ])
       expect(publicApi).not.toHaveProperty(name);
   });
 
