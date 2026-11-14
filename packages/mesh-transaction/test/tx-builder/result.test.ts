@@ -41,6 +41,7 @@ import {
   OutputScript,
   referenceInput,
   spend,
+  StandaloneTx,
   toUtxo,
   TxBuilder,
   TxBuildError,
@@ -1003,7 +1004,7 @@ describe("BuiltTx: plain data", () => {
     expect(built.warnings.length).toBeGreaterThan(0);
     expect(structuredClone(built)).toEqual(built);
     // structuredClone turns a class instance into a plain object, and jest's equality does not
-    // tell the two apart: every object of the result has to be a plain object or an array. The
+    // tell the two apart: every object of the data has to be a plain object or an array. The
     // prototypes are compared by shape, as the test runs in a realm of its own and plain objects
     // made by structuredClone have the prototypes of another
     const isObjectPrototype = (proto: object | null) =>
@@ -1021,7 +1022,21 @@ describe("BuiltTx: plain data", () => {
       for (const [key, member] of Object.entries(value))
         walk(member, `${path}.${key}`);
     };
-    walk(built, "built");
+    // The result is the object of the transaction; each of its members is plain data
+    expect(built).toBeInstanceOf(StandaloneTx);
+    for (const [key, member] of Object.entries(built))
+      walk(member, `built.${key}`);
     expect(notPlain).toEqual([]);
+    // Its plain copies are the same data as a plain object
+    for (const [name, copy] of [
+      ["spread", { ...built }],
+      ["structuredClone", structuredClone(built)],
+    ] as const) {
+      expect(copy).not.toBeInstanceOf(StandaloneTx);
+      walk(copy, name);
+      expect(Object.keys(copy)).toEqual(Object.keys(built));
+    }
+    expect(notPlain).toEqual([]);
+    expect(structuredClone(built)).toEqual({ ...built });
   });
 });

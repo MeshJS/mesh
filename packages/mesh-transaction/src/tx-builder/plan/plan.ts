@@ -44,10 +44,11 @@ import { collateral, spend, validity } from "../parts";
 import { outRefOf, plainUtxo, utxoKey } from "../parts/utxo";
 import { toPayerSource } from "../payer";
 import {
-  askSigner,
   canSign,
+  countedWitnesses,
   readTransaction,
   readWitnessArgument,
+  signerWitnesses,
   signsHashes,
   toSigners,
   verifies,
@@ -3037,22 +3038,20 @@ export class TxPlan {
       if (unsigned.length === 0 && signsHashes(signer)) continue;
       const left = endsAt === undefined ? undefined : endsAt - Date.now();
       if (left !== undefined && left <= 0) throw timeout();
-      const answer = await abortable(
-        within(askSigner(signer, raw, { keys: unsigned, signal }), left),
+      const offered = await abortable(
+        within(
+          signerWitnesses(
+            signer,
+            raw,
+            { keys: unsigned, signal },
+            "the attempt's body",
+          ),
+          left,
+        ),
         signal,
         CALL,
       );
-      if (answer === TIMED_OUT) throw timeout();
-      let offered: KeyWitness[];
-      try {
-        offered = await witnessesToAdd(raw, [answer]);
-      } catch (error) {
-        throw this.#error(
-          "SIGNER_FAILED",
-          "the signer answered with a witness that is not of the attempt's body",
-          { details: { reason: "error" }, cause: error },
-        );
-      }
+      if (offered === TIMED_OUT) throw timeout();
       await this.#record(state, attempt, offered, since);
     }
   }
@@ -3111,34 +3110,17 @@ export class TxPlan {
     offered: readonly KeyWitness[],
   ): Witness[] {
     const built = attempt.built!;
-    const priced = new Set(countedKeys(built.signers));
     // Counted against the record as it is now, which may hold more than when the call started
     const now =
       record.attempts.find((a) => a.txHash === attempt.txHash) ?? attempt;
-    const held = recordedWitnesses(now);
-    let others = held.filter(
-      (w) => w.kind === "vkey" && !priced.has(w.keyHash),
-    ).length;
-    let bootstraps = held.filter((w) => w.kind === "bootstrap").length;
-    const extra = dataOptions(record).extraKeyWitnesses ?? 0;
-    const kept: Witness[] = [];
-    const seen = new Set(now.witnesses.map((w) => w.keyHash));
-    for (const witness of offered) {
-      if (seen.has(witness.keyHash)) continue;
-      if (witness.kind === "bootstrap") {
-        if (bootstraps >= built.signers.byronAddresses.length) continue;
-        bootstraps++;
-      } else if (!priced.has(witness.keyHash)) {
-        if (others >= extra) continue;
-        others++;
-      }
-      seen.add(witness.keyHash);
-      kept.push({
-        keyHash: witness.keyHash,
-        witness: writeWitnessSet([witness], false),
-      });
-    }
-    return kept;
+    return countedWitnesses(offered, recordedWitnesses(now), {
+      keys: new Set(countedKeys(built.signers)),
+      extraKeys: dataOptions(record).extraKeyWitnesses ?? 0,
+      bootstraps: built.signers.byronAddresses.length,
+    }).map((witness) => ({
+      keyHash: witness.keyHash,
+      witness: writeWitnessSet([witness], false),
+    }));
   }
 
   /**

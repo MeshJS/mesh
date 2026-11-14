@@ -8,6 +8,7 @@ import type {
   ResumeOptions,
   SendOptions,
   SignOptions,
+  SignTxOptions,
   StoredTxPlanJSON,
   TxAttempt,
   TxAttemptStatus,
@@ -40,6 +41,7 @@ describe("public entrypoint", () => {
     "utxosAfter",
     "signWitnesses",
     "keySigner",
+    "StandaloneTx",
     "addWitnesses",
     "signedKeyHashes",
     "requiredSigners",
@@ -169,6 +171,14 @@ describe("public entrypoint", () => {
       "PlanLiveObjects",
     ])
       expect(publicApi).not.toHaveProperty(name);
+  });
+
+  it("exports the class of a built transaction and its sign options, and not its factory", () => {
+    const sign: SignTxOptions = { signers: [], partial: false };
+    expect(sign.partial).toBe(false);
+    expect(typeof publicApi.StandaloneTx).toBe("function");
+    expect(typeof publicApi.StandaloneTx.prototype.sign).toBe("function");
+    expect(publicApi).not.toHaveProperty("standaloneTx");
   });
 
   it("exports the store types and functions, and not the record encoding", async () => {

@@ -1005,6 +1005,74 @@ export const witnessesToAdd = async (
 };
 
 /**
+ * Asks one signer for its witnesses of a transaction, as a plan and a `StandaloneTx` do: the
+ * keys not signed yet are handed to it as `askSigner` hands them, and a signer of hashes is not
+ * asked when none is left
+ * @param keys The keys asked for, without those that have signed
+ * @param body The body as the error of a witness that is not of it names it
+ * @returns The witnesses of its answer that `raw` does not hold, each verified against the body;
+ *   which of them to keep is `countedWitnesses`'s
+ * @throws TxPlanError SIGN_DECLINED, SIGNER_FAILED as `askSigner`; SIGNER_FAILED for an answer
+ *   that holds a witness of another body, with the INVALID_WITNESS as the `cause`
+ */
+export const signerWitnesses = async (
+  signer: Signer,
+  raw: RawTx,
+  { keys, signal }: { keys: readonly AskedKey[]; signal?: AbortSignal },
+  body = "the transaction's body",
+): Promise<KeyWitness[]> => {
+  const answer = await askSigner(signer, raw, { keys, signal });
+  try {
+    return await witnessesToAdd(raw, [answer]);
+  } catch (error) {
+    throw new TxPlanError(
+      "SIGNER_FAILED",
+      `the signer answered with a witness that is not of ${body}`,
+      { details: { reason: "error" }, cause: error },
+    );
+  }
+};
+
+/**
+ * The witnesses offered for a transaction that it keeps, in order: each key once, none of a key
+ * `held` has; vkey witnesses of the keys the fee counts, and `extraKeys` more of other keys over
+ * everything held; bootstrap witnesses up to `bootstraps`, the held ones counted. A witness kept
+ * past these numbers would put the fee below the minimum
+ * @param held The witnesses the transaction holds already
+ * @param keys The keys the fee counts a witness for: `countedKeys` of its signers
+ * @param bootstraps The bootstrap witnesses the fee counts: one per Byron address spent from
+ */
+export const countedWitnesses = (
+  offered: readonly KeyWitness[],
+  held: readonly KeyWitness[],
+  {
+    keys,
+    extraKeys = 0,
+    bootstraps,
+  }: { keys: ReadonlySet<string>; extraKeys?: number; bootstraps: number },
+): KeyWitness[] => {
+  let others = held.filter(
+    (w) => w.kind === "vkey" && !keys.has(w.keyHash),
+  ).length;
+  let byron = held.filter((w) => w.kind === "bootstrap").length;
+  const seen = new Set(held.map((w) => w.keyHash));
+  const kept: KeyWitness[] = [];
+  for (const witness of offered) {
+    if (seen.has(witness.keyHash)) continue;
+    if (witness.kind === "bootstrap") {
+      if (byron >= bootstraps) continue;
+      byron++;
+    } else if (!keys.has(witness.keyHash)) {
+      if (others >= extraKeys) continue;
+      others++;
+    }
+    seen.add(witness.keyHash);
+    kept.push(witness);
+  }
+  return kept;
+};
+
+/**
  * Adds the vkey and bootstrap witnesses of each witness set or full transaction once. Only the
  * transaction's own witness set changes; every other element stays byte for byte.
  * @throws TxPlanError INVALID_WITNESS for an argument that cannot be decoded, or holding a

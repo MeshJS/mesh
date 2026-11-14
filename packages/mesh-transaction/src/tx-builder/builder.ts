@@ -63,6 +63,7 @@ import type {
   TxPlanStore,
 } from "./plan/types";
 import type { GovernanceDeposits } from "./resolve";
+import type { StandaloneTx } from "./standalone";
 import type { TxSigners } from "./witnesses";
 import { abortable, throwIfAborted } from "./abort";
 import { checkPartRepeats } from "./assemble";
@@ -120,6 +121,7 @@ import { checkPlanDefaults } from "./plan/deadlines";
 import { createPlan, resumePlan, TxPlan } from "./plan/plan";
 import { resolveParts, resolveValidity } from "./resolve";
 import { bodySigners, readTransaction } from "./sign";
+import { standaloneTx } from "./standalone";
 import { placeholderWitnesses, signersOf, txSigners } from "./witnesses";
 
 /**
@@ -262,7 +264,10 @@ export type BuildOptions = {
   fee?: bigint;
   /** Operator key hashes of pools already registered (registering again is an update) */
   registeredPools?: readonly string[];
-  /** Key witnesses expected beyond those the parts call for */
+  /**
+   * Key witnesses expected beyond those the parts call for. The transaction `build()` returns
+   * keeps that many witnesses of keys it does not ask for, the first given
+   */
   extraKeyWitnesses?: number;
   /**
    * Transactions built before this one and not yet seen by the provider: their inputs are not
@@ -692,7 +697,10 @@ export type BuiltOutput = Utxo & {
   readonly change?: true;
 };
 
-/** A transaction built and balanced, ready to sign. Plain data. */
+/**
+ * A transaction built and balanced, ready to sign. Plain data. `build()` and `finalize()` return
+ * it as a `StandaloneTx`; a plan's `built` is this data.
+ */
 export type BuiltTx = {
   /** The unsigned transaction, in CBOR hex */
   tx: string;
@@ -1246,7 +1254,8 @@ export class TxBuilder {
    *
    * The result has no parts: `parts` and `selectedInputs` are empty, redeemers carry no `part`
    * and outputs no `label`. `change` holds every output at `changeAddress`, a payment to that
-   * address included; without `changeAddress` it is empty.
+   * address included; without `changeAddress` it is empty. The result is a `StandaloneTx`, as
+   * from `build`.
    *
    * ```ts
    * const edited = structuredClone(built.prototype);
@@ -1270,7 +1279,7 @@ export class TxBuilder {
   async finalize(
     prototype: TransactionPrototype,
     context: { inputs: readonly UtxoInput[]; changeAddress?: string },
-  ): Promise<BuiltTx> {
+  ): Promise<StandaloneTx> {
     const { inputs, changeAddress: changeTo } = context ?? {};
     if (!Array.isArray(inputs))
       throw invalidOption("inputs", inputs, FINALIZE_INPUTS_ALLOWED);
@@ -1473,7 +1482,7 @@ export class TxBuilder {
         changeOutputs.has(i) ? { ...utxo, change: true as const } : utxo,
     );
     const validity = validityOf(final.body, this.network);
-    return {
+    return standaloneTx({
       tx,
       txHash,
       prototype: final,
@@ -1511,14 +1520,15 @@ export class TxBuilder {
       network: { name: this.network.name, networkId: this.network.networkId },
       warnings: [],
       parts: [],
-    };
+    });
   }
 
   /**
    * Builds a balanced, unsigned transaction from the parts added with `add`, followed by `parts`
-   * (none when omitted). The builder is not changed: the parts it holds are never replaced by
-   * what the build makes of them. A part of a kind a transaction holds once, given both here and
-   * among the held parts, is DUPLICATE_PART, as within one list.
+   * (none when omitted), and returns it as a `StandaloneTx`: the data of the build, with the
+   * calls that sign that one transaction. The builder is not changed: the parts it holds are
+   * never replaced by what the build makes of them. A part of a kind a transaction holds once,
+   * given both here and among the held parts, is DUPLICATE_PART, as within one list.
    *
    * Before anything is selected the builder reads the payer once (a wallet's change address,
    * UTxOs and network id, concurrently) and checks the network of every address it is given or
@@ -1576,11 +1586,14 @@ export class TxBuilder {
   async build(
     parts: PartsInput = [],
     options?: BuildOptions,
-  ): Promise<BuiltTx> {
+  ): Promise<StandaloneTx> {
     // Nothing can be read without a payer: that comes first, then the parts, then the options'
     // types, then the network of what the build is given, all before any request
     const source = toPayerSource(options?.payer);
-    return this.buildList(source, this.withAdded(parts), options);
+    // A plan builds through buildList and keeps plain data; only this call makes the object.
+    // The object keeps the witnesses of as many other keys as the fee was priced for
+    const built = await this.buildList(source, this.withAdded(parts), options);
+    return standaloneTx(built, options?.extraKeyWitnesses ?? 0);
   }
 
   /**
