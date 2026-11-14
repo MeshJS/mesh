@@ -234,7 +234,7 @@ describe("TxPlan.build on TxEmulator", () => {
     expectCode(error, "INVALID_OPTION");
     expect((error as TxBuildError<"INVALID_OPTION">).details).toMatchObject({
       option: "knownUtxos",
-      value: { txHash: "ab".repeat(32) },
+      value: "object",
     });
     expect((error as Error).message).toContain("entry 1 is not a UTxO");
   });

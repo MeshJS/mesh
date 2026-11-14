@@ -644,7 +644,8 @@ describe("TxBuilder: after", () => {
       ["after", withoutOutputs, withoutOutputs],
       ["after", [tx1, 7], 7],
       ["knownUtxos", [{}], {}],
-      ["knownUtxos", tx1.outputs[0], tx1.outputs[0]],
+      // What is not a list is named by its JavaScript type alone: it may hold a key
+      ["knownUtxos", tx1.outputs[0], "object"],
     ];
     for (const [option, value, entry] of cases) {
       const { provider, calls } = failingProvider();

@@ -714,6 +714,19 @@ describe("R1: key material never leaves the signer object", () => {
           b.build(pay(), { payer: { changeAddress: v, utxos: [] } } as never),
       ],
       ["readPayer", (v) => b.readPayer(v as never)],
+      // Given as knownUtxos, and in a list as one of its entries
+      [
+        "fromCbor({ knownUtxos })",
+        (v) => b.fromCbor(built.tx, { knownUtxos: v } as never),
+      ],
+      [
+        "build({ knownUtxos })",
+        (v) =>
+          b.build(pay(), {
+            payer: { changeAddress: address, utxos: built.inputs },
+            knownUtxos: v,
+          } as never),
+      ],
       [
         "builder.plan({ after })",
         async (v) =>
@@ -729,6 +742,9 @@ describe("R1: key material never leaves the signer object", () => {
           ["in a list", [key]],
           ["in a list after a signer", [wallet, key]],
           ["as { privateKey }", { privateKey: key }],
+          ["as { privateKey } in a list", [{ privateKey: key }]],
+          ["as { key } in a list", [{ key }]],
+          ["in a list in a list", [[key]]],
         ];
         for (const [shape, value] of shapes)
           for (const [call, run] of calls) {
@@ -736,6 +752,14 @@ describe("R1: key material never leaves the signer object", () => {
             const error = await caught(() => run(value));
             refusals += 1;
             if (!(error instanceof Error)) leaks.push(`${where}: not an Error`);
+            if (
+              call.includes("knownUtxos") &&
+              !(
+                TxError.is(error, "INVALID_OPTION") &&
+                error.details.option === "knownUtxos"
+              )
+            )
+              leaks.push(`${where}: not refused as knownUtxos`);
             // An INVALID_OPTION names only the JavaScript type of what was given
             if (
               TxError.is(error, "INVALID_OPTION") &&
@@ -751,7 +775,7 @@ describe("R1: key material never leaves the signer object", () => {
       }
     expect(leaks).toEqual([]);
     const encodings = keys.all.flatMap((f) => Object.keys(f.encodings));
-    expect(refusals).toBe(encodings.length * 4 * calls.length);
+    expect(refusals).toBe(encodings.length * 7 * calls.length);
     // Nothing of them is held
     for (const value of [built, built.toJSON(), plan.toJSON(), plan])
       expect(shown(value, secrets)).toEqual([]);

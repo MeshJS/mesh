@@ -7,11 +7,13 @@ import { Address, plutusDataVariantToCardano } from "@meshsdk/core-cst";
 import type { BuiltOutput, BuiltTxData } from "./builder";
 import type { OutputDatum, TxPart, Utxo, UtxoInput } from "./parts/types";
 import { invalidArgument, TxBuildError } from "./errors";
+import { typeOf } from "./options";
 import {
   addressText,
   errorText,
   isObject,
   outRefString,
+  textShape,
 } from "./parts/normalize";
 import { describeScriptRef, plainUtxo, readUtxo } from "./parts/utxo";
 import { inputsOf } from "./resolve";
@@ -82,7 +84,11 @@ const KNOWN_UTXOS_ALLOWED =
   "a list of UTxOs: Utxo { txHash, outputIndex, address, value }, Mesh UTxO { input, output }, or the CBOR of a transaction unspent output";
 
 /**
- * The UTxOs of a `knownUtxos` option, checked and copied into the builder's form
+ * The UTxOs of a `knownUtxos` option, checked and copied into the builder's form. A private key
+ * may be given there by mistake, whole or inside an entry: a text is never quoted, only its shape
+ * is told, and `details.value` names only the JavaScript type of a value that is not a list and
+ * of an entry that is refused. The message tells which entry and what is wrong with it, as the
+ * UTxO reader tells it
  * @throws TxBuildError INVALID_OPTION for what is not a list, or an entry that is not a UTxO
  */
 export const toKnownUtxos = (knownUtxos: unknown): Utxo[] => {
@@ -90,11 +96,11 @@ export const toKnownUtxos = (knownUtxos: unknown): Utxo[] => {
   if (!Array.isArray(knownUtxos))
     throw new TxBuildError(
       "INVALID_OPTION",
-      `invalid knownUtxos: expected ${KNOWN_UTXOS_ALLOWED}`,
+      `invalid knownUtxos: expected ${KNOWN_UTXOS_ALLOWED}; got ${typeof knownUtxos === "string" ? textShape(knownUtxos) : `a value of type ${typeOf(knownUtxos)}`}`,
       {
         details: {
           option: "knownUtxos",
-          value: knownUtxos,
+          value: typeOf(knownUtxos),
           allowed: KNOWN_UTXOS_ALLOWED,
         },
       },
@@ -103,13 +109,26 @@ export const toKnownUtxos = (knownUtxos: unknown): Utxo[] => {
     try {
       return readUtxo(entry);
     } catch (error) {
+      // A text that is not the CBOR of a UTxO: its shape alone, and no cause that could quote it
+      if (typeof entry === "string")
+        throw new TxBuildError(
+          "INVALID_OPTION",
+          `invalid knownUtxos: entry ${i} is ${textShape(entry)}, not the CBOR of a transaction unspent output`,
+          {
+            details: {
+              option: "knownUtxos",
+              value: "string",
+              allowed: KNOWN_UTXOS_ALLOWED,
+            },
+          },
+        );
       throw new TxBuildError(
         "INVALID_OPTION",
         `invalid knownUtxos: entry ${i} is not a UTxO: ${errorText(error)}`,
         {
           details: {
             option: "knownUtxos",
-            value: entry,
+            value: typeOf(entry),
             allowed: KNOWN_UTXOS_ALLOWED,
           },
           cause: error,
