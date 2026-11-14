@@ -30,6 +30,7 @@ export type Signers = { keyHashes: Set<string>; byronAddresses: Set<string> };
 
 /**
  * Why a key must sign. `"guard"` is a key the transaction states as a required signer.
+ * `RequiredKey.roles` lists the roles of a key in the order of these members.
  *
  * The list is open: later ledger eras and versions of this library may add roles, so code that
  * reads it keeps a default branch.
@@ -44,11 +45,26 @@ export type SignerRole =
   | "guard"
   | "poolOwner";
 
-/** A key the transaction needs a vkey witness of, with every part that needs it */
+/** The place of each member of `SignerRole` in `RequiredKey.roles`: the order of the members */
+const ROLE_ORDER: Record<SignerRole, number> = {
+  input: 0,
+  collateral: 1,
+  certificate: 2,
+  withdrawal: 3,
+  vote: 4,
+  proposal: 5,
+  guard: 6,
+  poolOwner: 7,
+};
+
+/** A key the transaction needs a vkey witness of, with every role it is needed in */
 export type RequiredKey = {
   keyHash: string;
-  /** One entry per part and role that needs the key */
-  neededBy: { part: TxPart["kind"]; label?: string; role: SignerRole }[];
+  /**
+   * Why the key must sign: every role it is needed in, each once, in the order of the members of
+   * `SignerRole`
+   */
+  roles: SignerRole[];
 };
 
 /**
@@ -58,7 +74,7 @@ export type RequiredKey = {
 export type TxSigners = {
   /** Keys that must all sign, each once, in the order the parts first need them */
   keyHashes: string[];
-  /** One entry per key of `keyHashes`, in the same order */
+  /** One entry per key of `keyHashes`, in the same order, with the roles it is needed in */
   keys: RequiredKey[];
   /** Byron addresses spent from, each needing a bootstrap witness */
   byronAddresses: string[];
@@ -66,23 +82,15 @@ export type TxSigners = {
   nativeScripts: NativeScriptPrototype[];
 };
 
-/** The part an entry of `RequiredKey.neededBy` names: its kind, and its label if it has one */
-export type PartRef = {
-  readonly kind: TxPart["kind"];
-  readonly label?: string;
-};
-
 /** What the parts of a transaction need signed, as it is collected */
 export type Collected = {
-  /** Keys the parts need, with the parts and roles that need them */
-  keys: Map<string, RequiredKey>;
+  /** Keys the parts need, in the order first needed, with the roles they are needed in */
+  keys: Map<string, Set<SignerRole>>;
   /** Every key a witness is priced for: the keys above and those native scripts name */
   priced: Set<string>;
   byronAddresses: Set<string>;
   /** Native scripts that run, by script hash */
   nativeScripts: Map<string, NativeScriptPrototype>;
-  /** The keys and roles the part being walked has already recorded, as `keyHash role` */
-  partKeys: Set<string>;
 };
 
 /** Nothing collected yet */
@@ -91,47 +99,30 @@ export const emptyCollected = (): Collected => ({
   priced: new Set(),
   byronAddresses: new Set(),
   nativeScripts: new Map(),
-  partKeys: new Set(),
 });
 
 export const addKey = (
   collected: Collected,
   keyHash: string,
-  part: PartRef,
   role: SignerRole,
 ) => {
   collected.priced.add(keyHash);
-  let key = collected.keys.get(keyHash);
-  if (!key) {
-    key = { keyHash, neededBy: [] };
-    collected.keys.set(keyHash, key);
-  }
-  // A part names a key once per role, however often it lists it; another part, even of the same
-  // kind and label, is another entry
-  const partKey = `${keyHash} ${role}`;
-  if (collected.partKeys.has(partKey)) return;
-  collected.partKeys.add(partKey);
-  key.neededBy.push({
-    part: part.kind,
-    ...(part.label !== undefined && { label: part.label }),
-    role,
-  });
+  const roles = collected.keys.get(keyHash);
+  if (roles) roles.add(role);
+  else collected.keys.set(keyHash, new Set([role]));
 };
 
 export const addCredential = (
   collected: Collected,
   credential: Readonly<CredTypePrototype> | undefined,
-  part: PartRef,
   role: SignerRole,
 ) => {
-  if (credential?.type === "KEY")
-    addKey(collected, credential.value, part, role);
+  if (credential?.type === "KEY") addKey(collected, credential.value, role);
 };
 
 export const addAddress = (
   collected: Collected,
   utxo: Readonly<Utxo> | undefined,
-  part: PartRef,
   role: SignerRole,
 ) => {
   if (!utxo) return;
@@ -143,7 +134,7 @@ export const addAddress = (
   }
   const payment = address.getProps().paymentPart;
   if (payment?.type === CredentialType.KeyHash)
-    addKey(collected, payment.hash.toString(), part, role);
+    addKey(collected, payment.hash.toString(), role);
 };
 
 /** Every key a native script names, as any of them may be needed to satisfy it */
@@ -222,30 +213,24 @@ const addNativeWitness = (
 /** The keys a certificate is signed with, when it is witnessed by keys */
 export const certificateKeys = (
   collected: Collected,
-  part: PartRef & Pick<CertificatePart, "certificate">,
+  part: Pick<CertificatePart, "certificate">,
 ) => {
   const { certificate } = part;
   switch (certificate.type) {
     case "POOL_REGISTRATION":
-      addKey(
-        collected,
-        certificate.value.pool_params.operator,
-        part,
-        "certificate",
-      );
+      addKey(collected, certificate.value.pool_params.operator, "certificate");
       certificate.value.pool_params.pool_owners.forEach((owner) =>
-        addKey(collected, owner, part, "poolOwner"),
+        addKey(collected, owner, "poolOwner"),
       );
       return;
     case "POOL_RETIREMENT":
-      addKey(collected, certificate.value.pool_keyhash, part, "certificate");
+      addKey(collected, certificate.value.pool_keyhash, "certificate");
       return;
     case "COMMITTEE_HOT_AUTH":
     case "COMMITTEE_COLD_RESIGN":
       addCredential(
         collected,
         certificate.value.committee_cold_credential,
-        part,
         "certificate",
       );
       return;
@@ -255,7 +240,6 @@ export const certificateKeys = (
       addCredential(
         collected,
         certificate.value.voting_credential,
-        part,
         "certificate",
       );
       return;
@@ -263,7 +247,6 @@ export const certificateKeys = (
       addCredential(
         collected,
         certificate.value.stake_credential,
-        part,
         "certificate",
       );
   }
@@ -273,18 +256,17 @@ export const certificateKeys = (
 const collectSigners = (parts: readonly TxPart[]): Collected => {
   const collected = emptyCollected();
   for (const part of parts) {
-    collected.partKeys = new Set();
     switch (part.kind) {
       case "spend":
         if (part.witness.type === "key")
-          addAddress(collected, part.utxo, part, "input");
+          addAddress(collected, part.utxo, "input");
         else addNativeWitness(collected, part.witness);
         break;
       case "collateral":
-        addAddress(collected, part.utxo, part, "collateral");
+        addAddress(collected, part.utxo, "collateral");
         break;
       case "guard":
-        addKey(collected, part.credential.value, part, "guard");
+        addKey(collected, part.credential.value, "guard");
         break;
       case "mint":
         addNativeWitness(collected, part.witness);
@@ -299,7 +281,7 @@ const collectSigners = (parts: readonly TxPart[]): Collected => {
           ?.asReward()
           ?.getPaymentCredential();
         if (credential?.type === CredentialType.KeyHash)
-          addKey(collected, credential.hash.toString(), part, "withdrawal");
+          addKey(collected, credential.hash.toString(), "withdrawal");
         break;
       }
       case "certificate":
@@ -309,8 +291,8 @@ const collectSigners = (parts: readonly TxPart[]): Collected => {
       case "vote":
         if (part.witness.type === "key") {
           if (part.voter.type === "STAKING_POOL")
-            addKey(collected, part.voter.value, part, "vote");
-          else addCredential(collected, part.voter.value, part, "vote");
+            addKey(collected, part.voter.value, "vote");
+          else addCredential(collected, part.voter.value, "vote");
         } else addNativeWitness(collected, part.witness);
         break;
       case "proposal":
@@ -334,8 +316,8 @@ export const pricedSigners = (parts: readonly TxPart[]): Signers => {
 };
 
 /**
- * The keys a transaction made of these (resolved) parts needs signed, each with the parts and
- * roles that need it; the Byron addresses it spends from; the native scripts it runs
+ * The keys a transaction made of these (resolved) parts needs signed, each with the roles it is
+ * needed in; the Byron addresses it spends from; the native scripts it runs
  */
 export const txSigners = (parts: readonly TxPart[]): TxSigners =>
   signersOf(collectSigners(parts));
@@ -368,7 +350,10 @@ export const countedKeys = (
 
 /** What was collected, as `TxSigners` */
 export const signersOf = (collected: Collected): TxSigners => {
-  const keys = Array.from(collected.keys.values());
+  const keys = Array.from(collected.keys, ([keyHash, roles]) => ({
+    keyHash,
+    roles: [...roles].sort((a, b) => ROLE_ORDER[a] - ROLE_ORDER[b]),
+  }));
   return {
     keyHashes: keys.map((k) => k.keyHash),
     keys,

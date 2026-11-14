@@ -694,8 +694,8 @@ export class TxPlan {
   }
 
   /**
-   * The keys the attempt of `built` needs and has no witness of yet, with the parts that need
-   * them. Keys that only a native script names are never listed
+   * The keys the attempt of `built` needs and has no witness of yet, each with the roles it is
+   * needed in. Keys that only a native script names are never listed
    */
   get missing(): readonly RequiredKey[] {
     const attempt = shownAttempt(stateOf(this).record);

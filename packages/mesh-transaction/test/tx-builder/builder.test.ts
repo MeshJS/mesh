@@ -4319,7 +4319,7 @@ describe("TxBuilder: guards", () => {
       guarded.signers.keys.find((k) => k.keyHash === keyHashHex(9)),
     ).toEqual({
       keyHash: keyHashHex(9),
-      neededBy: [{ part: "guard", label: "approver", role: "guard" }],
+      roles: ["guard"],
     });
     expect(
       minFee(guarded.prototype, {
@@ -4886,9 +4886,7 @@ describe("TxBuilder: finalize", () => {
     expect(final.fee).toBeGreaterThan(built.fee);
     // Worked out from the body, as the build worked them out from its parts
     expect(final.signers).toEqual(built.signers);
-    expect(final.signers.keys[0]!.neededBy).toEqual([
-      { part: "collateral", role: "collateral" },
-    ]);
+    expect(final.signers.keys[0]!.roles).toEqual(["collateral"]);
     expect(final.inputs.map(ref)).toEqual(
       final.prototype.body.inputs.map((i) => ({
         txHash: i.transaction_id,

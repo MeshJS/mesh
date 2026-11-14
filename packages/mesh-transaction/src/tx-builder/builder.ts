@@ -728,7 +728,7 @@ export type BuiltTx = {
    * `finalize`, whenever the body has collateral inputs
    */
   collateral?: TxCollateral;
-  /** The keys that must sign, and why */
+  /** The keys that must sign, each with the roles it is needed in */
   signers: TxSigners;
   /**
    * The validity interval, with the bounds the transaction has: in slots, and the POSIX

@@ -7,7 +7,7 @@ import {
 } from "@meshsdk/core";
 import { Crypto } from "@meshsdk/core-cst";
 
-import type { Signer, TxPlanError } from "../../../src/tx-builder";
+import type { BuiltTx, Signer, TxPlanError } from "../../../src/tx-builder";
 import {
   addWitnesses,
   guard,
@@ -21,12 +21,14 @@ import {
 import { recordOf } from "../../../src/tx-builder/plan/plan";
 import { hashSigner, keysSigner, testKey } from "../hash-signer-util";
 import {
+  builderOf,
   caught,
   pay,
   setup,
   submitterOf,
   walletOf,
 } from "./plan-emulator-util";
+import { watchStore } from "./store-util";
 
 const expectCode = (error: unknown, code: string) => {
   expect(TxError.is(error)).toBe(true);
@@ -179,11 +181,9 @@ describe("TxPlan signing on TxEmulator", () => {
       plan.send(),
     )) as TxPlanError<"MISSING_SIGNATURES">;
     expectCode(error, "MISSING_SIGNATURES");
-    expect(error.details.missing).toEqual([
-      {
-        keyHash: cosignerKey,
-        neededBy: [{ part: "guard", role: "guard" }],
-      },
+    // Each missing key is its hash and its roles, and nothing else
+    expect(error.details.missing).toStrictEqual([
+      { keyHash: cosignerKey, roles: ["guard"] },
     ]);
     expect(plan.missing.map((k) => k.keyHash)).toEqual([cosignerKey]);
     expect(plan.status).toBe("built");
@@ -194,6 +194,36 @@ describe("TxPlan signing on TxEmulator", () => {
     expect(plan.status).toBe("signed");
     await plan.send({ waitFor: "included" });
     expect(plan.status).toBe("final");
+  });
+
+  it("records each required key as its hash and its roles, through toJSON, a store and resume", async () => {
+    const store = watchStore();
+    const { builder, wallet, provider } = await setup({ builder: { store } });
+    const walletKey = await keyOf(wallet);
+    const cosignerKey = await keyOf(await walletOf(1));
+    const plan = builder.plan([pay(), guard.pubKey({ keyHash: cosignerKey })], {
+      id: "pay",
+      payer: wallet,
+    });
+    await plan.build();
+    const keys = [
+      { keyHash: walletKey, roles: ["input"] },
+      { keyHash: cosignerKey, roles: ["guard"] },
+    ];
+    const byHash = (list: readonly { keyHash: string }[]) =>
+      [...list].sort((a, b) => a.keyHash.localeCompare(b.keyHash));
+    expect(byHash(plan.built!.signers.keys)).toStrictEqual(byHash(keys));
+    const json = plan.toJSON();
+    const recorded = (json.attempts[0] as unknown as { built: BuiltTx }).built
+      .signers.keys;
+    expect(recorded).toStrictEqual(plan.built!.signers.keys);
+    expect(await store.load("pay")).toStrictEqual(json);
+
+    const again = await builderOf(provider, { store }).resume("pay");
+    expect(again.toJSON()).toStrictEqual(json);
+    expect(again.built!.signers.keys).toStrictEqual(plan.built!.signers.keys);
+    expect(again.missing).toStrictEqual(plan.missing);
+    expect(byHash(again.missing)).toStrictEqual(byHash(keys));
   });
 
   it("takes only the vkey witnesses of a full transaction, keeping body and hash", async () => {

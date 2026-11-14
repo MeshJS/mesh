@@ -75,18 +75,13 @@ const missingKeyRule = {
   cquisitor: "MissingVKeyWitnesses",
 } as const;
 
-/** `TxSigners` without labels, every list sorted, to compare two of them */
+/** `TxSigners` with every list but the roles of a key sorted, to compare two of them */
 const normalized = (signers: TxSigners) => {
   const json = (v: unknown) => JSON.stringify(v);
   return {
     keyHashes: [...signers.keyHashes].sort(),
     keys: signers.keys
-      .map((k) => ({
-        keyHash: k.keyHash,
-        neededBy: k.neededBy
-          .map(({ part, role }) => ({ part, role }))
-          .sort((a, b) => json(a).localeCompare(json(b))),
-      }))
+      .map((k) => ({ keyHash: k.keyHash, roles: k.roles }))
       .sort((a, b) => a.keyHash.localeCompare(b.keyHash)),
     byronAddresses: [...signers.byronAddresses].sort(),
     nativeScripts: [...signers.nativeScripts].sort((a, b) =>
@@ -443,13 +438,8 @@ describe("signing functions on TxEmulator", () => {
       { payer: beneficiary.address },
     );
     expect(
-      built.signers.keys.find((k) => k.keyHash === beneficiary.keyHash)
-        ?.neededBy,
-    ).toContainEqual({
-      part: "guard",
-      label: "beneficiary",
-      role: "guard",
-    });
+      built.signers.keys.find((k) => k.keyHash === beneficiary.keyHash)?.roles,
+    ).toContain("guard");
     expectAgrees(built);
 
     const byOwner = await addWitnesses(

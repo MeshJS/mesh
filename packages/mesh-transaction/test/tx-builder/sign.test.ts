@@ -292,18 +292,13 @@ const buildError = async <C extends "INVALID_OPTION" | "UTXO_NOT_FOUND">(
   return error as TxBuildError<C>;
 };
 
-/** `TxSigners` without labels, every list sorted, to compare two of them */
+/** `TxSigners` with every list but the roles of a key sorted, to compare two of them */
 const normalized = (signers: TxSigners) => {
   const json = (v: unknown) => JSON.stringify(v);
   return {
     keyHashes: [...signers.keyHashes].sort(),
     keys: signers.keys
-      .map((k) => ({
-        keyHash: k.keyHash,
-        neededBy: k.neededBy
-          .map(({ part, role }) => ({ part, role }))
-          .sort((a, b) => json(a).localeCompare(json(b))),
-      }))
+      .map((k) => ({ keyHash: k.keyHash, roles: k.roles }))
       .sort((a, b) => a.keyHash.localeCompare(b.keyHash)),
     byronAddresses: [...signers.byronAddresses].sort(),
     nativeScripts: [...signers.nativeScripts].sort((a, b) =>
@@ -631,12 +626,15 @@ describe("signedKeyHashes", () => {
 });
 
 describe("requiredSigners", () => {
-  const neededBy = (signers: TxSigners, keyHash: string) =>
-    signers.keys.find((k) => k.keyHash === keyHash)?.neededBy;
-  const hasNoLabel = (signers: TxSigners) =>
-    signers.keys.every((k) => k.neededBy.every((n) => !("label" in n)));
+  const roles = (signers: TxSigners, keyHash: string) =>
+    signers.keys.find((k) => k.keyHash === keyHash)?.roles;
+  /** Each key holds its hash and its roles, and nothing else */
+  const onlyRoles = (signers: TxSigners) =>
+    signers.keys.every(
+      (k) => JSON.stringify(Object.keys(k).sort()) === '["keyHash","roles"]',
+    );
 
-  it("names each key with the part kind and role that need it", async () => {
+  it("names each key with the role it is needed in", async () => {
     const spender = baseAddress(3);
     const collateralOwner = baseAddress(4);
     const keyOf = (a: string) => deserializeAddress(a).pubKeyHash;
@@ -687,37 +685,18 @@ describe("requiredSigners", () => {
       { payer: payer(utxo(lovelace(ada(1000)))) },
     );
     const signers = requiredSigners(built.tx, spentBy(built));
-    expect(neededBy(signers, keyOf(spender))).toEqual([
-      { part: "spend", role: "input" },
-    ]);
-    expect(neededBy(signers, keyOf(collateralOwner))).toEqual([
-      { part: "collateral", role: "collateral" },
-    ]);
-    // As the build reports it until the part is renamed
-    expect(neededBy(signers, keyHashHex(10))).toEqual([
-      { part: "guard", role: "guard" },
-    ]);
-    expect(neededBy(built.signers, keyHashHex(10))).toEqual([
-      { part: "guard", label: "approver", role: "guard" },
-    ]);
-    expect(neededBy(signers, keyHashHex(11))).toEqual([
-      { part: "withdrawal", role: "withdrawal" },
-    ]);
-    expect(neededBy(signers, keyHashHex(12))).toEqual([
-      { part: "certificate", role: "certificate" },
-    ]);
-    expect(neededBy(signers, keyHashHex(13))).toEqual([
-      { part: "certificate", role: "certificate" },
-    ]);
-    expect(neededBy(signers, keyHashHex(14))).toEqual([
-      { part: "certificate", role: "poolOwner" },
-    ]);
-    expect(neededBy(signers, keyHashHex(15))).toEqual([
-      { part: "vote", role: "vote" },
-    ]);
+    expect(roles(signers, keyOf(spender))).toEqual(["input"]);
+    expect(roles(signers, keyOf(collateralOwner))).toEqual(["collateral"]);
+    expect(roles(signers, keyHashHex(10))).toEqual(["guard"]);
+    expect(roles(built.signers, keyHashHex(10))).toEqual(["guard"]);
+    expect(roles(signers, keyHashHex(11))).toEqual(["withdrawal"]);
+    expect(roles(signers, keyHashHex(12))).toEqual(["certificate"]);
+    expect(roles(signers, keyHashHex(13))).toEqual(["certificate"]);
+    expect(roles(signers, keyHashHex(14))).toEqual(["poolOwner"]);
+    expect(roles(signers, keyHashHex(15))).toEqual(["vote"]);
     // A stake registration without its deposit takes no witness
     expect(signers.keyHashes).not.toContain(keyHashHex(18));
-    expect(hasNoLabel(signers)).toBe(true);
+    expect(onlyRoles(signers)).toBe(true);
     expect(signers.keyHashes).toEqual(signers.keys.map((k) => k.keyHash));
     expectAgrees(built);
 
@@ -799,16 +778,51 @@ describe("requiredSigners", () => {
     );
     const signers = requiredSigners(built.tx, spentBy(built));
     for (const keyHash of [keyHashHex(40), keyHashHex(41)])
-      expect(neededBy(signers, keyHash)).toEqual([
-        { part: "vote", role: "vote" },
-      ]);
+      expect(roles(signers, keyHash)).toEqual(["vote"]);
     for (const keyHash of [keyHashHex(42), keyHashHex(43), keyHashHex(45)])
-      expect(neededBy(signers, keyHash)).toEqual([
-        { part: "certificate", role: "certificate" },
-      ]);
+      expect(roles(signers, keyHash)).toEqual(["certificate"]);
     // The hot credential authorised does not sign
     expect(signers.keyHashes).not.toContain(keyHashHex(44));
-    expect(hasNoLabel(signers)).toBe(true);
+    expect(onlyRoles(signers)).toBe(true);
+    expectAgrees(built);
+  });
+
+  it("lists every role of a key once, in the order of SignerRole, as the build does", async () => {
+    const spender = baseAddress(3);
+    const key = deserializeAddress(spender).pubKeyHash;
+    const built = await builder().build(
+      [
+        guard.pubKey({ keyHash: key }),
+        withdrawal.pubKey({
+          rewardAddress: keyHashToRewardAddress(key, 0),
+          amount: 0n,
+        }),
+        spend.pubKey({ utxo: utxo(lovelace(ada(2)), {}, spender) }),
+        spend.pubKey({ utxo: utxo(lovelace(ada(3)), {}, spender) }),
+        certificate.poolRegistration({
+          params: {
+            operator: keyHashHex(13),
+            vrfKeyHash: vrfKeyHashHex(1),
+            pledge: "1000000",
+            cost: "340000000",
+            margin: [1, 100],
+            relays: [],
+            owners: [keyHashHex(13)],
+            rewardAddress: keyHashToRewardAddress(keyHashHex(13), 0),
+          },
+        }),
+      ],
+      { payer: payer(utxo(lovelace(ada(1000)))) },
+    );
+    const signers = requiredSigners(built.tx, spentBy(built));
+    for (const found of [signers, built.signers]) {
+      expect(roles(found, key)).toEqual(["input", "withdrawal", "guard"]);
+      expect(roles(found, keyHashHex(13))).toEqual([
+        "certificate",
+        "poolOwner",
+      ]);
+      expect(onlyRoles(found)).toBe(true);
+    }
     expectAgrees(built);
   });
 
@@ -883,9 +897,7 @@ describe("requiredSigners", () => {
     const signers = requiredSigners(built.tx, withHolders);
     // Only the payer's key: script credentials add none, nor do the keys their scripts name
     expect(signers.keyHashes).toEqual([paymentKey]);
-    expect(signers.keys.map((k) => k.neededBy)).toEqual([
-      [{ part: "spend", role: "input" }],
-    ]);
+    expect(signers.keys.map((k) => k.roles)).toEqual([["input"]]);
     // Without the reference inputs' UTxOs no script is listed, and nothing is thrown
     const without = requiredSigners(built.tx, spentBy(built));
     expect(without.nativeScripts).toEqual([]);

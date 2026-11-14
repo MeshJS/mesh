@@ -68,16 +68,8 @@ describe.each(["scalus", "cquisitor"] as const)(
       );
       expect(built.signers.keys).toEqual(
         expect.arrayContaining([
-          {
-            keyHash: pubKeyHash,
-            neededBy: [{ part: "spend", role: "input" }],
-          },
-          {
-            keyHash: stakeCredentialHash,
-            neededBy: [
-              { part: "certificate", label: "register", role: "certificate" },
-            ],
-          },
+          { keyHash: pubKeyHash, roles: ["input"] },
+          { keyHash: stakeCredentialHash, roles: ["certificate"] },
         ]),
       );
 

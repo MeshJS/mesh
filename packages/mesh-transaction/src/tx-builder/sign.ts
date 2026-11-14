@@ -12,7 +12,7 @@ import {
 
 import type { Utxo, UtxoInput } from "./parts/types";
 import type { RequiredKeys } from "./payer";
-import type { Collected, PartRef, SignerRole, TxSigners } from "./witnesses";
+import type { Collected, SignerRole, TxSigners } from "./witnesses";
 import { TxBuildError, TxPlanError } from "./errors";
 import { errorText } from "./parts/normalize";
 import { readUtxo } from "./parts/utxo";
@@ -1008,7 +1008,8 @@ const certificateCredential = (
 
 /**
  * The signatures a serialized transaction needs, given the UTxOs it spends: for a co-signer or a
- * server checking a transaction it did not build
+ * server checking a transaction it did not build. Each key comes with the roles it is needed in,
+ * as the build of the same transaction gives them
  * @param spent The UTxO of every input and collateral input, each in any form the builder takes
  *   a UTxO in. UTxOs of reference inputs may be given too: only then is a native script the
  *   transaction runs from one of them listed in `nativeScripts`
@@ -1100,32 +1101,25 @@ export const bodySigners = (
   const collateral = (body.collateral ?? []).map(utxoOf);
 
   const collected = emptyCollected();
-  /** Each body item needs its keys like a part of its kind, without a label */
-  const item = (kind: PartRef["kind"]): PartRef => {
-    collected.partKeys = new Set();
-    return { kind };
-  };
   // Hashes of the scripts the transaction runs, to tell which reference scripts run
   const scripts = new Set<string>();
   const credential = (
     value: { type: "KEY" | "SCRIPT"; value: string } | undefined,
-    part: PartRef,
     role: SignerRole,
   ) => {
     if (value?.type === "SCRIPT") scripts.add(value.value);
-    else addCredential(collected, value, part, role);
+    else addCredential(collected, value, role);
   };
 
   for (const utxo of inputs) {
-    addAddress(collected, utxo, item("spend"), "input");
+    addAddress(collected, utxo, "input");
     const payment = Address.fromString(utxo.address)?.getProps().paymentPart;
     if (payment?.type === CredentialType.ScriptHash)
       scripts.add(payment.hash.toString());
   }
-  for (const utxo of collateral)
-    addAddress(collected, utxo, item("collateral"), "collateral");
+  for (const utxo of collateral) addAddress(collected, utxo, "collateral");
   for (const keyHash of body.required_signers ?? [])
-    addKey(collected, keyHash, item("guard"), "guard");
+    addKey(collected, keyHash, "guard");
   for (const rewardAddress of Object.keys(body.withdrawals ?? {})) {
     const account = Address.fromString(rewardAddress)
       ?.asReward()
@@ -1136,7 +1130,6 @@ export const bodySigners = (
         type: account.type === CredentialType.KeyHash ? "KEY" : "SCRIPT",
         value: account.hash.toString(),
       },
-      item("withdrawal"),
       "withdrawal",
     );
   }
@@ -1147,15 +1140,13 @@ export const bodySigners = (
       (certificate.value.coin === null || certificate.value.coin === undefined)
     )
       continue;
-    const part = { ...item("certificate"), certificate };
     if (certificateCredential(certificate)?.type === "SCRIPT")
       scripts.add(certificateCredential(certificate)!.value);
-    else certificateKeys(collected, part);
+    else certificateKeys(collected, { certificate });
   }
   for (const { voter } of body.voting_procedures ?? []) {
-    if (voter.type === "STAKING_POOL")
-      addKey(collected, voter.value, item("vote"), "vote");
-    else credential(voter.value, item("vote"), "vote");
+    if (voter.type === "STAKING_POOL") addKey(collected, voter.value, "vote");
+    else credential(voter.value, "vote");
   }
   for (const proposal of proposals) {
     const action = proposal.toCore().governanceAction;

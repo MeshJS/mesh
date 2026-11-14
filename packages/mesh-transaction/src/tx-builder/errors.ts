@@ -333,7 +333,7 @@ export type TxPlanErrorDetails = {
     keyHash?: string;
   };
   NOT_YET_VALID: { waitMs: number };
-  /** Every key whose signature is missing, with the parts that need it */
+  /** Every key whose signature is missing, with the roles it is needed in */
   MISSING_SIGNATURES: { missing: RequiredKey[] };
   /** The CIP-30 code when a wallet submitted: TxSendError Refused 1, Failure 2 */
   SUBMIT_FAILED: { walletCode?: number };

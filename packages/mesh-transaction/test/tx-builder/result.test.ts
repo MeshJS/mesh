@@ -469,10 +469,10 @@ describe("BuiltTx: reference inputs", () => {
 });
 
 describe("BuiltTx: signers", () => {
-  const neededBy = (built: BuiltTx, keyHash: string) =>
-    built.signers.keys.find((k) => k.keyHash === keyHash)?.neededBy;
+  const roles = (built: BuiltTx, keyHash: string) =>
+    built.signers.keys.find((k) => k.keyHash === keyHash)?.roles;
 
-  it("names each key with the part and role that need it", async () => {
+  it("names each key with the role it is needed in", async () => {
     const spender = baseAddress(3);
     const collateralOwner = baseAddress(4);
     const action = { txHash: "a".repeat(64), index: 0 };
@@ -521,33 +521,15 @@ describe("BuiltTx: signers", () => {
       ],
       { payer: payer(utxo(lovelace(ada(1000)))) },
     );
-    expect(neededBy(built, keyOf(spender))).toEqual([
-      { part: "spend", label: "spent", role: "input" },
-    ]);
-    expect(neededBy(built, keyOf(collateralOwner))).toEqual([
-      { part: "collateral", label: "backing", role: "collateral" },
-    ]);
-    expect(neededBy(built, keyHashHex(10))).toEqual([
-      { part: "guard", label: "approver", role: "guard" },
-    ]);
-    expect(neededBy(built, keyHashHex(11))).toEqual([
-      { part: "withdrawal", label: "rewards", role: "withdrawal" },
-    ]);
-    expect(neededBy(built, keyHashHex(12))).toEqual([
-      { part: "certificate", label: "stake", role: "certificate" },
-    ]);
-    expect(neededBy(built, keyHashHex(16))).toEqual([
-      { part: "certificate", label: "drep", role: "certificate" },
-    ]);
-    expect(neededBy(built, keyHashHex(13))).toEqual([
-      { part: "certificate", label: "pool", role: "certificate" },
-    ]);
-    expect(neededBy(built, keyHashHex(14))).toEqual([
-      { part: "certificate", label: "pool", role: "poolOwner" },
-    ]);
-    expect(neededBy(built, keyHashHex(15))).toEqual([
-      { part: "vote", label: "ballot", role: "vote" },
-    ]);
+    expect(roles(built, keyOf(spender))).toEqual(["input"]);
+    expect(roles(built, keyOf(collateralOwner))).toEqual(["collateral"]);
+    expect(roles(built, keyHashHex(10))).toEqual(["guard"]);
+    expect(roles(built, keyHashHex(11))).toEqual(["withdrawal"]);
+    expect(roles(built, keyHashHex(12))).toEqual(["certificate"]);
+    expect(roles(built, keyHashHex(16))).toEqual(["certificate"]);
+    expect(roles(built, keyHashHex(13))).toEqual(["certificate"]);
+    expect(roles(built, keyHashHex(14))).toEqual(["poolOwner"]);
+    expect(roles(built, keyHashHex(15))).toEqual(["vote"]);
     for (const keyHash of [
       keyOf(spender),
       keyOf(collateralOwner),
@@ -556,7 +538,7 @@ describe("BuiltTx: signers", () => {
       expect(built.signers.keyHashes).toContain(keyHash);
   });
 
-  it("lists a key once with every part that needs it, selected inputs and chosen collateral included", async () => {
+  it("lists a key once with every role it is needed in, selected inputs and chosen collateral included", async () => {
     const spender = baseAddress(3);
     const built = await builder().build(
       [
@@ -573,19 +555,13 @@ describe("BuiltTx: signers", () => {
     expect(new Set(built.signers.keyHashes).size).toBe(
       built.signers.keyHashes.length,
     );
-    expect(neededBy(built, keyOf(spender))).toEqual([
-      { part: "spend", label: "a", role: "input" },
-      { part: "spend", label: "b", role: "input" },
-    ]);
+    expect(roles(built, keyOf(spender))).toEqual(["input"]);
     expect(built.selectedInputs.length).toBeGreaterThan(0);
     expect(built.collateral!.inputs.length).toBeGreaterThan(0);
-    expect(neededBy(built, walletKey)).toEqual([
-      { part: "spend", role: "input" },
-      { part: "collateral", role: "collateral" },
-    ]);
+    expect(roles(built, walletKey)).toEqual(["input", "collateral"]);
   });
 
-  it("gives each part its own entry, parts of one kind and label included", async () => {
+  it("names a role once, however many parts need the key in it", async () => {
     const spender = baseAddress(3);
     const owner = keyHashHex(14);
     const built = await builder().build(
@@ -619,24 +595,62 @@ describe("BuiltTx: signers", () => {
       // Two wallet UTxOs, both needed for the output and the pool deposit
       { payer: payer(utxo(lovelace(ada(600))), utxo(lovelace(ada(600)))) },
     );
-    expect(neededBy(built, keyOf(spender))).toEqual([
-      { part: "spend", role: "input" },
-      { part: "spend", role: "input" },
-      { part: "spend", label: "same", role: "input" },
-      { part: "spend", label: "same", role: "input" },
-    ]);
-    expect(neededBy(built, keyHashHex(10))).toEqual([
-      { part: "guard", role: "guard" },
-      { part: "guard", role: "guard" },
-    ]);
+    expect(roles(built, keyOf(spender))).toEqual(["input"]);
+    expect(roles(built, keyHashHex(10))).toEqual(["guard"]);
     expect(built.selectedInputs).toHaveLength(2);
-    expect(neededBy(built, walletKey)).toEqual([
-      { part: "spend", role: "input" },
-      { part: "spend", role: "input" },
-    ]);
-    // One part listing a key twice in one role is one entry
-    expect(neededBy(built, owner)).toEqual([
-      { part: "certificate", role: "poolOwner" },
+    expect(roles(built, walletKey)).toEqual(["input"]);
+    // One part listing a key twice in one role names the role once
+    expect(roles(built, owner)).toEqual(["poolOwner"]);
+    for (const key of built.signers.keys)
+      expect(Object.keys(key).sort()).toEqual(["keyHash", "roles"]);
+  });
+
+  it("lists the roles of a key in the order of SignerRole, whatever the order of the parts", async () => {
+    const spender = baseAddress(3);
+    const key = keyOf(spender);
+    const pool = (owner: string) =>
+      certificate.poolRegistration({
+        params: {
+          operator: keyHashHex(13),
+          vrfKeyHash: vrfKeyHashHex(1),
+          pledge: "1000000",
+          cost: "340000000",
+          margin: [1, 100],
+          relays: [],
+          owners: [owner],
+          rewardAddress: keyHashToRewardAddress(owner, 0),
+        },
+      });
+    const parts = [
+      spend.pubKey({ utxo: utxo(lovelace(ada(2)), {}, spender) }),
+      withdrawal.pubKey({
+        rewardAddress: keyHashToRewardAddress(key, 0),
+        amount: 0n,
+      }),
+      guard.pubKey({ keyHash: key }),
+      certificate.stakeRegistration({
+        stake: keyHashToRewardAddress(keyHashHex(14), 0),
+      }),
+      pool(keyHashHex(14)),
+    ];
+    const options = { payer: payer(utxo(lovelace(ada(1000)))) };
+    const forward = await builder().build(parts, options);
+    const backward = await builder().build([...parts].reverse(), options);
+    for (const built of [forward, backward]) {
+      expect(roles(built, key)).toEqual(["input", "withdrawal", "guard"]);
+      expect(roles(built, keyHashHex(14))).toEqual([
+        "certificate",
+        "poolOwner",
+      ]);
+    }
+    // An operator that is also an owner
+    const operatorOwner = await builder().build(
+      [pool(keyHashHex(13))],
+      options,
+    );
+    expect(roles(operatorOwner, keyHashHex(13))).toEqual([
+      "certificate",
+      "poolOwner",
     ]);
   });
 
@@ -723,9 +737,7 @@ describe("BuiltTx: signers", () => {
       );
       expect(built.selectedInputs).toHaveLength(1);
       expect(built.signers.keyHashes).toEqual([walletKey]);
-      expect(built.signers.keys[0]!.neededBy).toEqual([
-        { part: "spend", role: "input" },
-      ]);
+      expect(built.signers.keys[0]!.roles).toEqual(["input"]);
       expectFeeFor(built, built.signers.keyHashes.length + 1);
     });
 

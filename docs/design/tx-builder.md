@@ -347,8 +347,8 @@ is not a transaction is `UNSUPPORTED_SERIALIZER`.
 
 The `BuiltTx` holds the transaction, its hash and prototype, and what the build decided: fee,
 execution units, redeemers, resolved inputs, and outputs and change as labelled `Utxo`s, collateral,
-the keys that must sign (`signers`), validity, network, warnings and the resolved parts; see
-[The result][r-result].
+the keys that must sign with the roles each is needed in (`signers`), validity, network, warnings
+and the resolved parts; see [The result][r-result].
 
 ### Time and chains
 
