@@ -13,6 +13,14 @@ import {
 } from "./abort";
 import { NO_REBUILD, TxBuildError, TxPlanError } from "./errors";
 import {
+  hasMethod,
+  invalidOption,
+  optionsObject,
+  SIGNERS_IN_PLACE,
+  SUBMITTER_IN_PLACE,
+  typeOf,
+} from "./options";
+import {
   checkWaitOptions,
   DEFAULT_POLL_MS,
   DEFAULT_TIMEOUT_MS,
@@ -152,9 +160,6 @@ type RestoredState = {
   readonly delivered: boolean;
 };
 
-/** The JavaScript type of a value, with `null` told apart */
-const typeOf = (value: unknown) => (value === null ? "null" : typeof value);
-
 const isAbortSignal = (value: unknown): value is AbortSignal =>
   typeof value === "object" &&
   value !== null &&
@@ -168,86 +173,17 @@ const OPTIONS_ALLOWED = "an object { signers?, partial?, signal? }";
 const SIGN_MEMBERS: readonly string[] = ["signers", "partial", "signal"];
 
 /**
- * An option of `sign()` that is refused. What is given there may be or hold a key, so the message
- * and `details.value` name only its JavaScript type, never the value
- */
-const invalidOption = (
-  option: string,
-  value: unknown,
-  allowed: string,
-  hint = "",
-) =>
-  new TxBuildError(
-    "INVALID_OPTION",
-    `invalid ${option}: expected ${allowed}; got a value of type ${typeOf(value)}${hint}`,
-    { details: { option, value: typeOf(value), allowed } },
-  );
-
-/** A member name an error may show: a plain identifier, short */
-const SHOWN_MEMBER = /^[A-Za-z_$][\w$]{0,31}$/;
-
-/**
- * Refuses options with an own enumerable member that is not among `known`: a misspelled member
- * would be dropped, and the call would do what it does without it. The name is given by the
- * caller, so the message shows it only when it is a short plain identifier
- * @throws TxBuildError INVALID_OPTION
- */
-const refuseUnknownMembers = (
-  options: object,
-  known: readonly string[],
-  allowed: string,
-) => {
-  const name = Object.keys(options).find((key) => !known.includes(key));
-  const symbol = Object.getOwnPropertySymbols(options).some((key) =>
-    Object.prototype.propertyIsEnumerable.call(options, key),
-  );
-  if (name === undefined && !symbol) return;
-  throw new TxBuildError(
-    "INVALID_OPTION",
-    `invalid options: expected ${allowed}; got an object with ${
-      name !== undefined && SHOWN_MEMBER.test(name)
-        ? `the unknown member ${name}`
-        : "an unknown member"
-    }`,
-    { details: { option: "options", value: typeOf(options), allowed } },
-  );
-};
-
-/**
  * The options of `sign()`, checked by their shape
  * @throws TxBuildError INVALID_OPTION
  * @throws TxPlanError SIGNER_FAILED for a signer whose methods throw when they are read
  */
 const checkSignOptions = (options: unknown) => {
-  if (options === undefined) return {};
-  let signerGiven = false;
-  if (typeof options === "object" && options !== null)
-    try {
-      signerGiven = canSign(options);
-    } catch {
-      // Options whose signing method cannot be read are a signer given in their place
-      signerGiven = true;
-    }
-  if (typeof options !== "object" || options === null || signerGiven)
-    throw invalidOption(
-      "options",
-      options,
-      OPTIONS_ALLOWED,
-      typeof options === "string"
-        ? "; a private key is given as { signers: keySigner(key) }"
-        : signerGiven
-          ? "; a signer is given as { signers }"
-          : "",
-    );
-  if (Array.isArray(options))
-    throw invalidOption(
-      "options",
-      options,
-      OPTIONS_ALLOWED,
-      "; signers are given as { signers: [...] }",
-    );
-  refuseUnknownMembers(options, SIGN_MEMBERS, OPTIONS_ALLOWED);
-  const { signers, partial, signal } = options as Record<string, unknown>;
+  const { signers, partial, signal } = optionsObject(
+    options,
+    SIGN_MEMBERS,
+    OPTIONS_ALLOWED,
+    SIGNERS_IN_PLACE,
+  );
   let given: Signer[] | undefined;
   try {
     given = toSigners(signers);
@@ -266,42 +202,6 @@ const checkSignOptions = (options: unknown) => {
   };
 };
 
-const hasMethod = (value: unknown, name: string) =>
-  (typeof value === "object" || typeof value === "function") &&
-  value !== null &&
-  typeof (value as Record<string, unknown>)[name] === "function";
-
-/**
- * Options of a call that are an object with no member but those it knows, else INVALID_OPTION:
- * `undefined` is none
- * @param known The members the call knows
- * @param given What the call's options are given as when a member is given in their place
- */
-const optionsObject = (
-  options: unknown,
-  known: readonly string[],
-  allowed: string,
-  given?: { member: string; is: (value: unknown) => boolean },
-): Record<string, unknown> => {
-  if (options === undefined) return {};
-  if (
-    typeof options !== "object" ||
-    options === null ||
-    Array.isArray(options) ||
-    given?.is(options) === true
-  )
-    throw invalidOption(
-      "options",
-      options,
-      allowed,
-      given?.is(options) === true
-        ? `; a ${given.member} is given as { ${given.member} }`
-        : "",
-    );
-  refuseUnknownMembers(options, known, allowed);
-  return options as Record<string, unknown>;
-};
-
 /**
  * The options of `submit()`, checked by their shape
  * @throws TxBuildError INVALID_OPTION
@@ -311,7 +211,7 @@ const checkSubmitOptions = (options: unknown) => {
     options,
     ["submitter", "signal"],
     "an object { submitter?, signal? }",
-    { member: "submitter", is: (value) => hasMethod(value, "submitTx") },
+    [SUBMITTER_IN_PLACE],
   );
   if (submitter !== undefined && !hasMethod(submitter, "submitTx"))
     throw invalidOption("submitter", submitter, "an object with submitTx");

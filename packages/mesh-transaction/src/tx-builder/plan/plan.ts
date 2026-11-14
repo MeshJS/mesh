@@ -8,6 +8,7 @@ import type {
   TxBuilder,
 } from "../builder";
 import type { TxPlanErrorCode, TxPlanErrorDetails } from "../errors";
+import type { GivenInPlace } from "../options";
 import type { OutRef, TxPart, Utxo } from "../parts/types";
 import type { Payer, PayerRead, PayerSnapshot, PayerSource } from "../payer";
 import type { KeyWitness, Signer } from "../sign";
@@ -46,6 +47,11 @@ import {
 import { isKeyLocked } from "../balance";
 import { toKnownUtxos } from "../chain";
 import { NOT_UNPAID, TxBuildError, TxPlanError } from "../errors";
+import {
+  optionsObject,
+  SIGNERS_IN_PLACE,
+  SUBMITTER_IN_PLACE,
+} from "../options";
 import { collateral, spend, validity } from "../parts";
 import { outRefOf, plainUtxo, utxoKey } from "../parts/utxo";
 import { toPayerSource } from "../payer";
@@ -293,6 +299,41 @@ const isAbortSignal = (value: unknown): value is AbortSignal =>
   typeof (value as { aborted?: unknown }).aborted === "boolean" &&
   typeof (value as { addEventListener?: unknown }).addEventListener ===
     "function";
+
+/** The members of the options of `build()`, and what the call takes */
+const BUILD_MEMBERS: readonly string[] = ["payer", "signal"];
+const BUILD_ALLOWED = "an object { payer?, signal? }";
+
+/** The members of the options of `sign()`, and what the call takes */
+const SIGN_MEMBERS: readonly string[] = ["signers", "signal"];
+const SIGN_ALLOWED = "an object { signers?, signal? }";
+
+/** The members of the options of `send()` and `advance()`, and what the calls take */
+const SEND_MEMBERS: readonly string[] = [
+  "signers",
+  "submitter",
+  "waitFor",
+  "timeoutMs",
+  "pollMs",
+  "signal",
+];
+const SEND_ALLOWED =
+  "an object { signers?, submitter?, waitFor?, timeoutMs?, pollMs?, signal? }";
+
+/** A payer given in place of the options of `build()`: an address, a wallet or a snapshot */
+const PAYER_IN_PLACE: GivenInPlace = {
+  is: (value) =>
+    typeof value === "string" ||
+    isFunction(value, "getChangeAddress") ||
+    (typeof value === "object" && value !== null && "changeAddress" in value),
+  hint: "a payer is given as { payer }",
+};
+
+/** What `send()` and `advance()` find given in place of their options */
+const SEND_IN_PLACE: readonly GivenInPlace[] = [
+  ...SIGNERS_IN_PLACE,
+  SUBMITTER_IN_PLACE,
+];
 
 /**
  * The submitter and the signal of a call, checked by their shape
@@ -773,7 +814,10 @@ export class TxPlan {
    *   output of a parent attempt that is no longer the parent's current one), SCRIPT_FAILED as
    *   above
    * @throws TxBuildError MISSING_PAYER without a payer, or with a snapshot an earlier attempt
-   *   was built from; INVALID_OPTION for a payer of no known form; INSUFFICIENT_FUNDS for a
+   *   was built from; INVALID_OPTION for a payer of no known form, and for options that are
+   *   not an object (a payer given in their place among them: give it as `{ payer }`) or have a
+   *   member other than these, with `details.value` only the JavaScript type of what was given,
+   *   before anything is built or written; INSUFFICIENT_FUNDS for a
    *   plan with `sendAllTo` none of whose earlier UTxOs is left; ABORTED; and every error of
    *   building the transaction, FEE_TOO_LOW for an attempt the plan's `fee` does not cover
    */
@@ -782,7 +826,12 @@ export class TxPlan {
     signal?: AbortSignal;
   }): Promise<BuiltTxData> {
     return this.#run(async (state) => {
-      const { payer, signal } = options ?? {};
+      const { payer, signal } = optionsObject(
+        options,
+        BUILD_MEMBERS,
+        BUILD_ALLOWED,
+        [PAYER_IN_PLACE],
+      ) as { payer?: Payer; signal?: AbortSignal };
       checkCallOptions({ signal });
       // In final the landed attempt is returned: only abandoned and the closing mark refuse
       if (planStatus(state.record) !== "final") this.#refuseClosed(state);
@@ -854,13 +903,22 @@ export class TxPlan {
    *   (`terminal`) in `final` and `abandoned`, (`status`) in `draft`, `included`, `expired`,
    *   `failed` and `orphaned`; INVALID_WITNESS (`staleAttempt`) when the attempt was replaced
    *   meanwhile
-   * @throws TxBuildError ABORTED; INVALID_OPTION for a signer that cannot sign
+   * @throws TxBuildError ABORTED; INVALID_OPTION for a signer that cannot sign, and for options
+   *   that are not an object (a signer given in their place among them: give it as
+   *   `{ signers }`) or have a member other than these, with `details.value` only the JavaScript
+   *   type of what was given, before anything is asked or written
    */
   sign(options?: SignOptions): Promise<this> {
     return this.#run(async (state) => {
-      const { signal } = options ?? {};
+      const opts: SignOptions = optionsObject(
+        options,
+        SIGN_MEMBERS,
+        SIGN_ALLOWED,
+        SIGNERS_IN_PLACE,
+      );
+      const { signal } = opts;
       checkCallOptions({ signal });
-      const given = toSigners(options?.signers);
+      const given = toSigners(opts.signers);
       this.#refuseClosed(state);
       this.#refuseUnsignable(state);
       throwIfAborted(signal, CALL);
@@ -929,12 +987,20 @@ export class TxPlan {
    *   block heights, and the probe's reasons; INVALID_STATE (`terminal`) in `abandoned` and when
    *   the plan is closed while waiting, (`closing`) with the closing mark; and the errors of
    *   `build()` and `sign()`
-   * @throws TxBuildError INVALID_OPTION for a wait option out of range, before any request;
+   * @throws TxBuildError INVALID_OPTION for a wait option out of range, and for options that
+   *   are not an object (a signer or a submitter given in their place among them: give it as
+   *   `{ signers }` or `{ submitter }`) or have a member other than those of `SendOptions`, with
+   *   `details.value` only the JavaScript type of what was given, before any request;
    *   ABORTED: bytes already handed to the submitter count as sent
    */
   send(options?: SendOptions): Promise<this> {
     return this.#run(async (state) => {
-      const opts = options ?? {};
+      const opts: SendOptions = optionsObject(
+        options,
+        SEND_MEMBERS,
+        SEND_ALLOWED,
+        SEND_IN_PLACE,
+      );
       const wait = effectiveWait(
         opts,
         state.record.deadlines,
@@ -992,12 +1058,20 @@ export class TxPlan {
    *   the tip cannot be read, or when the searches give no answer or do not find the transaction
    *   that created the anchor; (`noDepth`, `noValidity`) as from `send()`. Without the mark, the
    *   errors of `build()` and `send()`
-   * @throws TxBuildError INVALID_OPTION for a wait option out of range, before any request;
+   * @throws TxBuildError INVALID_OPTION for a wait option out of range, and for options that
+   *   are not an object (a signer or a submitter given in their place among them: give it as
+   *   `{ signers }` or `{ submitter }`) or have a member other than those of `SendOptions`, with
+   *   `details.value` only the JavaScript type of what was given, before any request;
    *   ABORTED
    */
   advance(options?: SendOptions): Promise<this> {
     return this.#run(async (state) => {
-      const opts = options ?? {};
+      const opts: SendOptions = optionsObject(
+        options,
+        SEND_MEMBERS,
+        SEND_ALLOWED,
+        SEND_IN_PLACE,
+      );
       const wait = effectiveWait(
         opts,
         state.record.deadlines,

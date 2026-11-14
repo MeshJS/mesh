@@ -129,7 +129,7 @@ export type ResumeOptions = {
 
 /**
  * The options of one call of `send()` or `advance()`: its waiting, who signs and who submits;
- * never written
+ * never written. A member other than these is INVALID_OPTION
  */
 export type SendOptions = WaitOptions & {
   /**
@@ -145,7 +145,7 @@ export type SendOptions = WaitOptions & {
   submitter?: ISubmitter;
 };
 
-/** The options of one call of `sign()` */
+/** The options of one call of `sign()`. A member other than these is INVALID_OPTION */
 export type SignOptions = {
   /**
    * Who signs; else the plan's payer, if it can sign. Each is asked once, in order; a signer that
