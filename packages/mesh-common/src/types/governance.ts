@@ -161,3 +161,33 @@ export type GovernanceAction =
   | { kind: "UpdateCommitteeAction"; action: UpdateCommitteeAction }
   | { kind: "NewConstitutionAction"; action: NewConstitutionAction }
   | { kind: "InfoAction"; action: InfoAction };
+/** A DRep's registration, as the ledger holds it */
+export type DRepState = {
+  /** CIP-129 DRep id */
+  drepId: string;
+  registered: boolean;
+  /** Deposit paid on registration, in lovelace */
+  deposit?: string;
+};
+
+/** A constitutional committee member, sitting or proposed to join */
+export type CommitteeMemberState = {
+  cold: Credential;
+  /** The hot credential the member votes with, once authorised */
+  hot?: Credential;
+  resigned: boolean;
+  /** Proposed by an update-committee action not yet enacted, rather than sitting */
+  potential?: boolean;
+};
+
+/** The last enacted governance action of a purpose, which the next proposal of it must follow */
+export type EnactedGovernanceAction = GovernanceActionId & {
+  kind: GovernanceActionKind;
+};
+
+/** The constitution in force */
+export type ConstitutionState = {
+  anchor: Anchor;
+  /** Hash of the guardrail script that parameter changes and treasury withdrawals must name */
+  guardrailScriptHash?: string;
+};
