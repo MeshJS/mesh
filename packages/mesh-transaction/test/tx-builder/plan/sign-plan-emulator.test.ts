@@ -1,10 +1,17 @@
-import { deserializeAddress } from "@meshsdk/core";
+import { randomBytes } from "node:crypto";
+
+import {
+  deserializeAddress,
+  pubKeyAddress,
+  serializeAddressObj,
+} from "@meshsdk/core";
 import { Crypto } from "@meshsdk/core-cst";
 
 import type { Signer, TxPlanError } from "../../../src/tx-builder";
 import {
   addWitnesses,
   guard,
+  keySigner,
   signWitnesses,
   spend,
   TxError,
@@ -435,6 +442,39 @@ describe("TxPlan signing on TxEmulator", () => {
     ).not.toContain(thirdKey);
     await extra.send({ waitFor: "included" });
     expect(extra.status).toBe("final");
+  });
+});
+
+describe("TxPlan with a key signer on TxEmulator", () => {
+  it("sends a payment signed by keySigner to final", async () => {
+    const { emulator, builder } = await setup();
+    await Crypto.ready();
+    // A key made here: only its hash and its address are compared
+    const key = randomBytes(32).toString("hex");
+    const keyHash = Crypto.Ed25519PrivateKey.fromNormalBytes(
+      Buffer.from(key, "hex"),
+    )
+      .toPublic()
+      .hash()
+      .hex() as string;
+    const address = serializeAddressObj(pubKeyAddress(keyHash), 0);
+    emulator.fund(address, { lovelace: 100_000_000n });
+
+    const plan = builder.plan(pay(), { payer: address });
+    await plan.send({ signers: keySigner(key), waitFor: "included" });
+    expect(plan.status).toBe("final");
+    expect(await signedBy(plan.signedTx!)).toEqual([keyHash]);
+    const json = JSON.stringify(plan.toJSON());
+    expect(json.includes(key)).toBe(false);
+
+    // One list of signers serves every transaction: a key signer not asked for signs nothing
+    const other = builder.plan(pay(), { payer: address });
+    await other.send({
+      signers: [keySigner(randomBytes(32).toString("hex")), keySigner(key)],
+      waitFor: "included",
+    });
+    expect(other.status).toBe("final");
+    expect(await signedBy(other.signedTx!)).toEqual([keyHash]);
   });
 });
 

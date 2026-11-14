@@ -64,6 +64,7 @@ export {
   type TxHashSignature,
   type TxHashSigner,
 } from "./sign";
+export { keySigner } from "./key-signer";
 export { TxPlan } from "./plan/plan";
 export { checkPlanStore, memoryPlanStore } from "./plan/store";
 export type {

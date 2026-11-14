@@ -39,6 +39,7 @@ describe("public entrypoint", () => {
     "outputOf",
     "utxosAfter",
     "signWitnesses",
+    "keySigner",
     "addWitnesses",
     "signedKeyHashes",
     "requiredSigners",

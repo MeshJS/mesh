@@ -1,3 +1,7 @@
+import { randomBytes } from "node:crypto";
+import { bech32 } from "bech32";
+
+import { mnemonicToEntropy } from "@meshsdk/common";
 import {
   addWitnesses as addWitnessesOfCore,
   deserializeAddress,
@@ -15,6 +19,7 @@ import {
   BuiltTx,
   certificate,
   guard,
+  keySigner,
   output,
   requiredSigners,
   signedKeyHashes,
@@ -29,6 +34,7 @@ import { alwaysSucceedCbor, baseAddress, vestingCbor } from "../test-util";
 import { keysSigner, testKey } from "./hash-signer-util";
 
 const words = Array(24).fill("solution");
+const HARDENED = 0x80000000;
 const recipient = baseAddress(2);
 const plutusScript = { code: alwaysSucceedCbor, version: "V3" as const };
 
@@ -275,6 +281,69 @@ describe.each(["scalus", "cquisitor"] as const)(
         await signWitnesses(stake, built.tx),
       );
       expect(await emulator.submitTx(second)).toBe(built.txHash);
+    });
+
+    it("signs with key signers over a normal key and over an extended key", async () => {
+      const { emulator, builder } = await setup(validator);
+      await Crypto.ready();
+      // The wallet's payment key, extended, given as addr_xsk with its chain code
+      const wallet = await walletOf();
+      const address = (await wallet.getChangeAddress())!;
+      const payment = Crypto.Bip32PrivateKey.fromBip39Entropy(
+        Buffer.from(mnemonicToEntropy(words.join(" ")), "hex"),
+        "",
+      ).derive([HARDENED + 1852, HARDENED + 1815, HARDENED, 0, 0]);
+      const extended = keySigner(
+        bech32.encode(
+          "addr_xsk",
+          bech32.toWords(Buffer.from(payment.hex(), "hex")),
+          1023,
+        ),
+      );
+      // A key made here, in hex, required by a guard
+      const normalKey = randomBytes(32).toString("hex");
+      const normalHash = Crypto.Ed25519PrivateKey.fromNormalBytes(
+        Buffer.from(normalKey, "hex"),
+      )
+        .toPublic()
+        .hash()
+        .hex() as string;
+      const normal = keySigner(normalKey);
+      emulator.fund(address, { lovelace: 100_000_000n });
+      const built = await builder.build(
+        [
+          output({ address: recipient, value: { lovelace: 5_000_000n } }),
+          guard.pubKey({ keyHash: normalHash }),
+        ],
+        { payer: address },
+      );
+      const { pubKeyHash } = deserializeAddress(address);
+      const { keyHashes } = built.signers;
+
+      // Each signs its own key only
+      const byExtended = await addWitnesses(
+        built.tx,
+        await signWitnesses(extended, built.tx, keyHashes),
+      );
+      expect(await signedKeyHashes(byExtended)).toEqual([pubKeyHash]);
+      const refused = await emulator.simulate(byExtended);
+      expect(rules(refused)).toContain(missingKeyRule[validator]);
+
+      const signed = await addWitnesses(
+        byExtended,
+        await signWitnesses(normal, built.tx, keyHashes),
+      );
+      expect((await signedKeyHashes(signed)).sort()).toEqual(
+        [pubKeyHash, normalHash].sort(),
+      );
+      // The same witness the wallet makes for its key
+      expect(
+        await addWitnesses(
+          built.tx,
+          await wallet.signTxWitnesses(built.tx, [pubKeyHash]),
+        ),
+      ).toBe(byExtended);
+      expect(await emulator.submitTx(signed)).toBe(built.txHash);
     });
 
     it.each(["object", "callback"] as const)(

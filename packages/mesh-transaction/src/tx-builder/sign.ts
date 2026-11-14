@@ -59,7 +59,7 @@ export type TxHashSignature = {
 
 /**
  * A signer that signs the hash of a transaction and needs to know nothing else of it: a key
- * service, a hardware module, a remote signer.
+ * service, a hardware module, a remote signer. `keySigner(key)` makes one over a private key.
  *
  * `signTxHash` answers with a signature for each key asked for that it holds, and with an empty
  * list when it holds none; it is not called when no key is left to sign. Every signature is
@@ -87,11 +87,11 @@ export type SignTxHash = (
  * Something that signs. The forms are told apart by their methods, the first found in this order:
  * - `signTxWitnesses(tx, keyHashes?)`: a Mesh wallet, or own code that takes the transaction and
  *   answers with a CBOR witness set;
- * - `signTxHash(request)`: a signer of transaction hashes;
+ * - `signTxHash(request)`: a signer of transaction hashes, `keySigner(key)` among them;
  * - `signTx(tx, partialSign?)`: a CIP-30 api, or a Mesh 1.9 wallet.
  *
  * A function with none of these methods is a signer of transaction hashes in its callback form
- * (`SignTxHash`). A private key is not a signer as it is.
+ * (`SignTxHash`). A private key is not a signer as it is: `keySigner(key)` makes one of it.
  */
 export type Signer =
   | { signTxWitnesses(tx: string, keyHashes?: RequiredKeys): Promise<string> }
@@ -651,13 +651,19 @@ export const invalidSigner = (
   entry?: number,
 ) => {
   const allowed = option === "signer" ? SIGNER_ALLOWED : SIGNERS_ALLOWED;
+  const given = entry === undefined ? value : (value as unknown[])[entry];
   const got =
     entry === undefined
       ? signerKind(value)
-      : `a list whose entry ${entry} is ${signerKind((value as unknown[])[entry])}`;
+      : `a list whose entry ${entry} is ${signerKind(given)}`;
+  // A string may be a private key: say where a key goes, without the text
+  const hint =
+    typeof given === "string"
+      ? "; a private key is given as keySigner(key)"
+      : "";
   return new TxBuildError(
     "INVALID_OPTION",
-    `invalid ${option}: expected ${allowed}; got ${got}`,
+    `invalid ${option}: expected ${allowed}; got ${got}${hint}`,
     { details: { option, value: typeOf(value), allowed } },
   );
 };
@@ -873,10 +879,10 @@ export const askSigner = async (
  *   something that is not a list of `{ vkey, signature }` or holds a signature that does not
  *   verify. The signer's own error is the `cause`.
  * @throws TxBuildError INVALID_OPTION for a `signer` that is none of the forms of `Signer` (a
- *   private key given as it is among them), and for a `tx` that is not a transaction; the signer
- *   is not called. For the signer, `details.value` is only the JavaScript type of what was given,
- *   never the value: something passed as a signer may hold keys, and `details` is data a logger
- *   prints
+ *   private key given as it is among them: `keySigner(key)` makes a signer of it), and for a `tx`
+ *   that is not a transaction; the signer is not called. For the signer, `details.value` is only
+ *   the JavaScript type of what was given, never the value: something passed as a signer may
+ *   hold keys, and `details` is data a logger prints
  */
 export async function signWitnesses(
   signer: Signer,
