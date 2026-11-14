@@ -1889,7 +1889,11 @@ describe("TxBuilder: scripts", () => {
         evaluator: fakeEvaluator().evaluator,
       }).build(
         [scriptSpend(1), collateral({ utxo: utxo(lovelace(100_000n)) })],
-        { payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] } },
+        // Used as given: the payer's UTxO would top it up
+        {
+          payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] },
+          topUpCollateral: false,
+        },
       ),
       "INSUFFICIENT_COLLATERAL",
     );
@@ -1931,6 +1935,8 @@ describe("TxBuilder: scripts", () => {
           evaluator: fakeEvaluator().evaluator,
         }).build([scriptSpend(1), ...parts], {
           payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] },
+          // Given collateral is used as given: the payer's UTxO would top it up
+          topUpCollateral: false,
         }),
         "INSUFFICIENT_COLLATERAL",
       );

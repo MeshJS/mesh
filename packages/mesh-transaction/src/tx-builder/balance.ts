@@ -111,6 +111,11 @@ export type BalanceContext = {
    * a round that only prices the transaction
    */
   lenientCollateral?: boolean;
+  /**
+   * `false`: collateral inputs given by parts are used as they are. Otherwise, when they do not
+   * cover the collateral, inputs are added to them from the UTxOs collateral is chosen from
+   */
+  topUpCollateral?: boolean;
   /** Told of every round that prices a transaction */
   onRound?: (round: PricedRound) => void;
 };
@@ -129,6 +134,7 @@ export type PricedRound = {
 
 /** The collateral of a built transaction */
 export type TxCollateral = {
+  /** The collateral inputs: those given by parts first, then those the builder added or chose */
   inputs: Utxo[];
   /** Lovelace forfeited if a script fails */
   total: bigint;
@@ -279,8 +285,8 @@ const poolShortfalls = new WeakSet<object>();
 
 /**
  * Whether an error is INSUFFICIENT_COLLATERAL of the builder's own choice of collateral: the
- * UTxOs it chooses from cannot cover it. Not for collateral given by parts, nor for a given
- * total below the minimum.
+ * UTxOs it chooses from cannot cover it, alone or added to the inputs given by parts. Not for
+ * given inputs used as they are, nor for a given total below the minimum.
  */
 export const isPoolShortfall = (error: unknown) =>
   typeof error === "object" && error !== null && poolShortfalls.has(error);
@@ -860,6 +866,7 @@ export const balance = (
             : BigInt(givenReturn.totalCollateral),
         address: givenReturn?.address ?? ctx.changeAddress,
         pool: collateralPool,
+        topUp: ctx.topUpCollateral !== false,
       });
     if (!lenient) return strict();
     try {
@@ -1095,9 +1102,12 @@ export const totalExUnits = (assembled: AssembledTx) =>
 /**
  * Collateral covering `collateralPercent` of the fee, with what is left returned.
  *
- * Given collateral inputs are used as they are. Otherwise inputs are chosen from the pool: the
- * smallest lovelace-only UTxO that covers the requirement and leaves a return worth making,
- * else the smallest that covers it, else the largest ones, up to `maxCollateralInputs`.
+ * Given collateral inputs that cover the requirement are used as they are. Otherwise inputs are
+ * chosen from the pool: the smallest lovelace-only UTxO that covers the requirement and leaves a
+ * return worth making, else the smallest that covers it, else the largest ones, up to
+ * `maxCollateralInputs`, else the smallest UTxO holding tokens or a reference script alone. Given
+ * inputs that do not cover it are topped up so, after them and with them counted, unless `topUp`
+ * is false: then they are rejected.
  *
  * A return too small to be an output is left out, and the whole collateral is forfeited
  * instead, unless the total was given.
@@ -1114,16 +1124,14 @@ const collateralFor = (
     givenTotal?: bigint;
     address: string;
     pool: readonly Utxo[];
+    /** Given inputs that do not cover the requirement get inputs from the pool added */
+    topUp: boolean;
   },
 ): BalancedCollateral => {
   const { params } = ctx;
   const percent = BigInt(params.collateralPercent);
   const minimum = (fee * percent + 99n) / 100n;
   const required = ctx.givenTotal ?? minimum;
-  const adaOnlyMin = outputMinCoin(
-    { address: ctx.address, amount: { coin: "0" } },
-    params.coinsPerUtxoSize,
-  );
   const fail = (
     message: string,
     details: { required: bigint; available: bigint },
@@ -1155,6 +1163,102 @@ const collateralFor = (
     return { inputs, total: held.coin };
   };
 
+  /**
+   * Inputs from the pool that make the collateral cover after `given`, each UTxO once and never
+   * a given one, judged by what `cover` gives with them: the smallest lovelace-only UTxO without
+   * a reference script that leaves a return worth making (nothing forfeited beyond the
+   * requirement), else the smallest of those that covers, else the largest ones, lovelace-only
+   * first, up to `room`, else the smallest of the others alone. Without a cover, the inputs the
+   * largest-first phase tried, and whether it ran out of UTxOs before `room`.
+   */
+  const choose = (
+    given: Utxo[],
+    room: number,
+  ):
+    | { found: BalancedCollateral }
+    | { found?: undefined; tried: Utxo[]; usedUp: boolean } => {
+    const seen = new Set(given.map((u) => utxoKey(u)));
+    const candidates = ctx.pool.filter((u) => {
+      const key = utxoKey(u);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    const byLovelace = (a: Utxo, b: Utxo) => {
+      const diff = a.value.lovelace - b.value.lovelace;
+      return diff !== 0n ? (diff > 0n ? 1 : -1) : 0;
+    };
+    const adaOnly = candidates
+      .filter((u) => Object.keys(u.value).length === 1 && !u.script)
+      .sort(byLovelace);
+    const withOne = adaOnly.map((u) => cover([...given, u]));
+    const one =
+      withOne.find((c) => c?.total === required) ??
+      withOne.find((c) => c !== undefined);
+    if (one) return { found: one };
+    const others = candidates.filter((u) => !adaOnly.includes(u));
+    const added: Utxo[] = [];
+    for (const utxo of [...[...adaOnly].reverse(), ...others]) {
+      if (added.length >= room) break;
+      added.push(utxo);
+      const found = cover([...given, ...added]);
+      if (found) return { found };
+    }
+    // Last, one UTxO holding tokens or a reference script alone, which can cover where the
+    // largest ones leave a rest too small to return or use up the room first
+    for (const utxo of [...others].sort(byLovelace)) {
+      const found = cover([...given, utxo]);
+      if (found) return { found };
+    }
+    return { tried: added, usedUp: added.length < room };
+  };
+
+  /** Names the UTxOs a choice tried when there were no more to try, for its error */
+  const allOf = (count: number, may: string) =>
+    count === 1
+      ? `the only UTxO that can ${may} does not`
+      : `the ${count} UTxOs that can ${may} do not`;
+
+  /**
+   * The given inputs, which do not cover the requirement, followed by inputs from the pool that
+   * make them cover it: by the preference of the builder's own choice, judged with the given
+   * inputs counted. Fails as a shortfall of the pool when no such inputs fit within
+   * `maxCollateralInputs`.
+   */
+  const topUpGiven = (
+    notCovered: string,
+    atFault: TxPart | undefined,
+  ): BalancedCollateral => {
+    const { given } = ctx;
+    const room = params.maxCollateralInputs - given.length;
+    if (room <= 0)
+      fail(
+        `${notCovered}, and no input can be added to them: a transaction puts up at most ${params.maxCollateralInputs}`,
+        { required, available: lovelaceIn(given) },
+        atFault,
+      );
+    const choice = choose(given, room);
+    if (choice.found) return choice.found;
+    const { tried, usedUp } = choice;
+    const shortfall = new TxBuildError(
+      "INSUFFICIENT_COLLATERAL",
+      tried.length === 0
+        ? `${notCovered}, and no key-locked UTxO is available to add to them`
+        : usedUp
+          ? `${notCovered}, and ${allOf(tried.length, "be added to them")} make them cover it`
+          : `${notCovered}, and no ${tried.length} more UTxOs added to them cover it`,
+      {
+        ...(atFault && {
+          part: atFault.kind,
+          ...(atFault.label !== undefined && { label: atFault.label }),
+        }),
+        details: { required, available: lovelaceIn([...given, ...tried]) },
+      },
+    );
+    poolShortfalls.add(shortfall);
+    throw shortfall;
+  };
+
   if (required < minimum)
     fail(
       `the total collateral ${required} is below the ${minimum} lovelace the fee calls for`,
@@ -1163,51 +1267,28 @@ const collateralFor = (
     );
 
   if (ctx.given.length > 0) {
+    const covered = cover(ctx.given);
+    if (covered) return covered;
     // The inputs are at fault: the collateral part, when one part gives them all
     const atFault =
       ctx.givenParts?.length === 1 ? ctx.givenParts[0] : undefined;
-    return (
-      cover(ctx.given) ??
-      fail(
-        `the collateral inputs cannot cover ${required} lovelace and return the rest`,
-        { required, available: lovelaceIn(ctx.given) },
-        atFault,
-      )
-    );
+    const notCovered = `the collateral inputs cannot cover ${required} lovelace and return the rest`;
+    if (!ctx.topUp)
+      fail(notCovered, { required, available: lovelaceIn(ctx.given) }, atFault);
+    return topUpGiven(notCovered, atFault);
   }
 
-  const adaOnly = ctx.pool
-    .filter((u) => Object.keys(u.value).length === 1 && !u.script)
-    .sort((a, b) => {
-      const diff = a.value.lovelace - b.value.lovelace;
-      return diff !== 0n ? (diff > 0n ? 1 : -1) : 0;
-    });
-  const withReturn = adaOnly.find(
-    (u) =>
-      u.value.lovelace === required ||
-      u.value.lovelace >= required + adaOnlyMin,
-  );
-  if (withReturn) return cover([withReturn])!;
-  const single = adaOnly.find((u) => u.value.lovelace >= required);
-  if (single) return cover([single])!;
-
-  const largest = [
-    ...adaOnly.reverse(),
-    ...ctx.pool.filter((u) => !adaOnly.includes(u)),
-  ];
-  const inputs: Utxo[] = [];
-  for (const utxo of largest) {
-    if (inputs.length >= params.maxCollateralInputs) break;
-    inputs.push(utxo);
-    const found = cover(inputs);
-    if (found) return found;
-  }
+  const choice = choose([], params.maxCollateralInputs);
+  if (choice.found) return choice.found;
+  const { tried, usedUp } = choice;
   const shortfall = new TxBuildError(
     "INSUFFICIENT_COLLATERAL",
-    inputs.length === 0
+    tried.length === 0
       ? "no key-locked UTxO is available to put up as collateral"
-      : `no ${params.maxCollateralInputs} UTxOs cover the ${required} lovelace collateral`,
-    { details: { required, available: lovelaceIn(inputs) } },
+      : usedUp
+        ? `${allOf(tried.length, "be put up as collateral")} cover ${required} lovelace and return the rest`
+        : `no ${tried.length} UTxOs cover the ${required} lovelace collateral`,
+    { details: { required, available: lovelaceIn(tried) } },
   );
   poolShortfalls.add(shortfall);
   throw shortfall;

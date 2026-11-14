@@ -792,6 +792,27 @@ describe.each(["scalus", "cquisitor"] as const)(
         });
       });
 
+      it("named once that cannot cover the required collateral is INSUFFICIENT_COLLATERAL, with UTxOs to select that could top it up", async () => {
+        const { emulator, address, funds, locked } = await setup(validator);
+        const c = emulator.fund(address, { lovelace: 200_000n });
+        const [hash, index, amount, at] = utxoToTxIn(c);
+        const builder = spendLocked(
+          new MeshTxBuilder({ fetcher: emulator }),
+          locked,
+          true,
+        )
+          .txInCollateral(hash, index, amount, at)
+          .changeAddress(address)
+          .selectUtxosFrom([funds]);
+        const error = await refusal(() => builder.complete());
+        expect(error).toMatchObject({
+          code: "INSUFFICIENT_COLLATERAL",
+          details: { available: 200_000n },
+        });
+        expect(error.message).toContain("the collateral inputs cannot cover");
+        expect(error.message).not.toContain("added to them");
+      });
+
       it("named twice with a total collateral returns the input less the total in the synchronous methods", async () => {
         const { address, locked } = await setup(validator);
         const c = utxoAt("e".repeat(64), address, 10_000_000n);

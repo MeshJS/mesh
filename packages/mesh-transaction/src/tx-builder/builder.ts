@@ -270,6 +270,14 @@ export type BuildOptions = {
    */
   extraKeyWitnesses?: number;
   /**
+   * `true`, the default: when the collateral inputs given by `collateral` parts do not cover the
+   * collateral, the builder adds inputs from the payer's UTxOs, as it chooses collateral when
+   * none is given. `false`: the given inputs are used as they are, and collateral they do not
+   * cover is INSUFFICIENT_COLLATERAL. Without a `collateral` part the builder chooses all of it
+   * either way
+   */
+  topUpCollateral?: boolean;
+  /**
    * Transactions built before this one and not yet seen by the provider: their inputs are not
    * selected again, their change is selectable, and all their outputs can be spent or read by
    * out ref without a lookup. Only change becomes selectable, never an output paid to another:
@@ -641,6 +649,15 @@ const checkBuildOptions = (
       extraKeyWitnesses,
       "a whole number, 0 or more",
     );
+  if (
+    options.topUpCollateral !== undefined &&
+    typeof options.topUpCollateral !== "boolean"
+  )
+    throw invalidOption(
+      "topUpCollateral",
+      options.topUpCollateral,
+      "a boolean",
+    );
   const after = toAfter(options.after);
   const knownUtxos = toKnownUtxos(options.knownUtxos);
   if (sendAllTo === undefined) return { after, knownUtxos };
@@ -733,7 +750,8 @@ export type BuiltTx = {
   change: BuiltOutput[];
   /**
    * The collateral, when the transaction runs Plutus scripts; of a transaction completed by
-   * `finalize`, whenever the body has collateral inputs
+   * `finalize`, whenever the body has collateral inputs. The inputs given by `collateral` parts
+   * come first, in their order, then those the builder added to them or chose.
    */
   collateral?: TxCollateral;
   /** The keys that must sign, each with the roles it is needed in */
@@ -1567,10 +1585,12 @@ export class TxBuilder {
    * 3. Balances: selects inputs from the payer's UTxOs, less those `after` spends and with
    *    its change at the payer's change address, that `canSelect` lets it, with `coinSelection`
    *    when given, returns change to its change address (or sends everything left to
-   *    `sendAllTo`), puts up collateral with a collateral return, and settles the fee. When the
-   *    payer's UTxOs cannot cover the collateral and the payer is a CIP-30 api with
-   *    `getCollateral`, that is called once, and the collateral is taken from its answer alone,
-   *    less what `after` spends.
+   *    `sendAllTo`), puts up collateral with a collateral return, and settles the fee. Collateral
+   *    inputs given by parts that do not cover the collateral are topped up from the payer's
+   *    UTxOs, unless `topUpCollateral` is false. When the payer's UTxOs cannot cover the
+   *    collateral and the payer is a CIP-30 api with `getCollateral`, that is called once, and
+   *    the collateral is taken from its answer alone, less what `after` spends, after the given
+   *    inputs when there are any.
    * 4. Evaluates the scripts with the builder's evaluator, configured with its network, slot
    *    clock and the cost models of step 1, and balances again with their execution units,
    *    until they settle. A local evaluator gets every UTxO the build knows for the
@@ -1887,12 +1907,14 @@ export class TxBuilder {
       ...(fee !== undefined && { fee }),
       registeredPools: new Set(registeredPools ?? []),
       extraKeyWitnesses: extraKeyWitnesses ?? 0,
+      ...(options?.topUpCollateral === false && { topUpCollateral: false }),
       serialize: (prototype: TransactionPrototype) => this.serialize(prototype),
       onRound: (priced) => emit({ type: "round", ...priced }),
     };
 
     // The collateral fallback of a CIP-30 payer is asked once per build, and only when the
-    // payer's own UTxOs cannot cover the collateral of a round whose units are settled
+    // payer's own UTxOs cannot cover the collateral of a round whose units are settled, alone
+    // or added to the given collateral inputs, which stay
     let collateralAsked = false;
     const balanceRound = async (roundParts: TxPart[], provisional: boolean) => {
       try {
@@ -2027,9 +2049,9 @@ export class TxBuilder {
   }
 
   /**
-   * Asks a CIP-30 payer for collateral, once: for the collateral the transaction calls for, an
-   * upper estimate, and returns the UTxOs of the answer that may be put up. Those become known
-   * to the build.
+   * Asks a CIP-30 payer for collateral, once: for the whole collateral the transaction calls
+   * for, an upper estimate, also when given collateral inputs are topped up from the answer, and
+   * returns the UTxOs of the answer that may be put up. Those become known to the build.
    * @throws TxBuildError INSUFFICIENT_COLLATERAL when the call fails or gives nothing usable;
    *   NETWORK_MISMATCH for a UTxO of another network; ABORTED
    */
@@ -2063,12 +2085,19 @@ export class TxBuilder {
       amount = (fee * BigInt(params.collateralPercent) + 99n) / 100n;
       if (amount < 1n) amount = 1n;
     }
+    // Collateral inputs given by parts stay, and count as available
+    const given = parts.flatMap((p) =>
+      p.kind === "collateral" ? [p.utxo!.value.lovelace] : [],
+    );
     const refused = (message: string, cause?: unknown) =>
       new TxBuildError(
         "INSUFFICIENT_COLLATERAL",
-        `the payer's UTxOs cannot cover the collateral, and the wallet's getCollateral ${message}`,
+        `${given.length > 0 ? "the given collateral inputs and " : ""}the payer's UTxOs cannot cover the collateral, and the wallet's getCollateral ${message}`,
         {
-          details: { required: amount, available: 0n },
+          details: {
+            required: amount,
+            available: given.reduce((total, coin) => total + coin, 0n),
+          },
           ...(cause !== undefined && { cause }),
         },
       );

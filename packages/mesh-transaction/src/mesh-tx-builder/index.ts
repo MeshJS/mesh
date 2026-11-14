@@ -363,6 +363,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       }),
       ...(this.manualFee && { fee: BigInt(this.manualFee) }),
       knownUtxos: outputs.knownUtxos.map(asRead),
+      // Collateral given here is put up as given: none is added to it, as before
+      topUpCollateral: false,
       [DECLARED_OUTPUTS]: {
         unread: translated.unread,
         scriptSizes: translated.scriptSizes,

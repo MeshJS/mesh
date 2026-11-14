@@ -538,16 +538,121 @@ describe("TxBuilder: the collateral fallback", () => {
     expect(getCollateral).not.toHaveBeenCalled();
   });
 
-  it("does not call when collateral parts are given and fall short", async () => {
+  it("does not call when collateral parts are given, fall short and are not topped up", async () => {
     const getCollateral = answering([asCbor(reserve)]);
     await expectCode(
       () =>
         scripted().build([scriptSpend(), collateral({ utxo: dust })], {
           payer: cip30([dust], { getCollateral }),
+          topUpCollateral: false,
         }),
       "INSUFFICIENT_COLLATERAL",
     );
     expect(getCollateral).not.toHaveBeenCalled();
+  });
+
+  it("does not call when the given collateral inputs fill maxCollateralInputs and fall short", async () => {
+    const getCollateral = answering([asCbor(reserve)]);
+    const given = [utxo(50_000n), utxo(50_000n), utxo(50_000n)];
+    const error = await expectCode(
+      () =>
+        scripted().build(
+          [scriptSpend(), ...given.map((u) => collateral({ utxo: u }))],
+          { payer: cip30(given, { getCollateral }) },
+        ),
+      "INSUFFICIENT_COLLATERAL",
+    );
+    expect(error.message).toContain(
+      "and no input can be added to them: a transaction puts up at most 3",
+    );
+    expect(error.details.available).toBe(150_000n);
+    expect(getCollateral).not.toHaveBeenCalled();
+  });
+
+  it("asks when the payer's only UTxO holds a stated total but leaves too little to return", async () => {
+    // 0.5 ADA cannot be an output, and a stated total is not forfeited
+    const only = utxo(3_500_000n);
+    const getCollateral = answering([asCbor(reserve)]);
+    const built = await scripted().build(
+      [
+        scriptSpend(),
+        collateralReturn({ address: wallet, totalCollateral: ada(3) }),
+      ],
+      { payer: cip30([only], { getCollateral }) },
+    );
+    expect(getCollateral).toHaveBeenCalledTimes(1);
+    expect(keysOf(built.collateral!.inputs)).toEqual([keyOf(reserve)]);
+    expect(built.collateral!.total).toBe(ada(3));
+    expect(built.collateral!.return!.value).toEqual({ lovelace: ada(2) });
+  });
+
+  it("tops up given collateral from the answer, asking once for the whole collateral", async () => {
+    const own = utxo(100_000n);
+    const getCollateral = answering([asCbor(reserve)]);
+    const built = await scripted().build(
+      [scriptSpend(), collateral({ utxo: own, label: "own" })],
+      { payer: cip30([own], { getCollateral }) },
+    );
+    expect(getCollateral).toHaveBeenCalledTimes(1);
+    const [[{ amount }]] = getCollateral.mock.calls as [[{ amount: string }]];
+    // The whole collateral, not what the given input leaves missing
+    expect(lovelaceOf(amount)).toBeGreaterThanOrEqual(built.collateral!.total);
+    expect(keysOf(built.collateral!.inputs)).toEqual([
+      keyOf(own),
+      keyOf(reserve),
+    ]);
+    expect(built.collateral!.return!.value.lovelace).toBe(
+      100_000n + reserve.value.lovelace - built.collateral!.total,
+    );
+    expect(
+      built.parts.flatMap((p) => (p.kind === "collateral" ? [p.label] : [])),
+    ).toEqual(["own", undefined]);
+  });
+
+  it("adds the given UTxO once when the answer holds it too", async () => {
+    const own = utxo(100_000n);
+    const getCollateral = answering([asCbor(own), asCbor(reserve)]);
+    const built = await scripted().build(
+      [scriptSpend(), collateral({ utxo: own })],
+      { payer: cip30([own], { getCollateral }) },
+    );
+    expect(keysOf(built.collateral!.inputs)).toEqual([
+      keyOf(own),
+      keyOf(reserve),
+    ]);
+  });
+
+  it("is INSUFFICIENT_COLLATERAL with the wallet's error as cause and the given inputs counted, when it fails while topping up", async () => {
+    const own = utxo(100_000n);
+    const rejection = { code: -2, info: "the user declined" };
+    const getCollateral = jest.fn(async (): Promise<string[]> => {
+      throw rejection;
+    });
+    const error = await expectCode(
+      () =>
+        scripted().build([scriptSpend(), collateral({ utxo: own })], {
+          payer: cip30([own], { getCollateral }),
+        }),
+      "INSUFFICIENT_COLLATERAL",
+    );
+    expect(getCollateral).toHaveBeenCalledTimes(1);
+    expect(error.cause).toBe(rejection);
+    expect(error.details.available).toBe(100_000n);
+    expect(error.details.required).toBeGreaterThan(100_000n);
+    expect(error.message).toContain(
+      "the given collateral inputs and the payer's UTxOs cannot cover the collateral",
+    );
+
+    // An answer that does not cover either: the given input and the answer are counted
+    const short = utxo(100_000n);
+    const both = await expectCode(
+      () =>
+        scripted().build([scriptSpend(), collateral({ utxo: own })], {
+          payer: cip30([own], { getCollateral: answering([asCbor(short)]) }),
+        }),
+      "INSUFFICIENT_COLLATERAL",
+    );
+    expect(both.details.available).toBe(200_000n);
   });
 
   it("is INSUFFICIENT_COLLATERAL for a snapshot or an address payer that cannot cover", async () => {

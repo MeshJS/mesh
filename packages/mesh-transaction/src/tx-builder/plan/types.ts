@@ -60,9 +60,9 @@ export type WaitOptions = {
 /**
  * The options of a plan, given to `builder.plan(parts, options)`. Every attempt is built
  * with the same build options. The data options (`sendAllTo`, `knownUtxos`, `fee`,
- * `registeredPools`, `extraKeyWitnesses`) and the three deadlines are written into the plan;
- * the live objects (`payer`, `after`, `canSelect`, `coinSelection`, `trace`) are kept by the
- * object only.
+ * `registeredPools`, `extraKeyWitnesses`, `topUpCollateral`) and the three deadlines are written
+ * into the plan; the live objects (`payer`, `after`, `canSelect`, `coinSelection`, `trace`) are
+ * kept by the object only.
  * Signers and the submitter are not options of a plan: they belong to the call that signs or
  * sends (`SignOptions`, `SendOptions`).
  *

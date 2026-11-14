@@ -259,6 +259,12 @@ const count = (value: unknown, path: string): number => {
   return value as number;
 };
 
+const flag = (value: unknown, path: string): boolean => {
+  if (typeof value !== "boolean")
+    unread(`${path} is ${show(value)}, not true or false`);
+  return value as boolean;
+};
+
 const texts = (value: unknown, path: string): string[] =>
   list(value, path).map((item, i) => text(item, `${path}[${i}]`));
 
@@ -1272,6 +1278,7 @@ const OPTIONS: Readonly<
   fee: integer,
   registeredPools: texts,
   extraKeyWitnesses: count,
+  topUpCollateral: flag,
   changeAddress: text,
 };
 

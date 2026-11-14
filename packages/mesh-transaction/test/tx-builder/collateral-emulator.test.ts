@@ -1,11 +1,21 @@
+import type { UTxO } from "@meshsdk/common";
 import { CachedFetcher, mConStr0 } from "@meshsdk/core";
-import { resolvePlutusScriptAddress } from "@meshsdk/core-cst";
+import { deserializeTx, resolvePlutusScriptAddress } from "@meshsdk/core-cst";
 import { ScalusEmulator } from "@meshsdk/scalus-emulator";
+import { TxEmulator } from "@meshsdk/tx-emulator";
 import { BrowserWallet, MeshWallet } from "@meshsdk/wallet";
 
-import { OutputDatum, spend, TxBuilder, Utxo } from "../../src/tx-builder";
+import {
+  addWitnesses,
+  collateral,
+  OutputDatum,
+  signWitnesses,
+  spend,
+  TxBuilder,
+  Utxo,
+} from "../../src/tx-builder";
 import { cip30Wallet } from "../cip30-wallet";
-import { alwaysSucceedCbor } from "../test-util";
+import { alwaysFailCbor, alwaysSucceedCbor } from "../test-util";
 import { asCbor, asMesh, ref } from "./utxo-util";
 
 const words = Array(24).fill("solution");
@@ -87,3 +97,124 @@ describe("TxBuilder collateral fallback on the emulator", () => {
     );
   });
 });
+
+/** The lovelace of UTxOs in the Mesh form */
+const lovelaceOf = (utxos: readonly UTxO[]) =>
+  utxos.reduce(
+    (total, u) =>
+      total +
+      BigInt(u.output.amount.find((a) => a.unit === "lovelace")!.quantity),
+    0n,
+  );
+
+/*
+ * Collateral given by a part that does not cover what the fee calls for, topped up from the
+ * payer's UTxOs, in transactions each validator accepts.
+ */
+describe.each(["scalus", "cquisitor"] as const)(
+  "TxBuilder topping up given collateral on TxEmulator (%s)",
+  (validator) => {
+    /** An emulator, a funded wallet, its given collateral too small to cover, a locked output */
+    const setup = async (script: { code: string; version: "V3" }) => {
+      const emulator = await TxEmulator.create({
+        validator,
+        network: "preprod",
+        slot: 100_000_000,
+      });
+      const wallet = new MeshWallet({
+        networkId: 0,
+        key: { type: "mnemonic", words },
+      });
+      await wallet.init();
+      const address = (await wallet.getChangeAddress())!;
+      const given = emulator.fund(address, { lovelace: 200_000n });
+      const five = emulator.fund(address, { lovelace: 5_000_000n });
+      emulator.fund(address, { lovelace: 100_000_000n });
+      emulator.addUtxos([
+        {
+          input: { txHash: "7".repeat(64), outputIndex: 0 },
+          output: {
+            address: resolvePlutusScriptAddress(script, 0),
+            amount: [{ unit: "lovelace", quantity: "20000000" }],
+            plutusData: "d87980",
+          },
+        },
+      ]);
+      const unlock = (exUnits?: { mem: number; steps: number }) => [
+        spend.plutus({
+          utxo: { txHash: "7".repeat(64), outputIndex: 0 },
+          script,
+          redeemer: { data: mConStr0([]), ...(exUnits && { exUnits }) },
+        }),
+        collateral({ utxo: given.input, label: "given" }),
+      ];
+      return { emulator, wallet, address, given, five, unlock };
+    };
+
+    it("puts up the given input and a payer's UTxO, and the ledger accepts the spend", async () => {
+      const { emulator, wallet, address, given, five, unlock } =
+        await setup(plutusScript);
+      const builder = new TxBuilder({
+        network: "preprod",
+        provider: emulator,
+        evaluator: emulator,
+      });
+      const built = await builder.build(unlock(), { payer: address });
+      expect(built.collateral!.inputs.map(ref)).toEqual([
+        given.input,
+        five.input,
+      ]);
+      expect(built.collateral!.total).toBeGreaterThan(200_000n);
+      const tx = await addWitnesses(
+        built.tx,
+        await signWitnesses(wallet, built.tx),
+      );
+      const result = await emulator.submit(tx);
+      if (!result.accepted) throw new Error(JSON.stringify(result));
+      expect(result.isValid).toBe(true);
+      // Used as given, the input alone is refused before anything is sent
+      await expect(
+        builder.build(unlock(), { payer: address, topUpCollateral: false }),
+      ).rejects.toMatchObject({ code: "INSUFFICIENT_COLLATERAL" });
+    });
+
+    it("forfeits the total the build stated when the script fails, and returns the rest", async () => {
+      const failing = { code: alwaysFailCbor, version: "V3" as const };
+      const { emulator, wallet, address, given, five, unlock } =
+        await setup(failing);
+      // The failing script cannot be evaluated: its units are stated
+      const builder = new TxBuilder({
+        network: "preprod",
+        provider: emulator,
+        evaluator: null,
+      });
+      const built = await builder.build(
+        unlock({ mem: 1_000_000, steps: 500_000_000 }),
+        { payer: address },
+      );
+      const { inputs, total, return: returned } = built.collateral!;
+      expect(inputs.map(ref)).toEqual([given.input, five.input]);
+      const marked = deserializeTx(
+        await addWitnesses(built.tx, await signWitnesses(wallet, built.tx)),
+      );
+      marked.setIsValid(false);
+      const result = await emulator.submit(marked.toCbor());
+      if (!result.accepted) throw new Error(JSON.stringify(result));
+      expect(result.isValid).toBe(false);
+      expect(result.consumed.map((u) => u.input)).toEqual(
+        expect.arrayContaining([given.input, five.input]),
+      );
+      expect(result.consumed).toHaveLength(2);
+      expect(lovelaceOf(result.consumed) - lovelaceOf(result.produced)).toBe(
+        total,
+      );
+      expect(lovelaceOf(result.produced)).toBe(returned!.value.lovelace);
+      // What the chain records the transaction paid: the collateral, not the fee
+      const info = await emulator.fetchTxInfo(built.txHash);
+      expect([info.fees, info.validContract]).toEqual([
+        total.toString(),
+        false,
+      ]);
+    });
+  },
+);

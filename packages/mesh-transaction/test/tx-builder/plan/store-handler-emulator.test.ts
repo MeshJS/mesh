@@ -256,6 +256,45 @@ describe("A recorded id given to builder.plan", () => {
     expect(other.store.saves()).toEqual([]);
   });
 
+  it("reads topUpCollateral back from the store, a record without it meaning true", async () => {
+    const { builder, wallet, instance } = await storeSetup();
+    await builder
+      .plan(pay(), { id: "off", payer: wallet, topUpCollateral: false })
+      .build();
+    await builder.plan(pay(), { id: "default", payer: wallet }).build();
+    const other = instance();
+    const resumed = await other.builder.resume("off", { payer: wallet });
+    expect(recordOf(resumed).options).toMatchObject({
+      topUpCollateral: false,
+    });
+    for (const [id, value] of [
+      ["off", true],
+      ["default", false],
+    ] as const) {
+      const error = await caught(
+        other.builder
+          .plan(pay(), { id, payer: wallet, topUpCollateral: value })
+          .refresh(),
+      );
+      expectCode(error, "PLAN_EXISTS");
+      expect((error as Error).message).toMatch(/topUpCollateral/);
+    }
+    // The value recorded, and the default where none is recorded, pass
+    for (const [id, value] of [
+      ["off", false],
+      ["default", true],
+    ] as const) {
+      const same = other.builder.plan(pay(), {
+        id,
+        payer: wallet,
+        topUpCollateral: value,
+      });
+      await same.refresh();
+      expect(same.attempts).toHaveLength(1);
+    }
+    expect(other.store.saves()).toEqual([]);
+  });
+
   it("shares the first read between concurrent first calls, and reads again after a read that threw", async () => {
     const { builder, wallet, instance } = await storeSetup();
     await builder.plan(pay(), { id: "order-1", payer: wallet }).build();

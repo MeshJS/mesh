@@ -229,7 +229,11 @@ ones without a reference script first. When they do not cover it and the payer i
 with `{ amount }` (CBOR of the lovelace needed), and the collateral is taken from its answer; the
 wallet may show its collateral dialog. A failure, `null`, `undefined`, an empty or short answer is
 `INSUFFICIENT_COLLATERAL`, with the wallet's error in `cause`; the answer is filtered by
-`canSelect` too.
+`canSelect` too. Collateral inputs given as `collateral(...)` parts that do not cover the collateral
+are topped up the same way, after them: from the payer's UTxOs (never a given one again, and no
+more than `maxCollateralInputs` in all), else from the answer of `getCollateral`. With the build
+option `topUpCollateral: false` they are put up as given, and collateral they do not cover is
+`INSUFFICIENT_COLLATERAL`.
 
 ## Plans
 
@@ -295,8 +299,9 @@ plan: with the same parts `build()` returns its current attempt, which makes a r
 handler safe; other parts, explicit deadlines, data options or parents than the recorded ones are
 `PLAN_EXISTS` from that first method. With a store every plan needs an `id` (`MISSING_ID`).
 Recorded: the parts, the data options (`sendAllTo`, `knownUtxos`, `fee`, `registeredPools`,
-`extraKeyWitnesses`), the payer's change address and the three effective deadlines. Not recorded:
-wallets, signers, the submitter, functions (`canSelect`, `coinSelection`, `trace`) and `signal`.
+`extraKeyWitnesses`, `topUpCollateral`), the payer's change address and the three effective
+deadlines. Not recorded: wallets, signers, the submitter, functions (`canSelect`, `coinSelection`,
+`trace`) and `signal`.
 Every change is saved before the method returns: a new attempt before it is handed out, a first
 delivery before the bytes leave.
 
@@ -1397,7 +1402,8 @@ built.redeemers; // [{ tag: "SPEND", index, exUnits, data, label: "unlock", part
   positions. It runs in every balancing round and must depend on nothing but its argument; what it
   throws is `INVALID_REDEEMER`. A function cannot be recorded: see
   [Redeemer functions](#redeemer-functions-a-second-builder-without-a-store).
-- Collateral is picked from the payer's UTxOs (or the `collateral` parts given), with what exceeds
+- Collateral is picked from the payer's UTxOs, or the `collateral` parts given (topped up from the
+  payer's UTxOs when they do not cover it, unless `topUpCollateral: false`), with what exceeds
   `collateralPercent` of the fee returned to the payer's change address (or the `collateralReturn`
   part's address). Every Plutus transaction carries collateral inputs.
 - The datum of a spent script output is worked out from the output: inline, none (Plutus V3), or
@@ -1626,6 +1632,7 @@ for no time, where on a known network it keeps them until the epoch ends.
 | `fee`                         | goes into the body as given; `FEE_TOO_LOW { fee, minFee }` when the final transaction's minimum fee is higher; `FEE_ABOVE_MINIMUM` warns when it is above                                                                                                                                                                                                                                                                                                                                                                                                |
 | `registeredPools`             | operator key hashes of pools already registered                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `extraKeyWitnesses`           | key witnesses expected beyond those the parts call for                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `topUpCollateral`             | `true`, the default: collateral inputs given by `collateral` parts that do not cover the collateral get inputs added from the payer's UTxOs, as the builder chooses collateral when none is given; `false`: they are put up as given, and what they do not cover is `INSUFFICIENT_COLLATERAL`                                                                                                                                                                                                                                                            |
 | `signal`                      | aborts the build with `ABORTED`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `trace`                       | receives the steps of the build (`payer`, `fetched`, `round`, `evaluated`), for diagnostics; what it throws is ignored                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
@@ -1689,7 +1696,7 @@ every `TxPlanError` message says.
 | `EXUNITS_EXCEEDED`         | `TxBuildError` | the scripts need more execution units than a transaction may use                                                                                                                                                                                                                                           | `{ mem, steps }`                                                                                           | no                                                          |
 | `EVALUATION_NOT_CONVERGED` | `TxBuildError` | execution units did not settle within the evaluation rounds                                                                                                                                                                                                                                                | none                                                                                                       | no                                                          |
 | `INSUFFICIENT_FUNDS`       | `TxBuildError` | the payer's UTxOs cannot pay                                                                                                                                                                                                                                                                               | `{ unit, missing, required, available, reason, feeEstimate?, changeMinimum?, pool }`                       | no                                                          |
-| `INSUFFICIENT_COLLATERAL`  | `TxBuildError` | no collateral, or not enough, can be put up; also a wallet's `getCollateral` that failed (the `cause`)                                                                                                                                                                                                     | `{ required, available }`                                                                                  | no                                                          |
+| `INSUFFICIENT_COLLATERAL`  | `TxBuildError` | no collateral, or not enough, can be put up, given inputs and what can be added to them counted; given inputs that do not cover it with `topUpCollateral: false`; also a wallet's `getCollateral` that failed (the `cause`)                                                                                | `{ required, available }`                                                                                  | no                                                          |
 | `OUTPUT_BELOW_MIN_COIN`    | `TxBuildError` | an output holds less lovelace than the ledger requires                                                                                                                                                                                                                                                     | `{ coin, minCoin }`                                                                                        | no                                                          |
 | `VALUE_TOO_LARGE`          | `TxBuildError` | an output's value is larger than `maxValSize`                                                                                                                                                                                                                                                              | `{ size, maxValSize }`                                                                                     | no                                                          |
 | `TX_TOO_LARGE`             | `TxBuildError` | the transaction is larger than `maxTxSize`                                                                                                                                                                                                                                                                 | `{ size, maxTxSize }`                                                                                      | no                                                          |
@@ -1951,7 +1958,9 @@ signatures are kept and behave the same or very close, though the final CBOR may
   script input given with its amount and address that the provider does not know yet is
   `UTXO_NOT_FOUND`: give it with `chainTx` or `inputForEvaluation`, or pass `evaluator: null`.
   Every Plutus transaction gets collateral (chosen from `selectUtxosFrom` when no `txInCollateral`
-  is given), `total_collateral` and a collateral return.
+  is given), `total_collateral` and a collateral return. Collateral given with `txInCollateral` is
+  put up as given, as before: when it does not cover the collateral the build is
+  `INSUFFICIENT_COLLATERAL`, and nothing is added to it.
 - The network of the build is the new `network` option, else the fetcher's `network`, else a
   `setNetwork()` name of the change address's network, else mainnet for a mainnet change address.
   A script transaction with a validity interval on a test network none of them names is

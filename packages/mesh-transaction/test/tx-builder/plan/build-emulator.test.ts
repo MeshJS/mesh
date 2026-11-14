@@ -4,7 +4,13 @@ import { toTxUnspentOutput } from "@meshsdk/core-cst";
 import { MeshWallet } from "@meshsdk/wallet";
 
 import type { TxBuildError, TxPlanError, Utxo } from "../../../src/tx-builder";
-import { mint, spend, TxError, validity } from "../../../src/tx-builder";
+import {
+  collateral,
+  mint,
+  spend,
+  TxError,
+  validity,
+} from "../../../src/tx-builder";
 import { planOver, recordOf } from "../../../src/tx-builder/plan/plan";
 import { cip30Wallet } from "../../cip30-wallet";
 import { alwaysSucceedCbor } from "../../test-util";
@@ -402,6 +408,56 @@ describe("TxPlan.build on TxEmulator", () => {
     expect(built.collateral!.inputs.map(ref)).toEqual([reserve.input]);
     await plan.send({ waitFor: "included" });
     expect(plan.status).toBe("final");
+  });
+
+  it("tops up given collateral in each attempt, and records the option", async () => {
+    const { emulator, builder, wallet, address } = await setup({
+      funds: [100_000_000n],
+    });
+    // Too small to be the collateral alone
+    const given = emulator.fund(address, { lovelace: 200_000n });
+    const five = emulator.fund(address, { lovelace: 5_000_000n });
+    const locked = emulator.fund(builder.scriptAddress(plutus), {
+      lovelace: 20_000_000n,
+    });
+    const parts = () => [
+      spend.plutus({
+        utxo: locked,
+        script: plutus,
+        redeemer: { data: mConStr0([]) },
+      }),
+      collateral({ utxo: given.input, label: "given" }),
+    ];
+    const plan = builder.plan(parts(), {
+      payer: wallet,
+      topUpCollateral: true,
+    });
+    expect(recordOf(plan).options).toMatchObject({ topUpCollateral: true });
+    const first = await plan.build();
+    expect(first.collateral!.inputs.map(ref)).toEqual([
+      given.input,
+      five.input,
+    ]);
+    await plan.send({ submitter: submitterOf(async () => plan.txHash!) });
+    emulator.advanceTo({ time: plan.attempts[0]!.until + 1_000 });
+    expectCode(await caught(plan.send()), "EXPIRED");
+    const second = await plan.build();
+    expect(second.txHash).not.toBe(first.txHash);
+    expect(second.collateral!.inputs.map(ref)).toEqual([
+      given.input,
+      five.input,
+    ]);
+    await plan.send({ waitFor: "included" });
+    expect(plan.status).toBe("final");
+
+    // Turned off, the given input is put up as given, and falls short
+    const off = builder.plan(parts(), {
+      payer: wallet,
+      topUpCollateral: false,
+    });
+    expect(recordOf(off).options).toMatchObject({ topUpCollateral: false });
+    expectCode(await caught(off.build()), "INSUFFICIENT_COLLATERAL");
+    expect(off.attempts).toHaveLength(0);
   });
 
   it("is MISSING_PAYER without a payer, and after a snapshot served an attempt", async () => {

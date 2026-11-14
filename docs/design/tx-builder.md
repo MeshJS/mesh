@@ -170,6 +170,7 @@ is `INVALID_REDEEMER`.
 | `fee?`               | goes into the body as given; `FEE_TOO_LOW { fee, minFee }` when the final minimum is higher       |
 | `registeredPools?`   | operators whose pool registration is an update, taking no deposit                                 |
 | `extraKeyWitnesses?` | signatures expected beyond those the parts call for                                               |
+| `topUpCollateral?`   | `true` by default: given collateral inputs that do not cover are topped up from the payer's UTxOs |
 | `signal?`, `trace?`  | abort the build (`ABORTED`); receive its steps, for diagnostics                                   |
 
 The constructor reads nothing and checks every option at once (`MISSING_PARAMETER` with neither
@@ -300,10 +301,14 @@ change of those transactions at this build's change address. Each round, startin
 3. When a Plutus script runs, or collateral parts are given, collateral covering
    `collateralPercent` of the fee is put up — the collateral parts, else the smallest ada-only
    UTxO without a reference script that leaves a return worth making, else the smallest that
-   covers it, else the largest UTxOs up to `maxCollateralInputs`, else a CIP-30 payer's
-   `getCollateral` — with the rest returned to the collateral return part's address or the
-   change address. A return too small to be an output is dropped and the whole collateral forfeited
-   (`COLLATERAL_FORFEITED`), unless the total was given.
+   covers it, else the largest UTxOs up to `maxCollateralInputs`, else the smallest UTxO holding
+   tokens or a reference script alone, else a CIP-30 payer's `getCollateral` — with the rest
+   returned to the collateral return part's address or the change address. Collateral parts that
+   do not cover it are topped up by the same choice, made with them counted and after them,
+   within `maxCollateralInputs` in all and never with a given UTxO again;
+   `topUpCollateral: false` puts them up as given (`INSUFFICIENT_COLLATERAL` when they fall
+   short), as the old `MeshTxBuilder` does. A return too small to be an output is dropped and
+   the whole collateral forfeited (`COLLATERAL_FORFEITED`), unless the total was given.
 4. The transaction is assembled with placeholder witnesses as large as the real ones (a key
    witness per key the parts require — payment keys of spent and collateral inputs, key guards,
    key withdrawals, certificates and voters, every key a native script names — and a bootstrap
