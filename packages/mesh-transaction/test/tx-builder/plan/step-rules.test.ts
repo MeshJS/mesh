@@ -238,7 +238,8 @@ describe("a look at the chain", () => {
     expect(stepOf(included, "a").seen).toEqual({ slot: 500, block: "blk" });
     const back = accept(included, look([missing(a)]));
     expect(stepOf(back, "a").status).toBe("sent");
-    expect(stepOf(back, "a").seen).toBeUndefined();
+    // The block it was found in is kept: it was found in a block once
+    expect(stepOf(back, "a").seen).toEqual({ slot: 500, block: "blk" });
     const final = accept(
       json,
       look([found(a, { blockHeight: 1 })], tipAt(0, 100)),
@@ -639,6 +640,50 @@ describe("the mark", () => {
       replacedBy: "next",
       rev: marked.rev + 1,
     });
+  });
+});
+
+describe("the name of the plan made in place of a terminal one", () => {
+  it("is recorded once on a stopped plan, with the mark; another name is refused", () => {
+    const stopped = accept(
+      accept(chain(1), deliver("a")),
+      look([missing(hash(0xa0)), found(SOURCE)], tipAt(PAST)),
+    );
+    expect(stopped.status).toBe("stopped");
+    expect(stopped.stopped).toBeUndefined();
+    const replaced = accept(stopped, { type: "stop", replacedBy: "next" });
+    expect(replaced).toMatchObject({
+      status: "stopped",
+      stopped: true,
+      replacedBy: "next",
+      rev: stopped.rev + 1,
+    });
+    expect(replaced.steps).toBe(stopped.steps);
+    expect(accept(replaced, { type: "stop", replacedBy: "next" })).toBe(
+      replaced,
+    );
+    expect(refusal(replaced, { type: "stop", replacedBy: "other" })).toBe(
+      "status",
+    );
+  });
+
+  it("is recorded once on a final plan, which stays final", () => {
+    const json = chain(1, { confirmations: 0 });
+    const final = accept(
+      json,
+      look([found(txOf(json, "a"), { blockHeight: 10 })], tipAt(0, 10)),
+    );
+    expect(final.status).toBe("final");
+    expect(accept(final, { type: "stop" })).toBe(final);
+    const replaced = accept(final, { type: "stop", replacedBy: "next" });
+    expect(replaced).toMatchObject({
+      status: "final",
+      stopped: true,
+      replacedBy: "next",
+    });
+    expect(refusal(replaced, { type: "stop", replacedBy: "other" })).toBe(
+      "status",
+    );
   });
 });
 

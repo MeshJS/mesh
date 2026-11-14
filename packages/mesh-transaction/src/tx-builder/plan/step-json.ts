@@ -446,10 +446,14 @@ const decodeStep = (
     step.status === "included" ||
     step.status === "final" ||
     step.status === "failed";
-  if (landedOrFailed !== (seen !== undefined))
-    unread(
-      `${path}.seen is ${seen === undefined ? "missing on" : "on"} a step that is ${step.status}`,
-    );
+  // A step keeps the block it was found in after a rollback; one never found has none
+  if (landedOrFailed && seen === undefined)
+    unread(`${path}.seen is missing on a step that is ${step.status}`);
+  if (
+    (step.status === "built" || step.status === "signed") &&
+    seen !== undefined
+  )
+    unread(`${path}.seen is on a step that is ${step.status}`);
   if (refused > sends)
     unread(`${path}.refused is ${refused}, more than its ${sends} sends`);
   if (step.status === "rejected" && (sends === 0 || refused !== sends))

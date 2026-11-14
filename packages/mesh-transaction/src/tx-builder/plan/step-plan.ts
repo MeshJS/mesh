@@ -566,21 +566,28 @@ export class StepPlan {
   }
 
   /**
-   * The steps that are not in a block, as `makePlan` takes them: the parts a step was given,
-   * links kept, with its own options. Consolidation steps are not among them
+   * The steps that were never found in a block, as `makePlan` takes them: the parts a step was
+   * given, links kept, with its own options. A step that is in a block, or was found in one and
+   * rolled back, is not among them, nor is a consolidation step. A step that had a payer of its
+   * own comes back with that payer's change address as its payer, so that it is built on that
+   * payer's UTxOs and never on another's; the application may give the payer itself in its place.
+   *
+   * A new plan for what is left is made only once this plan is `stopped`: until then a step of
+   * it may still land, and a new plan built from `rest` beside it may pay a second time.
    */
   get rest(): PlanSteps {
     const rest: Record<string, PlanStep> = {};
     for (const step of stateOf(this).record.steps) {
-      if (isLanded(step) || step.kind === "consolidation") continue;
-      if (step.given === undefined) continue;
+      if (isLanded(step) || step.seen !== undefined) continue;
+      if (step.kind === "consolidation" || step.given === undefined) continue;
       const parts = step.given.parts as StepParts;
-      const { changeAddress: _changeAddress, ...options } =
-        step.given.options ?? {};
+      const { changeAddress, ...options } = step.given.options ?? {};
+      const own =
+        typeof changeAddress === "string"
+          ? { payer: changeAddress, ...options }
+          : options;
       rest[step.name] =
-        Object.keys(options).length === 0
-          ? parts
-          : ({ parts, ...options } as PlanStep);
+        Object.keys(own).length === 0 ? parts : ({ parts, ...own } as PlanStep);
     }
     return Object.freeze(rest);
   }
@@ -1078,7 +1085,11 @@ export class StepPlan {
     return record;
   }
 
-  /** With a store: the stored record, when it is newer than the one the object holds */
+  /**
+   * With a store: the stored record, when it is newer than the one the object holds, or of the
+   * same revision and not the same record: the store holds the plan, and a mark in it is never
+   * written over
+   */
   async #takeStoredIfNewer(state: PlanState) {
     if (state.store === undefined) return;
     const stored = await loadStepRecord(state.store, state.record.id!);
@@ -1088,7 +1099,11 @@ export class StepPlan {
         "the plan's record is gone from the store: nothing was sent or written, and the record is not written anew",
         {},
       );
-    if (stored.rev > state.record.rev) commitStored(state, stored);
+    if (
+      stored.rev > state.record.rev ||
+      (stored.rev === state.record.rev && !sameRecord(stored, state.record))
+    )
+      commitStored(state, stored);
   }
 
   /* -------------------------------------------------------------------------------------------
@@ -1999,6 +2014,14 @@ const objectOver = (
   return plan;
 };
 
+/** Whether two records are the same, member for member */
+const sameRecord = (a: StepPlanRecord, b: StepPlanRecord) =>
+  a === b ||
+  sameJson(
+    JSON.parse(JSON.stringify(encodeStepPlan(a))),
+    JSON.parse(JSON.stringify(encodeStepPlan(b))),
+  );
+
 /** What makes two records of one id the same plan: its network, deadlines, options and steps */
 const sameOrder = (a: StepPlanRecord, b: StepPlanRecord) => {
   const shape = (record: StepPlanRecord) => {
@@ -2089,10 +2112,15 @@ export const createStepPlan = async (
  * from its JSON. It makes no request to the chain and does not call the payer; the provider is
  * probed before the first delivery. The transactions are those of the record, each read again
  * and its witnesses verified against its body.
+ *
+ * On a builder with a store the store holds the plan: a JSON whose id the store holds gives the
+ * stored record when the stored revision is the same or later, whatever the JSON says; a JSON of
+ * a later revision than the stored one is refused, since only a copy that left the store can be
+ * ahead of it. So a mark the store holds is never written over.
  * @throws TxPlanError MISSING_STORE for an id on a builder without a store; MISSING_ID for an
  *   id that is not a non-empty string, and for a record without one on a builder with a store;
- *   PLAN_NOT_FOUND; STORE_FAILED; INVALID_STATE (`recordVersion`) for a record this library
- *   does not read
+ *   PLAN_NOT_FOUND; VERSION_CONFLICT for a JSON ahead of the stored record; STORE_FAILED;
+ *   INVALID_STATE (`recordVersion`) for a record this library does not read
  * @throws TxBuildError NETWORK_MISMATCH for a record of another network
  */
 export const resumeStepPlan = async (
@@ -2123,12 +2151,24 @@ export const resumeStepPlan = async (
     record = stored;
   } else {
     record = readStepPlan(source);
-    if (store !== undefined && (record.id === undefined || record.id === ""))
-      throw planError(
-        "MISSING_ID",
-        "a builder with a store keeps every plan under its id, and the record has none",
-        {},
-      );
+    if (store !== undefined) {
+      if (record.id === undefined || record.id === "")
+        throw planError(
+          "MISSING_ID",
+          "a builder with a store keeps every plan under its id, and the record has none",
+          {},
+        );
+      const stored = await loadStepRecord(store, record.id);
+      if (stored !== undefined) {
+        if (record.rev > stored.rev)
+          throw planError(
+            "VERSION_CONFLICT",
+            `the JSON of the plan ${record.id} is at revision ${record.rev}, ahead of the stored one at ${stored.rev}: a copy kept apart from the store went on, and the store holds the plan. Nothing was written; resume it by its id`,
+            { planId: record.id },
+          );
+        record = stored;
+      }
+    }
   }
   checkRecordNetwork(builder, record);
   return objectOver(builder, record, live, "owed");

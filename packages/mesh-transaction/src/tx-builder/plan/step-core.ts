@@ -57,7 +57,10 @@ export type StepRecord = {
   readonly status: TxStepStatus;
   /** The hash of its body; signatures do not change it */
   readonly txHash: string;
-  /** The block it was last found in; present exactly while it is included, final or failed */
+  /**
+   * The block it was last found in; present while it is included, final or failed, and kept
+   * when a rollback takes it out of the block: a step that has it was found in a block once
+   */
   readonly seen?: { readonly slot: number; readonly block?: string };
   /**
    * The names of the earlier steps whose outputs it spends, reads or puts up as collateral, in
@@ -208,7 +211,7 @@ export type StepPlanEvent =
     }
   /**
    * The decision that the plan signs and sends nothing more; `replacedBy` names the plan made in
-   * its place
+   * its place. A final or stopped plan takes `replacedBy` once, with the mark, and nothing else
    */
   | { readonly type: "stop"; readonly replacedBy?: string };
 
@@ -771,12 +774,10 @@ const byOwnFacts = (
   }
 
   if (sighting?.found === false) {
-    // A rollback: the bytes are out and may land again, unless the same look shows them dead
-    let unlanded = step;
-    if (step.status === "included") {
-      const { seen: _seen, ...rest } = step;
-      unlanded = { ...rest, status: "sent" };
-    }
+    // A rollback: the bytes are out and may land again, unless the same look shows them dead.
+    // The block it was found in is kept: it was found in a block once
+    const unlanded: StepRecord =
+      step.status === "included" ? { ...step, status: "sent" } : step;
     const pastMargin = pastMarginOf(json, step, tip);
     // The same look found a transaction one of its inputs comes from: the search answers and
     // knows the chain before the step
@@ -815,7 +816,6 @@ const observe = (
 };
 
 const stop = (json: StepPlanRecord, event: EventOf<"stop">): StepAdvanced => {
-  if (isTerminal(json)) return { ok: true, json };
   const { replacedBy } = event;
   if (
     json.replacedBy !== undefined &&
@@ -828,7 +828,10 @@ const stop = (json: StepPlanRecord, event: EventOf<"stop">): StepAdvanced => {
     );
   const markReplaced =
     replacedBy !== undefined && json.replacedBy === undefined;
-  if (json.stopped === true && !markReplaced) return { ok: true, json };
+  // A terminal plan takes only the name of the plan made in its place, so that a line of plans
+  // never branches
+  if ((isTerminal(json) || json.stopped === true) && !markReplaced)
+    return { ok: true, json };
   return {
     ok: true,
     json: next(json, {

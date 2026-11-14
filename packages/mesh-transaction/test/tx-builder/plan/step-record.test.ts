@@ -282,8 +282,8 @@ describe("the record of a plan of steps", () => {
         /seen/,
       ],
       [
-        "seen on a step that is not in a block",
-        (j) => (j.steps[1].seen = { slot: 1 }),
+        "seen on a step that was never found",
+        (j) => (j.steps[2].seen = { slot: 1 }),
         /seen/,
       ],
       [
