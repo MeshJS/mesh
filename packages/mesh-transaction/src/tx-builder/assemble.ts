@@ -33,6 +33,7 @@ import type {
   DonationPart,
   GuardPart,
   InputRef,
+  LinkedPart,
   MetadataPart,
   MintPart,
   NativeScriptSource,
@@ -285,6 +286,40 @@ const REDEEMER_TAG_RANK: Record<RedeemerTagPrototype["type"], number> = {
   VOTING_PROPOSAL: 5,
 };
 
+/** The gaps of each part that is not complete, in the order of the parts */
+export const incomplete = (
+  parts: readonly (TxPart | LinkedPart)[],
+): PartGaps[] =>
+  parts.flatMap((part) => {
+    const gaps = unresolved(part);
+    return gaps.length === 0
+      ? []
+      : [
+          {
+            kind: part.kind,
+            ...(part.label !== undefined && { label: part.label }),
+            gaps,
+          },
+        ];
+  });
+
+/** UNRESOLVED for parts that are not complete, each with its gaps */
+export const unresolvedError = (gaps: PartGaps[]) =>
+  new TxBuildError(
+    "UNRESOLVED",
+    `${gaps.length} part(s) are incomplete: ${gaps
+      .map(
+        ({ kind, label, gaps: g }) =>
+          `${kind}${label === undefined ? "" : ` "${label}"`} (${g.map((gap) => gap.type).join(", ")})`,
+      )
+      .join("; ")}${
+      gaps.some((p) => p.gaps.some((gap) => gap.type === "link"))
+        ? "; a part linked to an earlier step is filled in only by the plan that builds the step"
+        : ""
+    }`,
+    { details: gaps },
+  );
+
 /**
  * Puts resolved parts together into a `TransactionPrototype`. Pure and synchronous: nothing is
  * looked up, selected or balanced. The parts must be complete (`unresolved()` empty for each),
@@ -310,33 +345,16 @@ const REDEEMER_TAG_RANK: Record<RedeemerTagPrototype["type"], number> = {
  *   in `options.costModels`; INVALID_REDEEMER when a redeemer function throws, asks for an item
  *   the transaction does not hold, or returns what is not Plutus data; INVALID_GUARD
  *   `{ reason: "scriptHash", hash }` for the first key guard whose hash is the hash of a script
- *   a witness of the parts names, attached or held in a reference output
+ *   a witness of the parts names, attached or held in a reference output; UNRESOLVED, with
+ *   the gaps of each part, for parts that are not complete, and for a part linked to an earlier
+ *   step of a plan (the gap `link`)
  */
 export const assembleTxPrototype = (
   parts: readonly TxPart[],
   options: AssembleTxOptions,
 ): AssembledTx => {
-  const gaps: PartGaps[] = [];
-  for (const part of parts) {
-    const partGaps = unresolved(part);
-    if (partGaps.length > 0)
-      gaps.push({
-        kind: part.kind,
-        ...(part.label !== undefined && { label: part.label }),
-        gaps: partGaps,
-      });
-  }
-  if (gaps.length > 0)
-    throw new TxBuildError(
-      "UNRESOLVED",
-      `${gaps.length} part(s) are incomplete: ${gaps
-        .map(
-          ({ kind, label, gaps: g }) =>
-            `${kind}${label === undefined ? "" : ` "${label}"`} (${g.map((gap) => gap.type).join(", ")})`,
-        )
-        .join("; ")}`,
-      { details: gaps },
-    );
+  const gaps = incomplete(parts);
+  if (gaps.length > 0) throw unresolvedError(gaps);
 
   const byKind = groupParts(parts);
   checkRepeats(byKind);

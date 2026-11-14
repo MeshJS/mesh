@@ -1,6 +1,8 @@
 import type {
   Assets,
   BuiltTxJSON,
+  Linked,
+  LinkedPart,
   OutputDatum,
   OutputScript,
   PlanDeadlines,
@@ -10,6 +12,9 @@ import type {
   SendOptions,
   SignOptions,
   SignTxOptions,
+  SpendPart,
+  StepChange,
+  StepOutput,
   StoredTxPlanJSON,
   SubmitFailureReason,
   TxAttempt,
@@ -98,6 +103,27 @@ describe("public entrypoint", () => {
     ])
       // Own members only: every object has a valueOf
       expect(Object.prototype.hasOwnProperty.call(publicApi, name)).toBe(false);
+  });
+
+  it("exports the types of a link to an earlier step, and not the functions that read one", () => {
+    const vault: StepOutput = { step: "lock", output: "vault" };
+    const change: StepChange = { step: "lock", change: true };
+    const linked: Linked<SpendPart> = publicApi.spend.pubKey({ utxo: change });
+    const parts: LinkedPart[] = [
+      linked,
+      publicApi.referenceInput({ utxo: vault }),
+    ];
+    expect(publicApi.unresolved(parts[1]!)).toEqual([
+      { type: "link", link: vault },
+    ]);
+    for (const name of [
+      "isStepLink",
+      "toStepLink",
+      "isLinkedPart",
+      "incomplete",
+      "unresolvedError",
+    ])
+      expect(publicApi).not.toHaveProperty(name);
   });
 
   it("exports the type RedeemerContext", () => {

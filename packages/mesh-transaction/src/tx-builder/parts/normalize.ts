@@ -31,6 +31,8 @@ import type {
   PlutusScriptInput,
   PlutusScriptSource,
   RedeemerInput,
+  StepChange,
+  StepOutput,
   TxPart,
   Utxo,
 } from "./types";
@@ -172,6 +174,70 @@ export const toResolvableInput = (
     input: { transaction_id: utxo.txHash, index: utxo.outputIndex },
     utxo,
   };
+};
+
+/**
+ * Whether a value given where a part takes a UTxO is a link to an earlier step: an object with
+ * a `step` member, which no form of a UTxO has
+ */
+export const isStepLink = (ref: unknown): boolean =>
+  isObject(ref) && !Array.isArray(ref) && "step" in ref;
+
+/**
+ * Reads a link to an earlier step, `{ step, output }` or `{ step, change: true }`, into a copy
+ * of its own. All the change is taken only where `change` allows it.
+ */
+export const toStepLink = (
+  ctx: PartContext,
+  ref: Record<string, unknown>,
+  change: boolean,
+): StepOutput | StepChange => {
+  const expected =
+    "a link { step, output } to an output of an earlier step" +
+    (change ? ", or { step, change: true } to all its change" : "");
+  const extra = Object.keys(ref).find(
+    (key) => key !== "step" && key !== "output" && key !== "change",
+  );
+  if (extra !== undefined)
+    fail(
+      ctx,
+      "INVALID_OUT_REF",
+      `expected ${expected}; got one with a member ${extra}`,
+    );
+  const { step, output } = ref;
+  if (typeof step !== "string" || step === "")
+    fail(
+      ctx,
+      "INVALID_OUT_REF",
+      `invalid step ${JSON.stringify(step) ?? String(step)}: expected the name of an earlier step`,
+    );
+  if ("change" in ref) {
+    if (!change)
+      fail(
+        ctx,
+        "INVALID_OUT_REF",
+        `all the change of step "${step}" is taken by spend.pubKey only: link this part to one output, { step, output }`,
+      );
+    if (ref.change !== true || "output" in ref)
+      fail(
+        ctx,
+        "INVALID_OUT_REF",
+        `expected ${expected}; got change ${String(ref.change)}${"output" in ref ? " with an output" : ""}`,
+      );
+    return { step: step as string, change: true };
+  }
+  if (!(
+    typeof output === "string" ||
+    (Number.isInteger(output) &&
+      (output as number) >= 0 &&
+      (output as number) <= 0xffff)
+  ))
+    fail(
+      ctx,
+      "INVALID_OUT_REF",
+      `invalid output ${JSON.stringify(output) ?? String(output)} of step "${step}": expected the label of an output part, or the position of an output from 0`,
+    );
+  return { step: step as string, output: output as string | number };
 };
 
 export const outRefString = (input: {

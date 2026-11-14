@@ -1,5 +1,5 @@
 import type { BuiltTxData } from "../builder";
-import type { TxPart } from "../parts/types";
+import type { LinkedPart, TxPart } from "../parts/types";
 import type { AnchorKind, AttemptRecord, PlanRecord } from "./core";
 import type { TxAttemptStatus, TxPlanJSON, TxPlanStatus } from "./types";
 import { NOT_UNPAID, TxBuildError, TxPlanError } from "../errors";
@@ -91,7 +91,7 @@ const describeType = (value: object) =>
       : (value.constructor?.name ?? "object");
 
 /** The redeemer function a part holds, if it holds one */
-const holdsFunction = (part: TxPart) => {
+const holdsFunction = (part: TxPart | LinkedPart) => {
   const witness = (part as { witness?: { redeemer?: { data?: unknown } } })
     .witness;
   const data = witness?.redeemer?.data as { type?: unknown } | undefined;
@@ -99,11 +99,14 @@ const holdsFunction = (part: TxPart) => {
 };
 
 /**
- * The parts as a record holds them: their own shapes, every `bigint` as its decimal string
+ * The parts as a record holds them: their own shapes, every `bigint` as its decimal string; a
+ * part linked to an earlier step with its `link` as it is
  * @throws TxBuildError NOT_SERIALIZABLE, with the part's kind and label, at the first part that
  *   holds a redeemer function
  */
-export const encodeParts = (parts: readonly TxPart[]): unknown[] =>
+export const encodeParts = (
+  parts: readonly (TxPart | LinkedPart)[],
+): unknown[] =>
   parts.map((part, i) => {
     if (holdsFunction(part))
       throw new TxBuildError(
@@ -931,7 +934,68 @@ const REQUIRED: Readonly<Record<TxPart["kind"], readonly string[]>> = {
   proposal: ["proposal", "witness"],
 };
 
-const decodePart = (value: unknown, path: string): TxPart => {
+/** The members of a part linked to an earlier step besides `kind`, `label` and `link`, by kind */
+const LINKED: Readonly<Record<LinkedPart["kind"], readonly string[]>> = {
+  spend: ["witness"],
+  referenceInput: [],
+  collateral: [],
+};
+
+/** A link to an earlier step: `{ step, output }` or `{ step, change: true }` */
+const linkValue = (value: unknown, path: string) => {
+  const json = object(value, path);
+  known(json, ["step", "output", "change"], path);
+  const step = text(json.step, `${path}.step`);
+  if (step === "") unread(`${path}.step is empty`);
+  if ((json.output === undefined) === (json.change === undefined))
+    unread(`${path} holds neither or both of output and change`);
+  if (json.change !== undefined) {
+    if (json.change !== true)
+      unread(`${path}.change is ${show(json.change)}, not true`);
+    return { step, change: true };
+  }
+  const output =
+    typeof json.output === "number"
+      ? count(json.output, `${path}.output`)
+      : text(json.output, `${path}.output`);
+  if (typeof output === "number" && output > 0xffff)
+    unread(`${path}.output is ${output}, past the last position of an output`);
+  return { step, output };
+};
+
+/**
+ * A part linked to an earlier step: `link` in place of `input` and `utxo`, all the change only
+ * in a spend by key
+ */
+const decodeLinkedPart = (json: Obj, path: string): LinkedPart => {
+  const kind = json.kind as string;
+  if (!Object.prototype.hasOwnProperty.call(LINKED, kind))
+    unread(`${path}: a part of kind ${kind} linked to an earlier step`);
+  const members = LINKED[kind as LinkedPart["kind"]];
+  known(json, ["kind", "label", "link", ...members], path);
+  for (const member of members)
+    if (json[member] === undefined) unread(`${path}.${member} is missing`);
+  const part: Obj = { kind };
+  if (json.label !== undefined) part.label = text(json.label, `${path}.label`);
+  const link = linkValue(json.link, `${path}.link`);
+  part.link = link;
+  if (json.witness !== undefined)
+    part.witness = witnessValue(json.witness, `${path}.witness`);
+  if (
+    "change" in link &&
+    (kind !== "spend" || (part.witness as { type?: unknown }).type !== "key")
+  )
+    unread(
+      `${path}.link: all the change of a step in a part other than a spend by key`,
+    );
+  return freeze(part) as unknown as LinkedPart;
+};
+
+const decodePart = (
+  value: unknown,
+  path: string,
+  links = false,
+): TxPart | LinkedPart => {
   const json = object(value, path);
   const kind = json.kind;
   if (
@@ -939,6 +1003,7 @@ const decodePart = (value: unknown, path: string): TxPart => {
     !Object.prototype.hasOwnProperty.call(PARTS, kind)
   )
     unread(`${path}: the part kind ${show(kind)}`);
+  if (links && json.link !== undefined) return decodeLinkedPart(json, path);
   const reader = PARTS[kind as TxPart["kind"]];
   known(json, ["kind", "label", ...reader.members], path);
   for (const member of REQUIRED[kind as TxPart["kind"]])
@@ -956,13 +1021,28 @@ const decodePart = (value: unknown, path: string): TxPart => {
 };
 
 /**
- * The parts back from their encoding, frozen as the part builders make them
+ * The parts back from their encoding, frozen as the part builders make them. A part linked to
+ * an earlier step is read only with `links`: the parts of a build never hold one, and without
+ * it `link` is a member this library does not read
  * @throws UnreadContent for a part kind this library does not know, naming it; for a member of
  *   a part it does not know; and for a value it cannot read where a `bigint` or a member it
- *   reads stands
+ *   reads stands; with `links`, for a link that is not `{ step, output }` or
+ *   `{ step, change: true }`, for a part that holds a link beside `input` or `utxo`, and for
+ *   all the change in a part other than a spend by key
  */
-export const decodeParts = (json: readonly unknown[]): TxPart[] =>
-  list(json, "parts").map((item, i) => decodePart(item, `parts[${i}]`));
+export function decodeParts(json: readonly unknown[]): TxPart[];
+export function decodeParts(
+  json: readonly unknown[],
+  options: { links: true },
+): (TxPart | LinkedPart)[];
+export function decodeParts(
+  json: readonly unknown[],
+  options?: { links?: boolean },
+): (TxPart | LinkedPart)[] {
+  return list(json, "parts").map((item, i) =>
+    decodePart(item, `parts[${i}]`, options?.links === true),
+  );
+}
 
 /* ---------------------------------------------------------------------------------------------
  * Reading: the record

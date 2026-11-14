@@ -406,6 +406,47 @@ export type CollateralPart = PartBase &
     readonly kind: "collateral";
   };
 
+/**
+ * An output of an earlier step of the same plan: the output its transaction makes from the
+ * output part with this label, or the output at this position in its transaction. It stands
+ * where a part takes a UTxO, in `spend.pubKey`, `spend.native`, `spend.plutus`, `referenceInput`
+ * and `collateral`. The plan fills it in when it builds the step, from the earlier step's own
+ * transaction: nothing is looked up, and no transaction hash is written by hand.
+ */
+export type StepOutput = {
+  /** The name of the earlier step */
+  readonly step: string;
+  /** The label of the output part that makes the output, or the output's position, from 0 */
+  readonly output: string | number;
+};
+
+/**
+ * All the change of an earlier step of the same plan. It stands where `spend.pubKey` takes a
+ * UTxO: the part spends every change output of that step's transaction, one input for each, and
+ * none when the transaction has no change.
+ */
+export type StepChange = {
+  /** The name of the earlier step */
+  readonly step: string;
+  readonly change: true;
+};
+
+/**
+ * A part whose input is an output of an earlier step: it holds `link` where the part holds
+ * `input` and `utxo`. The plan that builds the step fills the input in, and a part linked to all
+ * the change may become several parts there. Until then the part is unresolved (the gap `link`):
+ * `builder.build` and `assembleTxPrototype` do not take it.
+ */
+export type Linked<P extends SpendPart | ReferenceInputPart | CollateralPart> =
+  Omit<P, "input" | "utxo"> & {
+    /** The output, or all the change, of the earlier step */
+    readonly link: StepOutput | StepChange;
+  };
+
+/** Every part that may be linked to an earlier step */
+export type LinkedPart =
+  Linked<SpendPart> | Linked<ReferenceInputPart> | Linked<CollateralPart>;
+
 /** Where the collateral left over after a script failure goes */
 export type CollateralReturnPart = PartBase & {
   readonly kind: "collateralReturn";
@@ -638,4 +679,9 @@ export type Unresolved =
   | {
       readonly type: "deposit";
       readonly parameter: DepositParameter;
-    };
+    }
+  /**
+   * The output, or all the change, of an earlier step that a part is linked to; the plan that
+   * builds the step fills it in
+   */
+  | { readonly type: "link"; readonly link: StepOutput | StepChange };

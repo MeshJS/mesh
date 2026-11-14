@@ -67,7 +67,12 @@ import type { GovernanceDeposits } from "./resolve";
 import type { Signer } from "./sign";
 import type { TxSigners } from "./witnesses";
 import { abortable, throwIfAborted } from "./abort";
-import { checkPartRepeats, checkPrototypeRepeats } from "./assemble";
+import {
+  checkPartRepeats,
+  checkPrototypeRepeats,
+  incomplete,
+  unresolvedError,
+} from "./assemble";
 import {
   balance,
   COLLATERAL_INPUT_BYTES,
@@ -408,6 +413,8 @@ const invalidParts = (entry: unknown, reason: string) =>
 
 /** Refuses a part without a member its kind always has */
 const checkMembers = (part: TxPart) => {
+  // A part linked to an earlier step holds `link` in place of `input`: refuseLinked judges it
+  if ("link" in part) return;
   const member = missingMember(part);
   if (member !== undefined)
     throw invalidParts(
@@ -416,17 +423,25 @@ const checkMembers = (part: TxPart) => {
     );
 };
 
+/** The parts, when none is linked to an earlier step: only a plan fills such a part in */
+const refuseLinked = (parts: TxPart[]): TxPart[] => {
+  const linked = incomplete(parts.filter((part) => "link" in part));
+  if (linked.length > 0) throw unresolvedError(linked);
+  return parts;
+};
+
 /**
  * The parts of a `PartsInput`, in order: nested lists flattened depth first, `false`, `null` and
  * `undefined` dropped
  * @throws TxBuildError INVALID_OPTION for an entry that is none of these, and for a part that
- *   lacks a member its kind always has
+ *   lacks a member its kind always has; UNRESOLVED (the gap `link`) for parts linked to an
+ *   earlier step of a plan
  */
 export const flattenParts = (input: unknown): TxPart[] => {
   if (!Array.isArray(input)) {
     if (isPart(input)) {
       checkMembers(input);
-      return [input];
+      return refuseLinked([input]);
     }
     throw invalidParts(
       input,
@@ -453,7 +468,7 @@ export const flattenParts = (input: unknown): TxPart[] => {
     parts.push(entry);
   };
   visit(input);
-  return parts;
+  return refuseLinked(parts);
 };
 
 /** The parts of a builder made by the constructor: none */
@@ -1655,8 +1670,10 @@ export class TxBuilder {
    * Redeemer indices follow from where each item ends up in the ledger's order, assigned once
    * by `assembleTxPrototype`; evaluation results are matched back to their parts through them.
    *
-   * @throws TxBuildError with a `code`, among them UNSUPPORTED_SERIALIZER when the builder's
-   *   serializer throws, or answers with something that is not a transaction in CBOR hex, and
+   * @throws TxBuildError with a `code`, among them UNRESOLVED (the gap `link`) for a part
+   *   linked to an earlier step of a plan, which only that plan fills in; UNSUPPORTED_SERIALIZER
+   *   when the builder's serializer throws, or answers with something that is not a
+   *   transaction in CBOR hex, and
    *   MISSING_PARAMETER when the provider's protocol parameters lack a field a build reads, or
    *   hold one that is not a number; TxPartError when what is looked up does not fit a part
    *   (e.g. a reference output holding a different script), and INVALID_DATA for a validity
@@ -1793,7 +1810,8 @@ export class TxBuilder {
    * const withFee = builder.add(output({ label: "fee", address, value }));
    * const built = await withFee.build(output({ address: to, value }), { payer: wallet });
    * ```
-   * @throws TxBuildError INVALID_OPTION for an entry that is none of these
+   * @throws TxBuildError INVALID_OPTION for an entry that is none of these; UNRESOLVED for a
+   *   part linked to an earlier step of a plan
    */
   add(...parts: PartEntry[]): TxBuilder {
     const added = flattenParts(parts);

@@ -1,5 +1,6 @@
 import type {
   KeyWitness,
+  LinkedPart,
   NativeScriptSource,
   NativeWitness,
   PlutusScriptSource,
@@ -29,11 +30,22 @@ const witnessGaps = (
   return gaps;
 };
 
+/** Whether a part holds a link to an earlier step in place of its input */
+export const isLinkedPart = (part: TxPart | LinkedPart): part is LinkedPart =>
+  "link" in part;
+
 /**
  * What a part leaves to be filled in before it can be assembled into a transaction. An empty
- * list means the part is complete as it is.
+ * list means the part is complete as it is. A part linked to an earlier step has the gap
+ * `link`, and of its witness the gaps that do not depend on the output: what the output holds,
+ * its datum among it, is known once the plan that builds the step fills the link in.
  */
-export const unresolved = (part: TxPart): Unresolved[] => {
+export const unresolved = (part: TxPart | LinkedPart): Unresolved[] => {
+  if (isLinkedPart(part)) {
+    const gaps: Unresolved[] = [{ type: "link", link: part.link }];
+    if (part.kind === "spend") gaps.push(...witnessGaps(part.witness));
+    return gaps;
+  }
   switch (part.kind) {
     case "spend": {
       const gaps: Unresolved[] = part.utxo
