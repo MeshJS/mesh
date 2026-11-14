@@ -2,15 +2,15 @@ import type { LanguageVersion, UTxO } from "@meshsdk/common";
 import type { Serialization } from "@meshsdk/core-cst";
 import {
   Address,
+  blake2b,
   CborReader,
   deserializeTxUnspentOutput,
   HexBlob,
   normalizePlutusScript,
-  PlutusData,
-  resolveDataHash,
   Script,
 } from "@meshsdk/core-cst";
 
+import type { UtxoBytes } from "../tx-scan";
 import type {
   Assets,
   OutputDatum,
@@ -20,7 +20,14 @@ import type {
   UtxoInput,
 } from "./types";
 import { TxBuildError } from "../errors";
-import { itemEnd } from "../tx-scan";
+import {
+  BYTES_AFTER_DATA,
+  itemDepth,
+  itemEnd,
+  MAX_TX_DEPTH,
+  notPlutusData,
+  splitUtxoBytes,
+} from "../tx-scan";
 import { emptyValue, toAssets } from "../value";
 
 /*
@@ -159,35 +166,20 @@ export const isOneItem = (hex: string) => {
 };
 
 /**
- * The CBOR of inline Plutus data, checked to be one Plutus data item and nothing after it, and
- * kept byte for byte
+ * The CBOR of inline Plutus data, checked by a walk over its bytes to be one Plutus data item and
+ * nothing after it, and kept byte for byte. The data is not decoded into a value: a datum of any
+ * depth takes a time that grows with its bytes alone
  */
 const readInlineData = (at: string, what: string, content: unknown) => {
   const data = readHex("datum", at, what, content);
-  try {
-    PlutusData.fromCbor(HexBlob(data));
-    if (!isOneItem(data)) throw new Error("bytes follow the data");
-  } catch (error) {
-    return problem(
-      "datum",
-      `${at}: ${what} is not Plutus data: ${reason(error)}`,
-      error,
-    );
-  }
-  return data;
+  const wrong = notPlutusData(Buffer.from(data, "hex"));
+  return wrong === undefined
+    ? data
+    : problem("datum", `${at}: ${what} is not Plutus data: ${wrong}`);
 };
 
-/**
- * The CBOR of inline Plutus data the value decoder has read as such already, checked to be
- * nothing more than that one item, and kept byte for byte
- */
-const decodedInlineData = (at: string, data: string) =>
-  isOneItem(data)
-    ? data.toLowerCase()
-    : problem(
-        "datum",
-        `${at}: its inline datum is not Plutus data: bytes follow the data`,
-      );
+/** The hash of a datum: blake2b-256 of its bytes as written */
+const dataHashOf = (data: string) => blake2b.hash(HexBlob(data), 32).toString();
 
 const inlineDatum = (content: string): OutputDatum => ({
   type: "inline",
@@ -237,14 +229,23 @@ const readScriptHash = (at: string, hash: unknown): string => {
  * the hash stated for it, if any. What this library cannot read, and what it reads with a hash
  * other than the stated one, is `unknown`: kept as given, with the stated hash. So is a script
  * whose bytes would not be written back as given (bytes after it, other framing), since the
- * described form must give the same bytes back.
- * @throws UtxoError (`script`) when `scriptRef` is not hex
+ * described form must give the same bytes back. The script is decoded only once a walk over its
+ * bytes finds it nested no deeper than `MAX_TX_DEPTH` levels, the depth a transaction is read to.
+ * @param at What the script belongs to, for an error
+ * @throws UtxoError (`script`) when `scriptRef` is not hex, or nests deeper than that
  */
 export const describeScriptRef = (
   scriptRef: string,
   statedHash?: string,
+  at?: string,
 ): OutputScript => {
   const given = readHex("script", "a reference script", "it", scriptRef);
+  const depth = itemDepth(Buffer.from(given, "hex"));
+  if (depth !== undefined && depth > MAX_TX_DEPTH)
+    return problem(
+      "script",
+      `${at === undefined ? "a reference script" : `${at}: its reference script`} nests its items deeper than the ${MAX_TX_DEPTH} levels this library reads`,
+    );
   const stated = statedHash?.toLowerCase();
   const unknown: OutputScript = {
     type: "unknown",
@@ -336,6 +337,7 @@ const readScript = (at: string, script: unknown): OutputScript => {
     return describeScriptRef(
       readHex("script", at, "the reference script", script.scriptRef),
       stated,
+      at,
     );
   let described: OutputScript;
   if (script.type === "plutus") {
@@ -350,10 +352,12 @@ const readScript = (at: string, script: unknown): OutputScript => {
       );
     described = describeScriptRef(
       `82${LANGUAGE_TAG[version]}${plutusCode(at, script.code)}`,
+      undefined,
+      at,
     );
   } else if (script.type === "native") {
     const cbor = readHex("script", at, "the native script", script.cbor);
-    described = describeScriptRef(`8200${cbor}`);
+    described = describeScriptRef(`8200${cbor}`, undefined, at);
   } else
     return problem(
       "script",
@@ -375,11 +379,43 @@ const withDatum = (datum: OutputDatum | undefined) =>
 const withScript = (script: OutputScript | undefined) =>
   script === undefined ? {} : { script };
 
+const hexOf = (bytes: Uint8Array) => Buffer.from(bytes).toString("hex");
+
+/**
+ * A UTxO from the CBOR of a transaction unspent output. Its inline datum is found by a walk over
+ * the bytes and kept as they hold it; the decoder reads the rest with a stand-in in its place,
+ * and a reference script only once the walk finds it nested no deeper than a transaction may be
+ */
 const fromCbor = (cbor: string): Utxo => {
-  let unspent: ReturnType<typeof deserializeTxUnspentOutput>;
+  let split: UtxoBytes | undefined;
   try {
     if (!HEX_BYTES.test(cbor)) throw new Error("the text is not hex");
-    unspent = deserializeTxUnspentOutput(cbor.toLowerCase());
+    split = splitUtxoBytes(Buffer.from(cbor, "hex"));
+    if (!split) throw new Error("it is not well-formed CBOR");
+  } catch (error) {
+    return problem(
+      "outRef",
+      `not the CBOR of a transaction unspent output: ${reason(error)}`,
+      error,
+    );
+  }
+  const { standIn, inlineDatum, scriptRef } = split;
+  if (scriptRef) {
+    const depth = itemDepth(scriptRef);
+    if (depth !== undefined && depth > MAX_TX_DEPTH)
+      return problem(
+        "script",
+        `a transaction unspent output in CBOR: its reference script nests its items deeper than the ${MAX_TX_DEPTH} levels this library reads`,
+      );
+  }
+  let unspent: ReturnType<typeof deserializeTxUnspentOutput>;
+  try {
+    // A datum that is no data leaves the output unreadable as a whole; bytes after the data are
+    // the datum's own fault, which the output's reading names
+    const wrong = inlineDatum && notPlutusData(inlineDatum);
+    if (wrong && wrong !== BYTES_AFTER_DATA)
+      throw new Error(`its inline datum is not Plutus data: ${wrong}`);
+    unspent = deserializeTxUnspentOutput(hexOf(standIn));
   } catch (error) {
     return problem(
       "outRef",
@@ -393,18 +429,24 @@ const fromCbor = (cbor: string): Utxo => {
       Number(unspent.input().index()),
     ),
     unspent.output(),
+    inlineDatum && hexOf(inlineDatum),
   );
 };
 
-/** A UTxO from its out ref and its output as decoded: what the output holds, byte for byte */
+/**
+ * A UTxO from its out ref and its output as decoded: what the output holds, byte for byte
+ * @param heldDatum The CBOR of the inline datum, where the output was decoded with a stand-in in
+ *   its place
+ */
 const fromOutput = (
   ref: OutRef,
   output: Serialization.TransactionOutput,
+  heldDatum?: string,
 ): Utxo => {
   const at = describe(ref);
   const amount = output.amount();
   const datum = output.datum();
-  const inline = datum?.asInlineData()?.toCbor().toString();
+  const inline = heldDatum ?? datum?.asInlineData()?.toCbor().toString();
   const dataHash = datum?.asDataHash()?.toString();
   const scriptRef = output.scriptRef()?.toCbor().toString();
   return {
@@ -416,13 +458,15 @@ const fromOutput = (
     ]),
     ...withDatum(
       inline !== undefined
-        ? inlineDatum(decodedInlineData(at, inline))
+        ? inlineDatum(readInlineData(at, "its inline datum", inline))
         : dataHash !== undefined
           ? hashDatum(at, dataHash)
           : undefined,
     ),
     ...withScript(
-      scriptRef === undefined ? undefined : describeScriptRef(scriptRef),
+      scriptRef === undefined
+        ? undefined
+        : describeScriptRef(scriptRef, undefined, at),
     ),
   };
 };
@@ -468,7 +512,7 @@ const fromMesh = (given: Record<string, unknown>): Utxo => {
     if (
       isSet(dataHash) &&
       (typeof dataHash !== "string" ||
-        dataHash.toLowerCase() !== resolveDataHash(content, "CBOR"))
+        dataHash.toLowerCase() !== dataHashOf(content))
     )
       return problem(
         "datum",
@@ -483,6 +527,7 @@ const fromMesh = (given: Record<string, unknown>): Utxo => {
     script = describeScriptRef(
       readHex("script", at, "its scriptRef", scriptRef),
       stated,
+      at,
     );
   // Without its bytes, a reference script cannot be priced
   else if (stated !== undefined)
@@ -692,7 +737,7 @@ export const toMeshUtxo = (given: UtxoInput): UTxO => {
   };
   if (utxo.datum?.type === "hash") output.dataHash = utxo.datum.hash;
   if (utxo.datum?.type === "inline") {
-    output.dataHash = resolveDataHash(utxo.datum.data.content, "CBOR");
+    output.dataHash = dataHashOf(utxo.datum.data.content);
     output.plutusData = utxo.datum.data.content;
   }
   if (utxo.script) {

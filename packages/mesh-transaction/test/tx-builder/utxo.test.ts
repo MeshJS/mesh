@@ -1195,6 +1195,159 @@ describe("outputAsUtxo", () => {
   });
 });
 
+describe("the data and the reference script of a UTxO, read without being decoded", () => {
+  const addressHex = Address.fromBech32(address).toBytes().toString();
+  /** A list nested `depth` deep around a list of `width` zeros */
+  const deep = (depth: number, width = 0) =>
+    "81".repeat(depth) + cbor.head(4, width) + "00".repeat(width);
+  /** `all` around a key `levels` times: two levels of nesting each, one for the key's own list */
+  const nested = (levels: number) =>
+    "820181".repeat(levels) + `8200581c${keyHashHex(1)}`;
+  /** The CBOR of a transaction unspent output with these members, written by hand */
+  const utxoCbor = (members: { datum?: string; scriptRef?: string }) =>
+    cbor.arr(
+      cbor.arr(cbor.bytes(hash(5)), cbor.uint(1)),
+      cbor.map(
+        [cbor.uint(0), cbor.bytes(addressHex)],
+        [cbor.uint(1), cbor.uint(5_000_000)],
+        ...(members.datum === undefined
+          ? []
+          : [
+              [
+                cbor.uint(2),
+                cbor.arr(cbor.uint(1), `d818${cbor.bytes(members.datum)}`),
+              ] as [string, string],
+            ]),
+        ...(members.scriptRef === undefined
+          ? []
+          : [
+              [cbor.uint(3), `d818${cbor.bytes(members.scriptRef)}`] as [
+                string,
+                string,
+              ],
+            ]),
+      ),
+    );
+  /** The same inline datum in each form a UTxO is given in */
+  const withDatum = (datum: string): [string, unknown][] => [
+    [
+      "a Utxo",
+      ownWith({
+        datum: { type: "inline", data: { type: "CBOR", content: datum } },
+      }),
+    ],
+    [
+      "a Mesh UTxO",
+      meshWith({ plutusData: datum, dataHash: cbor.blake(datum, 32) }),
+    ],
+    ["its CBOR", utxoCbor({ datum })],
+  ];
+  /** The same reference script in each form a UTxO is given in */
+  const withScript = (scriptRef: string): [string, unknown][] => [
+    [
+      "a Utxo",
+      ownWith({ script: { type: "native", cbor: scriptRef.slice(4) } }),
+    ],
+    ["a Mesh UTxO", meshWith({ scriptRef })],
+    ["its CBOR", utxoCbor({ scriptRef })],
+  ];
+  const timed = (run: () => unknown) => {
+    const start = performance.now();
+    let thrown: unknown;
+    try {
+      run();
+    } catch (error) {
+      thrown = error;
+    }
+    return { thrown, ms: performance.now() - start };
+  };
+
+  it("reads an inline datum nested 4 000 deep, or 120 deep around 15 000 zeros, in each form, byte for byte and at once", () => {
+    for (const datum of [deep(4_000), deep(2_000), deep(120, 15_000)])
+      for (const [form, given] of withDatum(datum)) {
+        let utxo: Utxo | undefined;
+        const { thrown, ms } = timed(() => (utxo = readUtxo(given)));
+        expect([form, thrown]).toEqual([form, undefined]);
+        // Milliseconds: decoded, such data took seconds, and 4 000 levels exhausted the stack
+        expect(ms).toBeLessThan(500);
+        expect(utxo!.datum).toEqual({
+          type: "inline",
+          data: { type: "CBOR", content: datum },
+        });
+        // The hash of a datum is the hash of its bytes
+        expect(toMeshUtxo(utxo!).output.dataHash).toBe(cbor.blake(datum, 32));
+      }
+  });
+
+  it("takes a Mesh UTxO's dataHash as the hash of the bytes of its plutusData, whatever their form", () => {
+    for (const datum of ["d8799fff", "d87980", cbor.constr0(cbor.uint64(1))]) {
+      expect(
+        kindOf(
+          meshWith({ plutusData: datum, dataHash: cbor.blake(datum, 32) }),
+        ),
+      ).toBe("accepted");
+      expect(
+        kindOf(
+          meshWith({
+            plutusData: datum,
+            dataHash: cbor.blake(`${datum}`.replace(/^d879/, "d87a"), 32),
+          }),
+        ),
+      ).toBe("datum");
+    }
+  });
+
+  it.each<[string, string]>([
+    ["a text", "6161"],
+    ["a simple value", "f6"],
+    ["a float", "f93c00"],
+    ["the tag of encoded CBOR", "d8184100"],
+    ["a constructor tag on a map", "d879a0"],
+    ["a big-integer tag on an integer", "c201"],
+    ["a text inside a list", cbor.arr(cbor.uint(1), "6161")],
+    ["bytes that are not CBOR", "ff"],
+    ["a list that does not end", "9f01"],
+  ])("refuses as an inline datum %s, as before", (_, datum) => {
+    const [own, mesh, inCbor] = withDatum(datum);
+    for (const [, given] of [own!, mesh!]) {
+      expect(kindOf(given)).toBe("datum");
+      expect(() => readUtxo(given)).toThrow(/is not Plutus data: /);
+    }
+    // In CBOR, data that cannot be read leaves the output unreadable
+    expect(kindOf(inCbor![1])).toBe("outRef");
+    expect(() => readUtxo(inCbor![1])).toThrow(
+      /^not the CBOR of a transaction unspent output: /,
+    );
+  });
+
+  it("refuses an inline datum with bytes after the data in each form, as before", () => {
+    for (const [, given] of withDatum("d879800000"))
+      expect(() => readUtxo(given)).toThrow(
+        /is not Plutus data: bytes follow the data$/,
+      );
+  });
+
+  it("describes a native reference script nested 64 levels, and refuses one nested deeper in each form at once", () => {
+    // [0, native]: one level, then two for each `all` and one for the key
+    const within = `8200${nested(31)}`;
+    for (const [form, given] of withScript(within)) {
+      const utxo = readUtxo(given);
+      expect([form, utxo.script!.type]).toEqual([form, "native"]);
+      expect(utxo.script!.hash).toBe(refHash(within));
+      expect(scriptRefOf(utxo.script!)).toBe(within);
+    }
+    for (const levels of [32, 5_000])
+      for (const [form, given] of withScript(`8200${nested(levels)}`)) {
+        const { thrown, ms } = timed(() => readUtxo(given));
+        expect(ms).toBeLessThan(500);
+        expect([form, (thrown as UtxoError).kind]).toEqual([form, "script"]);
+        expect((thrown as Error).message).toMatch(
+          /reference script nests its items deeper than the 64 levels this library reads$/,
+        );
+      }
+  });
+});
+
 describe("value of a Utxo", () => {
   it("valueOf and toAssets convert between Assets and Value", () => {
     const assets = { lovelace: 5n, [unitA]: 2n, [unitB]: 1n };

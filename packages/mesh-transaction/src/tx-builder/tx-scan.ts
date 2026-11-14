@@ -128,14 +128,48 @@ const lengthOf = (head: Head, limit: number) =>
     ? head.value
     : undefined;
 
+/** The major type of a byte string and of an array */
+const BYTES = 2;
+const ARRAY = 4;
+
 /**
- * The offset after the CBOR item at `start`, found without recursion and without decoding the
- * item into a value: the time it takes grows with the bytes alone. Undefined where the bytes
- * from `start` are not one well-formed item
+ * What the item after a tag of Plutus data must be: a byte string after the tags of a big
+ * integer (2 and 3), a list after the tag of a constructor (121 to 127, 1280 to 1400, and 102 for
+ * the general form). Undefined for a tag Plutus data does not use
  */
-export const itemEnd = (bytes: Uint8Array, start = 0): number | undefined => {
+const plutusTagHolds = (tag: number | bigint): number | undefined => {
+  const n = Number(tag);
+  if (n === 2 || n === 3) return BYTES;
+  if ((n >= 121 && n <= 127) || (n >= 1280 && n <= 1400) || n === 102)
+    return ARRAY;
+  return undefined;
+};
+
+/** One CBOR item as `walkItem` found it */
+type WalkedItem = {
+  /** The offset after the item */
+  end: number;
+  /** The deepest nesting inside it: each array, map and tag one level */
+  depth: number;
+};
+
+/**
+ * Walks the CBOR item at `start` without recursion and without decoding it into a value: the
+ * time it takes grows with the bytes alone. With `plutus`, the item must also be Plutus data in
+ * its shape: integers, byte strings, lists, maps and the tags of big integers and constructors,
+ * never a text, a float or a simple value. Undefined where the bytes from `start` are not one
+ * such item
+ */
+const walkItem = (
+  bytes: Uint8Array,
+  start: number,
+  plutus: boolean,
+): WalkedItem | undefined => {
   // The items left in each open container, -1 for an indefinite length; the item itself first
   const left: number[] = [1];
+  let depth = 0;
+  // The major type the item after a tag of Plutus data must have
+  let expected: number | undefined;
   const done = () => {
     for (;;) {
       const top = left.length - 1;
@@ -144,6 +178,10 @@ export const itemEnd = (bytes: Uint8Array, start = 0): number | undefined => {
       if (left[top] !== 0) return;
       left.pop();
     }
+  };
+  const open = (items: number) => {
+    left.push(items);
+    depth = Math.max(depth, left.length - 1);
   };
   let at = start;
   while (left.length > 0) {
@@ -156,9 +194,14 @@ export const itemEnd = (bytes: Uint8Array, start = 0): number | undefined => {
       done();
       continue;
     }
+    if (plutus) {
+      if (expected !== undefined && head.major !== expected) return undefined;
+      expected = undefined;
+    }
     switch (head.major) {
       case 2:
       case 3: {
+        if (plutus && head.major === 3) return undefined;
         if (head.value === undefined)
           for (;;) {
             const chunk = readHead(bytes, at, bytes.length);
@@ -183,24 +226,185 @@ export const itemEnd = (bytes: Uint8Array, start = 0): number | undefined => {
       case 4:
       case 5: {
         if (head.value === undefined) {
-          left.push(-1);
+          open(-1);
           break;
         }
         if (typeof head.value !== "number") return undefined;
         const items = head.value * (head.major === 5 ? 2 : 1);
         if (items > bytes.length - at) return undefined;
         if (items === 0) done();
-        else left.push(items);
+        else open(items);
         break;
       }
       case 6:
-        left.push(1);
+        if (plutus) {
+          expected = plutusTagHolds(head.value!);
+          if (expected === undefined) return undefined;
+        }
+        open(1);
         break;
       default:
+        if (plutus && head.major === 7) return undefined;
         done();
     }
   }
-  return at;
+  return { end: at, depth };
+};
+
+/**
+ * The offset after the CBOR item at `start`, found without recursion and without decoding the
+ * item into a value: the time it takes grows with the bytes alone. Undefined where the bytes
+ * from `start` are not one well-formed item
+ */
+export const itemEnd = (bytes: Uint8Array, start = 0): number | undefined =>
+  walkItem(bytes, start, false)?.end;
+
+/** What `notPlutusData` says of one item of Plutus data with bytes after it */
+export const BYTES_AFTER_DATA = "bytes follow the data";
+
+/**
+ * Why `bytes` are not exactly one item of Plutus data, found by a walk that decodes nothing, in
+ * a time that grows with the bytes alone however deep the data nests; undefined when they are
+ * one. It judges the shape of the data, which is all a ledger asks of it
+ */
+export const notPlutusData = (bytes: Uint8Array): string | undefined => {
+  const walked = walkItem(bytes, 0, true);
+  if (walked) return walked.end === bytes.length ? undefined : BYTES_AFTER_DATA;
+  return itemEnd(bytes) === undefined
+    ? "it is not well-formed CBOR"
+    : "it holds what Plutus data does not: a text, a float, a simple value or a tag of no integer or constructor";
+};
+
+/**
+ * The deepest nesting of the one CBOR item `bytes` hold, each array, map and tag one level, found
+ * without recursion; undefined where they are not one well-formed item
+ */
+export const itemDepth = (bytes: Uint8Array): number | undefined => {
+  const walked = walkItem(bytes, 0, false);
+  return walked && walked.end === bytes.length ? walked.depth : undefined;
+};
+
+/** A transaction unspent output in CBOR, with the CBOR its output holds apart */
+export type UtxoBytes = {
+  /**
+   * The same bytes with an inline datum in place of the one written: the integer 0, which a
+   * value decoder reads at no cost
+   */
+  standIn: Uint8Array;
+  /** The CBOR of the inline datum, as the output holds it, its chunks joined */
+  inlineDatum?: Uint8Array;
+  /** The CBOR of the reference script, `[language, script]`, its chunks joined */
+  scriptRef?: Uint8Array;
+};
+
+/** What stands in for the byte string of an inline datum: `h'00'`, which holds the integer 0 */
+const STAND_IN_DATUM = Uint8Array.of(0x41, 0x00);
+
+/**
+ * The content of the byte string at `at` and the offset after it, its chunks joined; undefined
+ * when there is no byte string there
+ */
+const byteStringAt = (
+  bytes: Uint8Array,
+  at: number,
+): { content: Uint8Array; end: number } | undefined => {
+  const head = readHead(bytes, at, bytes.length);
+  if (!head || head.isBreak || head.major !== BYTES) return undefined;
+  if (head.value !== undefined) {
+    const length = lengthOf(head, bytes.length);
+    if (length === undefined) return undefined;
+    return {
+      content: bytes.subarray(head.next, head.next + length),
+      end: head.next + length,
+    };
+  }
+  const chunks: Uint8Array[] = [];
+  let next = head.next;
+  for (;;) {
+    const chunk = readHead(bytes, next, bytes.length);
+    if (!chunk) return undefined;
+    if (chunk.isBreak)
+      return { content: Buffer.concat(chunks), end: chunk.next };
+    const length =
+      chunk.major === BYTES ? lengthOf(chunk, bytes.length) : undefined;
+    if (length === undefined) return undefined;
+    chunks.push(bytes.subarray(chunk.next, chunk.next + length));
+    next = chunk.next + length;
+  }
+};
+
+/** The byte string under tag 24 at `at`, where the bytes hold one; undefined otherwise */
+const encodedAt = (bytes: Uint8Array, at: number) => {
+  const tag = readHead(bytes, at, bytes.length);
+  if (!tag || tag.major !== 6 || tag.value !== ENCODED_CBOR) return undefined;
+  const string = byteStringAt(bytes, tag.next);
+  return string && { start: tag.next, ...string };
+};
+
+/**
+ * Finds, without decoding anything, the inline datum and the reference script of a transaction
+ * unspent output `[input, output]` in CBOR, and writes the same bytes with a stand-in for the
+ * datum, so that a value decoder reads the rest without reading data of any depth. An output in
+ * the array form holds neither. Undefined where the bytes are not one well-formed item; an output
+ * of a shape this walk does not know is left as written, for the decoder to judge
+ */
+export const splitUtxoBytes = (bytes: Uint8Array): UtxoBytes | undefined => {
+  if (itemEnd(bytes) === undefined) return undefined;
+  const top = readHead(bytes, 0, bytes.length)!;
+  if (top.major !== ARRAY || (top.value !== 2 && top.value !== undefined))
+    return { standIn: bytes };
+  const outputStart = itemEnd(bytes, top.next);
+  const output =
+    outputStart === undefined
+      ? undefined
+      : readHead(bytes, outputStart, bytes.length);
+  if (!output || output.isBreak || output.major !== 5)
+    return { standIn: bytes };
+  const found: Omit<UtxoBytes, "standIn"> = {};
+  // The byte strings of inline datums, which the stand-in replaces: a repeated key is left to the
+  // decoder, which reads the last
+  const datums: { start: number; end: number }[] = [];
+  let at = output.next;
+  for (
+    let pair = 0;
+    output.value === undefined || pair < output.value;
+    pair++
+  ) {
+    const key = readHead(bytes, at, bytes.length);
+    if (!key || key.isBreak) break;
+    const valueStart = itemEnd(bytes, at)!;
+    const valueEnd = itemEnd(bytes, valueStart);
+    if (valueEnd === undefined) break;
+    if (key.major === 0 && key.value === 3) {
+      const script = encodedAt(bytes, valueStart);
+      if (script) found.scriptRef = script.content;
+    }
+    if (key.major === 0 && key.value === 2) {
+      // [1, 24(h'…')], in a list of either kind of length
+      const option = readHead(bytes, valueStart, bytes.length);
+      const kind =
+        option && option.major === ARRAY && !option.isBreak
+          ? readHead(bytes, option.next, bytes.length)
+          : undefined;
+      const inline =
+        kind && kind.major === 0 && kind.value === 1
+          ? encodedAt(bytes, kind.next)
+          : undefined;
+      if (inline) {
+        found.inlineDatum = inline.content;
+        datums.push({ start: inline.start, end: inline.end });
+      }
+    }
+    at = valueEnd;
+  }
+  const pieces: Uint8Array[] = [];
+  let from = 0;
+  for (const { start, end } of datums) {
+    pieces.push(bytes.subarray(from, start), STAND_IN_DATUM);
+    from = end;
+  }
+  pieces.push(bytes.subarray(from));
+  return { standIn: Buffer.concat(pieces), ...found };
 };
 
 const hexOf = (bytes: Uint8Array, from: number, to: number) =>
