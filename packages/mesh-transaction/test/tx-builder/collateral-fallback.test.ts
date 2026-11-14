@@ -678,4 +678,68 @@ describe("TxBuilder: the collateral fallback", () => {
     );
     expect(fetchAddressUTxOs).toHaveBeenCalledTimes(1);
   });
+
+  it("puts up no UTxO of the answer that holds tokens, without a collateral return", async () => {
+    const token = `${"ab".repeat(28)}746f6b656e`;
+    const tokens: Utxo = {
+      ...utxo(ada(2)),
+      value: { lovelace: ada(2), [token]: 1n },
+    };
+    const plain = utxo(ada(8));
+    const getCollateral = answering([asCbor(tokens), asCbor(plain)]);
+    const built = await scripted().build([scriptSpend()], {
+      payer: cip30([dust], { getCollateral }),
+      collateralReturn: false,
+    });
+    expect(getCollateral).toHaveBeenCalledTimes(1);
+    expect(keysOf(built.collateral!.inputs)).toEqual([keyOf(plain)]);
+    expect(built.collateral!.total).toBe(ada(8));
+    expect(built.collateral!.return).toBeUndefined();
+
+    // An answer of UTxOs holding tokens alone gives nothing to put up
+    const error = await expectCode(
+      () =>
+        scripted().build([scriptSpend()], {
+          payer: cip30([dust], { getCollateral: answering([asCbor(tokens)]) }),
+          collateralReturn: false,
+        }),
+      "INSUFFICIENT_COLLATERAL",
+    );
+    expect(error.message).toMatch(
+      /^the payer's UTxOs cannot cover the collateral, and the wallet's getCollateral gave no UTxO that may be put up for \d+ lovelace without a collateral return; UTxOs holding native assets cannot be collateral without a collateral return: give collateral inputs without assets, or drop `collateralReturn: false`$/,
+    );
+    // The same answer refused by the filter: dropping the option would not help, and no advice
+    const filtered = await expectCode(
+      () =>
+        scripted().build([scriptSpend()], {
+          payer: cip30([dust], { getCollateral: answering([asCbor(tokens)]) }),
+          collateralReturn: false,
+          canSelect: (u) => keyOf(u) !== keyOf(tokens),
+        }),
+      "INSUFFICIENT_COLLATERAL",
+    );
+    expect(filtered.message).toMatch(
+      /^the payer's UTxOs cannot cover the collateral, and the wallet's getCollateral gave no UTxO that may be put up for \d+ lovelace$/,
+    );
+    // An answer whose lovelace-only UTxO falls short, beside one holding tokens: the advice
+    const short = await expectCode(
+      () =>
+        scripted().build([scriptSpend()], {
+          payer: cip30([dust], {
+            getCollateral: answering([asCbor(tokens), asCbor(utxo(150_000n))]),
+          }),
+          collateralReturn: false,
+        }),
+      "INSUFFICIENT_COLLATERAL",
+    );
+    expect(short.message).toMatch(
+      /^the only UTxO that can be put up as collateral does not cover \d+ lovelace; UTxOs holding native assets cannot be collateral without a collateral return: give collateral inputs without assets, or drop `collateralReturn: false`$/,
+    );
+    // With a return the same answer is put up, its token returned
+    const returned = await scripted().build([scriptSpend()], {
+      payer: cip30([dust], { getCollateral: answering([asCbor(tokens)]) }),
+    });
+    expect(keysOf(returned.collateral!.inputs)).toEqual([keyOf(tokens)]);
+    expect(returned.collateral!.return!.value[token]).toBe(1n);
+  });
 });

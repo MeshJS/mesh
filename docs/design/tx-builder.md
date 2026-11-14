@@ -136,7 +136,8 @@ is `INVALID_REDEEMER`.
   `INVALID_GUARD`.
 - **Collateral return** holds the collateral inputs' value minus `totalCollateral`, tokens
   included; left out when nothing is left. Without a collateral return part neither field is
-  set; inputs holding less than the total are `INVALID_COLLATERAL`.
+  set (a build does so with `collateralReturn: false`); inputs holding less than the total are
+  `INVALID_COLLATERAL`.
 - **Hashes**: the auxiliary data hash and the script data hash (redeemers, datums and the
   language views of every Plutus version that runs, attached or referenced) are taken from the
   bytes of the encoded transaction, read back with their original encoding. A version that runs
@@ -171,6 +172,7 @@ is `INVALID_REDEEMER`.
 | `registeredPools?`   | operators whose pool registration is an update, taking no deposit                                 |
 | `extraKeyWitnesses?` | signatures expected beyond those the parts call for                                               |
 | `topUpCollateral?`   | `true` by default: given collateral inputs that do not cover are topped up from the payer's UTxOs |
+| `collateralReturn?`  | `true` by default; `false`: lovelace-only collateral inputs forfeited whole, no return, no total  |
 | `signal?`, `trace?`  | abort the build (`ABORTED`); receive its steps, for diagnostics                                   |
 
 The constructor reads nothing and checks every option at once (`MISSING_PARAMETER` with neither
@@ -309,6 +311,16 @@ change of those transactions at this build's change address. Each round, startin
    `topUpCollateral: false` puts them up as given (`INSUFFICIENT_COLLATERAL` when they fall
    short), as the old `MeshTxBuilder` does. A return too small to be an output is dropped and
    the whole collateral forfeited (`COLLATERAL_FORFEITED`), unless the total was given.
+   `collateralReturn: false` sets neither a return nor a total: the inputs are forfeited whole
+   (`COLLATERAL_FORFEITED`) and must hold lovelace alone, so a given one holding a token is
+   `INVALID_COLLATERAL`, a `collateralReturn` part `INVALID_OPTION`, and the choice and the
+   top-up take lovelace-only UTxOs (also of `getCollateral`'s answer) at the least cost: the
+   lovelace at stake plus, for each input after the first, the fee of one more input with its
+   key witness (140 bytes at `minFeeA`), so that several inputs are taken over one only when
+   they spare more than they cost. The search is exact for sets of one, two and three (pairs and
+   triples among the 64 largest UTxOs below what is missing), ties go to fewer inputs, then to
+   the smaller out refs; never more than `maxCollateralInputs`, and beyond three only the
+   largest ones. Those holding a reference script come only when the others cannot cover.
 4. The transaction is assembled with placeholder witnesses as large as the real ones (a key
    witness per key the parts require — payment keys of spent and collateral inputs, key guards,
    key withdrawals, certificates and voters, every key a native script names — and a bootstrap

@@ -1279,6 +1279,7 @@ const OPTIONS: Readonly<
   registeredPools: texts,
   extraKeyWitnesses: count,
   topUpCollateral: flag,
+  collateralReturn: flag,
   changeAddress: text,
 };
 

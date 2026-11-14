@@ -16,7 +16,10 @@ export type TxBuildErrorCode =
    * collateral inputs, or reads an output it spends
    */
   | "DUPLICATE_PART"
-  /** Collateral inputs that cannot cover the total collateral */
+  /**
+   * Collateral inputs that cannot cover the total collateral, or that hold native assets in a
+   * build without a collateral return
+   */
   | "INVALID_COLLATERAL"
   /** Something has to be looked up, and the builder has no provider */
   | "MISSING_FETCHER"

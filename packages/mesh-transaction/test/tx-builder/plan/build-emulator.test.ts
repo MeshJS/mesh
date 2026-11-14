@@ -460,6 +460,41 @@ describe("TxPlan.build on TxEmulator", () => {
     expect(off.attempts).toHaveLength(0);
   });
 
+  it("puts up collateral without a return in each attempt, and records the option", async () => {
+    const { emulator, builder, wallet, address } = await setup({
+      funds: [100_000_000n],
+    });
+    const five = emulator.fund(address, { lovelace: 5_000_000n });
+    const locked = emulator.fund(builder.scriptAddress(plutus), {
+      lovelace: 20_000_000n,
+    });
+    const plan = builder.plan(
+      spend.plutus({
+        utxo: locked,
+        script: plutus,
+        redeemer: { data: mConStr0([]) },
+      }),
+      { payer: wallet, collateralReturn: false },
+    );
+    expect(recordOf(plan).options).toMatchObject({ collateralReturn: false });
+    const first = await plan.build();
+    expect(first.collateral!.inputs.map(ref)).toEqual([five.input]);
+    expect(first.collateral!.total).toBe(5_000_000n);
+    expect(first.collateral!.return).toBeUndefined();
+    expect(first.prototype.body.collateral_return).toBeUndefined();
+    expect(first.prototype.body.total_collateral).toBeUndefined();
+    await plan.send({ submitter: submitterOf(async () => plan.txHash!) });
+    emulator.advanceTo({ time: plan.attempts[0]!.until + 1_000 });
+    expectCode(await caught(plan.send()), "EXPIRED");
+    const second = await plan.build();
+    expect(second.txHash).not.toBe(first.txHash);
+    expect(second.collateral!.inputs.map(ref)).toEqual([five.input]);
+    expect(second.collateral!.return).toBeUndefined();
+    expect(second.prototype.body.total_collateral).toBeUndefined();
+    await plan.send({ waitFor: "included" });
+    expect(plan.status).toBe("final");
+  });
+
   it("is MISSING_PAYER without a payer, and after a snapshot served an attempt", async () => {
     const { emulator, builder, wallet, address } = await setup();
     const none = builder.plan(pay());

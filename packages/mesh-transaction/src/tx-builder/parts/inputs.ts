@@ -243,7 +243,9 @@ export const referenceInput = (params: {
 /**
  * Put up an output as collateral, forfeited only if a script of the transaction fails. When the
  * collateral inputs given this way do not cover the collateral, the build adds inputs from the
- * payer's UTxOs after them, unless its option `topUpCollateral` is false.
+ * payer's UTxOs after them, unless its option `topUpCollateral` is false. A build with
+ * `collateralReturn: false` forfeits all of its lovelace, and refuses one holding a token
+ * (INVALID_COLLATERAL).
  * @param params.utxo A key-locked output, by reference or in full
  * @param params.label Name echoed in errors about this part
  */
@@ -263,7 +265,8 @@ export const collateral = (params: {
 
 /**
  * Send what is left of the collateral after a script failure to an address, so that only the
- * required amount is forfeited rather than the whole of the collateral inputs.
+ * required amount is forfeited rather than the whole of the collateral inputs. A build with
+ * `collateralReturn: false` refuses this part (INVALID_OPTION).
  * @param params.address Where the rest of the collateral goes, in bech32, base58 (Byron) or hex
  * @param params.totalCollateral Lovelace forfeited on failure; worked out from the fee when
  *   omitted. Given collateral inputs that do not hold it are topped up as for the fee

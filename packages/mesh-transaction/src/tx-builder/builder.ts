@@ -69,8 +69,10 @@ import { abortable, throwIfAborted } from "./abort";
 import { checkPartRepeats, checkPrototypeRepeats } from "./assemble";
 import {
   balance,
+  COLLATERAL_INPUT_BYTES,
   collateralCandidates,
   isPoolShortfall,
+  lovelaceOnly,
   paymentPool,
   refusedBy,
   totalExUnits,
@@ -277,6 +279,18 @@ export type BuildOptions = {
    * either way
    */
   topUpCollateral?: boolean;
+  /**
+   * `true`, the default: the transaction states its total collateral and returns what is left of
+   * the collateral inputs. `false`: it carries collateral inputs only, neither a collateral
+   * return nor a total collateral, so all of their lovelace is at stake if a script fails; they
+   * must hold lovelace only then. The builder puts up the least it can: it minimises the
+   * lovelace at stake plus, for each input after the first, the fee of one more input with its
+   * key witness, so it takes one input unless more inputs spare more than they cost; the search
+   * is exact for one, two and three inputs, pairs and triples sought among the 64 largest UTxOs
+   * below what is missing; ties go to fewer inputs, then to the smaller out refs. UTxOs holding a
+   * reference script come only when the others do not cover
+   */
+  collateralReturn?: boolean;
   /**
    * Transactions built before this one and not yet seen by the provider: their inputs are not
    * selected again, their change is selectable, and all their outputs can be spent or read by
@@ -591,7 +605,7 @@ const tracer =
  * total
  */
 const collateralBytes = (params: Protocol) =>
-  140 * params.maxCollateralInputs + 100;
+  COLLATERAL_INPUT_BYTES * params.maxCollateralInputs + 100;
 
 /** A coin as CIP-30 takes an amount: the CBOR of an unsigned integer, in hex */
 const coinCbor = (lovelace: bigint) => {
@@ -658,6 +672,15 @@ const checkBuildOptions = (
       options.topUpCollateral,
       "a boolean",
     );
+  if (
+    options.collateralReturn !== undefined &&
+    typeof options.collateralReturn !== "boolean"
+  )
+    throw invalidOption(
+      "collateralReturn",
+      options.collateralReturn,
+      "a boolean",
+    );
   const after = toAfter(options.after);
   const knownUtxos = toKnownUtxos(options.knownUtxos);
   if (sendAllTo === undefined) return { after, knownUtxos };
@@ -668,6 +691,29 @@ const checkBuildOptions = (
   } catch (error) {
     throw invalidOption("sendAllTo", sendAllTo, SEND_ALL_TO_ALLOWED, error);
   }
+};
+
+/**
+ * Refuses a `collateralReturn` part in a build with `collateralReturn: false`: the part asks for
+ * a return the option forbids
+ * @throws TxBuildError INVALID_OPTION (`collateralReturn`), naming the part
+ */
+const refuseCollateralReturn = (parts: readonly TxPart[]): void => {
+  const part = parts.find((p) => p.kind === "collateralReturn");
+  if (!part) return;
+  throw new TxBuildError(
+    "INVALID_OPTION",
+    "invalid collateralReturn: false leaves the collateral without a return, and a collateralReturn part asks for one; drop the part or the option",
+    {
+      part: part.kind,
+      ...(part.label !== undefined && { label: part.label }),
+      details: {
+        option: "collateralReturn",
+        value: false,
+        allowed: "true or left out, with a collateralReturn part",
+      },
+    },
+  );
 };
 
 /** A redeemer of a built transaction */
@@ -689,7 +735,8 @@ export type BuildWarning = {
    * - `VALID_FROM_FUTURE`: the slot of the transaction's lower bound starts after the current
    *   time of the local clock
    * - `COLLATERAL_FORFEITED`: the transaction puts up collateral and has no collateral return:
-   *   all of the collateral is at stake
+   *   all of the collateral is at stake. It comes with `collateralReturn: false`, and when what
+   *   is left of the collateral inputs is too small to be returned
    * - `FEE_ABOVE_MINIMUM`: the `fee` given is above the minimum fee of the transaction
    *
    * The list is open: later versions may add codes, so code that reads it keeps a default
@@ -751,7 +798,8 @@ export type BuiltTx = {
   /**
    * The collateral, when the transaction runs Plutus scripts; of a transaction completed by
    * `finalize`, whenever the body has collateral inputs. The inputs given by `collateral` parts
-   * come first, in their order, then those the builder added to them or chose.
+   * come first, in their order, then those the builder added to them or chose. Built with
+   * `collateralReturn: false`, it has no `return`, and `total` is all the lovelace of the inputs.
    */
   collateral?: TxCollateral;
   /** The keys that must sign, each with the roles it is needed in */
@@ -1587,7 +1635,9 @@ export class TxBuilder {
    *    when given, returns change to its change address (or sends everything left to
    *    `sendAllTo`), puts up collateral with a collateral return, and settles the fee. Collateral
    *    inputs given by parts that do not cover the collateral are topped up from the payer's
-   *    UTxOs, unless `topUpCollateral` is false. When the payer's UTxOs cannot cover the
+   *    UTxOs, unless `topUpCollateral` is false. With `collateralReturn: false` the collateral
+   *    has neither a return nor a total, and is chosen and topped up from UTxOs holding lovelace
+   *    alone, at the least cost (see `collateralReturn`). When the payer's UTxOs cannot cover the
    *    collateral and the payer is a CIP-30 api with `getCollateral`, that is called once, and
    *    the collateral is taken from its answer alone, less what `after` spends, after the given
    *    inputs when there are any.
@@ -1781,6 +1831,8 @@ export class TxBuilder {
     const { parts: timed, warnings } = this.convertTimes(flat);
     // So is a second part of what a transaction holds once
     checkPartRepeats(timed);
+    // And a collateral return asked for by a part and forbidden by the options
+    if (options?.collateralReturn === false) refuseCollateralReturn(timed);
     const { fee, registeredPools, extraKeyWitnesses } = options ?? {};
     const { canSelect, coinSelection, signal } = options ?? {};
     throwIfAborted(signal);
@@ -1908,6 +1960,7 @@ export class TxBuilder {
       registeredPools: new Set(registeredPools ?? []),
       extraKeyWitnesses: extraKeyWitnesses ?? 0,
       ...(options?.topUpCollateral === false && { topUpCollateral: false }),
+      ...(options?.collateralReturn === false && { collateralReturn: false }),
       serialize: (prototype: TransactionPrototype) => this.serialize(prototype),
       onRound: (priced) => emit({ type: "round", ...priced }),
     };
@@ -2051,7 +2104,9 @@ export class TxBuilder {
   /**
    * Asks a CIP-30 payer for collateral, once: for the whole collateral the transaction calls
    * for, an upper estimate, also when given collateral inputs are topped up from the answer, and
-   * returns the UTxOs of the answer that may be put up. Those become known to the build.
+   * returns the UTxOs of the answer that may be put up. Those become known to the build; without
+   * a collateral return, only those holding lovelace alone, and the others are returned for the
+   * build to leave out and to count in its error.
    * @throws TxBuildError INSUFFICIENT_COLLATERAL when the call fails or gives nothing usable;
    *   NETWORK_MISMATCH for a UTxO of another network; ABORTED
    */
@@ -2126,21 +2181,29 @@ export class TxBuilder {
       this.network,
       utxos.map((utxo) => utxoEntry(utxo)),
     );
-    const usable = collateralCandidates(
+    const candidates = collateralCandidates(
       parts,
       utxos.filter((utxo) => !options.spent.has(utxoKey(utxo))),
       options.canSelect,
     );
+    // Without a collateral return a UTxO holding tokens cannot be put up
+    const withoutReturn = ctx.collateralReturn === false;
+    const usable = withoutReturn
+      ? candidates.filter((utxo) => lovelaceOnly(utxo))
+      : candidates;
     if (usable.length === 0)
       throw refused(
         utxos.length === 0
           ? `gave no UTxO for ${amount} lovelace`
-          : `gave no UTxO that may be put up for ${amount} lovelace`,
+          : candidates.length > 0
+            ? `gave no UTxO that may be put up for ${amount} lovelace without a collateral return; UTxOs holding native assets cannot be collateral without a collateral return: give collateral inputs without assets, or drop \`collateralReturn: false\``
+            : `gave no UTxO that may be put up for ${amount} lovelace`,
       );
     for (const utxo of usable)
       if (!options.known.has(utxoKey(utxo)))
         options.known.set(utxoKey(utxo), utxo);
-    return usable;
+    // Those holding tokens go along, for the build to leave out and name in its error
+    return candidates;
   }
 
   /** The `params` option, else the provider's parameters */

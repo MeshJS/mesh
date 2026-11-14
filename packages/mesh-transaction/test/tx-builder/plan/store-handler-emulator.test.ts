@@ -295,6 +295,45 @@ describe("A recorded id given to builder.plan", () => {
     expect(other.store.saves()).toEqual([]);
   });
 
+  it("reads collateralReturn back from the store, a record without it meaning true", async () => {
+    const { builder, wallet, instance } = await storeSetup();
+    await builder
+      .plan(pay(), { id: "bare", payer: wallet, collateralReturn: false })
+      .build();
+    await builder.plan(pay(), { id: "default", payer: wallet }).build();
+    const other = instance();
+    const resumed = await other.builder.resume("bare", { payer: wallet });
+    expect(recordOf(resumed).options).toMatchObject({
+      collateralReturn: false,
+    });
+    for (const [id, value] of [
+      ["bare", true],
+      ["default", false],
+    ] as const) {
+      const error = await caught(
+        other.builder
+          .plan(pay(), { id, payer: wallet, collateralReturn: value })
+          .refresh(),
+      );
+      expectCode(error, "PLAN_EXISTS");
+      expect((error as Error).message).toMatch(/collateralReturn/);
+    }
+    // The value recorded, and the default where none is recorded, pass
+    for (const [id, value] of [
+      ["bare", false],
+      ["default", true],
+    ] as const) {
+      const same = other.builder.plan(pay(), {
+        id,
+        payer: wallet,
+        collateralReturn: value,
+      });
+      await same.refresh();
+      expect(same.attempts).toHaveLength(1);
+    }
+    expect(other.store.saves()).toEqual([]);
+  });
+
   it("shares the first read between concurrent first calls, and reads again after a read that threw", async () => {
     const { builder, wallet, instance } = await storeSetup();
     await builder.plan(pay(), { id: "order-1", payer: wallet }).build();

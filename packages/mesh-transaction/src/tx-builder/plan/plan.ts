@@ -136,6 +136,7 @@ type DataOptions = {
   registeredPools?: readonly string[];
   extraKeyWitnesses?: number;
   topUpCollateral?: boolean;
+  collateralReturn?: boolean;
   /** The change address of the first attempt's payer, in bech32; every later change goes there */
   changeAddress?: string;
 };
@@ -165,12 +166,15 @@ const DATA_KEYS = [
   "registeredPools",
   "extraKeyWitnesses",
   "topUpCollateral",
+  "collateralReturn",
 ] as const;
 
 /** What a record without a data option means for it, where that is a value */
-const DATA_DEFAULTS: Pick<DataOptions, "topUpCollateral"> = {
-  topUpCollateral: true,
-};
+const DATA_DEFAULTS: Pick<DataOptions, "topUpCollateral" | "collateralReturn"> =
+  {
+    topUpCollateral: true,
+    collateralReturn: true,
+  };
 
 /** How an object over a store starts */
 type StoreStart = {
@@ -2247,6 +2251,9 @@ export class TxPlan {
         ...(options.topUpCollateral !== undefined && {
           topUpCollateral: options.topUpCollateral,
         }),
+        ...(options.collateralReturn !== undefined && {
+          collateralReturn: options.collateralReturn,
+        }),
         ...(bases.length > 0 && { after: bases.map((base) => base.built) }),
         ...(state.trace && { trace: state.trace }),
         ...(signal && { signal }),
@@ -4098,6 +4105,9 @@ export const createPlan = (
     }),
     ...(options.topUpCollateral !== undefined && {
       topUpCollateral: options.topUpCollateral,
+    }),
+    ...(options.collateralReturn !== undefined && {
+      collateralReturn: options.collateralReturn,
     }),
   };
   const record = draftPlan({

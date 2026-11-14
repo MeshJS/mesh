@@ -792,6 +792,7 @@ const recordWith = (builts: readonly BuiltTx[]): PlanRecord => {
       registeredPools: [poolHash],
       extraKeyWitnesses: 1,
       topUpCollateral: false,
+      collateralReturn: false,
       changeAddress: wallet,
     },
   });
@@ -919,6 +920,7 @@ describe("the encoding of a record", () => {
     expectWritten(encoded);
     expect(encoded.options.fee).toBe("400000");
     expect(encoded.options.topUpCollateral).toBe(false);
+    expect(encoded.options.collateralReturn).toBe(false);
     expect(readPlan(encoded)).toEqual(record);
     expect(readPlan(encoded, "pay-1")).toEqual(record);
     expect(encodePlan(readPlan(encoded))).toStrictEqual(encoded);
@@ -1105,6 +1107,10 @@ describe("readPlan", () => {
       [
         (json) => (json.options.topUpCollateral = "false"),
         /options\.topUpCollateral is "false", not true or false/,
+      ],
+      [
+        (json) => (json.options.collateralReturn = 0),
+        /options\.collateralReturn is 0, not true or false/,
       ],
       [
         (json) => delete json.attempts[1].built,

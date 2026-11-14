@@ -17,6 +17,7 @@ import type { Value } from "./value";
 import { assembleTxPrototype, atMostOne } from "./assemble";
 import { TxBuildError } from "./errors";
 import { coversMinCoin, feeForSize, outputMinCoin, valueSize } from "./fee";
+import { compareInputs } from "./ordering";
 import { outRefString } from "./parts/normalize";
 import { scriptSize, utxoKey } from "./parts/utxo";
 import {
@@ -116,6 +117,12 @@ export type BalanceContext = {
    * cover the collateral, inputs are added to them from the UTxOs collateral is chosen from
    */
   topUpCollateral?: boolean;
+  /**
+   * `false`: the collateral has neither a return nor a stated total, and all of the lovelace of
+   * its inputs is at stake; its inputs must hold lovelace alone. Otherwise what is left of the
+   * collateral is returned
+   */
+  collateralReturn?: boolean;
   /** Told of every round that prices a transaction */
   onRound?: (round: PricedRound) => void;
 };
@@ -136,11 +143,17 @@ export type PricedRound = {
 export type TxCollateral = {
   /** The collateral inputs: those given by parts first, then those the builder added or chose */
   inputs: Utxo[];
-  /** Lovelace forfeited if a script fails */
+  /**
+   * Lovelace forfeited if a script fails: the total the transaction states, else, without a
+   * collateral return, all the lovelace of the inputs. Then the builder chooses the inputs that
+   * put the least at stake, counting for each input after the first the fee of one more input
+   * with its key witness: one input unless more spare more than they cost
+   */
   total: bigint;
   /**
    * What is left of the collateral, returned if a script fails: the UTxO it then becomes,
-   * output number `outputs.length` of the transaction
+   * output number `outputs.length` of the transaction. Absent when the transaction has no
+   * collateral return (`collateralReturn: false`, or a rest too small to be an output)
    */
   return?: Utxo;
 };
@@ -187,6 +200,15 @@ const MAX_ROUNDS = 50;
 /** The largest lovelace quantity, to size values whatever lovelace they end up holding */
 const MAX_COIN = (2n ** 64n - 1n).toString();
 
+/** The bytes one more collateral input adds to a transaction at most: it and a key witness */
+export const COLLATERAL_INPUT_BYTES = 140;
+
+/**
+ * Without a collateral return, how many of the UTxOs smaller than what is missing the search for
+ * two or three collateral inputs looks at: the largest ones
+ */
+const COLLATERAL_SEARCH_LIMIT = 64;
+
 /** The out refs of the outputs the parts read: reference inputs and reference scripts */
 const readByParts = (parts: readonly TxPart[]): Set<string> => {
   const read = new Set<string>();
@@ -218,6 +240,19 @@ export const isKeyLocked = (utxo: Utxo) => {
   if (address.asByron()) return true;
   return address.getProps().paymentPart?.type === CredentialType.KeyHash;
 };
+
+/** Whether a UTxO holds lovelace alone, no token */
+export const lovelaceOnly = (utxo: Utxo) =>
+  Object.entries(utxo.value).every(
+    ([unit, quantity]) => unit === "lovelace" || quantity === 0n,
+  );
+
+/** UTxOs in the order of their out refs: by transaction id, then by output index */
+const byOutRef = (a: Utxo, b: Utxo) =>
+  compareInputs(
+    { transaction_id: a.txHash, index: a.outputIndex },
+    { transaction_id: b.txHash, index: b.outputIndex },
+  );
 
 /**
  * The payer's UTxOs selection may take for payment: key-locked, not spent, read or named as
@@ -535,6 +570,20 @@ export const balance = (
     ),
     "collateral return",
   );
+  // Without a collateral return every unit of the collateral inputs is at stake, and the ledger
+  // takes no token as collateral
+  const withReturn = ctx.collateralReturn !== false;
+  if (!withReturn)
+    for (const part of givenCollateral)
+      if (!lovelaceOnly(part.utxo!))
+        throw new TxBuildError(
+          "INVALID_COLLATERAL",
+          `the collateral input ${outRefString(part.input)} holds native assets, which can only be put up with a collateral return: give collateral inputs without assets, or drop \`collateralReturn: false\``,
+          {
+            part: part.kind,
+            ...(part.label !== undefined && { label: part.label }),
+          },
+        );
   const core = parts.filter(
     (p) => p.kind !== "collateral" && p.kind !== "collateralReturn",
   );
@@ -840,12 +889,16 @@ export const balance = (
   };
 
   const needsCollateral = runsPlutus || givenCollateral.length > 0;
-  const collateralPool =
+  // Without a return UTxOs holding tokens are left out, and counted for the error's advice
+  const collateralSource =
     ctx.collateralPool ??
     ctx.utxos.filter(
       (u) =>
         isKeyLocked(u) && !read.has(utxoKey(u)) && !refused.has(utxoKey(u)),
     );
+  const collateralPool = collateralSource.filter(
+    (u) => withReturn || lovelaceOnly(u),
+  );
   /**
    * The collateral for a fee. Leniently, collateral that falls short is put up as given rather
    * than rejected: placeholder units overstate the fee it is worked out from
@@ -867,6 +920,8 @@ export const balance = (
         address: givenReturn?.address ?? ctx.changeAddress,
         pool: collateralPool,
         topUp: ctx.topUpCollateral !== false,
+        withReturn,
+        assetsLeftOut: collateralSource.length - collateralPool.length,
       });
     if (!lenient) return strict();
     try {
@@ -887,7 +942,10 @@ export const balance = (
       p.label === undefined ? [] : [[outRefString(p.input), p.label] as const],
     ),
   );
-  /** The collateral and collateral return parts of a round, given ones keeping their labels */
+  /**
+   * The collateral and collateral return parts of a round, given ones keeping their labels;
+   * without a collateral return, the collateral parts alone
+   */
   const collateralParts = (collateral: BalancedCollateral): TxPart[] => [
     ...collateral.inputs.map((utxo): CollateralPart => {
       const label = collateralLabels.get(utxoKey(utxo));
@@ -898,14 +956,18 @@ export const balance = (
         ...(label !== undefined && { label }),
       };
     }),
-    {
-      kind: "collateralReturn",
-      address: givenReturn?.address ?? ctx.changeAddress,
-      totalCollateral: collateral.total.toString(),
-      ...(givenReturn?.label !== undefined && {
-        label: givenReturn.label,
-      }),
-    },
+    ...(withReturn
+      ? [
+          {
+            kind: "collateralReturn" as const,
+            address: givenReturn?.address ?? ctx.changeAddress,
+            totalCollateral: collateral.total.toString(),
+            ...(givenReturn?.label !== undefined && {
+              label: givenReturn.label,
+            }),
+          },
+        ]
+      : []),
   ];
 
   /**
@@ -1102,6 +1164,13 @@ export const totalExUnits = (assembled: AssembledTx) =>
 /**
  * Collateral covering `collateralPercent` of the fee, with what is left returned.
  *
+ * Without a return (`withReturn` false) all of the lovelace of the inputs is at stake, and the
+ * pool holds lovelace-only UTxOs alone: the inputs chosen are those that cover the requirement
+ * at the least cost, the lovelace at stake plus, for each input after the first, the fee of one
+ * more input with its key witness (`COLLATERAL_INPUT_BYTES` at `minFeeA`), so that several are
+ * taken over one only when they spare more than they cost; UTxOs holding a reference script
+ * only when the others cannot.
+ *
  * Given collateral inputs that cover the requirement are used as they are. Otherwise inputs are
  * chosen from the pool: the smallest lovelace-only UTxO that covers the requirement and leaves a
  * return worth making, else the smallest that covers it, else the largest ones, up to
@@ -1126,6 +1195,10 @@ const collateralFor = (
     pool: readonly Utxo[];
     /** Given inputs that do not cover the requirement get inputs from the pool added */
     topUp: boolean;
+    /** False: no return and no stated total; all of the inputs' lovelace is at stake */
+    withReturn: boolean;
+    /** Without a return, the UTxOs left out of `pool` because they hold tokens */
+    assetsLeftOut: number;
   },
 ): BalancedCollateral => {
   const { params } = ctx;
@@ -1151,6 +1224,9 @@ const collateralFor = (
   const cover = (inputs: Utxo[]): BalancedCollateral | undefined => {
     const held = addValues(...inputs.map((u) => valueOf(u.value)));
     if (held.coin < required) return undefined;
+    // Without a return the inputs are forfeited whole, and may hold nothing but lovelace
+    if (!ctx.withReturn)
+      return held.assets.size > 0 ? undefined : { inputs, total: held.coin };
     const rest = subtractValues(held, coinValue(required));
     if (isEmpty(rest)) return { inputs, total: required };
     const output: TransactionOutputPrototype = {
@@ -1213,6 +1289,121 @@ const collateralFor = (
     return { tried: added, usedUp: added.length < room };
   };
 
+  /**
+   * Without a return: the inputs from the pool, after `given`, that make the collateral cover at
+   * the least cost, the lovelace at stake plus `perInput` for each input, among UTxOs without a
+   * reference script, else among all of the pool; ties go to fewer inputs, then to the smaller
+   * out refs. Exact for sets of one, two and three: the smallest UTxO that covers alone, and the
+   * cheapest pair and triple of the `COLLATERAL_SEARCH_LIMIT` largest UTxOs below what is
+   * missing (a UTxO that covers alone costs a set more than it costs alone). Never more than
+   * `room` inputs; where `room` allows more than three and no set of three covers, the largest
+   * ones until they cover. Undefined when none cover.
+   */
+  const chooseAtStake = (
+    given: Utxo[],
+    room: number,
+  ): BalancedCollateral | undefined => {
+    const perInput = BigInt(params.minFeeA) * BigInt(COLLATERAL_INPUT_BYTES);
+    const missing = required - lovelaceIn(given);
+    const keys = new Set(given.map((u) => utxoKey(u)));
+    const candidates = ctx.pool
+      .filter((u) => {
+        const key = utxoKey(u);
+        if (keys.has(key)) return false;
+        keys.add(key);
+        return true;
+      })
+      .sort((a, b) => {
+        const diff = a.value.lovelace - b.value.lovelace;
+        return diff !== 0n ? (diff > 0n ? 1 : -1) : byOutRef(a, b);
+      });
+    const costOf = (set: readonly Utxo[]) =>
+      lovelaceIn(set) + perInput * BigInt(set.length);
+    /** Whether `a` is the better set: cheaper, else fewer inputs, else smaller out refs */
+    const better = (a: readonly Utxo[], b: readonly Utxo[]) => {
+      const diff = costOf(a) - costOf(b);
+      if (diff !== 0n) return diff < 0n;
+      if (a.length !== b.length) return a.length < b.length;
+      const refsA = [...a].sort(byOutRef);
+      const refsB = [...b].sort(byOutRef);
+      for (let i = 0; i < refsA.length; i++) {
+        const order = byOutRef(refsA[i]!, refsB[i]!);
+        if (order !== 0) return order < 0;
+      }
+      return false;
+    };
+    /** The first index from `from` on whose UTxO holds at least `lovelace` */
+    const atLeast = (
+      sorted: readonly Utxo[],
+      from: number,
+      lovelace: bigint,
+    ) => {
+      let low = from;
+      let high = sorted.length;
+      while (low < high) {
+        const middle = (low + high) >> 1;
+        if (sorted[middle]!.value.lovelace < lovelace) low = middle + 1;
+        else high = middle;
+      }
+      return low;
+    };
+    const least = (sorted: readonly Utxo[]): Utxo[] | undefined => {
+      let best: Utxo[] | undefined;
+      const consider = (set: Utxo[]) => {
+        if (!best || better(set, best)) best = set;
+      };
+      const firstCover = atLeast(sorted, 0, missing);
+      if (firstCover < sorted.length) consider([sorted[firstCover]!]);
+      const below = sorted.slice(
+        Math.max(0, firstCover - COLLATERAL_SEARCH_LIMIT),
+        firstCover,
+      );
+      const size = Math.min(room, 3);
+      for (let i = 0; size >= 2 && i < below.length; i++) {
+        const rest = missing - below[i]!.value.lovelace;
+        const k = atLeast(below, i + 1, rest);
+        if (k < below.length) consider([below[i]!, below[k]!]);
+        for (let j = i + 1; size >= 3 && j < below.length; j++) {
+          const last = rest - below[j]!.value.lovelace;
+          // The pair covers: a third input only costs more
+          if (last <= 0n) break;
+          const third = atLeast(below, j + 1, last);
+          if (third < below.length)
+            consider([below[i]!, below[j]!, below[third]!]);
+        }
+      }
+      if (best || room <= 3) return best;
+      // More than three inputs: the largest ones until they cover
+      const set: Utxo[] = [];
+      for (const utxo of [...sorted].reverse()) {
+        if (set.length >= room) break;
+        set.push(utxo);
+        if (lovelaceIn(set) >= missing) return set;
+      }
+      return undefined;
+    };
+    // A UTxO holding a reference script is put up last: the script goes with it
+    const set = least(candidates.filter((u) => !u.script)) ?? least(candidates);
+    if (!set) return undefined;
+    // The largest first
+    const ordered = [...set].sort((a, b) => {
+      const diff = b.value.lovelace - a.value.lovelace;
+      return diff !== 0n ? (diff > 0n ? 1 : -1) : byOutRef(a, b);
+    });
+    return cover([...given, ...ordered]);
+  };
+
+  /** What a shortfall without a return adds when UTxOs holding tokens were left out */
+  const withoutAssets =
+    ctx.withReturn || ctx.assetsLeftOut === 0
+      ? ""
+      : "; UTxOs holding native assets cannot be collateral without a collateral return: give collateral inputs without assets, or drop `collateralReturn: false`";
+  /** How the shortfall names a key-locked UTxO it could not find */
+  const keyLocked =
+    ctx.withReturn || ctx.assetsLeftOut === 0
+      ? "key-locked UTxO"
+      : "key-locked UTxO without native assets";
+
   /** Names the UTxOs a choice tried when there were no more to try, for its error */
   const allOf = (count: number, may: string) =>
     count === 1
@@ -1237,16 +1428,20 @@ const collateralFor = (
         { required, available: lovelaceIn(given) },
         atFault,
       );
+    // Without a return, that choice is the whole choice; the other only names what it tried
+    const atStake = ctx.withReturn ? undefined : chooseAtStake(given, room);
+    if (atStake) return atStake;
     const choice = choose(given, room);
     if (choice.found) return choice.found;
     const { tried, usedUp } = choice;
     const shortfall = new TxBuildError(
       "INSUFFICIENT_COLLATERAL",
-      tried.length === 0
-        ? `${notCovered}, and no key-locked UTxO is available to add to them`
+      (tried.length === 0
+        ? `${notCovered}, and no ${keyLocked} is available to add to them`
         : usedUp
           ? `${notCovered}, and ${allOf(tried.length, "be added to them")} make them cover it`
-          : `${notCovered}, and no ${tried.length} more UTxOs added to them cover it`,
+          : `${notCovered}, and no ${tried.length} more UTxOs added to them cover it`) +
+        withoutAssets,
       {
         ...(atFault && {
           part: atFault.kind,
@@ -1272,22 +1467,29 @@ const collateralFor = (
     // The inputs are at fault: the collateral part, when one part gives them all
     const atFault =
       ctx.givenParts?.length === 1 ? ctx.givenParts[0] : undefined;
-    const notCovered = `the collateral inputs cannot cover ${required} lovelace and return the rest`;
+    const notCovered = ctx.withReturn
+      ? `the collateral inputs cannot cover ${required} lovelace and return the rest`
+      : `the collateral inputs cannot cover ${required} lovelace`;
     if (!ctx.topUp)
       fail(notCovered, { required, available: lovelaceIn(ctx.given) }, atFault);
     return topUpGiven(notCovered, atFault);
   }
 
+  const atStake = ctx.withReturn
+    ? undefined
+    : chooseAtStake([], params.maxCollateralInputs);
+  if (atStake) return atStake;
   const choice = choose([], params.maxCollateralInputs);
   if (choice.found) return choice.found;
   const { tried, usedUp } = choice;
   const shortfall = new TxBuildError(
     "INSUFFICIENT_COLLATERAL",
-    tried.length === 0
-      ? "no key-locked UTxO is available to put up as collateral"
+    (tried.length === 0
+      ? `no ${keyLocked} is available to put up as collateral`
       : usedUp
-        ? `${allOf(tried.length, "be put up as collateral")} cover ${required} lovelace and return the rest`
-        : `no ${tried.length} UTxOs cover the ${required} lovelace collateral`,
+        ? `${allOf(tried.length, "be put up as collateral")} cover ${required} lovelace${ctx.withReturn ? " and return the rest" : ""}`
+        : `no ${tried.length} UTxOs cover the ${required} lovelace collateral`) +
+      withoutAssets,
     { details: { required, available: lovelaceIn(tried) } },
   );
   poolShortfalls.add(shortfall);
