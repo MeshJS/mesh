@@ -431,22 +431,29 @@ are the `BuiltTxData` data, read-only, so it goes wherever that data goes (`afte
 `outputOf`) and copies as plain data. The object itself is frozen; the data nested in its members is
 the build's own and can be changed, and nothing that is signed or sent is read from it. Beside them
 it holds the witnesses given to it, the payer of its build when that payer can sign (written
-nowhere: none after `finalize` or `restore`), and has `sign({ signers?, partial?, signal? })`
-(without signers, the payer signs, by a plan's rules), `addWitnesses(...)`, `submit({ submitter?,
-signal? })`, `awaitInclusion({ timeoutMs?, pollMs?, signal? })`, `signedTx` (only when no key is
-missing), `partialTx` (the witnesses held so far, for a party that signs next in another program),
-`missing` and `toJSON()`, with `builder.restore(json)` to bring it back in another process. The
-object is one body: its bytes and hash are fixed when it is made, no call builds or edits a
-transaction, a repeated `submit()` sends the same bytes, and `awaitInclusion()` promises one
-sighting in a block and no more, each look bounded by the time left. It is not a second lifecycle:
-no deadline, no anchor, no statuses, no replacement and no store; those are a plan's, and a plan's
-`build()` returns the data without these calls, since a plan signs and sends its own attempts. Do
-not rebuild to retry: a retry is the same call on the same object ([The path without a
-lifecycle][r-no-lifecycle]).
+nowhere: none after `finalize`, `restore` or `fromCbor`), and has `sign({ signers?, partial?,
+signal? })` (without signers, the payer signs, by a plan's rules), `addWitnesses(...)`,
+`submit({ submitter?, signal? })`, `awaitInclusion({ timeoutMs?, pollMs?, signal? })`, `signedTx`
+(only when no key is missing), `partialTx` (the witnesses held so far, for a party that signs next
+in another program), `missing` and `toJSON()`, with `builder.restore(json)` to bring it back in
+another process.
+`builder.fromCbor(txCbor, { knownUtxos? })` makes the same object of a transaction that exists only
+as CBOR: its body is taken as given, byte for byte, and its members are read from those bytes and
+from the UTxOs of its inputs, collateral inputs and reference inputs, given in `knownUtxos` or read
+through the provider's cache. The object is one body: its bytes and hash are fixed when it is
+made, no call builds or edits a transaction, a repeated `submit()` sends the same bytes, and
+`awaitInclusion()` promises one sighting in a block and no more, each look bounded by the time
+left. It is not a second lifecycle: no deadline, no anchor, no statuses, no replacement and no
+store; those are a plan's, and a plan's `build()` returns the data without these calls, since a
+plan signs and sends its own attempts. Do not rebuild to retry: a retry is the same call on the
+same object ([The path without a lifecycle][r-no-lifecycle]).
 
-- **Keeping.** A signature is kept once per key, after it verifies against the body: the keys
-  asked for, as many other keys as the build's `extraKeyWitnesses` (none after `finalize`), and
-  as many bootstrap witnesses as the transaction spends from Byron addresses.
+- **Keeping.** A signature is kept once per key and kind, after it verifies against the body: the
+  keys asked for, as many other keys as the build's `extraKeyWitnesses` (none after `finalize`;
+  after `fromCbor`, as many as the transaction came with), and as many bootstrap witnesses as the
+  transaction spends from Byron addresses. A key counts as signed by its vkey witness alone. A vkey
+  or bootstrap entry is written with the set tag it had in the transaction or the JSON the object
+  was made of, else as the body writes its input set.
 - **A refusal.** `submit()` decides on settled facts. After a delivery of the object that was
   taken, or whose answer was lost, a refusal is no error and the call returns; a delivery that
   has not answered yet is waited for, and decides. Otherwise one look for the transaction: found,
@@ -456,13 +463,26 @@ lifecycle][r-no-lifecycle]).
   not to build another transaction to retry it. `SUBMIT_FAILED`, of a plan too, carries
   `details.reason` and `details.status`, what the submitter's error says; they change nothing of
   what it means.
-- **The JSON** carries the data of the build with `signers` as built, the witnesses held, the
-  build's `extraKeyWitnesses`, and a mark for a delivery taken, of unknown outcome, or in flight
-  when it was written. `restore` makes no request and refuses a record whose transaction holds
-  witnesses (they go in `witnesses`), whose hash is not its body's, whose witnesses are not of its
-  body (`INVALID_OPTION`), of another network (`NETWORK_MISMATCH`), or with content it does not
-  read (`INVALID_STATE`, `recordVersion`); its errors quote nothing of the record but its
-  network.
+- **The JSON** carries the data of the build with `signers` as built, the witnesses held, each of
+  their two entries with the set tag the object writes it with, the build's `extraKeyWitnesses`,
+  and a mark for a delivery taken, of unknown outcome, or in flight when it was written. `restore`
+  makes no request and refuses a record whose transaction holds witnesses (they go in
+  `witnesses`), whose hash is not its body's, whose witnesses are not of its body
+  (`INVALID_OPTION`), of another network (`NETWORK_MISMATCH`), or with content it does not read
+  (`INVALID_STATE`, `recordVersion`); its errors quote nothing of the record but its network.
+- **A transaction from CBOR.** `fromCbor` decodes nothing before one walk over the bytes, which
+  refuses what cannot be read in one way or in reasonable time: above the size limit (the builder's
+  `maxTxSize`, else 16 384 bytes), nested deeper than 64 levels, more nested data than about a
+  second of decoding, a map that repeats a key, redeemers that name one purpose twice, a key the
+  decoder does not read, an earlier era's form. Once decoded it refuses what a ledger does not
+  take (a negative fee, a zero quantity, an out ref twice, an address with trailing bytes), a
+  validity flag of false, another network, a parameter-change proposal (not read from CBOR) and a
+  signature that is not of the body. It judges nothing else: the fee, the balance, the scripts and
+  the validity interval are the ledger's. It writes no byte that a hash covers, and a transaction
+  that came signed takes no more bytes than it was given in. Its view of the inputs and signers is
+  only as true as `knownUtxos` and the provider; it warns `COLLATERAL_RETURN_ELSEWHERE` because the
+  validity flag is not signed, so whoever submits can make the collateral inputs spent. A bootstrap
+  witness is counted for the Byron addresses spent from, not matched to its address.
 
 A signer is a wallet, `keySigner(key)` over a private key, or the application's own
 `signTxHash(request)` (an object with it, or the function), which is told the hash and the keys
