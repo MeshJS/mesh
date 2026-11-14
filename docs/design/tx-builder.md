@@ -73,7 +73,7 @@ state of a payment lives in its `TxPlan`, and with a `store` in the store's reco
 ### Non-goals
 
 - **No wallet in the builder.** Who pays is the `payer` of each build or plan; who signs is the
-  call's `signers`, else the plan's payer; who submits is the call's `submitter`, else the
+  call's `signers`, else the payer when it can sign; who submits is the call's `submitter`, else the
   builder's, else the provider. `build` returns an unsigned transaction: signing, submission and
   waiting are steps of a `TxPlan`, or of the `BuiltTx` a build returns.
 - **No built-in protocol parameters.** `params` is used whole, else the provider is read; with
@@ -410,7 +410,8 @@ plan is `draft` until its first attempt is built. Its options are the build opti
   otherwise `CANNOT_OBSERVE`, before anything is signed or sent. Local timers only set the pace
   of waiting (`pollMs`, `resendMs`).
 - **Steps.** `sign()`, `send()` and `advance()` sign with the call's `signers`, else the payer,
-  checking every witness against the body; `send()` builds in `draft` only, submits and waits for
+  checking every witness against the body; the payer gives only the keys it is asked for, and is
+  not asked when none is left. `send()` builds in `draft` only, submits and waits for
   `waitFor`, and in `sent` sends the same bytes again. `abandon()` records the closing mark and
   closes the plan once no attempt can land.
 - **The store.** `TxPlanStore` is `load(id)` and a compare-and-set `save(json, expectedRev)`. Every
@@ -425,21 +426,23 @@ one are in the README: [Plans][r-plans], [Servers][r-servers],
 
 ## Signing without a plan
 
-`build()` and `finalize()` return a `BuiltTx`: one built transaction as an object. Its own
-members are the `BuiltTxData` data, read-only, so it goes wherever that data goes (`after`,
-`utxosAfter`, `outputOf`) and copies as plain data. The object itself is frozen; the data nested in
-its members is the build's own and can be changed, and nothing that is signed or sent is read from
-it. Beside them it holds the witnesses given to it and has `sign({ signers, partial?, signal? })`,
-`addWitnesses(...)`, `submit({ submitter?, signal? })`,
-`awaitInclusion({ timeoutMs?, pollMs?, signal? })`, `signedTx` (only when no key is missing),
-`partialTx` (the witnesses held so far, for a party that signs next in another program), `missing`
-and `toJSON()`, with `builder.restore(json)` to bring it back in another process. The object is one
-body: its bytes and hash are fixed when it is made, no call builds or edits a transaction, a
-repeated `submit()` sends the same bytes, and `awaitInclusion()` promises one sighting in a block
-and no more, each look bounded by the time left. It is not a second lifecycle: no deadline, no
-anchor, no statuses, no replacement and no store; those are a plan's, and a plan's `build()` returns
-the data without these calls, since a plan signs and sends its own attempts. Do not rebuild to
-retry: a retry is the same call on the same object ([The path without a lifecycle][r-no-lifecycle]).
+`build()` and `finalize()` return a `BuiltTx`: one built transaction as an object. Its own members
+are the `BuiltTxData` data, read-only, so it goes wherever that data goes (`after`, `utxosAfter`,
+`outputOf`) and copies as plain data. The object itself is frozen; the data nested in its members is
+the build's own and can be changed, and nothing that is signed or sent is read from it. Beside them
+it holds the witnesses given to it, the payer of its build when that payer can sign (written
+nowhere: none after `finalize` or `restore`), and has `sign({ signers?, partial?, signal? })`
+(without signers, the payer signs, by a plan's rules), `addWitnesses(...)`, `submit({ submitter?,
+signal? })`, `awaitInclusion({ timeoutMs?, pollMs?, signal? })`, `signedTx` (only when no key is
+missing), `partialTx` (the witnesses held so far, for a party that signs next in another program),
+`missing` and `toJSON()`, with `builder.restore(json)` to bring it back in another process. The
+object is one body: its bytes and hash are fixed when it is made, no call builds or edits a
+transaction, a repeated `submit()` sends the same bytes, and `awaitInclusion()` promises one
+sighting in a block and no more, each look bounded by the time left. It is not a second lifecycle:
+no deadline, no anchor, no statuses, no replacement and no store; those are a plan's, and a plan's
+`build()` returns the data without these calls, since a plan signs and sends its own attempts. Do
+not rebuild to retry: a retry is the same call on the same object ([The path without a
+lifecycle][r-no-lifecycle]).
 
 - **Keeping.** A signature is kept once per key, after it verifies against the body: the keys
   asked for, as many other keys as the build's `extraKeyWitnesses` (none after `finalize`), and
@@ -450,7 +453,9 @@ retry: a retry is the same call on the same object ([The path without a lifecycl
   the call returns; not found, or the provider cannot be asked, it is `REJECTED`
   (`otherLive: []`), and the message says which. The call's `signal` stops the waiting. The
   messages of `SUBMIT_FAILED`, `REJECTED` and `CONFIRM_TIMEOUT` from the object end with the rule
-  not to build another transaction to retry it.
+  not to build another transaction to retry it. `SUBMIT_FAILED`, of a plan too, carries
+  `details.reason` and `details.status`, what the submitter's error says; they change nothing of
+  what it means.
 - **The JSON** carries the data of the build with `signers` as built, the witnesses held, the
   build's `extraKeyWitnesses`, and a mark for a delivery taken, of unknown outcome, or in flight
   when it was written. `restore` makes no request and refuses a record whose transaction holds
@@ -520,6 +525,10 @@ and `TxError.is(error, ...codes)` cover the whole tree, across copies of the pac
   enumerable, `plan`. Retryable:
   `SUBMIT_FAILED`, `CONFIRM_TIMEOUT`, `NOT_YET_VALID`, `STILL_LIVE` and `CANNOT_OBSERVE` with
   `unconfirmed`.
+
+Options of a call that are not an object, or have a member the call does not know, are
+`INVALID_OPTION`. Where what was given may be or hold a key (options, a signer, a key, a payer, a
+submitter, a `tx`), `details.value` names only its JavaScript type, and no message quotes it.
 
 The README's [Errors][r-errors] table gives every code with its condition, `details` and retry
 rule.
