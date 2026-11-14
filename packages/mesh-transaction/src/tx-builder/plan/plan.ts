@@ -9,13 +9,7 @@ import type {
 } from "../builder";
 import type { TxPlanErrorCode, TxPlanErrorDetails } from "../errors";
 import type { OutRef, TxPart, Utxo } from "../parts/types";
-import type {
-  Payer,
-  PayerRead,
-  PayerSnapshot,
-  PayerSource,
-  TxWallet,
-} from "../payer";
+import type { Payer, PayerRead, PayerSnapshot, PayerSource } from "../payer";
 import type { KeyWitness, Signer } from "../sign";
 import type { RequiredKey } from "../witnesses";
 import type {
@@ -56,9 +50,9 @@ import { collateral, spend, validity } from "../parts";
 import { outRefOf, plainUtxo, utxoKey } from "../parts/utxo";
 import { toPayerSource } from "../payer";
 import {
-  canSign,
   countedWitnesses,
   isWallet,
+  payerSigner,
   readTransaction,
   readWitnessArgument,
   signerWitnesses,
@@ -2984,10 +2978,8 @@ export class TxPlan {
 
   /** The payer, as the signer of last resort, when it can sign */
   #payerSigner(state: PlanState): Signer[] | undefined {
-    const { payer } = state;
-    return payer !== undefined && typeof payer === "object" && canSign(payer)
-      ? [payer as TxWallet & Signer]
-      : undefined;
+    const signer = payerSigner(state.payer);
+    return signer === undefined ? undefined : [signer];
   }
 
   /**

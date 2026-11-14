@@ -64,6 +64,7 @@ import type {
   TxPlanStore,
 } from "./plan/types";
 import type { GovernanceDeposits } from "./resolve";
+import type { Signer } from "./sign";
 import type { TxSigners } from "./witnesses";
 import { abortable, throwIfAborted } from "./abort";
 import { checkPartRepeats, checkPrototypeRepeats } from "./assemble";
@@ -123,7 +124,7 @@ import {
 import { checkPlanDefaults } from "./plan/deadlines";
 import { createPlan, resumePlan, TxPlan } from "./plan/plan";
 import { resolveParts, resolveValidity } from "./resolve";
-import { bodySigners, readTransaction } from "./sign";
+import { bodySigners, payerSigner, readTransaction } from "./sign";
 import { placeholderWitnesses, signersOf, txSigners } from "./witnesses";
 
 /**
@@ -1668,11 +1669,27 @@ export class TxBuilder {
   ): Promise<BuiltTx> {
     // Nothing can be read without a payer: that comes first, then the parts, then the options'
     // types, then the network of what the build is given, all before any request
-    const source = toPayerSource(options?.payer);
+    // The payer is read once: what is built from is what signs
+    const given = options?.payer;
+    const source = toPayerSource(given);
     // A plan builds through buildList and keeps plain data; only this call makes the object.
     // The object keeps the witnesses of as many other keys as the fee was priced for
     const built = await this.buildList(source, this.withAdded(parts), options);
-    return makeBuiltTx(this, built, options?.extraKeyWitnesses ?? 0);
+    // The payer, when it can sign, as a plan's rule takes it: the object's signer when none is
+    // named. One whose methods cannot be read is not kept
+    let payer: Signer | undefined;
+    try {
+      payer = payerSigner(given);
+    } catch {
+      payer = undefined;
+    }
+    return makeBuiltTx(
+      this,
+      built,
+      options?.extraKeyWitnesses ?? 0,
+      undefined,
+      payer,
+    );
   }
 
   /**

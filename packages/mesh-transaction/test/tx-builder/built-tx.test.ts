@@ -1,4 +1,5 @@
 import { getEventListeners } from "node:events";
+import { inspect } from "node:util";
 
 import { CachedFetcher } from "@meshsdk/common";
 import {
@@ -345,8 +346,15 @@ describe("BuiltTx: the object", () => {
     const attempt = await planBuilder.plan(pay(), { payer: address }).build();
     // @ts-expect-error: a plan's attempt is data and has no sign
     expect(attempt.sign).toBeUndefined();
-    // @ts-expect-error: signers are required
-    await expect(built.sign({})).rejects.toThrow(TxPlanError);
+    // Signers are optional: a payer given as a snapshot without a signing method does not sign
+    for (const call of [
+      () => built.sign(),
+      () => built.sign({}),
+      () => built.sign({ partial: false }),
+    ])
+      expect(TxPlanError.is(await caught(call), "MISSING_SIGNATURES")).toBe(
+        true,
+      );
     // @ts-expect-error: partial is a boolean
     await expect(built.sign({ signers: [], partial: "no" })).rejects.toThrow(
       TxBuildError,
@@ -859,6 +867,669 @@ describe("BuiltTx.sign", () => {
       const { vkeys } = vkeysOf(built.signedTx!);
       expect([...vkeys].sort()).toEqual([payer.vkey, guardKey.vkey].sort());
     });
+  });
+});
+
+/**
+ * A payer given as a wallet that reads its own UTxOs at a key's address, with the members it
+ * signs with
+ */
+const walletPayer = <S extends object>(key: TestKey, signing: S) => ({
+  getChangeAddress: async () => key.address,
+  getUtxos: async () => [utxoAt(key.address)],
+  ...signing,
+});
+
+/** A payment paid by this payer that the guard key, when given, must sign too */
+const paidBy = (payer: object | string, guardKey?: TestKey, b = builder()) =>
+  b.build(
+    [
+      output({ address: recipient, value: { lovelace: ada(5) } }),
+      guardKey && guard.pubKey({ keyHash: guardKey.keyHash }),
+    ],
+    { payer: payer as never },
+  );
+
+/** A witness set of a key over the transaction given */
+const witnessOf = (key: TestKey, tx: string) =>
+  witnessSet(readTransaction(tx).txId, key);
+
+/** Every form of a wallet that can sign, given as a payer, and what it records of each call */
+const payerForms: [
+  string,
+  (key: TestKey) => { payer: object; calls: unknown[][] },
+][] = [
+  [
+    "a wallet that signs hashes (signTxHash)",
+    (key) => {
+      const calls: unknown[][] = [];
+      const payer = walletPayer(key, {
+        signTxHash(this: unknown, request: TxHashRequest) {
+          calls.push(["signTxHash", request.txHash, request.keys, this]);
+          return Promise.resolve(
+            (request.keys ?? []).some(({ keyHash }) => keyHash === key.keyHash)
+              ? [key.answer(request.txHash)]
+              : [],
+          );
+        },
+      });
+      return { payer, calls };
+    },
+  ],
+  [
+    "a wallet that answers with a witness set (signTxWitnesses)",
+    (key) => {
+      const calls: unknown[][] = [];
+      const payer = walletPayer(key, {
+        signTxWitnesses(this: unknown, tx: string, keyHashes?: string[]) {
+          calls.push(["signTxWitnesses", tx, keyHashes, this]);
+          return Promise.resolve(witnessOf(key, tx));
+        },
+      });
+      return { payer, calls };
+    },
+  ],
+  [
+    "a wallet in the Mesh format (signTx)",
+    (key) => {
+      const calls: unknown[][] = [];
+      const payer = walletPayer(key, {
+        getUtxosHex: async () => [],
+        signTx(this: unknown, ...args: unknown[]) {
+          calls.push(["mesh", ...args, this]);
+          return Promise.resolve(witnessOf(key, args[0] as string));
+        },
+      });
+      return { payer, calls };
+    },
+  ],
+  [
+    "a CIP-30 api (signTx)",
+    (key) => {
+      const calls: unknown[][] = [];
+      const payer = walletPayer(key, {
+        signTx(this: unknown, ...args: unknown[]) {
+          calls.push(["cip30", ...args, this]);
+          return Promise.resolve(witnessOf(key, args[0] as string));
+        },
+      });
+      return { payer, calls };
+    },
+  ],
+];
+
+describe("BuiltTx.sign without signers: the payer of the build", () => {
+  it("asks the payer once, with the keys that have not signed, and with the payer's key alone the transaction is signed", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const { signer, requests, self } = keysSigner("object", key);
+    const payer = walletPayer(key, signer);
+    const built = await paidBy(payer);
+    expect(await built.sign()).toBe(built);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toEqual({
+      txHash: built.txHash,
+      keys: [keyOf(key.keyHash, "input")],
+      tx: built.tx,
+    });
+    // The very object given as the payer is asked
+    expect(self[0]).toBe(payer);
+    expect(built.missing).toEqual([]);
+    expect(built.signedTx).toBeDefined();
+    expect(await signedKeyHashes(built.signedTx!)).toEqual([key.keyHash]);
+    // Nothing is left: it is not asked again
+    await built.sign();
+    await built.sign({});
+    expect(requests).toHaveLength(1);
+  });
+
+  it("asks the payer only for the keys that have not signed yet", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const guardKey = testKey();
+    const { signer, requests } = keysSigner("object", key, guardKey);
+    const built = await paidBy(walletPayer(key, signer), guardKey);
+    await built.addWitnesses(witnessSet(built.txHash, guardKey));
+    await built.sign();
+    expect(requests.map((request) => request.keys)).toEqual([
+      [keyOf(key.keyHash, "input")],
+    ]);
+    expect(built.signedTx).toBeDefined();
+  });
+
+  it.each(payerForms)(
+    "signs with %s, handed what that form takes",
+    async (_, make) => {
+      await Crypto.ready();
+      const key = testKey();
+      const { payer, calls } = make(key);
+      const built = await paidBy(payer);
+      await built.sign({ partial: false });
+      expect(calls).toHaveLength(1);
+      const [form, ...rest] = calls[0]!;
+      // Each form is called on the payer itself
+      expect(rest[rest.length - 1]).toBe(payer);
+      const args = rest.slice(0, -1);
+      if (form === "signTxHash")
+        expect(args).toEqual([built.txHash, [keyOf(key.keyHash, "input")]]);
+      if (form === "signTxWitnesses")
+        expect(args).toEqual([built.tx, [key.keyHash]]);
+      if (form === "mesh") expect(args).toEqual([built.tx, true, false]);
+      if (form === "cip30") expect(args).toEqual([built.tx, true]);
+      expect(await signedKeyHashes(built.signedTx!)).toEqual([key.keyHash]);
+    },
+  );
+
+  it.each(payerForms)(
+    "asks only the signers named, never the payer, while the payer's key is still missing: %s",
+    async (_, make) => {
+      await Crypto.ready();
+      const key = testKey();
+      const guardKey = testKey();
+      const { payer, calls } = make(key);
+      const named = keysSigner("object", guardKey);
+      const built = await paidBy(payer, guardKey);
+      await built.sign({ signers: named.signer });
+      expect(calls).toHaveLength(0);
+      expect(named.requests).toHaveLength(1);
+      expect(built.missing).toEqual([keyOf(key.keyHash, "input")]);
+      expect(await signedKeyHashes(built.partialTx)).toEqual([
+        guardKey.keyHash,
+      ]);
+    },
+  );
+
+  it.each([
+    ["an empty list of signers, as a plan does", { signers: [] }],
+    ["signers given as undefined", { signers: undefined }],
+  ])("asks the payer for %s", async (_, options) => {
+    await Crypto.ready();
+    const key = testKey();
+    const { signer, requests } = keysSigner("object", key);
+    const built = await paidBy(walletPayer(key, signer));
+    await built.sign(options);
+    expect(requests).toHaveLength(1);
+    expect(built.signedTx).toBeDefined();
+  });
+
+  it("keeps the very payer the build read, read once from the options", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const first = keysSigner("object", key);
+    const later = keysSigner("object", key);
+    let reads = 0;
+    const options = {
+      get payer() {
+        reads += 1;
+        return walletPayer(key, reads === 1 ? first.signer : later.signer);
+      },
+    };
+    const built = await builder().build(
+      [output({ address: recipient, value: { lovelace: ada(5) } })],
+      options as never,
+    );
+    expect(reads).toBe(1);
+    await built.sign();
+    expect([first.requests.length, later.requests.length]).toEqual([1, 0]);
+  });
+
+  it("signs with a payer given as a snapshot that carries a signing method, as a plan's payer signs", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const { signer, requests, self } = keysSigner("object", key);
+    const snapshot = {
+      changeAddress: key.address,
+      utxos: [utxoAt(key.address)],
+      ...signer,
+    };
+    const built = await paidBy(snapshot);
+    await built.sign({ partial: false });
+    expect(requests).toHaveLength(1);
+    expect(self[0]).toBe(snapshot);
+    expect(await signedKeyHashes(built.signedTx!)).toEqual([key.keyHash]);
+  });
+
+  it.each([
+    ["a CIP-30 api", 3],
+    ["a wallet that answers with a witness set (signTxWitnesses)", 1],
+  ] as const)(
+    "does not ask %s again when every key has signed",
+    async (_, form) => {
+      await Crypto.ready();
+      const key = testKey();
+      const { payer, calls } = payerForms[form]![1](key);
+      const built = await paidBy(payer);
+      await built.sign();
+      expect(built.signedTx).toBeDefined();
+      await built.sign();
+      await built.sign({ partial: false });
+      expect(calls).toHaveLength(1);
+    },
+  );
+
+  it("does not ask the payer when the call is aborted or its options are refused", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const { signer, requests } = keysSigner("object", key);
+    const built = await paidBy(walletPayer(key, signer));
+    const controller = new AbortController();
+    controller.abort();
+    expect(
+      TxBuildError.is(
+        await caught(() => built.sign({ signal: controller.signal })),
+        "ABORTED",
+      ),
+    ).toBe(true);
+    expect(
+      TxBuildError.is(
+        await caught(() => built.sign({ partial: "no" as never })),
+        "INVALID_OPTION",
+      ),
+    ).toBe(true);
+    expect(requests).toHaveLength(0);
+    expect(built.partialTx).toBe(built.tx);
+  });
+
+  it("with partial: false and a second key needed, is MISSING_SIGNATURES and keeps the payer's witness", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const guardKey = testKey();
+    const { signer, requests } = keysSigner("object", key);
+    const built = await paidBy(walletPayer(key, signer), guardKey);
+    const error = await caught(() => built.sign({ partial: false }));
+    expect(error).toBeInstanceOf(TxPlanError);
+    const { code, details } = error as TxPlanError<"MISSING_SIGNATURES">;
+    expect(code).toBe("MISSING_SIGNATURES");
+    expect(details.missing).toEqual([keyOf(guardKey.keyHash, "guard")]);
+    expect(requests).toHaveLength(1);
+    expect(await signedKeyHashes(built.partialTx)).toEqual([key.keyHash]);
+  });
+
+  it("keeps nothing of a payer that answers with a witness of another key, and throws nothing by default", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const other = testKey();
+    const byHash = hashSigner("object", ({ txHash }) => [other.answer(txHash)]);
+    const bySetCalls: string[] = [];
+    const bySet = {
+      signTxWitnesses: async (tx: string) => {
+        bySetCalls.push(tx);
+        return witnessSet(readTransaction(tx).txId, other);
+      },
+    };
+    for (const signing of [byHash.signer, bySet]) {
+      const built = await paidBy(walletPayer(key, signing));
+      expect(await built.sign()).toBe(built);
+      expect(built.partialTx).toBe(built.tx);
+      expect(built.missing).toEqual([keyOf(key.keyHash, "input")]);
+    }
+    expect(byHash.requests).toHaveLength(1);
+    expect(bySetCalls).toHaveLength(1);
+  });
+
+  describe("an object that holds no payer: MISSING_SIGNATURES, nothing asked, whatever partial is", () => {
+    const expectNobody = async (built: BuiltTx, missing: unknown[]) => {
+      for (const options of [
+        undefined,
+        {},
+        { partial: true },
+        { partial: false },
+        { signers: [] },
+        { signers: undefined },
+      ]) {
+        const error = await caught(() => built.sign(options));
+        expect(error).toBeInstanceOf(TxPlanError);
+        const { code, details, message } =
+          error as TxPlanError<"MISSING_SIGNATURES">;
+        expect(code).toBe("MISSING_SIGNATURES");
+        expect(details.missing).toEqual(missing);
+        expect(message).toMatch(/^nobody can sign: /);
+        expect(message).toContain("sign({ signers })");
+        expect(message).toContain("addWitnesses");
+        expect(message).toContain("the object holds no payer that signs");
+        expect(message).toContain(
+          `${missing.length} key(s) the transaction needs have not signed it`,
+        );
+      }
+      expect(built.partialTx).toBe(built.tx);
+    };
+
+    it("a payer given as a snapshot", async () => {
+      await Crypto.ready();
+      const key = testKey();
+      const built = await paidBy({
+        changeAddress: key.address,
+        utxos: [utxoAt(key.address)],
+      });
+      await expectNobody(built, [keyOf(key.keyHash, "input")]);
+    });
+
+    it("a payer given as an address, its UTxOs read through the provider", async () => {
+      await Crypto.ready();
+      const key = testKey();
+      const reads: string[] = [];
+      const b = new TxBuilder({
+        network: "preprod",
+        params,
+        costModels,
+        provider: {
+          fetchAddressUTxOs: async (address: string) => {
+            reads.push(address);
+            return [utxoAt(key.address)];
+          },
+        } as never,
+      });
+      const built = await paidBy(key.address, undefined, b);
+      expect(reads).toEqual([key.address]);
+      await expectNobody(built, [keyOf(key.keyHash, "input")]);
+    });
+
+    it("a payer given as a wallet without a signing method", async () => {
+      await Crypto.ready();
+      const key = testKey();
+      const built = await paidBy(walletPayer(key, {}));
+      await expectNobody(built, [keyOf(key.keyHash, "input")]);
+    });
+
+    it("a payer read with builder.readPayer(wallet), a wallet that signs", async () => {
+      await Crypto.ready();
+      const key = testKey();
+      const { signer, requests } = keysSigner("object", key);
+      const b = builder();
+      const read = await b.readPayer(walletPayer(key, signer));
+      const built = await paidBy(read, undefined, b);
+      await expectNobody(built, [keyOf(key.keyHash, "input")]);
+      expect(requests).toHaveLength(0);
+    });
+
+    it("a payer whose signing method is gone at the call", async () => {
+      await Crypto.ready();
+      const key = testKey();
+      const { signer, requests } = keysSigner("object", key);
+      const payer = walletPayer(key, signer) as { signTxHash?: unknown };
+      const built = await paidBy(payer);
+      delete payer.signTxHash;
+      await expectNobody(built, [keyOf(key.keyHash, "input")]);
+      expect(requests).toHaveLength(0);
+    });
+
+    it("an object made by finalize()", async () => {
+      await Crypto.ready();
+      const key = testKey();
+      const { signer, requests } = keysSigner("object", key);
+      const b = builder();
+      const built = await paidBy(walletPayer(key, signer), undefined, b);
+      const final = await b.finalize(structuredClone(built.prototype), {
+        inputs: built.inputs,
+        changeAddress: key.address,
+      });
+      await expectNobody(final, [keyOf(key.keyHash, "input")]);
+      expect(requests).toHaveLength(0);
+    });
+
+    it("an object restored from the JSON of one that holds its payer; the JSON shows nothing of the payer", async () => {
+      await Crypto.ready();
+      const key = testKey();
+      const { signer, requests } = keysSigner("object", key);
+      const marker = `payer-marker-${Math.random().toString(36).slice(2)}`;
+      const payer = Object.assign(walletPayer(key, signer), { marker });
+      const b = builder();
+      const built = await paidBy(payer, undefined, b);
+      const text = JSON.stringify(built);
+      expect(text.includes(marker)).toBe(false);
+      expect(text.includes("signTxHash")).toBe(false);
+      expect(text.includes("getChangeAddress")).toBe(false);
+      const again = await b.restore(JSON.parse(text));
+      await expectNobody(again, [keyOf(key.keyHash, "input")]);
+      expect(requests).toHaveLength(0);
+      // The object it was written from still signs with its payer
+      await built.sign();
+      expect(requests).toHaveLength(1);
+      expect(JSON.stringify(built).includes(marker)).toBe(false);
+    });
+  });
+});
+
+describe("BuiltTx.sign: a signer whose signing method cannot be read when it is asked", () => {
+  const THROWN = `getter-thrown-${Math.random().toString(36).slice(2)}`;
+
+  /**
+   * A signer of hashes over a key whose `signTxHash` is a getter, set on `target`: it throws
+   * from the read `failAfter(n)` names on, counted from that call
+   */
+  const fragile = <T extends object>(key: TestKey, target: T) => {
+    let reads = 0;
+    let failFrom = Infinity;
+    const requests: TxHashRequest[] = [];
+    Object.defineProperty(target, "signTxHash", {
+      enumerable: true,
+      configurable: true,
+      get() {
+        reads += 1;
+        if (reads >= failFrom) throw new Error(THROWN);
+        return async (request: TxHashRequest) => {
+          requests.push(request);
+          return [key.answer(request.txHash)];
+        };
+      },
+    });
+    return {
+      signer: target as T & Signer,
+      requests,
+      failAfter: (n: number) => {
+        failFrom = reads + n;
+      },
+    };
+  };
+
+  /** SIGNER_FAILED, with nothing of what the getter threw in it */
+  const expectUnreadable = (error: unknown) => {
+    expect(error).toBeInstanceOf(TxPlanError);
+    const { code, cause, message } = error as TxPlanError<"SIGNER_FAILED">;
+    expect(code).toBe("SIGNER_FAILED");
+    expect(cause).toBeUndefined();
+    expect(message).toContain("the signer could not be asked");
+    expect(
+      inspect(error, { depth: Infinity, showHidden: true }).includes(THROWN),
+    ).toBe(false);
+  };
+
+  it.each([
+    ["when the call reads whether it can sign", 1],
+    ["when it is asked", 2],
+  ])("is SIGNER_FAILED for a payer whose method throws %s", async (_, read) => {
+    await Crypto.ready();
+    const key = testKey();
+    const payer = fragile(key, walletPayer(key, {}));
+    const built = await paidBy(payer.signer);
+    payer.failAfter(read);
+    expectUnreadable(await caught(() => built.sign()));
+    expect(payer.requests).toHaveLength(0);
+    expect(built.partialTx).toBe(built.tx);
+  });
+
+  it.each([
+    ["when its options are read", 1],
+    ["when it is asked", 2],
+  ])(
+    "is SIGNER_FAILED for a signer named whose method throws %s, and the payer is not asked",
+    async (_, read) => {
+      await Crypto.ready();
+      const key = testKey();
+      const payer = keysSigner("object", key);
+      const built = await paidBy(walletPayer(key, payer.signer));
+      const named = fragile(key, {});
+      named.failAfter(read);
+      expectUnreadable(
+        await caught(() => built.sign({ signers: named.signer })),
+      );
+      expect(named.requests).toHaveLength(0);
+      expect(payer.requests).toHaveLength(0);
+      expect(built.partialTx).toBe(built.tx);
+    },
+  );
+
+  it("is SIGNER_FAILED for a signer named whose method is gone when it is asked; what an earlier one gave stays", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const guardKey = testKey();
+    const second = keysSigner("object", key).signer as {
+      signTxHash?: unknown;
+    };
+    const first = hashSigner("object", ({ txHash }) => {
+      delete second.signTxHash;
+      return [guardKey.answer(txHash)];
+    });
+    const built = await paidBy(walletPayer(key, {}), guardKey);
+    const error = await caught(() =>
+      built.sign({ signers: [first.signer, second as Signer] }),
+    );
+    expect(TxPlanError.is(error, "SIGNER_FAILED")).toBe(true);
+    expect((error as Error).message).toContain(
+      "it has no signTxWitnesses, signTxHash or signTx",
+    );
+    expect((error as Error).cause).toBeUndefined();
+    expect(await signedKeyHashes(built.partialTx)).toEqual([guardKey.keyHash]);
+  });
+});
+
+describe("BuiltTx.sign: the payer gives only the keys it is asked for", () => {
+  const paidWithRoom = (payer: object) =>
+    builder().build(
+      [output({ address: recipient, value: { lovelace: ada(5) } })],
+      { payer: payer as never, extraKeyWitnesses: 1 },
+    );
+
+  it("keeps no witness of another account from the payer, with room for one, and the co-signer's witness added later is kept", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const otherAccount = testKey();
+    const coSigner = testKey();
+    let account = otherAccount;
+    const calls: unknown[][] = [];
+    const payer = walletPayer(key, {
+      signTx: async (...args: unknown[]) => {
+        calls.push(args);
+        return witnessOf(account, args[0] as string);
+      },
+    });
+    const built = await paidWithRoom(payer);
+    await built.sign();
+    expect(calls).toHaveLength(1);
+    expect(built.partialTx).toBe(built.tx);
+    expect(built.missing).toEqual([keyOf(key.keyHash, "input")]);
+    await built.addWitnesses(witnessOf(coSigner, built.tx));
+    expect(await signedKeyHashes(built.partialTx)).toEqual([coSigner.keyHash]);
+    account = key;
+    await built.sign({ partial: false });
+    expect(calls).toHaveLength(2);
+    expect((await signedKeyHashes(built.signedTx!)).sort()).toEqual(
+      [key.keyHash, coSigner.keyHash].sort(),
+    );
+  });
+
+  it("keeps the payer's own witness and drops the other one it gives with it, where a signer named fills the slot", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const extra = testKey();
+    const both = {
+      signTxWitnesses: async (tx: string) =>
+        witnessSet(readTransaction(tx).txId, key, extra),
+    };
+    const byPayer = await paidWithRoom(walletPayer(key, both));
+    await byPayer.sign();
+    expect(await signedKeyHashes(byPayer.signedTx!)).toEqual([key.keyHash]);
+    const named = await paidWithRoom(walletPayer(key, {}));
+    await named.sign({ signers: both });
+    expect((await signedKeyHashes(named.signedTx!)).sort()).toEqual(
+      [key.keyHash, extra.keyHash].sort(),
+    );
+  });
+});
+
+describe("BuiltTx: options with a member the call does not know", () => {
+  const SIGN_ALLOWED = "an object { signers?, partial?, signal? }";
+
+  const expectUnknown = (
+    error: unknown,
+    allowed: string,
+    name: string | undefined,
+  ) => {
+    expect(TxBuildError.is(error, "INVALID_OPTION")).toBe(true);
+    const { details, message } = error as TxBuildError<"INVALID_OPTION">;
+    expect(details).toEqual({ option: "options", value: "object", allowed });
+    expect(message).toContain(
+      name === undefined ? "an unknown member" : `the unknown member ${name}`,
+    );
+  };
+
+  it("refuses sign({ signer }) on an object that holds a payer: neither the payer nor that signer is asked", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const payer = keysSigner("object", key);
+    const other = keysSigner("object", key);
+    const built = await paidBy(walletPayer(key, payer.signer));
+    const error = await caught(() =>
+      built.sign({ signer: other.signer } as never),
+    );
+    expectUnknown(error, SIGN_ALLOWED, "signer");
+    expect(payer.requests).toHaveLength(0);
+    expect(other.requests).toHaveLength(0);
+    expect(built.partialTx).toBe(built.tx);
+  });
+
+  it("refuses sign({ partail: false })", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const payer = keysSigner("object", key);
+    const built = await paidBy(walletPayer(key, payer.signer));
+    expectUnknown(
+      await caught(() => built.sign({ partail: false } as never)),
+      SIGN_ALLOWED,
+      "partail",
+    );
+    expect(payer.requests).toHaveLength(0);
+  });
+
+  it("does not show a member whose name is a long text", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const payer = keysSigner("object", key);
+    const built = await paidBy(walletPayer(key, payer.signer));
+    const name = "ab".repeat(32);
+    const error = await caught(() => built.sign({ [name]: true } as never));
+    expectUnknown(error, SIGN_ALLOWED, undefined);
+    expect(
+      inspect(error, { depth: Infinity, showHidden: true }).includes(name),
+    ).toBe(false);
+    expect(payer.requests).toHaveLength(0);
+  });
+
+  it("refuses submit({ submiter }): nothing is submitted", async () => {
+    const viaProvider = fakeProvider();
+    const own = recorder();
+    const given = recorder();
+    const { built } = await signedFixture({
+      provider: viaProvider.provider,
+      submitter: own.submitter,
+    });
+    expectUnknown(
+      await caught(() => built.submit({ submiter: given.submitter } as never)),
+      "an object { submitter?, signal? }",
+      "submiter",
+    );
+    expect([own.sent, given.sent, viaProvider.sent]).toEqual([[], [], []]);
+  });
+
+  it("refuses awaitInclusion({ timeout: 1 }): nothing is read", async () => {
+    const viaProvider = fakeProvider();
+    const { built } = await signedFixture({ provider: viaProvider.provider });
+    expectUnknown(
+      await caught(() => built.awaitInclusion({ timeout: 1 } as never)),
+      "an object { timeoutMs?, pollMs?, signal? }",
+      "timeout",
+    );
+    expect(viaProvider.searches).toEqual([]);
   });
 });
 

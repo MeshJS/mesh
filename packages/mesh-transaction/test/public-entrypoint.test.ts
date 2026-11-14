@@ -178,6 +178,9 @@ describe("public entrypoint", () => {
   it("exports the class of a built transaction, its sign options and its inclusion, and not its factory", () => {
     const sign: SignTxOptions = { signers: [], partial: false };
     expect(sign.partial).toBe(false);
+    // Every member is optional: without signers the payer of the build signs
+    const none: SignTxOptions = {};
+    expect(none).toEqual({});
     const found: TxInclusion = { txHash: "00".repeat(32), slot: 1 };
     expect(found.slot).toBe(1);
     expect(typeof publicApi.BuiltTx).toBe("function");

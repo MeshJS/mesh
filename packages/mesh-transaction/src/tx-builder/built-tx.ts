@@ -26,6 +26,7 @@ import {
   readTransaction,
   signerWitnesses,
   toSigners,
+  unreadableSigner,
   withWitnesses,
   witnessesToAdd,
   writeWitnessSet,
@@ -64,8 +65,11 @@ const REFUSED =
 
 /** The options of one call of `sign()` of a `BuiltTx` */
 export type SignTxOptions = {
-  /** Who signs: one signer or several, asked one after another in this order */
-  signers: Signer | readonly Signer[];
+  /**
+   * Who signs: one signer or several, asked one after another in this order. Without signers,
+   * or with an empty list, the payer of the build signs when it can sign
+   */
+  signers?: Signer | readonly Signer[];
   /**
    * `true`, the default: the call adds what its signers give and returns, whether or not a key
    * is still missing; `missing` lists the rest. `false`: a key still missing after every signer
@@ -150,7 +154,10 @@ const isAbortSignal = (value: unknown): value is AbortSignal =>
   typeof (value as { addEventListener?: unknown }).addEventListener ===
     "function";
 
-const OPTIONS_ALLOWED = "an object { signers, partial?, signal? }";
+const OPTIONS_ALLOWED = "an object { signers?, partial?, signal? }";
+
+/** The members of the options of `sign()` */
+const SIGN_MEMBERS: readonly string[] = ["signers", "partial", "signal"];
 
 /**
  * An option of `sign()` that is refused. What is given there may be or hold a key, so the message
@@ -168,20 +175,59 @@ const invalidOption = (
     { details: { option, value: typeOf(value), allowed } },
   );
 
+/** A member name an error may show: a plain identifier, short */
+const SHOWN_MEMBER = /^[A-Za-z_$][\w$]{0,31}$/;
+
+/**
+ * Refuses options with an own enumerable member that is not among `known`: a misspelled member
+ * would be dropped, and the call would do what it does without it. The name is given by the
+ * caller, so the message shows it only when it is a short plain identifier
+ * @throws TxBuildError INVALID_OPTION
+ */
+const refuseUnknownMembers = (
+  options: object,
+  known: readonly string[],
+  allowed: string,
+) => {
+  const name = Object.keys(options).find((key) => !known.includes(key));
+  const symbol = Object.getOwnPropertySymbols(options).some((key) =>
+    Object.prototype.propertyIsEnumerable.call(options, key),
+  );
+  if (name === undefined && !symbol) return;
+  throw new TxBuildError(
+    "INVALID_OPTION",
+    `invalid options: expected ${allowed}; got an object with ${
+      name !== undefined && SHOWN_MEMBER.test(name)
+        ? `the unknown member ${name}`
+        : "an unknown member"
+    }`,
+    { details: { option: "options", value: typeOf(options), allowed } },
+  );
+};
+
 /**
  * The options of `sign()`, checked by their shape
  * @throws TxBuildError INVALID_OPTION
+ * @throws TxPlanError SIGNER_FAILED for a signer whose methods throw when they are read
  */
 const checkSignOptions = (options: unknown) => {
   if (options === undefined) return {};
-  if (typeof options !== "object" || options === null || canSign(options))
+  let signerGiven = false;
+  if (typeof options === "object" && options !== null)
+    try {
+      signerGiven = canSign(options);
+    } catch {
+      // Options whose signing method cannot be read are a signer given in their place
+      signerGiven = true;
+    }
+  if (typeof options !== "object" || options === null || signerGiven)
     throw invalidOption(
       "options",
       options,
       OPTIONS_ALLOWED,
       typeof options === "string"
         ? "; a private key is given as { signers: keySigner(key) }"
-        : canSign(options)
+        : signerGiven
           ? "; a signer is given as { signers }"
           : "",
     );
@@ -192,8 +238,15 @@ const checkSignOptions = (options: unknown) => {
       OPTIONS_ALLOWED,
       "; signers are given as { signers: [...] }",
     );
+  refuseUnknownMembers(options, SIGN_MEMBERS, OPTIONS_ALLOWED);
   const { signers, partial, signal } = options as Record<string, unknown>;
-  const given = toSigners(signers);
+  let given: Signer[] | undefined;
+  try {
+    given = toSigners(signers);
+  } catch (error) {
+    if (TxBuildError.is(error)) throw error;
+    throw unreadableSigner("threw");
+  }
   if (partial !== undefined && typeof partial !== "boolean")
     throw invalidOption("partial", partial, "a boolean");
   if (signal !== undefined && !isAbortSignal(signal))
@@ -211,11 +264,14 @@ const hasMethod = (value: unknown, name: string) =>
   typeof (value as Record<string, unknown>)[name] === "function";
 
 /**
- * Options of a call that are an object, else INVALID_OPTION: `undefined` is none
+ * Options of a call that are an object with no member but those it knows, else INVALID_OPTION:
+ * `undefined` is none
+ * @param known The members the call knows
  * @param given What the call's options are given as when a member is given in their place
  */
 const optionsObject = (
   options: unknown,
+  known: readonly string[],
   allowed: string,
   given?: { member: string; is: (value: unknown) => boolean },
 ): Record<string, unknown> => {
@@ -234,6 +290,7 @@ const optionsObject = (
         ? `; a ${given.member} is given as { ${given.member} }`
         : "",
     );
+  refuseUnknownMembers(options, known, allowed);
   return options as Record<string, unknown>;
 };
 
@@ -244,6 +301,7 @@ const optionsObject = (
 const checkSubmitOptions = (options: unknown) => {
   const { submitter, signal } = optionsObject(
     options,
+    ["submitter", "signal"],
     "an object { submitter?, signal? }",
     { member: "submitter", is: (value) => hasMethod(value, "submitTx") },
   );
@@ -264,6 +322,7 @@ const checkSubmitOptions = (options: unknown) => {
 const checkInclusionOptions = (options: unknown) => {
   const { timeoutMs, pollMs, signal } = optionsObject(
     options,
+    ["timeoutMs", "pollMs", "signal"],
     "an object { timeoutMs?, pollMs?, signal? }",
   );
   checkWaitOptions({
@@ -328,9 +387,22 @@ const keysText = (keys: readonly RequiredKey[]) =>
  *
  * ```ts
  * const built = await builder.build(output({ address, value }), { payer: wallet });
- * await built.sign({ signers: wallet });
+ * await built.sign(); // the payer signs
  * await built.submit();
  * await built.awaitInclusion();
+ * ```
+ *
+ * An object made by `build()` keeps the payer of its build when that payer has a signing method
+ * at the build, as a plan's payer signs: a wallet, or a snapshot object that carries such a
+ * method; it is never written by `toJSON()`. A payer given as an address, or as an object
+ * without a signing method, is not kept, and an object made by `finalize()` or `restore()`
+ * holds no payer: it signs with the signers named in `sign({ signers })`, or takes witnesses
+ * made elsewhere.
+ *
+ * ```ts
+ * const again = await builder.restore(json);
+ * await again.sign({ signers: wallet });
+ * await again.submit();
  * ```
  *
  * One object is one body. Its bytes and its hash are fixed when it is made; no call builds,
@@ -429,6 +501,11 @@ export class BuiltTx implements BuiltTxData {
   readonly #sending = new Set<Promise<Delivery>>();
   /** How many deliveries were handed off: a refused call sees one handed off while it looks */
   #handedOff = 0;
+  /**
+   * The payer of the build, when it can sign: the signer of `sign()` without signers. Held here
+   * only, and written nowhere
+   */
+  readonly #payer?: Signer;
 
   /** Made by `builder.build()`, `builder.finalize()` and `builder.restore()` only */
   private constructor(
@@ -436,9 +513,11 @@ export class BuiltTx implements BuiltTxData {
     built: BuiltTxData,
     extraKeys: number,
     restored?: RestoredState,
+    payer?: Signer,
   ) {
     Object.assign(this, built);
     this.#builder = builder;
+    this.#payer = restored === undefined ? payer : undefined;
     this.#raw = restored?.raw ?? readTransaction(built.tx);
     // Read from the transaction itself: its witness set holds redeemers
     this.#plutus =
@@ -493,37 +572,49 @@ export class BuiltTx implements BuiltTxData {
   }
 
   /**
-   * Signs with the call's signers, each asked once, in order, for the keys that have not signed
-   * yet: the keys the transaction needs and those its native scripts name. A signer with
-   * `signTxWitnesses` is handed their hashes; a signer of transaction hashes (`signTxHash`, a
-   * function, `keySigner(key)`) gets them with their roles and is not asked when none is left; a
-   * CIP-30 api chooses its keys itself. Every witness is verified against the body. Witnesses of
-   * the keys the fee counts are kept, each once: the keys asked for, as many other keys as the
-   * build's `extraKeyWitnesses`, and as many bootstrap witnesses as the transaction spends from
-   * Byron addresses; any other is dropped. What a signer gave stays when a later one fails.
+   * Signs with the call's signers, else with the payer of the build when the object holds it
+   * (see the class) and it has a signing method at this call, each asked once, in order, for the
+   * keys that have not signed yet: the keys the transaction needs and those its native scripts
+   * name. A signer with `signTxWitnesses` is handed their hashes; a signer of transaction hashes
+   * (`signTxHash`, a function, `keySigner(key)`) gets them with their roles and is not asked
+   * when none is left; a CIP-30 api chooses its keys itself. Every witness is verified against
+   * the body. Witnesses of the keys the fee counts are kept, each once: the keys asked for, as
+   * many other keys as the build's `extraKeyWitnesses`, and as many bootstrap witnesses as the
+   * transaction spends from Byron addresses; any other is dropped. What a signer gave stays when
+   * a later one fails.
+   *
+   * The payer, asked when no signer is named, is not asked when every key has signed, whatever
+   * its form, and only its witnesses of the keys it was asked for, and bootstrap witnesses, are
+   * kept: the witnesses of other keys the fee counts come from the signers named in a call and
+   * from `addWitnesses`.
    *
    * By default the call returns whether or not a key is still missing, so that parties sign one
    * after another; with `partial: false` a key still missing is MISSING_SIGNATURES. `submit()`
    * checks the same before it sends.
    * @returns This object
    * @throws TxPlanError MISSING_SIGNATURES `{ missing }` when no signer is given (an empty list
-   *   gives none), and with `partial: false` when a key the transaction needs has no signature
-   *   after every signer was asked; SIGN_DECLINED when a signer declines; SIGNER_FAILED when one
-   *   fails, or answers with a witness that is not of this body
+   *   gives none) and the object holds no payer that can sign, and with `partial: false` when a
+   *   key the transaction needs has no signature after every signer was asked; SIGN_DECLINED
+   *   when a signer declines; SIGNER_FAILED when one fails, answers with a witness that is not
+   *   of this body, or has a signing method that throws when it is read or is gone when it is
+   *   asked
    * @throws TxBuildError INVALID_OPTION for options that are not an object (a signer given in
-   *   their place among them: give it as `{ signers }`), a signer that cannot sign (a private
-   *   key given as it is among them: `keySigner(key)` makes a signer of it), a `partial` that is
-   *   not a boolean, a `signal` that is not an AbortSignal; `details.value` is only the
-   *   JavaScript type of what was given; ABORTED
+   *   their place among them: give it as `{ signers }`) or have a member other than these, a
+   *   signer that cannot sign (a private key given as it is among them: `keySigner(key)` makes a
+   *   signer of it), a `partial` that is not a boolean, a `signal` that is not an AbortSignal;
+   *   `details.value` is only the JavaScript type of what was given; ABORTED
    */
-  async sign(options: SignTxOptions): Promise<this> {
-    const { signers, partial, signal } = checkSignOptions(options);
+  async sign(options?: SignTxOptions): Promise<this> {
+    const { signers: named, partial, signal } = checkSignOptions(options);
     throwIfAborted(signal, CALL);
+    // Without signers named, the payer signs when it still can
+    const payer = named === undefined ? this.#payerSigner() : undefined;
+    const signers = named ?? (payer === undefined ? undefined : [payer]);
     if (signers === undefined) {
       const missing = this.missing;
       throw new TxPlanError(
         "MISSING_SIGNATURES",
-        `nobody in this call can sign: give signers, or add witnesses made elsewhere with addWitnesses; ${
+        `nobody can sign: name signers in sign({ signers }), or add witnesses with addWitnesses; the object holds no payer that signs (an address, a snapshot or a wallet without a signing method is none, and so is an object made by finalize() or restore()); ${
           missing.length === 0
             ? "every key the transaction needs has signed it"
             : `${missing.length} key(s) the transaction needs have not signed it`
@@ -536,12 +627,24 @@ export class BuiltTx implements BuiltTxData {
       // The keys that have not signed yet, by what is held now
       const signed = new Set(this.#held.map((w) => w.keyHash));
       const keys = this.#asked.filter(({ keyHash }) => !signed.has(keyHash));
+      const byDefault = signer === payer;
+      // The payer is not asked when nothing is left for it to give
+      if (byDefault && keys.length === 0 && !this.#bootstrapsMissing()) break;
       const offered = await abortable(
         signerWitnesses(signer, this.#raw, { keys, signal }),
         signal,
         CALL,
       );
-      this.#keep(offered);
+      // The payer gives only the keys it was asked for: the other keys the fee counts are left
+      // to the signers an application names and to addWitnesses
+      const asked = new Set(keys.map(({ keyHash }) => keyHash));
+      this.#keep(
+        byDefault
+          ? offered.filter(
+              (w) => w.kind === "bootstrap" || asked.has(w.keyHash),
+            )
+          : offered,
+      );
     }
     const missing = this.missing;
     if (partial === false && missing.length > 0)
@@ -586,9 +689,10 @@ export class BuiltTx implements BuiltTxData {
    *   with `details.walletCode`: the same call sends the same bytes. The submitter's error is
    *   the `cause`
    * @throws TxBuildError INVALID_OPTION for options that are not an object (a submitter given
-   *   in their place among them: give it as `{ submitter }`), a submitter without `submitTx` or
-   *   a signal that is not an AbortSignal; `details.value` is only the JavaScript type of what
-   *   was given; ABORTED: bytes already handed to the submitter count as sent
+   *   in their place among them: give it as `{ submitter }`) or have a member other than these,
+   *   a submitter without `submitTx` or a signal that is not an AbortSignal; `details.value` is
+   *   only the JavaScript type of what was given; ABORTED: bytes already handed to the submitter
+   *   count as sent
    */
   async submit(options?: {
     submitter?: ISubmitter;
@@ -665,7 +769,7 @@ export class BuiltTx implements BuiltTxData {
    *   CANNOT_OBSERVE (`noSearch`) for a provider without `fetchTxInfo`, (`noValidity`) for a
    *   transaction that runs a Plutus script found without `validContract`
    * @throws TxBuildError MISSING_FETCHER when the builder has no provider; INVALID_OPTION for an
-   *   option out of range; ABORTED
+   *   option out of range, and for options with a member other than these; ABORTED
    */
   async awaitInclusion(options?: {
     timeoutMs?: number;
@@ -737,10 +841,10 @@ export class BuiltTx implements BuiltTxData {
   /**
    * The transaction as plain JSON data, with the witnesses it holds: `JSON.stringify(built)`
    * writes it, and `builder.restore(json)` gives the object back, in this process or another.
-   * It holds no signer and no key: the witnesses only. It marks a delivery that was taken or
-   * whose outcome is unknown when this is called, a delivery handed off that has not answered
-   * yet among them: the bytes may land, and the object restored treats a refusal as this one
-   * would.
+   * It holds no signer, no payer and no key: the witnesses only. It marks a delivery that was
+   * taken or whose outcome is unknown when this is called, a delivery handed off that has not
+   * answered yet among them: the bytes may land, and the object restored treats a refusal as
+   * this one would.
    *
    * `signers` is written as it was built: what the object restored asks for and waits for does
    * not depend on what was done to that member of this one. The other members are written as
@@ -838,6 +942,28 @@ export class BuiltTx implements BuiltTxData {
     return search.found ? "found" : "notFound";
   }
 
+  /**
+   * The payer of the build as the signer of this call: undefined when the object holds none, or
+   * the payer has no signing method left
+   * @throws TxPlanError SIGNER_FAILED when reading its signing method throws
+   */
+  #payerSigner(): Signer | undefined {
+    const payer = this.#payer;
+    if (payer === undefined) return undefined;
+    try {
+      return canSign(payer) ? payer : undefined;
+    } catch {
+      throw unreadableSigner("threw");
+    }
+  }
+
+  /** Whether the transaction spends from a Byron address whose bootstrap witness is not held */
+  #bootstrapsMissing() {
+    return (
+      this.#held.filter((w) => w.kind === "bootstrap").length < this.#bootstraps
+    );
+  }
+
   /** Keeps the offered witnesses the fee counts, against what is held at this moment */
   #keep(offered: readonly KeyWitness[]) {
     this.#held.push(
@@ -861,12 +987,15 @@ const internals = (builder: TxBuilder) =>
  * @param extraKeys The build's `extraKeyWitnesses`: witnesses of other keys its fee counts
  * @param restored What a restored object starts from: its transaction read, its witnesses
  *   verified, and its mark of a delivery
+ * @param payer The payer the build read, when it can sign: the signer of `sign()` without
+ *   signers. A restored object takes none
  */
 export const makeBuiltTx = (
   builder: TxBuilder,
   built: BuiltTxData,
   extraKeys = 0,
   restored?: RestoredState,
+  payer?: Signer,
 ): BuiltTx =>
   new (
     BuiltTx as unknown as new (
@@ -874,8 +1003,9 @@ export const makeBuiltTx = (
       built: BuiltTxData,
       extraKeys: number,
       restored?: RestoredState,
+      payer?: Signer,
     ) => BuiltTx
-  )(builder, built, extraKeys, restored);
+  )(builder, built, extraKeys, restored, payer);
 
 const JSON_ALLOWED = "the JSON of a BuiltTx, as its toJSON() writes it";
 

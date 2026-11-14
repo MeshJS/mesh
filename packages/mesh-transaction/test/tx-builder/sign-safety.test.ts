@@ -1008,7 +1008,7 @@ describe("R1: key material never leaves the signer object", () => {
 });
 
 /* ---------------------------------------------------------------------------------------------
- * R1, added: the object keeps no signer and no payer
+ * R1, added: the object keeps no signer, and the payer of its build only where nothing shows it
  * ------------------------------------------------------------------------------------------- */
 
 /** A full collection of garbage, through V8's own function */
@@ -1056,7 +1056,28 @@ const reachable = (root: object) => {
   return seen;
 };
 
-describe("R1, added: the object keeps no signer and no payer", () => {
+/** A payer given as a wallet over a test key, with a marker of its own, that signs hashes */
+const signingPayer = (key: TestKey, marker: string) => {
+  let answer: "sign" | "fail" | "decline" = "sign";
+  const payer = {
+    marker,
+    getChangeAddress: async () => key.address,
+    getUtxos: async () => [utxoAt(key.address)],
+    signTxHash: async ({ txHash }: TxHashRequest) => {
+      if (answer === "fail") throw new Error("down");
+      if (answer === "decline") throw { code: 2, info: "declined" };
+      return [key.answer(txHash)];
+    },
+  };
+  return {
+    payer,
+    answers: (next: typeof answer) => {
+      answer = next;
+    },
+  };
+};
+
+describe("R1, added: the object keeps no signer, and the payer of its build only where nothing shows it", () => {
   /** A signer of each form and outcome, with a marker of its own */
   const cases: [string, (marker: string, key: TestKey) => Signer][] = [
     ...FORMS.map((form): [string, (m: string, k: TestKey) => Signer] => [
@@ -1171,19 +1192,164 @@ describe("R1, added: the object keeps no signer and no payer", () => {
     expect(b.network.name).toBe("preprod");
   });
 
-  it("lets a wallet that paid and signed go", async () => {
+  it("keeps the payer of its build, when it can sign, where nothing shows it: not its members, its JSON, its printing, its errors or the trace", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const guardKey = testKey();
+    const marker = `payer-marker-${Math.random().toString(36).slice(2)}`;
+    const { payer, answers } = signingPayer(key, marker);
+    const from = events.length;
+    const built = await offline().build(
+      [output({ address: recipient, value: { lovelace: ada(5) } })],
+      { payer, trace },
+    );
+    // The same payer, with a guard key that it cannot sign for
+    const guarded = await offline().build(
+      [
+        output({ address: recipient, value: { lovelace: ada(5) } }),
+        guard.pubKey({ keyHash: guardKey.keyHash }),
+      ],
+      { payer, trace },
+    );
+    const errors: unknown[] = [];
+    for (const answer of ["fail", "decline"] as const) {
+      answers(answer);
+      errors.push(await caught(() => built.sign()));
+    }
+    answers("sign");
+    const aborted = new AbortController();
+    aborted.abort();
+    errors.push(
+      await caught(() => built.sign({ partial: "no" as never })),
+      await caught(() => built.sign({ signer: payer } as never)),
+      await caught(() => built.sign({ signal: aborted.signal })),
+      await caught(() => guarded.sign({ partial: false })),
+    );
+    expect(errors.map(codeOf)).toEqual([
+      "SIGNER_FAILED",
+      "SIGN_DECLINED",
+      "INVALID_OPTION",
+      "INVALID_OPTION",
+      "ABORTED",
+      "MISSING_SIGNATURES",
+    ]);
+    await built.sign({ partial: false });
+    expect(built.signedTx).toBeDefined();
+    const markers = { marker: { text: marker, kind: "text" as const } };
+    const traced = events.slice(from);
+    expect(traced.length).toBeGreaterThan(0);
+    for (const [where, value] of [
+      ["the object", built],
+      ["an object signed in part", guarded],
+      ["its JSON", JSON.stringify(built)],
+      ["the JSON of one signed in part", JSON.stringify(guarded)],
+      ["its errors", errors],
+      ["its trace", traced],
+    ] as const) {
+      const found = reachable({ value });
+      expect([where, found.has(payer)]).toEqual([where, false]);
+      expect([
+        where,
+        [...found].some(
+          (each) =>
+            each === payer.signTxHash || each === payer.getChangeAddress,
+        ),
+      ]).toEqual([where, false]);
+      expect([where, shown(value, markers)]).toEqual([where, []]);
+      expect([where, shown([...found], markers)]).toEqual([where, []]);
+    }
+  });
+
+  it("does not keep a payer without a signing method, a snapshot or a wallet, and keeps a snapshot that carries one while the object lives", async () => {
+    await Crypto.ready();
+    const b = offline();
+    const holder: { signing?: BuiltTx } = {};
+    const buildFor = (payer: object) =>
+      b.build([output({ address: recipient, value: { lovelace: ada(5) } })], {
+        payer: payer as never,
+        trace,
+      });
+    const make = async () => {
+      const key = testKey();
+      const { payer } = signingPayer(key, "snapshot");
+      const plain = {
+        changeAddress: key.address,
+        utxos: [utxoAt(key.address)],
+      };
+      const watching = {
+        getChangeAddress: payer.getChangeAddress,
+        getUtxos: payer.getUtxos,
+      };
+      const signing = { ...plain, signTxHash: payer.signTxHash };
+      const unkept = [await buildFor(plain), await buildFor(watching)];
+      holder.signing = await buildFor(signing);
+      return {
+        unkept,
+        unkeptRefs: [new WeakRef(plain), new WeakRef(watching)],
+        signing: new WeakRef(signing),
+      };
+    };
+    const { unkept, unkeptRefs, signing } = await make();
+    for (const ref of unkeptRefs) expect(await isCollected(ref)).toBe(true);
+    for (const built of unkept)
+      expect(codeOf(await caught(() => built.sign()))).toBe(
+        "MISSING_SIGNATURES",
+      );
+    expect(await isCollected(signing)).toBe(false);
+    await holder.signing!.sign({ partial: false });
+    expect(holder.signing!.signedTx).toBeDefined();
+    const built = new WeakRef(holder.signing!);
+    delete holder.signing;
+    expect(await isCollected(built)).toBe(true);
+    expect(await isCollected(signing)).toBe(true);
+  });
+
+  it("holds no payer in an object restored from JSON or made by finalize(): the wallet that paid goes while they live", async () => {
+    await Crypto.ready();
+    const b = offline();
+    let ref: WeakRef<object> | undefined;
+    const make = async () => {
+      const key = testKey();
+      const { payer } = signingPayer(key, "restored");
+      const built = await b.build(
+        [output({ address: recipient, value: { lovelace: ada(5) } })],
+        { payer, trace },
+      );
+      ref = new WeakRef(payer);
+      return {
+        restored: await b.restore(JSON.parse(JSON.stringify(built))),
+        final: await b.finalize(structuredClone(built.prototype), {
+          inputs: built.inputs,
+          changeAddress: key.address,
+        }),
+      };
+    };
+    const { restored, final } = await make();
+    expect(await isCollected(ref!)).toBe(true);
+    for (const built of [restored, final])
+      expect(codeOf(await caught(() => built.sign()))).toBe(
+        "MISSING_SIGNATURES",
+      );
+  });
+
+  it("keeps a wallet that paid while the object lives, and lets it go with the object", async () => {
     const { builder } = await setup();
-    const refs: WeakRef<object>[] = [];
+    const holder: { built?: BuiltTx } = {};
     const make = async () => {
       const wallet = await walletOf();
       const built = await builder.build(pay(), { payer: wallet, trace });
-      await built.sign({ signers: wallet });
-      refs.push(new WeakRef(wallet));
-      return built;
+      await built.sign();
+      holder.built = built;
+      return new WeakRef(wallet);
     };
-    const built = await make();
-    expect(await isCollected(refs[0]!)).toBe(true);
-    expect(built.signedTx).toBeDefined();
+    const wallet = await make();
+    // The object signs with it: it is held while the object is
+    expect(await isCollected(wallet)).toBe(false);
+    expect(holder.built!.signedTx).toBeDefined();
+    const built = new WeakRef(holder.built!);
+    delete holder.built;
+    expect(await isCollected(built)).toBe(true);
+    expect(await isCollected(wallet)).toBe(true);
   });
 });
 

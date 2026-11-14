@@ -159,6 +159,30 @@ describe.each(["scalus", "cquisitor"] as const)(
       }
     });
 
+    it("signs with the payer of the build when no signer is named: a MeshWallet and a CIP-30 api", async () => {
+      const { emulator, builder, wallet, pubKeyHash, stakeCredentialHash } =
+        await registration(validator);
+      const rewardAddress = (await wallet.getRewardAddresses())[0]!;
+      const api = await cip30Wallet({ words, fetcher: emulator });
+      for (const [name, payer] of [
+        ["a MeshWallet", wallet],
+        ["a CIP-30 api", api],
+      ] as const) {
+        const built = await builder.build(
+          [certificate.stakeRegistration({ stake: rewardAddress })],
+          { payer },
+        );
+        expect(await built.sign({ partial: false })).toBe(built);
+        expect([name, built.missing]).toEqual([name, []]);
+        expect((await signedKeyHashes(built.signedTx!)).sort()).toEqual(
+          [pubKeyHash, stakeCredentialHash].sort(),
+        );
+        expect([name, await emulator.fork().submitTx(built.signedTx!)]).toEqual(
+          [name, built.txHash],
+        );
+      }
+    });
+
     it("drops an extra witness that the free functions keep and the fee does not cover", async () => {
       const { emulator, built } = await registration(validator);
       const keys = await seedKeys();
@@ -341,6 +365,31 @@ describe.each(["scalus", "cquisitor"] as const)(
         blockHeight: info.blockHeight,
       });
       expect(emulator.utxos({ address: recipient })).toHaveLength(1);
+    });
+
+    it("is built with a MeshWallet as its payer, signed by it without signers named, submitted and found in a block", async () => {
+      const { emulator, builder, wallet } = await wrapped(validator);
+      const built = await builder.build(
+        output({ address: recipient, value: { lovelace: 5_000_000n } }),
+        { payer: wallet },
+      );
+      expect(await built.sign()).toBe(built);
+      expect(built.signedTx).toBeDefined();
+      expect(await built.submit()).toBe(built);
+      expect((await built.awaitInclusion(QUICK)).txHash).toBe(built.txHash);
+      expect(emulator.utxos({ address: recipient })).toHaveLength(1);
+    });
+
+    it("is MISSING_SIGNATURES for sign() of a payer given as an address, and nothing is sent", async () => {
+      const { builder, address, provider } = await wrapped(validator);
+      const built = await builder.build(
+        output({ address: recipient, value: { lovelace: 5_000_000n } }),
+        { payer: address },
+      );
+      const error = await caught(built.sign());
+      expect(TxPlanError.is(error, "MISSING_SIGNATURES")).toBe(true);
+      expect(built.partialTx).toBe(built.tx);
+      expect(provider.control.count("submitTx")).toBe(0);
     });
 
     it("sends the same bytes when submitted twice, and the second refusal is no error", async () => {

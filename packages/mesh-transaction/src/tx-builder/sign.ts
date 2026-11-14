@@ -640,15 +640,61 @@ export const signerForm = (
   return undefined;
 };
 
-/** Whether a signer is asked with the hash of the transaction: `signTxHash` or its callback form */
+/**
+ * Whether a signer is asked with the hash of the transaction: `signTxHash` or its callback form.
+ * False for a signer whose methods cannot be read: asking it is SIGNER_FAILED
+ */
 export const signsHashes = (signer: Signer) => {
-  const form = signerForm(signer);
+  let form: ReturnType<typeof signerForm>;
+  try {
+    form = signerForm(signer);
+  } catch {
+    return false;
+  }
   return form === "hash" || form === "callback";
 };
 
 /** A signer by its shape: one of the forms of `Signer` */
 export const canSign = (value: unknown): value is Signer =>
   signerForm(value) !== undefined;
+
+/**
+ * The payer of a build or a plan as the signer of a call that names none: an object of any form
+ * of payer, a wallet or a snapshot, with a method `canSign` accepts. An address, and an object
+ * without such a method, sign nothing
+ */
+export const payerSigner = (payer: unknown): Signer | undefined =>
+  typeof payer === "object" && payer !== null && canSign(payer)
+    ? payer
+    : undefined;
+
+/**
+ * The SIGNER_FAILED of a signer that cannot be asked: reading the method it is asked through
+ * threw, or it has none left. What was thrown is neither the error nor its `cause`
+ */
+export const unreadableSigner = (reason: "threw" | "none") =>
+  new TxPlanError(
+    "SIGNER_FAILED",
+    reason === "threw"
+      ? "the signer could not be asked: reading the method it signs with threw"
+      : "the signer could not be asked: it has no signTxWitnesses, signTxHash or signTx, and is not a function",
+    { details: { reason: "error" } },
+  );
+
+/**
+ * How a signer is asked, read when it is asked
+ * @throws TxPlanError SIGNER_FAILED when the read throws or finds no form
+ */
+const formWhenAsked = (signer: unknown) => {
+  let form: ReturnType<typeof signerForm>;
+  try {
+    form = signerForm(signer);
+  } catch {
+    throw unreadableSigner("threw");
+  }
+  if (form === undefined) throw unreadableSigner("none");
+  return form;
+};
 
 const SIGNER_ALLOWED =
   "an object with signTxWitnesses, signTxHash or signTx, or a function that signs a transaction hash";
@@ -875,13 +921,15 @@ const askHashSigner = async (
  * @param keys The keys asked for: a signer with `signTxWitnesses` is handed their hashes, a
  *   signer of hashes the list with the roles, and is not asked when it is empty
  * @param signal Handed to a signer of hashes in its request
+ * @throws TxPlanError SIGNER_FAILED also for a signer whose method throws when it is read, or
+ *   that has none left when it is asked
  */
 export const askSigner = async (
   signer: Signer,
   raw: RawTx,
   { keys, signal }: { keys?: readonly AskedKey[]; signal?: AbortSignal } = {},
 ): Promise<string> => {
-  const form = signerForm(signer)!;
+  const form = formWhenAsked(signer);
   if (form === "hash" || form === "callback")
     return askHashSigner(signer, form, raw, keys, signal);
   let answer: unknown;
