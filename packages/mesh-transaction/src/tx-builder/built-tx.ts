@@ -1,7 +1,13 @@
 import type { CachedFetcher, ISubmitter } from "@meshsdk/common";
 
 import type { BuiltTxData, TxBuilder } from "./builder";
-import type { AskedKey, KeyWitness, RawTx, Signer } from "./sign";
+import type {
+  AskedKey,
+  KeyWitness,
+  KeyWitnessTags,
+  RawTx,
+  Signer,
+} from "./sign";
 import type { RequiredKey } from "./witnesses";
 import {
   abortable,
@@ -37,9 +43,11 @@ import {
   canSign,
   countedWitnesses,
   isWallet,
+  keyWitnessTags,
   payerHasNothingLeft,
   payerWitnesses,
   readTransaction,
+  readWitnessArgument,
   signerWitnesses,
   toSigners,
   unreadableSigner,
@@ -122,7 +130,11 @@ export type BuiltTxJSON = {
   readonly txHash: string;
   /** The library's: the data of the build */
   readonly built: Record<string, unknown>;
-  /** The library's: the vkey and bootstrap witnesses it holds, as a CBOR witness set in hex */
+  /**
+   * The library's: the vkey and bootstrap witnesses it holds, as a CBOR witness set in hex,
+   * each of its two entries written with the set tag when the object writes that entry into
+   * the transaction with it
+   */
   readonly witnesses?: string;
   /**
    * The library's: how many witnesses of keys the transaction does not need its fee counts,
@@ -151,13 +163,18 @@ const RECORD_MEMBERS: readonly string[] = [
 ];
 
 /** What a restored object starts from beside the data: read from its JSON and verified */
-type RestoredState = {
+export type RestoredState = {
   /** The transaction of the data, read once */
   readonly raw: RawTx;
   /** The witnesses of the JSON, each verified against the body */
   readonly held: readonly KeyWitness[];
   /** A delivery of it was taken, or its outcome is unknown */
   readonly delivered: boolean;
+  /**
+   * Whether the vkey entry and the bootstrap entry those witnesses came in were written with the
+   * set tag, each when it held a witness
+   */
+  readonly tags?: Partial<KeyWitnessTags>;
 };
 
 const isAbortSignal = (value: unknown): value is AbortSignal =>
@@ -383,6 +400,12 @@ export class BuiltTx implements BuiltTxData {
   readonly #extraKeys: number;
   /** The witnesses held, each verified against the body, in the order they were kept */
   readonly #held: KeyWitness[] = [];
+  /**
+   * Whether the vkey entry and the bootstrap entry are written with the set tag: each as the
+   * entry the object came with was, when it holds a witness of that entry; else as the body
+   * writes its input set
+   */
+  readonly #tags: KeyWitnessTags;
   /** `partialTx` as last written, with the number of witnesses it holds */
   #written?: { count: number; tx: string };
   /** The builder that made it: its submitter, provider, cache and `planDefaults` */
@@ -436,6 +459,11 @@ export class BuiltTx implements BuiltTxData {
       this.#keep(restored.held);
       this.#delivered = restored.delivered;
     }
+    const tagOf = (kind: KeyWitness["kind"]) =>
+      (this.#held.some((w) => w.kind === kind)
+        ? restored?.tags?.[kind]
+        : undefined) ?? this.#raw.taggedSets;
+    this.#tags = { vkey: tagOf("vkey"), bootstrap: tagOf("bootstrap") };
     Object.freeze(this);
   }
 
@@ -458,7 +486,10 @@ export class BuiltTx implements BuiltTxData {
   get partialTx(): string {
     const count = this.#held.length;
     if (this.#written?.count !== count)
-      this.#written = { count, tx: withWitnesses(this.#raw, this.#held) };
+      this.#written = {
+        count,
+        tx: withWitnesses(this.#raw, this.#held, this.#tags),
+      };
     return this.#written.tx;
   }
 
@@ -761,7 +792,9 @@ export class BuiltTx implements BuiltTxData {
         string,
         unknown
       >,
-      ...(held.length > 0 && { witnesses: writeWitnessSet(held, false) }),
+      ...(held.length > 0 && {
+        witnesses: writeWitnessSet(held, this.#tags),
+      }),
       ...(this.#extraKeys > 0 && { extraKeyWitnesses: this.#extraKeys }),
       ...(delivered && { delivered: true as const }),
     };
@@ -878,7 +911,7 @@ const internals = (builder: TxBuilder) =>
  * @param builder The builder that made it: it submits through it and looks through its provider
  * @param extraKeys The build's `extraKeyWitnesses`: witnesses of other keys its fee counts
  * @param restored What a restored object starts from: its transaction read, its witnesses
- *   verified, and its mark of a delivery
+ *   verified, the set tags they came with, and its mark of a delivery
  * @param payer The payer the build read, when it can sign: the signer of `sign()` without
  *   signers. A restored object takes none
  */
@@ -1046,9 +1079,11 @@ export const restoreBuiltTx = async (
       "its txHash is not the hash of the body of its transaction",
     );
   let held: KeyWitness[] = [];
+  let tags: Partial<KeyWitnessTags> = {};
   if (record.witnesses !== undefined)
     try {
       held = await witnessesToAdd(raw, [record.witnesses]);
+      tags = keyWitnessTags(readWitnessArgument(record.witnesses).witnessSet);
     } catch (error) {
       if (!TxPlanError.is(error, "INVALID_WITNESS")) throw error;
       if (error.details.reason === "wrongBody")
@@ -1062,5 +1097,6 @@ export const restoreBuiltTx = async (
     raw,
     held,
     delivered: record.delivered,
+    tags,
   });
 };

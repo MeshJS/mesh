@@ -67,7 +67,15 @@ import {
   withdrawal,
 } from "../../src/tx-builder";
 import { feeForSize } from "../../src/tx-builder/fee";
-import { askSigner, readTransaction } from "../../src/tx-builder/sign";
+import {
+  askSigner,
+  KeyWitness,
+  keyWitnessTags,
+  readTransaction,
+  readWitnessArgument,
+  withWitnesses,
+  writeWitnessSet,
+} from "../../src/tx-builder/sign";
 import { askedKeys, countedKeys } from "../../src/tx-builder/witnesses";
 import {
   alwaysSucceedCbor,
@@ -570,6 +578,128 @@ describe("addWitnesses", () => {
     const min = feeForSize(signed.length / 2, 0n, built.exUnits, params);
     expect(built.fee).toBeGreaterThanOrEqual(min);
     expect(built.fee - min).toBeLessThanOrEqual(5n * 44n);
+  });
+});
+
+describe("the set tag of the key witnesses", () => {
+  /** A vkey witness and a bootstrap witness of a new key over a transaction hash */
+  const witnessesOf = (txId: string): [KeyWitness, KeyWitness] => {
+    const key = testKey();
+    const signature = key.sign(txId);
+    const own = { vkey: key.vkey, signature, keyHash: key.keyHash };
+    return [
+      { kind: "vkey", ...own },
+      {
+        kind: "bootstrap",
+        ...own,
+        chainCode: "00".repeat(32),
+        attributes: "a0",
+      },
+    ];
+  };
+  const FORMS = [
+    { vkey: true, bootstrap: true },
+    { vkey: true, bootstrap: false },
+    { vkey: false, bootstrap: true },
+    { vkey: false, bootstrap: false },
+  ];
+  /** An entry of one witness, or of two, with the set tag or without */
+  const form = (tagged: boolean, count = 1) =>
+    new RegExp(`^${tagged ? "d90102" : ""}8${count}`);
+
+  it("withWitnesses writes an entry the transaction does not have in the form asked for, each entry on its own", async () => {
+    await Crypto.ready();
+    for (const taggedSets of [true, false]) {
+      const tx = await scriptTx(taggedSets);
+      const raw = readTransaction(tx);
+      const added = witnessesOf(raw.txId);
+      // Left out, both entries are written as the body writes its input set
+      expect(withWitnesses(raw, added)).toBe(
+        withWitnesses(raw, added, taggedSets),
+      );
+      expect(entry(withWitnesses(raw, added), 0)).toMatch(form(taggedSets));
+      expect(entry(withWitnesses(raw, added), 2)).toMatch(form(taggedSets));
+      for (const tags of FORMS) {
+        const written = withWitnesses(raw, added, tags);
+        expect(entry(written, 0)).toMatch(form(tags.vkey));
+        expect(entry(written, 2)).toMatch(form(tags.bootstrap));
+        // Only the two entries change
+        const [body, , ...rest] = topItems(tx);
+        expect(topItems(written)[0]).toBe(body);
+        expect(topItems(written).slice(2)).toEqual(rest);
+        expect(
+          witnessEntries(written).filter(([k]) => k !== 0 && k !== 2),
+        ).toEqual(witnessEntries(tx));
+        expect(written).toBe(
+          withWitnesses(
+            raw,
+            added,
+            tags.vkey === tags.bootstrap ? tags.vkey : tags,
+          ),
+        );
+      }
+    }
+  });
+
+  it("withWitnesses leaves an entry the transaction has in its own form, whatever is asked", async () => {
+    await Crypto.ready();
+    const raw = readTransaction(await scriptTx(true));
+    for (const tags of FORMS) {
+      const first = readTransaction(
+        withWitnesses(raw, witnessesOf(raw.txId), tags),
+      );
+      const flipped = { vkey: !tags.vkey, bootstrap: !tags.bootstrap };
+      for (const asked of [flipped, tags, true, false]) {
+        const more = withWitnesses(first, witnessesOf(raw.txId), asked);
+        expect(entry(more, 0)).toMatch(form(tags.vkey, 2));
+        expect(entry(more, 2)).toMatch(form(tags.bootstrap, 2));
+        expect(topItems(more)[0]).toBe(topItems(first.hex)[0]);
+      }
+    }
+  });
+
+  it("writeWitnessSet writes each entry with the set tag asked for it", async () => {
+    await Crypto.ready();
+    const raw = readTransaction(await scriptTx(true));
+    const [vkey, bootstrap] = witnessesOf(raw.txId);
+    for (const tags of FORMS) {
+      const set = writeWitnessSet([vkey, bootstrap], tags);
+      const { witnessSet, witnesses } = readWitnessArgument(set);
+      expect(witnesses).toEqual([vkey, bootstrap]);
+      expect(witnessSet.vkeys!.tagged).toBe(tags.vkey);
+      expect(witnessSet.bootstraps!.tagged).toBe(tags.bootstrap);
+      if (tags.vkey === tags.bootstrap)
+        expect(writeWitnessSet([vkey, bootstrap], tags.vkey)).toBe(set);
+    }
+    // An entry without a witness is not written, whatever its tag
+    expect(writeWitnessSet([vkey], { vkey: false, bootstrap: true })).toBe(
+      writeWitnessSet([vkey], false),
+    );
+  });
+
+  it("keyWitnessTags gives the form of each entry that holds a witness, and nothing for an empty one", async () => {
+    await Crypto.ready();
+    const raw = readTransaction(await scriptTx(true));
+    const [vkey, bootstrap] = witnessesOf(raw.txId);
+    const tagsOf = (set: string) =>
+      keyWitnessTags(readWitnessArgument(set).witnessSet);
+    for (const tags of FORMS) {
+      expect(tagsOf(writeWitnessSet([vkey, bootstrap], tags))).toEqual(tags);
+      expect(tagsOf(writeWitnessSet([vkey], tags))).toEqual({
+        vkey: tags.vkey,
+      });
+      expect(tagsOf(writeWitnessSet([bootstrap], tags))).toEqual({
+        bootstrap: tags.bootstrap,
+      });
+      // Read from a transaction as from a witness set
+      const tx = withWitnesses(raw, [vkey, bootstrap], tags);
+      expect(keyWitnessTags(readTransaction(tx).witnessSet)).toEqual(tags);
+    }
+    expect(tagsOf("a0")).toEqual({});
+    expect(keyWitnessTags(raw.witnessSet)).toEqual({});
+    // Empty entries, tagged and plain
+    expect(tagsOf("a200d901028002d9010280")).toEqual({});
+    expect(tagsOf("a200800280")).toEqual({});
   });
 });
 

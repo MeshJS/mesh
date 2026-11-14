@@ -458,14 +458,34 @@ const appendToEntry = (entry: WitnessEntry, added: readonly KeyWitness[]) => {
   );
 };
 
+/** Whether the vkey entry and the bootstrap entry of a witness set are written with the set tag */
+export type KeyWitnessTags = { vkey: boolean; bootstrap: boolean };
+
+const bothTags = (tagged: boolean | KeyWitnessTags): KeyWitnessTags =>
+  typeof tagged === "boolean" ? { vkey: tagged, bootstrap: tagged } : tagged;
+
+/**
+ * How a witness set writes its key witnesses: the set tag of its vkey entry and of its bootstrap
+ * entry, each when the entry holds a witness
+ */
+export const keyWitnessTags = (set: WitnessSet): Partial<KeyWitnessTags> => ({
+  ...(set.vkeys !== undefined &&
+    set.vkeys.witnesses.length > 0 && { vkey: set.vkeys.tagged }),
+  ...(set.bootstraps !== undefined &&
+    set.bootstraps.witnesses.length > 0 && {
+      bootstrap: set.bootstraps.tagged,
+    }),
+});
+
 /**
  * A witness set holding only these witnesses: a vkey entry and a bootstrap entry, each when it
- * has a witness, with the set tag when `tagged`
+ * has a witness, with the set tag when `tagged`, which may differ between the two
  */
 export const writeWitnessSet = (
   witnesses: readonly KeyWitness[],
-  tagged: boolean,
+  tagged: boolean | KeyWitnessTags,
 ): string => {
+  const tags = bothTags(tagged);
   const vkeys = witnesses.filter((w) => w.kind === "vkey");
   const bootstraps = witnesses.filter((w) => w.kind === "bootstrap");
   const writer = new CborWriter();
@@ -473,11 +493,11 @@ export const writeWitnessSet = (
     (vkeys.length > 0 ? 1 : 0) + (bootstraps.length > 0 ? 1 : 0),
   );
   if (vkeys.length > 0)
-    writer.writeInt(VKEYS).writeEncodedValue(writeEntry(vkeys, tagged));
+    writer.writeInt(VKEYS).writeEncodedValue(writeEntry(vkeys, tags.vkey));
   if (bootstraps.length > 0)
     writer
       .writeInt(BOOTSTRAPS)
-      .writeEncodedValue(writeEntry(bootstraps, tagged));
+      .writeEncodedValue(writeEntry(bootstraps, tags.bootstrap));
   return toHex(writer.encode());
 };
 
@@ -498,12 +518,16 @@ export const newWitnesses = (
 /**
  * The transaction with these witnesses added to its witness set. Only the vkey and bootstrap
  * entries change; every other byte is kept. The witnesses must be new to it.
+ * @param tagged Whether a vkey entry and a bootstrap entry the transaction does not have yet are
+ *   written with the set tag; as the body writes its input set when left out
  */
 export const withWitnesses = (
   raw: RawTx,
   added: readonly KeyWitness[],
+  tagged: boolean | KeyWitnessTags = raw.taggedSets,
 ): string => {
   if (added.length === 0) return raw.hex;
+  const tags = bothTags(tagged);
   const { witnessSet, top } = raw;
   const byKind = {
     [VKEYS]: added.filter((w) => w.kind === "vkey"),
@@ -521,7 +545,7 @@ export const withWitnesses = (
       bytes: [keyBytes, more.length > 0 ? appendToEntry(entry!, more) : value],
     };
   });
-  // A new entry goes before the first larger key, written as the body writes its input set
+  // A new entry goes before the first larger key, with the set tag `tagged` gives it
   for (const key of [VKEYS, BOOTSTRAPS] as const) {
     if (held[key] || byKind[key].length === 0) continue;
     const at = entries.findIndex((e) => e.key > key);
@@ -529,7 +553,7 @@ export const withWitnesses = (
       key,
       bytes: [
         new CborWriter().writeInt(key).encode(),
-        writeEntry(byKind[key], raw.taggedSets),
+        writeEntry(byKind[key], key === VKEYS ? tags.vkey : tags.bootstrap),
       ],
     });
   }

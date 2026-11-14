@@ -15,7 +15,13 @@ import {
   pubKeyAddress,
   serializeAddressObj,
 } from "@meshsdk/core";
-import { CborWriter, Crypto, Transaction, TxCBOR } from "@meshsdk/core-cst";
+import {
+  CborWriter,
+  Crypto,
+  Transaction,
+  transactionPrototypeToHex,
+  TxCBOR,
+} from "@meshsdk/core-cst";
 
 import type { AskedKey } from "../../src/tx-builder";
 import type { KeyWitness } from "../../src/tx-builder/sign";
@@ -52,7 +58,12 @@ import {
   unquoted,
 } from "../../src/tx-builder/plan/json";
 import { submitFailureText } from "../../src/tx-builder/plan/observer";
-import { readTransaction, withWitnesses } from "../../src/tx-builder/sign";
+import {
+  keyWitnessTags,
+  readTransaction,
+  readWitnessArgument,
+  withWitnesses,
+} from "../../src/tx-builder/sign";
 import { alwaysSucceedCbor, baseAddress } from "../test-util";
 import { hashSigner, keysSigner, TestKey, testKey } from "./hash-signer-util";
 import { pay, setup } from "./plan/plan-emulator-util";
@@ -3045,6 +3056,216 @@ describe("BuiltTx as JSON, and TxBuilder.restore", () => {
     const dropped = await b.restore(without);
     expect(vkeysOf(dropped.signedTx!).vkeys).toEqual([payer.vkey]);
     expect(throughText(dropped).extraKeyWitnesses).toBeUndefined();
+  });
+
+  describe("the set tag of its key witnesses", () => {
+    const BYRON = "Ae2tdPwUPEZ4YjgvykNpoFeYUxoyhNj2kg8KfKWN2FizsSpLUPv68MpTVDo";
+    const FORMS = [
+      { vkey: true, bootstrap: true },
+      { vkey: true, bootstrap: false },
+      { vkey: false, bootstrap: true },
+      { vkey: false, bootstrap: false },
+    ];
+
+    /**
+     * A spend from a Byron address paid from a Shelley key on mainnet, its body written with the
+     * set tag or without: one key to sign, and one bootstrap witness kept
+     */
+    const byronSpend = async (taggedSets: boolean) => {
+      await Crypto.ready();
+      const payer = testKey();
+      const byronKey = testKey();
+      const shelley = serializeAddressObj(pubKeyAddress(payer.keyHash), 1);
+      const b = new TxBuilder({
+        network: "mainnet",
+        params,
+        costModels,
+        serializer: {
+          serializeTxPrototype: (
+            prototype: Parameters<typeof transactionPrototypeToHex>[0],
+          ) => transactionPrototypeToHex(prototype, { taggedSets }),
+        } as never,
+      });
+      const built = await b.build(
+        [
+          spend.pubKey({ utxo: utxoAt(BYRON, ada(5)) }),
+          output({ address: shelley, value: { lovelace: ada(10) } }),
+        ],
+        { payer: { changeAddress: shelley, utxos: [utxoAt(shelley)] } },
+      );
+      expect(readTransaction(built.tx).taggedSets).toBe(taggedSets);
+      return { built, payer, byronKey, builder: b };
+    };
+
+    /**
+     * A witness set of a vkey witness of one key and a bootstrap witness of another, each entry
+     * when its key is given, with the set tag or without
+     */
+    const keyWitnessSet = (
+      txHash: string,
+      vkeyKey: TestKey | undefined,
+      bootstrapKey: TestKey | undefined,
+      tags: { vkey: boolean; bootstrap: boolean },
+    ) => {
+      const writer = new CborWriter().writeStartMap(
+        (vkeyKey ? 1 : 0) + (bootstrapKey ? 1 : 0),
+      );
+      if (vkeyKey) {
+        writer.writeInt(0);
+        if (tags.vkey) writer.writeTag(258);
+        writer
+          .writeStartArray(1)
+          .writeStartArray(2)
+          .writeByteString(Buffer.from(vkeyKey.vkey, "hex"))
+          .writeByteString(Buffer.from(vkeyKey.sign(txHash), "hex"));
+      }
+      if (bootstrapKey) {
+        writer.writeInt(2);
+        if (tags.bootstrap) writer.writeTag(258);
+        writer
+          .writeStartArray(1)
+          .writeStartArray(4)
+          .writeByteString(Buffer.from(bootstrapKey.vkey, "hex"))
+          .writeByteString(Buffer.from(bootstrapKey.sign(txHash), "hex"))
+          .writeByteString(new Uint8Array(32))
+          .writeByteString(Buffer.from("a0", "hex"));
+      }
+      return writer.encodeAsHex();
+    };
+
+    /** Whether the vkey entry and the bootstrap entry of a transaction have the set tag */
+    const formOf = (tx: string) => {
+      const { vkeys, bootstraps } = readTransaction(tx).witnessSet;
+      return { vkey: vkeys?.tagged, bootstrap: bootstraps?.tagged };
+    };
+    /** The body bytes of a transaction, in hex */
+    const bodyOf = (tx: string) =>
+      Buffer.from(readTransaction(tx).top.items[0]!).toString("hex");
+
+    it("writes witnesses with the set tag when the body writes its sets with it, and the object restored writes the same partialTx", async () => {
+      for (const taggedSets of [true, false]) {
+        const {
+          built,
+          payer,
+          byronKey,
+          builder: b,
+        } = await byronSpend(taggedSets);
+        await built.addWitnesses(bootstrapSet(built.txHash, byronKey));
+        const partly = throughText(built);
+        await built.sign({ signers: keysSigner("object", payer).signer });
+        const both = { vkey: taggedSets, bootstrap: taggedSets };
+        expect(formOf(built.signedTx!)).toEqual(both);
+        // A build writes its key witnesses as the body writes its sets, whatever form they came in
+        expect(built.signedTx).toBe(
+          withWitnesses(
+            readTransaction(built.tx),
+            readWitnessArgument(built.signedTx).witnesses,
+          ),
+        );
+        const json = throughText(built);
+        for (const record of [partly, json])
+          expect(
+            keyWitnessTags(readWitnessArgument(record.witnesses).witnessSet),
+          ).toEqual(record === partly ? { bootstrap: taggedSets } : both);
+        const restored = await b.restore(json);
+        expect(restored.partialTx).toBe(built.partialTx);
+        expect(restored.signedTx).toBe(built.signedTx);
+        expect(throughText(restored)).toEqual(json);
+        // Restored with the bootstrap witness alone, then signed: the same bytes
+        const fromPartly = await b.restore(partly);
+        await fromPartly.sign({
+          signers: keysSigner("object", payer).signer,
+        });
+        expect(fromPartly.signedTx).toBe(built.signedTx);
+      }
+    });
+
+    it("restores a JSON whose witnesses stand without the set tag over a body with tagged sets to an object that writes them without it", async () => {
+      const { built, payer, byronKey, builder: b } = await byronSpend(true);
+      const plain = { vkey: false, bootstrap: false };
+      const json = {
+        ...throughText(built),
+        witnesses: keyWitnessSet(built.txHash, payer, byronKey, plain),
+      };
+      const restored = await b.restore(json);
+      expect(formOf(restored.signedTx!)).toEqual(plain);
+      // The same body and the same witnesses, each entry 3 bytes shorter
+      expect(bodyOf(restored.signedTx!)).toBe(bodyOf(built.tx));
+      expect(vkeysOf(restored.signedTx!)).toEqual({
+        vkeys: [payer.vkey],
+        bootstraps: [byronKey.vkey],
+      });
+      expect(await signedKeyHashes(restored.signedTx!)).toEqual([
+        payer.keyHash,
+      ]);
+      await built.addWitnesses(json.witnesses);
+      expect(formOf(built.signedTx!)).toEqual({ vkey: true, bootstrap: true });
+      expect(restored.signedTx!.length).toBe(built.signedTx!.length - 2 * 6);
+      // Written and restored again, the same
+      expect(throughText(restored).witnesses).toBe(json.witnesses);
+      const again = await b.restore(throughText(restored));
+      expect(again.signedTx).toBe(restored.signedTx);
+    });
+
+    it("keeps the form of the bootstrap entry apart from the form of the vkey entry", async () => {
+      for (const taggedSets of [true, false]) {
+        const {
+          built,
+          payer,
+          byronKey,
+          builder: b,
+        } = await byronSpend(taggedSets);
+        for (const tags of FORMS) {
+          const witnesses = keyWitnessSet(built.txHash, payer, byronKey, tags);
+          const restored = await b.restore({
+            ...throughText(built),
+            witnesses,
+          });
+          expect(formOf(restored.signedTx!)).toEqual(tags);
+          expect(bodyOf(restored.signedTx!)).toBe(bodyOf(built.tx));
+          expect(throughText(restored).witnesses).toBe(witnesses);
+          const again = await b.restore(throughText(restored));
+          expect(again.signedTx).toBe(restored.signedTx);
+        }
+        // An entry the object came without is written as the body writes its sets
+        const flipped = { vkey: !taggedSets, bootstrap: !taggedSets };
+        const vkeyOnly = await b.restore({
+          ...throughText(built),
+          witnesses: keyWitnessSet(built.txHash, payer, undefined, flipped),
+        });
+        await vkeyOnly.addWitnesses(
+          keyWitnessSet(built.txHash, undefined, byronKey, flipped),
+        );
+        expect(formOf(vkeyOnly.signedTx!)).toEqual({
+          vkey: !taggedSets,
+          bootstrap: taggedSets,
+        });
+        const bootstrapOnly = await b.restore({
+          ...throughText(built),
+          witnesses: keyWitnessSet(built.txHash, undefined, byronKey, flipped),
+        });
+        await bootstrapOnly.addWitnesses(
+          keyWitnessSet(built.txHash, payer, undefined, flipped),
+        );
+        expect(formOf(bootstrapOnly.signedTx!)).toEqual({
+          vkey: taggedSets,
+          bootstrap: !taggedSets,
+        });
+        // So is one whose witnesses the object did not keep: of a key it does not ask for
+        const dropped = await b.restore({
+          ...throughText(built),
+          witnesses: keyWitnessSet(built.txHash, testKey(), byronKey, flipped),
+        });
+        expect(vkeysOf(dropped.partialTx).vkeys).toEqual([]);
+        await dropped.addWitnesses(
+          keyWitnessSet(built.txHash, payer, undefined, flipped),
+        );
+        expect(formOf(dropped.signedTx!)).toEqual({
+          vkey: taggedSets,
+          bootstrap: !taggedSets,
+        });
+      }
+    });
   });
 
   describe("the mark of a delivery", () => {
