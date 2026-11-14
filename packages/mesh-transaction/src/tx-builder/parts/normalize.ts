@@ -605,6 +605,18 @@ export const nativeScriptToPrototype = (
 };
 
 /**
+ * What a text is, without the text: its length, and the prefix of a bech32 text, which says what
+ * kind of thing it is. For an error about a text that may be a key given by mistake
+ */
+export const textShape = (text: string): string => {
+  if (/^[0-9a-fA-F]+$/.test(text)) return `${text.length} hex digits`;
+  const prefix = /^([a-z0-9_]{1,20})1[02-9ac-hj-np-z]{6,}$/i.exec(text)?.[1];
+  return prefix === undefined
+    ? `text of ${text.length} characters`
+    : `text of ${text.length} characters with the prefix ${prefix.toLowerCase()}`;
+};
+
+/**
  * The text of a thrown value, for a message: an Error's message, a string as it is, a CIP-30
  * error (an object with a string `info`) by its info and its code, an object with a string
  * `message` by that message, and anything else as JSON, or as `String` when it has none

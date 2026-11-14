@@ -676,7 +676,11 @@ describe("R1: key material never leaves the signer object", () => {
   it("a key given where a signer, a submitter, options, a witness or a JSON goes is refused by every call, with errors that show nothing of it", async () => {
     const b = offline();
     const built = await twoKeyPayment(b, keys);
-    const { plan } = await planOf(keys.normal.keyHash);
+    const {
+      plan,
+      builder: planBuilder,
+      address,
+    } = await planOf(keys.normal.keyHash);
     await plan.build();
     const wallet = { signTxWitnesses: async () => "a0" };
     const calls: [string, (value: unknown) => Promise<unknown>][] = [
@@ -694,6 +698,26 @@ describe("R1: key material never leaves the signer object", () => {
           (v) => callPlan(plan, call, v),
         ],
       ),
+      ["plan.sign({ signal })", (v) => plan.sign({ signal: v } as never)],
+      ["plan.send({ submitter })", (v) => plan.send({ submitter: v } as never)],
+      [
+        "plan.advance({ submitter })",
+        (v) => plan.advance({ submitter: v } as never),
+      ],
+      ["plan.build(options)", (v) => plan.build(v as never)],
+      ["plan.build({ payer })", (v) => plan.build({ payer: v } as never)],
+      ["build({ payer })", (v) => b.build(pay(), { payer: v } as never)],
+      [
+        "build({ payer: { changeAddress } })",
+        (v) =>
+          b.build(pay(), { payer: { changeAddress: v, utxos: [] } } as never),
+      ],
+      ["readPayer", (v) => b.readPayer(v as never)],
+      [
+        "builder.plan({ after })",
+        async (v) =>
+          planBuilder.plan(pay(), { payer: address, after: v } as never),
+      ],
     ];
     const leaks: string[] = [];
     let refusals = 0;

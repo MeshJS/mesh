@@ -48,6 +48,7 @@ import { isKeyLocked } from "../balance";
 import { toKnownUtxos } from "../chain";
 import { NOT_UNPAID, TxBuildError, TxPlanError } from "../errors";
 import {
+  invalidOption,
   optionsObject,
   SIGNERS_IN_PLACE,
   SUBMITTER_IN_PLACE,
@@ -274,20 +275,6 @@ const sameRef = (a: Readonly<OutRef>, b: Readonly<OutRef>) =>
   a.txHash.toLowerCase() === b.txHash.toLowerCase() &&
   a.outputIndex === b.outputIndex;
 
-const describe = (value: unknown): string => {
-  if (typeof value === "string") return JSON.stringify(value);
-  if (typeof value === "object" && value !== null)
-    return Array.isArray(value) ? "a list" : "an object";
-  return String(value);
-};
-
-const invalidOption = (option: string, value: unknown, allowed: string) =>
-  new TxBuildError(
-    "INVALID_OPTION",
-    `invalid ${option}: expected ${allowed}; got ${describe(value)}`,
-    { details: { option, value, allowed } },
-  );
-
 const isFunction = (value: unknown, name: string) =>
   (typeof value === "object" || typeof value === "function") &&
   value !== null &&
@@ -338,7 +325,7 @@ const SEND_IN_PLACE: readonly GivenInPlace[] = [
 /**
  * The submitter and the signal of a call, checked by their shape
  * @throws TxBuildError INVALID_OPTION for a submitter without `submitTx`, or a signal that is
- *   not an AbortSignal
+ *   not an AbortSignal; `details.value` is only the JavaScript type of what was given
  */
 const checkCallOptions = (options: {
   submitter?: unknown;
@@ -817,9 +804,9 @@ export class TxPlan {
    *   was built from; INVALID_OPTION for a payer of no known form, and for options that are
    *   not an object (a payer given in their place among them: give it as `{ payer }`) or have a
    *   member other than these, with `details.value` only the JavaScript type of what was given,
-   *   before anything is built or written; INSUFFICIENT_FUNDS for a
-   *   plan with `sendAllTo` none of whose earlier UTxOs is left; ABORTED; and every error of
-   *   building the transaction, FEE_TOO_LOW for an attempt the plan's `fee` does not cover
+   *   before anything is built or written; INSUFFICIENT_FUNDS for a plan with `sendAllTo` none
+   *   of whose earlier UTxOs is left; ABORTED; and every error of building the transaction,
+   *   FEE_TOO_LOW for an attempt the plan's `fee` does not cover
    */
   build(options?: {
     payer?: Payer;
@@ -890,12 +877,11 @@ export class TxPlan {
    * keys the attempt needs and those its native scripts name, and `extraKeyWitnesses` more);
    * others are dropped. The payer, asked when the call names no signer, is not asked when every
    * key it could be asked for has signed and no bootstrap witness is missing, whatever its form,
-   * and only its witnesses of the keys it was asked for, and
-   * bootstrap witnesses, are recorded: the witnesses of other keys the fee counts come from the
-   * signers named in a call and from `addWitnesses`. `send()` and `advance()` sign by the same
-   * rules. With every needed key the attempt is `signed`; else it stays `built` and `missing`
-   * lists the rest. A signer is waited for no longer than the attempt's `until`, by the tip read
-   * once before asking.
+   * and only its witnesses of the keys it was asked for, and bootstrap witnesses, are recorded:
+   * the witnesses of other keys the fee counts come from the signers named in a call and from
+   * `addWitnesses`. `send()` and `advance()` sign by the same rules. With every needed key the
+   * attempt is `signed`; else it stays `built` and `missing` lists the rest. A signer is waited
+   * for no longer than the attempt's `until`, by the tip read once before asking.
    * @throws TxPlanError MISSING_SIGNATURES when nobody can sign: no signers given (an empty
    *   list gives none), and a payer that cannot sign;
    *   SIGN_DECLINED, SIGNER_FAILED (`timeout` past the deadline, also without asking when no

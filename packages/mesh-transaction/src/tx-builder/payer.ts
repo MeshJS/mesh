@@ -11,7 +11,7 @@ import type { Utxo, UtxoInput } from "./parts/types";
 import { throwIfAborted } from "./abort";
 import { TxBuildError } from "./errors";
 import { checkNetworks, utxoEntry } from "./network";
-import { addressText, errorText, isObject } from "./parts/normalize";
+import { addressText, errorText, isObject, textShape } from "./parts/normalize";
 import { readUtxo } from "./parts/utxo";
 
 /** The vkey witnesses a transaction needs, as key hashes */
@@ -111,6 +111,13 @@ export const toAddressText = (text: unknown): string => {
   // A reward address holds no UTxOs and cannot take change
   if (parsed.asReward())
     throw new Error(`${text} is a reward address, not a payment address`);
+  // Bytes that are no address can still read as one of a network that does not exist: the CBOR
+  // of a signing key file does, and must not go on as an address
+  const networkId = parsed.getNetworkId();
+  if (networkId !== 0 && networkId !== 1)
+    throw new Error(
+      `${text} is not an address of a Cardano network: its network id is ${networkId}`,
+    );
   return addressText(parsed);
 };
 
@@ -119,6 +126,25 @@ const invalidPayer = (value: unknown, reason: string, cause?: unknown) =>
     details: { option: "payer", value, allowed: PAYER_FORMS },
     ...(cause !== undefined && { cause }),
   });
+
+/** The JavaScript type of a value, with `null` told apart */
+const typeOf = (value: unknown) => (value === null ? "null" : typeof value);
+
+/**
+ * The error for a payer, or a snapshot's change address, that is no payment address, or is of
+ * no known form. A private key may be given there by mistake, so the message tells the shape of
+ * what was given and `details.value` its JavaScript type, never the value, and the parser's
+ * error, which quotes the text, is not the `cause`
+ */
+const unreadablePayer = (value: unknown, what: string) =>
+  invalidPayer(
+    typeOf(value),
+    `expected ${PAYER_FORMS}; ${what} is ${
+      typeof value === "string"
+        ? `${textShape(value)} that is not a payment address`
+        : `a value of type ${typeOf(value)}`
+    }`,
+  );
 
 /**
  * Tells the form of a payer by its shape (a string, then a wallet, then a snapshot) and converts
@@ -135,23 +161,21 @@ export const toPayerSource = (payer: unknown): PayerSource => {
   if (typeof payer === "string") {
     try {
       return { form: "address", address: toAddressText(payer) };
-    } catch (error) {
-      throw invalidPayer(payer, errorText(error), error);
+    } catch {
+      throw unreadablePayer(payer, "the payer");
     }
   }
-  if (!isObject(payer))
-    throw invalidPayer(payer, `expected ${PAYER_FORMS}; got ${String(payer)}`);
+  if (!isObject(payer)) throw unreadablePayer(payer, "the payer");
   if (typeof payer.getChangeAddress === "function")
     return { form: "wallet", wallet: payer as TxWallet };
   if (typeof payer.changeAddress === "string" && Array.isArray(payer.utxos)) {
     let changeAddress: string;
     try {
       changeAddress = toAddressText(payer.changeAddress);
-    } catch (error) {
-      throw invalidPayer(
+    } catch {
+      throw unreadablePayer(
         payer.changeAddress,
-        `the snapshot's change address: ${errorText(error)}`,
-        error,
+        "the snapshot's change address",
       );
     }
     const utxos = (payer.utxos as unknown[]).map((entry, i) => {
@@ -168,7 +192,7 @@ export const toPayerSource = (payer: unknown): PayerSource => {
     return { form: "snapshot", snapshot: { changeAddress, utxos } };
   }
   throw invalidPayer(
-    payer,
+    typeOf(payer),
     `expected ${PAYER_FORMS}; got an object of none of these forms`,
   );
 };

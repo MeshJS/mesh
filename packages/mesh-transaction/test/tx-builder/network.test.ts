@@ -707,10 +707,12 @@ describe("TxBuilder: network checks", () => {
       ),
       "INVALID_OPTION",
     );
-    expect(error.details).toMatchObject({
-      option: "payer",
-      value: "not an address",
-    });
+    // Only the JavaScript type of what was given: a key may be given there by mistake
+    expect(error.details).toMatchObject({ option: "payer", value: "string" });
+    expect(error.message).toContain(
+      "text of 14 characters that is not a payment address",
+    );
+    expect(error.message).not.toContain("not an address");
   });
 
   it("compares only network ids", async () => {
