@@ -1,0 +1,156 @@
+import type {
+  PlutusDataPrototype,
+  TransactionPrototype,
+} from "@meshsdk/common";
+
+import { transactionPrototypeFromHex } from "../../src/tx-prototype-from-cbor";
+import { plutusDataToPrototype } from "../../src/tx-prototype-from-cbor/plutus-data";
+import { transactionPrototypeToHex } from "../../src/tx-prototype-to-cbor";
+import { HexBlob, PlutusData } from "../../src/types";
+
+const TX_HASH = "11".repeat(32);
+const ADDRESS =
+  "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9";
+
+const int = (value: bigint): PlutusDataPrototype => ({
+  type: "INTEGER",
+  value,
+});
+const bytes = (value: string): PlutusDataPrototype => ({
+  type: "BYTES",
+  value,
+});
+
+/** `{1: 2, 1: 3}` */
+const DATUM: PlutusDataPrototype = {
+  type: "MAP",
+  value: [
+    [int(1n), int(2n)],
+    [int(1n), int(3n)],
+  ],
+};
+
+/** `{7: h'aa', 7: h'bb'}` */
+const REDEEMER_DATA: PlutusDataPrototype = {
+  type: "MAP",
+  value: [
+    [int(7n), bytes("aa")],
+    [int(7n), bytes("bb")],
+  ],
+};
+
+/** A transaction whose inline datum, redeemer data and metadata each hold a map that repeats a key */
+const repeating = (): TransactionPrototype => ({
+  body: {
+    fee: "170000",
+    inputs: [{ transaction_id: TX_HASH, index: 0 }],
+    outputs: [
+      {
+        address: ADDRESS,
+        amount: { coin: "5000000" },
+        plutus_data: { type: "DATA", value: { type: "MANUAL", data: DATUM } },
+      },
+    ],
+  },
+  is_valid: true,
+  witness_set: {
+    redeemers: [
+      {
+        tag: { type: "SPEND" },
+        index: "0",
+        data: { type: "MANUAL", data: REDEEMER_DATA },
+        ex_units: { mem: "1000", steps: "500" },
+      },
+    ],
+  },
+  auxiliary_data: {
+    prefer_alonzo_format: true,
+    metadata: {
+      "1": {
+        type: "MAP",
+        value: [
+          [
+            { type: "INT", value: 5n },
+            { type: "INT", value: 1n },
+          ],
+          [
+            { type: "INT", value: 5n },
+            { type: "INT", value: 2n },
+          ],
+        ],
+      },
+    },
+  },
+});
+
+describe("a map that repeats a key", () => {
+  it("is shown with every pair, in their order, in a datum, redeemer data and metadata", () => {
+    // The encoder writes the datum and the redeemer data as given; the metadata is written here
+    // by hand, label 1 as {5: 1, 5: 2}
+    const encoded = transactionPrototypeToHex(repeating());
+    expect(encoded.endsWith("a101a10502")).toBe(true);
+    const hex = `${encoded.slice(0, -10)}a101a205010502`;
+    expect(hex).toContain("a201020103");
+    expect(hex).toContain("a20741aa0741bb");
+    const read = transactionPrototypeFromHex(hex);
+    const output = read.body.outputs[0]!;
+    expect(output.plutus_data).toEqual({
+      type: "DATA",
+      value: { type: "MANUAL", data: DATUM },
+    });
+    expect(read.witness_set.redeemers![0]!.data).toEqual({
+      type: "MANUAL",
+      data: REDEEMER_DATA,
+    });
+    expect(read.auxiliary_data!.metadata!["1"]).toEqual(
+      repeating().auxiliary_data!.metadata!["1"],
+    );
+  });
+
+  it("keeps every pair of a map inside a constructor, a list and another map, definite or not", () => {
+    // 121([[{1: 2, 1: 3}], {h'00': {4: 5, 4: 6}}]) with the innermost map of indefinite length
+    const hex = "d87982" + "81a201020103" + "a14100" + "bf04050406ff";
+    expect(plutusDataToPrototype(PlutusData.fromCbor(HexBlob(hex)))).toEqual({
+      type: "CONSTR",
+      alternative: 0n,
+      fields: [
+        { type: "LIST", value: [DATUM] },
+        {
+          type: "MAP",
+          value: [
+            [
+              bytes("00"),
+              {
+                type: "MAP",
+                value: [
+                  [int(4n), int(5n)],
+                  [int(4n), int(6n)],
+                ],
+              },
+            ],
+          ],
+        },
+      ],
+    });
+  });
+
+  it("reads constructors of each form and integers beyond 64 bits as before", () => {
+    // 1280([]), 102([200, [h'01']]), 2(h'010000000000000000') and -1
+    const hex =
+      "d9050080" +
+      "d86682 18c8 814101".replace(/ /g, "") +
+      "c249010000000000000000" +
+      "20";
+    expect(
+      plutusDataToPrototype(PlutusData.fromCbor(HexBlob(`84${hex}`))),
+    ).toEqual({
+      type: "LIST",
+      value: [
+        { type: "CONSTR", alternative: 7n, fields: [] },
+        { type: "CONSTR", alternative: 200n, fields: [bytes("01")] },
+        int(2n ** 64n),
+        int(-1n),
+      ],
+    });
+  });
+});
