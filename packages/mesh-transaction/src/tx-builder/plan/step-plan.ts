@@ -705,9 +705,10 @@ export class StepPlan {
    *
    * A refusal of the ledger counts only when no delivery of the step may have gone through, a
    * search after it does not find the step, and every step and every transaction of `after` it
-   * stands on is found in a block by that search. A refusal that does not count proves nothing: a call that waits goes on waiting
-   * and sends the same bytes again; a call with `waitFor: "sent"` throws SUBMIT_FAILED (`refused`)
-   * when no delivery of the step may have gone through.
+   * stands on is found in a block by that search. A refusal that does not count proves nothing:
+   * a call that waits goes on waiting and sends the same bytes again; a call with
+   * `waitFor: "sent"` throws SUBMIT_FAILED (`refused`) when no delivery of the step may have gone
+   * through.
    *
    * A step whose end of validity the tip has passed is not sent: the call waits until the chain
    * shows it in a block or dead. A step sent by another party whose witnesses the plan does not
