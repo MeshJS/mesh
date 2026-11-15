@@ -1700,9 +1700,10 @@ const warn = (
  * `sendAllTo`: one at a time, each from what the failed build selected, then the step is built
  * again on the change of the last one, until it fits. The first stands on the change of the
  * step before it of the payer whenever the step's parts name none of that change, and none
- * takes a UTxO a step of the plan that is not final reads or puts up as collateral. They are
- * named `consolidate-N`, counted
- * through the plan, and at most the option's limit of them are in the plan as a whole. The
+ * takes a UTxO a step of the plan that is not final reads or puts up as collateral. The change
+ * of a consolidation step holds only what `canSelect` let through: the next consolidation step
+ * and the step spend it without asking. They are named `consolidate-N`, counted through the
+ * plan, and at most the option's limit of them are in the plan as a whole. The
  * outputs a consolidation step parks are out of reach of the step it serves; a later step may
  * select those that hold a token unit its parts take out beyond what they bring in, and a later
  * step with `sendAllTo` every one of its payer.
@@ -1714,8 +1715,8 @@ const warn = (
  * outputs marked change at that payer's change address
  * @throws as `makePlan` throws of building its steps, each error with the step's name at the
  *   start of its message; TxBuildError TX_TOO_LARGE (`cause: "selection"`) for a step that
- *   needs more consolidation steps than the plan allows, or whose consolidation step cannot be
- *   built; what `readPrebuilt` throws
+ *   needs more consolidation steps than the plan allows, whose consolidation step cannot be
+ *   built, or leaves no change the step can stand on; what `readPrebuilt` throws
  */
 const buildSteps = async (
   builder: TxBuilder,
@@ -1822,6 +1823,8 @@ const buildSteps = async (
         given.slice(index + 1).map((each) => each.name),
       );
       let built: BuiltTxData | undefined;
+      /** The step's last TX_TOO_LARGE, which its consolidation steps serve */
+      let served: TxBuildError<"TX_TOO_LARGE"> | undefined;
       while (built === undefined) {
         // The step before it of the same payer, told by the change address; a final one is on
         // chain, and the ledger keeps nothing in order after it
@@ -1829,12 +1832,15 @@ const buildSteps = async (
           .reverse()
           .find((each) => isOfPayer(each, changeAddress));
         const previous = nearest?.final === true ? undefined : nearest;
+        // The change of a consolidation step made for this step holds only what canSelect let
+        // through: it is spent without asking
+        const ownStep = previous?.serves === name;
         const found = changeToSpend(
           filled,
           previous,
           changeAddress,
           [...all, ...later],
-          canSelect,
+          ownStep ? undefined : canSelect,
         );
         // The steps of one payer form a chain the ledger keeps in order: a step stands on the
         // step before it of its payer, by its change or by an output its parts name, of that
@@ -1843,10 +1849,19 @@ const buildSteps = async (
           found !== undefined &&
           "none" in found &&
           !standsThrough(filled, previous!, all)
-        )
-          throw invalidSteps(
+        ) {
+          const refused = invalidSteps(
             `step ${JSON.stringify(name)} cannot stand on step ${JSON.stringify(previous!.name)}, the step before it of the same payer: ${found.none}, so step ${JSON.stringify(name)} could land before it. Link step ${JSON.stringify(name)} to an output of step ${JSON.stringify(previous!.name)}, or make it a plan of its own`,
           );
+          // A step the application did not give is never one it is told to link to
+          if (ownStep && served !== undefined)
+            throw tooLargeOf(
+              served,
+              `the consolidation step ${JSON.stringify(previous!.name)} the plan would put before it leaves no change it can stand on: nothing was recorded`,
+              refused,
+            );
+          throw refused;
+        }
         const change =
           found === undefined || "none" in found ? undefined : found;
         // The change of a step in a block is what the chain shows of it: a read that does not
@@ -1923,6 +1938,7 @@ const buildSteps = async (
             !isConsolidable(error)
           )
             throw error;
+          served = error as TxBuildError<"TX_TOO_LARGE">;
           // The first consolidation step made for the step stands on the step before it of its
           // payer, by that step's change, whenever the step's parts leave that change: so it
           // never lands before that step, however the step itself stands on it
@@ -2001,6 +2017,17 @@ const buildSteps = async (
   return made;
 };
 
+/** The served step's TX_TOO_LARGE, with why consolidation could not make it fit */
+const tooLargeOf = (
+  served: TxBuildError<"TX_TOO_LARGE">,
+  why: string,
+  cause: unknown,
+) =>
+  new TxBuildError("TX_TOO_LARGE", `${served.message}; ${why}`, {
+    details: { ...served.details },
+    cause,
+  });
+
 /**
  * One consolidation step for a step whose build did not fit because of what it selected: named
  * after those the plan has, built from that build's selection
@@ -2033,12 +2060,8 @@ const consolidate = async (
 ): Promise<{ readonly name: string; readonly built: BuiltTxData }> => {
   const served = error as TxBuildError<"TX_TOO_LARGE">;
   const { limit, count, room, options } = context;
-  /** The served step's TX_TOO_LARGE, with why consolidation could not make it fit */
   const tooLarge = (why: string, cause: unknown) =>
-    new TxBuildError("TX_TOO_LARGE", `${served.message}; ${why}`, {
-      details: { ...served.details },
-      cause,
-    });
+    tooLargeOf(served, why, cause);
   if (count >= limit)
     throw tooLarge(
       `the plan allows ${limit} consolidation step(s) to make room for the inputs it needs, and has ${count}: nothing was recorded`,
