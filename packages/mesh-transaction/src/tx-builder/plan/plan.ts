@@ -2401,17 +2401,20 @@ const sameRecord = (a: PlanRecord, b: PlanRecord) =>
 
 /**
  * What makes two records of one id the same plan: its network, deadlines, options and the steps
- * it was made with; steps added later are not of it, nor the consolidation steps the plan put
- * in, which depend on the wallet as it was read
+ * it was made with; steps added later are not of it unless `added` says so, nor ever the
+ * consolidation steps the plan put in, which depend on the wallet as it was read
  */
-const shapeOf = (record: PlanRecord) => {
+const shapeOf = (record: PlanRecord, added = false) => {
   const json = encodePlan(record);
   return {
     network: json.network,
     deadlines: json.deadlines,
     options: json.options,
     steps: json.steps
-      .filter((step) => step.added !== true && step.kind !== "consolidation")
+      .filter(
+        (step) =>
+          (added || step.added !== true) && step.kind !== "consolidation",
+      )
       .map((step) => ({
         name: step.name,
         kind: step.kind,
@@ -2434,15 +2437,16 @@ const shapeOfOrder = (order: PlanOrder) => ({
 /**
  * Whether a record and a record, or an order not built, are the same plan. Of the deadlines of
  * an order only those it gives explicitly are compared: the builder's defaults may change
+ * @param added Whether the steps added to `a` count among its steps
  */
-const sameOrder = (a: PlanRecord, b: PlanRecord | PlanOrder) => {
+const sameOrder = (a: PlanRecord, b: PlanRecord | PlanOrder, added = false) => {
   if ("rev" in b)
     return sameJson(
-      JSON.parse(JSON.stringify(shapeOf(a))),
+      JSON.parse(JSON.stringify(shapeOf(a, added))),
       JSON.parse(JSON.stringify(shapeOf(b))),
     );
   const order = b as PlanOrder;
-  const recorded = shapeOf(a);
+  const recorded = shapeOf(a, added);
   const deadlines = Object.fromEntries(
     Object.keys(order.deadlines).map((key) => [
       key,
@@ -2456,10 +2460,25 @@ const sameOrder = (a: PlanRecord, b: PlanRecord | PlanOrder) => {
 };
 
 /**
+ * Whether a recorded plan is the plan of these steps and options: the steps given are those it
+ * was made with, or all the steps it has, in order; its consolidation steps are left out of both
+ */
+const isOrderOf = (recorded: PlanRecord, given: PlanRecord | PlanOrder) =>
+  sameOrder(recorded, given) || sameOrder(recorded, given, true);
+
+/**
+ * The message of PLAN_EXISTS: the id names another plan, what was done, and where the recorded
+ * plan is
+ */
+const planExists = (id: string, done: string) =>
+  `the store holds the plan ${id} with other steps or options: an id names one plan, whose steps never change; ${done}. The recorded plan is builder.resume(id), by this id; a new id is for a new order, and under a new id the same steps are paid again`;
+
+/**
  * The object of a plan `makePlan` built. The provider is probed first. On a builder with a
  * store the plan needs an id, and its first record is written before the object is returned:
- * an id the store holds already with the same steps and options gives the recorded plan, with
- * its recorded transactions, and the steps just built are dropped.
+ * an id the store holds already with the same steps and options (the steps it was made with, or
+ * all the steps it has) gives the recorded plan, with its recorded transactions, and the steps
+ * just built are dropped.
  * @throws TxPlanError CANNOT_OBSERVE (`noSearch`, `noDepth`, `noValidity`) for a provider that
  *   cannot follow the plan; on a builder with a store MISSING_ID, PLAN_EXISTS for an id recorded
  *   with other steps or options, STORE_FAILED, VERSION_CONFLICT
@@ -2516,11 +2535,16 @@ export const createPlan = async (
       { planId: id! },
     );
   checkRecordNetwork(builder, stored);
-  if (!sameOrder(stored, record))
+  if (!isOrderOf(stored, record))
     throw planError(
       "PLAN_EXISTS",
-      `the store holds the plan ${id} with other steps or options: an id names one plan, whose steps never change; nothing was written. Give a new plan a new id`,
-      { planId: id! },
+      planExists(
+        id!,
+        "the steps just built are dropped, and nothing was written",
+      ),
+      {
+        planId: id!,
+      },
     );
   // The stored plan may hold steps the plan just built does not: the probe is made again
   return objectOver(builder, stored, live, "owed");
@@ -2638,10 +2662,11 @@ const afterOf = (after: PlanOptions["after"]): MakePlanOptions["after"] => {
 
 /**
  * The plan of `builder.plan`. On a builder with a store the store is read first: an id it holds
- * with the same steps and options is the recorded plan, returned with its recorded transactions,
- * and nothing is built; with other steps or options it is PLAN_EXISTS. Otherwise every step is
- * built (`makePlan`), the provider is probed, and the first record is written before the object
- * is returned.
+ * with the same steps and options (the steps it was made with, or all the steps it has, in order;
+ * consolidation steps left out of both) is the recorded plan, returned with its recorded
+ * transactions, and nothing is built; with other steps or options it is PLAN_EXISTS. Otherwise
+ * every step is built (`makePlan`), the provider is probed, and the first record is written
+ * before the object is returned.
  * @throws what `makePlan` and `createPlan` throw; TxBuildError INVALID_OPTION (`id`) for an id
  *   that is not a string; TxPlanError MISSING_ID on a builder with a store without an id that
  *   is a non-empty string; PLAN_EXISTS; STORE_FAILED; INVALID_STATE (`recordVersion`) for a
@@ -2678,11 +2703,13 @@ export const planFor = async (
     const stored = await loadRecord(store, id);
     if (stored !== undefined) {
       checkRecordNetwork(builder, stored);
-      if (!sameOrder(stored, await orderOf(builder, steps, given)))
+      if (!isOrderOf(stored, await orderOf(builder, steps, given)))
         throw planError(
           "PLAN_EXISTS",
-          `the store holds the plan ${id} with other steps or options: an id names one plan, whose steps never change; nothing was built or written. Give a new plan a new id`,
-          { planId: id },
+          planExists(id, "nothing was built or written"),
+          {
+            planId: id,
+          },
         );
       return objectOver(builder, stored, live, "owed");
     }

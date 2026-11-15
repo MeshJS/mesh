@@ -2330,9 +2330,9 @@ export class TxBuilder {
    * The plan's deadlines are its own options, else this builder's `planDefaults`, else the
    * built-in values, written into it now and never read from the builder again. On a builder with
    * a store the plan needs an `id`, and the store is read first: an id it holds with the same
-   * steps and options is the recorded plan, returned as recorded, and nothing is built, so a
-   * repeated request handler is safe; other steps or options are PLAN_EXISTS. A new plan is
-   * recorded before it is returned.
+   * steps and options (those it was made with, or all it has after `plan.add`) is the recorded
+   * plan, returned as recorded, and nothing is built, so a repeated request handler is safe;
+   * other steps or options are PLAN_EXISTS. A new plan is recorded before it is returned.
    * @throws TxBuildError every error of building a transaction, with the step's name at the
    *   start of its message; INVALID_OPTION (`steps`) for a step that is none of the forms, a
    *   name that is taken, empty, a whole number or starts with `consolidate-`, more than 32

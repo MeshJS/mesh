@@ -194,6 +194,10 @@ describe("Two objects on one record", () => {
         const error = (result as { error: Error }).error;
         expectCode(error, "PLAN_EXISTS");
         expect(error.message).toMatch(/nothing was written/);
+        expect(error.message).toMatch(/builder\.resume\(id\)/);
+        expect(error.message).toMatch(
+          /under a new id the same steps are paid again/,
+        );
       } else {
         expect("plan" in result).toBe(true);
         const lost = (result as { plan: TxPlan }).plan;

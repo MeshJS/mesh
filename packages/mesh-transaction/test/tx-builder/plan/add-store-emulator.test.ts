@@ -434,26 +434,64 @@ describe("a write whose answer was lost", () => {
 });
 
 describe("the id of a plan that took steps", () => {
-  it("builder.plan with the id returns the recorded plan after an add", async () => {
+  it("builder.plan with the id returns the recorded plan after an add, given the steps it was made with or all it has", async () => {
     const { builder, wallet, store, provider } = await storeSetup();
     const plan = await builder.plan(pay(), { id: "pay", payer: wallet });
     await plan.add({ x: payTo(alice, 5n * ADA) });
     const record = await stored(store, "pay");
     expect(record.steps[1]!.added).toBe(true);
 
-    const reads = provider.control.count("fetchAddressUTxOs");
-    const same = await builder.plan(pay(), { id: "pay", payer: wallet });
-    expect(same.toJSON()).toStrictEqual(record);
-    expect(names(same)).toEqual(["main", "x"]);
-    expect(provider.control.count("fetchAddressUTxOs")).toBe(reads);
+    for (const steps of [pay(), { main: pay(), x: payTo(alice, 5n * ADA) }]) {
+      store.reset();
+      const reads = provider.control.count(
+        "fetchAddressUTxOs",
+        "fetchLatestBlock",
+      );
+      const same = await builder.plan(steps, { id: "pay", payer: wallet });
+      expect(same.toJSON()).toStrictEqual(record);
+      expect(names(same)).toEqual(["main", "x"]);
+      expect(
+        provider.control.count("fetchAddressUTxOs", "fetchLatestBlock"),
+      ).toBe(reads);
+      expect(store.saves()).toEqual([]);
+    }
+  });
 
-    const error = await caught(
-      builder.plan(
-        { main: pay(), x: payTo(alice, 5n * ADA) },
-        { id: "pay", payer: wallet },
-      ),
-    );
-    expectCode(error, "PLAN_EXISTS");
+  it("is PLAN_EXISTS for a part of the steps, another order or a step changed, and says where the recorded plan is", async () => {
+    const { builder, wallet, store } = await storeSetup();
+    const a = payTo(alice, 5n * ADA);
+    const b = payTo(bob, 3n * ADA);
+    const c = payTo(recipient, 2n * ADA);
+    const plan = await builder.plan({ a, b }, { id: "pay", payer: wallet });
+    await plan.add({ c });
+    const record = await stored(store, "pay");
+    expect(
+      names(await builder.plan({ a, b }, { id: "pay", payer: wallet })),
+    ).toEqual(["a", "b", "c"]);
+    expect(
+      names(await builder.plan({ a, b, c }, { id: "pay", payer: wallet })),
+    ).toEqual(["a", "b", "c"]);
+    for (const steps of [
+      { a },
+      { a, c },
+      { b, a },
+      { a, c, b },
+      { a, b, c: payTo(recipient, 3n * ADA) },
+      { a, b, c, d: payTo(bob, 1n * ADA) },
+    ]) {
+      const error = await caught(
+        builder.plan(steps, { id: "pay", payer: wallet }),
+      );
+      expectCode(error, "PLAN_EXISTS");
+      expect(error.message).toMatch(/nothing was built or written/);
+      expect(error.message).toMatch(
+        /The recorded plan is builder\.resume\(id\)/,
+      );
+      expect(error.message).toMatch(
+        /under a new id the same steps are paid again/,
+      );
+      expect(error.message).not.toMatch(/Give a new plan a new id/);
+    }
     expect(await stored(store, "pay")).toStrictEqual(record);
   });
 });

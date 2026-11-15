@@ -91,7 +91,8 @@ export type PlanOptions = Omit<BuildOptions, "after"> &
      * The application's id of the plan, shown as `plan.id`; none is made up. On a builder with a
      * store it is required and is the key of the record: an id already recorded is the same plan,
      * returned as recorded, with nothing built, when its steps and options are the recorded
-     * ones, else PLAN_EXISTS
+     * ones (the steps it was made with, or all the steps it has after `add`, in order), else
+     * PLAN_EXISTS
      */
     id?: string;
     /**
