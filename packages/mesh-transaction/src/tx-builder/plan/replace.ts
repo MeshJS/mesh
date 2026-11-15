@@ -30,7 +30,8 @@ import { atFinalDepth, pastMarginAt, sourcesOf, stepUntil } from "./core";
 export type RuleBody = Pick<
   BuiltTxData,
   "txHash" | "inputs" | "referenceInputs" | "collateral" | "validity"
->;
+> &
+  Partial<Pick<BuiltTxData, "outputs" | "redeemers">>;
 
 /** A step: one a build made, or one a record holds */
 export type StepTx = {
@@ -62,6 +63,8 @@ export type LineTx = {
   readonly until?: number;
   /** The block it was found in once */
   readonly seen?: { readonly slot: number; readonly block?: string };
+  /** It runs a Plutus script */
+  readonly plutus?: true;
   /** In a block for good with failed scripts: it paid nobody and cannot land again */
   readonly usedUp?: true;
   /** It cannot land, by the plan's own rules, and no look ever found it in a block */
@@ -104,6 +107,7 @@ export const lineTxOf = (tx: LineInput): LineTx => {
       ...(tx.kind === "consolidation" && { consolidation: true as const }),
       ...(until !== undefined && { until }),
       ...(seen !== undefined && { seen }),
+      ...((tx.built.redeemers?.length ?? 0) > 0 && { plutus: true as const }),
     };
   }
   if ("sources" in tx) return tx;
@@ -115,6 +119,7 @@ export const lineTxOf = (tx: LineInput): LineTx => {
     sources: Array.from(new Set(spends.map(hashOfOutRef))),
     ...(tx.until !== undefined && { until: tx.until }),
     ...(tx.seen !== undefined && { seen: tx.seen }),
+    ...(tx.plutus === true && { plutus: true as const }),
   };
 };
 
@@ -265,10 +270,15 @@ export type LineClasses = {
    */
   readonly open: readonly LineTx[];
   /**
-   * In a block and not final, or found in one where the depth or the outcome of its scripts is
-   * not known: nothing may stand on the line or judge it until a later look
+   * In a block and not final, or found in one where the depth is not known: nothing may stand on
+   * the line or judge it until a later look
    */
   readonly unconfirmed: readonly LineTx[];
+  /**
+   * Found in a block, running a Plutus script, by a search that does not say whether its scripts
+   * passed: a provider that does not report it can never tell
+   */
+  readonly noValidity: readonly LineTx[];
 };
 
 /** A find with the members a depth is worked out from */
@@ -282,21 +292,23 @@ const placed = (
     : undefined;
 
 /**
- * What a find of a failed step or of an entry makes of it: at the depth of final, kept when its
- * scripts passed and used up when they failed; found less deep, with no depth, without a slot or
- * without the outcome of its scripts: unconfirmed
+ * What a find of a failed step or of an entry makes of it. Of a transaction that runs no Plutus
+ * script a find that does not say whether its scripts passed counts as one where they passed; of
+ * one that runs a script it is `noValidity`. At the depth of final, kept when its scripts passed
+ * and used up when they failed; found less deep, with no depth or without a slot: unconfirmed
  */
 const byFind = (
   base: Pick<PlanRecord, "deadlines">,
+  tx: LineTx,
   answer: LookAnswer,
   tip: PlanTip | undefined,
-): "kept" | "usedUp" | "unconfirmed" => {
+): "kept" | "usedUp" | "unconfirmed" | "noValidity" => {
   const find = placed(answer);
-  if (find === undefined || !atFinalDepth(base, tip, find))
-    return "unconfirmed";
-  if (find.valid === true) return "kept";
-  if (find.valid === false) return "usedUp";
-  return "unconfirmed";
+  if (find === undefined) return "unconfirmed";
+  const valid = find.valid ?? (tx.plutus === true ? undefined : true);
+  if (valid === undefined) return "noValidity";
+  if (!atFinalDepth(base, tip, find)) return "unconfirmed";
+  return valid ? "kept" : "usedUp";
 };
 
 /**
@@ -305,11 +317,13 @@ const byFind = (
  * - A `final` step is kept; an `included` one is unconfirmed, and so is any other step a look
  *   answered was found.
  * - For a `failed` step and for an entry the look's answer decides: found at the depth of
- *   `final`, kept when its scripts passed and used up when they failed; found less deep, with no
- *   depth or with no word on its scripts: unconfirmed; not found: open. With no answer a failed
- *   step is unconfirmed, and an entry is open.
+ *   `final`, kept when its scripts passed and used up when they failed; found less deep, or with
+ *   no depth: unconfirmed; not found: open. A find with no word on its scripts is one where they
+ *   passed for a transaction that runs no Plutus script, and `noValidity` for one that runs one.
+ *   With no answer a failed step is unconfirmed, and an entry is open.
  * - Every other step is open. The used-up are open too.
- * - Dead, among the open, with no `seen`: a step that is `expired`; an entry whose `until` plus
+ * - Dead, among the open, with no `seen`: a step that is `expired` and that the look answered it
+ *   did not find (no answer, as from a search that failed, is no such answer); an entry whose `until` plus
  *   the margin the tip and the clock have both passed (as a step expires), that the look did not
  *   find, while it found the transaction of one of its spent inputs in a block; and one that
  *   stands on a dead one.
@@ -328,11 +342,13 @@ export const lineClasses = (
   const kept: LineTx[] = [];
   const open: LineTx[] = [];
   const unconfirmed: LineTx[] = [];
+  const noValidity: LineTx[] = [];
   const byAnswer = (tx: LineTx, answer: LookAnswer | undefined) => {
     if (answer?.found !== true) return open.push(tx);
-    const outcome = byFind(base, answer, tip);
+    const outcome = byFind(base, tx, answer, tip);
     if (outcome === "kept") return kept.push(tx);
     if (outcome === "usedUp") return open.push({ ...tx, usedUp: true });
+    if (outcome === "noValidity") return noValidity.push(tx);
     return unconfirmed.push(tx);
   };
   for (const step of base.steps) {
@@ -346,7 +362,12 @@ export const lineClasses = (
     } else if (step.status === "included" || answer?.found === true) {
       unconfirmed.push(tx);
     } else {
-      const dead = step.status === "expired" && tx.seen === undefined;
+      // Dead only by what this look answered: a search that failed or is not supported says
+      // nothing, whatever the record says
+      const dead =
+        step.status === "expired" &&
+        tx.seen === undefined &&
+        answer?.found === false;
       open.push(dead ? { ...tx, dead: true } : tx);
     }
   }
@@ -385,7 +406,7 @@ export const lineClasses = (
       changed = true;
     });
   }
-  return { kept, open: marked, unconfirmed };
+  return { kept, open: marked, unconfirmed, noValidity };
 };
 
 /* ---------------------------------------------------------------------------------------------
@@ -587,6 +608,7 @@ export const beforeOf = (
       spends: [...tx.spends],
       ...(tx.seen === undefined &&
         tx.until !== undefined && { until: tx.until }),
+      ...(tx.plutus === true && { plutus: true as const }),
     }));
   return { final, open };
 };

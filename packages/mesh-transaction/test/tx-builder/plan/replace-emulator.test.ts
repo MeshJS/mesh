@@ -66,8 +66,11 @@ const refused = (emulator: TxEmulator, tx: string) =>
     () => true,
   );
 
-/** A search that answers "not found" for the hashes in the set */
-const hiding = (hidden: Set<string>) => ({
+/**
+ * A search that answers "not found" for the hashes in `hidden`, and fails, saying nothing, for
+ * those in `failing`
+ */
+const hiding = (hidden: Set<string>, failing = new Set<string>()) => ({
   fetchTxInfo: (forward: (hash: string) => unknown, hash: string) => {
     if (hidden.has(hash.toLowerCase()))
       throw new ProviderError("not found", {
@@ -75,9 +78,18 @@ const hiding = (hidden: Set<string>) => ({
         status: 404,
         retryable: false,
       });
+    if (failing.has(hash.toLowerCase())) throw tooMany();
     return forward(hash);
   },
 });
+
+/** A failure of a provider that says nothing of what was asked */
+const tooMany = () =>
+  new ProviderError("too many requests", {
+    kind: "rateLimited",
+    status: 429,
+    retryable: true,
+  });
 
 /** A relay that passes bytes on to the chain, but keeps those `hold` picks and answers */
 const relayOf = (emulator: TxEmulator, hold: (txHash: string) => boolean) => {
@@ -1155,6 +1167,116 @@ describe("a plan in place of another", () => {
         next.steps.map((step) => step.txHash),
       );
       expect(times(emulator, bob, 12n * ADA)).toBe(1);
+    });
+  });
+
+  describe("what a provider does not answer", () => {
+    /** A step that landed while the search hid it, past its end: expired */
+    const hiddenAndExpired = async (failing = new Set<string>()) => {
+      const hidden = new Set<string>();
+      const ctx = await stepSetup("scalus", {
+        hooks: hiding(hidden, failing),
+        funds: [100n * ADA, 50n * ADA],
+      });
+      const old = await ctx.builder.plan(
+        { a: payTo(alice, 11n * ADA) },
+        { id: "order", payer: ctx.wallet },
+      );
+      const aHash = old.step("a").txHash;
+      hidden.add(aHash);
+      await caught(old.run({ timeoutMs: 300 }));
+      advance(ctx.emulator, 700);
+      await old.refresh();
+      expect(statuses(old)).toEqual({ a: "expired" });
+      return { ...ctx, hidden, old, aHash };
+    };
+
+    it("a search that fails at the look of replan: the step called dead earlier is not dead, and the call waits", async () => {
+      const failing = new Set<string>();
+      const { emulator, hidden, old, aHash } = await hiddenAndExpired(failing);
+      hidden.delete(aHash);
+      failing.add(aHash);
+      emulator.removeUtxos([ref(old.step("a").change[0]!)]);
+      emulator.removeUtxos([
+        ref(old.step("a").outputs.find((o) => o.address === alice)!),
+      ]);
+      const error = await caught(old.replan({ id: "order:2" }));
+      expect(error.code).toBe("STILL_LIVE");
+      expect(old.replacedBy).toBeUndefined();
+      expect(times(emulator, alice, 11n * ADA)).toBe(0);
+      expect(await onChain(emulator, aHash)).toBe(true);
+    });
+
+    it("a read of the address a dead step pays that fails: refused with the read's error", async () => {
+      const { emulator, provider, old } = await hiddenAndExpired();
+      emulator.removeUtxos([ref(old.step("a").change[0]!)]);
+      provider.control.hooks.fetchAddressUTxOs = (forward, address: string) => {
+        if (address === alice) throw tooMany();
+        return forward(address);
+      };
+      const error = await caught(old.replan({ id: "order:2" }));
+      expect(error.code).toBe("PROVIDER_FAILED");
+      expect(old.replacedBy).toBeUndefined();
+      expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    });
+
+    it("two plans on, the payment of a transaction of the plans before at the address a dead step pays: CANNOT_OBSERVE", async () => {
+      const hidden = new Set<string>();
+      const { emulator, builder, wallet } = await stepSetup("scalus", {
+        hooks: hiding(hidden),
+        funds: [100n * ADA, 50n * ADA],
+      });
+      const old = await builder.plan(
+        { a: payTo(alice, 11n * ADA) },
+        { id: "order", payer: wallet },
+      );
+      await old.sign();
+      const aHash = old.step("a").txHash;
+      const relay = relayOf(emulator, (txHash) => txHash === aHash);
+      await caught(old.run({ submitter: relay, timeoutMs: 300 }));
+      advance(emulator, 1);
+      const next = await old.replan({ id: "order:2" });
+      // The old a lands, and the search hides it from then on
+      hidden.add(aHash);
+      await emulator.submitTx(relay.kept[0]!);
+      expect((await caught(next.run({ timeoutMs: 2_000 }))).code).toBe(
+        "REJECTED",
+      );
+      advance(emulator, 700);
+      await next.refresh();
+      await next.refresh();
+      expect(statuses(next)).toEqual({ a: "expired" });
+      emulator.removeUtxos([ref(old.step("a").change[0]!)]);
+      const error = await caught(next.replan({ id: "order:3" }));
+      expect([error.code, reasonOf(error), error.txHash]).toEqual([
+        "CANNOT_OBSERVE",
+        "unconfirmed",
+        aHash,
+      ]);
+      expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    });
+
+    it("a provider that does not say whether scripts passed: a plain old step found is kept, and the plan in place of the one it stopped is made", async () => {
+      const { emulator, provider, old, bytes } = await stuck();
+      provider.control.hooks.fetchTxInfo = async (forward, hash: string) => {
+        const { validContract: _, ...info } = (await forward(hash)) as Record<
+          string,
+          unknown
+        >;
+        return info;
+      };
+      const next = await old.replan({ id: "order:2" });
+      await emulator.submitTx(bytes.b);
+      const stopped = await caught(next.run());
+      expect([stopped.code, reasonOf(stopped)]).toEqual([
+        "INVALID_STATE",
+        "stopped",
+      ]);
+      const last = await next.replan({ id: "order:3" });
+      expect(names(last)).toEqual(["c"]);
+      await last.run();
+      expect(last.status).toBe("final");
+      paidOnce(emulator);
     });
   });
 });

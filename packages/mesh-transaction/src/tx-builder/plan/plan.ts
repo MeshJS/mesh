@@ -1087,6 +1087,9 @@ export class TxPlan {
             entry.seen === undefined ? [entry.txHash] : [],
           ),
         );
+        this.#refuseNoValidity({
+          noValidity: classes.noValidity.filter((tx) => entries.has(tx.txHash)),
+        });
         const dead = this.#judgePairs(
           landsBeside(
             newSteps,
@@ -1391,6 +1394,7 @@ export class TxPlan {
       const base = state.record;
       this.#refuseReplaced(base, id);
       const classes = lineClasses(base, seen.answers, tip);
+      this.#refuseNoValidity(classes);
       if (classes.unconfirmed.length > 0)
         throw this.#unconfirmed(
           `${classes.unconfirmed.map((tx) => `step ${JSON.stringify(tx.step)} (${tx.txHash})`).join(", ")} ${classes.unconfirmed.length === 1 ? "is" : "are"} in a block and not final, or found where the depth or the outcome of the scripts is not known: a new plan stands only on what is final`,
@@ -1463,7 +1467,7 @@ export class TxPlan {
         asked: addressOf,
         tip,
         withReads: async (reads) => {
-          await this.#refuseOpenOutputs(state, base, classes, reads, ask);
+          await this.#refuseOpenOutputs(state, base, classes.open, reads, ask);
           const byPayer = new Map<string, readonly Utxo[]>();
           for (const each of reads)
             byPayer.set(
@@ -1591,6 +1595,20 @@ export class TxPlan {
         "INVALID_STATE",
         "the plan is final: every step of it is final, and nothing is made in its place",
         { details: { reason: "final" } },
+      );
+  }
+
+  /**
+   * CANNOT_OBSERVE (`noValidity`) for a transaction of the line that runs a Plutus script, found
+   * in a block by a search that does not say whether its scripts passed
+   */
+  #refuseNoValidity(classes: Pick<LineClasses, "noValidity">) {
+    const found = classes.noValidity[0];
+    if (found !== undefined)
+      throw this.#error(
+        "CANNOT_OBSERVE",
+        `step ${JSON.stringify(found.step)} (${found.txHash}) of the plans before runs a Plutus script and was found in a block, and the provider does not report whether its scripts passed (validContract): it never will; use a provider that does`,
+        { details: { reason: "noValidity" }, txHash: found.txHash },
       );
   }
 
@@ -1765,53 +1783,57 @@ export class TxPlan {
   }
 
   /**
-   * CANNOT_OBSERVE (`unconfirmed`) when a payer's read holds an output of an open transaction
-   * of the line, or an address an open step that is dead or used up pays holds one of its
-   * outputs: the search says it is in no block, and the address says it is
+   * CANNOT_OBSERVE (`unconfirmed`) when a list of UTxOs the call reads holds an output of an
+   * open transaction of the line, told by its hash: each payer's read, and the read of each
+   * address a step of the line that is dead or used up pays, where no payer's read covered it
+   * (at most 16): the search says it is in no block, and the address says it is. Of a used-up
+   * transaction, whose collateral return is on chain for good, only its regular outputs count. A
+   * read of an address that fails refuses the call with its own error
+   * @param open The open transactions of the line to match
+   * @throws TxBuildError PROVIDER_FAILED, MISSING_FETCHER
    */
   async #refuseOpenOutputs(
     state: PlanState,
     base: PlanRecord,
-    classes: LineClasses,
+    open: readonly LineTx[],
     reads: readonly { readonly read: PayerRead }[],
     ask: Ask,
   ) {
     const stepOf = new Map(
       base.steps.map((step) => [step.txHash.toLowerCase(), step]),
     );
+    const byHash = new Map<string, LineTx>();
     const outputs = new Map<string, LineTx>();
-    const entries = new Map<string, LineTx>();
-    const quiet: { tx: LineTx; step: StepRecord }[] = [];
-    for (const tx of classes.open) {
+    const quiet: StepRecord[] = [];
+    for (const tx of open) {
       const step = stepOf.get(tx.txHash);
-      if (step === undefined) {
-        // A used-up transaction left its collateral's return on chain, and nothing else
-        if (tx.usedUp !== true) entries.set(tx.txHash, tx);
-        continue;
-      }
-      for (const output of step.built.outputs)
-        outputs.set(outRefOf(output), tx);
-      if (tx.dead === true || tx.usedUp === true) quiet.push({ tx, step });
+      if (tx.usedUp !== true) byHash.set(tx.txHash, tx);
+      else
+        for (const output of step?.built.outputs ?? [])
+          outputs.set(outRefOf(output), tx);
+      if (step !== undefined && (tx.dead === true || tx.usedUp === true))
+        quiet.push(step);
     }
-    const shown = (tx: LineTx, outRef: string) =>
-      this.#unconfirmed(
-        `an address lists ${outRef}, an output of step ${JSON.stringify(tx.step)} (${tx.txHash}), which the search does not find in a block`,
-        tx.txHash,
-      );
+    const check = (utxo: { txHash: string; outputIndex: number }) => {
+      const outRef = outRefOf(utxo);
+      const tx = byHash.get(utxo.txHash.toLowerCase()) ?? outputs.get(outRef);
+      if (tx !== undefined)
+        throw this.#unconfirmed(
+          `an address lists ${outRef}, an output of step ${JSON.stringify(tx.step)} (${tx.txHash}), which the search does not find in a block`,
+          tx.txHash,
+        );
+    };
     const covered = new Set<string>();
     for (const { read } of reads) {
       covered.add(read.snapshot.changeAddress);
       for (const utxo of read.snapshot.utxos) {
         covered.add(utxo.address);
-        const outRef = outRefOf(utxo);
-        const tx =
-          outputs.get(outRef) ?? entries.get(utxo.txHash.toLowerCase());
-        if (tx !== undefined) throw shown(tx, outRef);
+        check(utxo);
       }
     }
     // The addresses a step that is dead or used up pays, that no read covered
     const addresses: string[] = [];
-    for (const { step } of quiet)
+    for (const step of quiet)
       for (const output of step.built.outputs)
         if (
           !covered.has(output.address) &&
@@ -1820,17 +1842,12 @@ export class TxPlan {
         )
           addresses.push(output.address);
     if (addresses.length === 0) return;
+    const fetcher = internals(state.builder).cache?.fetcher;
     const lists = await ask(
-      Promise.all(addresses.map((address) => state.observer.utxosAt(address))),
-      "look",
+      Promise.all(addresses.map((address) => readAddress(fetcher, address))),
+      "read",
     );
-    const quietTx = new Set(quiet.map(({ tx }) => tx));
-    for (const list of lists)
-      for (const ref of list ?? []) {
-        const outRef = outRefOf(ref);
-        const tx = outputs.get(outRef);
-        if (tx !== undefined && quietTx.has(tx)) throw shown(tx, outRef);
-      }
+    for (const list of lists) for (const ref of list) check(ref);
   }
 
   /**
@@ -3130,6 +3147,49 @@ const outRefOf = (utxo: {
   readonly txHash: string;
   readonly outputIndex: number;
 }) => `${utxo.txHash.toLowerCase()}#${utxo.outputIndex}`;
+
+/**
+ * The out refs at an address, read from the provider past its cache, for the check of what a
+ * dead step paid: a read that fails is no answer, and refuses the call
+ * @throws TxBuildError MISSING_FETCHER without a provider; PROVIDER_FAILED when the read fails
+ *   or its answer cannot be read
+ */
+const readAddress = async (
+  fetcher: CachedFetcher["fetcher"] | undefined,
+  address: string,
+): Promise<{ txHash: string; outputIndex: number }[]> => {
+  if (fetcher === undefined)
+    throw new TxBuildError(
+      "MISSING_FETCHER",
+      `the UTxOs at ${address}, which a step that will not land pays, have to be read through a provider, and the builder has none`,
+    );
+  const failed = (cause: unknown) =>
+    new TxBuildError(
+      "PROVIDER_FAILED",
+      `reading the UTxOs at ${address}, which a step that will not land pays, failed: nothing was written, and the same call later reads again`,
+      { details: { operation: "fetchAddressUTxOs" }, cause },
+    );
+  let utxos: unknown;
+  try {
+    utxos = await fetcher.fetchAddressUTxOs(address);
+  } catch (error) {
+    throw failed(error);
+  }
+  if (utxos === undefined || utxos === null) return [];
+  if (!Array.isArray(utxos))
+    throw failed(new Error("the answer is not a list"));
+  return utxos.map((entry: unknown) => {
+    const input = (
+      entry as { input?: { txHash?: unknown; outputIndex?: unknown } }
+    )?.input;
+    if (
+      typeof input?.txHash !== "string" ||
+      typeof input.outputIndex !== "number"
+    )
+      throw failed(new Error("an entry of the answer has no out ref"));
+    return { txHash: input.txHash, outputIndex: input.outputIndex };
+  });
+};
 
 /** INVALID_OPTION (`steps`) of `replan` */
 const stepsRefused = (reason: string) =>

@@ -857,14 +857,19 @@ describe("lineClasses and beforeOf", () => {
       sightings: [missing(hash(0xa1)), found(SOURCE)] as TxSighting[],
     });
     expect(stepOf(past, "b").status).toBe("expired");
-    expect(
-      lineClasses(past, [], tip(UNTIL + MARGIN)).open.map((tx) => [
+    const deadOf = (answers: LookAnswer[]) =>
+      lineClasses(past, answers, tip(UNTIL + MARGIN)).open.map((tx) => [
         tx.step,
         tx.dead ?? false,
-      ]),
-    ).toEqual([
+      ]);
+    expect(deadOf([missing(hash(0xa1))])).toEqual([
       ["b", true],
       ["c", true],
+    ]);
+    // Without an answer of this look, as from a search that failed, it is not dead
+    expect(deadOf([])).toEqual([
+      ["b", false],
+      ["c", false],
     ]);
   });
 
@@ -897,14 +902,30 @@ describe("lineClasses and beforeOf", () => {
     expect(kinds([found(hash(0xb1), { valid: false })]).open).toContain(
       "p:used",
     );
-    // Less deep, with no depth, no slot, or no word on its scripts: unconfirmed
+    // Less deep, with no depth or no slot: unconfirmed
     for (const answer of [
       found(hash(0xb1), { valid: true, blockHeight: 99 }),
       found(hash(0xb1), { valid: true, blockHeight: undefined }),
       { txHash: hash(0xb1), found: true, valid: true },
-      found(hash(0xb1)),
     ])
       expect(kinds([answer]).unconfirmed).toEqual(["p"]);
+    // No word on its scripts: passed for a transaction that runs no Plutus script, and no
+    // validity to be had for one that runs one
+    expect(kinds([found(hash(0xb1), { blockHeight: 90 })])).toMatchObject({
+      kept: ["a", "p"],
+      unconfirmed: [],
+    });
+    const plutus = record({
+      final: ["z"],
+      open: [{ ...entries[0]!, plutus: true as const }, entries[1]!],
+    });
+    expect(
+      lineClasses(
+        plutus,
+        [found(hash(0xb1), { blockHeight: 90 })],
+        tip(0),
+      ).noValidity.map((tx) => tx.step),
+    ).toEqual(["p"]);
     // Not found, or no answer: open; dead past the end and the margin when the search knows
     // the chain before it, and what stands on it with it
     expect(kinds([]).open).toEqual(["b", "c", "p", "q"]);

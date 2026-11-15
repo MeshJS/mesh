@@ -1656,6 +1656,7 @@ const encodeBefore = (
     txHash: entry.txHash,
     spends: [...entry.spends],
     ...(entry.until !== undefined && { until: entry.until }),
+    ...(entry.plutus === true && { plutus: true as const }),
     ...(entry.seen !== undefined && {
       seen: {
         slot: entry.seen.slot,
@@ -2201,7 +2202,9 @@ const decodeBefore = (
   list(json.open, "before.open").forEach((item, i) => {
     const at = `before.open[${i}]`;
     const entry = object(item, at);
-    known(entry, ["step", "txHash", "spends", "until", "seen"], at);
+    known(entry, ["step", "txHash", "spends", "until", "plutus", "seen"], at);
+    if (entry.plutus !== undefined && entry.plutus !== true)
+      unread(`${at}.plutus is neither true nor absent`);
     const step = nonEmpty(entry.step, `${at}.step`);
     const txHash = text(entry.txHash, `${at}.txHash`);
     if (!TX_HASH.test(txHash))
@@ -2226,6 +2229,7 @@ const decodeBefore = (
       ...(entry.until !== undefined && {
         until: finite(entry.until, `${at}.until`),
       }),
+      ...(entry.plutus === true && { plutus: true as const }),
       ...(entry.seen !== undefined && {
         seen: decodeSeen(entry.seen, `${at}.seen`),
       }),

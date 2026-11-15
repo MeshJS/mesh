@@ -106,6 +106,8 @@ export type BeforeEntry = {
   readonly until?: number;
   /** The block a look of this plan found it in; set once, with the mark */
   readonly seen?: { readonly slot: number; readonly block?: string };
+  /** It runs a Plutus script: a find of it counts only when it says whether its scripts passed */
+  readonly plutus?: true;
 };
 
 /** What a plan made in place of another keeps of the plans before it */

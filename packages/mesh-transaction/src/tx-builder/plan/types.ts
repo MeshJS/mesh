@@ -343,8 +343,8 @@ export type TxPlanJSON = {
    * the names of their steps that were final. `open`: their transactions that were not, which
    * this plan must not land beside: the step's name, the hash, the out refs it spends
    * (`txHash#index`), `until`: its end of validity in POSIX ms, absent when it has none or was
-   * found in a block before this plan was made, and `seen`: the block a look of this plan
-   * found it in
+   * found in a block before this plan was made, `plutus`: it runs a Plutus script, and `seen`:
+   * the block a look of this plan found it in
    */
   readonly before?: {
     readonly final: readonly string[];
@@ -353,6 +353,7 @@ export type TxPlanJSON = {
       readonly txHash: string;
       readonly spends: readonly string[];
       readonly until?: number;
+      readonly plutus?: true;
       readonly seen?: { readonly slot: number; readonly block?: string };
     }[];
   };
