@@ -33,6 +33,7 @@ import {
   isDeadStep,
   isUnlandedStep,
   MAX_CONSOLIDATION_STEPS,
+  MAX_PAYS,
   missingKeys,
   PLAN_RECORD_VERSION,
   planStatus,
@@ -1666,6 +1667,7 @@ const encodeBefore = (
       },
     }),
     ...(entry.plutus === true && { plutus: true as const }),
+    ...(entry.pays !== undefined && { pays: [...entry.pays] }),
     ...(entry.seen !== undefined && {
       seen: {
         slot: entry.seen.slot,
@@ -2221,6 +2223,7 @@ const decodeBefore = (
         "until",
         "seenBefore",
         "plutus",
+        "pays",
         "seen",
       ],
       at,
@@ -2233,6 +2236,18 @@ const decodeBefore = (
       );
     if (entry.plutus !== undefined && entry.plutus !== true)
       unread(`${at}.plutus is neither true nor absent`);
+    const pays =
+      entry.pays === undefined ? undefined : texts(entry.pays, `${at}.pays`);
+    if (pays !== undefined && (pays.length === 0 || pays.length > MAX_PAYS))
+      unread(`${at}.pays holds from 1 to ${MAX_PAYS} addresses`);
+    pays?.forEach((address, k) => {
+      if (address === "") unread(`${at}.pays[${k}] is empty`);
+      if (pays.indexOf(address) !== k)
+        unread(`${at}.pays[${k}]: the address is there before`);
+    });
+    // A record written before entries held the addresses they pay is not read
+    if (count(entry.outputs, `${at}.outputs`) > 0 !== (pays !== undefined))
+      unread(`${at}.pays is there exactly when the transaction makes outputs`);
     const step = nonEmpty(entry.step, `${at}.step`);
     const txHash = text(entry.txHash, `${at}.txHash`);
     if (!TX_HASH.test(txHash))
@@ -2262,6 +2277,7 @@ const decodeBefore = (
         seenBefore: decodeSeen(entry.seenBefore, `${at}.seenBefore`),
       }),
       ...(entry.plutus === true && { plutus: true as const }),
+      ...(pays !== undefined && { pays }),
       ...(entry.seen !== undefined && {
         seen: decodeSeen(entry.seen, `${at}.seen`),
       }),

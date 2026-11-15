@@ -8,7 +8,13 @@ import type {
   StepRecord,
 } from "./core";
 import { isKeyLocked } from "../balance";
-import { atFinalDepth, pastMarginAt, sourcesOf, stepUntil } from "./core";
+import {
+  atFinalDepth,
+  MAX_PAYS,
+  pastMarginAt,
+  sourcesOf,
+  stepUntil,
+} from "./core";
 
 // What keeps a plan made in place of another from landing beside it, worked out from data: which
 // transactions of the plans before are kept, open, used up or dead after a look; which open
@@ -77,6 +83,8 @@ export type LineTx = {
   readonly seen?: { readonly slot: number; readonly block?: string };
   /** It runs a Plutus script */
   readonly plutus?: true;
+  /** The addresses it pays, each once, in the order of its outputs, at most 16 */
+  readonly pays?: readonly string[];
   /** In a block for good with failed scripts: it paid nobody and cannot land again */
   readonly usedUp?: true;
   /** It cannot land, by the plan's own rules, and no look ever found it in a block */
@@ -92,6 +100,13 @@ export const outRefKey = (txHash: string, index: number) =>
 
 const hashOfOutRef = (outRef: string) =>
   outRef.slice(0, outRef.indexOf("#")).toLowerCase();
+
+/** The addresses outputs pay, each once, in their order, at most `MAX_PAYS` */
+const paysOf = (outputs: readonly { readonly address: string }[]) =>
+  Array.from(new Set(outputs.map((output) => output.address))).slice(
+    0,
+    MAX_PAYS,
+  );
 
 const indexOfOutRef = (outRef: string) =>
   Number(outRef.slice(outRef.indexOf("#") + 1));
@@ -151,6 +166,9 @@ export const lineTxOf = (tx: LineInput): LineTx => {
       ...(until !== undefined && { until }),
       ...(seen !== undefined && { seen }),
       ...((tx.built.redeemers?.length ?? 0) > 0 && { plutus: true as const }),
+      ...(paysOf(tx.built.outputs ?? []).length > 0 && {
+        pays: paysOf(tx.built.outputs ?? []),
+      }),
     };
   }
   if ("sources" in tx) return tx;
@@ -167,6 +185,7 @@ export const lineTxOf = (tx: LineInput): LineTx => {
       seen: (tx.seen ?? tx.seenBefore)!,
     }),
     ...(tx.plutus === true && { plutus: true as const }),
+    ...(tx.pays !== undefined && { pays: tx.pays }),
   };
 };
 
@@ -666,6 +685,8 @@ export const beforeOf = (
         tx.until !== undefined && { until: tx.until }),
       ...(tx.seen !== undefined && { seenBefore: tx.seen }),
       ...(tx.plutus === true && { plutus: true as const }),
+      ...(tx.pays !== undefined &&
+        tx.pays.length > 0 && { pays: [...tx.pays] }),
     }));
   return { final, open };
 };

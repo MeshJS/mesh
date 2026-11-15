@@ -986,6 +986,7 @@ describe("lineClasses and beforeOf", () => {
           txHash: hash(0xa1),
           spends: [`${SOURCE}#1`],
           outputs: 2,
+          pays: [utxo(hash(0xa1)).address],
           until: UNTIL,
         },
         entries[0],

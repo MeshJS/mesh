@@ -30,6 +30,9 @@ import {
   witnessOf,
 } from "./state-util";
 
+/** An address an entry of before.open pays */
+const PAYS = "addr_test1vz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzerspjrlsz";
+
 const K1 = keyHash(1);
 const K2 = keyHash(2);
 const UNTIL = 1_000_000;
@@ -846,9 +849,16 @@ describe("the transactions of the plans before", () => {
       txHash: hash(0xe1),
       spends: [`${hash(0xe0)}#0`],
       outputs: 2,
+      pays: [PAYS],
       until: UNTIL,
     },
-    { step: "c", txHash: hash(0xe2), spends: [`${hash(0xe1)}#1`], outputs: 2 },
+    {
+      step: "c",
+      txHash: hash(0xe2),
+      spends: [`${hash(0xe1)}#1`],
+      outputs: 2,
+      pays: [PAYS],
+    },
   ];
   /** A plan made in place of another, with one step of its own */
   const replacing = (deadlines: Partial<PlanRecord["deadlines"]> = {}) =>

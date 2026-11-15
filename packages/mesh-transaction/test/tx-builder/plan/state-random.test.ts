@@ -22,6 +22,9 @@ import {
   UNTIL,
 } from "./state-util";
 
+/** An address an entry of before.open pays */
+const PAYS = "addr_test1vz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzerspjrlsz";
+
 // Random sequences of events on plans of real transactions. A failing run names its seed;
 // `STEP_SEED=<seed>` in the environment repeats that seed alone.
 
@@ -192,6 +195,7 @@ const ENTRIES = [
     txHash: hash(0xe001),
     spends: [`${hash(0xe000)}#0`],
     outputs: 2,
+    pays: [PAYS],
     until: UNTIL,
   },
   {
@@ -199,6 +203,7 @@ const ENTRIES = [
     txHash: hash(0xe002),
     spends: [`${hash(0xe001)}#1`],
     outputs: 2,
+    pays: [PAYS],
   },
 ];
 

@@ -321,7 +321,17 @@ export type BuildEvent =
    * lands rests on its end of validity and on the provider's search; sent by a plan, never by a
    * build
    */
-  | { type: "warning"; code: "NO_SHARED_INPUT"; step: string; txHash: string };
+  | {
+      type: "warning";
+      code: "NO_SHARED_INPUT";
+      step: string;
+      txHash: string;
+      /**
+       * How many addresses the transactions of the call pay that were not read, past the 16 a
+       * call reads; absent when none
+       */
+      unread?: number;
+    };
 
 /** Per-build options */
 export type BuildOptions = {

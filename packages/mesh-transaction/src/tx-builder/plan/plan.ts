@@ -1059,6 +1059,8 @@ export class TxPlan {
         );
       /** The dead transactions a step passed beside, told once the steps are recorded */
       let told: readonly LineTx[] = [];
+      /** The addresses the cap left unread */
+      let unread = 0;
       // A plan made in place of another: the transactions of the plans before it that were not
       // found yet, which no step added may land beside, stand on, or find at an address
       const line =
@@ -1087,8 +1089,15 @@ export class TxPlan {
         ...(signal !== undefined && { signal }),
         ...(state.trace !== undefined && { trace: state.trace }),
         ...(line !== undefined && {
-          withReads: (reads) =>
-            this.#refuseOpenOutputs(state, base, line, reads, ask),
+          withReads: async (reads) => {
+            unread = await this.#refuseOpenOutputs(
+              state,
+              base,
+              line,
+              reads,
+              ask,
+            );
+          },
         }),
       });
       if (line !== undefined) {
@@ -1130,7 +1139,8 @@ export class TxPlan {
         undefined,
         ask,
       );
-      if (written === "written") this.#tellNoSharedInput(state.trace, told);
+      if (written === "written")
+        this.#tellNoSharedInput(state.trace, told, unread);
       return this;
     });
   }
@@ -1488,6 +1498,8 @@ export class TxPlan {
     // transactions that may still land
     const settledOnes = new Set(settled(classes.open, classes.kept));
     this.#clearVolatile(state);
+    /** The addresses the cap left unread */
+    let unread = 0;
     const made = await buildReplan(builder, base, read, {
       id,
       options: callOptions,
@@ -1495,8 +1507,15 @@ export class TxPlan {
       asked: addressOf,
       tip,
       open: classes.open.filter((tx) => !settledOnes.has(tx)),
-      withReads: (reads) =>
-        this.#refuseOpenOutputs(state, base, classes.open, reads, ask),
+      withReads: async (reads) => {
+        unread = await this.#refuseOpenOutputs(
+          state,
+          base,
+          classes.open,
+          reads,
+          ask,
+        );
+      },
       keep: (steps) =>
         beforeOf(
           base,
@@ -1533,7 +1552,7 @@ export class TxPlan {
         live,
         probed ? "done" : "owed",
       );
-      this.#tellNoSharedInput(live.trace, dead);
+      this.#tellNoSharedInput(live.trace, dead, unread);
       return state.made;
     }
     return this.#recordReplan(
@@ -1546,6 +1565,7 @@ export class TxPlan {
       probed,
       ask,
       dead,
+      unread,
     );
   }
 
@@ -1633,6 +1653,7 @@ export class TxPlan {
   #tellNoSharedInput(
     trace: ((event: BuildEvent) => void) | undefined,
     dead: readonly LineTx[],
+    unread: number,
   ) {
     for (const tx of dead)
       emit(trace, {
@@ -1640,6 +1661,7 @@ export class TxPlan {
         code: "NO_SHARED_INPUT",
         step: tx.step,
         txHash: tx.txHash,
+        ...(unread > 0 && { unread }),
       });
   }
 
@@ -1699,6 +1721,7 @@ export class TxPlan {
     probed: boolean,
     ask: Ask,
     dead: readonly LineTx[],
+    unread: number,
   ): Promise<TxPlan> {
     const store = state.store!;
     const json = encodePlan(record) as unknown as StoredTxPlanJSON;
@@ -1720,7 +1743,7 @@ export class TxPlan {
         live,
         probed ? "done" : "owed",
       );
-      this.#tellNoSharedInput(live.trace, dead);
+      this.#tellNoSharedInput(live.trace, dead, unread);
       return plan;
     }
     const stored = await ask(loadRecord(store, id), "read");
@@ -1806,8 +1829,11 @@ export class TxPlan {
    * address a step of the line that is dead or used up pays, where no payer's read covered it
    * (at most 16): the search says it is in no block, and the address says it is. Of a used-up
    * transaction, whose collateral return is on chain for good, only its regular outputs count. A
-   * read of an address that fails refuses the call with its own error
+   * read of an address that fails, or answers no list, refuses the call with its own error. The
+   * addresses read are those a step that is dead or used up pays, and those an entry of the
+   * plans before that is dead pays, at most 16 in a call
    * @param open The open transactions of the line to match
+   * @returns how many addresses were left unread past the 16
    * @throws TxBuildError PROVIDER_FAILED, MISSING_FETCHER
    */
   async #refuseOpenOutputs(
@@ -1816,13 +1842,14 @@ export class TxPlan {
     open: readonly LineTx[],
     reads: readonly { readonly read: PayerRead }[],
     ask: Ask,
-  ) {
+  ): Promise<number> {
     const stepOf = new Map(
       base.steps.map((step) => [step.txHash.toLowerCase(), step]),
     );
     const byHash = new Map<string, LineTx>();
     const outputs = new Map<string, LineTx>();
-    const quiet: StepRecord[] = [];
+    /** The addresses the transactions that pass by time pay, in their order */
+    const paid: string[] = [];
     for (const tx of open) {
       const step = stepOf.get(tx.txHash);
       if (tx.usedUp !== true) byHash.set(tx.txHash, tx);
@@ -1830,7 +1857,9 @@ export class TxPlan {
         for (const output of step?.built.outputs ?? [])
           outputs.set(outRefKey(output.txHash, output.outputIndex), tx);
       if (step !== undefined && (tx.dead === true || tx.usedUp === true))
-        quiet.push(step);
+        paid.push(...step.built.outputs.map((output) => output.address));
+      else if (step === undefined && tx.dead === true)
+        paid.push(...(tx.pays ?? []));
     }
     const check = (utxo: { txHash: string; outputIndex: number }) => {
       const outRef = outRefKey(utxo.txHash, utxo.outputIndex);
@@ -1849,28 +1878,25 @@ export class TxPlan {
         check(utxo);
       }
     }
-    // The addresses a step that is dead or used up pays, that no read covered
-    const addresses: string[] = [];
-    for (const step of quiet)
-      for (const output of step.built.outputs)
-        if (
-          !covered.has(output.address) &&
-          !addresses.includes(output.address) &&
-          addresses.length < MAX_PAID_ADDRESSES
-        )
-          addresses.push(output.address);
-    if (addresses.length === 0) return;
+    // Those no read covered, at most 16
+    const unread = Array.from(new Set(paid)).filter(
+      (address) => !covered.has(address),
+    );
+    const addresses = unread.splice(0, MAX_PAID_ADDRESSES);
+    if (addresses.length === 0) return unread.length;
     const fetcher = internals(state.builder).cache?.fetcher;
     const lists = await ask(
       Promise.all(addresses.map((address) => readAddress(fetcher, address))),
       "read",
     );
     for (const list of lists) for (const ref of list) check(ref);
+    return unread.length;
   }
 
   /**
    * The pairs `landsBeside` gives, judged: a transaction that is dead passes; any other refuses
-   * the call, STILL_LIVE, with every such hash and, when time settles them all, `safeAfter`
+   * the call, STILL_LIVE, with every such hash and, when time settles them all, `safeAfter`,
+   * never in the past: past it, CANNOT_OBSERVE (`unconfirmed`), the look did not settle them
    * @returns the dead transactions a step passed beside
    * @throws TxPlanError STILL_LIVE
    */
@@ -1894,6 +1920,13 @@ export class TxPlan {
       ? Math.max(...txs.map((tx) => tx.until!)) + base.deadlines.expiryMarginMs
       : undefined;
     const waitMs = safeAfter === undefined ? 0 : safeAfter - tip.timeMs;
+    // Past their end and the margin by the tip, and still not dead: this look did not settle
+    // them (a search that gave no answer, or a clock behind the tip). Time has done its part
+    if (safeAfter !== undefined && waitMs <= 0)
+      throw this.#unconfirmed(
+        `${txs.map((tx) => `step ${JSON.stringify(tx.step)} (${tx.txHash})`).join(", ")} of this plan or a plan before it ${txs.length === 1 ? "is" : "are"} past the end of validity and the margin, and the search did not answer that it is not found (or the local clock is behind the tip): ${done}`,
+        txs[0]!.txHash,
+      );
     throw this.#error(
       "STILL_LIVE",
       `a step built could land beside ${txs.map((tx) => `step ${JSON.stringify(tx.step)} (${tx.txHash})`).join(", ")} of this plan or a plan before it, which may still land and share no input with it: ${done}; ${
@@ -3178,7 +3211,7 @@ const readAddress = async (
   const failed = (cause: unknown) =>
     new TxBuildError(
       "PROVIDER_FAILED",
-      `reading the UTxOs at ${address}, which a step that will not land pays, failed: nothing was written, and the same call later reads again`,
+      `reading the UTxOs at ${address}, which a transaction that will not land pays, failed or gave no list: nothing was written, and the application may make the same call again`,
       { details: { operation: "fetchAddressUTxOs" }, cause },
     );
   let utxos: unknown;
@@ -3187,7 +3220,7 @@ const readAddress = async (
   } catch (error) {
     throw failed(error);
   }
-  if (utxos === undefined || utxos === null) return [];
+  // Only a list is an answer; an empty one is
   if (!Array.isArray(utxos))
     throw failed(new Error("the answer is not a list"));
   return utxos.map((entry: unknown) => {

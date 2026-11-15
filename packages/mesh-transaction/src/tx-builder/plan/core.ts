@@ -19,6 +19,9 @@ export const PLAN_RECORD_VERSION = 2;
 /** The most steps a plan may have */
 export const MAX_STEPS = 32;
 
+/** The most addresses an entry of `before.open` keeps of those its transaction pays */
+export const MAX_PAYS = 16;
+
 /** The most consolidation steps a plan may be allowed: all its steps but the one they serve */
 export const MAX_CONSOLIDATION_STEPS = MAX_STEPS - 1;
 
@@ -111,6 +114,11 @@ export type BeforeEntry = {
   readonly until?: number;
   /** The block a look of a plan before this one found it in: time never settles it */
   readonly seenBefore?: { readonly slot: number; readonly block?: string };
+  /**
+   * The addresses its transaction pays, each once, in the order of its outputs, at most 16;
+   * absent when it makes no output. Read when it passes by time
+   */
+  readonly pays?: readonly string[];
   /** The block a look of this plan found it in; set once, with the mark */
   readonly seen?: { readonly slot: number; readonly block?: string };
   /** It runs a Plutus script: a find of it counts only when it says whether its scripts passed */

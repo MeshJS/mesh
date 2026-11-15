@@ -4,7 +4,7 @@ import { mConStr0 } from "@meshsdk/core";
 
 import type { BuildEvent, TxPlan } from "../../../src/tx-builder";
 import { spend, validity } from "../../../src/tx-builder";
-import { alwaysSucceedCbor } from "../../test-util";
+import { alwaysSucceedCbor, baseAddress } from "../../test-util";
 import { asMesh, ref } from "../utxo-util";
 import { coins, fragmented, pay as payValue } from "./consolidate-util";
 import {
@@ -488,6 +488,7 @@ describe("a plan in place of another", () => {
           txHash: old.step("a").txHash,
           spends: old.step("a").inputs.map(key),
           outputs: old.step("a").outputs.length,
+          pays: [...new Set(old.step("a").outputs.map((o) => o.address))],
           seenBefore: old.step("a").seen,
         },
       ]);
@@ -1349,8 +1350,14 @@ describe("a plan in place of another", () => {
       emulator.removeUtxos([
         ref(old.step("a").outputs.find((o) => o.address === alice)!),
       ]);
+      // Past its end and the margin, without an answer: no time to wait for, a look to make again
       const error = await caught(old.replan({ id: "order:2" }));
-      expect(error.code).toBe("STILL_LIVE");
+      expect([
+        error.code,
+        reasonOf(error),
+        error.retryable,
+        error.retryAfterMs,
+      ]).toEqual(["CANNOT_OBSERVE", "unconfirmed", true, FAST.pollMs]);
       expect(old.replacedBy).toBeUndefined();
       expect(times(emulator, alice, 11n * ADA)).toBe(0);
       expect(await onChain(emulator, aHash)).toBe(true);
@@ -1403,6 +1410,88 @@ describe("a plan in place of another", () => {
         aHash,
       ]);
       expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    });
+
+    it("two plans on, the address an old transaction pays, which only it pays, is read: CANNOT_OBSERVE", async () => {
+      const hidden = new Set<string>();
+      const { emulator, builder, wallet, funded } = await stepSetup("scalus", {
+        hooks: hiding(hidden),
+        funds: [100n * ADA, 50n * ADA, 40n * ADA],
+      });
+      const old = await builder.plan(
+        { a: payTo(alice, 11n * ADA) },
+        { id: "order", payer: wallet },
+      );
+      await old.sign();
+      const aHash = old.step("a").txHash;
+      const ofA = new Set(old.step("a").inputs.map(key));
+      const extra = funded.find((u) => !ofA.has(key(u.input)))!;
+      const relay = relayOf(emulator, (txHash) => txHash === aHash);
+      await caught(old.run({ submitter: relay, timeoutMs: 300 }));
+      advance(emulator, 1);
+      // The new a spends the old a's input and one more, and lives long
+      const next = await old.replan({
+        id: "order:2",
+        ttlMs: 3_600_000,
+        steps: {
+          a: [payTo(alice, 11n * ADA), spend.pubKey({ utxo: extra })],
+        },
+      });
+      expect(next.toJSON().before!.open[0]!.pays).toContain(alice);
+      // The old a lands and the search hides it; its change is spent, its payment stays
+      hidden.add(aHash);
+      await emulator.submitTx(relay.kept[0]!);
+      emulator.removeUtxos([ref(old.step("a").change[0]!)]);
+      advance(emulator, 700);
+      await next.refresh();
+      expect(statuses(next)).toEqual({ a: "built" });
+      const error = await caught(next.replan({ id: "order:3" }));
+      expect([error.code, reasonOf(error), error.txHash]).toEqual([
+        "CANNOT_OBSERVE",
+        "unconfirmed",
+        aHash,
+      ]);
+      expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    });
+
+    it("a read of the address a dead step pays that gives no list: refused as a read that failed", async () => {
+      const { emulator, provider, old } = await hiddenAndExpired();
+      emulator.removeUtxos([ref(old.step("a").change[0]!)]);
+      provider.control.hooks.fetchAddressUTxOs = (forward, address: string) =>
+        address === alice ? undefined : forward(address);
+      const error = await caught(old.replan({ id: "order:2" }));
+      expect(error.code).toBe("PROVIDER_FAILED");
+      expect(old.replacedBy).toBeUndefined();
+      expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    });
+
+    it("tells NO_SHARED_INPUT how many addresses past the 16 were not read", async () => {
+      const hidden = new Set<string>();
+      const { emulator, builder, wallet } = await stepSetup("scalus", {
+        hooks: hiding(hidden),
+        funds: [100n * ADA, 50n * ADA],
+      });
+      const many = Array.from({ length: 17 }, (_, i) => baseAddress(30 + i));
+      const old = await builder.plan(
+        { a: many.map((address) => payTo(address, 2n * ADA)) },
+        { id: "order", payer: wallet },
+      );
+      const aHash = old.step("a").txHash;
+      hidden.add(aHash);
+      await caught(old.run({ timeoutMs: 300 }));
+      advance(emulator, 700);
+      await old.refresh();
+      expect(statuses(old)).toEqual({ a: "expired" });
+      // Nothing of it is left at any address
+      emulator.removeUtxos(old.step("a").outputs.map(ref));
+      const { events, trace } = tracer();
+      await old.replan({ id: "order:2", trace });
+      expect(
+        events.filter(
+          (event) =>
+            event.type === "warning" && event.code === "NO_SHARED_INPUT",
+        ),
+      ).toEqual([{ ...noSharedInput("a", aHash), unread: 1 }]);
     });
 
     it("a provider that does not say whether scripts passed: a plain old step found is kept, and the plan in place of the one it stopped is made", async () => {

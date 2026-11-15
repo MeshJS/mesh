@@ -13,6 +13,9 @@ import {
   UNTIL,
 } from "./state-util";
 
+/** An address an entry of before.open pays */
+const PAYS = "addr_test1vz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzerspjrlsz";
+
 // The record of a plan as data: written, read back strictly, and refused whole when it
 // holds what this library does not read or what the state machine could not have written.
 
@@ -208,6 +211,7 @@ describe("the record of a plan", () => {
           txHash: hash(0xe1),
           spends: [`${hash(0xe0)}#1`, `${hash(0xe3)}#0`],
           outputs: 2,
+          pays: [PAYS],
           until: UNTIL,
         },
         {
@@ -215,6 +219,7 @@ describe("the record of a plan", () => {
           txHash: hash(0xe2),
           spends: [`${hash(0xe1)}#1`],
           outputs: 2,
+          pays: [PAYS],
         },
       ],
     };
@@ -250,6 +255,7 @@ describe("the record of a plan", () => {
       "spends",
       "outputs",
       "until",
+      "pays",
     ]);
     const read = throughText(json);
     expect(read.before).toEqual(before);
@@ -332,6 +338,23 @@ describe("the record of a plan", () => {
     expect(refused(json, (j) => (j.before.open[0].plutus = false))).toMatch(
       /plutus/,
     );
+    // The addresses an entry pays: there exactly when it makes outputs, each once, at most 16;
+    // a record written before entries held them is not read
+    expect(refused(json, (j) => delete j.before.open[0].pays)).toMatch(/pays/);
+    expect(refused(json, (j) => (j.before.open[0].pays = []))).toMatch(/pays/);
+    expect(
+      refused(json, (j) => (j.before.open[0].pays = [PAYS, PAYS])),
+    ).toMatch(/pays\[1\]/);
+    expect(
+      refused(
+        json,
+        (j) =>
+          (j.before.open[0].pays = Array.from(
+            { length: 17 },
+            (_, i) => `a${i}`,
+          )),
+      ),
+    ).toMatch(/pays/);
     expect(
       refused(json, (j) => (j.before.open[0].seenBefore = { slot: 3 })),
     ).toMatch(/until and seenBefore/);
