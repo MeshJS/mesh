@@ -16,7 +16,6 @@ import type {
   StepOutput,
   TxPart,
   Utxo,
-  ValidityPart,
 } from "../parts/types";
 import type { Payer, PayerRead, PayerSource } from "../payer";
 import type { NewStep, PlanRecord, PlanTip, StepGiven } from "./core";
@@ -40,6 +39,7 @@ import { validity } from "../parts/scalars";
 import { isLinkedPart } from "../parts/unresolved";
 import { plainUtxo, utxoKey } from "../parts/utxo";
 import { changeAddressOf, givenPayerEntries, toPayerSource } from "../payer";
+import { addValues, fromMultiAsset, negate, valueOf } from "../value";
 import { buildConsolidation, isConsolidable } from "./consolidate";
 import {
   advancePlan,
@@ -1235,6 +1235,56 @@ type StepBefore = {
   readonly included?: true;
   /** It is a consolidation step the plan put in itself */
   readonly consolidation?: true;
+  /** The step a consolidation step this loop built serves */
+  readonly serves?: string;
+};
+
+/**
+ * The token units a step's parts take out of the transaction beyond what they bring in: outputs
+ * and burns against spent UTxOs and mints. A spend whose UTxO is not given yet is counted as
+ * bringing nothing, so a unit may be named that selection then does not need
+ */
+const neededUnits = (parts: readonly TxPart[]): Set<string> => {
+  const flow = addValues(
+    ...parts.flatMap((part) => {
+      if (part.kind === "output")
+        return [fromMultiAsset(part.output.amount.multiasset)];
+      if (part.kind === "spend" && part.utxo !== undefined)
+        return [negate(valueOf(part.utxo.value))];
+      // A burn takes out, a mint brings in
+      if (part.kind === "mint")
+        return [negate(fromMultiAsset({ [part.policyId]: part.assets }))];
+      return [];
+    }),
+  );
+  return new Set(
+    Array.from(flow.assets).flatMap(([unit, n]) => (n > 0n ? [unit] : [])),
+  );
+};
+
+/**
+ * A consolidation step as a later step's build reads it in `after`: its parked outputs that
+ * hold a unit the step needs marked as change, so that its selection may take them; the
+ * others stay out of it. The step itself is not changed
+ */
+const withParkedOpen = (
+  built: BuiltTxData,
+  needed: ReadonlySet<string>,
+): BuiltTxData => {
+  const opens = (output: BuiltOutput) =>
+    output.change !== true &&
+    Object.entries(output.value).some(
+      ([unit, quantity]) => needed.has(unit) && quantity > 0n,
+    );
+  if (!built.outputs.some(opens)) return built;
+  const outputs = built.outputs.map((output) =>
+    opens(output) ? { ...output, change: true as const } : output,
+  );
+  return {
+    ...built,
+    outputs,
+    change: outputs.filter((output) => output.change === true),
+  };
 };
 
 /**
@@ -1303,7 +1353,9 @@ const warn = (
  * consolidation steps before it, unless the option `consolidate` is `false` or the step has
  * `sendAllTo`: one at a time, each from what the failed build selected, then the step is built
  * again on the change of the last one, until it fits. They are named `consolidate-N`, counted
- * through the plan, and at most the option's limit of them are in the plan as a whole
+ * through the plan, and at most the option's limit of them are in the plan as a whole. The
+ * outputs a consolidation step parks are out of reach of the step it serves; a later step may
+ * select those that hold a token unit its parts take out beyond what they bring in
  * @throws as `makePlan` throws of building its steps, each error with the step's name at the
  *   start of its message; TxBuildError TX_TOO_LARGE (`cause: "selection"`) for a step that
  *   needs more consolidation steps than the plan allows, or whose consolidation step cannot be
@@ -1428,9 +1480,20 @@ const buildSteps = async (
           name,
           planId,
         );
+        // Tokens an earlier consolidation step parked are within reach of a later step that
+        // needs them; never of the step it serves, nor of a step that needs none of them
+        const needed = neededUnits(parts);
         const after = [
           ...before,
-          ...all.map((each) => asAfter(each.built, each.final)),
+          ...all.map((each) =>
+            each.consolidation === true &&
+            !each.final &&
+            each.serves !== name &&
+            each.changeAddress === changeAddress &&
+            needed.size > 0
+              ? withParkedOpen(each.built, needed)
+              : asAfter(each.built, each.final),
+          ),
         ];
         try {
           built = await internals(builder).buildList(
@@ -1489,6 +1552,7 @@ const buildSteps = async (
             changeAddress,
             final: false,
             consolidation: true,
+            serves: name,
           });
         }
       }
@@ -1562,9 +1626,6 @@ const consolidate = async (
       served,
     );
   const name = `${RESERVED_PREFIX}${count + 1}`;
-  const validity = context.parts.find(
-    (part): part is ValidityPart => part.kind === "validity",
-  );
   try {
     const built = await buildConsolidation({
       builder: context.builder,

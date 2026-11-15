@@ -538,7 +538,8 @@ many steps or slow signers gets a longer `ttlMs`. A step whose parts give `until
 selection needs (`TX_TOO_LARGE`, `cause: "selection"`) gets consolidation steps before it,
 `consolidate-1`, `consolidate-2`, … with `kind: "consolidation"`: each spends many of the payer's
 UTxOs and pays the payer alone, the tokens the step does not need in outputs of their own, and the
-step is built on the change of the last. They are signed, sent and recorded as any step;
+step is built on the change of the last; a later step of the plan that needs one of those tokens
+may spend such an output. They are signed, sent and recorded as any step;
 `plan.steps` and `plan.fee` show them and their fees before anyone signs, and `trace` gets
 `{ type: "warning", code: "CONSOLIDATION_STEPS", steps, fee }`. A plan has at most 4, those of
 `plan.add` counted; `consolidate: { maxSteps }` (1 to 31) sets the limit, and
