@@ -15,6 +15,7 @@ import type {
 } from "../../../src/tx-builder";
 import type { Value } from "../../../src/tx-builder/value";
 import {
+  collateral,
   output,
   referenceInput,
   spend,
@@ -134,7 +135,7 @@ type Loop = {
  * consolidation step and build it again after that step, spending its change
  */
 const consolidated = async (
-  w: World,
+  w: Pick<World, "builder" | "payer">,
   parts: TxPart[],
   options: {
     canSelect?: (utxo: Utxo) => boolean;
@@ -143,10 +144,15 @@ const consolidated = async (
     before?: (error: unknown) => void;
     /** The change of a step before it, which the step spends */
     standOn?: Utxo;
+    /** The transactions built before it, that step among them */
+    after?: readonly BuiltTxData[];
     collateralReturn?: false;
+    /** Collects every error of the served step's builds, in order */
+    errors?: unknown[];
   } = {},
 ): Promise<Loop> => {
   const { canSelect, maxSteps = 6, collateralReturn } = options;
+  const before = options.after ?? [];
   const steps: BuiltTxData[] = [];
   let standOn = options.standOn;
   let first: unknown;
@@ -157,13 +163,14 @@ const consolidated = async (
     try {
       const built = await w.builder.build(served, {
         payer: w.payer,
-        after: steps,
+        after: [...before, ...steps],
         ...(canSelect && { canSelect }),
         ...(collateralReturn === false && { collateralReturn }),
       });
       return { steps, served: built, ...(first !== undefined && { first }) };
     } catch (error) {
       first ??= error;
+      options.errors?.push(error);
       if (!isConsolidable(error) || steps.length >= maxSteps) throw error;
       options.before?.(error);
       const step = await buildConsolidation({
@@ -172,7 +179,7 @@ const consolidated = async (
         error,
         parts: served,
         ...(standOn && { standOn }),
-        after: steps,
+        after: [...before, ...steps],
         ...(canSelect && { options: { canSelect } }),
       });
       steps.push(step);
@@ -678,7 +685,7 @@ describe("consolidation steps on the emulator", () => {
   );
 
   it(
-    "pays only the payer, over random fragmented wallets of lovelace and tokens",
+    "pays only the payer, over random fragmented wallets of lovelace and tokens, or throws the served step's own error",
     async () => {
       const random = seeded(20261115);
       const policies = ["f1", "f2"].map((p) => p.repeat(28));
@@ -688,10 +695,14 @@ describe("consolidation steps on the emulator", () => {
           (_, i) => `${policy}${i.toString(16).padStart(6, "0")}`,
         ),
       );
+      // A token a payment takes, spread over many UTxOs of the wallet
+      const wanted = `${"f3".repeat(28)}cafe`;
       const CASES = 8;
       let withSteps = 0;
       for (let c = 0; c < CASES; c++) {
-        const count = 400 + Math.floor(random() * 700);
+        const count = 600 + Math.floor(random() * 600);
+        // Every other wallet holds it; half of them have a step before it
+        const spread = c % 2 === 1;
         const values = Array.from({ length: count }, () => {
           const value: Record<string, bigint> = {
             lovelace: BigInt(1_200_000 + Math.floor(random() * 3_800_000)),
@@ -701,27 +712,58 @@ describe("consolidation steps on the emulator", () => {
               value[units[Math.floor(random() * units.length)]!] = BigInt(
                 1 + Math.floor(random() * 1000),
               );
+          if (spread && random() < 0.6)
+            value[wanted] = BigInt(1 + Math.floor(random() * 5));
           return value;
         });
         const w = await world(values);
-        const total = sumOf(w.funded);
+        // A filter that refuses about a tenth of the wallet
+        const refused = new Set<string>();
+        if (random() < 0.5)
+          for (const each of w.funded)
+            if (random() < 0.1) refused.add(keyOf(each));
+        const canSelect =
+          refused.size > 0
+            ? (utxo: Utxo) => !refused.has(keyOf(utxo))
+            : undefined;
+        // A step before it, whose change it stands on
+        const earlier =
+          c % 4 >= 2
+            ? await w.builder.build([pay({ lovelace: 3n * ADA }), until(w)], {
+                payer: w.payer,
+                ...(canSelect && { canSelect }),
+              })
+            : undefined;
+        const total = sumOf(w.funded.filter((u) => !refused.has(keyOf(u))));
         const payment: Record<string, bigint> = {
           lovelace:
-            (total.coin * BigInt(70 + Math.floor(random() * 27))) / 100n,
+            (total.coin * BigInt(80 + Math.floor(random() * 17))) / 100n,
         };
-        if (random() < 0.5 && total.assets.size > 0) {
+        if (spread)
+          payment[wanted] =
+            (total.assets.get(wanted)! *
+              BigInt(50 + Math.floor(random() * 41))) /
+            100n;
+        else if (random() < 0.5 && total.assets.size > 0) {
           const held = Array.from(total.assets);
           const [unit, quantity] = held[Math.floor(random() * held.length)]!;
           payment[unit] = 1n + BigInt(Math.floor(random() * Number(quantity)));
         }
+        const errors: unknown[] = [];
         let loop: Loop;
         try {
           loop = await consolidated(w, [pay(payment), until(w)], {
             maxSteps: 4,
+            ...(canSelect && { canSelect }),
+            ...(earlier && {
+              standOn: plainUtxo(earlier.change[0]!),
+              after: [earlier],
+            }),
+            errors,
           });
         } catch (error) {
-          // Or the step's own error, and nothing to send
-          expect(TxBuildError.is(error)).toBe(true);
+          // Or the error of the served step's last build, and nothing to send
+          expect(error).toBe(errors.at(-1));
           continue;
         }
         const { steps, served } = loop;
@@ -733,12 +775,18 @@ describe("consolidation steps on the emulator", () => {
             for (const unit of Object.keys(change.value))
               expect(unit === "lovelace" || unit in payment).toBe(true);
         }
+        const sent = [...(earlier ? [earlier] : []), ...steps, served];
+        const spent = spentBy(sent);
+        for (const key of refused) expect(spent.has(key)).toBe(false);
         const before = await heldAt(w, w.address);
-        await sendAll(w, [...steps, served]);
+        await sendAll(w, sent);
         const after = await heldAt(w, w.address);
-        const fees = [...steps, served].reduce((sum, tx) => sum + tx.fee, 0n);
-        const paid = valueOf(payment as Utxo["value"]);
-        // The payer lost the payment and the fees, nothing else
+        const fees = sent.reduce((sum, tx) => sum + tx.fee, 0n);
+        const paid = addValues(valueOf(payment as Utxo["value"]), {
+          coin: earlier ? 3n * ADA : 0n,
+          assets: new Map(),
+        });
+        // The payer lost the payments and the fees, nothing else
         expect(
           asRecord(addValues(after, paid, { coin: fees, assets: new Map() })),
         ).toEqual(asRecord(before));
@@ -886,6 +934,88 @@ describe("which failed builds consolidation serves", () => {
     );
     expect(TxBuildError.is(failed, "VALUE_TOO_LARGE")).toBe(true);
     expect(failed.details).toEqual({ size: 85, maxValSize: 84 });
+  });
+
+  it(
+    "keeps in its change a token the change it stands on brings: no step parks what the one before gathered",
+    async () => {
+      const token = `${"d4".repeat(28)}cafe`;
+      // 100 of the token over the first 50 UTxOs: the first step gathers them in its change,
+      // which the second step spends
+      const utxos = Array.from({ length: 1000 }, (_, i) =>
+        i < 50
+          ? { ...utxo(0n), value: { lovelace: 2n * ADA, [token]: 2n } }
+          : utxo(2n * ADA),
+      );
+      const { steps, served } = await consolidated(
+        { builder, payer: { changeAddress: wallet, utxos } },
+        [pay({ lovelace: 1900n * ADA, [token]: 100n })],
+      );
+      expect(steps.length).toBeGreaterThanOrEqual(2);
+      expect(sumOf(steps[0]!.change).assets.get(token)).toBeGreaterThan(0n);
+      for (const step of steps) {
+        expectPaysOnlyThePayer(step, wallet);
+        for (const each of parkedOf(step))
+          expect(each.value[token]).toBeUndefined();
+      }
+      expect(served.outputs[0]!.value[token]).toBe(100n);
+    },
+    LONG,
+  );
+
+  it("never spends a UTxO the parts it is given name, though the failed build selected it", async () => {
+    const payer = { changeAddress: wallet, utxos: many(600, 2n * ADA) };
+    const parts = [pay({ lovelace: 1000n * ADA })];
+    const error = await caught(builder.build(parts, { payer }));
+    // Parts other than those the failed build was given: no plan passes such parts
+    const [read, spent, putUp] = oversizedRoundOf(error)!.selected;
+    const step = await buildConsolidation({
+      builder,
+      payer: { snapshot: payer },
+      error,
+      parts: [
+        ...parts,
+        referenceInput({ utxo: read! }),
+        spend.pubKey({ utxo: spent! }),
+        collateral({ utxo: putUp! }),
+      ],
+      after: [],
+    });
+    expectPaysOnlyThePayer(step, wallet);
+    const inputs = new Set(step.inputs.map(keyOf));
+    expect(inputs.size).toBeGreaterThan(100);
+    for (const each of [read!, spent!, putUp!])
+      expect(inputs.has(keyOf(each))).toBe(false);
+  });
+
+  it("never spends a UTxO not locked by a key, though the failed build selected it", async () => {
+    const payer = { changeAddress: wallet, utxos: many(600, 2n * ADA) };
+    const parts = [pay({ lovelace: 1000n * ADA })];
+    const error = await caught(builder.build(parts, { payer }));
+    // A read of the payer other than the one the failed build used, where the first UTxO it
+    // selected is locked by a script: no plan passes such a read
+    const first = oversizedRoundOf(error)!.selected[0]!;
+    const locked = {
+      ...first,
+      address: resolvePlutusScriptAddress(script, 0),
+    };
+    const step = await buildConsolidation({
+      builder,
+      payer: {
+        snapshot: {
+          changeAddress: wallet,
+          utxos: payer.utxos.map((each) =>
+            keyOf(each) === keyOf(first) ? locked : each,
+          ),
+        },
+      },
+      error,
+      parts,
+      after: [],
+    });
+    expectPaysOnlyThePayer(step, wallet);
+    expect(step.inputs.length).toBeGreaterThan(100);
+    expect(step.inputs.map(keyOf)).not.toContain(keyOf(first));
   });
 
   it("throws back an error it does not serve, building nothing", async () => {

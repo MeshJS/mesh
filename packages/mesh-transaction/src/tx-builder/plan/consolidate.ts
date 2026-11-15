@@ -5,7 +5,7 @@ import type { BuildOptions, BuiltTxData, TxBuilder } from "../builder";
 import type { OutputPart, TxPart, Utxo, ValidityPart } from "../parts/types";
 import type { PayerRead, PayerSource } from "../payer";
 import { bundleTokens, isKeyLocked, oversizedRoundOf } from "../balance";
-import { foldTransactions, spentByTransactions } from "../chain";
+import { foldTransactions } from "../chain";
 import { TxBuildError } from "../errors";
 import { outputSize } from "../fee";
 import { spend } from "../parts/inputs";
@@ -286,7 +286,8 @@ export const buildConsolidation = async (
   const params = await internals(builder).loadParams();
   const { changeAddress } = payer.snapshot;
 
-  // The payer's UTxOs as the transactions of `after` leave them, its change among them
+  // The payer's UTxOs as the transactions of `after` leave them, its change among them: none
+  // that a transaction of `after` spends
   const { kept, added } = foldTransactions(
     payer.snapshot.utxos,
     after,
@@ -295,9 +296,6 @@ export const buildConsolidation = async (
   const owned = new Map<string, Utxo>();
   for (const utxo of [...kept, ...added.map((each) => plainUtxo(each))])
     if (!owned.has(keyOf(utxo))) owned.set(keyOf(utxo), utxo);
-  const spentBefore = new Set(
-    Array.from(spentByTransactions(after).keys(), (key) => key.toLowerCase()),
-  );
   const named = namedByParts(parts);
   // Built again, the served step can put up the collateral it put up before
   const putUp = new Set(round.collateral.map(keyOf));
@@ -314,7 +312,6 @@ export const buildConsolidation = async (
   const spendable = (key: string, utxo: Utxo) =>
     !named.has(key) &&
     !putUp.has(key) &&
-    !spentBefore.has(key) &&
     key !== standKey &&
     isKeyLocked(utxo) &&
     allowed(utxo);
