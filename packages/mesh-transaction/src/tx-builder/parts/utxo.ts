@@ -29,6 +29,7 @@ import {
   splitUtxoBytes,
 } from "../tx-scan";
 import { emptyValue, toAssets } from "../value";
+import { givenShape } from "./shape";
 
 /*
  * The builder's UTxO form. Every UTxO the builder is given, as a `Utxo`, a Mesh `UTxO` or the
@@ -103,20 +104,40 @@ const describe = (ref: OutRef) => `the UTxO ${utxoKey(ref)}`;
 const addressText = (address: Address) =>
   address.asByron() ? address.toBase58() : address.toBech32();
 
-/** An address in bech32, base58 or hex, as canonical text; a reward address is refused */
-const readAddress = (at: string, text: unknown): string => {
-  let parsed: Address | null = null;
+/**
+ * An address text read, or null for any other value. Bytes that are no address can still read as
+ * one of a network that does not exist (the CBOR of a signing key file does): they are not taken
+ * as an address
+ */
+export const addressOf = (text: unknown): Address | null => {
+  if (typeof text !== "string") return null;
+  let parsed: Address | null;
   try {
-    parsed = typeof text === "string" ? Address.fromString(text) : null;
-  } catch (error) {
-    return problem("address", `${at}: invalid address ${text}`, error);
+    parsed = Address.fromString(text);
+  } catch {
+    return null;
   }
-  if (!parsed) return problem("address", `${at}: invalid address ${text}`);
+  const networkId = parsed?.getNetworkId();
+  return networkId === 0 || networkId === 1 ? parsed! : null;
+};
+
+/**
+ * An address in bech32, base58 or hex, as canonical text; a reward address is refused. A key may
+ * be given there by mistake, so a text that is no address is told by its shape, never quoted,
+ * and the parser's error, which may quote it, is not kept
+ */
+const readAddress = (at: string, text: unknown): string => {
+  const parsed = addressOf(text);
+  if (!parsed)
+    return problem(
+      "address",
+      `${at}: invalid address: expected an address in bech32, base58 or hex; got ${givenShape(text)}`,
+    );
   // A reward address holds no UTxOs
   if (parsed.asReward())
     return problem(
       "address",
-      `${at}: ${text} is a reward address, not a payment address`,
+      `${at}: ${text as string} is a reward address, not a payment address`,
     );
   return addressText(parsed);
 };
@@ -701,8 +722,8 @@ const UTXO_FORMS =
  * lovelace first and tokens by unit, a token of quantity zero left out, a reference script
  * described with its hash. Members that are not a UTxO's (the `label` and `change` of a built
  * output) are not copied.
- * @throws TxBuildError INVALID_OPTION `{ option: "utxo", value, allowed }`, the reason as
- *   `cause`, for a value that is not a UTxO: a transaction hash, output index, address, unit or
+ * @throws TxBuildError INVALID_OPTION `{ option: "utxo", value, allowed }`, `value` the
+ *   JavaScript type of what was given, the reason as `cause`, for a value that is not a UTxO: a transaction hash, output index, address, unit or
  *   quantity that cannot be read; a reward address; a `dataHash` that is not the hash of the
  *   `plutusData` beside it; a `scriptHash` without a `scriptRef`; a script hash that is not the
  *   script's; text that is not the CBOR of a transaction unspent output
@@ -713,7 +734,11 @@ export const toUtxo = (given: UtxoInput): Utxo => {
   } catch (error) {
     if (!(error instanceof UtxoError)) throw error;
     throw new TxBuildError("INVALID_OPTION", `invalid utxo: ${error.message}`, {
-      details: { option: "utxo", value: given, allowed: UTXO_FORMS },
+      details: {
+        option: "utxo",
+        value: given === null ? "null" : typeof given,
+        allowed: UTXO_FORMS,
+      },
       cause: error,
     });
   }

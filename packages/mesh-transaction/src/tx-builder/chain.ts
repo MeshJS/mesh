@@ -262,7 +262,7 @@ export const utxosAfter = (
         "INVALID_OPTION",
         `invalid utxos: entry ${i} is not a UTxO: ${errorText(error)}`,
         {
-          details: { option: "utxos", value: entry, allowed: "a UTxO" },
+          details: { option: "utxos", value: typeOf(entry), allowed: "a UTxO" },
           cause: error,
         },
       );

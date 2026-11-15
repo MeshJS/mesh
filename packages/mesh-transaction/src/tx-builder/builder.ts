@@ -133,6 +133,7 @@ import {
   paymentCredential,
   toStepLink,
 } from "./parts/normalize";
+import { givenShape } from "./parts/shape";
 import {
   outputAsUtxo,
   plainUtxo,
@@ -631,6 +632,18 @@ const invalidOption = (
     },
   );
 
+/**
+ * An option given as a payment address that is not one. A key may be given there by mistake, so
+ * the message tells the shape of what was given and `details.value` its JavaScript type, never
+ * the value, and the parser's error is not the `cause`
+ */
+const unreadableAddress = (option: string, value: unknown, allowed: string) =>
+  new TxBuildError(
+    "INVALID_OPTION",
+    `invalid ${option}: expected ${allowed}; got ${givenShape(value)}${typeof value === "string" ? " that is not a payment address" : ""}`,
+    { details: { option, value: kindOf(value), allowed } },
+  );
+
 /** A serializer that failed on a prototype, or answered with something that is no transaction */
 const unsupportedSerializer = (reason: string, cause?: unknown) =>
   new TxBuildError(
@@ -841,8 +854,8 @@ const checkBuildOptions = (
     throw invalidOption("sendAllTo", sendAllTo, SEND_ALL_TO_ALLOWED);
   try {
     return { sendAllTo: toAddressText(sendAllTo), after, knownUtxos };
-  } catch (error) {
-    throw invalidOption("sendAllTo", sendAllTo, SEND_ALL_TO_ALLOWED, error);
+  } catch {
+    throw unreadableAddress("sendAllTo", sendAllTo, SEND_ALL_TO_ALLOWED);
   }
 };
 
@@ -1544,13 +1557,8 @@ export class TxBuilder {
     if (changeTo !== undefined)
       try {
         changeAddress = toAddressText(changeTo);
-      } catch (error) {
-        throw invalidOption(
-          "changeAddress",
-          changeTo,
-          SEND_ALL_TO_ALLOWED,
-          error,
-        );
+      } catch {
+        throw unreadableAddress("changeAddress", changeTo, SEND_ALL_TO_ALLOWED);
       }
     const given = new Map<string, Utxo>();
     inputs.forEach((entry: unknown, i) => {
@@ -1560,7 +1568,7 @@ export class TxBuilder {
       } catch (error) {
         throw invalidEntry(
           "inputs",
-          entry,
+          kindOf(entry),
           FINALIZE_INPUTS_ALLOWED,
           `entry ${i} is not a UTxO: ${errorText(error)}`,
           error,

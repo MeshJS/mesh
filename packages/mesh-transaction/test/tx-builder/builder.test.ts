@@ -3464,12 +3464,12 @@ describe("TxBuilder: malformed values given or read", () => {
         }
         expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
         const failed = error as TxBuildError<"INVALID_OPTION">;
+        // Only the JavaScript type of the entry: an address in it may be a key given by mistake
         expect(failed.details).toEqual({
           option,
-          value: entry,
+          value: entry === null ? "null" : typeof entry,
           allowed: "a UTxO",
         });
-        expect(failed.details.value).toBe(entry);
         expect(failed.cause).toBeInstanceOf(Error);
         expect(TxError.is(failed.cause)).toBe(false);
         expect(failed.message).toContain(

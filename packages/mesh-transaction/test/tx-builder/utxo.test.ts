@@ -803,7 +803,7 @@ describe("Utxo refusals", () => {
     expect(kindOf(given)).toBe(kind);
   });
 
-  it("toUtxo throws INVALID_OPTION with the given value and the reason as cause", () => {
+  it("toUtxo throws INVALID_OPTION with the type of the given value and the reason as cause", () => {
     const given = meshWith({ scriptHash: "ab".repeat(28) });
     let thrown: unknown;
     try {
@@ -814,7 +814,8 @@ describe("Utxo refusals", () => {
     expect(TxBuildError.is(thrown, "INVALID_OPTION")).toBe(true);
     const error = thrown as TxBuildError<"INVALID_OPTION">;
     expect(error.details.option).toBe("utxo");
-    expect(error.details.value).toBe(given);
+    // Only the JavaScript type: an address in it may be a key given by mistake
+    expect(error.details.value).toBe("object");
     expect(error.details.allowed).toMatch(/Mesh UTxO/);
     expect(error.cause).toBeInstanceOf(UtxoError);
     expect((error.cause as UtxoError).kind).toBe("script");

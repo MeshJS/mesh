@@ -98,16 +98,20 @@ export type PayerSource =
 const PAYER_FORMS =
   "a wallet (a CIP-30 api, or an object with getChangeAddress), an address in bech32 or hex, or a snapshot { changeAddress, utxos }";
 
-/** An address text in canonical form, bech32 or base58 for Byron; throws for any other text */
+/**
+ * An address text in canonical form, bech32 or base58 for Byron; throws for any other text. A key
+ * may be given there by mistake, so the error tells the shape of a text that is no address,
+ * never the text, and keeps no cause that could quote it
+ */
 export const toAddressText = (text: unknown): string => {
   if (typeof text !== "string") throw new Error("an address must be a string");
   let parsed: Address | null;
   try {
     parsed = Address.fromString(text);
-  } catch (error) {
-    throw new Error(`invalid address ${text}: ${errorText(error)}`);
+  } catch {
+    parsed = null;
   }
-  if (!parsed) throw new Error(`invalid address ${text}`);
+  if (!parsed) throw new Error(`${textShape(text)} is not an address`);
   // A reward address holds no UTxOs and cannot take change
   if (parsed.asReward())
     throw new Error(`${text} is a reward address, not a payment address`);
@@ -116,7 +120,7 @@ export const toAddressText = (text: unknown): string => {
   const networkId = parsed.getNetworkId();
   if (networkId !== 0 && networkId !== 1)
     throw new Error(
-      `${text} is not an address of a Cardano network: its network id is ${networkId}`,
+      `${textShape(text)} is not an address of a Cardano network: its network id is ${networkId}`,
     );
   return addressText(parsed);
 };
@@ -183,7 +187,7 @@ export const toPayerSource = (payer: unknown): PayerSource => {
         return readUtxo(entry);
       } catch (error) {
         throw invalidPayer(
-          entry,
+          typeOf(entry),
           `the snapshot's UTxO ${i} is neither a UTxO object nor the CBOR of one: ${errorText(error)}`,
           error,
         );

@@ -1389,7 +1389,7 @@ export function requiredSigners(
         {
           details: {
             option: "spent",
-            value: entry,
+            value: typeOf(entry),
             allowed: "a list of UTxOs",
           },
           cause: error,

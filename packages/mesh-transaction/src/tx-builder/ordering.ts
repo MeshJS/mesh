@@ -5,6 +5,8 @@ import type {
 } from "@meshsdk/common";
 import { Address, CredentialType } from "@meshsdk/core-cst";
 
+import { givenShape } from "./parts/shape";
+
 /*
  * The orders the ledger keeps a transaction's sets and maps in. A redeemer points at the item it
  * witnesses by its position in that order, so these decide redeemer indices.
@@ -37,7 +39,7 @@ const rewardAccountKey = (rewardAddress: string) => {
   const address = Address.fromString(rewardAddress);
   const credential = address?.asReward()?.getPaymentCredential();
   if (!address || !credential)
-    throw new Error(`invalid reward address ${rewardAddress}`);
+    throw new Error(`invalid reward address: got ${givenShape(rewardAddress)}`);
   return {
     networkId: address.getNetworkId(),
     credential: {

@@ -1232,9 +1232,10 @@ describe("requiredSigners", () => {
     };
 
     const nullEntry = thrown([null, ...built.inputs]);
+    // Only the JavaScript type of the entry: an address in it may be a key given by mistake
     expect(nullEntry.details).toEqual({
       option: "spent",
-      value: null,
+      value: "null",
       allowed: "a list of UTxOs",
     });
     expect(nullEntry.cause).toBeInstanceOf(Error);
@@ -1244,7 +1245,7 @@ describe("requiredSigners", () => {
       const [first, ...rest] = built.inputs;
       const mangled = { ...first!, address };
       const error = thrown([mangled, ...rest]);
-      expect(error.details.value).toBe(mangled);
+      expect(error.details.value).toBe("object");
       expect(error.cause).toBeInstanceOf(Error);
     }
 

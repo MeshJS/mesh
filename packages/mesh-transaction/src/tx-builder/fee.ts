@@ -336,7 +336,11 @@ export const minFee = (
         "INVALID_OPTION",
         `invalid inputs: entry ${i} is not a UTxO: ${errorText(error)}`,
         {
-          details: { option: "inputs", value: entry, allowed: "a UTxO" },
+          details: {
+            option: "inputs",
+            value: entry === null ? "null" : typeof entry,
+            allowed: "a UTxO",
+          },
           cause: error,
         },
       );

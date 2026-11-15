@@ -795,19 +795,21 @@ describe("TxBuilder: bad values", () => {
     await invalid("payer", (builder) => builder.readPayer(payer as Payer));
   });
 
-  it("names the conversion's error as cause", async () => {
+  it("names the conversion's error of a UTxO as cause, and of an address none", async () => {
+    // Only the JavaScript type of what was given: a key may be given there by mistake
     const error = await invalid("payer", (builder) =>
       builder.build(pay(), {
         payer: { changeAddress: wallet, utxos: ["zz"] },
       }),
     );
     expect(error.cause).toBeInstanceOf(Error);
-    expect(error.details.value).toBe("zz");
+    expect(error.details.value).toBe("string");
+    // The address parser's error would quote the text
     const sendAllTo = await invalid("sendAllTo", (builder, walletPayer) =>
       builder.build([], { payer: walletPayer, sendAllTo: "zz" }),
     );
-    expect(sendAllTo.cause).toBeInstanceOf(Error);
-    expect(sendAllTo.details.value).toBe("zz");
+    expect(sendAllTo.cause).toBeUndefined();
+    expect(sendAllTo.details.value).toBe("string");
   });
 
   it.each([

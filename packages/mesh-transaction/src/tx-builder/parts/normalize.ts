@@ -38,7 +38,10 @@ import type {
 } from "./types";
 import type { UtxoProblem } from "./utxo";
 import { TxPartError } from "./errors";
-import { readUtxo, scriptSize, UtxoError, utxoKey } from "./utxo";
+import { givenShape } from "./shape";
+import { addressOf, readUtxo, scriptSize, UtxoError, utxoKey } from "./utxo";
+
+export { textShape } from "./shape";
 
 /** Reports problems found while building one part */
 export type PartContext = {
@@ -245,11 +248,18 @@ export const outRefString = (input: {
   index: number;
 }) => `${input.transaction_id}#${input.index}`;
 
+/**
+ * An address given to a part. A key may be given there by mistake, so a text that is no address
+ * is told by its shape, never quoted
+ */
 export const parseAddress = (ctx: PartContext, address: string): Address => {
-  const parsed =
-    typeof address === "string" ? Address.fromString(address) : null;
+  const parsed = addressOf(address);
   if (!parsed)
-    return fail(ctx, "INVALID_ADDRESS", `invalid address ${address}`);
+    return fail(
+      ctx,
+      "INVALID_ADDRESS",
+      `invalid address: expected an address in bech32, base58 or hex; got ${givenShape(address)}`,
+    );
   return parsed;
 };
 
@@ -352,7 +362,7 @@ export const toRedeemer = (
 
 /**
  * A reward address given in bech32 or hex, with its stake credential; `address` is the text a
- * part stores for it
+ * part stores for it. A text that is no reward address is told by its shape, never quoted
  */
 export const toRewardAddress = (
   ctx: PartContext,
@@ -361,16 +371,13 @@ export const toRewardAddress = (
   address: string;
   credential: { type: "key" | "script"; hash: string };
 } => {
-  const parsed =
-    typeof rewardAddress === "string"
-      ? Address.fromString(rewardAddress)
-      : null;
+  const parsed = addressOf(rewardAddress);
   const credential = parsed?.asReward()?.getPaymentCredential();
   if (!parsed || !credential)
     return fail(
       ctx,
       "INVALID_ADDRESS",
-      `invalid reward address ${rewardAddress}`,
+      `invalid reward address: expected a reward address in bech32 or hex; got ${givenShape(rewardAddress)}${parsed ? " that is not a reward address" : ""}`,
     );
   return {
     address: addressText(parsed),
@@ -668,18 +675,6 @@ export const nativeScriptToPrototype = (
     case "before":
       return { type: "TIMELOCK_EXPIRY", value: { slot: script.slot } };
   }
-};
-
-/**
- * What a text is, without the text: its length, and the prefix of a bech32 text, which says what
- * kind of thing it is. For an error about a text that may be a key given by mistake
- */
-export const textShape = (text: string): string => {
-  if (/^[0-9a-fA-F]+$/.test(text)) return `${text.length} hex digits`;
-  const prefix = /^([a-z0-9_]{1,20})1[02-9ac-hj-np-z]{6,}$/i.exec(text)?.[1];
-  return prefix === undefined
-    ? `text of ${text.length} characters`
-    : `text of ${text.length} characters with the prefix ${prefix.toLowerCase()}`;
 };
 
 /**
