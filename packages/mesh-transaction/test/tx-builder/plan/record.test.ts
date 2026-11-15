@@ -72,7 +72,7 @@ const busyRecord = (): PlanRecord => {
         },
       ],
     },
-    { type: "stop", replacedBy: "order-7:2" },
+    { type: "stop" },
   );
 };
 
@@ -90,7 +90,6 @@ describe("the record of a plan", () => {
       "rev",
       "status",
       "stopped",
-      "replacedBy",
       "network",
       "deadlines",
       "steps",
@@ -102,7 +101,6 @@ describe("the record of a plan", () => {
       id: "order-7",
       status: "stopping",
       stopped: true,
-      replacedBy: "order-7:2",
     });
     const [a, b, c, d] = json.steps;
     expect(a).toMatchObject({
@@ -180,6 +178,25 @@ describe("the record of a plan", () => {
     const without = JSON.parse(JSON.stringify(json));
     delete without.halted;
     expect(() => readPlan(without)).toThrow(/halted is missing/);
+    // The name of the plan made in its place, with the mark
+    const replaced = encodePlan(
+      accept(stopped, { type: "stop", replacedBy: "order-8:2" }),
+    );
+    expect(Object.keys(replaced)).toEqual([
+      "kind",
+      "version",
+      "id",
+      "rev",
+      "status",
+      "stopped",
+      "halted",
+      "replacedBy",
+      "network",
+      "deadlines",
+      "steps",
+      "options",
+    ]);
+    expect(encodePlan(throughText(replaced))).toEqual(replaced);
   });
 
   it("is read only with the id it has, when an id is asked for", () => {
@@ -254,7 +271,10 @@ describe("the record of a plan", () => {
       ],
       [
         "replacedBy without the mark",
-        (j) => delete j.stopped,
+        (j) => {
+          j.replacedBy = "order-7:2";
+          delete j.stopped;
+        },
         /stopped is missing|status/,
       ],
       ["stopped that is not true", (j) => (j.stopped = false), /stopped/],

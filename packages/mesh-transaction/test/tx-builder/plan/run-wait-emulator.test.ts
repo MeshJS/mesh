@@ -239,6 +239,9 @@ describe("a step called dead", () => {
     const sends = submitter.calls.length;
     const error = await caught(plan.run({ submitter, signers }));
     expect([error.code, error.step]).toEqual(["EXPIRED", "a"]);
+    // The message says the plan's status: it is stopping, since b may still land
+    expect(error.message).toMatch(/the plan does not go on, and is stopping/);
+    expect(error.message).not.toMatch(/has stopped/);
     expect(submitter.calls.slice(sends)).toEqual([plan.step("b").signedTx]);
     expect(paidTo(before, bob)).toEqual([3n * ADA]);
     expect(paidTo(before, carol)).toEqual([]);
@@ -403,7 +406,8 @@ describe("the time of a plan", () => {
     lie = 0;
     await emulator.submitTx(held.calls[0]!);
     await plan.refresh();
-    expect(statuses(plan)).toEqual({ main: "included" });
+    // The honest tip is taken: the step is in a block, and deep enough
+    expect(statuses(plan)).toEqual({ main: "final" });
     expect(paidTo(emulator, alice)).toEqual([5n * ADA]);
   });
 
@@ -461,6 +465,7 @@ describe("the time of a plan", () => {
       "b",
       true,
     ]);
+    expect(dead.message).toMatch(/the plan does not go on, and is stopped/);
     expect(plan.status).toBe("stopped");
   });
 

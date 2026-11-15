@@ -144,7 +144,10 @@ export type RunOptions = {
   waitFor?: WaitTarget;
   /**
    * How long the call waits for a block or for depth, in ms, counted anew from the answer to
-   * the first send of each step in the call; then CONFIRM_TIMEOUT
+   * the first send of each step in the call; then CONFIRM_TIMEOUT. Every request the call waits
+   * for (a search, the tip, a read or write of the store, a submit) is waited for no longer than
+   * the time left: a submit that does not answer in time leaves its delivery recorded and its
+   * outcome unknown, as a lost answer does
    */
   timeoutMs?: number;
   /** The pause between two looks at the chain, in ms; the builder's, else 5 000 */

@@ -640,9 +640,9 @@ const givenOf = (step: StepInput, changeAddress: string): StepGiven => {
 
 /**
  * What a plan made of these steps and options records of them, worked out before anything is
- * built: its network, the deadlines given explicitly, its data options with its payer's change address, and each
- * step's name and parts as given. Two plans with the same order are the same order of the
- * application. Each payer is asked for its change address only
+ * built: its network, the deadlines given explicitly, its data options with its payer's change
+ * address, and each step's name and parts as given. Two plans with the same order are the same
+ * order of the application. Each payer is asked for its change address only
  */
 export type PlanOrder = {
   readonly network: PlanRecord["network"];

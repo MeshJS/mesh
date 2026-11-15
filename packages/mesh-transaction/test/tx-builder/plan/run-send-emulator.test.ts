@@ -448,12 +448,30 @@ describe("run() on TxEmulator: the submitter and its answer", () => {
   });
 
   it("counts timeoutMs from the answer to a resend", async () => {
-    const { emulator, builder, wallet } = await setup();
+    // The search finds nothing until 150 ms after the resend was answered
+    let shownAt = Infinity;
+    const { emulator, builder, wallet } = await setup({
+      builder: { planDefaults: { ...FAST, resendMs: 60_000 } },
+      hooks: {
+        fetchTxInfo: (forward: (hash: string) => unknown, hash: string) => {
+          if (Date.now() < shownAt)
+            throw new ProviderError("not found", {
+              kind: "notFound",
+              status: 404,
+              retryable: false,
+            });
+          return forward(hash);
+        },
+      },
+    });
     const plan = await builder.plan(pay(), { payer: wallet });
     await plan.run({ submitter: swallowing(), waitFor: "sent" });
+    // Answered 150 ms after it is called; found 300 ms after the call started
     const slow = submitterOf(async (tx) => {
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      return emulator.submitTx(tx);
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      const hash = await emulator.submitTx(tx);
+      shownAt = Date.now() + 150;
+      return hash;
     });
     await plan.run({ submitter: slow, timeoutMs: 200 });
     expect(plan.status).toBe("final");

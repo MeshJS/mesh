@@ -3,6 +3,7 @@ import { CachedFetcher } from "@meshsdk/common";
 
 import type { SubmitFailureReason } from "../errors";
 import type { OutRef } from "../parts/types";
+import { TIP_AHEAD_TOLERANCE_MS } from "./core";
 
 // What a plan reads from the chain, and how it reads what a provider throws. Every read goes
 // to the provider itself, past the shared cache, and every failure is "unknown": never "no".
@@ -35,7 +36,9 @@ export type TxSearch =
 export type ChainObserver = {
   /**
    * The provider's latest block. Unknown when it cannot be read, when its slot is not a whole
-   * number 0 or more, and when it is older than a tip this observer has already read.
+   * number 0 or more, when it is older than a tip this observer has already read, and, for an
+   * observer that knows the time of a slot, when its slot starts later than the local clock by
+   * more than the tolerance: such a tip is neither taken nor kept.
    */
   tip(): Promise<ObservedTip | undefined>;
   /** A transaction by hash: found, not found, a provider without search, or unknown */
@@ -320,12 +323,21 @@ const outRefOfEntry = (entry: unknown): OutRef | undefined => {
   }
 };
 
+/** What an observer knows of time: the POSIX ms a slot starts at, and whom to tell of a tip */
+export type ObserverClock = {
+  readonly timeAt: (slot: number) => number;
+  /** Told of a tip whose slot starts later than the local clock by more than the tolerance */
+  readonly ahead?: (slot: number, aheadMs: number) => void;
+};
+
 /**
  * The chain observer of one plan object, over the builder's provider. A builder without a
- * provider gives an observer that knows nothing.
+ * provider gives an observer that knows nothing. With a clock, a tip ahead of the local clock by
+ * more than the tolerance is unknown: a block is never made for a slot that has not begun.
  */
 export const chainObserver = (
   provider: IFetcher | undefined,
+  clock?: ObserverClock,
 ): ChainObserver => {
   const inner = provider === undefined ? undefined : unwrapProvider(provider);
   /** The highest slot of a tip this observer has read */
@@ -346,6 +358,17 @@ export const chainObserver = (
     };
     const slot = slotOf(rawSlot);
     if (slot === undefined || slot < highestSlot) return undefined;
+    if (clock !== undefined) {
+      const aheadMs = clock.timeAt(slot) - Date.now();
+      if (aheadMs > TIP_AHEAD_TOLERANCE_MS) {
+        try {
+          clock.ahead?.(slot, aheadMs);
+        } catch {
+          // Being told changes nothing
+        }
+        return undefined;
+      }
+    }
     highestSlot = slot;
     const height = heightOf(rawHeight);
     return height === undefined ? { slot } : { slot, height };

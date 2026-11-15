@@ -277,9 +277,12 @@ const isTerminal = (record: PlanRecord) =>
 const stepIn = (record: PlanRecord, name: string) =>
   record.steps.find((step) => step.name === name);
 
-/** A search that found the transaction */
-const isFound = (search: TxSearch) =>
-  search !== undefined && "found" in search && search.found;
+/** A search that found the transaction in a block: found, with the slot of its block */
+const isInBlock = (search: TxSearch) =>
+  search !== undefined &&
+  "found" in search &&
+  search.found &&
+  search.slot !== undefined;
 
 /** Whether a step stands on a step that will not land */
 const standsOnDead = (record: PlanRecord, step: StepRecord) =>
@@ -323,10 +326,18 @@ const waitingOn = (record: PlanRecord): StepRecord =>
   record.steps.find((step) => step.status !== "final") ??
   record.steps[0]!;
 
-/** Whether the tip has passed the end of a step's validity */
+/**
+ * Whether the tip has passed the end of a step's validity; never by a tip ahead of the local
+ * clock by more than the tolerance
+ */
 const pastUntil = (step: StepRecord, tip: PlanTip | undefined) => {
   const until = stepUntil(step);
-  return tip !== undefined && until !== undefined && tip.timeMs >= until;
+  return (
+    tip !== undefined &&
+    until !== undefined &&
+    !tipAheadOfClock(tip) &&
+    tip.timeMs >= until
+  );
 };
 
 const SIGNED = new WeakMap<StepRecord, string>();
@@ -449,7 +460,25 @@ type Call = {
   readonly signal?: AbortSignal;
   /** When the call started, by the local clock */
   readonly started: number;
+  /**
+   * When `timeoutMs` counts from, by the local clock: the call's start, or the answer to the
+   * last send of a step that was its first in this call
+   */
+  from: number;
 };
+
+/** A request a method waits for, as the message of one that does not answer in time names it */
+type RequestKind = "look" | "tip" | "read" | "write" | "submit";
+
+/**
+ * Waits for one request of a method: until the method's signal aborts it and, for a call of
+ * `run()`, no longer than the time left of its `timeoutMs`
+ */
+type Ask = <T>(
+  request: Promise<T>,
+  kind: RequestKind,
+  step?: StepRecord,
+) => Promise<T>;
 
 /** What one send of a step's bytes came to */
 type Sent =
@@ -627,7 +656,7 @@ export class TxPlan {
       if (needing.length === 0) return this;
       const signers = given ?? (state.signer && [state.signer]);
       if (signers === undefined) throw this.#missingSignatures(needing[0]!);
-      const tip = await this.#readTip(state, signal);
+      const tip = await this.#readTip(state, this.#ask(signal));
       for (const step of needing)
         await this.#signStep(
           state,
@@ -719,7 +748,9 @@ export class TxPlan {
    *   is `rejected`, and the same call sends the same bytes again. EXPIRED (`unsent` when the plan
    *   never sent it), SCRIPT_FAILED, ORPHANED when a step will not land: the plan does not go on.
    *   SUBMIT_FAILED when the outcome of a delivery is unknown (retryable). CONFIRM_TIMEOUT after
-   *   `timeoutMs`, also while a step past its end of validity may still land (retryable).
+   *   `timeoutMs`, also while a step past its end of validity may still land, and when a request
+   *   the call waits for does not answer within the time left: a delivery whose submit did not
+   *   answer is recorded, and its outcome is unknown (retryable).
    *   NOT_YET_VALID before a step's lower bound (retryable). MISSING_SIGNATURES,
    *   MISSING_SUBMITTER, SIGN_DECLINED, SIGNER_FAILED: nothing was sent. CANNOT_OBSERVE when the
    *   provider cannot follow the plan. INVALID_STATE (`stopped`) for a plan that was stopped, or
@@ -747,17 +778,20 @@ export class TxPlan {
       checkCallOptions(opts);
       const signers = toSigners(opts.signers);
       const { signal } = opts;
-      await this.#takeStoredIfNewer(state);
-      if (state.record.status === "final") return this;
-      throwIfAborted(signal, CALL);
+      const started = Date.now();
       const call: Call = {
         wait,
         ...(signers !== undefined && { signers }),
         ...(opts.submitter !== undefined && { submitter: opts.submitter }),
         ...(signal !== undefined && { signal }),
-        started: Date.now(),
+        started,
+        from: started,
       };
-      const seen = await this.#look(state, signal);
+      const ask = this.#ask(signal, call);
+      await this.#takeStoredIfNewer(state, ask);
+      if (state.record.status === "final") return this;
+      throwIfAborted(signal, CALL);
+      const seen = await this.#look(state, ask);
       this.#refuseUnobservable(seen);
       await this.#drive(state, call);
       return this;
@@ -775,7 +809,7 @@ export class TxPlan {
   refresh(): Promise<this> {
     return this.#call(async (state) => {
       await this.#takeStoredIfNewer(state);
-      await this.#look(state, undefined);
+      await this.#look(state, this.#ask(undefined));
       return this;
     });
   }
@@ -879,14 +913,15 @@ export class TxPlan {
     );
   }
 
-  /** The error of a step that will not land */
+  /** The error of a step that will not land; it says the plan's status */
   #deadError(state: PlanState, step: StepRecord) {
+    const plan = `the plan does not go on, and is ${state.record.status}`;
     switch (step.status) {
       case "expired": {
         const unsent = step.sends === 0;
         return this.#error(
           "EXPIRED",
-          `its end of validity and the margin have passed and it is not on chain${unsent ? ", and the plan never sent it" : ""}: it will not land, and the plan has stopped`,
+          `its end of validity and the margin have passed and it is not on chain${unsent ? ", and the plan never sent it" : ""}: it will not land; ${plan}`,
           {
             details: {
               ...(unsent && { unsent: true as const }),
@@ -899,13 +934,13 @@ export class TxPlan {
       case "orphaned":
         return this.#error(
           "ORPHANED",
-          "a step it stands on will not land, so it will not either, and the plan has stopped",
+          `a step it stands on will not land, so it will not either; ${plan}`,
           { step },
         );
       default:
         return this.#error(
           "SCRIPT_FAILED",
-          "it is in a block with is_valid = false: a script failed and the collateral was taken; the plan has stopped",
+          `it is in a block with is_valid = false: a script failed and the collateral was taken; ${plan}`,
           { step },
         );
     }
@@ -976,6 +1011,54 @@ export class TxPlan {
       );
   }
 
+  /**
+   * How the requests of a method are waited for: until its signal aborts and, for a call of
+   * `run()`, no longer than the time left of its `timeoutMs`, after which the call throws
+   * CONFIRM_TIMEOUT. What such a request answers later is dropped
+   */
+  #ask(signal: AbortSignal | undefined, call?: Call): Ask {
+    const state = stateOf(this);
+    return async <T>(
+      request: Promise<T>,
+      kind: RequestKind,
+      step?: StepRecord,
+    ): Promise<T> => {
+      if (call === undefined) return abortable(request, signal, CALL);
+      const left = call.from + call.wait.timeoutMs - Date.now();
+      const answer = await within(request, Math.max(0, left), signal, CALL);
+      if (answer === TIMED_OUT) throw this.#timedOut(state, call, kind, step);
+      return answer as T;
+    };
+  }
+
+  /**
+   * CONFIRM_TIMEOUT for a request of a call that did not answer within its time, about this
+   * step, else the step the call waits for
+   */
+  #timedOut(
+    state: PlanState,
+    call: Call,
+    kind: RequestKind,
+    step = waitingOn(state.record),
+  ) {
+    const { waitFor, timeoutMs } = call.wait;
+    const within = `within the time left of timeoutMs (${timeoutMs} ms)`;
+    const what: Record<RequestKind, string> = {
+      look: `the provider did not answer a look at the chain ${within}; the same call waits on`,
+      tip: `the provider did not answer a read of the tip ${within}; the same call waits on`,
+      read: `the store did not answer a read of the plan's record ${within}; the same call waits on`,
+      write: `the store did not answer a write of the plan's record ${within}: the write may have passed, and nothing was sent; the plan goes on from its record`,
+      submit: `the submitter did not answer ${within}: the delivery is recorded and its outcome is unknown, so it may be on its way; the same call sends the same bytes again`,
+    };
+    return this.#error("CONFIRM_TIMEOUT", what[kind], {
+      details: {
+        waitedFor: waitFor === "final" ? "final" : "included",
+        timeoutMs,
+      },
+      step,
+    });
+  }
+
   /* -------------------------------------------------------------------------------------------
    * Writing
    * ----------------------------------------------------------------------------------------- */
@@ -997,6 +1080,7 @@ export class TxPlan {
     state: PlanState,
     decide: (record: PlanRecord, fresh: boolean) => WriteDecision,
     since = state.storeReads,
+    ask: Ask = this.#ask(undefined),
   ): Promise<WriteOutcome> {
     const run = async (): Promise<WriteOutcome> => {
       let record = state.record;
@@ -1017,7 +1101,7 @@ export class TxPlan {
           commit(state, next);
           return "written";
         }
-        if (await this.#save(state, next, record.rev)) {
+        if (await this.#save(state, next, record.rev, ask)) {
           commit(state, next);
           return "written";
         }
@@ -1028,7 +1112,7 @@ export class TxPlan {
             `the store holds another revision of the plan's record at each of ${saves} writes of one change: nothing was sent; the plan goes on from its record`,
             {},
           );
-        record = await this.#reread(state);
+        record = await this.#reread(state, ask);
         fresh = true;
       }
     };
@@ -1045,38 +1129,49 @@ export class TxPlan {
   /**
    * Saves the next record over the revision the object holds
    * @returns whether the store wrote it; any answer but `true` is taken as another revision
-   * @throws TxPlanError STORE_FAILED when the store throws: the write may have passed
+   * @throws TxPlanError STORE_FAILED when the store throws: the write may have passed;
+   *   CONFIRM_TIMEOUT when the time of a call of `run()` is up before the store answers
    */
   async #save(
     state: PlanState,
     next: PlanRecord,
     expectedRev: number,
+    ask: Ask,
   ): Promise<boolean> {
     const json = encodePlan(next) as unknown as StoredTxPlanJSON;
-    try {
-      return (await state.store!.save(json, expectedRev)) === true;
-    } catch (error) {
-      throw this.#error(
-        "STORE_FAILED",
-        "the store failed to write the plan's record, and the write may have passed: nothing was sent; the plan goes on from its record",
-        { cause: error },
-      );
-    }
+    const saving = (async () => {
+      try {
+        return (await state.store!.save(json, expectedRev)) === true;
+      } catch (error) {
+        throw this.#error(
+          "STORE_FAILED",
+          "the store failed to write the plan's record, and the write may have passed: nothing was sent; the plan goes on from its record",
+          { cause: error },
+        );
+      }
+    })();
+    return ask(saving, "write");
   }
 
   /**
-   * The record read again after a write the store refused, taken as the object's own
+   * The record read again after a write the store refused, taken as the object's own. A record
+   * of a lower revision than the one the object holds is a stale read: it is not taken, and the
+   * object goes on from its own, which the next write finds out of date again
    * @throws TxPlanError PLAN_NOT_FOUND when the record is gone: it is never written anew;
    *   STORE_FAILED; INVALID_STATE (`recordVersion`)
    */
-  async #reread(state: PlanState): Promise<PlanRecord> {
-    const record = await loadRecord(state.store!, state.record.id!);
+  async #reread(state: PlanState, ask: Ask): Promise<PlanRecord> {
+    const record = await ask(
+      loadRecord(state.store!, state.record.id!),
+      "read",
+    );
     if (record === undefined)
       throw this.#error(
         "PLAN_NOT_FOUND",
         "the plan's record is gone from the store: nothing was sent or written, and the record is not written anew",
         {},
       );
+    if (record.rev < state.record.rev) return state.record;
     commitStored(state, record);
     return record;
   }
@@ -1086,9 +1181,9 @@ export class TxPlan {
    * same revision and not the same record: the store holds the plan, and a mark in it is never
    * written over
    */
-  async #takeStoredIfNewer(state: PlanState) {
+  async #takeStoredIfNewer(state: PlanState, ask: Ask = this.#ask(undefined)) {
     if (state.store === undefined) return;
-    const stored = await loadRecord(state.store, state.record.id!);
+    const stored = await ask(loadRecord(state.store, state.record.id!), "read");
     if (stored === undefined)
       throw this.#error(
         "PLAN_NOT_FOUND",
@@ -1108,32 +1203,24 @@ export class TxPlan {
 
   /**
    * The tip as the state machine takes it, with the time its slot starts at and the local clock;
-   * a tip ahead of the clock by more than the tolerance is told to `trace`
+   * undefined for a tip ahead of the clock by more than the tolerance, which is neither taken nor
+   * kept (the observer tells `trace` of it)
    */
-  #tipOf(state: PlanState, observed: ObservedTip): PlanTip {
+  #tipOf(state: PlanState, observed: ObservedTip): PlanTip | undefined {
     const tip: PlanTip = {
       slot: observed.slot,
       timeMs: state.builder.timeAt(observed.slot),
       ...(observed.height !== undefined && { height: observed.height }),
       clockMs: Date.now(),
     };
-    if (tipAheadOfClock(tip))
-      emit(state.trace, {
-        type: "warning",
-        code: "TIP_AHEAD_OF_CLOCK",
-        slot: tip.slot,
-        aheadMs: tip.timeMs - tip.clockMs!,
-      });
+    if (tipAheadOfClock(tip)) return undefined;
     state.lastTip = tip;
     return tip;
   }
 
   /** Reads the tip once; undefined when it is unknown */
-  async #readTip(
-    state: PlanState,
-    signal: AbortSignal | undefined,
-  ): Promise<PlanTip | undefined> {
-    const observed = await abortable(state.observer.tip(), signal, CALL);
+  async #readTip(state: PlanState, ask: Ask): Promise<PlanTip | undefined> {
+    const observed = await ask(state.observer.tip(), "tip");
     return observed && this.#tipOf(state, observed);
   }
 
@@ -1145,10 +1232,7 @@ export class TxPlan {
    * is unknown and changes nothing. A find without its slot is unknown. A step called dead that
    * the look finds in a block is told to `trace`.
    */
-  async #look(
-    state: PlanState,
-    signal: AbortSignal | undefined,
-  ): Promise<Observed> {
+  async #look(state: PlanState, ask: Ask): Promise<Observed> {
     let seen: Observed = { noValidity: false, noDepth: false };
     // Each round searches steps no round of this look searched; a round that finds a step in a
     // block lets the next one search the steps that stand on it. Every round searches one step
@@ -1169,7 +1253,7 @@ export class TxPlan {
       const found = await this.#lookOnce(
         state,
         watched,
-        signal,
+        ask,
         round > 0 ? (seen.tip ?? null) : undefined,
       );
       seen = {
@@ -1191,7 +1275,7 @@ export class TxPlan {
   async #lookOnce(
     state: PlanState,
     watched: readonly StepRecord[],
-    signal: AbortSignal | undefined,
+    ask: Ask,
     earlier?: PlanTip | null,
   ): Promise<Observed> {
     const hashes = watched.map((step) => step.txHash.toLowerCase());
@@ -1212,18 +1296,13 @@ export class TxPlan {
     let searches: ReadonlyMap<string, TxSearch>;
     let tip: PlanTip | undefined;
     if (earlier === undefined) {
-      const read = await abortable(
-        searchThenTip(state.observer, all),
-        signal,
-        CALL,
-      );
+      const read = await ask(searchThenTip(state.observer, all), "look");
       searches = read.searches;
       tip = read.tip && this.#tipOf(state, read.tip);
     } else {
-      const answers = await abortable(
+      const answers = await ask(
         Promise.all(all.map((txHash) => state.observer.findTx(txHash))),
-        signal,
-        CALL,
+        "look",
       );
       searches = new Map(all.map((txHash, i) => [txHash, answers[i]!]));
       tip = earlier ?? undefined;
@@ -1265,14 +1344,19 @@ export class TxPlan {
         .filter(isDeadStep)
         .map((step) => [step.name, step.status] as const),
     );
-    await this.#write(state, () => ({
-      event: {
-        type: "observation",
-        ...(tip !== undefined && { tip }),
-        sightings,
-      },
-      refused: () => undefined,
-    }));
+    await this.#write(
+      state,
+      () => ({
+        event: {
+          type: "observation",
+          ...(tip !== undefined && { tip }),
+          sightings,
+        },
+        refused: () => undefined,
+      }),
+      undefined,
+      ask,
+    );
     if (landedSteps(state.record).length > landed) this.#clearVolatile(state);
     for (const step of state.record.steps) {
       const was = dead.get(step.name);
@@ -1311,6 +1395,7 @@ export class TxPlan {
     tip: PlanTip | undefined,
     signal: AbortSignal | undefined,
     byDefault: boolean,
+    ask?: Ask,
   ) {
     const since = state.storeReads;
     const first = stepIn(state.record, name)!;
@@ -1374,6 +1459,7 @@ export class TxPlan {
         name,
         byDefault ? payerWitnesses(offered, unsigned) : offered,
         since,
+        ask,
       );
     }
   }
@@ -1389,6 +1475,7 @@ export class TxPlan {
     name: string,
     offered: readonly KeyWitness[],
     since = state.storeReads,
+    ask?: Ask,
   ) {
     return this.#write(
       state,
@@ -1411,6 +1498,7 @@ export class TxPlan {
         };
       },
       since,
+      ask,
     );
   }
 
@@ -1436,9 +1524,7 @@ export class TxPlan {
    */
   async #drive(state: PlanState, call: Call) {
     const { waitFor, resendMs } = call.wait;
-    // When timeoutMs counts from: the call's start, or the answer to the last send of a step
-    // that was its first in this call
-    let from = call.started;
+    const ask = this.#ask(call.signal, call);
     const lastSent = new Map<string, number>();
     const signedHere = new Set<string>();
     // The record the last turn started from, and whether that turn waited; the look of `run()`
@@ -1447,7 +1533,7 @@ export class TxPlan {
     let waited = true;
     for (;;) {
       if (!waited && state.record === previous)
-        await this.#pauseAndLook(state, call, from, waitingOn(state.record));
+        await this.#pauseAndLook(state, call, waitingOn(state.record));
       previous = state.record;
       waited = false;
       const record = state.record;
@@ -1458,7 +1544,7 @@ export class TxPlan {
         // Every step is in a block
         if (waitFor !== "final") return;
         const first = record.steps.find((each) => each.status !== "final")!;
-        await this.#pauseAndLook(state, call, from, first);
+        await this.#pauseAndLook(state, call, first);
         waited = true;
         continue;
       }
@@ -1467,7 +1553,7 @@ export class TxPlan {
       switch (step.status) {
         case "built": {
           if (pastUntil(step, state.lastTip)) {
-            await this.#pauseAndLook(state, call, from, step, PAST_UNTIL);
+            await this.#pauseAndLook(state, call, step, PAST_UNTIL);
             waited = true;
             continue;
           }
@@ -1480,6 +1566,7 @@ export class TxPlan {
             state.lastTip,
             call.signal,
             call.signers === undefined,
+            ask,
           );
           signedHere.add(step.name);
           continue;
@@ -1488,10 +1575,10 @@ export class TxPlan {
         case "rejected": {
           // The deadline once more, by a tip read after signing
           const tip = signedHere.has(step.name)
-            ? ((await this.#readTip(state, call.signal)) ?? state.lastTip)
+            ? ((await this.#readTip(state, ask)) ?? state.lastTip)
             : state.lastTip;
           if (pastUntil(step, tip)) {
-            await this.#pauseAndLook(state, call, from, step, PAST_UNTIL);
+            await this.#pauseAndLook(state, call, step, PAST_UNTIL);
             waited = true;
             continue;
           }
@@ -1500,12 +1587,12 @@ export class TxPlan {
           if (sent.outcome === "moved") continue;
           if (sent.outcome === "failed") throw sent.error;
           lastSent.set(step.name, Date.now());
-          from = Date.now();
+          call.from = Date.now();
           if (waitFor === "sent") {
             if (sent.outcome === "unconfirmed") throw sent.error;
             return;
           }
-          await this.#pauseAndLook(state, call, from, step);
+          await this.#pauseAndLook(state, call, step);
           waited = true;
           continue;
         }
@@ -1521,12 +1608,13 @@ export class TxPlan {
                 state.lastTip,
                 call.signal,
                 call.signers === undefined,
+                ask,
               );
               signedHere.add(step.name);
               continue;
             }
             if (waitFor === "sent") return;
-            await this.#pauseAndLook(state, call, from, step);
+            await this.#pauseAndLook(state, call, step);
             waited = true;
             continue;
           }
@@ -1534,14 +1622,14 @@ export class TxPlan {
           if (last === undefined || Date.now() - last >= resendMs) {
             const sent = await this.#send(state, step.name, call, false);
             if (sent.outcome === "moved") continue;
-            if (last === undefined) from = Date.now();
+            if (last === undefined) call.from = Date.now();
             lastSent.set(step.name, Date.now());
             if (waitFor === "sent") {
               if (sent.outcome !== "accepted") throw sent.error;
               return;
             }
           }
-          await this.#pauseAndLook(state, call, from, step);
+          await this.#pauseAndLook(state, call, step);
           waited = true;
           continue;
         }
@@ -1590,18 +1678,17 @@ export class TxPlan {
 
   /**
    * One pause of a call that waits, then a look; CONFIRM_TIMEOUT about the step waited for once
-   * `timeoutMs` has passed since `from`
+   * `timeoutMs` has passed since `call.from`
    * @param why What the call waits for, when it is not a block or depth
    */
   async #pauseAndLook(
     state: PlanState,
     call: Call,
-    from: number,
     step: StepRecord,
     why?: string,
   ) {
     const { waitFor, timeoutMs, pollMs } = call.wait;
-    const elapsed = Date.now() - from;
+    const elapsed = Date.now() - call.from;
     if (elapsed >= timeoutMs)
       throw this.#error(
         "CONFIRM_TIMEOUT",
@@ -1617,8 +1704,9 @@ export class TxPlan {
         },
       );
     await pause(state, Math.min(pollMs, timeoutMs - elapsed), call.signal);
-    await this.#takeStoredIfNewer(state);
-    const seen = await this.#look(state, call.signal);
+    const ask = this.#ask(call.signal, call);
+    await this.#takeStoredIfNewer(state, ask);
+    const seen = await this.#look(state, ask);
     this.#refuseUnobservable(seen);
   }
 
@@ -1660,11 +1748,12 @@ export class TxPlan {
         "nothing can submit it: give the call or the builder a submitter, or a provider with submitTx; nothing was sent",
         { step },
       );
+    const ask = this.#ask(call.signal, call);
     if (state.probe === "owed") {
       const probed = await probeProvider(
         state.observer,
         state.record,
-        call.signal,
+        ask,
         (error) =>
           this.#error("CANNOT_OBSERVE", error.message, {
             details: { reason: error.reason },
@@ -1686,6 +1775,7 @@ export class TxPlan {
         };
       },
       since,
+      ask,
     );
     if (delivered !== "written") return { outcome: "moved" };
     // The bytes of the step as recorded
@@ -1693,15 +1783,20 @@ export class TxPlan {
     const tx = signedTxOf(now)!;
     let answer: unknown;
     try {
-      answer = await this.#submit(state, submitter, tx, call.signal);
+      answer = await this.#submit(state, submitter, tx, now, ask);
     } catch (error) {
-      if (TxBuildError.is(error, "ABORTED")) throw error;
+      // A submitter that did not answer in time: the delivery is recorded, the outcome unknown
+      if (
+        TxBuildError.is(error, "ABORTED") ||
+        TxPlanError.is(error, "CONFIRM_TIMEOUT")
+      )
+        throw error;
       const failure = await this.#failedDelivery(
         state,
         now,
         submitter,
         error,
-        call.signal,
+        ask,
       );
       if (failure.outcome === "failed" && first) throw failure.error;
       return failure;
@@ -1717,18 +1812,19 @@ export class TxPlan {
     return { outcome: "accepted" };
   }
 
-  /** Hands the bytes to the submitter; the cache is cleared whatever it answers */
+  /** Hands the bytes of a step to the submitter; the cache is cleared whatever it answers */
   async #submit(
     state: PlanState,
     submitter: ISubmitter,
     tx: string,
-    signal: AbortSignal | undefined,
+    step: StepRecord,
+    ask: Ask,
   ): Promise<unknown> {
     try {
-      return await abortable(
+      return await ask(
         Promise.resolve().then(() => submitter.submitTx(tx)),
-        signal,
-        CALL,
+        "submit",
+        step,
       );
     } finally {
       this.#clearVolatile(state);
@@ -1749,7 +1845,7 @@ export class TxPlan {
     step: StepRecord,
     submitter: ISubmitter,
     error: unknown,
-    signal: AbortSignal | undefined,
+    ask: Ask,
   ): Promise<Sent> {
     const wallet = isWallet(submitter);
     if (!wallet && isRefusal(error)) {
@@ -1758,36 +1854,41 @@ export class TxPlan {
         ...step.standsOn.map((name) => stepIn(state.record, name)!.txHash),
         ...(step.after ?? []),
       ];
-      const { searches } = await abortable(
+      const { searches } = await ask(
         searchThenTip(state.observer, [step.txHash, ...parents]),
-        signal,
-        CALL,
+        "look",
       );
       const own = searches.get(step.txHash);
       const found =
         own === undefined || "unsupported" in own ? undefined : own.found;
+      // Found without the slot of a block, a transaction may be in a mempool: not in a block
       const standingInBlock = parents.every((txHash) =>
-        isFound(searches.get(txHash)),
+        isInBlock(searches.get(txHash)),
       );
-      await this.#write(state, (record) => {
-        const held = stepIn(record, step.name);
-        if (
-          held === undefined ||
-          !isUnlandedStep(held) ||
-          held.refused >= held.sends
-        )
-          return { skip: true };
-        return {
-          event: {
-            type: "answer",
-            step: step.name,
-            refused: true,
-            ...(found !== undefined && { found }),
-            standingInBlock,
-          },
-          refused: () => undefined,
-        };
-      });
+      await this.#write(
+        state,
+        (record) => {
+          const held = stepIn(record, step.name);
+          if (
+            held === undefined ||
+            !isUnlandedStep(held) ||
+            held.refused >= held.sends
+          )
+            return { skip: true };
+          return {
+            event: {
+              type: "answer",
+              step: step.name,
+              refused: true,
+              ...(found !== undefined && { found }),
+              standingInBlock,
+            },
+            refused: () => undefined,
+          };
+        },
+        undefined,
+        ask,
+      );
       const now = stepIn(state.record, step.name)!;
       if (now.status === "rejected")
         throw this.#error(
@@ -1898,7 +1999,7 @@ const planError = <C extends TxPlanErrorCode>(
 const probeProvider = async (
   observer: ChainObserver,
   record: PlanRecord,
-  signal: AbortSignal | undefined,
+  ask: Ask,
   cannot: (problem: {
     reason: "noSearch" | "noDepth" | "noValidity";
     message: string;
@@ -1906,10 +2007,9 @@ const probeProvider = async (
 ) => {
   const source = record.steps[0]?.built.inputs[0]?.txHash;
   const plutus = record.steps.some((step) => step.built.redeemers.length > 0);
-  const { searches, tip } = await abortable(
+  const { searches, tip } = await ask(
     searchThenTip(observer, source === undefined ? [] : [source]),
-    signal,
-    CALL,
+    "look",
   );
   const search = source === undefined ? undefined : searches.get(source);
   const fail = (reason: "noSearch" | "noDepth" | "noValidity", what: string) =>
@@ -2015,7 +2115,16 @@ const objectOver = (
     record,
     ...(signer !== undefined && { signer }),
     ...(live.trace !== undefined && { trace: live.trace }),
-    observer: chainObserver(builder.provider),
+    observer: chainObserver(builder.provider, {
+      timeAt: (slot) => builder.timeAt(slot),
+      ahead: (slot, aheadMs) =>
+        emit(live.trace, {
+          type: "warning",
+          code: "TIP_AHEAD_OF_CLOCK",
+          slot,
+          aheadMs,
+        }),
+    }),
     probe,
     watchers: new Set(),
     ...(store !== undefined && { store }),
@@ -2115,7 +2224,7 @@ export const createPlan = async (
   const probed = await probeProvider(
     chainObserver(builder.provider),
     record,
-    undefined,
+    (request) => request,
     (p) =>
       planError("CANNOT_OBSERVE", p.message, {
         ...(id !== undefined && { planId: id }),

@@ -752,17 +752,47 @@ describe("the mark", () => {
     expect(accept(json, { type: "stop" })).toBe(json);
   });
 
-  it("names the plan made in its place once; another name is refused", () => {
-    const json = accept(chain(1), { type: "stop", replacedBy: "next" });
-    expect(json).toMatchObject({ stopped: true, replacedBy: "next" });
-    expect(accept(json, { type: "stop", replacedBy: "next" })).toBe(json);
-    expect(accept(json, { type: "stop" })).toBe(json);
-    expect(refusal(json, { type: "stop", replacedBy: "other" })).toBe("status");
-    const marked = accept(chain(1), { type: "stop" });
-    expect(accept(marked, { type: "stop", replacedBy: "next" })).toMatchObject({
-      replacedBy: "next",
-      rev: marked.rev + 1,
-    });
+  it("names no plan made in its place while a step of it may still land", () => {
+    // Pending, with a signed step
+    expect(refusal(chain(1), { type: "stop", replacedBy: "next" })).toBe(
+      "status",
+    );
+    // Marked and stopping: the sent step may land
+    const marked = acceptAll(chain(1), deliver("a"), { type: "stop" });
+    expect(marked.status).toBe("stopping");
+    expect(refusal(marked, { type: "stop", replacedBy: "next" })).toBe(
+      "status",
+    );
+    // Stopping by a dead step, unmarked, with a step of another chain sent
+    const stopping = accept(
+      accept(
+        planOf([
+          chainStep("a", 0),
+          {
+            name: "x",
+            built: stepTx({ txHash: hash(0xbb), inputs: [utxo(hash(0xf9))] }),
+            standsOn: [],
+          },
+        ]),
+        deliver("x"),
+      ),
+      look([missing(hash(0xa0)), found(SOURCE)], tipAt(PAST)),
+    );
+    expect(stopping.status).toBe("stopping");
+    expect(refusal(stopping, { type: "stop", replacedBy: "next" })).toBe(
+      "status",
+    );
+    // Once every step is final or dead, it takes the name
+    const stopped = accept(
+      marked,
+      look([missing(txOf(marked, "a")), found(SOURCE)], tipAt(PAST)),
+    );
+    expect(accept(stopped, { type: "stop", replacedBy: "next" })).toMatchObject(
+      {
+        replacedBy: "next",
+        rev: stopped.rev + 1,
+      },
+    );
   });
 });
 

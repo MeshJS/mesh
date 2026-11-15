@@ -214,7 +214,8 @@ export type PlanEvent =
     }
   /**
    * The decision that the plan signs and sends nothing more; `replacedBy` names the plan made in
-   * its place. A final or stopped plan takes `replacedBy` once, with the mark, and nothing else
+   * its place. Only a final or stopped plan takes `replacedBy`, once, with the mark, and nothing
+   * else
    */
   | { readonly type: "stop"; readonly replacedBy?: string };
 
@@ -908,6 +909,12 @@ const stop = (json: PlanRecord, event: EventOf<"stop">): PlanAdvanced => {
     );
   const markReplaced =
     replacedBy !== undefined && json.replacedBy === undefined;
+  // A plan is replaced only once no step of it can land any more, or every step is final
+  if (markReplaced && !isTerminal(json))
+    return refuse(
+      "status",
+      `the plan is ${json.status}: only a final or stopped plan is replaced`,
+    );
   // A terminal plan takes only the name of the plan made in its place, so that a line of plans
   // never branches
   if ((isTerminal(json) || json.stopped === true) && !markReplaced)
