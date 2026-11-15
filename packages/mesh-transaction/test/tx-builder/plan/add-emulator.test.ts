@@ -374,6 +374,39 @@ describe("an added step", () => {
     expect(plan.toJSON().steps[1]!.tx.extraKeyWitnesses).toBe(1);
   });
 
+  it("refuses a step on the change of a step in a block that the payer's read does not list", async () => {
+    const { emulator, builder, wallet } = await stepSetup("scalus", {
+      builder: { planDefaults: { ...FAST, confirmations: 3 } },
+    });
+    const plan = await builder.plan(
+      { a: payTo(alice, 5n * ADA) },
+      { payer: wallet },
+    );
+    await plan.run({ submitter: forwarding(emulator) });
+    expect(plan.step("a").status).toBe("included");
+    // The wallet spends the change of a outside the plan
+    const change = plan.step("a").change[0]!;
+    const outside = await builder.build(
+      [spend.pubKey({ utxo: change }), payTo(bob, 1n * ADA)],
+      { payer: wallet },
+    );
+    await emulator.submitTx(await wallet.signTx(outside.tx));
+    const error = await caught(plan.add({ c: payTo(carol, 2n * ADA) }));
+    expectSteps(error);
+    expect(error.message).toMatch(
+      /step "c" cannot stand on step "a", the step before it of the same payer/,
+    );
+    expect(error.message).toMatch(
+      /the change of step "a" is not in the payer's read/,
+    );
+    expect(error.message).toMatch(
+      /spent outside the plan, or the read is behind/,
+    );
+    expect(error.message).toMatch(/The same call again later tells/);
+    expect(names(plan)).toEqual(["a"]);
+    expect(plan.toJSON().steps).toHaveLength(1);
+  });
+
   it("refuses a payer that answers two change addresses in one call, and builds nothing", async () => {
     for (const step of ["sent", "included"] as const) {
       const { emulator, builder, wallet, address } = await stepSetup("scalus", {

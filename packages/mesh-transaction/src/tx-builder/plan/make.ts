@@ -1083,6 +1083,7 @@ export const buildAddedSteps = async (
         built: step.built,
         ...(changeAddress !== undefined && { changeAddress }),
         final: step.status === "final",
+        ...(step.status === "included" && { included: true as const }),
         ...(step.kind === "consolidation" && { consolidation: true as const }),
       };
     }),
@@ -1230,6 +1231,8 @@ type StepBefore = {
   readonly changeAddress?: string;
   /** It is final: its outputs may be spent by now */
   readonly final: boolean;
+  /** It is in a block and not final: the chain shows whether its change is spent */
+  readonly included?: true;
   /** It is a consolidation step the plan put in itself */
   readonly consolidation?: true;
 };
@@ -1391,6 +1394,18 @@ const buildSteps = async (
           );
         const change =
           found === undefined || "none" in found ? undefined : found;
+        // The change of a step in a block is what the chain shows of it: a read that does not
+        // list it shows it spent, or is behind that block
+        if (
+          change !== undefined &&
+          previous?.included === true &&
+          !payer.snapshot.utxos.some(
+            (utxo) => utxoKey(utxo) === utxoKey(change),
+          )
+        )
+          throw invalidSteps(
+            `step ${JSON.stringify(name)} cannot stand on step ${JSON.stringify(previous.name)}, the step before it of the same payer: the change of step ${JSON.stringify(previous.name)} is not in the payer's read; it was spent outside the plan, or the read is behind the block step ${JSON.stringify(previous.name)} is in. The same call again later tells; a step that cannot stand on it is a new plan's`,
+          );
         const parts = withDeadline(
           builder,
           change === undefined
