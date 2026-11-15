@@ -174,7 +174,11 @@ export type TxStepStatus =
   | "expired"
   /** In a block with `is_valid = false`: the collateral is taken, and it will not land */
   | "failed"
-  /** A step it stands on will not land, so it will not either */
+  /**
+   * A step it stands on will not land, so it will not either. It is orphaned only while that is
+   * so: when a look finds that step in a block after all, it is `sent` again if it was sent or
+   * found before, else `signed` or `built`
+   */
   | "orphaned";
 
 /**
@@ -188,9 +192,10 @@ export type TxStepStatus =
  * - `final`: every step is final.
  *
  * Only `final` and `stopped` are terminal: a final plan never changes, and a stopped one changes
- * only when a look finds one of its steps in a block after all, when its status follows its
- * steps again. A group of transactions is not atomic: whether one payment went through is the
- * status of its step.
+ * only when a look finds one of its steps in a block after all. It is then `stopping`, or `final`
+ * once every step is: a plan that was `stopped` sends no step for the first time, and sends again
+ * only the steps it sent. A group of transactions is not atomic: whether one payment went
+ * through is the status of its step.
  */
 export type TxPlanStatus = "pending" | "stopping" | "stopped" | "final";
 
@@ -278,6 +283,11 @@ export type TxPlanJSON = {
   readonly status: TxPlanStatus;
   /** The decision that the plan signs and sends nothing more is recorded; never removed */
   readonly stopped?: true;
+  /**
+   * The plan came to `stopped` by steps that will not land: it sends no step for the first time,
+   * whatever is found later; never removed
+   */
+  readonly halted?: true;
   /** The id of the plan it was made in place of */
   readonly replaces?: string;
   /** The id of the plan made in its place */

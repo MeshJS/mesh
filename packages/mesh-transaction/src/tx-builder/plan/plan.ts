@@ -302,6 +302,21 @@ const cannotBeSeen = (record: PlanRecord, step: StepRecord) =>
     return below === undefined || !isLanded(below);
   });
 
+/**
+ * Whether a call cannot go on with the plan: a step will not land, or the plan came to
+ * `stopped` by its steps once and the first step not in a block is one it never sent
+ */
+const cannotGoOn = (record: PlanRecord) => {
+  if (record.steps.some(isDeadStep)) return true;
+  if (record.halted !== true) return false;
+  const first = record.steps.find((step) => !isLanded(step));
+  return (
+    first !== undefined &&
+    first.status !== "sent" &&
+    first.status !== "rejected"
+  );
+};
+
 /** The step a call waits for: the first that is not in a block, else the first not final */
 const waitingOn = (record: PlanRecord): StepRecord =>
   record.steps.find((step) => !isLanded(step)) ??
@@ -589,8 +604,8 @@ export class TxPlan {
    * the tip read once before asking.
    * @throws TxPlanError MISSING_SIGNATURES when a step needs keys and nobody can sign;
    *   SIGN_DECLINED, SIGNER_FAILED, with the step in `error.step`: the witnesses already
-   *   recorded stay; INVALID_STATE (`stopped`) for a plan that was stopped, or a step of which
-   *   will not land
+   *   recorded stay; INVALID_STATE (`stopped`) for a plan that was stopped, a step of which
+   *   will not land, or that came to `stopped` once
    * @throws TxBuildError ABORTED; INVALID_OPTION for a signer that cannot sign, and for options
    *   that are not an object or have a member other than these
    */
@@ -697,7 +712,9 @@ export class TxPlan {
    * all hold is offered to the call's signers, and waited for. On a plan that does not go on, the
    * call looks at the chain first; a plan with a step that will not land sends again the same
    * bytes of the steps it sent that stand on no such step, then throws, and sends no step for
-   * the first time.
+   * the first time. A plan that came to `stopped` and left it, when a look found a step in a
+   * block after all, does the same: it waits for the steps it sent, and throws INVALID_STATE
+   * (`stopped`) when the next step is one it never sent.
    * @throws TxPlanError with the step in `error.step`. REJECTED when the refusal counts: the step
    *   is `rejected`, and the same call sends the same bytes again. EXPIRED (`unsent` when the plan
    *   never sent it), SCRIPT_FAILED, ORPHANED when a step will not land: the plan does not go on.
@@ -705,7 +722,8 @@ export class TxPlan {
    *   `timeoutMs`, also while a step past its end of validity may still land (retryable).
    *   NOT_YET_VALID before a step's lower bound (retryable). MISSING_SIGNATURES,
    *   MISSING_SUBMITTER, SIGN_DECLINED, SIGNER_FAILED: nothing was sent. CANNOT_OBSERVE when the
-   *   provider cannot follow the plan. INVALID_STATE (`stopped`) for a plan that was stopped
+   *   provider cannot follow the plan. INVALID_STATE (`stopped`) for a plan that was stopped, or
+   *   that came to `stopped` and would have to send a step for the first time
    * @throws TxBuildError ABORTED; INVALID_OPTION for a wait option out of range, and for options
    *   that are not an object or have a member other than those of `RunOptions`
    */
@@ -917,18 +935,27 @@ export class TxPlan {
   }
 
   /**
-   * INVALID_STATE (`stopped`) for a plan that was stopped; with `dead`, the error of the first
-   * step that will not land instead, else for a plan one of whose steps will not land
+   * INVALID_STATE (`stopped`) for a plan that was stopped, one of whose steps will not land, or
+   * that came to `stopped` by its steps once
    */
-  #refuseStopped(state: PlanState, dead = false) {
+  #refuseStopped(state: PlanState) {
     this.#refuseMarked(state);
     const { record } = state;
     const first = record.steps.find(isDeadStep);
-    if (first === undefined) return;
-    if (dead) throw this.#deadError(state, first);
-    throw this.#error(
+    if (first !== undefined)
+      throw this.#error(
+        "INVALID_STATE",
+        `step ${JSON.stringify(first.name)} will not land: the plan does not go on, and signs and sends nothing more`,
+        { details: { reason: "stopped" } },
+      );
+    if (record.halted === true) throw this.#haltedError();
+  }
+
+  /** INVALID_STATE (`stopped`) for a plan that came to `stopped` by its steps once */
+  #haltedError() {
+    return this.#error(
       "INVALID_STATE",
-      `step ${JSON.stringify(first.name)} will not land: the plan does not go on, and signs and sends nothing more`,
+      "the plan came to stopped when steps of it would not land: it does not go on, signs nothing, and sends again only the steps it sent",
       { details: { reason: "stopped" } },
     );
   }
@@ -1531,11 +1558,13 @@ export class TxPlan {
   /**
    * INVALID_STATE (`stopped`) for a plan that was stopped. For a plan with a step that will not
    * land, the error of the first such step, after the same bytes of each step it sent that stands
-   * on no such step went again: a plan that does not go on sends no step for the first time
+   * on no such step went again: a plan that does not go on sends no step for the first time. A
+   * plan that came to `stopped` by its steps once goes on only while the first step not in a
+   * block is one it sent; else the same, with INVALID_STATE (`stopped`)
    */
   async #refuseHalted(state: PlanState, call: Call) {
     this.#refuseMarked(state);
-    if (!state.record.steps.some(isDeadStep)) return;
+    if (!cannotGoOn(state.record)) return;
     const submitter = this.#submitter(state, call.submitter);
     if (submitter !== undefined)
       for (const step of state.record.steps) {
@@ -1556,6 +1585,7 @@ export class TxPlan {
     this.#refuseMarked(state);
     const dead = state.record.steps.find(isDeadStep);
     if (dead !== undefined) throw this.#deadError(state, dead);
+    if (cannotGoOn(state.record)) throw this.#haltedError();
   }
 
   /**

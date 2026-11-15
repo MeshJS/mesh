@@ -1308,6 +1308,7 @@ export const encodePlan = (record: PlanRecord): TxPlanJSON => ({
   rev: record.rev,
   status: record.status,
   ...(record.stopped === true && { stopped: true as const }),
+  ...(record.halted === true && { halted: true as const }),
   ...(record.replaces !== undefined && { replaces: record.replaces }),
   ...(record.replacedBy !== undefined && { replacedBy: record.replacedBy }),
   network: encodeValue(record.network) as TxPlanJSON["network"],
@@ -1625,9 +1626,11 @@ const decodeStep = (
   const deadBelow = standsOn.some((each) =>
     earlier.some((step) => step.name === each && isDeadStep(step)),
   );
-  // The step it stood on that would not land may have been found in a block since
-  if (step.status === "orphaned" && standsOn.length === 0)
-    unread(`${path}.status is orphaned, and it stands on no step`);
+  // Orphaned only while a step it stands on will not land
+  if (step.status === "orphaned" && !deadBelow)
+    unread(
+      `${path}.status is orphaned, and it stands on no step that will not land`,
+    );
   if (isUnlandedStep(step) && deadBelow)
     unread(
       `${path}.status is ${step.status}, and it stands on a step that will not land`,
@@ -1646,6 +1649,7 @@ const RECORD_MEMBERS = [
   "rev",
   "status",
   "stopped",
+  "halted",
   "replaces",
   "replacedBy",
   "network",
@@ -1666,6 +1670,8 @@ const decodeRecord = (json: Obj, id?: string): PlanRecord => {
   if (rev === 0) unread("rev is 0: a written record has revision 1 or more");
   if (json.stopped !== undefined && json.stopped !== true)
     unread(`stopped is ${show(json.stopped)}, not true`);
+  if (json.halted !== undefined && json.halted !== true)
+    unread(`halted is ${show(json.halted)}, not true`);
   const replaces =
     json.replaces === undefined
       ? undefined
@@ -1688,6 +1694,7 @@ const decodeRecord = (json: Obj, id?: string): PlanRecord => {
     rev,
     status: status as TxPlanStatus,
     ...(json.stopped === true && { stopped: true as const }),
+    ...(json.halted === true && { halted: true as const }),
     ...(replaces !== undefined && { replaces }),
     ...(replacedBy !== undefined && { replacedBy }),
     network: decodeNetwork(json.network, "network"),
@@ -1699,6 +1706,13 @@ const decodeRecord = (json: Obj, id?: string): PlanRecord => {
     unread(
       `status: the plan status ${show(status)}, which its steps and mark do not give`,
     );
+  // A plan that came to stopped by its steps records it
+  if (
+    record.status === "stopped" &&
+    record.stopped !== true &&
+    record.halted !== true
+  )
+    unread("halted is missing on a plan that its steps stopped");
   return record;
 };
 

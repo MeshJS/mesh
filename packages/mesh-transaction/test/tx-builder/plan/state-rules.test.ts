@@ -420,15 +420,16 @@ describe("a step called dead", () => {
       status: "included",
       seen: { slot: 500 },
     });
-    // b stays orphaned until a look finds it; the plan does not go on
-    expect(stepOf(included, "b").status).toBe("orphaned");
-    expect(included.status).toBe("stopping");
+    // b stands on no dead step any more: it is what its own record says, signed and never sent.
+    // The plan came to stopped once: it does not go on
+    expect(stepOf(included, "b").status).toBe("signed");
+    expect(included).toMatchObject({ status: "stopping", halted: true });
     const final = accept(
       included,
       look([found(a, { blockHeight: 90 })], tipAt(PAST, 100)),
     );
     expect(stepOf(final, "a").status).toBe("final");
-    expect(final.status).toBe("stopped");
+    expect(final.status).toBe("stopping");
     const b = accept(
       final,
       look([found(txOf(json, "b"), { blockHeight: 90 })], tipAt(PAST, 100)),
@@ -470,6 +471,131 @@ describe("a step called dead", () => {
     expect(stepOf(failed, "a").status).toBe("failed");
     expect(accept(failed, look([found(a, { valid: true })]))).toBe(failed);
     expect(accept(failed, look([missing(a)], tipAt(PAST)))).toBe(failed);
+  });
+});
+
+describe("an orphaned step", () => {
+  /** The chain a, b, c with a and b sent; a is called expired, so b and c are orphaned */
+  const orphans = () => {
+    const json = acceptAll(chain(3), deliver("a"), deliver("b"));
+    return accept(
+      json,
+      look([missing(txOf(json, "a")), found(SOURCE)], tipAt(PAST)),
+    );
+  };
+  const aFound = (json: PlanRecord) =>
+    found(txOf(json, "a"), { blockHeight: 99 });
+
+  it("is orphaned only while a step it stands on will not land; then it is what its own record says", () => {
+    const json = orphans();
+    expect(json.steps.map((step) => step.status)).toEqual([
+      "expired",
+      "orphaned",
+      "orphaned",
+    ]);
+    expect(json).toMatchObject({ status: "stopped", halted: true });
+    expect(json.stopped).toBeUndefined();
+    // a is found in a block after all: b was sent, c never was
+    const back = accept(json, look([aFound(json)], tipAt(PAST, 100)));
+    expect(back.steps.map((step) => step.status)).toEqual([
+      "included",
+      "sent",
+      "signed",
+    ]);
+    expect(back).toMatchObject({ status: "stopping", halted: true });
+  });
+
+  it("comes back in the look that finds the step below, and that look's facts about it apply", () => {
+    const json = orphans();
+    const b = txOf(json, "b");
+    // Not found, past its own end of validity and the margin, a found by the same look
+    const expired = accept(
+      json,
+      look([aFound(json), missing(b)], tipAt(PAST, 100)),
+    );
+    expect(expired.steps.map((step) => step.status)).toEqual([
+      "included",
+      "expired",
+      "orphaned",
+    ]);
+    // Found in a block
+    const landed = accept(
+      json,
+      look([aFound(json), found(b, { blockHeight: 99 })], tipAt(PAST, 100)),
+    );
+    expect(landed.steps.map((step) => step.status)).toEqual([
+      "included",
+      "included",
+      "signed",
+    ]);
+    // Found invalid
+    const failed = accept(
+      json,
+      look([aFound(json), found(b, { valid: false })], tipAt(PAST, 100)),
+    );
+    expect(stepOf(failed, "b").status).toBe("failed");
+  });
+
+  it("is orphaned again when the step below is called dead again", () => {
+    const back = accept(orphans(), look([aFound(orphans())], tipAt(PAST, 100)));
+    // a is not found, past its end of validity and the margin, its source found by the same look
+    const dead = accept(
+      back,
+      look([missing(txOf(back, "a")), found(SOURCE)], tipAt(PAST, 100)),
+    );
+    expect(dead.steps.map((step) => step.status)).toEqual([
+      "expired",
+      "orphaned",
+      "orphaned",
+    ]);
+    expect(dead).toMatchObject({ status: "stopped", halted: true });
+  });
+
+  it("goes again on a plan that came to stopped once only when it was sent, as the same bytes; a step never sent does not go", () => {
+    const json = orphans();
+    const back = accept(json, look([aFound(json)], tipAt(PAST, 100)));
+    expect(stepOf(accept(back, deliver("b")), "b")).toMatchObject({
+      status: "sent",
+      sends: 2,
+    });
+    expect(refusal(back, deliver("c"))).toBe("status");
+    // Every step final: the plan is final, and the record keeps that it came to stopped
+    const final = accept(
+      back,
+      look(
+        ["a", "b", "c"].map((name) =>
+          found(txOf(back, name), { blockHeight: 1 }),
+        ),
+        tipAt(PAST, 100),
+      ),
+    );
+    expect(final).toMatchObject({ status: "final", halted: true });
+  });
+
+  it("stays orphaned below a failed step, which no later look changes", () => {
+    const json = acceptAll(
+      planOf([chainStep("a", 0, { plutus: true }), chainStep("b", 1)]),
+      deliver("a"),
+    );
+    const a = txOf(json, "a");
+    const failed = accept(json, look([found(a, { valid: false })]));
+    expect(failed.steps.map((step) => step.status)).toEqual([
+      "failed",
+      "orphaned",
+    ]);
+    expect(failed).toMatchObject({ status: "stopped", halted: true });
+    expect(accept(failed, look([found(a, { valid: true })]))).toBe(failed);
+  });
+
+  it("is not marked as a stopped plan: a plan stopped by its steps records only that it came to stopped", () => {
+    const json = orphans();
+    expect(json.halted).toBe(true);
+    // stop() marks it as well; neither is removed
+    const marked = accept(
+      accept(json, look([aFound(json)], tipAt(PAST, 100))),
+      { type: "stop" },
+    );
+    expect(marked).toMatchObject({ stopped: true, halted: true });
   });
 });
 
@@ -605,7 +731,7 @@ describe("the plan's status", () => {
     // follows its steps
     const afterFind = accept(stopped, look([found(hash(0xa0))], tipAt(PAST)));
     expect(stepOf(afterFind, "a").status).toBe("included");
-    expect(afterFind.status).toBe("pending");
+    expect(afterFind).toMatchObject({ status: "stopping", halted: true });
   });
 });
 

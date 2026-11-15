@@ -4,7 +4,14 @@ import { TxPlanError } from "../../../src/tx-builder";
 import { emptyPlan } from "../../../src/tx-builder/plan/core";
 import { encodePlan, readPlan } from "../../../src/tx-builder/plan/json";
 import { readTransaction, withWitnesses } from "../../../src/tx-builder/sign";
-import { accept, acceptAll, realSteps, signedBy } from "./state-util";
+import {
+  accept,
+  acceptAll,
+  hash,
+  realSteps,
+  signedBy,
+  UNTIL,
+} from "./state-util";
 
 // The record of a plan as data: written, read back strictly, and refused whole when it
 // holds what this library does not read or what the state machine could not have written.
@@ -148,6 +155,33 @@ describe("the record of a plan", () => {
     expect(encodePlan(read).steps[0]!.after).toEqual([source]);
   });
 
+  it("keeps that the plan came to stopped by its steps, through JSON text", () => {
+    const one = accept(
+      emptyPlan({
+        id: "order-8",
+        network: "preprod",
+        deadlines: { ttlMs: 600_000, expiryMarginMs: 0, confirmations: 2 },
+        options: {},
+      }),
+      { type: "steps", steps: fixture.steps.slice(0, 1) },
+    );
+    const stopped = accept(one, {
+      type: "observation",
+      tip: { slot: 1_000, timeMs: UNTIL, height: 50, clockMs: UNTIL },
+      sightings: [
+        { txHash: one.steps[0]!.txHash, found: false },
+        { txHash: hash(0xd001), found: true, slot: 1, blockHeight: 1 },
+      ],
+    });
+    expect(stopped).toMatchObject({ status: "stopped", halted: true });
+    const json = encodePlan(stopped);
+    expect(json.halted).toBe(true);
+    expect(encodePlan(throughText(json))).toEqual(json);
+    const without = JSON.parse(JSON.stringify(json));
+    delete without.halted;
+    expect(() => readPlan(without)).toThrow(/halted is missing/);
+  });
+
   it("is read only with the id it has, when an id is asked for", () => {
     const json = encodePlan(firstRecord());
     expect(readPlan(json, "order-7").id).toBe("order-7");
@@ -224,6 +258,7 @@ describe("the record of a plan", () => {
         /stopped is missing|status/,
       ],
       ["stopped that is not true", (j) => (j.stopped = false), /stopped/],
+      ["halted that is not true", (j) => (j.halted = false), /halted/],
       ["an empty id", (j) => (j.id = ""), /id/],
       [
         "an option of a step on the plan",
@@ -359,6 +394,11 @@ describe("the record of a plan", () => {
           j.status = "stopping";
         },
         /orphaned/,
+      ],
+      [
+        "orphaned on a step that is not dead",
+        (j) => (j.steps[1].status = "orphaned"),
+        /orphaned, and it stands on no step that will not land/,
       ],
       [
         "a delivery mark that does not fit",

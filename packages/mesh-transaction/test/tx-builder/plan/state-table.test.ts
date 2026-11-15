@@ -172,8 +172,9 @@ const EVENTS: Record<string, PlanEvent> = {
  * What each event makes of `b`: its status after an accepted event that changed the record,
  * `=` for an accepted event that changed nothing, `!reason` for a refusal. A step with a
  * recorded delivery takes a signature and changes nothing. A step called dead becomes included
- * or final when a look finds it in a block; for an orphaned `b` every look finds the expired `a`
- * final, which changes the record and leaves `b` orphaned
+ * or final when a look finds it in a block. For an orphaned `b` every look finds the expired `a`
+ * final: `b` stands on no dead step any more, so it is `sent` again, as its delivery says, and
+ * the look's facts about `b` itself apply
  */
 // prettier-ignore
 const TABLE: Record<TxStepStatus, Record<keyof typeof EVENTS, string>> = {
@@ -185,7 +186,7 @@ const TABLE: Record<TxStepStatus, Record<keyof typeof EVENTS, string>> = {
   final: { sign: "=", deliver: "!status", refusedCounted: "=", accepted: "=", deep: "=", shallow: "=", invalid: "=", pastMargin: "=", beforeMargin: "=" },
   expired: { sign: "=", deliver: "!status", refusedCounted: "=", accepted: "=", deep: "final", shallow: "included", invalid: "=", pastMargin: "=", beforeMargin: "=" },
   failed: { sign: "=", deliver: "!status", refusedCounted: "=", accepted: "=", deep: "=", shallow: "=", invalid: "=", pastMargin: "=", beforeMargin: "=" },
-  orphaned: { sign: "=", deliver: "!status", refusedCounted: "=", accepted: "=", deep: "final", shallow: "included", invalid: "orphaned", pastMargin: "orphaned", beforeMargin: "orphaned" },
+  orphaned: { sign: "=", deliver: "!status", refusedCounted: "=", accepted: "=", deep: "final", shallow: "included", invalid: "failed", pastMargin: "expired", beforeMargin: "sent" },
 };
 
 const outcome = (json: PlanRecord, event: PlanEvent) => {

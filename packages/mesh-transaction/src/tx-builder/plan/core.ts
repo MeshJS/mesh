@@ -86,6 +86,11 @@ export type PlanRecord = {
   readonly status: TxPlanStatus;
   /** The decision that the plan signs and sends nothing more; never removed */
   readonly stopped?: true;
+  /**
+   * The plan came to `stopped` by steps that will not land: it sends no step for the first time,
+   * whatever a later look finds; never removed
+   */
+  readonly halted?: true;
   /** The id of the plan this one was made in place of */
   readonly replaces?: string;
   /** The id of the plan made in place of this one */
@@ -177,7 +182,8 @@ export type PlanEvent =
   /**
    * The step is about to be delivered; applied and written before the bytes leave. A step that
    * lacks a key is never delivered. A plan that is `stopping` and not marked takes it only for a
-   * step that was sent before and stands on no step that will not land: the same bytes again
+   * step that was sent before and stands on no step that will not land: the same bytes again.
+   * So does a plan that came to `stopped` by its steps once (`halted`), whatever was found since
    */
   | { readonly type: "delivery"; readonly step: string }
   /** The submitter took a recorded delivery of the step */
@@ -197,7 +203,9 @@ export type PlanEvent =
     }
   /**
    * What one look at the chain showed. What is absent is unknown. A step found in a block is
-   * included, then final by depth, whatever it was called before; a final step never changes
+   * included, then final by depth, whatever it was called before; a final step never changes. A
+   * step is orphaned exactly while a step it stands on will not land; once none does, it is
+   * what its own record and this look make of it
    */
   | {
       readonly type: "observation";
@@ -326,14 +334,15 @@ export const standsOnOf = (
     .map((step) => step.name);
 };
 
-/** The status of a plan, worked out from its steps and its mark */
+/** The status of a plan, worked out from its steps and its marks */
 export const planStatus = (
-  record: Pick<PlanRecord, "steps" | "stopped">,
+  record: Pick<PlanRecord, "steps" | "stopped" | "halted">,
 ): TxPlanStatus => {
   const { steps } = record;
   if (steps.length === 0) return "pending";
   if (steps.every((step) => step.status === "final")) return "final";
-  const halted = record.stopped === true || steps.some(isDeadStep);
+  const halted =
+    record.stopped === true || record.halted === true || steps.some(isDeadStep);
   if (!halted) return "pending";
   return steps.every((step) => step.status === "final" || isDeadStep(step))
     ? "stopped"
@@ -383,14 +392,22 @@ export const emptyPlan = (
 
 /**
  * The record with these steps and this mark, its status worked out again and its revision one
- * higher
+ * higher. A plan that comes to `stopped` by its steps, unmarked, records that it did (`halted`)
  */
 const next = (
   json: PlanRecord,
   changes: Partial<Pick<PlanRecord, "steps" | "stopped" | "replacedBy">>,
 ): PlanRecord => {
   const record = { ...json, ...changes };
-  return { ...record, rev: json.rev + 1, status: planStatus(record) };
+  const status = planStatus(record);
+  const halted =
+    status === "stopped" && record.stopped !== true && record.halted !== true;
+  return {
+    ...record,
+    ...(halted && { halted: true as const }),
+    rev: json.rev + 1,
+    status,
+  };
 };
 
 const replaceAt = (
@@ -690,7 +707,7 @@ const delivery = (
     if (!again)
       return refuse(
         "status",
-        `the plan is ${json.status}: a step will not land, and the plan sends no step for the first time`,
+        `the plan is ${json.status}: it does not go on, and sends no step for the first time`,
       );
   }
   const updated: StepRecord = {
@@ -838,6 +855,20 @@ const byOwnFacts = (
   return step;
 };
 
+/**
+ * A step by its own record, apart from the steps it stands on: `sent` once a delivery of it is
+ * recorded or it was found in a block, else `signed` or `built` by its witnesses
+ */
+const byOwnRecord = (step: StepRecord): StepRecord => ({
+  ...step,
+  status:
+    step.sends > 0 || step.seen !== undefined
+      ? "sent"
+      : missingKeys(step).length === 0
+        ? "signed"
+        : "built",
+});
+
 const observe = (
   json: PlanRecord,
   event: EventOf<"observation">,
@@ -848,13 +879,14 @@ const observe = (
   // In order, so that a step sees what this look made of the steps it stands on
   const steps: StepRecord[] = [];
   for (const step of json.steps) {
-    let updated = byOwnFacts(json, step, event, found);
-    if (
-      isUnlandedStep(updated) &&
-      updated.standsOn.some((name) =>
-        steps.some((each) => each.name === name && isDeadStep(each)),
-      )
-    )
+    const deadBelow = step.standsOn.some((name) =>
+      steps.some((each) => each.name === name && isDeadStep(each)),
+    );
+    // Orphaned only while a step it stands on will not land: then the rules of its own record
+    const own =
+      step.status === "orphaned" && !deadBelow ? byOwnRecord(step) : step;
+    let updated = byOwnFacts(json, own, event, found);
+    if (isUnlandedStep(updated) && deadBelow)
       updated = { ...updated, status: "orphaned" };
     steps.push(updated);
   }

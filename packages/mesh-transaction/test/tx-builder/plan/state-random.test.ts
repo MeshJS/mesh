@@ -36,13 +36,21 @@ type Random = ReturnType<typeof seeded>;
 
 const DEAD = new Set(["expired", "failed", "orphaned"]);
 const isDead = (step: StepRecord) => DEAD.has(step.status);
+const UNLANDED = new Set(["built", "signed", "sent", "rejected"]);
+
+/** Whether a step stands on a step of the record that will not land */
+const deadBelow = (json: PlanRecord, step: StepRecord) =>
+  step.standsOn.some((name) =>
+    json.steps.some((s) => s.name === name && isDead(s)),
+  );
 
 /** The status the rules give a plan, worked out apart from the state machine */
 const expectedStatus = (json: PlanRecord): TxPlanStatus => {
   const { steps } = json;
   if (steps.length > 0 && steps.every((s) => s.status === "final"))
     return "final";
-  if (json.stopped !== true && !steps.some(isDead)) return "pending";
+  if (json.stopped !== true && json.halted !== true && !steps.some(isDead))
+    return "pending";
   return steps.every((s) => s.status === "final" || isDead(s))
     ? "stopped"
     : "stopping";
@@ -66,7 +74,7 @@ beforeAll(async () => {
 const randomEvent = (
   r: Random,
   json: PlanRecord,
-  clock: { timeMs: number; height: number; slot: number },
+  clock: { timeMs: number; height: number; slot: number; late: boolean },
 ): PlanEvent => {
   const steps = json.steps;
   const step = r.pick(steps);
@@ -109,7 +117,14 @@ const randomEvent = (
       for (const txHash of new Set(hashes)) {
         const roll = r.int(10);
         if (roll < 5) continue;
-        if (roll === 5) sightings.push({ txHash, found: false });
+        // In a run that starts late the search misses steps at first, so that steps die, and
+        // finds them later, so that they may come back
+        const missed =
+          clock.late &&
+          clock.slot < 120 &&
+          steps.some((s) => s.txHash === txHash) &&
+          r.chance(0.8);
+        if (roll === 5 || missed) sightings.push({ txHash, found: false });
         else
           sightings.push({
             txHash,
@@ -150,13 +165,21 @@ const randomEvent = (
   }
 };
 
-/** Every status a plan or a step was in, and how many events changed a record */
+/**
+ * Every status a plan or a step was in, how many events changed a record, and how often an
+ * orphaned step came back
+ */
 const reached = new Set<string>();
 let changes = 0;
+let returns = 0;
 
 const run = (seed: number) => {
-  const r = seeded(seed);
+  // The seed spread over the 32 bits, so that the first draws of small seeds differ
+  const r = seeded(Math.imul(seed, 0x9e3779b1) >>> 0);
   const count = 1 + r.int(4);
+  // Some runs of several steps start past the end of validity, so that steps die early and may
+  // come back
+  const late = count > 1 && r.chance(0.4);
   let json = deepFreeze(
     advancePlan(
       emptyPlan({ expiryMarginMs: r.pick([0, 500]), confirmations: 2 }),
@@ -165,7 +188,12 @@ const run = (seed: number) => {
   );
   if (!json.ok) throw new Error(json.message);
   let record = json.json;
-  const clock = { timeMs: UNTIL - 3_000, height: 10, slot: 100 };
+  const clock = {
+    timeMs: late ? UNTIL + 1_000 : UNTIL - 3_000,
+    height: 10,
+    slot: 100,
+    late,
+  };
   for (let i = 0; i < EVENTS; i++) {
     if (record.status === "final") break;
     const event = deepFreeze(randomEvent(r, record, clock));
@@ -188,6 +216,30 @@ const run = (seed: number) => {
       `${at}: the mark was removed`,
     );
     check(
+      before.halted !== true || after.halted === true,
+      `${at}: the record that the plan came to stopped was removed`,
+    );
+    // A plan that comes to stopped by its steps records it at that moment
+    check(
+      after.status !== "stopped" ||
+        after.stopped === true ||
+        after.halted === true,
+      `${at}: the plan came to stopped by its steps and did not record it`,
+    );
+    // A step is orphaned exactly while a step below it will not land
+    for (const step of after.steps) {
+      if (step.status === "orphaned")
+        check(
+          deadBelow(after, step),
+          `${at}: ${step.name} is orphaned and stands on no dead step`,
+        );
+      if (UNLANDED.has(step.status))
+        check(
+          !deadBelow(after, step),
+          `${at}: ${step.name} is ${step.status} and stands on a dead step`,
+        );
+    }
+    check(
       after.steps.length >= before.steps.length,
       `${at}: a step was removed`,
     );
@@ -200,8 +252,27 @@ const run = (seed: number) => {
       );
       if (step.status === "final")
         check(now === step, `${at}: the final step ${step.name} changed`);
-      // A step called dead changes only to included or final, by a look that found it valid
-      if (isDead(step) && now !== step) {
+      // An orphaned step whose steps below are no longer dead is what its own record and the
+      // look make of it: sent once a delivery of it is recorded or it was found
+      const cameBack =
+        step.status === "orphaned" &&
+        now !== step &&
+        event.type === "observation" &&
+        !deadBelow(after, now);
+      if (cameBack) returns++;
+      if (cameBack && UNLANDED.has(now.status))
+        check(
+          now.status ===
+            (step.sends > 0 || step.seen !== undefined
+              ? "sent"
+              : missingKeys(step).length === 0
+                ? "signed"
+                : "built"),
+          `${at}: the orphaned step ${step.name} came back as ${now.status}`,
+        );
+      // Any other step called dead changes only to included or final, by a look that found it
+      // valid
+      if (isDead(step) && now !== step && !cameBack) {
         const sighting =
           event.type === "observation"
             ? event.sightings?.find((s) => s.txHash === step.txHash)
@@ -224,6 +295,12 @@ const run = (seed: number) => {
         check(
           missingKeys(now).length === 0,
           `${at}: ${step.name} was delivered with a key missing`,
+        );
+      // A plan that came to stopped once sends no step for the first time
+      if (now.sends > step.sends && before.halted === true)
+        check(
+          step.status !== "signed",
+          `${at}: ${step.name} was sent for the first time after the plan came to stopped`,
         );
       if (now.status === "orphaned" && step.status !== "orphaned")
         check(
@@ -267,6 +344,7 @@ describe("a plan under random events", () => {
     // The runs reach every status of a step and of a plan
     if (ONLY_SEED === undefined) {
       expect(changes).toBeGreaterThan(SEEDS * 5);
+      expect(returns).toBeGreaterThan(0);
       for (const status of [
         "built",
         "signed",

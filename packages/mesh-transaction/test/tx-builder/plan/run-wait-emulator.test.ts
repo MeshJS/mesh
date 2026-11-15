@@ -12,6 +12,7 @@ import {
   builderOf,
   caught,
   FAST,
+  hashOf,
   submitterOf,
   swallowing,
   walletOf,
@@ -241,6 +242,132 @@ describe("a step called dead", () => {
     expect(submitter.calls.slice(sends)).toEqual([plan.step("b").signedTx]);
     expect(paidTo(before, bob)).toEqual([3n * ADA]);
     expect(paidTo(before, carol)).toEqual([]);
+  });
+});
+
+describe("an orphaned step", () => {
+  it("comes back when the step it stands on is found after all: the same bytes go again and land, the recipient is paid once, and nothing goes for the first time", async () => {
+    const hidden = new Set<string>();
+    const { emulator, builder, wallet } = await stepSetup("scalus", {
+      hooks: hiding(hidden),
+      builder: { planDefaults: { ...FAST, confirmations: 3 } },
+      funds: [1000n * ADA, 1000n * ADA, 1000n * ADA],
+    });
+    const later = builder.timeAt(emulator.slot) + 3_600_000;
+    const plan = await builder.plan(
+      {
+        a: payTo(alice, 5n * ADA),
+        b: [payTo(bob, 3n * ADA), validity({ until: later })],
+        c: [payTo(carol, 2n * ADA), validity({ until: later })],
+      },
+      { payer: wallet, ttlMs: 60_000 },
+    );
+    const b = plan.step("b").txHash;
+    // The first send of b is held on its way, and may land later
+    const held: string[] = [];
+    const submitter = submitterOf(async (tx) => {
+      if ((await hashOf(tx)) === b && held.length === 0) {
+        held.push(tx);
+        return b;
+      }
+      return emulator.submitTx(tx);
+    });
+    await plan.run({ submitter, waitFor: "sent" });
+    await plan.run({ submitter, waitFor: "sent" });
+    expect(statuses(plan)).toEqual({ a: "included", b: "sent", c: "built" });
+
+    // The search hides a past its end of validity and the margin: a is called expired
+    hidden.add(plan.step("a").txHash.toLowerCase());
+    advance(emulator, 120);
+    await plan.refresh();
+    await plan.refresh();
+    expect(statuses(plan)).toEqual({
+      a: "expired",
+      b: "orphaned",
+      c: "orphaned",
+    });
+    expect(plan.status).toBe("stopped");
+    expect(plan.toJSON().halted).toBe(true);
+
+    // Resumed from its JSON, the plan keeps that it came to stopped
+    const resumed = await builder.resume(plan.toJSON(), { payer: wallet });
+    expect(recordOf(resumed).halted).toBe(true);
+
+    // The search catches up; run() looks first: a is in a block, b was sent and goes again, the
+    // same bytes, and lands; c was never sent and does not go
+    hidden.clear();
+    const sends = submitter.calls.length;
+    const error = await caught(resumed.run({ submitter }));
+    expect([error.code, error.details.reason]).toEqual([
+      "INVALID_STATE",
+      "stopped",
+    ]);
+    expect(resumed.step("a").status).not.toBe("expired");
+    expect(resumed.step("b").status).toBe("included");
+    expect(resumed.step("c").status).toBe("built");
+    expect(resumed.status).toBe("stopping");
+    expect(submitter.calls.slice(sends)).toEqual([held[0]]);
+    expect(Object.keys(resumed.rest)).toEqual(["c"]);
+    expect(paidTo(emulator, bob)).toEqual([3n * ADA]);
+    expect(paidTo(emulator, carol)).toEqual([]);
+
+    // The bytes that were held arrive: they are the transaction that landed
+    await expect(emulator.submitTx(held[0]!)).rejects.toBeDefined();
+    await plan.refresh();
+    expect(plan.step("b").status).toBe("included");
+    expect(paidTo(emulator, bob)).toEqual([3n * ADA]);
+    expect(paidTo(emulator, alice)).toEqual([5n * ADA]);
+  });
+
+  it("comes back for run() on the object that saw it orphaned, and the plan is final with the recipient paid once", async () => {
+    const hidden = new Set<string>();
+    const { emulator, builder, wallet } = await stepSetup("scalus", {
+      hooks: hiding(hidden),
+      builder: { planDefaults: { ...FAST, confirmations: 3 } },
+      funds: [1000n * ADA, 1000n * ADA, 1000n * ADA],
+    });
+    const later = builder.timeAt(emulator.slot) + 3_600_000;
+    const plan = await builder.plan(
+      {
+        a: payTo(alice, 5n * ADA),
+        b: [payTo(bob, 3n * ADA), validity({ until: later })],
+      },
+      { payer: wallet, ttlMs: 60_000 },
+    );
+    const b = plan.step("b").txHash;
+    const held: string[] = [];
+    const submitter = submitterOf(async (tx) => {
+      if ((await hashOf(tx)) === b && held.length === 0) {
+        held.push(tx);
+        return b;
+      }
+      return emulator.submitTx(tx);
+    });
+    await plan.run({ submitter, waitFor: "sent" });
+    await plan.run({ submitter, waitFor: "sent" });
+    hidden.add(plan.step("a").txHash.toLowerCase());
+    advance(emulator, 120);
+    await plan.refresh();
+    await plan.refresh();
+    expect(statuses(plan)).toEqual({ a: "expired", b: "orphaned" });
+    expect(Object.keys(plan.rest)).toEqual(["b"]);
+
+    hidden.clear();
+    await plan.refresh();
+    expect(statuses(plan)).toEqual({ a: "final", b: "sent" });
+    expect(plan.status).toBe("stopping");
+    await plan.run({ submitter });
+    expect(statuses(plan)).toEqual({ a: "final", b: "included" });
+    // Blocks on top of it
+    advance(emulator, 100);
+    await plan.refresh();
+    expect(statuses(plan)).toEqual({ a: "final", b: "final" });
+    expect(plan.status).toBe("final");
+    expect(plan.rest).toEqual({});
+    expect(new Set(submitter.calls.filter((tx) => tx === held[0]))).toEqual(
+      new Set([plan.step("b").signedTx]),
+    );
+    expect(paidTo(emulator, bob)).toEqual([3n * ADA]);
   });
 });
 
