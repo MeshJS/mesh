@@ -114,7 +114,9 @@ export type PlanOptions = Omit<BuildOptions, "after"> &
      * alone, the tokens the step does not need in outputs of their own. At most `maxSteps` of
      * them in the plan as a whole, those `plan.add` puts in counted (a whole number from 1 to
      * 31; 4 by default). `false`: such a step is TX_TOO_LARGE, as from `build`. A step with
-     * `sendAllTo` is never consolidated. Written into the plan when given; `plan.add` follows it
+     * `sendAllTo` is never consolidated. Written into the plan when given; `plan.add` follows it.
+     * The object is a plain one whose only own member may be `maxSteps`: any other value is
+     * INVALID_OPTION (`consolidate`)
      */
     consolidate?: boolean | { readonly maxSteps?: number };
   };

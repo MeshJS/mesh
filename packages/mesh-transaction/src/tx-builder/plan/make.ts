@@ -52,6 +52,7 @@ import {
 import {
   advancePlan,
   emptyPlan,
+  MAX_CONSOLIDATION_STEPS,
   MAX_STEPS,
   planUntil,
   sourcesOf,
@@ -123,9 +124,6 @@ const RESERVED_PREFIX = "consolidate-";
 /** The most consolidation steps a plan has when its options give no limit */
 const DEFAULT_CONSOLIDATION_STEPS = 4;
 
-/** The most consolidation steps a plan may be allowed: all its steps but the one they serve */
-const MAX_CONSOLIDATION_STEPS = MAX_STEPS - 1;
-
 const CONSOLIDATE_ALLOWED = `true, false or { maxSteps? }, maxSteps a whole number from 1 to ${MAX_CONSOLIDATION_STEPS}`;
 
 /**
@@ -139,14 +137,24 @@ const consolidateOf = (
   if (value === undefined || typeof value === "boolean") return value;
   if (typeof value !== "object" || value === null || Array.isArray(value))
     throw invalidOption("consolidate", value, CONSOLIDATE_ALLOWED);
-  const { maxSteps, ...others } = value as Record<string, unknown>;
-  if (Object.keys(others).length > 0)
+  // A plain object: a Map, a Date or an instance of a class is none, nor is an object whose
+  // maxSteps comes from its prototype
+  const prototype: unknown = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null)
+    throw invalidOption(
+      "consolidate",
+      value,
+      CONSOLIDATE_ALLOWED,
+      ", not a plain object",
+    );
+  if (Reflect.ownKeys(value).some((key) => key !== "maxSteps"))
     throw invalidOption(
       "consolidate",
       value,
       CONSOLIDATE_ALLOWED,
       ", with a member other than maxSteps",
     );
+  const { maxSteps } = value as Record<string, unknown>;
   if (maxSteps === undefined) return {};
   if (
     typeof maxSteps !== "number" ||
@@ -1936,8 +1944,17 @@ const buildSteps = async (
             limit === 0 ||
             own.sendAllTo !== undefined ||
             !isConsolidable(error)
-          )
+          ) {
+            // Short of funds after consolidation steps made for it: their fees are part of why
+            const steps = all.filter((each) => each.serves === name);
+            if (
+              steps.length > 0 &&
+              TxBuildError.is(error, "INSUFFICIENT_FUNDS")
+            )
+              (error as { message: string }).message =
+                `${error.message}; the plan would put ${steps.length} consolidation step(s) before it, whose fees take ${steps.reduce((sum, each) => sum + each.built.fee, 0n)} lovelace: nothing was recorded`;
             throw error;
+          }
           served = error as TxBuildError<"TX_TOO_LARGE">;
           // The first consolidation step made for the step stands on the step before it of its
           // payer, by that step's change, whenever the step's parts leave that change: so it
@@ -1969,6 +1986,7 @@ const buildSteps = async (
             options,
             limit,
             count: all.filter((each) => each.consolidation === true).length,
+            number: nextNumber(all),
             room: MAX_STEPS - all.length - (given.length - index),
           });
           const next: MadeStep = {
@@ -2017,6 +2035,15 @@ const buildSteps = async (
   return made;
 };
 
+/** The number of a new consolidation step: one above the highest among the plan's names */
+const nextNumber = (steps: readonly { readonly name: string }[]): number =>
+  steps.reduce((highest, { name }) => {
+    const number = name.slice(RESERVED_PREFIX.length);
+    return name.startsWith(RESERVED_PREFIX) && /^[0-9]+$/.test(number)
+      ? Math.max(highest, Number(number))
+      : highest;
+  }, 0) + 1;
+
 /** The served step's TX_TOO_LARGE, with why consolidation could not make it fit */
 const tooLargeOf = (
   served: TxBuildError<"TX_TOO_LARGE">,
@@ -2054,6 +2081,8 @@ const consolidate = async (
     readonly limit: number;
     /** The consolidation steps the plan has */
     readonly count: number;
+    /** The number of the step's name */
+    readonly number: number;
     /** The steps the plan may still take beside those given */
     readonly room: number;
   },
@@ -2072,7 +2101,7 @@ const consolidate = async (
       `a plan has at most ${MAX_STEPS} steps, consolidation steps among them, and has no room for another consolidation step: nothing was recorded`,
       served,
     );
-  const name = `${RESERVED_PREFIX}${count + 1}`;
+  const name = `${RESERVED_PREFIX}${context.number}`;
   try {
     const built = await buildConsolidation({
       builder: context.builder,

@@ -5,7 +5,7 @@ import type { BuildOptions, BuiltTxData, TxBuilder } from "../builder";
 import type { OutputPart, TxPart, Utxo, ValidityPart } from "../parts/types";
 import type { PayerRead, PayerSource } from "../payer";
 import { bundleTokens, isKeyLocked, oversizedRoundOf } from "../balance";
-import { foldTransactions } from "../chain";
+import { foldTransactions, outRefKey } from "../chain";
 import { TxBuildError } from "../errors";
 import { outputSize } from "../fee";
 import { spend } from "../parts/inputs";
@@ -83,12 +83,6 @@ const BASE_BYTES = 200;
 /** Bytes a policy id takes in a value: the 28 bytes and their header, and its map's header */
 const POLICY_BYTES = 33;
 
-/** An out ref as `txHash#index`, its hash in lower case */
-const keyOf = (ref: {
-  readonly txHash: string;
-  readonly outputIndex: number;
-}) => `${ref.txHash.toLowerCase()}#${ref.outputIndex}`;
-
 /** The out ref of a part's input as `txHash#index`, its hash in lower case */
 const inputKey = (input: { transaction_id: string; index: number }) =>
   `${input.transaction_id.toLowerCase()}#${input.index}`;
@@ -163,7 +157,7 @@ const neededTokens = (
     standOn !== undefined &&
     parts.some(
       (part) =>
-        part.kind === "spend" && inputKey(part.input) === keyOf(standOn),
+        part.kind === "spend" && inputKey(part.input) === outRefKey(standOn),
     );
   const needed = new Set<string>();
   for (const [unit, produced] of round.produced.assets) {
@@ -306,17 +300,17 @@ export const buildConsolidation = async (
   );
   const owned = new Map<string, Utxo>();
   for (const utxo of [...kept, ...added.map((each) => plainUtxo(each))])
-    if (!owned.has(keyOf(utxo))) owned.set(keyOf(utxo), utxo);
+    if (!owned.has(outRefKey(utxo))) owned.set(outRefKey(utxo), utxo);
   const named = namedByParts(parts);
   // Built again, the served step can put up the collateral it put up before
-  const putUp = new Set(round.collateral.map(keyOf));
+  const putUp = new Set(round.collateral.map(outRefKey));
   // What a transaction of the plan not on chain reads or puts up stays where it is
   const held = new Set(
     readers.flatMap((tx) =>
-      [...tx.referenceInputs, ...(tx.collateral?.inputs ?? [])].map(keyOf),
+      [...tx.referenceInputs, ...(tx.collateral?.inputs ?? [])].map(outRefKey),
     ),
   );
-  const standKey = standOn === undefined ? undefined : keyOf(standOn);
+  const standKey = standOn === undefined ? undefined : outRefKey(standOn);
   const allowed = (utxo: Utxo) => {
     if (options.canSelect === undefined) return true;
     try {
@@ -337,7 +331,7 @@ export const buildConsolidation = async (
   const candidates: Utxo[] = [];
   const seen = new Set<string>();
   for (const selected of round.selected) {
-    const key = keyOf(selected);
+    const key = outRefKey(selected);
     const utxo = owned.get(key);
     if (seen.has(key) || utxo === undefined || !spendable(key, utxo)) continue;
     seen.add(key);

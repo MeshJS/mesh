@@ -22,6 +22,7 @@ import {
   afterProblem,
   isDeadStep,
   isUnlandedStep,
+  MAX_CONSOLIDATION_STEPS,
   missingKeys,
   PLAN_RECORD_VERSION,
   planStatus,
@@ -1364,7 +1365,10 @@ const STEP_OPTIONS: Readonly<
   changeAddress: text,
 };
 
-/** The option `consolidate` as a plan records it: a flag, or `{ maxSteps? }` of 1 to 31 */
+/**
+ * The option `consolidate` as a plan records it: a flag, or `{ maxSteps? }` of 1 to
+ * `MAX_CONSOLIDATION_STEPS`
+ */
 const consolidation = (
   value: unknown,
   path: string,
@@ -1374,8 +1378,10 @@ const consolidation = (
   known(json, ["maxSteps"], path);
   if (json.maxSteps === undefined) return {};
   const maxSteps = count(json.maxSteps, `${path}.maxSteps`);
-  if (maxSteps < 1 || maxSteps > 31)
-    unread(`${path}.maxSteps is ${show(maxSteps)}, not from 1 to 31`);
+  if (maxSteps < 1 || maxSteps > MAX_CONSOLIDATION_STEPS)
+    unread(
+      `${path}.maxSteps is ${show(maxSteps)}, not from 1 to ${MAX_CONSOLIDATION_STEPS}`,
+    );
   return { maxSteps };
 };
 

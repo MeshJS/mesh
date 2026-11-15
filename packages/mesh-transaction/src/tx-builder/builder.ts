@@ -2364,7 +2364,8 @@ export class TxBuilder {
    *   record cannot hold, and for a link to the change of one with no output marked change; every
    *   error of `fromCbor` for such a transaction, with the step's name at the start of its
    *   message; TX_TOO_LARGE (`cause: "selection"`) for a step that needs more
-   *   consolidation steps than the plan allows, or whose consolidation step cannot be built;
+   *   consolidation steps than the plan allows, whose consolidation step cannot be built, or
+   *   leaves no change the step can stand on;
    *   NOT_SERIALIZABLE on a builder with a store, for a part that holds a redeemer function
    * @throws TxPlanError CANNOT_OBSERVE (`noTip`, `noSearch`, `noDepth`, `noValidity`) for a
    *   provider that cannot follow the plan; INVALID_STATE (`pastHorizon`); on a builder with a

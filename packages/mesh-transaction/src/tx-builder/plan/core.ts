@@ -19,6 +19,9 @@ export const PLAN_RECORD_VERSION = 2;
 /** The most steps a plan may have */
 export const MAX_STEPS = 32;
 
+/** The most consolidation steps a plan may be allowed: all its steps but the one they serve */
+export const MAX_CONSOLIDATION_STEPS = MAX_STEPS - 1;
+
 /** The step as the application gave it: its parts, links kept as links, and its data options */
 export type StepGiven = {
   readonly parts: readonly (TxPart | LinkedPart)[];

@@ -142,8 +142,9 @@ const BUILT_ALLOWED =
   "a transaction built by TxBuilder.build, or a list of them";
 
 /** An out ref as `txHash#index`, its hash in lower case */
-const outRefKey = (ref: Readonly<{ txHash: string; outputIndex: number }>) =>
-  `${ref.txHash.toLowerCase()}#${ref.outputIndex}`;
+export const outRefKey = (
+  ref: Readonly<{ txHash: string; outputIndex: number }>,
+) => `${ref.txHash.toLowerCase()}#${ref.outputIndex}`;
 
 /** The out refs transactions spend, each with the hash of the first transaction spending it */
 export const spentByTransactions = (
