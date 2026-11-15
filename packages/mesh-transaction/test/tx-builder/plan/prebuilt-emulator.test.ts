@@ -779,6 +779,145 @@ describe("a transaction built before as a step of a plan", () => {
     LONG,
   );
 
+  /**
+   * The application's deposit of 10 ada to the wallet, and its JSON as another party sends it
+   * back: output 0 stated at `address`, restored
+   */
+  const statedElsewhere = async (ctx: Ctx, address: string) => {
+    const fund = await ctx.builder.build(
+      [output({ address: ctx.address, value: { lovelace: 10n * ADA } })],
+      { payer: ctx.wallet },
+    );
+    await fund.sign();
+    const json = JSON.parse(JSON.stringify(fund.toJSON()));
+    json.built.outputs[0].address = address;
+    const stated = await ctx.builder.restore(json);
+    expect(stated.outputs[0]!.address).toBe(address);
+    return { fund, stated };
+  };
+
+  it(
+    "reads what a prebuilt step spends of a transaction of after from that transaction's bytes",
+    async () => {
+      const ctx = await setup();
+      const { fund, stated } = await statedElsewhere(ctx, ctx.partnerAddress);
+      // The partner's transaction spends fund#0, the wallet's by the bytes, and pays the partner
+      const p = await ctx.partnerBuilder.build(
+        [
+          spend.pubKey({ utxo: stated.outputs[0]! }),
+          output({
+            address: ctx.partnerAddress,
+            value: { lovelace: 15n * ADA },
+          }),
+        ],
+        { payer: ctx.partner },
+      );
+      await p.sign();
+      const alone = await ctx.builder.fromCbor(p.partialTx, {
+        knownUtxos: fund.outputs,
+      });
+      expect(alone.missing.map((k) => k.keyHash)).toContain(ctx.walletKey);
+      // The object as given, and its members as plain data: the same reading
+      for (const after of [stated, { ...stated }]) {
+        const { payer, seen } = recording(ctx.wallet);
+        const plan = await ctx.builder.plan(
+          { swap: p.partialTx, pay: payTo(alice, 5n * ADA) },
+          { payer, after },
+        );
+        const swap = plan.step("swap");
+        expect(swap.missing).toEqual(alone.missing);
+        expect(swap.signers).toEqual(alone.signers);
+        expect(swap.inputs).toEqual(alone.inputs);
+        expect(swap.inputs.map((u) => u.address)).toContain(ctx.address);
+        expect(swap.status).toBe("built");
+        await plan.sign();
+        expect(seen).not.toContain(swap.txHash);
+      }
+    },
+    LONG,
+  );
+
+  it(
+    "reads a wallet's collateral a prebuilt step puts up from the bytes of a transaction of after",
+    async () => {
+      await Crypto.ready();
+      const ctx = await setup();
+      const maker = testKey();
+      ctx.emulator.fund(maker.address, { lovelace: 50n * ADA });
+      const { fund, stated } = await statedElsewhere(ctx, maker.address);
+      // On chain, so that the maker's build reads it; a transaction of after comes first
+      await fund.submit();
+      advance(ctx.emulator, 50);
+      const script = { code: alwaysSucceedCbor, version: "V3" as const };
+      const locked = { txHash: "ab".repeat(32), outputIndex: 0 };
+      ctx.emulator.addUtxos([
+        {
+          input: locked,
+          output: {
+            address: resolvePlutusScriptAddress(script, 0),
+            amount: [{ unit: "lovelace", quantity: "20000000" }],
+            plutusData: "d87980",
+          },
+        },
+      ]);
+      const built = await new TxBuilder({
+        network: "preprod",
+        provider: ctx.emulator,
+        evaluator: ctx.emulator,
+      }).build(
+        [
+          spend.plutus({
+            utxo: locked,
+            script,
+            redeemer: { data: mConStr0([]) },
+          }),
+          collateral({ utxo: fund.outputs[0]! }),
+          collateralReturn({ address: maker.address }),
+        ],
+        { payer: maker.address },
+      );
+      const plan = await ctx.builder.plan(
+        { swap: built.tx },
+        { payer: ctx.wallet, after: stated },
+      );
+      const swap = plan.step("swap");
+      expect(swap.collateral!.inputs.map((u) => u.address)).toEqual([
+        ctx.address,
+      ]);
+      expect(swap.missing).toContainEqual({
+        keyHash: ctx.walletKey,
+        roles: expect.arrayContaining(["collateral"]),
+      });
+      expect(codes(swap)).toContain("COLLATERAL_RETURN_ELSEWHERE");
+    },
+    LONG,
+  );
+
+  it(
+    "takes no output of a transaction of after whose bytes are not read",
+    async () => {
+      const ctx = await setup();
+      const { fund, stated } = await statedElsewhere(ctx, ctx.partnerAddress);
+      const cbor = await takesFromWallet(ctx, stated.outputs[0]!);
+      const unread = { ...stated, tx: "00" };
+      // Nobody else knows the output: the reader's own refusal, as without after
+      const error = await caught(
+        ctx.builder.plan({ swap: cbor }, { payer: ctx.wallet, after: unread }),
+      );
+      expect(TxBuildError.is(error, "UTXO_NOT_FOUND")).toBe(true);
+      // The application's knownUtxos come next
+      const plan = await ctx.builder.plan(
+        { swap: cbor },
+        { payer: ctx.wallet, after: unread, knownUtxos: fund.outputs },
+      );
+      expect(plan.step("swap").inputs[0]!.address).toBe(ctx.address);
+      expect(plan.step("swap").missing.map((k) => k.keyHash)).toContain(
+        ctx.walletKey,
+      );
+    },
+    LONG,
+  );
+
   it(
     "sends a signed transaction as it came",
     async () => {

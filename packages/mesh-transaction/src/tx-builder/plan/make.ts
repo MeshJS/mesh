@@ -39,9 +39,9 @@ import { checkLock, spend, toSpendDatum } from "../parts/inputs";
 import { fail, freeze, withKnownHash } from "../parts/normalize";
 import { validity } from "../parts/scalars";
 import { isLinkedPart } from "../parts/unresolved";
-import { plainUtxo, utxoKey } from "../parts/utxo";
+import { outputAsUtxo, plainUtxo, utxoKey } from "../parts/utxo";
 import { changeAddressOf, givenPayerEntries, toPayerSource } from "../payer";
-import { readTransactionItems } from "../sign";
+import { readTransaction, readTransactionItems } from "../sign";
 import { scanTransaction } from "../tx-scan";
 import { addValues, fromMultiAsset, negate, valueOf } from "../value";
 import {
@@ -1504,10 +1504,33 @@ const withMarks = (
 };
 
 /**
+ * The outputs of a transaction of `after` as its own bytes hold them: its `tx` walked and read as
+ * `fromCbor` reads the outputs of a body, under the hash of that body. The outputs the entry
+ * states are never taken: it may be an object restored from a JSON another party wrote. None for
+ * an entry that stands for a final step (its inputs alone), and none for one whose `tx` is not
+ * read: the UTxOs it names then come from `knownUtxos` or the provider
+ */
+const afterOutputs = (builder: TxBuilder, entry: BuiltTxData): Utxo[] => {
+  if (typeof entry !== "object" || entry === null || INPUTS_ALONE.has(entry))
+    return [];
+  const tx: unknown = (entry as { tx?: unknown }).tx;
+  if (typeof tx !== "string") return [];
+  try {
+    const text = tx.toLowerCase();
+    scanTransaction(text, builder.params?.maxTxSize);
+    const { txId, body } = readTransaction(text);
+    return body.outputs().map((output, i) => outputAsUtxo(txId, i, output));
+  } catch {
+    return [];
+  }
+};
+
+/**
  * Reads every step given built, in order, before any step is built: each through
  * `builder.fromCbor`, the public reader, from the bytes given or the object's `partialTx`, with
  * the UTxOs the plan knows: the outputs of the steps before and of the steps given built before
- * it, from their own transactions; then those of the transactions of `after`; then the
+ * it, from their own transactions; then those of the transactions of `after`, read from their
+ * own bytes (`afterOutputs`); then the
  * `knownUtxos` the call builds with; each out ref once, the first. Any other is read through the
  * provider. The object `fromCbor` returns becomes the step through its JSON and the reader of a
  * record: so a step enters a plan as a record gives it back.
@@ -1530,6 +1553,9 @@ const readPrebuilt = async (
   const read = new Map<string, PrebuiltRead>();
   const done: { readonly name: string; readonly built: BuiltTxData }[] = [];
   const known = toKnownUtxos(context.knownUtxos);
+  const ofAfter = given.some((step) => step.prebuilt !== undefined)
+    ? context.after.flatMap((each) => afterOutputs(builder, each))
+    : [];
   for (const step of given) {
     if (step.prebuilt === undefined) continue;
     const { name } = step;
@@ -1543,7 +1569,7 @@ const readPrebuilt = async (
       };
       for (const each of [...context.before, ...done])
         each.built.outputs.forEach(put);
-      for (const each of context.after) each.outputs.forEach(put);
+      ofAfter.forEach(put);
       known.forEach(put);
       const object = await abortable(
         builder.fromCbor(tx instanceof BuiltTx ? tx.partialTx : tx, {
