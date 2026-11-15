@@ -730,8 +730,10 @@ export const ownAfterEntry = <T extends object>(entry: T): T => {
 /**
  * What a transaction's own bytes say of what it spends and makes: the hash of its body, the out
  * refs of its inputs in body order, and its outputs as the UTxOs they become, read as
- * `fromCbor` reads the outputs of a body after the same walk. Undefined for a value no
- * transaction is read from. It makes no request
+ * `fromCbor` reads the outputs of a body after the same walk, with its bounds on nesting and
+ * work but none on size: a transaction of `after` is the application's own, and may be larger
+ * than the default maximum where the network allows it. Undefined for a value no transaction is
+ * read from. It makes no request
  */
 export const readTxBytes = (
   tx: unknown,
@@ -745,7 +747,7 @@ export const readTxBytes = (
   if (typeof tx !== "string") return undefined;
   try {
     const text = tx.toLowerCase();
-    scanTransaction(text);
+    scanTransaction(text, Number.POSITIVE_INFINITY);
     const { txId, body } = readTransaction(text);
     return {
       txHash: txId.toLowerCase(),

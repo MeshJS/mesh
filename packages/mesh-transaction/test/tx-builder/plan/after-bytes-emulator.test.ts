@@ -1,7 +1,17 @@
 import { mConStr0 } from "@meshsdk/core";
+import { Crypto } from "@meshsdk/core-cst";
 
 import type { BuiltTx } from "../../../src/tx-builder";
-import { output, spend, TxBuildError } from "../../../src/tx-builder";
+import {
+  collateral,
+  collateralReturn,
+  metadata,
+  output,
+  referenceInput,
+  spend,
+  TxBuilder,
+  TxBuildError,
+} from "../../../src/tx-builder";
 import { recordOf } from "../../../src/tx-builder/plan/plan";
 import { alwaysSucceedCbor } from "../../test-util";
 import { builderOf, caught, walletOf, wrap } from "./plan-emulator-util";
@@ -266,6 +276,108 @@ describe("a transaction of after is read from its bytes", () => {
           after: after as never,
         });
         expect(next.inputs.map(ref)).toContain(ref(fund.change[0]!));
+      }
+    },
+    LONG,
+  );
+
+  it(
+    "takes a transaction larger than the default maximum on a builder whose parameters allow it",
+    async () => {
+      const ctx = await stepSetup("scalus", { funds: [1000n * ADA] });
+      const params = await ctx.emulator.fetchProtocolParameters();
+      const big = builderOf(wrap(ctx.emulator), {
+        params: { ...params, maxTxSize: 65_536 },
+      });
+      const entries = Object.fromEntries(
+        Array.from({ length: 300 }, (_, i) => [String(i), "x".repeat(64)]),
+      );
+      const fund = await big.build(
+        [
+          payTo(ctx.address, 10n * ADA),
+          metadata({ metadataLabel: 674, value: entries }),
+        ],
+        { payer: ctx.wallet },
+      );
+      expect(fund.tx.length / 2).toBeGreaterThan(16_384);
+      const next = await big.build(payTo(bob, 1n * ADA), {
+        payer: ctx.wallet,
+        after: fund,
+      });
+      expect(next.inputs.map(ref)).toContain(ref(fund.change[0]!));
+      const plan = await big.plan(
+        { next: payTo(bob, 1n * ADA) },
+        { payer: ctx.wallet, after: fund },
+      );
+      expect(plan.step("next").inputs.map(ref)).toContain(ref(fund.change[0]!));
+    },
+    LONG,
+  );
+
+  it(
+    "refuses a prebuilt step that reads or puts up as collateral what a transaction of after spends",
+    async () => {
+      await Crypto.ready();
+      const ctx = await stepSetup("scalus", {
+        funds: [20n * ADA, 500n * ADA],
+      });
+      const partner = await walletOf(1);
+      const partnerAddress = (await partner.getChangeAddress())!;
+      ctx.emulator.fund(partnerAddress, { lovelace: 100n * ADA });
+      const vault = ctx.builder.scriptAddress(script);
+      const locked = { txHash: "ab".repeat(32), outputIndex: 0 };
+      ctx.emulator.addUtxos([
+        {
+          input: locked,
+          output: {
+            address: vault,
+            amount: [{ unit: "lovelace", quantity: "20000000" }],
+            plutusData: "d87980",
+          },
+        },
+      ]);
+      const small = ctx.funded[0]!.input;
+      // The application's own transaction of after spends small
+      const own = await ctx.builder.build(
+        [spend.pubKey({ utxo: small }), payTo(alice, 5n * ADA)],
+        { payer: ctx.wallet },
+      );
+      // The partner's: one puts small up as collateral, one reads it
+      const putsUp = await new TxBuilder({
+        network: "preprod",
+        provider: ctx.emulator,
+        evaluator: ctx.emulator,
+      }).build(
+        [
+          spend.plutus({
+            utxo: locked,
+            script,
+            redeemer: { data: mConStr0([]) },
+          }),
+          collateral({ utxo: small }),
+          collateralReturn({ address: partnerAddress }),
+        ],
+        { payer: partnerAddress },
+      );
+      const reads = await builderOf(wrap(ctx.emulator)).build(
+        [referenceInput({ utxo: small }), payTo(bob, 2n * ADA)],
+        { payer: partner },
+      );
+      await reads.sign();
+      for (const [tx, use] of [
+        [putsUp.tx, "puts up as collateral"],
+        [reads.partialTx, "reads"],
+      ] as const) {
+        const error = await caught(
+          ctx.builder.plan({ swap: tx }, { payer: ctx.wallet, after: own }),
+        );
+        expect(TxBuildError.is(error, "INVALID_OPTION")).toBe(true);
+        expect(error.details).toMatchObject({ option: "steps" });
+        expect(error.message).toMatch(
+          new RegExp(
+            `step "swap" ${use} ${ref(small)}, which the transaction ${own.txHash} of after spends`,
+          ),
+        );
       }
     },
     LONG,

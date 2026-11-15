@@ -1989,6 +1989,14 @@ const readPrebuilt = async (
         throw invalidSteps(
           `step ${JSON.stringify(name)} spends ${keeper.outRef}, which step ${JSON.stringify(keeper.name)} ${keeper.use}: an output a step given built reads or puts up is never spent by another step of the plan`,
         );
+      // Nor a transaction of after: what it reads or puts up, one of them spends
+      for (const each of context.after) {
+        const taken = keptAmong(each.inputs, [{ name, built }]);
+        if (taken !== undefined)
+          throw invalidSteps(
+            `step ${JSON.stringify(name)} ${taken.use} ${taken.outRef}, which the transaction ${each.txHash} of after spends: an output a step given built reads or puts up is never spent by another transaction`,
+          );
+      }
       const afterSpender = spentBefore(
         built,
         context.after.map((each) => ({ name: each.txHash, built: each })),
