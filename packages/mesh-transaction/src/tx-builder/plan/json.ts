@@ -1,6 +1,8 @@
-import type { BuiltTxData } from "../builder";
-import type { LinkedPart, TxPart } from "../parts/types";
-import type { KeyWitness, KeyWitnessTags } from "../sign";
+import type { Serialization } from "@meshsdk/core-cst";
+
+import type { BuiltRedeemer, BuiltTxData } from "../builder";
+import type { LinkedPart, TxPart, Utxo } from "../parts/types";
+import type { KeyWitness, KeyWitnessTags, RawTx } from "../sign";
 import type {
   BeforeEntry,
   PlanBefore,
@@ -14,8 +16,10 @@ import type {
   TxStepJSON,
   TxStepStatus,
 } from "./types";
+import { readTxValue } from "../builder";
 import { NOT_UNPAID, TxBuildError, TxPlanError } from "../errors";
 import { freeze } from "../parts/normalize";
+import { utxoKey } from "../parts/utxo";
 import {
   keyWitnessTags,
   readTransaction,
@@ -39,11 +43,13 @@ import {
 // The record of a plan as data: what `toJSON()` returns and a store holds. The encoding keeps
 // the shapes of the parts and of the transactions and writes every `bigint` as its decimal
 // string, at its own field; the reader knows those fields and puts the `bigint`s back. A step's
-// transaction is written as the JSON of a `BuiltTx`, its witnesses as one witness set; the reader
-// takes the bytes again, compares the hash and verifies every witness against the body. The
-// reader is strict: content it does not know, or a record the state machine could not have
-// written, is refused whole. The data of a build is encoded and read the same way in the JSON of
-// a `BuiltTx`. Nothing here is exported from the package.
+// transaction is written as the JSON of a `BuiltTx`, without what its bytes and its recorded
+// UTxOs give again, its witnesses as one witness set; the reader takes the bytes again, compares
+// the hash, checks the recorded inputs against the body, works out what was left out and
+// verifies every witness against the body. The reader is strict: content it does not know, or a
+// record the state machine could not have written, is refused whole. The data of a build is
+// encoded and read the same way, written whole, in the JSON of a `BuiltTx`. Nothing here is
+// exported from the package.
 
 export { PLAN_RECORD_VERSION };
 
@@ -1060,6 +1066,11 @@ const BUILT_MEMBERS = [
   "parts",
 ] as const;
 
+/** The members of the data of a build as a plan's record writes it */
+const BUILT_WITHOUT_PROTOTYPE = BUILT_MEMBERS.filter(
+  (member) => member !== "prototype",
+);
+
 /** The members of the objects inside the data of a build, as `BuiltTxData` declares them */
 const SIGNERS_MEMBERS = [
   "keyHashes",
@@ -1138,18 +1149,32 @@ const requiredKeys = (
 
 /**
  * The data of a build back from its encoding
+ * @param prototype With false, the encoding without `prototype`, whose data comes back without
+ *   it: the caller works it out from the bytes
  * @throws UnreadContent for content this library does not know or cannot read, naming it
  */
-export const decodeBuilt = (value: unknown, path: string): BuiltTxData => {
+export function decodeBuilt(value: unknown, path: string): BuiltTxData;
+export function decodeBuilt(
+  value: unknown,
+  path: string,
+  prototype: false,
+): Omit<BuiltTxData, "prototype">;
+export function decodeBuilt(
+  value: unknown,
+  path: string,
+  prototype = true,
+): Omit<BuiltTxData, "prototype"> {
   const json = object(value, path);
-  known(json, BUILT_MEMBERS, path);
+  known(json, prototype ? BUILT_MEMBERS : BUILT_WITHOUT_PROTOTYPE, path);
   const signers = object(json.signers, `${path}.signers`);
   known(signers, SIGNERS_MEMBERS, `${path}.signers`);
   const keyHashes = texts(signers.keyHashes, `${path}.signers.keyHashes`);
   const built: Obj = {
     tx: text(json.tx, `${path}.tx`),
     txHash: text(json.txHash, `${path}.txHash`),
-    prototype: transaction(json.prototype, `${path}.prototype`),
+    ...(prototype && {
+      prototype: transaction(json.prototype, `${path}.prototype`),
+    }),
     fee: integer(json.fee, `${path}.fee`),
     exUnits: exUnits(json.exUnits, `${path}.exUnits`),
     redeemers: list(json.redeemers, `${path}.redeemers`).map((item, i) => {
@@ -1209,7 +1234,7 @@ export const decodeBuilt = (value: unknown, path: string): BuiltTxData => {
       `${path}.validity`,
     );
   return built as unknown as BuiltTxData;
-};
+}
 
 export const decodeNetwork = (value: unknown, path: string) => {
   if (typeof value === "string") {
@@ -1262,6 +1287,319 @@ export const deliveredOf = (
 ) => OUT.has(step.status) || step.sends > step.refused;
 
 /* ---------------------------------------------------------------------------------------------
+ * A step's transaction in the record
+ * ------------------------------------------------------------------------------------------- */
+
+// A step's transaction is written as the JSON of a `BuiltTx` without what its bytes and its
+// recorded UTxOs give again. The reader reads the prototype from the bytes, as `fromCbor` does,
+// and `prototype` holds only the members of its body, witness set and auxiliary data that the
+// build made otherwise (Plutus data given as a value is read from the bytes as its CBOR); where a
+// member the bytes give is one the build's prototype lacks, the whole prototype, with `is_valid`.
+// An entry that repeats one of the same transaction is written as its place: a spend, reference
+// input or collateral part whose UTxO is the one `inputs`, `referenceInputs` or
+// `collateral.inputs` holds under its out ref has its place in that list as its `input` and no
+// `utxo`; a selected input is its place in `inputs`, a change output its place in `outputs`, a
+// redeemer's part its place in `parts`. Anything else is written whole. The reader also takes
+// the transaction written whole, as `toJSON()` of a `BuiltTx` writes it: how a transaction given
+// to a plan is checked, and how records were written before.
+
+/** The list of a transaction's UTxOs a part of each kind takes its UTxO from */
+const LISTED: Readonly<Record<string, (built: Obj) => unknown>> = {
+  spend: (built) => built.inputs,
+  referenceInput: (built) => built.referenceInputs,
+  collateral: (built) =>
+    isPlainObject(built.collateral) ? built.collateral.inputs : [],
+};
+
+/** The out ref of a UTxO as JSON data, or undefined for what is no UTxO */
+const refOf = (utxo: unknown) =>
+  isPlainObject(utxo) &&
+  typeof utxo.txHash === "string" &&
+  typeof utxo.outputIndex === "number"
+    ? `${utxo.txHash}#${utxo.outputIndex}`
+    : undefined;
+
+/** The place of each UTxO of a list by its out ref, the first where one is named twice */
+const placesOf = (utxos: unknown) => {
+  const places = new Map<string, number>();
+  (Array.isArray(utxos) ? utxos : []).forEach((utxo, i) => {
+    const ref = refOf(utxo);
+    if (ref !== undefined && !places.has(ref)) places.set(ref, i);
+  });
+  return places;
+};
+
+/** The place of this UTxO in the list, when the list holds it as it is */
+const placeIn = (
+  utxos: unknown,
+  places: Map<string, number>,
+  utxo: unknown,
+): number | undefined => {
+  const ref = refOf(utxo);
+  const place = ref === undefined ? undefined : places.get(ref);
+  return place !== undefined && sameJson((utxos as unknown[])[place], utxo)
+    ? place
+    : undefined;
+};
+
+/** Whether two values are alike: members whose value is `undefined` count as absent */
+const sameValue = (a: unknown, b: unknown): boolean => {
+  if (a === b) return true;
+  if (Array.isArray(a))
+    return (
+      Array.isArray(b) &&
+      a.length === b.length &&
+      a.every((item, i) => sameValue(item, b[i]))
+    );
+  if (!isPlainObject(a) || !isPlainObject(b)) return false;
+  const keys = (value: Obj) =>
+    Object.keys(value).filter((key) => value[key] !== undefined);
+  const left = keys(a);
+  return (
+    left.length === keys(b).length &&
+    left.every(
+      (key) =>
+        Object.prototype.hasOwnProperty.call(b, key) &&
+        sameValue(a[key], b[key]),
+    )
+  );
+};
+
+/** The members of a prototype a record may write in place of those its bytes give */
+const SECTIONS = ["body", "witness_set", "auxiliary_data"] as const;
+
+/**
+ * What a record writes of a build's prototype, as JSON data: nothing when its bytes give it as
+ * it is; else the members of its sections they give otherwise; else, when a member they give is
+ * one the build's lacks, the whole prototype
+ */
+const prototypeWritten = (built: BuiltTxData): unknown => {
+  const own = built.prototype as unknown as Obj;
+  const read = readTxValue(readTransaction(built.tx))
+    .prototype as unknown as Obj;
+  if (sameValue(own, read)) return undefined;
+  const whole = () => encodeValue(own);
+  if (own.is_valid !== read.is_valid) return whole();
+  const patch: Obj = {};
+  for (const section of SECTIONS) {
+    const mine = own[section];
+    const theirs = read[section];
+    if (sameValue(mine, theirs)) continue;
+    if (!isPlainObject(mine) || !isPlainObject(theirs)) return whole();
+    const members: Obj = {};
+    for (const key of new Set([...Object.keys(mine), ...Object.keys(theirs)]))
+      if (!sameValue(mine[key], theirs[key])) {
+        if (mine[key] === undefined) return whole();
+        members[key] = mine[key];
+      }
+    patch[section] = members;
+  }
+  return encodeValue(patch);
+};
+
+/**
+ * What the record writes of each prototype it has written or read: computed once for a build,
+ * whose data is not changed
+ */
+const WRITTEN = new WeakMap<BuiltTxData, { prototype: unknown }>();
+
+/**
+ * The data of a step's build as the record holds it: the encoding of a build with only what its
+ * bytes do not give of its prototype, and the places of the entries it repeats
+ */
+const encodeStepBuilt = (built: BuiltTxData): Record<string, unknown> => {
+  let written = WRITTEN.get(built);
+  if (written === undefined) {
+    written = { prototype: prototypeWritten(built) };
+    WRITTEN.set(built, written);
+  }
+  const { prototype: _, ...json } = encodeBuilt(built) as Obj;
+  const placesBy = new Map<string, Map<string, number>>();
+  const places = (kind: string) => {
+    let found = placesBy.get(kind);
+    if (found === undefined) {
+      found = placesOf(LISTED[kind]!(json));
+      placesBy.set(kind, found);
+    }
+    return found;
+  };
+  let outputs: Map<string, number> | undefined;
+  const outputPlaces = () => (outputs ??= placesOf(json.outputs));
+  const parts = json.parts as Obj[];
+  return {
+    ...json,
+    selectedInputs: (json.selectedInputs as unknown[]).map(
+      (utxo) => placeIn(json.inputs, places("spend"), utxo) ?? utxo,
+    ),
+    change: (json.change as unknown[]).map(
+      (utxo) => placeIn(json.outputs, outputPlaces(), utxo) ?? utxo,
+    ),
+    redeemers: (json.redeemers as Obj[]).map((redeemer) => {
+      if (redeemer.part === undefined) return redeemer;
+      const place = parts.findIndex((part) => sameJson(part, redeemer.part));
+      return place < 0 ? redeemer : { ...redeemer, part: place };
+    }),
+    parts: parts.map((part) => {
+      const listed = LISTED[part.kind as string];
+      if (listed === undefined || part.utxo === undefined) return part;
+      const utxos = listed(json);
+      const place = placeIn(utxos, places(part.kind as string), part.utxo);
+      const input = part.input as Obj | undefined;
+      const utxo = part.utxo as Obj;
+      if (
+        place === undefined ||
+        input?.transaction_id !== utxo.txHash ||
+        input?.index !== utxo.outputIndex
+      )
+        return part;
+      const { utxo: __, ...rest } = part;
+      return { ...rest, input: place };
+    }),
+    ...(written.prototype !== undefined && { prototype: written.prototype }),
+  };
+};
+
+/**
+ * The prototype of a step's transaction from its bytes, with what the record wrote of it: the
+ * whole prototype, or the members of its sections the build made otherwise
+ * @throws UnreadContent for what it does not read
+ */
+const prototypeOfStep = (
+  raw: RawTx,
+  written: unknown,
+  path: string,
+): BuiltTxData["prototype"] => {
+  if (isPlainObject(written) && written.is_valid !== undefined)
+    return transaction(written, path) as BuiltTxData["prototype"];
+  let read: BuiltTxData["prototype"];
+  try {
+    read = readTxValue(raw).prototype;
+  } catch {
+    return unread(
+      `${path}: the transaction holds what this library does not read as a value`,
+    );
+  }
+  if (written === undefined) return read;
+  const patch = object(written, path);
+  known(patch, SECTIONS, path);
+  const json = encodeValue(read) as Obj;
+  for (const section of SECTIONS) {
+    if (patch[section] === undefined) continue;
+    const members = object(patch[section], `${path}.${section}`);
+    if (Object.keys(members).length === 0)
+      unread(`${path}.${section} is empty: it is written only when it differs`);
+    if (!isPlainObject(json[section]))
+      unread(`${path}.${section}: the transaction has none`);
+    json[section] = { ...(json[section] as Obj), ...members };
+  }
+  if (Object.keys(patch).length === 0)
+    unread(`${path} is empty: it is written only when it differs`);
+  return transaction(json, path) as BuiltTxData["prototype"];
+};
+
+/**
+ * The encoding of a step's build with every place put back as the entry it names, ready for
+ * the reader of a build
+ * @throws UnreadContent for a place that names no entry, or a part that holds both a place and
+ *   a UTxO
+ */
+const expandStepBuilt = (json: Obj, path: string): Obj => {
+  // The lists are read first, so that a UTxO of another shape is named where it is written
+  utxos(json.inputs, `${path}.inputs`);
+  builtOutputs(json.outputs, `${path}.outputs`);
+  utxos(json.referenceInputs, `${path}.referenceInputs`);
+  if (isPlainObject(json.collateral) && json.collateral.inputs !== undefined)
+    utxos(json.collateral.inputs, `${path}.collateral.inputs`);
+  const entry = (
+    items: unknown,
+    place: unknown,
+    at: string,
+    what: string,
+  ): unknown => {
+    const all = list(items, `${path}.${what}`);
+    if (!Number.isSafeInteger(place) || (place as number) < 0)
+      unread(`${at} is ${show(place)}, not a place in ${what}`);
+    if ((place as number) >= all.length)
+      unread(
+        `${at} is ${place as number}, and ${what} holds ${all.length} entries`,
+      );
+    return all[place as number];
+  };
+  const parts = list(json.parts, `${path}.parts`).map((item, i) => {
+    const at = `${path}.parts[${i}]`;
+    const part = object(item, at);
+    const kind = part.kind;
+    // A part of another kind is refused by the reader of parts
+    if (
+      typeof part.input !== "number" ||
+      typeof kind !== "string" ||
+      !Object.prototype.hasOwnProperty.call(LISTED, kind)
+    )
+      return part;
+    const listed = LISTED[kind]!;
+    if (part.utxo !== undefined) {
+      utxoValue(part.utxo, `${at}.utxo`);
+      unread(`${at} holds a utxo beside the place of its input`);
+    }
+    const what =
+      kind === "spend"
+        ? "inputs"
+        : kind === "referenceInput"
+          ? "referenceInputs"
+          : "collateral.inputs";
+    const utxo = object(
+      entry(listed(json), part.input, `${at}.input`, what),
+      `${path}.${what}[${part.input}]`,
+    );
+    return {
+      ...part,
+      input: { transaction_id: utxo.txHash, index: utxo.outputIndex },
+      utxo,
+    };
+  });
+  return {
+    ...json,
+    selectedInputs: list(json.selectedInputs, `${path}.selectedInputs`).map(
+      (utxo, i) =>
+        typeof utxo === "number"
+          ? entry(json.inputs, utxo, `${path}.selectedInputs[${i}]`, "inputs")
+          : utxo,
+    ),
+    change: list(json.change, `${path}.change`).map((utxo, i) =>
+      typeof utxo === "number"
+        ? entry(json.outputs, utxo, `${path}.change[${i}]`, "outputs")
+        : utxo,
+    ),
+    parts,
+  };
+};
+
+/**
+ * The redeemers of a step's build whose part is written as its place in `parts`, without that
+ * part, and the places: the parts are read first, and each such redeemer is then given the part
+ * read
+ * @throws UnreadContent for a place that names no part
+ */
+const redeemerPlaces = (json: Obj, path: string) => {
+  const places = new Map<number, number>();
+  const redeemers = list(json.redeemers, `${path}.redeemers`).map((item, i) => {
+    const at = `${path}.redeemers[${i}]`;
+    const redeemer = object(item, at);
+    if (typeof redeemer.part !== "number") return redeemer;
+    const count = list(json.parts, `${path}.parts`).length;
+    const place = redeemer.part;
+    if (!Number.isSafeInteger(place) || place < 0 || place >= count)
+      unread(
+        `${at}.part is ${show(place)}, not a place in parts, which holds ${count} entries`,
+      );
+    places.set(i, place);
+    const { part: _, ...rest } = redeemer;
+    return rest;
+  });
+  return { json: { ...json, redeemers }, places };
+};
+
+/* ---------------------------------------------------------------------------------------------
  * Writing
  * ------------------------------------------------------------------------------------------- */
 
@@ -1295,7 +1633,7 @@ const encodeStep = (step: StepRecord): TxStepJSON => ({
     kind: "BuiltTx",
     version: BUILT_TX_VERSION,
     txHash: step.txHash,
-    built: encodeBuilt(step.built) as Record<string, unknown>,
+    built: encodeStepBuilt(step.built),
     // A prebuilt step's witnesses in the form they came in; those of a step the plan built
     // without the set tag
     ...(step.witnesses.length > 0 && {
@@ -1452,10 +1790,60 @@ const TX_MEMBERS = [
   "delivered",
 ] as const;
 
+/** The out refs a body names in one of its sets, in its order */
+const namedBy = (
+  inputs: readonly Serialization.TransactionInput[] | undefined,
+): string[] =>
+  (inputs ?? []).map(
+    (input) =>
+      `${input.transactionId().toLowerCase()}#${Number(input.index())}`,
+  );
+
+const keysOf = (utxos: readonly Utxo[]) =>
+  utxos.map((utxo) => utxoKey(utxo).toLowerCase());
+
+/**
+ * Whether the UTxOs a build records are those its body names: its inputs, the same out refs in
+ * the same order; its collateral inputs, the same out refs; its reference inputs, out refs the
+ * body reads, in its order (one whose data the build did not read has none to record)
+ */
+const listsProblem = (
+  built: Omit<BuiltTxData, "prototype">,
+  body: Serialization.TransactionBody,
+): string | undefined => {
+  const inputs = keysOf(built.inputs);
+  const named = namedBy(body.inputs().values());
+  if (
+    inputs.length !== named.length ||
+    inputs.some((key, i) => key !== named[i])
+  )
+    return "inputs are not the inputs of the transaction, in its order";
+  const collateral = keysOf(built.collateral?.inputs ?? []);
+  const puts = namedBy(body.collateral()?.values());
+  if (
+    collateral.length !== puts.length ||
+    new Set(collateral).size !== collateral.length ||
+    collateral.some((key) => !puts.includes(key))
+  )
+    return "collateral.inputs are not the collateral inputs of the transaction";
+  const reads = namedBy(body.referenceInputs()?.values());
+  let next = 0;
+  for (const key of keysOf(built.referenceInputs)) {
+    while (next < reads.length && reads[next] !== key) next += 1;
+    if (next === reads.length)
+      return "referenceInputs are not reference inputs of the transaction, in its order";
+    next += 1;
+  }
+  return undefined;
+};
+
 /**
  * A step's transaction: its JSON read, its bytes read again and found unsigned, its hash
- * compared, and every witness verified against its body; with the set tag of each of the two
- * entries of its witnesses, else as its body writes its input set
+ * compared, its recorded inputs found to be those of its body, and every witness verified
+ * against its body; its prototype read from its bytes with what the record wrote of it; with the
+ * set tag of each of the two entries of its witnesses, else as its body writes its input set. It
+ * takes the transaction as a plan's record writes it, and the JSON of a `BuiltTx` written whole,
+ * whose prototype is taken as written
  * @throws UnreadContent for what it does not read
  */
 export const decodeTx = (
@@ -1477,14 +1865,35 @@ export const decodeTx = (
     unread(`${path}.version is ${show(json.version)}, not ${BUILT_TX_VERSION}`);
   if (text(json.txHash, `${path}.txHash`) !== txHash)
     unread(`${path}.txHash is not the step's txHash`);
-  const built = decodeBuilt(json.built, `${path}.built`);
-  if (built.txHash !== txHash)
+  const at = `${path}.built`;
+  const { prototype: kept, ...expanded } = expandStepBuilt(
+    object(json.built, at),
+    at,
+  );
+  const { json: written, places } = redeemerPlaces(expanded, at);
+  const decoded = decodeBuilt(written, at, false);
+  const read =
+    places.size === 0
+      ? decoded
+      : {
+          ...decoded,
+          redeemers: decoded.redeemers.map((redeemer, i) =>
+            places.has(i)
+              ? {
+                  ...redeemer,
+                  part: decoded.parts[places.get(i)!] as BuiltRedeemer["part"],
+                }
+              : redeemer,
+          ),
+        };
+  if (read.txHash !== txHash)
     unread(`${path}.built.txHash is not the step's txHash`);
+  let raw: RawTx;
   let body: string;
   let signed: boolean;
   let taggedSets: boolean;
   try {
-    const raw = readTransaction(built.tx);
+    raw = readTransaction(read.tx);
     body = raw.txId;
     taggedSets = raw.taggedSets;
     signed =
@@ -1501,6 +1910,14 @@ export const decodeTx = (
     unread(
       `${path}.built.tx holds a vkey or bootstrap witness: the transaction is the unsigned one, and its witnesses go in witnesses`,
     );
+  const lists = listsProblem(read, raw.body);
+  if (lists !== undefined) unread(`${path}.built.${lists}`);
+  const built: BuiltTxData = {
+    ...read,
+    prototype: prototypeOfStep(raw, kept, `${at}.prototype`),
+  };
+  // A prototype read from the bytes alone is written so again, with no second reading
+  if (kept === undefined) WRITTEN.set(built, { prototype: undefined });
   let witnesses: KeyWitness[] = [];
   let tags: Partial<KeyWitnessTags> = {};
   if (json.witnesses !== undefined) {

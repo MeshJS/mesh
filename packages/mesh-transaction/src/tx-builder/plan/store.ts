@@ -69,7 +69,10 @@ const SAMPLE_ADDRESS =
 const SAMPLE_KEY = "5867c3b8e27840f556ac268b781578b14c5661fc63ee720dbeab663f";
 const ZERO_HASH = "0".repeat(64);
 
-/** The data of the sample transaction, as a record holds it */
+/**
+ * The data of the sample transaction, as a record holds it: its prototype is read from its
+ * bytes, and an entry it repeats is written as its place
+ */
 const sampleBuilt = () => {
   const input = {
     txHash: ZERO_HASH,
@@ -88,23 +91,14 @@ const sampleBuilt = () => {
   return {
     tx: SAMPLE_TX,
     txHash: SAMPLE_HASH,
-    prototype: {
-      body: {
-        inputs: [{ transaction_id: ZERO_HASH, index: 0 }],
-        outputs: [output],
-        fee: "165281",
-      },
-      witness_set: {},
-      is_valid: true,
-    },
     fee: "165281",
     exUnits: { mem: "0", steps: "0" },
     redeemers: [],
     inputs: [input],
-    selectedInputs: [input],
+    selectedInputs: [0],
     referenceInputs: [],
     outputs: [change],
-    change: [change],
+    change: [0],
     signers: {
       keyHashes: [SAMPLE_KEY],
       keys: [{ keyHash: SAMPLE_KEY, roles: ["input"] }],
@@ -114,12 +108,7 @@ const sampleBuilt = () => {
     network: { name: "preprod", networkId: 0 },
     warnings: [],
     parts: [
-      {
-        kind: "spend",
-        input: { transaction_id: ZERO_HASH, index: 0 },
-        utxo: input,
-        witness: { type: "key" },
-      },
+      { kind: "spend", input: 0, witness: { type: "key" } },
       { kind: "output", output },
     ],
   };

@@ -1084,8 +1084,15 @@ Applications read `id`, `rev`, `status`, `stopped` (set by `stop()`), `halted` (
 `stopped` by its steps), `deadlines` and, of each step, `name`, `status` and `txHash`; the rest is
 the library's. `stopped` and `halted` are `true` when present and never removed. `replacedBy`
 names a plan made in place of this one, only on a `final` or `stopped` plan; no public call
-writes it yet. A step's `tx` is the JSON of its `BuiltTx`, read back as `restore` reads one;
-`given` is the step as it was given, links kept, which `rest` returns (a step given built has
+writes it yet. A step's `tx` is the JSON of its `BuiltTx` without what its bytes and its recorded
+UTxOs give again: `prototype` is read from the bytes when they give it as it was built (only the
+members they give otherwise are written, such as Plutus data given as a value), and a part, selected
+input, change output or redeemer's part that repeats an entry of the same transaction is written as
+that entry's place. The reader reads the bytes again, compares the hash, finds the recorded inputs
+to be those of the body, in its order, and verifies every witness; it also reads a step's `tx`
+written whole, as `toJSON()` of a `BuiltTx` writes it, which `restore` takes and a step's `tx` no
+longer is. A consolidation step of 444 inputs is about 360 KB written whole and 165 KB so. `given`
+is the step as it was given, links kept, which `rest` returns (a step given built has
 `kind: "prebuilt"`, no `given`, and its witnesses in the set-tag form they came in); `seen` stays
 when a rollback takes a step out of its block, and a step built on transactions of `after` names
 them in `after`. This release writes version 2 and reads no other.

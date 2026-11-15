@@ -2245,14 +2245,7 @@ export class TxBuilder {
     let outputs: Utxo[];
     let collateralReturn: Utxo | undefined;
     try {
-      // The outputs as the body holds them: an inline datum and a reference script keep their
-      // bytes
-      const decoded = decodedBody.outputs();
-      outputs = decoded.map((output, i) => outputAsUtxo(txHash, i, output));
-      const returned = decodedBody.collateralReturn();
-      collateralReturn =
-        returned && outputAsUtxo(txHash, decoded.length, returned);
-      prototype = prototypeOf(raw, outputs, collateralReturn);
+      ({ prototype, outputs, collateralReturn } = readTxValue(raw));
     } catch (error) {
       throw refusedTx(
         txCbor,
@@ -3697,6 +3690,30 @@ const prototypeOf = (
   if (prototype.body.collateral_return && collateralReturn)
     prototype.body.collateral_return.address = collateralReturn.address;
   return prototype;
+};
+
+/**
+ * The outputs of a decoded transaction, its collateral return and the transaction as a value,
+ * as `fromCbor` shows them: an inline datum and a reference script keep their bytes. A plan's
+ * record works out a step's prototype again from its bytes with it
+ */
+export const readTxValue = (
+  raw: RawTx,
+): {
+  prototype: TransactionPrototype;
+  outputs: Utxo[];
+  collateralReturn: Utxo | undefined;
+} => {
+  const decoded = raw.body.outputs();
+  const outputs = decoded.map((output, i) => outputAsUtxo(raw.txId, i, output));
+  const returned = raw.body.collateralReturn();
+  const collateralReturn =
+    returned && outputAsUtxo(raw.txId, decoded.length, returned);
+  return {
+    prototype: prototypeOf(raw, outputs, collateralReturn),
+    outputs,
+    collateralReturn,
+  };
 };
 
 /** A signer given in place of the options of `fromCbor` */
