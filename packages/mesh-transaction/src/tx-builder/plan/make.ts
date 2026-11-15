@@ -1573,7 +1573,6 @@ const consolidate = async (
       parts: context.parts,
       ...(context.change !== undefined && { standOn: context.change }),
       after: context.after,
-      ...(validity !== undefined && { validity }),
       options: {
         ...(context.canSelect !== undefined && {
           canSelect: context.canSelect,

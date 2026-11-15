@@ -12,7 +12,6 @@ import type {
   PayerSnapshot,
   TxPart,
   Utxo,
-  ValidityPart,
 } from "../../../src/tx-builder";
 import type { Value } from "../../../src/tx-builder/value";
 import {
@@ -148,9 +147,6 @@ const consolidated = async (
   } = {},
 ): Promise<Loop> => {
   const { canSelect, maxSteps = 6, collateralReturn } = options;
-  const deadline = parts.find(
-    (part): part is ValidityPart => part.kind === "validity",
-  );
   const steps: BuiltTxData[] = [];
   let standOn = options.standOn;
   let first: unknown;
@@ -177,7 +173,6 @@ const consolidated = async (
         parts: served,
         ...(standOn && { standOn }),
         after: steps,
-        ...(deadline && { validity: deadline }),
         ...(canSelect && { options: { canSelect } }),
       });
       steps.push(step);
@@ -811,6 +806,86 @@ describe("which failed builds consolidation serves", () => {
     });
     expect(isConsolidable(made)).toBe(false);
     expect(isConsolidable(undefined)).toBe(false);
+  });
+
+  /** A UTxO of the wallet holding one token and the least lovelace an output of it takes */
+  const atMinimum = (unit: string): Utxo => {
+    const value = { lovelace: 0n, [unit]: 1n };
+    const lovelace = outputMinCoin(
+      { address: wallet, amount: toValuePrototype(valueOf(value)) },
+      params.coinsPerUtxoSize,
+    );
+    return { ...utxo(0n), value: { ...value, lovelace } };
+  };
+
+  it("selects nothing: a step whose inputs cannot pay for its outputs and fee fails", async () => {
+    const small = new TxBuilder({
+      network: "preprod",
+      params: { ...params, maxTxSize: 4096 },
+    });
+    const tokens = Array.from({ length: 150 }, (_, i) =>
+      atMinimum(`${"c7".repeat(28)}${i.toString(16).padStart(4, "0")}`),
+    );
+    const large = utxo(50n * ADA);
+    // A transaction before it whose change, at the change address, selection could take
+    const prior = await small.build(
+      [spend.pubKey({ utxo: large }), pay({ lovelace: ADA })],
+      { payer: { changeAddress: wallet, utxos: [] } },
+    );
+    expect(prior.change).toHaveLength(1);
+    const payer = { changeAddress: wallet, utxos: [large, ...tokens] };
+    const parts = [pay({ lovelace: 200n * ADA })];
+    const error = await caught(small.build(parts, { payer, after: [prior] }));
+    expect(isConsolidable(error)).toBe(true);
+    // Two UTxOs of one token each at their minimum: parking both tokens and the change take
+    // more lovelace than the two hold
+    const tokenKeys = new Set(tokens.map(keyOf));
+    const two = oversizedRoundOf(error)!
+      .selected.filter((each) => tokenKeys.has(keyOf(each)))
+      .slice(0, 2);
+    expect(two).toHaveLength(2);
+    const allowed = new Set(two.map(keyOf));
+    const failed = await caught(
+      buildConsolidation({
+        builder: small,
+        payer: { snapshot: payer },
+        error,
+        parts,
+        after: [prior],
+        options: { canSelect: (each) => allowed.has(keyOf(each)) },
+      }),
+    );
+    expect(TxBuildError.is(failed, "INSUFFICIENT_FUNDS")).toBe(true);
+  });
+
+  it("parks no token too large for an output on its own: VALUE_TOO_LARGE", async () => {
+    // A name of 32 bytes and the largest quantity: 85 bytes in a value with the largest coin
+    const unit = (i: number) =>
+      `${"b8".repeat(28)}${i.toString(16).padStart(64, "0")}`;
+    const heavy = Array.from({ length: 600 }, (_, i) => ({
+      ...utxo(0n),
+      value: { lovelace: 2n * ADA, [unit(i)]: 2n ** 64n - 1n },
+    }));
+    const payer = { changeAddress: wallet, utxos: heavy };
+    const parts = [pay({ lovelace: 600n * ADA })];
+    const error = await caught(builder.build(parts, { payer }));
+    expect(isConsolidable(error)).toBe(true);
+    // A builder whose outputs cannot hold one such token
+    const narrow = new TxBuilder({
+      network: "preprod",
+      params: { ...params, maxValSize: 84 },
+    });
+    const failed = await caught(
+      buildConsolidation({
+        builder: narrow,
+        payer: { snapshot: payer },
+        error,
+        parts,
+        after: [],
+      }),
+    );
+    expect(TxBuildError.is(failed, "VALUE_TOO_LARGE")).toBe(true);
+    expect(failed.details).toEqual({ size: 85, maxValSize: 84 });
   });
 
   it("throws back an error it does not serve, building nothing", async () => {

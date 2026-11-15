@@ -4,15 +4,14 @@ import { Address } from "@meshsdk/core-cst";
 import type { BuildOptions, BuiltTxData, TxBuilder } from "../builder";
 import type { OutputPart, TxPart, Utxo, ValidityPart } from "../parts/types";
 import type { PayerRead, PayerSource } from "../payer";
-import { isKeyLocked, oversizedRoundOf } from "../balance";
+import { bundleTokens, isKeyLocked, oversizedRoundOf } from "../balance";
 import { foldTransactions, spentByTransactions } from "../chain";
 import { TxBuildError } from "../errors";
-import { outputSize, valueSize } from "../fee";
+import { outputSize } from "../fee";
 import { spend } from "../parts/inputs";
 import { output } from "../parts/output";
 import { validity } from "../parts/scalars";
 import { plainUtxo } from "../parts/utxo";
-import { toMultiAsset } from "../value";
 
 // One consolidation step for a step whose build failed by its selection: a transaction that
 // spends the UTxOs of the payer that build selected, as many as fit, and the change of the step
@@ -35,14 +34,15 @@ export type ConsolidationInput = {
   readonly payer: PayerRead;
   /** The error of the served step's build: TX_TOO_LARGE by its selection */
   readonly error: unknown;
-  /** The parts the served step was built from, with the change it stands on and its validity */
+  /**
+   * The parts the served step was built from, with the change it stands on and its validity:
+   * the consolidation step ends when the served step does
+   */
   readonly parts: readonly TxPart[];
   /** The change of the step before it of the same payer, which this step spends */
   readonly standOn?: Utxo;
   /** The transactions built before and not on chain: the earlier steps of the plan among them */
   readonly after: readonly BuiltTxData[];
-  /** The served step's validity part: the consolidation step ends when it does */
-  readonly validity?: ValidityPart;
   readonly options?: ConsolidationOptions;
 };
 
@@ -59,9 +59,6 @@ type BuilderInternals = {
 const internals = (builder: TxBuilder) =>
   builder as unknown as BuilderInternals;
 
-/** Most times a step that fit is built again with more inputs */
-const MAX_GROWTHS = 3;
-
 /** The largest lovelace quantity, to size outputs whatever lovelace they end up holding */
 const MAX_COIN = (2n ** 64n - 1n).toString();
 
@@ -76,15 +73,6 @@ const BASE_BYTES = 200;
 
 /** Bytes a policy id takes in a value: the 28 bytes and their header, and its map's header */
 const POLICY_BYTES = 33;
-
-/** Bytes of a value's lovelace, at most, and the headers of the value and its map of policies */
-const VALUE_BYTES = 15;
-
-/** How near `maxValSize` an estimate of a bundle's size gets before the bundle is measured */
-const VALUE_SLACK = 64;
-
-/** Bytes left free when a step grows after a build that fit, for the lovelace that moves */
-const GROWTH_MARGIN = 64;
 
 /** An out ref as `txHash#index`, its hash in lower case */
 const keyOf = (ref: {
@@ -193,38 +181,7 @@ const parkedOutputs = (
     for (const [unit, quantity] of Object.entries(utxo.value))
       if (unit !== "lovelace" && quantity > 0n && !needed.has(unit))
         tokens.set(unit, (tokens.get(unit) ?? 0n) + quantity);
-  const fits = (bundle: Map<string, bigint>) =>
-    valueSize({ coin: MAX_COIN, multiasset: toMultiAsset(bundle) }) <=
-    params.maxValSize;
-  // A bundle is serialized to be measured only near the limit: below it, an estimate that is
-  // never less than its size says it fits
-  const bytesOf = (unit: string, policyIsNew: boolean) =>
-    bytesBytes((unit.length - 56) / 2) +
-    uintBytes(tokens.get(unit)!) +
-    (policyIsNew ? POLICY_BYTES : 0);
-  const bundles: Map<string, bigint>[] = [];
-  let current = new Map<string, bigint>();
-  let estimate = VALUE_BYTES;
-  let policy = "";
-  for (const unit of Array.from(tokens.keys()).sort()) {
-    const policyIsNew = unit.slice(0, 56) !== policy;
-    const bytes = bytesOf(unit, policyIsNew);
-    if (
-      current.size > 0 &&
-      estimate + bytes > params.maxValSize - VALUE_SLACK &&
-      !fits(new Map(current).set(unit, tokens.get(unit)!))
-    ) {
-      bundles.push(current);
-      current = new Map([[unit, tokens.get(unit)!]]);
-      estimate = VALUE_BYTES + bytesOf(unit, true);
-    } else {
-      current.set(unit, tokens.get(unit)!);
-      estimate += bytes;
-    }
-    policy = unit.slice(0, 56);
-  }
-  if (current.size > 0) bundles.push(current);
-  return bundles.map((bundle) =>
+  return bundleTokens(tokens, params.maxValSize).map((bundle) =>
     output({ address: changeAddress, value: Object.fromEntries(bundle) }),
   );
 };
@@ -300,28 +257,24 @@ const sizeModel = (
   return (count) => sizes[Math.min(count, sizes.length - 1)]!;
 };
 
-/** The size a builder judges a built transaction by: its bytes with a witness per signer */
-const judgedSize = (built: BuiltTxData) =>
-  built.tx.length / 2 +
-  built.signers.keyHashes.length * VKEY_WITNESS_BYTES +
-  built.signers.byronAddresses.length * BOOTSTRAP_WITNESS_BYTES +
-  3;
-
 /**
  * One consolidation step for a step whose build failed by its selection: a transaction that
  * spends UTxOs of the payer that build selected, in the order selection took them, and the
  * change of the step before it when one is given, and gives all of it back to the payer's change
  * address: tokens the served step does not need in outputs of their own, the rest as change. It
  * spends as many of those UTxOs as fit a transaction: the count is estimated, and a build that
- * does not fit is made again with fewer, each time strictly fewer, until one fits. It never
- * spends a UTxO the served step's parts name, one `canSelect` refuses (or throws for), one a
- * transaction of `after` spends, one that is not the payer's or not locked by a key, nor one
- * the served step's failed build put up as collateral. The build selects nothing: the fee comes from the
- * step's own inputs, and it ends when the served step ends. Nothing is signed or sent.
+ * does not fit is made again with fewer, each time strictly fewer, until one fits; the first that
+ * fits is the step. It never spends a UTxO the served step's parts name, one `canSelect` refuses
+ * (or throws for), one a transaction of `after` spends, one that is not the payer's or not locked
+ * by a key, nor one the served step's failed build put up as collateral. The build selects
+ * nothing, not even the change of `after`: the fee comes from the step's own inputs, and the step
+ * ends when the served step ends, as its validity part in `parts` says. Nothing is signed or sent.
  * @throws the served step's error when it is not consolidable, or when no UTxO it selected may
  *   be spent by a consolidation step, or one may and the step would change nothing
- * @throws TxBuildError TX_TOO_LARGE (`cause: "parts"`) when one input alone does not fit; every
- *   other error of the step's build
+ * @throws TxBuildError TX_TOO_LARGE (`cause: "parts"`) when one input alone does not fit;
+ *   VALUE_TOO_LARGE for a token it would park that does not fit an output on its own; every
+ *   other error of the step's build, INSUFFICIENT_FUNDS when its inputs cannot pay for its
+ *   outputs and fee among them
  */
 export const buildConsolidation = async (
   input: ConsolidationInput,
@@ -391,7 +344,9 @@ export const buildConsolidation = async (
   )
     throw error;
 
-  const end = endOf(input.validity);
+  const end = endOf(
+    parts.find((part): part is ValidityPart => part.kind === "validity"),
+  );
   const source: PayerSource = {
     form: "snapshot",
     // Nothing to select from: the step spends what its parts name
@@ -409,6 +364,8 @@ export const buildConsolidation = async (
       ],
       {
         after,
+        // Nor from the change of `after`: the fee comes from the step's own inputs
+        canSelect: () => false,
         ...(options.knownUtxos !== undefined && {
           knownUtxos: options.knownUtxos,
         }),
@@ -419,48 +376,30 @@ export const buildConsolidation = async (
   };
 
   const model = sizeModel(candidates, needed, standOn, changeAddress, params);
-  /** The most candidates whose estimate, corrected by what a build showed, is within `limit` */
-  const countWithin = (limit: number, correction: number) => {
+  /** The most candidates whose estimate, corrected by what a build showed, fits */
+  const countWithin = (correction: number) => {
     let count = 0;
-    while (count < candidates.length && model(count + 1) + correction <= limit)
+    while (
+      count < candidates.length &&
+      model(count + 1) + correction <= params.maxTxSize
+    )
       count++;
     return count;
   };
 
-  // The largest count known to fit is `low` (none yet at 0), and no count above `high` fits.
-  // Every build moves one of them, so the counts tried close in: a count that does not fit is
-  // followed by a strictly smaller one, and the step grows only a few times
-  let low = 0;
-  let high = candidates.length;
-  let best: BuiltTxData | undefined;
-  let growths = 0;
-  let count = Math.max(1, countWithin(params.maxTxSize, 0));
+  // The first count that fits makes the step. A count that does not fit is followed by a
+  // strictly smaller one, so the tries end, at one input at the latest
+  let count = Math.max(1, countWithin(0));
   for (;;) {
-    let built: BuiltTxData;
     try {
-      built = await build(count);
+      return await build(count);
     } catch (failed) {
       if (!TxBuildError.is(failed, "TX_TOO_LARGE")) throw failed;
-      // One input that does not fit is the step's own error, of its parts
+      // One input that does not fit is the step's own error, which the caller tells as the
+      // served step's
       if (count === 1) throw failed;
-      high = count - 1;
-      if (high <= low) break;
       const correction = failed.details.size - model(count);
-      count = Math.min(
-        high,
-        Math.max(low + 1, countWithin(params.maxTxSize, correction)),
-      );
-      continue;
+      count = Math.min(count - 1, Math.max(1, countWithin(correction)));
     }
-    best = built;
-    low = count;
-    if (low >= high || growths >= MAX_GROWTHS) break;
-    // It fits with room to spare: as many more as the room takes
-    const correction = judgedSize(built) - model(count);
-    const more = countWithin(params.maxTxSize - GROWTH_MARGIN, correction);
-    if (more <= count) break;
-    growths++;
-    count = Math.min(high, more);
   }
-  return best!;
 };
