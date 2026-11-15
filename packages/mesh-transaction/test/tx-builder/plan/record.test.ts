@@ -199,6 +199,145 @@ describe("the record of a plan", () => {
     expect(encodePlan(throughText(replaced))).toEqual(replaced);
   });
 
+  it("writes before and reads it back", () => {
+    const before = {
+      final: ["a", "pay"],
+      open: [
+        {
+          step: "b",
+          txHash: hash(0xe1),
+          spends: [`${hash(0xe0)}#1`, `${hash(0xe3)}#0`],
+          until: UNTIL,
+        },
+        { step: "c", txHash: hash(0xe2), spends: [`${hash(0xe1)}#1`] },
+      ],
+    };
+    const made = accept(
+      emptyPlan({
+        id: "order-7:2",
+        network: "preprod",
+        deadlines: { ttlMs: 600_000, expiryMarginMs: 0, confirmations: 2 },
+        options: {},
+        replaces: "order-7",
+        before,
+      }),
+      { type: "steps", steps: fixture.steps },
+    );
+    const json = encodePlan(made);
+    expect(Object.keys(json)).toEqual([
+      "kind",
+      "version",
+      "id",
+      "rev",
+      "status",
+      "replaces",
+      "before",
+      "network",
+      "deadlines",
+      "steps",
+      "options",
+    ]);
+    expect(json.before).toEqual(before);
+    expect(Object.keys(json.before!.open[0]!)).toEqual([
+      "step",
+      "txHash",
+      "spends",
+      "until",
+    ]);
+    const read = throughText(json);
+    expect(read.before).toEqual(before);
+    expect(encodePlan(read)).toEqual(json);
+    // An entry found in a block, with the mark
+    const seen = accept(made, {
+      type: "observation",
+      sightings: [{ txHash: hash(0xe2), found: true, slot: 77, block: "b9" }],
+    });
+    const seenJson = encodePlan(seen);
+    expect(seenJson.stopped).toBe(true);
+    expect(seenJson.before!.open[1]).toEqual({
+      ...before.open[1],
+      seen: { slot: 77, block: "b9" },
+    });
+    expect(encodePlan(throughText(seenJson))).toEqual(seenJson);
+    // A plan made in place of one without an id keeps before alone
+    const loose = JSON.parse(JSON.stringify(json));
+    delete loose.replaces;
+    expect(throughText(loose).before).toEqual(before);
+
+    const refused = (
+      from: TxPlanJSON,
+      change: (j: Record<string, any>) => void,
+    ) => {
+      const copy = JSON.parse(JSON.stringify(from));
+      change(copy);
+      const error = (() => {
+        try {
+          readPlan(copy);
+        } catch (thrown) {
+          return thrown;
+        }
+        throw new Error("the record was read");
+      })();
+      expect(TxPlanError.is(error, "INVALID_STATE")).toBe(true);
+      expect((error as TxPlanError<"INVALID_STATE">).details.reason).toBe(
+        "recordVersion",
+      );
+      return (error as Error).message;
+    };
+    expect(refused(json, (j) => delete j.before.final)).toMatch(
+      /before\.final is missing/,
+    );
+    expect(refused(json, (j) => delete j.before.open)).toMatch(
+      /before\.open is missing/,
+    );
+    expect(refused(json, (j) => (j.before.extra = []))).toMatch(/extra/);
+    expect(refused(json, (j) => (j.before.final = ["a", "a"]))).toMatch(
+      /before\.final\[1\]/,
+    );
+    expect(refused(json, (j) => (j.before.final = [""]))).toMatch(/empty/);
+    expect(refused(json, (j) => (j.before.open[0].step = ""))).toMatch(/empty/);
+    expect(
+      refused(json, (j) => (j.before.open[1].txHash = j.before.open[0].txHash)),
+    ).toMatch(/before\.open\[1\]\.txHash: the transaction .* is there before/);
+    expect(
+      refused(json, (j) => (j.before.open[0].txHash = j.steps[2].txHash)),
+    ).toMatch(/is a step of the plan/);
+    expect(refused(json, (j) => (j.before.open[0].txHash = ""))).toMatch(
+      /txHash/,
+    );
+    expect(
+      refused(
+        json,
+        (j) => (j.before.open[0].txHash = hash(0xe1).toUpperCase()),
+      ),
+    ).toMatch(/lower case/);
+    expect(refused(json, (j) => (j.before.open[0].spends = []))).toMatch(
+      /spends is empty/,
+    );
+    expect(
+      refused(json, (j) => (j.before.open[0].spends = [hash(0xe0)])),
+    ).toMatch(/not an out ref/);
+    expect(
+      refused(json, (j) => j.before.open[0].spends.push(`${hash(0xe0)}#1`)),
+    ).toMatch(/is there before/);
+    expect(refused(json, (j) => (j.before.open[0].until = "soon"))).toMatch(
+      /until/,
+    );
+    expect(refused(json, (j) => (j.before.open[0].note = 1))).toMatch(/note/);
+    expect(refused(json, (j) => (j.before.open[0].seen = { slot: 1 }))).toMatch(
+      /stopped is missing on a plan that found a transaction/,
+    );
+    expect(
+      refused(seenJson, (j) => {
+        delete j.stopped;
+        j.status = "pending";
+      }),
+    ).toMatch(/stopped is missing on a plan that found a transaction/);
+    expect(refused(json, (j) => delete j.before)).toMatch(
+      /before is missing on a plan made in place of another/,
+    );
+  });
+
   it("writes the mark of an added step and reads it back", () => {
     const added = accept(firstRecord(), {
       type: "steps",

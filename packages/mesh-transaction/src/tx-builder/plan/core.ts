@@ -89,6 +89,34 @@ export type StepRecord = {
 };
 
 /**
+ * A transaction of the plans a plan was made in place of that was not final then, as the plan
+ * keeps it: one it must not land beside
+ */
+export type BeforeEntry = {
+  /** The name of its step in the plan it belongs to */
+  readonly step: string;
+  /** The hash of its body, in lower case */
+  readonly txHash: string;
+  /** The out refs it spends, `txHash#index` with the hash in lower case, in body order */
+  readonly spends: readonly string[];
+  /**
+   * The end of its validity, POSIX ms; absent when it has none, or was found in a block before
+   * this plan was made: time never settles it then
+   */
+  readonly until?: number;
+  /** The block a look of this plan found it in; set once, with the mark */
+  readonly seen?: { readonly slot: number; readonly block?: string };
+};
+
+/** What a plan made in place of another keeps of the plans before it */
+export type PlanBefore = {
+  /** The names of their steps that were final */
+  readonly final: readonly string[];
+  /** Their transactions that were not final, which this plan must not land beside */
+  readonly open: readonly BeforeEntry[];
+};
+
+/**
  * A plan as the state machine reads and writes it, in memory: transactions as
  * `BuiltTxData`, with their `bigint`s. `encodePlan` gives its JSON. Nothing in it assumes
  * that the set of steps is fixed when the plan is made: steps are only ever appended.
@@ -111,6 +139,11 @@ export type PlanRecord = {
   readonly replaces?: string;
   /** The id of the plan made in place of this one */
   readonly replacedBy?: string;
+  /**
+   * Of a plan made in place of another: what it keeps of the plans before it. Only the `seen`
+   * of an entry ever changes, set once by a look that finds it in a block
+   */
+  readonly before?: PlanBefore;
   readonly network: string | NetworkConfig;
   readonly deadlines: {
     readonly ttlMs: number;
@@ -223,7 +256,9 @@ export type PlanEvent =
    * What one look at the chain showed. What is absent is unknown. A step found in a block is
    * included, then final by depth, whatever it was called before; a final step never changes. A
    * step is orphaned exactly while a step it stands on will not land; once none does, it is
-   * what its own record and this look make of it
+   * what its own record and this look make of it. An entry of `before.open` without `seen` that
+   * the look finds in a block, with a slot and with scripts that did not fail, gets `seen`, and
+   * the plan the mark, in the same record
    */
   | {
       readonly type: "observation";
@@ -232,8 +267,8 @@ export type PlanEvent =
     }
   /**
    * The decision that the plan signs and sends nothing more; `replacedBy` names the plan made in
-   * its place. Only a final or stopped plan takes `replacedBy`, once, with the mark, and nothing
-   * else
+   * its place. Any plan but a final one takes `replacedBy`, once, with the mark; the same name
+   * again changes nothing, and another is refused
    */
   | { readonly type: "stop"; readonly replacedBy?: string };
 
@@ -289,7 +324,9 @@ const refuse = (reason: PlanRefusal, message: string): PlanAdvanced => ({
 });
 
 /** The end of a step's validity, POSIX ms; undefined when its transaction has none */
-export const stepUntil = (step: Pick<StepRecord, "built">) => {
+export const stepUntil = (step: {
+  readonly built: Pick<BuiltTxData, "validity">;
+}) => {
   const until = step.built.validity?.until;
   return typeof until === "number" && Number.isFinite(until)
     ? until
@@ -395,7 +432,7 @@ export const planUntil = (
 /** An empty plan with these members: the record the first `steps` event is applied to */
 export const emptyPlan = (
   init: Pick<PlanRecord, "id" | "network" | "deadlines" | "options"> &
-    Partial<Pick<PlanRecord, "replaces">>,
+    Partial<Pick<PlanRecord, "replaces" | "before">>,
 ): PlanRecord => ({
   kind: "TxPlan",
   version: PLAN_RECORD_VERSION,
@@ -403,6 +440,7 @@ export const emptyPlan = (
   rev: 0,
   status: "pending",
   ...(init.replaces !== undefined && { replaces: init.replaces }),
+  ...(init.before !== undefined && { before: init.before }),
   network: init.network,
   deadlines: init.deadlines,
   steps: [],
@@ -415,7 +453,9 @@ export const emptyPlan = (
  */
 const next = (
   json: PlanRecord,
-  changes: Partial<Pick<PlanRecord, "steps" | "stopped" | "replacedBy">>,
+  changes: Partial<
+    Pick<PlanRecord, "steps" | "stopped" | "replacedBy" | "before">
+  >,
 ): PlanRecord => {
   const record = { ...json, ...changes };
   const status = planStatus(record);
@@ -814,7 +854,7 @@ const answer = (json: PlanRecord, event: EventOf<"answer">): PlanAdvanced => {
 };
 
 /** The depth of a found block under the tip, when both heights are sound; else undefined */
-const depthOf = (
+export const depthOf = (
   tip: PlanTip | undefined,
   sighting: Extract<TxSighting, { found: true }>,
 ): number | undefined => {
@@ -836,26 +876,42 @@ const depthOf = (
   return depth;
 };
 
+/** Whether a find is as deep under the tip as `final` asks: the plan's confirmations */
+export const atFinalDepth = (
+  json: Pick<PlanRecord, "deadlines">,
+  tip: PlanTip | undefined,
+  sighting: Extract<TxSighting, { found: true }>,
+): boolean => {
+  const depth = depthOf(tip, sighting);
+  return depth !== undefined && depth >= json.deadlines.confirmations;
+};
+
 const seenOf = (sighting: Extract<TxSighting, { found: true }>) => ({
   slot: sighting.slot,
   ...(sighting.block !== undefined && { block: sighting.block }),
 });
 
 /**
- * Whether the tip and the local clock have both passed the end of a step's validity and the
- * margin, and the tip is not ahead of the clock by more than the tolerance
+ * Whether the tip and the local clock it was read by have both passed `until` and the margin,
+ * and the tip is not ahead of the clock by more than the tolerance; never without an end
  */
+export const pastMarginAt = (
+  until: number | undefined,
+  marginMs: number,
+  tip: PlanTip | undefined,
+): boolean => {
+  if (tip === undefined || until === undefined || tip.clockMs === undefined)
+    return false;
+  const limit = until + marginMs;
+  return tip.timeMs >= limit && tip.clockMs >= limit && !tipAheadOfClock(tip);
+};
+
+/** Whether the tip and the local clock have both passed a step's end of validity and the margin */
 const pastMarginOf = (
   json: PlanRecord,
   step: StepRecord,
   tip: PlanTip | undefined,
-): boolean => {
-  const until = stepUntil(step);
-  if (tip === undefined || until === undefined || tip.clockMs === undefined)
-    return false;
-  const limit = until + json.deadlines.expiryMarginMs;
-  return tip.timeMs >= limit && tip.clockMs >= limit && !tipAheadOfClock(tip);
-};
+): boolean => pastMarginAt(stepUntil(step), json.deadlines.expiryMarginMs, tip);
 
 /** What the step's own sighting and the tip make of it */
 const byOwnFacts = (
@@ -881,8 +937,7 @@ const byOwnFacts = (
       if (step.status === "included" || isDeadStep(step)) return step;
       return { ...step, status: "failed", seen: seenOf(sighting) };
     }
-    const depth = depthOf(tip, sighting);
-    const final = depth !== undefined && depth >= json.deadlines.confirmations;
+    const final = atFinalDepth(json, tip, sighting);
     const updated: StepRecord = {
       ...step,
       status: final ? "final" : "included",
@@ -950,39 +1005,65 @@ const observe = (
       updated = { ...updated, status: "orphaned" };
     steps.push(updated);
   }
-  if (steps.every((step, i) => step === json.steps[i]))
-    return { ok: true, json };
-  return { ok: true, json: next(json, { steps }) };
+  const same = steps.every((step, i) => step === json.steps[i]);
+  const before = entriesFound(json, found);
+  if (same && before === undefined) return { ok: true, json };
+  return {
+    ok: true,
+    json: next(json, {
+      ...(!same && { steps }),
+      ...(before !== undefined && { before, stopped: true as const }),
+    }),
+  };
+};
+
+/**
+ * The plans before this one with `seen` set on each entry without it that this look found in a
+ * block: a find with a slot whose scripts did not fail. Undefined when none was found, and on a
+ * final plan, which never changes. Nothing else of them ever changes
+ */
+const entriesFound = (
+  json: PlanRecord,
+  found: ReadonlyMap<string, TxSighting>,
+): PlanBefore | undefined => {
+  const { before } = json;
+  if (before === undefined || json.status === "final") return undefined;
+  let changed = false;
+  const open = before.open.map((entry) => {
+    if (entry.seen !== undefined) return entry;
+    const sighting = found.get(entry.txHash.toLowerCase());
+    if (
+      sighting?.found !== true ||
+      sighting.valid === false ||
+      typeof sighting.slot !== "number" ||
+      !Number.isFinite(sighting.slot)
+    )
+      return entry;
+    changed = true;
+    return { ...entry, seen: seenOf(sighting) };
+  });
+  return changed ? { ...before, open } : undefined;
 };
 
 const stop = (json: PlanRecord, event: EventOf<"stop">): PlanAdvanced => {
   const { replacedBy } = event;
-  if (
-    json.replacedBy !== undefined &&
-    replacedBy !== undefined &&
-    replacedBy !== json.replacedBy
-  )
-    return refuse(
-      "status",
-      `the plan was replaced by ${JSON.stringify(json.replacedBy)} already, not by ${JSON.stringify(replacedBy)}`,
-    );
-  const markReplaced =
-    replacedBy !== undefined && json.replacedBy === undefined;
-  // A plan is replaced only once no step of it can land any more, or every step is final
-  if (markReplaced && !isTerminal(json))
-    return refuse(
-      "status",
-      `the plan is ${json.status}: only a final or stopped plan is replaced`,
-    );
-  // A terminal plan takes only the name of the plan made in its place, so that a line of plans
-  // never branches
-  if ((isTerminal(json) || json.stopped === true) && !markReplaced)
-    return { ok: true, json };
-  return {
-    ok: true,
-    json: next(json, {
-      stopped: true,
-      ...(markReplaced && { replacedBy }),
-    }),
-  };
+  if (replacedBy !== undefined) {
+    // One plan in place of one, so that a line of plans never branches
+    if (json.replacedBy !== undefined)
+      return replacedBy === json.replacedBy
+        ? { ok: true, json }
+        : refuse(
+            "status",
+            `the plan was replaced by ${JSON.stringify(json.replacedBy)} already, not by ${JSON.stringify(replacedBy)}`,
+          );
+    // What is final stays: nothing is made in its place
+    if (json.status === "final")
+      return refuse(
+        "terminal",
+        "the plan is final: no plan is made in place of a final one",
+      );
+    return { ok: true, json: next(json, { stopped: true, replacedBy }) };
+  }
+  if (isTerminal(json) || json.stopped === true) return { ok: true, json };
+  return { ok: true, json: next(json, { stopped: true }) };
 };

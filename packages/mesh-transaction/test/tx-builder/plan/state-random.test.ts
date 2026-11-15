@@ -15,6 +15,7 @@ import {
 import {
   deepFreeze,
   emptyPlan,
+  hash,
   realSteps,
   seeded,
   signedBy,
@@ -109,9 +110,11 @@ const randomEvent = (
       clock.timeMs += r.int(4) * 300 - 200;
       clock.height += r.int(3);
       clock.slot += 1 + r.int(5);
+      const entries = (json.before?.open ?? []).map((entry) => entry.txHash);
       const hashes = [
         ...steps.map((s) => s.txHash),
         ...steps.flatMap((s) => s.built.inputs.map((input) => input.txHash)),
+        ...entries,
       ];
       const sightings: TxSighting[] = [];
       for (const txHash of new Set(hashes)) {
@@ -125,6 +128,9 @@ const randomEvent = (
           steps.some((s) => s.txHash === txHash) &&
           r.chance(0.8);
         if (roll === 5 || missed) sightings.push({ txHash, found: false });
+        // A find a search could not place in a block
+        else if (entries.includes(txHash) && r.chance(0.2))
+          sightings.push({ txHash, found: true } as unknown as TxSighting);
         else
           sightings.push({
             txHash,
@@ -173,6 +179,27 @@ const reached = new Set<string>();
 let changes = 0;
 let returns = 0;
 let appends = 0;
+/** Plans named as replaced while not stopped, entries found, and events refused after either */
+let namedOpen = 0;
+let entriesSeen = 0;
+let refusedClosed = 0;
+let finals = 0;
+
+/** Entries of the plans before a plan made in place of another */
+const ENTRIES = [
+  {
+    step: "a",
+    txHash: hash(0xe001),
+    spends: [`${hash(0xe000)}#0`],
+    until: UNTIL,
+  },
+  { step: "b", txHash: hash(0xe002), spends: [`${hash(0xe001)}#1`] },
+];
+
+/** Whether a record takes no delivery, signature or step: replaced, or an entry found */
+const closed = (json: PlanRecord) =>
+  json.replacedBy !== undefined ||
+  (json.before?.open.some((entry) => entry.seen !== undefined) ?? false);
 
 const run = (seed: number) => {
   // The seed spread over the 32 bits, so that the first draws of small seeds differ
@@ -181,9 +208,21 @@ const run = (seed: number) => {
   // Some runs of several steps start past the end of validity, so that steps die early and may
   // come back
   const late = count > 1 && r.chance(0.4);
+  const empty = emptyPlan({
+    expiryMarginMs: r.pick([0, 500]),
+    confirmations: 2,
+  });
+  // Half the plans are made in place of another, and watch its open transactions
+  const replacing = r.chance(0.5);
   let json = deepFreeze(
     advancePlan(
-      emptyPlan({ expiryMarginMs: r.pick([0, 500]), confirmations: 2 }),
+      replacing
+        ? {
+            ...empty,
+            replaces: "plan-0",
+            before: { final: ["pay"], open: ENTRIES },
+          }
+        : empty,
       { type: "steps", steps: fixture.steps.slice(0, count) },
     ),
   );
@@ -199,11 +238,75 @@ const run = (seed: number) => {
     if (record.status === "final") break;
     const event = deepFreeze(randomEvent(r, record, clock));
     const result = advancePlan(record, event);
+    const at = `event ${i} (${event.type})`;
+    // A record that was replaced, or found an entry, takes no delivery, signature or step
+    if (
+      closed(record) &&
+      (event.type === "delivery" ||
+        event.type === "signature" ||
+        event.type === "steps")
+    ) {
+      check(
+        !result.ok || result.json === record,
+        `${at}: a plan replaced or stopped by a find of an entry took it`,
+      );
+      if (!result.ok) refusedClosed++;
+    }
     if (!result.ok) continue;
     const before = record;
     const after = result.json;
-    const at = `event ${i} (${event.type})`;
     if (after === before) continue;
+    // One name, once, never on a final plan, and only with the mark
+    if (before.replacedBy !== undefined)
+      check(
+        after.replacedBy === before.replacedBy,
+        `${at}: the name of the plan made in its place changed`,
+      );
+    else if (after.replacedBy !== undefined) {
+      check(
+        event.type === "stop" && before.status !== "final",
+        `${at}: a plan was named replaced by a ${event.type} event, or while final`,
+      );
+      if (before.status !== "stopped") namedOpen++;
+    }
+    check(
+      after.replacedBy === undefined || after.stopped === true,
+      `${at}: a plan was named replaced without the mark`,
+    );
+    // Of the plans before, only the seen of an entry changes: set once, by a find in a block
+    check(
+      after.replaces === before.replaces,
+      `${at}: the plan it was made in place of changed`,
+    );
+    check(
+      (after.before === undefined) === (before.before === undefined) &&
+        sameJson(after.before?.final, before.before?.final) &&
+        after.before?.open.length === before.before?.open.length,
+      `${at}: the plans before changed`,
+    );
+    before.before?.open.forEach((entry, k) => {
+      const now = after.before!.open[k]!;
+      const { seen: _was, ...kept } = entry;
+      const { seen, ...still } = now;
+      check(sameJson(kept, still), `${at}: entry ${k} changed`);
+      if (entry.seen !== undefined)
+        check(now === entry, `${at}: entry ${k} changed after it was seen`);
+      else if (seen !== undefined) {
+        entriesSeen++;
+        const sighting =
+          event.type === "observation"
+            ? event.sightings?.find((each) => each.txHash === entry.txHash)
+            : undefined;
+        check(
+          sighting?.found === true &&
+            typeof sighting.slot === "number" &&
+            sighting.valid !== false &&
+            seen.slot === sighting.slot &&
+            after.stopped === true,
+          `${at}: entry ${k} was seen without a find in a block, or without the mark`,
+        );
+      }
+    });
     check(
       after.rev === before.rev + 1,
       `${at}: the revision is not one higher`,
@@ -348,6 +451,12 @@ const run = (seed: number) => {
     reached.add(after.status);
     for (const step of after.steps) reached.add(step.status);
   }
+  // Nothing is made in place of a final plan
+  if (record.status === "final") {
+    finals++;
+    const named = advancePlan(record, { type: "stop", replacedBy: "late" });
+    check(!named.ok, "a final plan took the name of a plan made in its place");
+  }
   return record;
 };
 
@@ -366,6 +475,10 @@ describe("a plan under random events", () => {
       expect(changes).toBeGreaterThan(SEEDS * 5);
       expect(returns).toBeGreaterThan(0);
       expect(appends).toBeGreaterThan(0);
+      expect(namedOpen).toBeGreaterThan(0);
+      expect(entriesSeen).toBeGreaterThan(0);
+      expect(refusedClosed).toBeGreaterThan(0);
+      expect(finals).toBeGreaterThan(0);
       for (const status of [
         "built",
         "signed",

@@ -330,6 +330,24 @@ export type TxPlanJSON = {
   /** The id of the plan made in its place */
   readonly replacedBy?: string;
   /**
+   * The library's, on a plan made by `replan`: what it keeps of the plans before it. `final`:
+   * the names of their steps that were final. `open`: their transactions that were not, which
+   * this plan must not land beside: the step's name, the hash, the out refs it spends
+   * (`txHash#index`), `until`: its end of validity in POSIX ms, absent when it has none or was
+   * found in a block before this plan was made, and `seen`: the block a look of this plan
+   * found it in
+   */
+  readonly before?: {
+    readonly final: readonly string[];
+    readonly open: readonly {
+      readonly step: string;
+      readonly txHash: string;
+      readonly spends: readonly string[];
+      readonly until?: number;
+      readonly seen?: { readonly slot: number; readonly block?: string };
+    }[];
+  };
+  /**
    * The network the plan's transactions are built for: the name of a public network
    * (`"mainnet"`, `"preprod"`, `"preview"`), else its full configuration
    */

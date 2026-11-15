@@ -6,6 +6,7 @@ import type {
 } from "../../../src/tx-builder/plan/core";
 import {
   advancePlan,
+  emptyPlan as emptyRecord,
   landedSteps,
   liveSteps,
   MAX_STEPS,
@@ -753,17 +754,47 @@ describe("the mark", () => {
     expect(accept(json, { type: "stop" })).toBe(json);
   });
 
-  it("names no plan made in its place while a step of it may still land", () => {
-    // Pending, with a signed step
-    expect(refusal(chain(1), { type: "stop", replacedBy: "next" })).toBe(
-      "status",
+  it("names the plan made in its place on a pending, a stopping and a stopped plan, once, and never on a final one", () => {
+    const named = (json: PlanRecord) => {
+      const replaced = accept(json, { type: "stop", replacedBy: "next" });
+      expect(replaced).toMatchObject({
+        stopped: true,
+        replacedBy: "next",
+        rev: json.rev + 1,
+      });
+      expect(replaced.steps).toBe(json.steps);
+      // Once: the same name again changes nothing, another is refused
+      expect(accept(replaced, { type: "stop", replacedBy: "next" })).toBe(
+        replaced,
+      );
+      expect(accept(replaced, { type: "stop" })).toBe(replaced);
+      expect(refusal(replaced, { type: "stop", replacedBy: "other" })).toBe(
+        "status",
+      );
+      return replaced;
+    };
+    // Pending, with a step signed and one sent: the mark stops every signature, delivery and
+    // step from here on
+    const pending = acceptAll(
+      chain(2),
+      { type: "signature", step: "a", witnesses: [witnessOf(K1)] },
+      deliver("a"),
     );
+    expect(pending.status).toBe("pending");
+    const replaced = named(pending);
+    expect(replaced.status).toBe("stopping");
+    expect(refusal(replaced, deliver("a"))).toBe("stopped");
+    expect(refusal(replaced, deliver("b"))).toBe("stopped");
+    expect(
+      refusal(replaced, { type: "signature", step: "b", witnesses: [] }),
+    ).toBe("stopped");
+    expect(
+      refusal(replaced, { type: "steps", steps: [chainStep("c", 2)] }),
+    ).toBe("stopped");
     // Marked and stopping: the sent step may land
     const marked = acceptAll(chain(1), deliver("a"), { type: "stop" });
     expect(marked.status).toBe("stopping");
-    expect(refusal(marked, { type: "stop", replacedBy: "next" })).toBe(
-      "status",
-    );
+    expect(named(marked).status).toBe("stopping");
     // Stopping by a dead step, unmarked, with a step of another chain sent
     const stopping = accept(
       accept(
@@ -780,20 +811,140 @@ describe("the mark", () => {
       look([missing(hash(0xa0)), found(SOURCE)], tipAt(PAST)),
     );
     expect(stopping.status).toBe("stopping");
-    expect(refusal(stopping, { type: "stop", replacedBy: "next" })).toBe(
-      "status",
-    );
-    // Once every step is final or dead, it takes the name
+    expect(named(stopping).status).toBe("stopping");
+    // Stopped by its steps
     const stopped = accept(
       marked,
       look([missing(txOf(marked, "a")), found(SOURCE)], tipAt(PAST)),
     );
-    expect(accept(stopped, { type: "stop", replacedBy: "next" })).toMatchObject(
-      {
-        replacedBy: "next",
-        rev: stopped.rev + 1,
-      },
+    expect(stopped.status).toBe("stopped");
+    expect(named(stopped).status).toBe("stopped");
+    // A look still changes a named plan as it changes any other
+    const back = accept(
+      named(stopped),
+      look([found(txOf(marked, "a"))], tipAt(PAST)),
     );
+    expect(back).toMatchObject({ status: "stopping", replacedBy: "next" });
+    // Final: nothing is made in its place
+    const json = chain(1, { confirmations: 0 });
+    const final = accept(
+      json,
+      look([found(txOf(json, "a"), { blockHeight: 10 })], tipAt(0, 10)),
+    );
+    expect(final.status).toBe("final");
+    expect(accept(final, { type: "stop" })).toBe(final);
+    expect(refusal(final, { type: "stop", replacedBy: "next" })).toBe(
+      "terminal",
+    );
+  });
+});
+
+describe("the transactions of the plans before", () => {
+  const entries = [
+    {
+      step: "b",
+      txHash: hash(0xe1),
+      spends: [`${hash(0xe0)}#0`],
+      until: UNTIL,
+    },
+    { step: "c", txHash: hash(0xe2), spends: [`${hash(0xe1)}#1`] },
+  ];
+  /** A plan made in place of another, with one step of its own */
+  const replacing = (deadlines: Partial<PlanRecord["deadlines"]> = {}) =>
+    accept(
+      emptyRecord({
+        id: "plan-2",
+        network: "preprod",
+        deadlines: { ...DEADLINES, ...deadlines },
+        options: {},
+        replaces: "plan-1",
+        before: { final: ["a"], open: entries },
+      }),
+      { type: "steps", steps: [chainStep("x", 0)] },
+    );
+
+  it("a look that finds an entry of before.open in a block records it with the mark", () => {
+    const json = replacing();
+    expect(json).toMatchObject({ status: "pending", replaces: "plan-1" });
+    const seen = accept(
+      json,
+      look([found(hash(0xe1), { block: "b7" }), missing(hash(0xe2))]),
+    );
+    expect(seen).toMatchObject({
+      status: "stopping",
+      stopped: true,
+      rev: json.rev + 1,
+    });
+    expect(seen.before).toEqual({
+      final: ["a"],
+      open: [{ ...entries[0], seen: { slot: 500, block: "b7" } }, entries[1]],
+    });
+    expect(seen.steps).toBe(json.steps);
+    expect(seen.halted).toBeUndefined();
+    // From here on the plan signs, sends and takes nothing
+    expect(refusal(seen, deliver("x"))).toBe("stopped");
+    expect(refusal(seen, { type: "signature", step: "x", witnesses: [] })).toBe(
+      "stopped",
+    );
+    expect(
+      refusal(seen, {
+        type: "steps",
+        steps: [{ ...chainStep("y", 1), standsOn: [] }],
+      }),
+    ).toBe("stopped");
+    // Set once: a later find of the same entry changes nothing
+    expect(accept(seen, look([found(hash(0xe1), { slot: 900 })]))).toBe(seen);
+    expect(accept(seen, look([missing(hash(0xe1))]))).toBe(seen);
+    // A find of the other entry records it too
+    const both = accept(seen, look([found(hash(0xe2))]));
+    expect(both.before!.open[1]!.seen).toEqual({ slot: 500 });
+    expect(both.before!.open[0]).toBe(seen.before!.open[0]);
+    // And with a step of its own found in the same look
+    const together = accept(
+      json,
+      look(
+        [found(hash(0xe2)), found(txOf(json, "x"), { blockHeight: 9 })],
+        tipAt(0, 10),
+      ),
+    );
+    expect(stepOf(together, "x").status).toBe("included");
+    expect(together.before!.open[1]!.seen).toEqual({ slot: 500 });
+    expect(together.stopped).toBe(true);
+  });
+
+  it("changes nothing for a find that is not one in a block", () => {
+    const json = replacing();
+    for (const sightings of [
+      [missing(hash(0xe1))],
+      // A find with no slot, or with failed scripts
+      [{ txHash: hash(0xe1), found: true }],
+      [{ txHash: hash(0xe1), found: true, slot: undefined }],
+      [found(hash(0xe1), { slot: Number.NaN })],
+      [found(hash(0xe1), { valid: false })],
+      // Not an entry: a transaction an entry spends from
+      [found(hash(0xe0))],
+    ])
+      expect(accept(json, look(sightings))).toBe(json);
+    // A find whose scripts are not known to have failed counts
+    expect(accept(json, look([found(hash(0xe1))])).stopped).toBe(true);
+    expect(
+      accept(json, look([found(hash(0xe1), { valid: true })])).stopped,
+    ).toBe(true);
+    // The hash is compared in lower case
+    expect(
+      accept(json, look([found(hash(0xe1).toUpperCase())])).before!.open[0]!
+        .seen,
+    ).toEqual({ slot: 500 });
+  });
+
+  it("changes nothing of a final plan", () => {
+    const json = replacing({ confirmations: 0 });
+    const final = accept(
+      json,
+      look([found(txOf(json, "x"), { blockHeight: 10 })], tipAt(0, 10)),
+    );
+    expect(final.status).toBe("final");
+    expect(accept(final, look([found(hash(0xe1))]))).toBe(final);
   });
 });
 
@@ -816,25 +967,6 @@ describe("the name of the plan made in place of a terminal one", () => {
     expect(accept(replaced, { type: "stop", replacedBy: "next" })).toBe(
       replaced,
     );
-    expect(refusal(replaced, { type: "stop", replacedBy: "other" })).toBe(
-      "status",
-    );
-  });
-
-  it("is recorded once on a final plan, which stays final", () => {
-    const json = chain(1, { confirmations: 0 });
-    const final = accept(
-      json,
-      look([found(txOf(json, "a"), { blockHeight: 10 })], tipAt(0, 10)),
-    );
-    expect(final.status).toBe("final");
-    expect(accept(final, { type: "stop" })).toBe(final);
-    const replaced = accept(final, { type: "stop", replacedBy: "next" });
-    expect(replaced).toMatchObject({
-      status: "final",
-      stopped: true,
-      replacedBy: "next",
-    });
     expect(refusal(replaced, { type: "stop", replacedBy: "other" })).toBe(
       "status",
     );

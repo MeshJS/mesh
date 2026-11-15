@@ -1,7 +1,13 @@
 import type { BuiltTxData } from "../builder";
 import type { LinkedPart, TxPart } from "../parts/types";
 import type { KeyWitness, KeyWitnessTags } from "../sign";
-import type { PlanRecord, StepGiven, StepRecord } from "./core";
+import type {
+  BeforeEntry,
+  PlanBefore,
+  PlanRecord,
+  StepGiven,
+  StepRecord,
+} from "./core";
 import type {
   TxPlanJSON,
   TxPlanStatus,
@@ -1303,6 +1309,24 @@ const encodeStep = (step: StepRecord): TxStepJSON => ({
   ...(step.given !== undefined && { given: encodeGiven(step.given) }),
 });
 
+const encodeBefore = (
+  before: PlanBefore,
+): NonNullable<TxPlanJSON["before"]> => ({
+  final: [...before.final],
+  open: before.open.map((entry) => ({
+    step: entry.step,
+    txHash: entry.txHash,
+    spends: [...entry.spends],
+    ...(entry.until !== undefined && { until: entry.until }),
+    ...(entry.seen !== undefined && {
+      seen: {
+        slot: entry.seen.slot,
+        ...(entry.seen.block !== undefined && { block: entry.seen.block }),
+      },
+    }),
+  })),
+});
+
 /**
  * The record a store holds, from the record the state machine works on: plain JSON data in the
  * version this library writes
@@ -1318,6 +1342,7 @@ export const encodePlan = (record: PlanRecord): TxPlanJSON => ({
   ...(record.halted === true && { halted: true as const }),
   ...(record.replaces !== undefined && { replaces: record.replaces }),
   ...(record.replacedBy !== undefined && { replacedBy: record.replacedBy }),
+  ...(record.before !== undefined && { before: encodeBefore(record.before) }),
   network: encodeValue(record.network) as TxPlanJSON["network"],
   deadlines: {
     ttlMs: record.deadlines.ttlMs,
@@ -1541,6 +1566,18 @@ const decodeGiven = (value: unknown, path: string): StepGiven => {
   };
 };
 
+/** The seen block of a step or of an entry */
+const decodeSeen = (value: unknown, at: string) => {
+  const read = object(value, at);
+  known(read, ["slot", "block"], at);
+  return {
+    slot: finite(read.slot, `${at}.slot`),
+    ...(read.block !== undefined && {
+      block: text(read.block, `${at}.block`),
+    }),
+  };
+};
+
 const STEP_MEMBERS = [
   "name",
   "kind",
@@ -1582,18 +1619,8 @@ const decodeStep = (
   const txHash = text(json.txHash, `${path}.txHash`);
   if (earlier.some((step) => step.txHash === txHash))
     unread(`${path}.txHash: the plan has the transaction ${txHash} before it`);
-  let seen: StepRecord["seen"];
-  if (json.seen !== undefined) {
-    const at = `${path}.seen`;
-    const read = object(json.seen, at);
-    known(read, ["slot", "block"], at);
-    seen = {
-      slot: finite(read.slot, `${at}.slot`),
-      ...(read.block !== undefined && {
-        block: text(read.block, `${at}.block`),
-      }),
-    };
-  }
+  const seen: StepRecord["seen"] =
+    json.seen === undefined ? undefined : decodeSeen(json.seen, `${path}.seen`);
   const standsOn =
     json.standsOn === undefined ? [] : texts(json.standsOn, `${path}.standsOn`);
   if (json.standsOn !== undefined && standsOn.length === 0)
@@ -1709,11 +1736,73 @@ const RECORD_MEMBERS = [
   "halted",
   "replaces",
   "replacedBy",
+  "before",
   "network",
   "deadlines",
   "steps",
   "options",
 ] as const;
+
+const TX_HASH = /^[0-9a-f]{64}$/;
+const OUT_REF = /^[0-9a-f]{64}#(?:0|[1-9][0-9]*)$/;
+
+/**
+ * What a plan keeps of the plans before it: both lists; names not empty, each final name once;
+ * each hash a transaction hash in lower case, none twice and none of a step of the plan; the out
+ * refs spent not empty, each `txHash#index` once
+ */
+const decodeBefore = (
+  value: unknown,
+  steps: readonly StepRecord[],
+): PlanBefore => {
+  const json = object(value, "before");
+  known(json, ["final", "open"], "before");
+  if (json.final === undefined) unread("before.final is missing");
+  if (json.open === undefined) unread("before.open is missing");
+  const final = list(json.final, "before.final").map((name, i) =>
+    nonEmpty(name, `before.final[${i}]`),
+  );
+  final.forEach((name, i) => {
+    if (final.indexOf(name) !== i)
+      unread(`before.final[${i}]: the name ${show(name)} is there before`);
+  });
+  const hashes = new Set(steps.map((step) => step.txHash.toLowerCase()));
+  const open: BeforeEntry[] = [];
+  list(json.open, "before.open").forEach((item, i) => {
+    const at = `before.open[${i}]`;
+    const entry = object(item, at);
+    known(entry, ["step", "txHash", "spends", "until", "seen"], at);
+    const step = nonEmpty(entry.step, `${at}.step`);
+    const txHash = text(entry.txHash, `${at}.txHash`);
+    if (!TX_HASH.test(txHash))
+      unread(`${at}.txHash is not a transaction hash in lower case`);
+    if (open.some((each) => each.txHash === txHash))
+      unread(`${at}.txHash: the transaction ${txHash} is there before`);
+    if (hashes.has(txHash))
+      unread(`${at}.txHash: the transaction ${txHash} is a step of the plan`);
+    const spends = texts(entry.spends, `${at}.spends`);
+    if (spends.length === 0)
+      unread(`${at}.spends is empty: a transaction spends an input at least`);
+    spends.forEach((outRef, k) => {
+      if (!OUT_REF.test(outRef))
+        unread(`${at}.spends[${k}] is not an out ref txHash#index`);
+      if (spends.indexOf(outRef) !== k)
+        unread(`${at}.spends[${k}]: the out ref ${outRef} is there before`);
+    });
+    open.push({
+      step,
+      txHash,
+      spends,
+      ...(entry.until !== undefined && {
+        until: finite(entry.until, `${at}.until`),
+      }),
+      ...(entry.seen !== undefined && {
+        seen: decodeSeen(entry.seen, `${at}.seen`),
+      }),
+    });
+  });
+  return { final, open };
+};
 
 const decodeRecord = (json: Obj, id?: string): PlanRecord => {
   known(json, RECORD_MEMBERS, "");
@@ -1751,6 +1840,19 @@ const decodeRecord = (json: Obj, id?: string): PlanRecord => {
     if (i > 0 && step.added !== true && steps[i - 1]!.added === true)
       unread(`steps[${i}].added is missing on a step after an added step`);
   });
+  const before =
+    json.before === undefined ? undefined : decodeBefore(json.before, steps);
+  // A plan made in place of another keeps what it must not land beside
+  if (replaces !== undefined && before === undefined)
+    unread("before is missing on a plan made in place of another");
+  // An entry is seen only with the mark, written in the same record
+  if (
+    before?.open.some((entry) => entry.seen !== undefined) &&
+    json.stopped !== true
+  )
+    unread(
+      "stopped is missing on a plan that found a transaction of before.open",
+    );
   const record: PlanRecord = {
     kind: "TxPlan",
     version: PLAN_RECORD_VERSION,
@@ -1761,6 +1863,7 @@ const decodeRecord = (json: Obj, id?: string): PlanRecord => {
     ...(json.halted === true && { halted: true as const }),
     ...(replaces !== undefined && { replaces }),
     ...(replacedBy !== undefined && { replacedBy }),
+    ...(before !== undefined && { before }),
     network: decodeNetwork(json.network, "network"),
     deadlines: decodeDeadlines(json.deadlines, "deadlines"),
     steps,
