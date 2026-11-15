@@ -44,6 +44,14 @@ export type ConsolidationInput = {
   readonly standOn?: Utxo;
   /** The transactions built before and not on chain: the earlier steps of the plan among them */
   readonly after: readonly BuiltTxData[];
+  /**
+   * The transactions of the plan not on chain whose reference inputs and collateral inputs the
+   * step never spends: spent by it, they would make such a transaction fail if it landed first
+   */
+  readonly readers?: readonly Pick<
+    BuiltTxData,
+    "referenceInputs" | "collateral"
+  >[];
   readonly options?: ConsolidationOptions;
 };
 
@@ -110,9 +118,9 @@ export const isConsolidable = (error: unknown): boolean =>
 
 /**
  * The out refs the parts name: those they spend, read (reference inputs and reference scripts)
- * or put up as collateral
+ * or put up as collateral, as `txHash#index` with the hash in lower case
  */
-const namedByParts = (parts: readonly TxPart[]): Set<string> => {
+export const namedByParts = (parts: readonly TxPart[]): Set<string> => {
   const named = new Set<string>();
   for (const part of parts) {
     if (
@@ -267,7 +275,8 @@ const sizeModel = (
  * does not fit is made again with fewer, each time strictly fewer, until one fits; the first that
  * fits is the step. It never spends a UTxO the served step's parts name, one `canSelect` refuses
  * (or throws for), one a transaction of `after` spends, one that is not the payer's or not locked
- * by a key, nor one the served step's failed build put up as collateral. The build selects
+ * by a key, one the served step's failed build put up as collateral, nor one a transaction of
+ * `readers` reads or puts up as collateral. The build selects
  * nothing, not even the change of `after`: the fee comes from the step's own inputs, and the step
  * ends when the served step ends, as its validity part in `parts` says. Nothing is signed or sent.
  * @throws the served step's error when it is not consolidable, or when no UTxO it selected may
@@ -281,6 +290,7 @@ export const buildConsolidation = async (
   input: ConsolidationInput,
 ): Promise<BuiltTxData> => {
   const { builder, payer, error, parts, standOn, after } = input;
+  const readers = input.readers ?? [];
   const options = input.options ?? {};
   if (!isConsolidable(error)) throw error;
   const round = oversizedRoundOf(error)!;
@@ -300,6 +310,12 @@ export const buildConsolidation = async (
   const named = namedByParts(parts);
   // Built again, the served step can put up the collateral it put up before
   const putUp = new Set(round.collateral.map(keyOf));
+  // What a transaction of the plan not on chain reads or puts up stays where it is
+  const held = new Set(
+    readers.flatMap((tx) =>
+      [...tx.referenceInputs, ...(tx.collateral?.inputs ?? [])].map(keyOf),
+    ),
+  );
   const standKey = standOn === undefined ? undefined : keyOf(standOn);
   const allowed = (utxo: Utxo) => {
     if (options.canSelect === undefined) return true;
@@ -313,6 +329,7 @@ export const buildConsolidation = async (
   const spendable = (key: string, utxo: Utxo) =>
     !named.has(key) &&
     !putUp.has(key) &&
+    !held.has(key) &&
     key !== standKey &&
     isKeyLocked(utxo) &&
     allowed(utxo);

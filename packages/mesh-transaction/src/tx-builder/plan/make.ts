@@ -44,7 +44,11 @@ import { changeAddressOf, givenPayerEntries, toPayerSource } from "../payer";
 import { readTransactionItems } from "../sign";
 import { scanTransaction } from "../tx-scan";
 import { addValues, fromMultiAsset, negate, valueOf } from "../value";
-import { buildConsolidation, isConsolidable } from "./consolidate";
+import {
+  buildConsolidation,
+  isConsolidable,
+  namedByParts,
+} from "./consolidate";
 import {
   advancePlan,
   emptyPlan,
@@ -638,15 +642,36 @@ const changeToSpend = (
   if (previous === undefined) return undefined;
   if (parts.some((part) => spendsFrom(part, previous.built.txHash)))
     return undefined;
-  const spent = new Set(
-    earlier.flatMap((step) => step.built.inputs.map((input) => utxoKey(input))),
-  );
   const putUp = new Set(
     parts.flatMap((part) =>
       part.kind === "collateral"
         ? [`${part.input.transaction_id}#${part.input.index}`]
         : [],
     ),
+  );
+  return freeChange(
+    previous,
+    changeAddress,
+    earlier,
+    (output) => putUp.has(utxoKey(output)),
+    canSelect,
+  );
+};
+
+/**
+ * The change of a step before, of the same payer, that a step may spend: its first change output
+ * at the payer's change address, key-locked, spent by no earlier step, not `kept`, and taken by
+ * `canSelect` when one is given; else why there is none
+ */
+const freeChange = (
+  previous: Pick<MadeStep, "name" | "built">,
+  changeAddress: string,
+  earlier: readonly Pick<MadeStep, "name" | "built">[],
+  kept: (output: Utxo) => boolean,
+  canSelect: ((utxo: Utxo) => boolean) | undefined,
+): Utxo | { readonly none: string } => {
+  const spent = new Set(
+    earlier.flatMap((step) => step.built.inputs.map((input) => utxoKey(input))),
   );
   const selectable = (utxo: Utxo) => {
     if (canSelect === undefined) return true;
@@ -660,7 +685,7 @@ const changeToSpend = (
     (output) => output.address === changeAddress && isKeyLocked(output),
   );
   const free = mine.filter(
-    (output) => !spent.has(utxoKey(output)) && !putUp.has(utxoKey(output)),
+    (output) => !spent.has(utxoKey(output)) && !kept(output),
   );
   const change = free.find(selectable);
   if (change !== undefined) return plainUtxo(change);
@@ -672,6 +697,29 @@ const changeToSpend = (
           ? "its change is spent by an earlier step or put up as collateral by this one"
           : "canSelect does not let its change through",
   };
+};
+
+/**
+ * The change of the step before, of the same payer, that the first consolidation step made for
+ * a step stands on when the step itself spends none of it: as `changeToSpend` finds it, out of
+ * every output the step's parts spend, read or put up; undefined when there is none
+ */
+const changeBefore = (
+  parts: readonly TxPart[],
+  previous: Pick<MadeStep, "name" | "built">,
+  changeAddress: string,
+  earlier: readonly Pick<MadeStep, "name" | "built">[],
+  canSelect: ((utxo: Utxo) => boolean) | undefined,
+): Utxo | undefined => {
+  const named = namedByParts(parts);
+  const found = freeChange(
+    previous,
+    changeAddress,
+    earlier,
+    (output) => named.has(utxoKey(output).toLowerCase()),
+    canSelect,
+  );
+  return "none" in found ? undefined : found;
 };
 
 /**
@@ -1650,7 +1698,10 @@ const warn = (
  * A step that does not fit a transaction because of the inputs its selection needs gets
  * consolidation steps before it, unless the option `consolidate` is `false` or the step has
  * `sendAllTo`: one at a time, each from what the failed build selected, then the step is built
- * again on the change of the last one, until it fits. They are named `consolidate-N`, counted
+ * again on the change of the last one, until it fits. The first stands on the change of the
+ * step before it of the payer whenever the step's parts name none of that change, and none
+ * takes a UTxO a step of the plan that is not final reads or puts up as collateral. They are
+ * named `consolidate-N`, counted
  * through the plan, and at most the option's limit of them are in the plan as a whole. The
  * outputs a consolidation step parks are out of reach of the step it serves; a later step may
  * select those that hold a token unit its parts take out beyond what they bring in, and a later
@@ -1872,12 +1923,32 @@ const buildSteps = async (
             !isConsolidable(error)
           )
             throw error;
+          // The first consolidation step made for the step stands on the step before it of its
+          // payer, by that step's change, whenever the step's parts leave that change: so it
+          // never lands before that step, however the step itself stands on it
+          const standOn =
+            change ??
+            (previous !== undefined && previous.serves !== name
+              ? changeBefore(
+                  parts,
+                  previous,
+                  changeAddress,
+                  [...all, ...later],
+                  canSelect,
+                )
+              : undefined);
+          // Nor does it take what a step of the plan not on chain reads or puts up
+          const readers = [
+            ...all.filter((each) => !each.final).map((each) => each.built),
+            ...later.map((each) => each.built),
+          ];
           const consolidation = await consolidate(error, {
             builder,
             payer,
             parts,
-            change,
+            change: standOn,
             after,
+            readers,
             canSelect,
             options,
             limit,
@@ -1945,8 +2016,11 @@ const consolidate = async (
     readonly builder: TxBuilder;
     readonly payer: PayerRead;
     readonly parts: readonly TxPart[];
+    /** The change the consolidation step stands on */
     readonly change: Utxo | undefined;
     readonly after: readonly BuiltTxData[];
+    /** The steps of the plan not on chain, whose reads and collateral it leaves alone */
+    readonly readers: readonly BuiltTxData[];
     readonly canSelect: ((utxo: Utxo) => boolean) | undefined;
     readonly options: LoopOptions;
     /** The most consolidation steps the plan allows */
@@ -1984,6 +2058,7 @@ const consolidate = async (
       parts: context.parts,
       ...(context.change !== undefined && { standOn: context.change }),
       after: context.after,
+      readers: context.readers,
       options: {
         ...(context.canSelect !== undefined && {
           canSelect: context.canSelect,
