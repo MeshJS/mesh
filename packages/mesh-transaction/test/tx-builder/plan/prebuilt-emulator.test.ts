@@ -519,7 +519,7 @@ describe("a transaction built before as a step of a plan", () => {
         {
           fund: restored,
           next: [
-            spend.pubKey({ utxo: { step: "fund", output: "deposit" } }),
+            spend.pubKey({ utxo: { step: "fund", output: 0 } }),
             payTo(carol, 9n * ADA),
           ],
         },
@@ -536,8 +536,9 @@ describe("a transaction built before as a step of a plan", () => {
         fund.inputs.map((u) => u.address),
       );
       expect(step.inputs[0]!.address).toBe(ctx.address);
-      // The marks of the object, by position, and nothing else of it
-      expect(step.outputs[0]!.label).toBe("deposit");
+      // The change marks of the object, by position, and nothing else of it: a restored
+      // object has no labels
+      expect(step.outputs[0]!.label).toBeUndefined();
       expect(step.outputs[1]!.change).toBe(true);
       // The step linked to the deposit spends the true one
       const spent = plan
@@ -1041,6 +1042,73 @@ describe("a transaction built before as a step of a plan", () => {
       expect(byPosition.step("next").inputs.map(ref)).toContain(
         ref(fund.outputs[1]!),
       );
+    },
+    LONG,
+  );
+
+  it(
+    "takes labels only from an object built here",
+    async () => {
+      const ctx = await setup();
+      const fund = await ctx.builder.build(
+        [
+          output({
+            address: ctx.address,
+            value: { lovelace: 50n * ADA },
+            label: "vault",
+          }),
+          output({ address: ctx.address, value: { lovelace: 2n * ADA } }),
+        ],
+        { payer: ctx.wallet },
+      );
+      await fund.sign();
+      // Another party's JSON of it: the label moved to the 2-ada output
+      const json = JSON.parse(JSON.stringify(fund.toJSON()));
+      delete json.built.outputs[0].label;
+      json.built.outputs[1].label = "vault";
+      const moved = await ctx.builder.restore(json);
+      const take = (fundStep: BuiltTx, output: string | number) =>
+        ctx.builder.plan(
+          {
+            fund: fundStep,
+            take: [
+              spend.pubKey({ utxo: { step: "fund", output } }),
+              payTo(carol, 50n * ADA),
+            ],
+          },
+          { payer: ctx.wallet },
+        );
+      // A restored object and one of fromCbor are read by position
+      for (const object of [
+        moved,
+        await ctx.builder.restore(fund.toJSON()),
+        await ctx.builder.fromCbor(fund.partialTx),
+      ]) {
+        const error = await caught(take(object, "vault"));
+        expect(TxBuildError.is(error, "UNKNOWN_LABEL")).toBe(true);
+        expect((error as Error).message).toMatch(
+          /name the output by its position/,
+        );
+      }
+      // The output named, never the 2-ada one; the change of fund may be selected
+      const byPosition = await take(moved, 0);
+      expect(
+        byPosition
+          .step("take")
+          .inputs.filter((u) => u.txHash === fund.txHash)
+          .map((u) => u.outputIndex)
+          .filter((i) => i < 2),
+      ).toEqual([0]);
+      // An object of build keeps its labels
+      const own = await take(fund, "vault");
+      expect(own.step("fund").outputs[0]!.label).toBe("vault");
+      expect(
+        own
+          .step("take")
+          .inputs.filter((u) => u.txHash === fund.txHash)
+          .map((u) => u.outputIndex)
+          .filter((i) => i < 2),
+      ).toEqual([0]);
     },
     LONG,
   );

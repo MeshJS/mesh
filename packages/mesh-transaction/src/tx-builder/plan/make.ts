@@ -30,7 +30,7 @@ import type {
 import { abortable } from "../abort";
 import { isKeyLocked } from "../balance";
 import { flattenParts } from "../builder";
-import { BuiltTx } from "../built-tx";
+import { BuiltTx, isBuiltHere } from "../built-tx";
 import { toKnownUtxos } from "../chain";
 import { NOT_UNPAID, TxBuildError, TxError, TxPlanError } from "../errors";
 import { checkNetworks } from "../network";
@@ -485,7 +485,7 @@ const linkedOutputs = (
       "UNKNOWN_LABEL",
       `no output of step ${JSON.stringify(link.step)} has the label ${JSON.stringify(output)}; ${
         labels.length === 0
-          ? "none of its outputs has a label"
+          ? "none of its outputs has a label (a transaction given built has labels only as an object build or finalize made in this process): name the output by its position"
           : `its labels are ${labels.map((l) => JSON.stringify(l)).join(", ")}`
       }`,
       { details: { label: output, labels } },
@@ -1468,8 +1468,11 @@ type PrebuiltRead = {
 
 /**
  * The data of a transaction read from its bytes, with the two marks an object of it gives by
- * position, and nothing else of the object: `label` where its output is labelled, `change`
- * where its output is marked change
+ * position, and nothing else of the object: `label` where its output is labelled, only of an
+ * object `build` or `finalize` made in this process (a label of a restored object is the word of
+ * whoever wrote its JSON, and decides what a link spends); `change` where its output is marked
+ * change, of any object, since selection takes only such an output at the payer's own change
+ * address
  * @throws TxBuildError INVALID_OPTION (`steps`) for an object that lists another number of
  *   outputs than its transaction has
  */
@@ -1485,10 +1488,13 @@ const withMarks = (
     throw invalidSteps(
       `step ${JSON.stringify(name)} is an object that lists ${listed.length} output(s), and its transaction has ${built.outputs.length}: give the object as it was made, or the transaction's CBOR hex`,
     );
+  const labelled = isBuiltHere(object);
   const outputs = built.outputs.map((output, i): BuiltOutput => {
     const mark = listed[i];
     const label =
-      isObject(mark) && typeof mark.label === "string" ? mark.label : undefined;
+      labelled && isObject(mark) && typeof mark.label === "string"
+        ? mark.label
+        : undefined;
     const change = isObject(mark) && mark.change === true;
     return {
       ...plainUtxo(output),

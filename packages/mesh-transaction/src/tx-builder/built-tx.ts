@@ -945,8 +945,8 @@ export const makeBuiltTx = (
   extraKeys = 0,
   restored?: RestoredState,
   payer?: Signer,
-): BuiltTx =>
-  new (
+): BuiltTx => {
+  const object = new (
     BuiltTx as unknown as new (
       builder: TxBuilder,
       built: BuiltTxData,
@@ -955,6 +955,21 @@ export const makeBuiltTx = (
       payer?: Signer,
     ) => BuiltTx
   )(builder, built, extraKeys, restored, payer);
+  if (restored === undefined) BUILT_HERE.add(object);
+  return object;
+};
+
+/**
+ * The objects `build()` and `finalize()` made in this process: their data is the build's own.
+ * Those of `fromCbor()` and `restore()` are not among them
+ */
+const BUILT_HERE = new WeakSet<BuiltTx>();
+
+/**
+ * Whether `build()` or `finalize()` of a builder made this object in this process: then the
+ * labels of its outputs are the build's, and not the word of whoever wrote a JSON
+ */
+export const isBuiltHere = (tx: BuiltTx): boolean => BUILT_HERE.has(tx);
 
 const JSON_ALLOWED = "the JSON of a BuiltTx, as its toJSON() writes it";
 

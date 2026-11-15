@@ -2359,8 +2359,9 @@ export class TxBuilder {
    *   is, read from its own bytes by `fromCbor`, with the UTxOs it names from the steps before
    *   it, `after`, `knownUtxos` or the provider; `kind: "prebuilt"`. No call of the plan asks a
    *   signer for it: it comes signed, or gets its witnesses through `plan.addWitnesses`. What it
-   *   spends no other step spends or selects. One without an end of validity never expires
-   *   (`NEVER_EXPIRES` in its `warnings`), so `until` is undefined.
+   *   spends no other step spends or selects. A link names its outputs by position, and by
+   *   label only on an object `build` or `finalize` made in this process. One without an end of
+   *   validity never expires (`NEVER_EXPIRES` in its `warnings`), so `until` is undefined.
    *
    * The plan's deadlines are its own options, else this builder's `planDefaults`, else the
    * built-in values, written into it now and never read from the builder again. On a builder with

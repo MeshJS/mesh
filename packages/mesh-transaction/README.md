@@ -551,7 +551,8 @@ consolidated, and `rest` leaves them out.
 **A transaction built before.** A step may be a transaction built before: a `BuiltTx`, or its CBOR
 hex, in `builder.plan` and in `plan.add`. It is taken as it is and read from its own bytes as
 `fromCbor` reads them; what `fromCbor` refuses is refused, with the step's name. The UTxOs it names
-come from the plan's earlier steps, `after`, `knownUtxos`, else the provider; never from the object.
+come from the plan's earlier steps, `after` (the outputs its transactions' own bytes hold, never
+those an object of it states), `knownUtxos`, else the provider; never from the object.
 A plan asks no signer for it: sign it on the `BuiltTx` after reading `missing`, `collateral` and
 `warnings`, or give its witnesses to `plan.addWitnesses`; at its turn without a key it is
 `MISSING_SIGNATURES`. It is `kind: "prebuilt"` in `plan.steps`, and its warnings are in
@@ -559,7 +560,10 @@ A plan asks no signer for it: sign it on the `BuiltTx` after reading `missing`, 
 `plan.until` is undefined and the plan is not `stopped` while that step may still land, so a
 transaction built for a plan gets a `validity({ until })`. What it spends no other step spends or
 selects; two steps that spend one output are `INVALID_OPTION` (`steps`). Its outputs are named by
-position; labels and selectable change come only with an object of `build`. A transaction that
+position. Labels come only with an object that `build` or `finalize` made in this process: an
+object of `restore` or `fromCbor`, and CBOR, are read by position, and a link by label to them is
+`UNKNOWN_LABEL`. Selectable change comes only with an object, and only an output its bytes put at
+the payer's own change address is selected. A transaction that
 spends an output of a step the plan builds is added afterwards with `plan.add`, once its maker has
 that step's hash. `rest` gives it back as a `BuiltTx`; the same transaction in another plan cannot
 pay twice, and a new one comes from its maker.
