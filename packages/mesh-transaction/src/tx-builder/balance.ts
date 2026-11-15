@@ -197,8 +197,11 @@ type Settled = {
 /** Most balancing rounds; each one selects more inputs or raises the fee */
 const MAX_ROUNDS = 50;
 
+/** The largest quantity of lovelace or of a token one output can hold */
+const MAX_QUANTITY = 2n ** 64n - 1n;
+
 /** The largest lovelace quantity, to size values whatever lovelace they end up holding */
-const MAX_COIN = (2n ** 64n - 1n).toString();
+const MAX_COIN = MAX_QUANTITY.toString();
 
 /** The bytes one more collateral input adds to a transaction at most: it and a key witness */
 export const COLLATERAL_INPUT_BYTES = 140;
@@ -555,10 +558,29 @@ const bundleBytes = (bundle: BundleBytes): number =>
   headBytes(BigInt(bundle.inPolicy));
 
 /**
+ * VALUE_TOO_LARGE for a token the inputs bring more of than one output can hold: no output can
+ * take it, however the tokens are split. Its size is that of a value holding the token alone,
+ * the quantity written as a CBOR big number
+ */
+const tooMuchOf = (unit: string, quantity: bigint, maxValSize: number) =>
+  new TxBuildError(
+    "VALUE_TOO_LARGE",
+    `token ${unit} comes to ${quantity} over the transaction's inputs, more than one output can hold (${MAX_QUANTITY}); spend fewer of the UTxOs that hold it: leave some out with canSelect, or name the inputs to spend`,
+    {
+      details: {
+        size:
+          bundleBytes(withToken(NO_BYTES, unit, 0n)) +
+          hexStringBytes(quantity.toString(16)),
+        maxValSize,
+      },
+    },
+  );
+
+/**
  * Splits tokens into bundles each fitting in an output, in unit order so that a policy's tokens
  * stay together as far as possible. A bundle fits when its value, with the most lovelace an
- * output can hold, takes at most `maxValSize` bytes; a token that does not fit on its own is
- * VALUE_TOO_LARGE.
+ * output can hold, takes at most `maxValSize` bytes; a token that does not fit on its own, or
+ * whose quantity is more than an output can hold, is VALUE_TOO_LARGE.
  *
  * In one pass: the bundle's size is estimated as tokens are added, never below its serialized
  * size, and the bundle is serialized to be measured only when the estimate is above
@@ -582,6 +604,8 @@ export const bundleTokens = (
   };
   for (const unit of Array.from(assets.keys()).sort()) {
     const quantity = assets.get(unit)!;
+    // Quantities are sums over inputs: this is where one first has to fit an output
+    if (quantity > MAX_QUANTITY) throw tooMuchOf(unit, quantity, maxValSize);
     const grown = withToken(figures, unit, quantity);
     if (
       current.size > 0 &&
