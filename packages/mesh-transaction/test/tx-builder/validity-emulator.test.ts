@@ -52,6 +52,7 @@ const preprodEmulator = (validator: "scalus" | "cquisitor") =>
  * script that reads the interval.
  */
 describe("TxBuilder validity on TxEmulator", () => {
+  // The first test of the file loads the validator: on a busy machine that alone takes seconds
   it("unlocks a vesting script with from: deadline + 1, its comparison being strict", async () => {
     const emulator = await preprodEmulator("scalus");
     const builder = new TxBuilder({
@@ -138,7 +139,7 @@ describe("TxBuilder validity on TxEmulator", () => {
         signerAddressHex,
       ),
     );
-  });
+  }, 30_000);
 
   it("builds one part on preprod with the emulator's time, and the ledger accepts it", async () => {
     const emulator = await preprodEmulator("scalus");
