@@ -1561,17 +1561,19 @@ const neededUnits = (parts: readonly TxPart[]): Set<string> => {
 /**
  * A consolidation step as a later step's build reads it in `after`: its parked outputs that
  * hold a unit the step needs marked as change, so that its selection may take them; the
- * others stay out of it. The step itself is not changed
+ * others stay out of it. Without `needed`, every parked output is marked: a sweep takes all the
+ * payer has. The step itself is not changed
  */
 const withParkedOpen = (
   built: BuiltTxData,
-  needed: ReadonlySet<string>,
+  needed?: ReadonlySet<string>,
 ): BuiltTxData => {
   const opens = (output: BuiltOutput) =>
     output.change !== true &&
-    Object.entries(output.value).some(
-      ([unit, quantity]) => needed.has(unit) && quantity > 0n,
-    );
+    (needed === undefined ||
+      Object.entries(output.value).some(
+        ([unit, quantity]) => needed.has(unit) && quantity > 0n,
+      ));
   if (!built.outputs.some(opens)) return built;
   const outputs = built.outputs.map((output) =>
     opens(output) ? { ...output, change: true as const } : output,
@@ -1651,7 +1653,8 @@ const warn = (
  * again on the change of the last one, until it fits. They are named `consolidate-N`, counted
  * through the plan, and at most the option's limit of them are in the plan as a whole. The
  * outputs a consolidation step parks are out of reach of the step it serves; a later step may
- * select those that hold a token unit its parts take out beyond what they bring in.
+ * select those that hold a token unit its parts take out beyond what they bring in, and a later
+ * step with `sendAllTo` every one of its payer.
  *
  * Every step given as a transaction built before is read first, in order (`readPrebuilt`); it
  * takes its place among the steps in the order given. A step the loop builds gets in `after`
@@ -1818,7 +1821,9 @@ const buildSteps = async (
           planId,
         );
         // Tokens an earlier consolidation step parked are within reach of a later step that
-        // needs them; never of the step it serves, nor of a step that needs none of them
+        // needs them; never of the step it serves, nor of a step that needs none of them. A
+        // sweep sends all the payer has: every parked output is within its reach
+        const sweep = own.sendAllTo !== undefined;
         const needed = neededUnits(parts);
         const after = [
           ...before,
@@ -1827,8 +1832,8 @@ const buildSteps = async (
             !each.final &&
             each.serves !== name &&
             each.changeAddress === changeAddress &&
-            needed.size > 0
-              ? withParkedOpen(each.built, needed)
+            (sweep || needed.size > 0)
+              ? withParkedOpen(each.built, sweep ? undefined : needed)
               : asAfter(each.built, each.final),
           ),
           ...later.map((each) => asAfter(each.built, true)),
