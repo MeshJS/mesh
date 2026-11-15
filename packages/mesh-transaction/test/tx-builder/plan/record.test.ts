@@ -262,6 +262,61 @@ describe("the record of a plan", () => {
     ).toMatch(/steps\[4\]\.added is missing on a step after an added step/);
   });
 
+  it("keeps the set tags of a prebuilt step's witnesses through JSON text, and writes a step the plan built as before", () => {
+    const record = firstRecord();
+    const c = record.steps.find((step) => step.name === "c")!;
+    const tagsOf = (tx: string) => readTransaction(tx).taggedSets;
+    const bodyTagged = tagsOf(c.built.tx);
+    for (const vkey of [false, true]) {
+      const tags = { vkey, bootstrap: bodyTagged };
+      const json = accept(
+        emptyPlan({
+          id: "order-8",
+          network: "preprod",
+          deadlines: { ttlMs: 600_000, expiryMarginMs: 0, confirmations: 2 },
+          options: {},
+        }),
+        {
+          type: "steps",
+          steps: [
+            {
+              name: "c",
+              kind: "prebuilt",
+              built: c.built,
+              standsOn: [],
+              witnesses: [signedBy(fixture.second, c.txHash)],
+              tags,
+            },
+          ],
+        },
+      );
+      expect(json.steps[0]).toMatchObject({ status: "signed", tags });
+      const written = encodePlan(json);
+      expect(written.steps[0]!.kind).toBe("prebuilt");
+      // The vkey entry with the set tag exactly when it came with it
+      const entry = written.steps[0]!.tx.witnesses!.slice(4);
+      expect(entry.startsWith("d90102")).toBe(vkey);
+      const read = throughText(written);
+      expect(read.steps[0]!.tags).toEqual(tags);
+      expect(read).toEqual(json);
+      expect(encodePlan(read)).toEqual(written);
+    }
+    // A step the plan built: its witnesses without the set tag, and no tags kept
+    const signed = accept(record, {
+      type: "signature",
+      step: "a",
+      witnesses: [
+        signedBy(
+          fixture.first,
+          record.steps.find((step) => step.name === "a")!.txHash,
+        ),
+      ],
+    });
+    const a = encodePlan(signed).steps[0]!;
+    expect(a.tx.witnesses!.slice(4).startsWith("d90102")).toBe(false);
+    expect(throughText(encodePlan(signed)).steps[0]!.tags).toBeUndefined();
+  });
+
   it("is read only with the id it has, when an id is asked for", () => {
     const json = encodePlan(firstRecord());
     expect(readPlan(json, "order-7").id).toBe("order-7");

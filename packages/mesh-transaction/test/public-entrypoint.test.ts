@@ -1,5 +1,6 @@
 import type {
   Assets,
+  BuiltTx,
   BuiltTxJSON,
   Linked,
   LinkedPart,
@@ -243,6 +244,18 @@ describe("public entrypoint", () => {
       refund: one,
     };
     expect(Object.keys(steps)).toEqual(["lock", "unlock", "refund"]);
+    // A step may be a transaction built before: the object, or its CBOR hex
+    const prebuilt = (tx: BuiltTx): PlanSteps => ({ tx, cbor: "84a0" });
+    const cbor: PlanStep = "84a0";
+    expect(typeof prebuilt).toBe("function");
+    expect(cbor).toBe("84a0");
+    // The kinds of a step, each of them and no other
+    const kinds: Record<NonNullable<TxStep["kind"]>, true> = {
+      consolidation: true,
+      prebuilt: true,
+    };
+    const kind: TxStepJSON["kind"] = "prebuilt";
+    expect(Object.keys(kinds)).toContain(kind);
     expect(typeof publicApi.TxPlan).toBe("function");
     for (const method of [
       "sign",

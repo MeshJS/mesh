@@ -469,13 +469,16 @@ describe("a plan", () => {
       invalidSteps(await refused(many), /at most 32/);
     });
 
-    it("a step of no known form: a built transaction, CBOR, an object without parts or with a member it does not know", async () => {
+    it("a step of no known form: the data or the JSON of a built transaction, an object without parts or with a member it does not know", async () => {
       const { builder, wallet } = await setup("scalus");
       const built = await builder.build(pay(alice, 1n * ADA), {
         payer: wallet,
       });
-      invalidSteps(await refused({ a: built as never }), /built before/);
-      invalidSteps(await refused({ a: built.tx as never }), /built before/);
+      invalidSteps(await refused({ a: { ...built } as never }), /built before/);
+      invalidSteps(
+        await refused({ a: built.toJSON() as never }),
+        /built before/,
+      );
       invalidSteps(
         await refused({ a: { payer: wallet } as never }),
         /neither parts/,

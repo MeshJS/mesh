@@ -1,6 +1,6 @@
 import type { BuiltTxData } from "../builder";
 import type { LinkedPart, TxPart } from "../parts/types";
-import type { KeyWitness } from "../sign";
+import type { KeyWitness, KeyWitnessTags } from "../sign";
 import type { PlanRecord, StepGiven, StepRecord } from "./core";
 import type {
   TxPlanJSON,
@@ -11,6 +11,7 @@ import type {
 import { NOT_UNPAID, TxBuildError, TxPlanError } from "../errors";
 import { freeze } from "../parts/normalize";
 import {
+  keyWitnessTags,
   readTransaction,
   readWitnessArgument,
   verifies,
@@ -24,6 +25,7 @@ import {
   missingKeys,
   PLAN_RECORD_VERSION,
   planStatus,
+  spentBefore,
   standsOnOf,
 } from "./core";
 
@@ -1248,8 +1250,9 @@ const OUT: ReadonlySet<TxStepStatus> = new Set([
 ]);
 
 /** Whether a delivery of the step was taken or may have been: the mark of a `BuiltTx` */
-const deliveredOf = (step: Pick<StepRecord, "status" | "sends" | "refused">) =>
-  OUT.has(step.status) || step.sends > step.refused;
+export const deliveredOf = (
+  step: Pick<StepRecord, "status" | "sends" | "refused">,
+) => OUT.has(step.status) || step.sends > step.refused;
 
 /* ---------------------------------------------------------------------------------------------
  * Writing
@@ -1286,8 +1289,10 @@ const encodeStep = (step: StepRecord): TxStepJSON => ({
     version: BUILT_TX_VERSION,
     txHash: step.txHash,
     built: encodeBuilt(step.built) as Record<string, unknown>,
+    // A prebuilt step's witnesses in the form they came in; those of a step the plan built
+    // without the set tag
     ...(step.witnesses.length > 0 && {
-      witnesses: writeWitnessSet(step.witnesses, false),
+      witnesses: writeWitnessSet(step.witnesses, step.tags ?? false),
     }),
     ...(step.extraKeyWitnesses !== undefined && {
       extraKeyWitnesses: step.extraKeyWitnesses,
@@ -1418,9 +1423,11 @@ const TX_MEMBERS = [
 
 /**
  * A step's transaction: its JSON read, its bytes read again and found unsigned, its hash
- * compared, and every witness verified against its body
+ * compared, and every witness verified against its body; with the set tag of each of the two
+ * entries of its witnesses, else as its body writes its input set
+ * @throws UnreadContent for what it does not read
  */
-const decodeTx = (
+export const decodeTx = (
   value: unknown,
   txHash: string,
   path: string,
@@ -1429,6 +1436,7 @@ const decodeTx = (
   witnesses: KeyWitness[];
   extraKeyWitnesses?: number;
   delivered: boolean;
+  tags: KeyWitnessTags;
 } => {
   const json = object(value, path);
   known(json, TX_MEMBERS, path);
@@ -1443,9 +1451,11 @@ const decodeTx = (
     unread(`${path}.built.txHash is not the step's txHash`);
   let body: string;
   let signed: boolean;
+  let taggedSets: boolean;
   try {
     const raw = readTransaction(built.tx);
     body = raw.txId;
+    taggedSets = raw.taggedSets;
     signed =
       (raw.witnessSet.vkeys?.witnesses.length ?? 0) > 0 ||
       (raw.witnessSet.bootstraps?.witnesses.length ?? 0) > 0;
@@ -1461,6 +1471,7 @@ const decodeTx = (
       `${path}.built.tx holds a vkey or bootstrap witness: the transaction is the unsigned one, and its witnesses go in witnesses`,
     );
   let witnesses: KeyWitness[] = [];
+  let tags: Partial<KeyWitnessTags> = {};
   if (json.witnesses !== undefined) {
     const at = `${path}.witnesses`;
     let read: ReturnType<typeof readWitnessArgument>;
@@ -1472,6 +1483,7 @@ const decodeTx = (
     }
     if (read.isTransaction) unread(`${at} is a transaction, not a witness set`);
     witnesses = read.witnesses;
+    tags = keyWitnessTags(read.witnessSet);
     if (witnesses.length === 0) unread(`${at} holds no witness`);
     witnesses.forEach((witness, i) => {
       if (!verifies(witness, txHash))
@@ -1496,6 +1508,10 @@ const decodeTx = (
     witnesses,
     ...(extra !== undefined && { extraKeyWitnesses: extra as number }),
     delivered: json.delivered === true,
+    tags: {
+      vkey: tags.vkey ?? taggedSets,
+      bootstrap: tags.bootstrap ?? taggedSets,
+    },
   };
 };
 
@@ -1546,7 +1562,11 @@ const decodeStep = (
   const name = nonEmpty(json.name, `${path}.name`);
   if (earlier.some((step) => step.name === name))
     unread(`${path}.name: the plan has a step ${show(name)} before it`);
-  if (json.kind !== undefined && json.kind !== "consolidation")
+  if (
+    json.kind !== undefined &&
+    json.kind !== "consolidation" &&
+    json.kind !== "prebuilt"
+  )
     unread(`${path}.kind: the step kind ${show(json.kind)}`);
   if (json.added !== undefined && json.added !== true)
     unread(`${path}.added is ${show(json.added)}, not true`);
@@ -1579,7 +1599,9 @@ const decodeStep = (
   const tx = decodeTx(json.tx, txHash, `${path}.tx`);
   const step: StepRecord = {
     name,
-    ...(json.kind !== undefined && { kind: "consolidation" as const }),
+    ...(json.kind !== undefined && {
+      kind: json.kind as "consolidation" | "prebuilt",
+    }),
     ...(json.added === true && { added: true as const }),
     status: status as TxStepStatus,
     txHash,
@@ -1599,6 +1621,7 @@ const decodeStep = (
     ...(json.given !== undefined && {
       given: decodeGiven(json.given, `${path}.given`),
     }),
+    ...(json.kind === "prebuilt" && { tags: tx.tags }),
     sends,
     refused,
   };
@@ -1606,6 +1629,13 @@ const decodeStep = (
   // What the state machine relies on
   if (step.kind === "consolidation" && step.given !== undefined)
     unread(`${path}.given is on a consolidation step`);
+  if (step.kind === "prebuilt" && step.given !== undefined)
+    unread(`${path}.given is on a prebuilt step`);
+  const spender = spentBefore(step.built, earlier);
+  if (spender !== undefined)
+    unread(
+      `${path}: the transaction spends ${spender.outRef}, which the step ${show(spender.name)} before it spends`,
+    );
   const sources = standsOnOf(step.built, earlier);
   if (
     new Set(standsOn).size !== standsOn.length ||

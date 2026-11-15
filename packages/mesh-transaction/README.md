@@ -400,7 +400,7 @@ step, `main`. `builder.build(parts)` stays one transaction or an error, with no 
 
 | `TxPlan`                                 |                                                                                                    |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `sign({ signers? })`                     | signs every step that still needs keys, in order, with the call's signers, else the payer          |
+| `sign({ signers? })`                     | signs each step it built that still needs keys, in order, with the call's signers, else the payer  |
 | `addWitnesses(...witnessSets)`           | signatures made elsewhere, as witness sets or full transactions; each goes to the step it verifies |
 | `run(options?)`                          | looks at the chain, then signs, sends and waits for each step in order, until `waitFor`            |
 | `refresh()`                              | one look at the chain; never signs or sends, and throws nothing for what it sees                   |
@@ -408,10 +408,10 @@ step, `main`. `builder.build(parts)` stays one transaction or an error, with no 
 | `toJSON()`, `builder.resume(id \| json)` | the record, and the plan back from it                                                              |
 | `id`, `status`, `steps`, `step(name)`    | the plan as data; `step(name)` of a name it does not have is `INVALID_OPTION`                      |
 | `fee`, `until`                           | the fees of all its transactions; the latest end of validity among them                            |
-| `landed`, `live`, `rest`                 | the steps in a block; those not in a block that may still land; what is left, as steps             |
+| `landed`, `live`, `rest`                 | the steps in a block; those that may still land; what is left, as steps (given built: a `BuiltTx`) |
 
 A step is the `BuiltTxData` of its transaction with `name`, `kind` (`"consolidation"` for a step
-the plan put in itself), `status`, `missing` (the keys that
+the plan put in itself, `"prebuilt"` for one given built), `status`, `missing` (the keys that
 have not signed it), `signedTx`, `standsOn` (the earlier steps whose outputs it spends, reads or
 puts up as collateral) and `seen` (the block it was last found in). The calls return the plan.
 `signers` and `submitter` are options of a call, not of a plan: give them to `sign()` and
@@ -494,8 +494,8 @@ await plan.sign(); // both bodies, before anything is sent
 await plan.run(); // lock, a block, then unlock
 ```
 
-Named steps are an object, sent in the order of its keys. A step is parts, or
-`{ parts, ...options }` with build options of its own: `payer`, `canSelect`, `coinSelection`,
+Named steps are an object, sent in the order of its keys. A step is parts, a transaction built
+before (below), or `{ parts, ...options }` with build options of its own: `payer`, `canSelect`, `coinSelection`,
 `sendAllTo`, `fee`, `registeredPools`, `extraKeyWitnesses`, `topUpCollateral`, `collateralReturn`. A
 name is not empty, not a whole number and does not start with `consolidate-`; a plan has at most 32
 steps. With named steps, `sendAllTo` and `fee` are given in the step, and a builder that holds parts
@@ -545,6 +545,29 @@ may spend such an output. They are signed, sent and recorded as any step;
 `plan.add` counted; `consolidate: { maxSteps }` (1 to 31) sets the limit, and
 `consolidate: false` leaves the step's `TX_TOO_LARGE`. A step with `sendAllTo` is never
 consolidated, and `rest` leaves them out.
+
+**A transaction built before.** A step may be a transaction built before: a `BuiltTx`, or its CBOR
+hex, in `builder.plan` and in `plan.add`. It is taken as it is and read from its own bytes as
+`fromCbor` reads them; what `fromCbor` refuses is refused, with the step's name. The UTxOs it names
+come from the plan's earlier steps, `after`, `knownUtxos`, else the provider; never from the object.
+A plan asks no signer for it: sign it on the `BuiltTx` after reading `missing`, `collateral` and
+`warnings`, or give its witnesses to `plan.addWitnesses`; at its turn without a key it is
+`MISSING_SIGNATURES`. It is `kind: "prebuilt"` in `plan.steps`, and its warnings are in
+`plan.step(name).warnings`. Without an end of validity it never expires (`NEVER_EXPIRES`):
+`plan.until` is undefined and the plan is not `stopped` while that step may still land, so a
+transaction built for a plan gets a `validity({ until })`. What it spends no other step spends or
+selects; two steps that spend one output are `INVALID_OPTION` (`steps`). Its outputs are named by
+position; labels and selectable change come only with an object of `build`. A transaction that
+spends an output of a step the plan builds is added afterwards with `plan.add`, once its maker has
+that step's hash. `rest` gives it back as a `BuiltTx`; the same transaction in another plan cannot
+pay twice, and a new one comes from its maker.
+
+```ts
+const swap = await builder.fromCbor(tx); // the partner's bytes; read missing and warnings
+await swap.sign({ signers: wallet });
+const swapPlan = await builder.plan({ swap, pay }, { payer: wallet }); // the plan signs pay only
+await swapPlan.run();
+```
 
 ### Chains
 
@@ -609,7 +632,7 @@ sent: `run()` sends the same bytes and waits; when that step is one it never sen
 | `CONFIRM_TIMEOUT`    | `waitFor` not reached in `timeoutMs`; also while a step past its end of validity may still land, or when a request does not answer in the time left | `run()` again later; it is not "not paid"                               |
 | `REJECTED`           | the ledger refused a step, no delivery of it can have gone through, and every step and transaction of `after` it stands on is found in a block      | `run()` again sends the same bytes; or `stop()`, and wait for `stopped` |
 | `NOT_YET_VALID`      | a step before its lower bound; nothing sent                                                                                                         | `run()` again after `retryAfterMs`                                      |
-| `MISSING_SIGNATURES` | a step whose turn it is lacks keys, and nobody in the call can sign; nothing sent                                                                   | `sign({ signers })`, `addWitnesses`, or `run({ signers })`              |
+| `MISSING_SIGNATURES` | a step whose turn it is lacks keys, and nobody in the call can sign, or it was given built (only `addWitnesses` signs it then); nothing sent        | `sign({ signers })`, `addWitnesses`, or `run({ signers })`              |
 | `EXPIRED`            | a step's end of validity and the margin passed and it is not found (`unsent`: never sent)                                                           | the plan does not go on: once `stopped`, a new plan from `rest`         |
 | `SCRIPT_FAILED`      | a step is in a block with a failed script; its collateral is taken                                                                                  | the same, with the parts fixed                                          |
 | `ORPHANED`           | a step stands on a step that will not land                                                                                                          | the same as for that step                                               |
@@ -848,8 +871,8 @@ On a builder with a store every plan needs an `id` (`MISSING_ID`), the key of it
 `await builder.plan(steps, { id })` reads the store first: an `id` recorded with the same steps
 and options returns the recorded plan as recorded, and reads nothing but the payer's change
 address, so a repeated request handler is safe; other steps or options are `PLAN_EXISTS`, and
-nothing is written. Compared: the steps as given (links kept), their data options and each
-payer's change address, the plan's data options, the network and the deadlines the call gives.
+nothing is written. Compared: the steps as given (links kept; one built before by the hash of its
+body), their data options and each payer's change address, the plan's data options, the network and the deadlines the call gives.
 Not compared: the builder's `planDefaults`, `after` and functions. The comparison is strict: an
 option the record holds that the call leaves out, or a default the call states that the record
 does not hold, is `PLAN_EXISTS`. A known `id` is opened with `await builder.resume(id)`.
@@ -1025,7 +1048,8 @@ Applications read `id`, `rev`, `status`, `stopped` (set by `stop()`), `halted` (
 the library's. `stopped` and `halted` are `true` when present and never removed. `replacedBy`
 names a plan made in place of this one, only on a `final` or `stopped` plan; no public call
 writes it yet. A step's `tx` is the JSON of its `BuiltTx`, read back as `restore` reads one;
-`given` is the step as it was given, links kept, which `rest` returns; `seen` stays when a
+`given` is the step as it was given, links kept, which `rest` returns (a step given built has
+`kind: "prebuilt"`, no `given`, and its witnesses in the set-tag form they came in); `seen` stays when a
 rollback takes a step out of its block, and a step built on transactions of `after` names them in
 `after`. This release writes version 2 and reads no
 other.
@@ -2055,7 +2079,7 @@ message of a plan's `TxPlanError` says.
 | `SIGN_DECLINED`            | `TxPlanError`  | the signer declined (CIP-30 UserDeclined, or a signer that throws `SIGN_DECLINED`); what earlier signers in the same call gave is kept, and nothing else changed; asking again is the application's choice                                                                                                                                                                                                                                                                                                                                                                                                                                     | none                                                                                                          | no                                                                           |
 | `SIGNER_FAILED`            | `TxPlanError`  | the signer failed, timed out at the step's end of validity, or changed accounts, or answered with a signature that does not verify or a witness that is not of this body; also a signing method that throws when read or is gone when asked (no `cause`)                                                                                                                                                                                                                                                                                                                                                                                       | `{ reason: "error" \| "timeout" \| "accountChanged", walletCode? }`                                           | no                                                                           |
 | `INVALID_WITNESS`          | `TxPlanError`  | a witness that cannot be decoded, or is not of this body (of a plan: of no step's body); from `fromCbor`, a transaction that holds a signature that is not of its body (`argument` 0)                                                                                                                                                                                                                                                                                                                                                                                                                                                          | `{ reason: "undecodable" \| "wrongBody", argument, keyHash? }`                                                | no                                                                           |
-| `MISSING_SIGNATURES`       | `TxPlanError`  | nobody can sign (no signers named, no payer that signs), or keys are still missing before a delivery, or from `built.sign({ partial: false })` and `built.submit()`; nothing sent                                                                                                                                                                                                                                                                                                                                                                                                                                                              | `{ missing: RequiredKey[] }`, each `{ keyHash, roles }`                                                       | no                                                                           |
+| `MISSING_SIGNATURES`       | `TxPlanError`  | nobody can sign (no signers named, no payer that signs), or keys are still missing before a delivery, or a step of a plan given built lacks keys at its turn (a plan asks no signer for it), or from `built.sign({ partial: false })` and `built.submit()`; nothing sent                                                                                                                                                                                                                                                                                                                                                                       | `{ missing: RequiredKey[] }`, each `{ keyHash, roles }`                                                       | no                                                                           |
 | `MISSING_SUBMITTER`        | `TxPlanError`  | no submitter: none in the call, the builder or the provider; nothing sent                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | none                                                                                                          | no                                                                           |
 | `NOT_YET_VALID`            | `TxPlanError`  | a step's lower bound is ahead of the tip; nothing sent                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | `{ waitMs }`                                                                                                  | yes, `retryAfterMs` = `waitMs`                                               |
 | `SUBMIT_FAILED`            | `TxPlanError`  | the outcome of a delivery is unknown, whatever its `reason` (see [A failed submission](#payer-signer-submitter)); the same bytes are safe to send again; also from `submit()` of a transaction                                                                                                                                                                                                                                                                                                                                                                                                                                                 | `{ reason, status?, walletCode? }`                                                                            | yes                                                                          |

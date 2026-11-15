@@ -914,6 +914,9 @@ export type BuildWarning = {
    *   by an address of its collateral inputs, with the lovelace it loses: those of its inputs,
    *   less what the return pays it. Only from `fromCbor`
    * - `FEE_ABOVE_MINIMUM`: the `fee` given is above the minimum fee of the transaction
+   * - `NEVER_EXPIRES`: the transaction has no end of validity. Only on a step of a plan that was
+   *   given built: the plan never calls such a step expired, and is not `stopped` while the step
+   *   may still land
    *
    * The list is open: later versions may add codes, so code that reads it keeps a default
    * branch.
@@ -922,7 +925,8 @@ export type BuildWarning = {
     | "VALID_FROM_FUTURE"
     | "COLLATERAL_FORFEITED"
     | "COLLATERAL_RETURN_ELSEWHERE"
-    | "FEE_ABOVE_MINIMUM";
+    | "FEE_ABOVE_MINIMUM"
+    | "NEVER_EXPIRES";
   message: string;
   /** The kind of the part it is about */
   part?: TxPart["kind"];
@@ -2334,6 +2338,12 @@ export class TxBuilder {
    *   consolidation steps before it (`consolidate-1`, … with `kind: "consolidation"`), which
    *   pay the payer alone, unless `consolidate` is `false`; `trace` is told how many, and their
    *   fees.
+   * - A step may be a transaction built before: a `BuiltTx`, or its CBOR hex. It is taken as it
+   *   is, read from its own bytes by `fromCbor`, with the UTxOs it names from the steps before
+   *   it, `after`, `knownUtxos` or the provider; `kind: "prebuilt"`. No call of the plan asks a
+   *   signer for it: it comes signed, or gets its witnesses through `plan.addWitnesses`. What it
+   *   spends no other step spends or selects. One without an end of validity never expires
+   *   (`NEVER_EXPIRES` in its `warnings`), so `until` is undefined.
    *
    * The plan's deadlines are its own options, else this builder's `planDefaults`, else the
    * built-in values, written into it now and never read from the builder again. On a builder with
@@ -2348,7 +2358,12 @@ export class TxBuilder {
    *   from `add`, and a step that stands on the step before it of its payer neither by its change
    *   nor by an output its parts name; UNKNOWN_LABEL for a link to a label that no output of the
    *   step has; INVALID_OPTION (`id`) for an id that is not a string; INVALID_OPTION
-   *   (`consolidate`); TX_TOO_LARGE (`cause: "selection"`) for a step that needs more
+   *   (`consolidate`); INVALID_OPTION (`steps`) for a transaction built before that spends an
+   *   output another step or a transaction of `after` spends, that is given under two names,
+   *   whose object lists another number of outputs than its transaction has, or that a plan's
+   *   record cannot hold, and for a link to the change of one with no output marked change; every
+   *   error of `fromCbor` for such a transaction, with the step's name at the start of its
+   *   message; TX_TOO_LARGE (`cause: "selection"`) for a step that needs more
    *   consolidation steps than the plan allows, or whose consolidation step cannot be built;
    *   NOT_SERIALIZABLE on a builder with a store, for a part that holds a redeemer function
    * @throws TxPlanError CANNOT_OBSERVE (`noTip`, `noSearch`, `noDepth`, `noValidity`) for a

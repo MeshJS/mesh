@@ -2,6 +2,7 @@ import type { CachedFetcher, ISubmitter } from "@meshsdk/common";
 import { Crypto } from "@meshsdk/core-cst";
 
 import type { BuildEvent, TxBuilder } from "../builder";
+import type { BuiltTx } from "../built-tx";
 import type { TxPlanErrorCode, TxPlanErrorDetails } from "../errors";
 import type { Payer } from "../payer";
 import type { KeyWitness, Signer } from "../sign";
@@ -39,6 +40,7 @@ import {
   TIMED_OUT,
   within,
 } from "../abort";
+import { makeBuiltTx } from "../built-tx";
 import { NOT_UNPAID, TxBuildError, TxPlanError } from "../errors";
 import {
   invalidOption,
@@ -76,6 +78,7 @@ import {
 } from "./core";
 import { effectiveWait } from "./deadlines";
 import {
+  deliveredOf,
   encodeGiven,
   encodeParts,
   encodePlan,
@@ -330,8 +333,20 @@ const sameGiven = (recorded: StepGiven | undefined, given: StepGiven) => {
 };
 
 /**
+ * Whether a recorded step is the step given: the same parts and options; of a transaction given
+ * built, a prebuilt step with the hash of its body
+ */
+const isSameStep = (recorded: StepRecord, step: GivenStep) =>
+  "given" in step
+    ? sameGiven(recorded.given, step.given)
+    : recorded.kind === "prebuilt" &&
+      step.txHash !== undefined &&
+      recorded.txHash.toLowerCase() === step.txHash;
+
+/**
  * What a record makes of steps given to `add`: `same` when it has every one of them with the
- * same parts and options, `new` when it has none of their names, else why they are refused
+ * same parts and options, or the same transaction, `new` when it has none of their names, else
+ * why they are refused
  */
 const heldOf = (
   record: PlanRecord,
@@ -342,11 +357,11 @@ const heldOf = (
   const names = (steps: readonly GivenStep[]) =>
     steps.map((step) => JSON.stringify(step.name)).join(", ");
   const other = held.filter(
-    (step) => !sameGiven(stepIn(record, step.name)!.given, step.given),
+    (step) => !isSameStep(stepIn(record, step.name)!, step),
   );
   if (other.length > 0)
     return {
-      refused: `the plan has the step(s) ${names(other)} with other parts or options: a step of a plan never changes, and a name names one step`,
+      refused: `the plan has the step(s) ${names(other)} with other parts or options, or another transaction: a step of a plan never changes, and a name names one step`,
     };
   if (held.length < given.length)
     return {
@@ -425,7 +440,9 @@ const signedTxOf = (step: StepRecord): string | undefined => {
   if (missingKeys(step).length > 0) return undefined;
   let tx = SIGNED.get(step);
   if (tx === undefined) {
-    tx = withWitnesses(readTransaction(step.built.tx), step.witnesses);
+    const raw = readTransaction(step.built.tx);
+    // A prebuilt step's witnesses in the form they came in
+    tx = withWitnesses(raw, step.witnesses, step.tags ?? raw.taggedSets);
     SIGNED.set(step, tx);
   }
   return tx;
@@ -448,6 +465,18 @@ const freezeAll = (value: unknown, seen = new Set<object>()) => {
 };
 
 const VIEWS = new WeakMap<StepRecord, TxStep>();
+
+/**
+ * A prebuilt step as the transaction it is: an object on the plan's builder, with the witnesses
+ * the plan holds, in the form they came in, and no payer
+ */
+const prebuiltOf = (builder: TxBuilder, step: StepRecord): BuiltTx =>
+  makeBuiltTx(builder, step.built, step.extraKeyWitnesses ?? 0, {
+    raw: readTransaction(step.built.tx),
+    held: step.witnesses,
+    delivered: deliveredOf(step),
+    ...(step.tags !== undefined && { tags: step.tags }),
+  });
 
 /** A step as the public `TxStep`: the data of its transaction with its place in the plan */
 const viewOf = (step: StepRecord): TxStep => {
@@ -676,13 +705,23 @@ export class TxPlan {
    * that payer's UTxOs and never on another's; the application may give the payer itself in its
    * place.
    *
+   * A step given as a transaction built before comes back as that transaction, a `BuiltTx` on
+   * this plan's builder with the witnesses the plan holds, its labels and its change marks, and
+   * no payer: the same transaction in another plan cannot pay twice, and a new one comes from
+   * its maker.
+   *
    * A new plan for what is left is made only once this plan is `stopped`: until then a step of
    * it may still land, and a new plan built from `rest` beside it may pay a second time.
    */
   get rest(): PlanSteps {
+    const { builder, record } = stateOf(this);
     const rest: Record<string, PlanStep> = {};
-    for (const step of stateOf(this).record.steps) {
+    for (const step of record.steps) {
       if (isLanded(step) || step.seen !== undefined) continue;
+      if (step.kind === "prebuilt") {
+        rest[step.name] = prebuiltOf(builder, step);
+        continue;
+      }
       if (step.kind === "consolidation" || step.given === undefined) continue;
       const parts = step.given.parts as StepParts;
       const { changeAddress, ...options } = step.given.options ?? {};
@@ -713,7 +752,13 @@ export class TxPlan {
    * key is `signed`; a step a signer gives no witness for stays `built`, and `run()` asks again
    * when its turn comes. A signer is waited for no longer than the step's end of validity, by
    * the tip read once before asking.
-   * @throws TxPlanError MISSING_SIGNATURES when a step needs keys and nobody can sign;
+   *
+   * A step given as a transaction built before (`kind: "prebuilt"`) is left out: no signer,
+   * named or the payer, is handed its body. It is signed on its `BuiltTx` before it is given,
+   * after reading its `missing`, `collateral` and `warnings`, or takes witnesses through
+   * `addWitnesses`.
+   * @throws TxPlanError MISSING_SIGNATURES when a step the plan built needs keys and nobody can
+   *   sign;
    *   SIGN_DECLINED, SIGNER_FAILED, with the step in `error.step`: the witnesses already
    *   recorded stay; INVALID_STATE (`stopped`) for a plan that was stopped, a step of which
    *   will not land, or that came to `stopped` once
@@ -734,7 +779,10 @@ export class TxPlan {
       if (state.record.status === "final") return this;
       this.#refuseStopped(state);
       throwIfAborted(signal, CALL);
-      const needing = state.record.steps.filter(needsWitnesses);
+      // A step given built is never handed to a signer
+      const needing = state.record.steps.filter(
+        (step) => step.kind !== "prebuilt" && needsWitnesses(step),
+      );
       if (needing.length === 0) return this;
       const signers = given ?? (state.signer && [state.signer]);
       if (signers === undefined) throw this.#missingSignatures(needing[0]!);
@@ -818,6 +866,9 @@ export class TxPlan {
    * - A step is paid by its own payer (`{ parts, payer }`), else by the plan's payer, as it was
    *   given to `builder.plan` or `builder.resume`. The data options the plan records apply,
    *   unless the step has its own; `canSelect` and `coinSelection` are given in the step.
+   * - A step may be a transaction built before, a `BuiltTx` or its CBOR hex, as in
+   *   `builder.plan`: the UTxOs it names come from the plan's steps, its recorded `knownUtxos`
+   *   or the provider. The same transaction under its name again is the same step.
    * - A step may link to any step before it. It stands on the last step of its payer, as in
    *   `builder.plan`, unless that step is final. It spends no output a step of the plan spends,
    *   and of a final step it takes what the payer's read shows.
@@ -970,6 +1021,10 @@ export class TxPlan {
    * the first time. A plan that came to `stopped` and left it, when a look found a step in a
    * block after all, does the same: it waits for the steps it sent, and throws INVALID_STATE
    * (`stopped`) when the next step is one it never sent.
+   *
+   * A step given as a transaction built before is never handed to a signer, the call's or the
+   * payer: one that lacks a key at its turn is MISSING_SIGNATURES, and nothing is sent; one sent
+   * by another party without every witness is waited for. A plan signs only what it built.
    * @throws TxPlanError with the step in `error.step`. REJECTED when the refusal counts: the step
    *   is `rejected`, and the same call sends the same bytes again. EXPIRED (`unsent` when the plan
    *   never sent it), SCRIPT_FAILED, ORPHANED when a step will not land: the plan does not go on.
@@ -1134,7 +1189,9 @@ export class TxPlan {
     const missing = missingOf(step);
     return this.#error(
       "MISSING_SIGNATURES",
-      `${missing.length} key(s) the step needs have not signed it, and nobody in this call can sign: give signers, a payer that signs, or addWitnesses; nothing was sent`,
+      step.kind === "prebuilt"
+        ? `${missing.length} key(s) the step needs have not signed it, and a plan signs only the transactions it built: sign the transaction before it is given, or give its witnesses to addWitnesses; nothing was sent`
+        : `${missing.length} key(s) the step needs have not signed it, and nobody in this call can sign: give signers, a payer that signs, or addWitnesses; nothing was sent`,
       { details: { missing }, step },
     );
   }
@@ -1672,6 +1729,8 @@ export class TxPlan {
   ) {
     const since = state.storeReads;
     const first = stepIn(state.record, name)!;
+    // The one place a plan asks a signer: never for a transaction given built
+    if (first.kind === "prebuilt") return;
     const keys = askedKeys(first.built.signers);
     const raw = readTransaction(first.built.tx);
     const until = stepUntil(first);
@@ -1830,6 +1889,8 @@ export class TxPlan {
             waited = true;
             continue;
           }
+          // A step given built is signed before it is given, or through addWitnesses
+          if (step.kind === "prebuilt") throw this.#missingSignatures(step);
           if (signedHere.has(step.name)) throw this.#missingSignatures(step);
           if (signers === undefined) throw this.#missingSignatures(step);
           await this.#signStep(
@@ -1872,8 +1933,13 @@ export class TxPlan {
         case "sent": {
           if (signedTxOf(step) === undefined) {
             // Sent by another party, and the plan does not hold every witness of it: the call's
-            // signers are asked once, and the step is waited for like any step sent
-            if (signers !== undefined && !signedHere.has(step.name)) {
+            // signers are asked once, but never for a step given built, and the step is waited
+            // for like any step sent
+            if (
+              signers !== undefined &&
+              step.kind !== "prebuilt" &&
+              !signedHere.has(step.name)
+            ) {
               await this.#signStep(
                 state,
                 step.name,
@@ -2436,6 +2502,8 @@ const shapeOf = (record: PlanRecord, added = false) => {
         name: step.name,
         kind: step.kind,
         given: step.given,
+        // A transaction given built is told by its body alone
+        ...(step.kind === "prebuilt" && { txHash: step.txHash.toLowerCase() }),
       })),
   };
 };
@@ -2445,10 +2513,11 @@ const shapeOfOrder = (order: PlanOrder) => ({
   network: encodeValue(order.network),
   deadlines: order.deadlines,
   options: encodeValue(order.options),
-  steps: order.steps.map((step) => ({
-    name: step.name,
-    given: encodeGiven(step.given),
-  })),
+  steps: order.steps.map((step) =>
+    "given" in step
+      ? { name: step.name, given: encodeGiven(step.given) }
+      : { name: step.name, kind: step.kind, txHash: step.txHash ?? null },
+  ),
 });
 
 /**

@@ -18,6 +18,7 @@ import type {
   Utxo,
 } from "../parts/types";
 import type { Payer, PayerRead, PayerSource } from "../payer";
+import type { KeyWitness, KeyWitnessTags } from "../sign";
 import type { NewStep, PlanRecord, PlanTip, StepGiven } from "./core";
 import type {
   PlanOptions,
@@ -26,6 +27,7 @@ import type {
   StepOptions,
   StepParts,
 } from "./types";
+import { abortable } from "../abort";
 import { isKeyLocked } from "../balance";
 import { flattenParts } from "../builder";
 import { BuiltTx } from "../built-tx";
@@ -39,6 +41,8 @@ import { validity } from "../parts/scalars";
 import { isLinkedPart } from "../parts/unresolved";
 import { plainUtxo, utxoKey } from "../parts/utxo";
 import { changeAddressOf, givenPayerEntries, toPayerSource } from "../payer";
+import { readTransactionItems } from "../sign";
+import { scanTransaction } from "../tx-scan";
 import { addValues, fromMultiAsset, negate, valueOf } from "../value";
 import { buildConsolidation, isConsolidable } from "./consolidate";
 import {
@@ -47,9 +51,11 @@ import {
   MAX_STEPS,
   planUntil,
   sourcesOf,
+  spentBefore,
   standsOnOf,
 } from "./core";
 import { effectiveDeadlines, horizonSlot } from "./deadlines";
+import { decodeTx, unquoted, UnreadContent } from "./json";
 import { chainObserver } from "./observer";
 
 // Builds a plan: every body at once, in order, each on the UTxOs the steps before it
@@ -57,8 +63,9 @@ import { chainObserver } from "./observer";
 // that their inputs are not selected again and their change at the step's change address is
 // selectable; a step spends the change of the step before it of the same payer; a part linked
 // to an earlier step is filled in from that step's own transaction; every step the plan builds
-// ends at the plan's one deadline. Nothing is signed and nothing is sent. Nothing here is
-// exported from the package.
+// ends at the plan's one deadline. A step given as a transaction built before is read from its
+// own bytes by `fromCbor`, before any step is built, and no other step spends or selects what it
+// spends. Nothing is signed and nothing is sent. Nothing here is exported from the package.
 
 /** The options `makePlan` takes: those of a plan, with `after` as built data only */
 export type MakePlanOptions = Omit<PlanOptions, "after"> & {
@@ -67,11 +74,12 @@ export type MakePlanOptions = Omit<PlanOptions, "after"> & {
 
 /**
  * A step the plan built: its transaction, its name, what it stands on, and how it was given; a
- * consolidation step the plan put in itself has its kind and was not given
+ * consolidation step the plan put in itself, and a transaction given built, have their kind and
+ * no parts given
  */
 export type MadeStep = {
   readonly name: string;
-  readonly kind?: "consolidation";
+  readonly kind?: "consolidation" | "prebuilt";
   readonly built: BuiltTxData;
   /** The names of the earlier steps whose outputs it spends, reads or puts up as collateral */
   readonly standsOn: readonly string[];
@@ -81,6 +89,10 @@ export type MadeStep = {
   readonly expirySource?: string;
   readonly given?: StepGiven;
   readonly extraKeyWitnesses?: number;
+  /** Of a prebuilt step: the witnesses it came with, verified against its body */
+  readonly witnesses?: readonly KeyWitness[];
+  /** Of a prebuilt step: the set tag of each entry of its witnesses */
+  readonly tags?: KeyWitnessTags;
 };
 
 /** A plan built: its steps in order, the first record, the tip it was built at and its deadline */
@@ -94,6 +106,9 @@ export type MadePlan = {
 
 /** The name of the step of a plan given as one list of parts */
 export const MAIN_STEP = "main";
+
+/** The call an aborted signal names */
+const CALL = "the call";
 
 /** The most steps a plan may have, as the state machine counts them */
 export { MAX_STEPS };
@@ -167,11 +182,11 @@ const internals = (builder: TxBuilder) =>
   builder as unknown as BuilderInternals;
 
 const STEPS_ALLOWED =
-  "one list of parts, or an object of named steps, each parts or { parts, ...options }";
+  "one list of parts, or an object of named steps, each parts, { parts, ...options }, a BuiltTx or a transaction in CBOR hex";
 
 /** The steps `plan.add` takes */
 const ADDED_ALLOWED =
-  "an object of named steps, each parts or { parts, ...options }";
+  "an object of named steps, each parts, { parts, ...options }, a BuiltTx or a transaction in CBOR hex";
 
 /** The steps `plan.add` takes, and the builder it takes them on */
 const ADDED_HELD_ALLOWED =
@@ -222,6 +237,14 @@ export type StepInput = {
   readonly name: string;
   readonly parts: readonly (TxPart | LinkedPart)[];
   readonly options: StepOptions;
+  /**
+   * A transaction given built, as it was given, with the hash of its body when one is read
+   * from it without a request; such a step has no parts and no options
+   */
+  readonly prebuilt?: {
+    readonly tx: BuiltTx | string;
+    readonly txHash?: string;
+  };
 };
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -231,12 +254,35 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 const isOnePart = (value: unknown) =>
   isObject(value) && typeof value.kind === "string";
 
-/** Whether a value is a transaction built before: a `BuiltTx`, or its data */
+/** Whether a value is the data or the JSON of a transaction, and not the object */
+const isTransactionData = (value: unknown) =>
+  isObject(value) &&
+  !(value instanceof BuiltTx) &&
+  ((typeof value.tx === "string" && typeof value.txHash === "string") ||
+    value.kind === "BuiltTx");
+
+/** Whether a value is a transaction built before: a `BuiltTx`, its data or its JSON */
 const isBuiltTransaction = (value: unknown) =>
-  value instanceof BuiltTx ||
-  (isObject(value) &&
-    typeof value.tx === "string" &&
-    typeof value.txHash === "string");
+  value instanceof BuiltTx || isTransactionData(value);
+
+/**
+ * The hash of the body of a transaction given built, in lower case, read without a request: of
+ * the object its `txHash`; of CBOR the hash its body's bytes give, read as `fromCbor` reads them
+ * after the same walk. Undefined for a text no transaction is read from
+ */
+const prebuiltHash = (
+  builder: TxBuilder,
+  tx: BuiltTx | string,
+): string | undefined => {
+  if (tx instanceof BuiltTx) return tx.txHash.toLowerCase();
+  try {
+    const text = tx.toLowerCase();
+    scanTransaction(text, builder.params?.maxTxSize);
+    return readTransactionItems(text).txId.toLowerCase();
+  } catch {
+    return undefined;
+  }
+};
 
 /** The parts of a step, flattened, linked parts kept */
 const flatten = (parts: unknown, name: string): (TxPart | LinkedPart)[] => {
@@ -294,7 +340,7 @@ const readStepForms = (
   options: MakePlanOptions,
 ): StepInput[] => {
   const held = internals(builder).added;
-  if (Array.isArray(steps) || isOnePart(steps))
+  if (!isBuiltTransaction(steps) && (Array.isArray(steps) || isOnePart(steps)))
     return [
       {
         name: MAIN_STEP,
@@ -335,14 +381,24 @@ const readStepForms = (
         `the step name ${JSON.stringify(name)} starts with ${JSON.stringify(RESERVED_PREFIX)}, which names the steps a plan puts in itself`,
       );
     const step = steps[name];
-    if (Array.isArray(step) || isOnePart(step))
-      return { name, parts: flatten(step, name), options: {} };
-    // A transaction built before is a step of its own form, taken as it is; not taken here
-    if (isBuiltTransaction(step) || typeof step === "string")
+    // A transaction built before is taken as it is, read later from its own bytes
+    if (step instanceof BuiltTx || typeof step === "string") {
+      const txHash = prebuiltHash(builder, step);
+      return {
+        name,
+        parts: [],
+        options: {},
+        prebuilt: { tx: step, ...(txHash !== undefined && { txHash }) },
+      };
+    }
+    // Its data or its JSON states what its bytes may not hold: only the object or the bytes
+    if (isTransactionData(step))
       throw invalidSteps(
-        `step ${JSON.stringify(name)} is a transaction built before; a step here is parts, or { parts, ...options }`,
+        `step ${JSON.stringify(name)} is the data or the JSON of a transaction built before, which a plan does not read: give the object build, finalize, fromCbor or restore returns, or the transaction's CBOR hex`,
         typeof step,
       );
+    if (Array.isArray(step) || isOnePart(step))
+      return { name, parts: flatten(step, name), options: {} };
     if (!isObject(step) || !("parts" in step))
       throw invalidSteps(
         `step ${JSON.stringify(name)} is neither parts nor { parts, ...options }`,
@@ -512,7 +568,7 @@ const fillOne = (part: LinkedPart, output: BuiltOutput): TxPart => {
 const fillLinks = (
   parts: readonly (TxPart | LinkedPart)[],
   name: string,
-  earlier: readonly Pick<MadeStep, "name" | "built">[],
+  earlier: readonly Pick<StepBefore, "name" | "built" | "prebuilt">[],
   later: readonly string[],
 ): TxPart[] =>
   parts.flatMap((part) => {
@@ -524,6 +580,16 @@ const fillLinks = (
         link.step === name || later.includes(link.step)
           ? `a link names step ${JSON.stringify(link.step)}, which is not before step ${JSON.stringify(name)}: a step names only the steps before it`
           : `a link names step ${JSON.stringify(link.step)}, which the plan does not have`,
+      );
+    // Of a transaction given built only the outputs it was given with marked are change: none
+    // marked is not none made, and a link that fills to nothing would drop an input unsaid
+    if (
+      "change" in link &&
+      before.prebuilt === true &&
+      before.built.change.length === 0
+    )
+      throw invalidSteps(
+        `a link names the change of step ${JSON.stringify(link.step)}, a transaction given built with no output marked change: name the output by its position, { step: ${JSON.stringify(link.step)}, output: n }`,
       );
     const outputs = linkedOutputs(link, before.built);
     for (const output of outputs) {
@@ -806,6 +872,8 @@ const readStepPayers = async (
 }> => {
   const payers: Payer[] = [];
   for (const step of steps) {
+    // A transaction given built is paid already: no payer is asked for it
+    if (step.prebuilt !== undefined) continue;
     const payer = payerOf(step);
     if (payer === undefined) throw context.missing(step);
     if (!payers.includes(payer)) payers.push(payer);
@@ -839,13 +907,23 @@ const readStepPayers = async (
   };
 };
 
-/** A step's name and how its record holds it given */
-export type GivenStep = { readonly name: string; readonly given: StepGiven };
+/**
+ * A step's name and how its record holds it given: its parts and options; of a transaction given
+ * built its kind and the hash of its body, absent when none could be read
+ */
+export type GivenStep =
+  | { readonly name: string; readonly given: StepGiven }
+  | {
+      readonly name: string;
+      readonly kind: "prebuilt";
+      readonly txHash?: string;
+    };
 
 /**
  * Each step's name and how its record holds it given, worked out without building, for
  * `orderOf` and `plan.add`: a step with a payer of its own has that payer asked for its change
- * address, and no other payer is asked; no UTxO is read
+ * address, and no other payer is asked; a transaction given built is told by the hash of its
+ * body alone; no UTxO is read
  */
 export const givenSteps = async (
   read: readonly StepInput[],
@@ -853,6 +931,15 @@ export const givenSteps = async (
 ): Promise<GivenStep[]> => {
   const out: GivenStep[] = [];
   for (const step of read) {
+    if (step.prebuilt !== undefined) {
+      const { txHash } = step.prebuilt;
+      out.push({
+        name: step.name,
+        kind: "prebuilt",
+        ...(txHash !== undefined && { txHash }),
+      });
+      continue;
+    }
     const own = step.options.payer;
     out.push({
       name: step.name,
@@ -876,10 +963,7 @@ export type PlanOrder = {
   /** The deadlines the options give explicitly; the builder's defaults are not part of it */
   readonly deadlines: Partial<PlanRecord["deadlines"]>;
   readonly options: Readonly<Record<string, unknown>>;
-  readonly steps: readonly {
-    readonly name: string;
-    readonly given: StepGiven;
-  }[];
+  readonly steps: readonly GivenStep[];
 };
 
 /**
@@ -910,8 +994,9 @@ export const orderOf = async (
   const addressOf = addressBook(builder);
   // The deadlines are checked as `makePlan` checks them
   effectiveDeadlines(options, builder.planDefaults);
-  // Every step has a payer, the payers asked in the order of the steps
+  // Every step built from parts has a payer, the payers asked in the order of the steps
   for (const step of given) {
+    if (step.prebuilt !== undefined) continue;
     const payer = step.options.payer ?? options.payer;
     if (payer === undefined)
       throw new TxBuildError(
@@ -1029,7 +1114,9 @@ export const payerOfAdded = async (
   read: readonly StepInput[],
   addressOf: AddressOf,
 ): Promise<Payer | undefined> => {
-  const without = read.find((step) => step.options.payer === undefined);
+  const without = read.find(
+    (step) => step.prebuilt === undefined && step.options.payer === undefined,
+  );
   if (without === undefined) return undefined;
   const recorded = record.options.changeAddress;
   const missing = (why: string) =>
@@ -1088,13 +1175,16 @@ export const buildAddedSteps = async (
   const made = await buildSteps(builder, read, {
     before: base.steps.map((step) => {
       const own = step.given?.options?.changeAddress;
-      // A consolidation step pays its payer alone: its outputs are at that payer's address
+      // A consolidation step pays its payer alone: its outputs are at that payer's address. A
+      // prebuilt step is of no payer by default: its outputs marked change tell
       const changeAddress =
-        step.kind === "consolidation"
-          ? (step.built.change[0] ?? step.built.outputs[0])?.address
-          : typeof own === "string"
-            ? own
-            : planAddress;
+        step.kind === "prebuilt"
+          ? undefined
+          : step.kind === "consolidation"
+            ? (step.built.change[0] ?? step.built.outputs[0])?.address
+            : typeof own === "string"
+              ? own
+              : planAddress;
       return {
         name: step.name,
         built: step.built,
@@ -1102,6 +1192,8 @@ export const buildAddedSteps = async (
         final: step.status === "final",
         ...(step.status === "included" && { included: true as const }),
         ...(step.kind === "consolidation" && { consolidation: true as const }),
+        ...(step.kind === "prebuilt" && { prebuilt: true as const }),
+        standsOn: step.standsOn,
       };
     }),
     after: [],
@@ -1198,9 +1290,16 @@ export const makePlan = async (
     readOf,
   });
 
+  // The plan's payer was read when a step built from parts is paid by it; else, for a plan of
+  // transactions given built, its change address is asked alone
   const planPayer =
     options.payer === undefined ? undefined : readOfPayer(options.payer);
-  const planOptions = planOptionsOf(options, planPayer?.snapshot.changeAddress);
+  const planAddress =
+    planPayer?.snapshot.changeAddress ??
+    (options.payer === undefined
+      ? undefined
+      : await abortable(addressBook(builder)(options.payer), signal, CALL));
+  const planOptions = planOptionsOf(options, planAddress);
   const first = advancePlan(
     emptyPlan({
       ...(id !== undefined && { id }),
@@ -1237,6 +1336,203 @@ type StepBefore = {
   readonly consolidation?: true;
   /** The step a consolidation step this loop built serves */
   readonly serves?: string;
+  /**
+   * It is a transaction given built: of no payer but those at whose change address it has an
+   * output marked change
+   */
+  readonly prebuilt?: true;
+  /** The names of the steps before it that it stands on */
+  readonly standsOn?: readonly string[];
+};
+
+/** Whether a step before is a step of the payer of this change address */
+const isOfPayer = (step: StepBefore, changeAddress: string) =>
+  step.prebuilt === true
+    ? step.built.change.some((output) => output.address === changeAddress)
+    : step.changeAddress === changeAddress;
+
+/**
+ * Whether parts stand on a step: they spend, read or put up an output of it, or of a step that
+ * stands on it, through any steps between
+ */
+const standsThrough = (
+  parts: readonly TxPart[],
+  target: StepBefore,
+  all: readonly StepBefore[],
+) => {
+  const on = new Set([target.name]);
+  for (const each of all)
+    if (each.standsOn?.some((name) => on.has(name))) on.add(each.name);
+  const hashes = all
+    .filter((each) => on.has(each.name))
+    .map((each) => each.built.txHash);
+  return parts.some((part) =>
+    hashes.some((txHash) => standsOnTx(part, txHash)),
+  );
+};
+
+/** A transaction given built, as the plan read it: its data and the witnesses it came with */
+type PrebuiltRead = {
+  readonly built: BuiltTxData;
+  readonly witnesses: readonly KeyWitness[];
+  readonly extraKeyWitnesses?: number;
+  readonly tags: KeyWitnessTags;
+};
+
+/**
+ * The data of a transaction read from its bytes, with the two marks an object of it gives by
+ * position, and nothing else of the object: `label` where its output is labelled, `change`
+ * where its output is marked change
+ * @throws TxBuildError INVALID_OPTION (`steps`) for an object that lists another number of
+ *   outputs than its transaction has
+ */
+const withMarks = (
+  built: BuiltTxData,
+  object: BuiltTx,
+  name: string,
+): BuiltTxData => {
+  const listed: readonly unknown[] = Array.isArray(object.outputs)
+    ? object.outputs
+    : [];
+  if (listed.length !== built.outputs.length)
+    throw invalidSteps(
+      `step ${JSON.stringify(name)} is an object that lists ${listed.length} output(s), and its transaction has ${built.outputs.length}: give the object as it was made, or the transaction's CBOR hex`,
+    );
+  const outputs = built.outputs.map((output, i): BuiltOutput => {
+    const mark = listed[i];
+    const label =
+      isObject(mark) && typeof mark.label === "string" ? mark.label : undefined;
+    const change = isObject(mark) && mark.change === true;
+    return {
+      ...plainUtxo(output),
+      ...(label !== undefined && { label }),
+      ...(change && { change: true as const }),
+    };
+  });
+  return {
+    ...built,
+    outputs,
+    change: outputs.filter((output) => output.change === true),
+  };
+};
+
+/**
+ * Reads every step given built, in order, before any step is built: each through
+ * `builder.fromCbor`, the public reader, from the bytes given or the object's `partialTx`, with
+ * the UTxOs the plan knows: the outputs of the steps before and of the steps given built before
+ * it, from their own transactions; then those of the transactions of `after`; then the
+ * `knownUtxos` the call builds with; each out ref once, the first. Any other is read through the
+ * provider. The object `fromCbor` returns becomes the step through its JSON and the reader of a
+ * record: so a step enters a plan as a record gives it back.
+ * @throws every error of `fromCbor`, with the step's name at the start of its message;
+ *   TxBuildError INVALID_OPTION (`steps`) for a transaction a record does not hold, an object
+ *   that lists another number of outputs, a transaction the plan has under another name, and
+ *   one that spends an output a step before, a step given built before it or a transaction of
+ *   `after` spends; ABORTED
+ */
+const readPrebuilt = async (
+  builder: TxBuilder,
+  given: readonly StepInput[],
+  context: {
+    readonly before: readonly StepBefore[];
+    readonly after: readonly BuiltTxData[];
+    readonly knownUtxos?: LoopOptions["knownUtxos"];
+    readonly signal?: AbortSignal;
+  },
+): Promise<Map<string, PrebuiltRead>> => {
+  const read = new Map<string, PrebuiltRead>();
+  const done: { readonly name: string; readonly built: BuiltTxData }[] = [];
+  const known = toKnownUtxos(context.knownUtxos);
+  for (const step of given) {
+    if (step.prebuilt === undefined) continue;
+    const { name } = step;
+    const { tx } = step.prebuilt;
+    try {
+      // The plan's own transactions first: an entry of knownUtxos never replaces one of them
+      const knownUtxos = new Map<string, Utxo>();
+      const put = (utxo: Utxo) => {
+        const key = utxoKey(utxo);
+        if (!knownUtxos.has(key)) knownUtxos.set(key, plainUtxo(utxo));
+      };
+      for (const each of [...context.before, ...done])
+        each.built.outputs.forEach(put);
+      for (const each of context.after) each.outputs.forEach(put);
+      known.forEach(put);
+      const object = await abortable(
+        builder.fromCbor(tx instanceof BuiltTx ? tx.partialTx : tx, {
+          knownUtxos: Array.from(knownUtxos.values()),
+        }),
+        context.signal,
+        CALL,
+      );
+      // Through the reader of a record: what a record cannot hold is no step
+      let record: ReturnType<typeof decodeTx>;
+      try {
+        record = unquoted(() =>
+          decodeTx(
+            JSON.parse(JSON.stringify(object.toJSON())),
+            object.txHash,
+            "tx",
+          ),
+        );
+      } catch (error) {
+        if (!(error instanceof UnreadContent)) throw error;
+        throw invalidSteps(
+          `step ${JSON.stringify(name)} is a transaction a plan's record does not hold (${error.message}): send it on its own, with fromCbor`,
+        );
+      }
+      let built =
+        tx instanceof BuiltTx
+          ? withMarks(record.built, tx, name)
+          : record.built;
+      if (built.validity?.until === undefined)
+        built = {
+          ...built,
+          warnings: [
+            ...built.warnings,
+            {
+              code: "NEVER_EXPIRES",
+              message:
+                "the transaction has no end of validity: the plan never calls it expired, and is not stopped while it may still land",
+            },
+          ],
+        };
+      // One transaction is one step, and no output is spent by two
+      const txHash = built.txHash.toLowerCase();
+      const twice = [...context.before, ...done].find(
+        (each) => each.built.txHash.toLowerCase() === txHash,
+      );
+      if (twice !== undefined)
+        throw invalidSteps(
+          `step ${JSON.stringify(name)} is the transaction ${txHash} of step ${JSON.stringify(twice.name)}: a transaction is one step of a plan`,
+        );
+      const spender = spentBefore(built, [...context.before, ...done]);
+      if (spender !== undefined)
+        throw invalidSteps(
+          `step ${JSON.stringify(name)} spends ${spender.outRef}, which step ${JSON.stringify(spender.name)} spends: two steps of a plan never spend one output`,
+        );
+      const afterSpender = spentBefore(
+        built,
+        context.after.map((each) => ({ name: each.txHash, built: each })),
+      );
+      if (afterSpender !== undefined)
+        throw invalidSteps(
+          `step ${JSON.stringify(name)} spends ${afterSpender.outRef}, which the transaction ${afterSpender.name} of after spends: two transactions never spend one output`,
+        );
+      read.set(name, {
+        built,
+        witnesses: record.witnesses,
+        ...(record.extraKeyWitnesses !== undefined && {
+          extraKeyWitnesses: record.extraKeyWitnesses,
+        }),
+        tags: record.tags,
+      });
+      done.push({ name, built });
+    } catch (error) {
+      throw withStep(error, name);
+    }
+  }
+  return read;
 };
 
 /**
@@ -1355,11 +1651,17 @@ const warn = (
  * again on the change of the last one, until it fits. They are named `consolidate-N`, counted
  * through the plan, and at most the option's limit of them are in the plan as a whole. The
  * outputs a consolidation step parks are out of reach of the step it serves; a later step may
- * select those that hold a token unit its parts take out beyond what they bring in
+ * select those that hold a token unit its parts take out beyond what they bring in.
+ *
+ * Every step given as a transaction built before is read first, in order (`readPrebuilt`); it
+ * takes its place among the steps in the order given. A step the loop builds gets in `after`
+ * each such step before it whole, and each one after it with its inputs alone, so that nothing
+ * such a step spends is selected or spent by another. Such a step is of a payer only by its
+ * outputs marked change at that payer's change address
  * @throws as `makePlan` throws of building its steps, each error with the step's name at the
  *   start of its message; TxBuildError TX_TOO_LARGE (`cause: "selection"`) for a step that
  *   needs more consolidation steps than the plan allows, or whose consolidation step cannot be
- *   built
+ *   built; what `readPrebuilt` throws
  */
 const buildSteps = async (
   builder: TxBuilder,
@@ -1377,6 +1679,12 @@ const buildSteps = async (
   const { after: before, tip, ttlMs, planId, options, readOf } = context;
   const { signal, trace } = options;
   const limit = consolidationLimit(options.consolidate);
+  const prebuilt = await readPrebuilt(builder, given, {
+    before: context.before,
+    after: before,
+    ...(options.knownUtxos !== undefined && { knownUtxos: options.knownUtxos }),
+    ...(signal !== undefined && { signal }),
+  });
   const made: MadeStep[] = [];
   const all: StepBefore[] = [...context.before];
   /** A step built, with what it stands on: steps before it, transactions of `after` */
@@ -1420,6 +1728,34 @@ const buildSteps = async (
   };
   for (const [index, step] of given.entries()) {
     const { name } = step;
+    const read = prebuilt.get(name);
+    if (read !== undefined) {
+      const next: MadeStep = {
+        ...madeOf(name, read.built),
+        kind: "prebuilt",
+        witnesses: read.witnesses,
+        tags: read.tags,
+        ...(read.extraKeyWitnesses !== undefined && {
+          extraKeyWitnesses: read.extraKeyWitnesses,
+        }),
+      };
+      made.push(next);
+      all.push({
+        name,
+        built: read.built,
+        final: false,
+        prebuilt: true,
+        standsOn: next.standsOn,
+      });
+      continue;
+    }
+    // The steps given built after this one: their inputs are spent by them
+    const later = given.slice(index + 1).flatMap((each) => {
+      const found = prebuilt.get(each.name);
+      return found === undefined
+        ? []
+        : [{ name: each.name, built: found.built }];
+    });
     const own = step.options;
     const payer = readOf(step);
     const { changeAddress } = payer.snapshot;
@@ -1437,21 +1773,22 @@ const buildSteps = async (
         // chain, and the ledger keeps nothing in order after it
         const nearest = [...all]
           .reverse()
-          .find((each) => each.changeAddress === changeAddress);
+          .find((each) => isOfPayer(each, changeAddress));
         const previous = nearest?.final === true ? undefined : nearest;
         const found = changeToSpend(
           filled,
           previous,
           changeAddress,
-          all,
+          [...all, ...later],
           canSelect,
         );
         // The steps of one payer form a chain the ledger keeps in order: a step stands on the
-        // step before it of its payer, by its change or by an output its parts name
+        // step before it of its payer, by its change or by an output its parts name, of that
+        // step or of a step that stands on it
         if (
           found !== undefined &&
           "none" in found &&
-          !filled.some((part) => standsOnTx(part, previous!.built.txHash))
+          !standsThrough(filled, previous!, all)
         )
           throw invalidSteps(
             `step ${JSON.stringify(name)} cannot stand on step ${JSON.stringify(previous!.name)}, the step before it of the same payer: ${found.none}, so step ${JSON.stringify(name)} could land before it. Link step ${JSON.stringify(name)} to an output of step ${JSON.stringify(previous!.name)}, or make it a plan of its own`,
@@ -1494,6 +1831,7 @@ const buildSteps = async (
               ? withParkedOpen(each.built, needed)
               : asAfter(each.built, each.final),
           ),
+          ...later.map((each) => asAfter(each.built, true)),
         ];
         try {
           built = await internals(builder).buildList(
@@ -1553,6 +1891,7 @@ const buildSteps = async (
             final: false,
             consolidation: true,
             serves: name,
+            standsOn: next.standsOn,
           });
         }
       }
@@ -1564,7 +1903,13 @@ const buildSteps = async (
         ...(extraKeyWitnesses > 0 && { extraKeyWitnesses }),
       };
       made.push(next);
-      all.push({ name, built, changeAddress, final: false });
+      all.push({
+        name,
+        built,
+        changeAddress,
+        final: false,
+        standsOn: next.standsOn,
+      });
     } catch (error) {
       throw withStep(error, name);
     }
@@ -1678,6 +2023,8 @@ const newStepOf = (step: MadeStep): NewStep => ({
   ...(step.extraKeyWitnesses !== undefined && {
     extraKeyWitnesses: step.extraKeyWitnesses,
   }),
+  ...(step.witnesses !== undefined && { witnesses: step.witnesses }),
+  ...(step.tags !== undefined && { tags: step.tags }),
 });
 
 /** The option of the step when it has one, else the plan's, as a member to spread */

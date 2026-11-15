@@ -1,6 +1,7 @@
 import type { ISubmitter, NetworkConfig } from "@meshsdk/common";
 
 import type { BuildEvent, BuildOptions, BuiltTxData } from "../builder";
+import type { BuiltTx } from "../built-tx";
 import type { LinkedPart, TxPart } from "../parts/types";
 import type { Payer } from "../payer";
 import type { Signer } from "../sign";
@@ -64,11 +65,14 @@ export type StepOptions = Pick<
 >;
 
 /**
- * One step of a plan, as `builder.plan` takes it: its parts, which the plan builds into a
- * transaction, or its parts with options of their own, `{ parts, payer?, ... }`
+ * One step of a plan, as `builder.plan` and `plan.add` take it: its parts, which the plan builds
+ * into a transaction; its parts with options of their own, `{ parts, payer?, ... }`; or a
+ * transaction built before, as the object `build`, `finalize`, `fromCbor` or `restore` returns
+ * or as CBOR hex. Such a transaction is taken as it is, with the witnesses it holds, and read
+ * from its own bytes as `fromCbor` reads them. No call of the plan asks a signer for it
  */
 export type PlanStep =
-  StepParts | ({ readonly parts: StepParts } & StepOptions);
+  StepParts | ({ readonly parts: StepParts } & StepOptions) | BuiltTx | string;
 
 /**
  * The steps of a plan by name, in the order they are sent. A name is a non-empty text that is
@@ -135,7 +139,8 @@ export type SignOptions = {
   /**
    * Who signs; else the plan's payer, when it can sign. Each is asked once for each step, in
    * order; a signer that takes a list of keys is handed those that have not signed yet, and a
-   * signer of transaction hashes is not asked when none is left
+   * signer of transaction hashes is not asked when none is left. A step given built is never
+   * handed to a signer
    */
   signers?: Signer | readonly Signer[];
   /** Aborts the call with ABORTED; signatures already recorded stay */
@@ -147,7 +152,10 @@ export type SignOptions = {
  * INVALID_OPTION
  */
 export type RunOptions = {
-  /** Who signs a step that still needs signatures when its turn comes; else the plan's payer */
+  /**
+   * Who signs a step that still needs signatures when its turn comes; else the plan's payer. A
+   * step given built is never handed to a signer
+   */
   signers?: Signer | readonly Signer[];
   /**
    * Who submits; else the builder's submitter, else the provider. A wallet submits only when it
@@ -227,8 +235,11 @@ export type TxPlanStatus = "pending" | "stopping" | "stopped" | "final";
 export type TxStep = Readonly<BuiltTxData> & {
   /** The name the application gave the step; `main` for a plan made from one list of parts */
   readonly name: string;
-  /** `"consolidation"` for a step the plan put in itself; absent for a step the application gave */
-  readonly kind?: "consolidation";
+  /**
+   * `"consolidation"`: the plan put the step in itself. `"prebuilt"`: a transaction given built;
+   * `sign()` and `run()` ask no signer for it. Absent: built by the plan from the parts given
+   */
+  readonly kind?: "consolidation" | "prebuilt";
   readonly status: TxStepStatus;
   /** The keys the transaction needs that have not signed it yet, each with its roles */
   readonly missing: readonly RequiredKey[];
@@ -246,7 +257,8 @@ export type TxStep = Readonly<BuiltTxData> & {
  */
 export type TxStepJSON = {
   readonly name: string;
-  readonly kind?: "consolidation";
+  /** `"consolidation"` or `"prebuilt"`, as `TxStep["kind"]`; absent for a step built from parts */
+  readonly kind?: "consolidation" | "prebuilt";
   /** The library's: the step was added to the plan after it was made; absent otherwise */
   readonly added?: true;
   readonly status: TxStepStatus;

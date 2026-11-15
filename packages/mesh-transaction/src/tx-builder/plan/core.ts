@@ -3,7 +3,7 @@ import { Crypto, HexBlob } from "@meshsdk/core-cst";
 
 import type { BuiltTxData } from "../builder";
 import type { LinkedPart, TxPart } from "../parts/types";
-import type { KeyWitness } from "../sign";
+import type { KeyWitness, KeyWitnessTags } from "../sign";
 import type { TxPlanStatus, TxStepStatus } from "./types";
 
 // The state machine of a plan: a pure function from a record and an event to the next
@@ -29,8 +29,11 @@ export type StepGiven = {
 export type StepRecord = {
   /** Its name in the plan; unique */
   readonly name: string;
-  /** `"consolidation"` for a step the plan put in itself */
-  readonly kind?: "consolidation";
+  /**
+   * `"consolidation"` for a step the plan put in itself; `"prebuilt"` for a transaction given
+   * built, which no call of the plan hands to a signer
+   */
+  readonly kind?: "consolidation" | "prebuilt";
   /** The step was appended to a plan that had steps */
   readonly added?: true;
   readonly status: TxStepStatus;
@@ -71,6 +74,11 @@ export type StepRecord = {
   readonly extraKeyWitnesses?: number;
   /** The step as it was given, when the plan built it from parts */
   readonly given?: StepGiven;
+  /**
+   * Of a prebuilt step: whether its vkey entry and its bootstrap entry are written with the set
+   * tag: each as the entry it came with was, else as its body writes its input set
+   */
+  readonly tags?: KeyWitnessTags;
   /** How many deliveries of it were recorded */
   readonly sends: number;
   /** How many of those deliveries the submitter refused */
@@ -163,6 +171,7 @@ export type NewStep = Pick<
   | "built"
   | "extraKeyWitnesses"
   | "given"
+  | "tags"
 > & {
   /** Witnesses it holds already, verified against its body */
   readonly witnesses?: readonly KeyWitness[];
@@ -517,10 +526,35 @@ const indexOf = (
   return index;
 };
 
+/**
+ * The first input of a transaction that one of `earlier` spends too, with the name of that
+ * step; undefined when there is none
+ */
+export const spentBefore = (
+  built: Pick<BuiltTxData, "inputs">,
+  earlier: readonly {
+    readonly name: string;
+    readonly built: Pick<BuiltTxData, "inputs">;
+  }[],
+): { readonly outRef: string; readonly name: string } | undefined => {
+  for (const input of built.inputs) {
+    const outRef = `${input.txHash.toLowerCase()}#${input.outputIndex}`;
+    const taker = earlier.find((step) =>
+      step.built.inputs.some(
+        (each) =>
+          each.txHash.toLowerCase() === input.txHash.toLowerCase() &&
+          each.outputIndex === input.outputIndex,
+      ),
+    );
+    if (taker !== undefined) return { outRef, name: taker.name };
+  }
+  return undefined;
+};
+
 /** Why a new step cannot be appended after `earlier`; undefined when it can */
 const newStepProblem = (
   step: NewStep,
-  earlier: readonly Pick<StepRecord, "name" | "txHash">[],
+  earlier: readonly Pick<StepRecord, "name" | "txHash" | "built">[],
 ): string | undefined => {
   const quoted = JSON.stringify(step.name);
   if (typeof step.name !== "string" || step.name === "")
@@ -532,6 +566,12 @@ const newStepProblem = (
     return `the plan already has the transaction ${txHash} of step ${quoted}`;
   if (step.kind === "consolidation" && step.given !== undefined)
     return `the consolidation step ${quoted} has no parts it was given`;
+  if (step.kind === "prebuilt" && step.given !== undefined)
+    return `the prebuilt step ${quoted} has no parts it was given`;
+  // No output is spent by two steps of a plan
+  const spender = spentBefore(step.built, earlier);
+  if (spender !== undefined)
+    return `step ${quoted} spends ${spender.outRef}, which step ${JSON.stringify(spender.name)} spends`;
   const names = new Set(earlier.map((each) => each.name));
   if (new Set(step.standsOn).size !== step.standsOn.length)
     return `step ${quoted} names a step it stands on twice`;
@@ -643,6 +683,8 @@ const append = (json: PlanRecord, event: EventOf<"steps">): PlanAdvanced => {
           extraKeyWitnesses: step.extraKeyWitnesses,
         }),
       ...(step.given !== undefined && { given: step.given }),
+      ...(step.kind === "prebuilt" &&
+        step.tags !== undefined && { tags: { ...step.tags } }),
       sends: 0,
       refused: 0,
     };

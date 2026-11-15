@@ -391,8 +391,9 @@ see [Chains][r-chains].
 
 `await builder.plan(steps, options)` is the only way to make a plan: several transactions, its
 steps, built at once and sent in order. One list of parts is a plan of one step, `main`; an object
-of named steps is a plan of several, in the order of its keys, each step parts or
-`{ parts, ...options }` with build options of its own. Every body is built by that call, each on
+of named steps is a plan of several, in the order of its keys, each step parts,
+`{ parts, ...options }` with build options of its own, or a transaction built before (a `BuiltTx`
+or its CBOR hex, read by `fromCbor` and taken as it is). Every other body is built by that call, each on
 its payer's UTxOs as the steps before it leave them, read once, and nothing is signed or sent, so
 the whole plan can be shown before anyone signs. Its options are the build options with an `id`
 and the deadlines `ttlMs`, `expiryMarginMs` and `confirmations`, written into the plan when it is
@@ -425,7 +426,7 @@ made and never read from the builder again. `build` stays one transaction or an 
   `CANNOT_OBSERVE`, before anything is signed or sent. Other timers only set the pace of waiting
   (`pollMs`, `resendMs`).
 - **Calls.** `sign()` and `run()` sign with the call's `signers`, else the payer, checking every
-  witness against the body; the payer gives only the keys it is asked for, and is not asked when
+  witness against the body, and never hand a transaction given built to a signer; the payer gives only the keys it is asked for, and is not asked when
   none is left. `run()` looks at the chain, then signs, submits and waits for `waitFor` (`"sent"`,
   `"included"` by default, `"final"`); `refresh()` looks once; `stop()` records that the plan
   signs and sends nothing more. A plan with a step that will not land, or that was `halted`, sends

@@ -1049,6 +1049,48 @@ describe("appending steps", () => {
       expect(refusal(json, { type: "steps", steps })).toBe("steps");
   });
 
+  it("refuses a step that spends an out ref an earlier step spends, and a prebuilt step with parts given; takes a prebuilt step with every witness as signed", () => {
+    const json = chain(1);
+    const b = chainStep("b", 1);
+    // b spends the output of the plan's first transaction that a spends too
+    const twice: NewStep = {
+      ...b,
+      built: stepTx({ txHash: hash(0xb5), inputs: [utxo(SOURCE)] }),
+      standsOn: [],
+    };
+    expect(refusal(json, { type: "steps", steps: [twice] })).toBe("steps");
+    expect(
+      refusal(emptyPlan(), {
+        type: "steps",
+        steps: [chainStep("a", 0), { ...twice, name: "b" }],
+      }),
+    ).toBe("steps");
+    expect(
+      refusal(json, {
+        type: "steps",
+        steps: [{ ...b, kind: "prebuilt", given: { parts: [] } }],
+      }),
+    ).toBe("steps");
+    const prebuilt = accept(json, {
+      type: "steps",
+      steps: [
+        {
+          ...chainStep("b", 1, { keys: [K1] }),
+          kind: "prebuilt",
+          witnesses: [witnessOf(K1)],
+          tags: { vkey: false, bootstrap: true },
+        },
+        { ...chainStep("c", 2, { keys: [K2] }), kind: "prebuilt" },
+      ],
+    });
+    expect(stepOf(prebuilt, "b")).toMatchObject({
+      kind: "prebuilt",
+      status: "signed",
+      tags: { vkey: false, bootstrap: true },
+    });
+    expect(stepOf(prebuilt, "c").status).toBe("built");
+  });
+
   it("is refused on a plan that is marked, stopping or terminal", () => {
     const c = { type: "steps" as const, steps: [chainStep("c", 2)] };
     expect(refusal(accept(chain(2), { type: "stop" }), c)).toBe("stopped");
