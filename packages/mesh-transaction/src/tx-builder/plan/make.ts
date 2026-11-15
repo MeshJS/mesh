@@ -1242,8 +1242,19 @@ type StepBefore = {
  * so that what it spent is never selected, named or put up, and what it left is taken from the
  * payer's read, since it may be spent by now
  */
-export const asAfter = <T extends BuiltTxData>(built: T, final: boolean): T =>
-  final ? { ...built, outputs: [], change: [] } : built;
+export const asAfter = <T extends BuiltTxData>(built: T, final: boolean): T => {
+  if (!final) return built;
+  const alone = { ...built, outputs: [], change: [] };
+  INPUTS_ALONE.add(alone);
+  return alone;
+};
+
+/**
+ * The transactions of `after` that stand for a final step: they keep what it spent out of every
+ * build and are nothing else. No step records one in its `after` or takes it as its
+ * `expirySource`, and none is searched for: what a final step left is a UTxO of the chain
+ */
+const INPUTS_ALONE = new WeakSet<object>();
 
 /** The options of a plan a loop builds every step with, unless the step has its own */
 type LoopOptions = Pick<
@@ -1326,6 +1337,7 @@ const buildSteps = async (
   > => {
     const sources = new Set(sourcesOf(built));
     const after = before
+      .filter((tx) => !INPUTS_ALONE.has(tx))
       .map((tx) => tx.txHash)
       .filter(
         (txHash, i, list) =>

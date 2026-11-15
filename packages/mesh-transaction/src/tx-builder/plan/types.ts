@@ -98,7 +98,8 @@ export type PlanOptions = Omit<BuildOptions, "after"> &
     /**
      * Transactions built before this plan and not yet seen by the provider, as for `build`. A
      * plan given here stands for its steps that may still land or are in a block; a final step
-     * stands for what it spent alone, and what it left is taken from the payer's read
+     * stands for what it spent alone, and what it left is taken from the payer's read: a step
+     * records no final step among the transactions of `after` it stands on
      */
     after?: BuildOptions["after"];
     /**

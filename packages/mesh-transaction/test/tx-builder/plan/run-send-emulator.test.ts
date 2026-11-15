@@ -848,6 +848,27 @@ describe("a plan given in after of builder.build", () => {
     expect(final.inputs.map(ref)).toEqual(step.change.map(ref));
   });
 
+  it("stands, in builder.plan, for what a final step spent alone: a step that spends what it left records neither after nor an expirySource", async () => {
+    const { builder, wallet } = await setup({ funds: [100_000_000n] });
+    const first = await builder.plan(pay(), { payer: wallet });
+    await first.run();
+    expect(first.status).toBe("final");
+    const step = first.step("main");
+    const ref = (u: { txHash: string; outputIndex: number }) =>
+      `${u.txHash}#${u.outputIndex}`;
+    const next = await builder.plan(pay(10_000_000n, baseAddress(3)), {
+      payer: wallet,
+      after: first,
+    });
+    const made = next.step("main");
+    // It spends the change the final step left, a UTxO of the chain
+    expect(made.inputs.map(ref)).toEqual(step.change.map(ref));
+    const json = next.toJSON().steps[0]!;
+    expect(json.after).toBeUndefined();
+    expect(json.expirySource).toBeUndefined();
+    expect(made.standsOn).toEqual([]);
+  });
+
   it("stands for nothing once its steps will not land", async () => {
     const { emulator, builder, wallet } = await setup({
       slot: PAST,

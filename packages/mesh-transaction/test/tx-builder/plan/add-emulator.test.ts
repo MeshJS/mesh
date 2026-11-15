@@ -195,6 +195,9 @@ describe("an added step", () => {
       const a = plan.step("a");
       expect(plan.step("c").inputs.map(ref)).toEqual(a.change.map(ref));
       expect(plan.step("c").standsOn).toEqual(["a"]);
+      // A final step is no transaction of after of the step that spends what it left
+      expect(plan.toJSON().steps[2]!.after).toBeUndefined();
+      expect(plan.toJSON().steps[2]!.expirySource).toBeUndefined();
     }
     // The change of a spent outside the plan: what that left
     {
