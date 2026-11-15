@@ -206,7 +206,7 @@ export const toCredentialWitness = (
     return fail(
       ctx,
       "WITNESS_MISMATCH",
-      `invalid witness ${String(witness)}: expected { native } or { plutus, redeemer }`,
+      `invalid witness ${shownValue(witness)}: expected { native } or { plutus, redeemer }`,
     );
   if ("native" in witness) {
     const script = withKnownHash(

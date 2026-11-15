@@ -175,6 +175,39 @@ describe("output", () => {
     );
   });
 
+  it("refuses a quantity above what an output holds, naming the part and the unit", () => {
+    const max = 2n ** 64n - 1n;
+    const unit = `${policyA}0a`;
+    expect(
+      output({ address, value: { lovelace: max } }).output.amount.coin,
+    ).toBe(max.toString());
+    for (const [value, shown] of [
+      [{ lovelace: max + 1n }, "lovelace"],
+      [[{ unit: "lovelace", quantity: (max + 1n).toString() }], "lovelace"],
+      [{ lovelace: 2_000_000n, [unit]: max + 1n }, unit],
+      // Two entries of one unit that come to more
+      [
+        [
+          { unit, quantity: max.toString() },
+          { unit, quantity: "1" },
+        ],
+        unit,
+      ],
+    ] as const) {
+      let error: unknown;
+      try {
+        output({ address, value: value as never, label: "big" });
+      } catch (thrown) {
+        error = thrown;
+      }
+      expect(error).toBeInstanceOf(TxPartError);
+      expect((error as TxPartError).code).toBe("INVALID_VALUE");
+      expect((error as TxPartError).part).toBe("output");
+      expect((error as TxPartError).label).toBe("big");
+      expect((error as Error).message).toContain(shown);
+    }
+  });
+
   it("keeps the error an argument was rejected for as the cause", () => {
     const catchError = (build: () => unknown) => {
       try {

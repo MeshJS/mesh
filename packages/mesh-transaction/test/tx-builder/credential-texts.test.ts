@@ -7,6 +7,7 @@ import {
 } from "@meshsdk/core";
 
 import {
+  auxiliaryScript,
   BuildOptions,
   BuiltTx,
   certificate,
@@ -611,6 +612,20 @@ const PLACES: readonly {
     name: "the spent UTxOs of requiredSigners, as text",
     run: (text) => requiredSigners(built.tx, text as never),
     code: "INVALID_OPTION",
+  },
+  {
+    name: "the witness of a script credential, as text",
+    run: (text) =>
+      certificate.stakeDeregistration({
+        stake: { type: "SCRIPT", value: keyHashHex(3) },
+        witness: text as never,
+      }),
+    code: "WITNESS_MISMATCH",
+  },
+  {
+    name: "the script of an auxiliary script, as text",
+    run: (text) => auxiliaryScript({ script: text as never }),
+    code: "INVALID_SCRIPT",
   },
 ];
 

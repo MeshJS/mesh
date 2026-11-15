@@ -400,7 +400,7 @@ export const auxiliaryScript = (params: {
     fail(
       ctx,
       "INVALID_SCRIPT",
-      `invalid script ${String(script)}: expected a native script or { code, version }`,
+      `invalid script ${shownValue(script)}: expected a native script or { code, version }`,
     );
   if ("code" in script) {
     const code = toPlutusScriptCode(

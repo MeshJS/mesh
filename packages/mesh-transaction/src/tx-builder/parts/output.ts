@@ -27,6 +27,9 @@ import {
 import { shownValue } from "./shape";
 import { isOneItem } from "./utxo";
 
+/** The largest quantity of a unit one output holds */
+const MAX_QUANTITY = 2n ** 64n - 1n;
+
 /** Asset names are at most 32 bytes */
 const MAX_ASSET_NAME_HEX = 64;
 
@@ -71,6 +74,16 @@ const toValue = (ctx: PartContext, value: ValueInput) => {
 
   let coin: bigint | undefined;
   const multiasset: MultiAssetPrototype = {};
+  /** A quantity a transaction holds: one output's quantity of a unit is at most 2^64 - 1 */
+  const bounded = (quantity: bigint, unit: unknown) => {
+    if (quantity > MAX_QUANTITY)
+      fail(
+        ctx,
+        "INVALID_VALUE",
+        `the quantity of ${unitShown(unit)} is ${quantity}, more than an output can hold (${MAX_QUANTITY})`,
+      );
+    return quantity;
+  };
   for (const [rawUnit, quantity] of entries) {
     if (typeof quantity !== "bigint" || quantity <= 0n)
       fail(
@@ -81,7 +94,7 @@ const toValue = (ctx: PartContext, value: ValueInput) => {
     if (typeof rawUnit !== "string")
       fail(ctx, "INVALID_VALUE", `invalid asset unit ${shownValue(rawUnit)}`);
     if (rawUnit === "lovelace" || rawUnit === "") {
-      coin = (coin ?? 0n) + quantity;
+      coin = bounded((coin ?? 0n) + quantity, rawUnit);
       continue;
     }
     const unit = rawUnit.toLowerCase();
@@ -98,7 +111,10 @@ const toValue = (ctx: PartContext, value: ValueInput) => {
         `invalid asset unit: expected lovelace or a policy id and an asset name in hex; got ${shownValue(rawUnit)}`,
       );
     const assets: AssetsPrototype = (multiasset[policyId] ??= {});
-    assets[assetName] = (BigInt(assets[assetName] ?? 0) + quantity).toString();
+    assets[assetName] = bounded(
+      BigInt(assets[assetName] ?? 0) + quantity,
+      rawUnit,
+    ).toString();
   }
 
   return {

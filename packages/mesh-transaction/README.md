@@ -1969,9 +1969,10 @@ UTxO it takes back. The error names where the UTxO was given: from a part, `TxPa
 code of the member at fault (`INVALID_OUT_REF`, `INVALID_ADDRESS`, `INVALID_VALUE`, `INVALID_DATA`,
 `INVALID_SCRIPT`), and `INVALID_OUT_REF` for text that is not UTxO CBOR (a reference script the
 decoder refuses included) and for an object of both forms or of neither; from an option or argument,
-`INVALID_OPTION` with the entry's JavaScript type in `details.value`; from a wallet's answer, `WALLET_FAILED`
-(`getUtxos`) or `INSUFFICIENT_COLLATERAL` (`getCollateral`); from the provider, `PROVIDER_FAILED`
-for the payer's UTxOs and `UTXO_NOT_FOUND` for an out ref looked up. The reason is the `cause`.
+`INVALID_OPTION` with the entry's JavaScript type in `details.value`; from a wallet's answer,
+`WALLET_FAILED` (`getUtxos`) or `INSUFFICIENT_COLLATERAL` (`getCollateral`); from the provider,
+`PROVIDER_FAILED` for the payer's UTxOs and `UTXO_NOT_FOUND` for an out ref looked up. The reason is
+the `cause`.
 
 ## The result
 
