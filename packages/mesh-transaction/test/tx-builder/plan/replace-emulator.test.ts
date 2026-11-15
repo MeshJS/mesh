@@ -1192,6 +1192,95 @@ describe("a plan in place of another", () => {
       paidOnce(emulator);
     });
 
+    /** A plan of one payment whose only input was spent elsewhere, past its end */
+    const deadMain = async () => {
+      const ctx = await stepSetup("scalus", { funds: [100n * ADA] });
+      const old = await ctx.builder.plan(
+        { main: payTo(alice, 11n * ADA) },
+        { id: "order", payer: ctx.wallet },
+      );
+      await old.sign();
+      ctx.emulator.removeUtxos(old.step("main").inputs.map(ref));
+      ctx.emulator.fund(ctx.address, { lovelace: 50n * ADA });
+      expect((await caught(old.run())).code).toBe("REJECTED");
+      return { ...ctx, old };
+    };
+
+    /** Holds the second read of the payer's address until `release` */
+    const holdSecondRead = (
+      provider: Awaited<ReturnType<typeof stepSetup>>["provider"],
+      address: string,
+    ) => {
+      let reads = 0;
+      let release!: () => void;
+      const released = new Promise<void>((resolve) => (release = resolve));
+      provider.control.hooks.fetchAddressUTxOs = async (
+        forward,
+        at: string,
+      ) => {
+        if (at === address && ++reads === 2) await released;
+        return forward(at);
+      };
+      return { release, reads: () => reads };
+    };
+
+    it("without a store, two calls at once on one object: one plan, paid once", async () => {
+      const { emulator, provider, address, old } = await deadMain();
+      advance(emulator, 700);
+      await old.refresh();
+      const held = holdSecondRead(provider, address);
+      const a = old.replan({ id: "order:2" });
+      const b = old.replan({ id: "order:2" });
+      const first = await a;
+      await first.run();
+      expect(first.status).toBe("final");
+      held.release();
+      expect(await b).toBe(first);
+      // The second call waited, and read nothing
+      expect(held.reads()).toBe(1);
+      expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    });
+
+    it("two calls at once: when the first is refused, the second goes on as a first call; with another id, refused", async () => {
+      const { emulator, old } = await deadMain();
+      // Before the end of main: the first call waits on it, and so does the second
+      const [one, two] = await Promise.all([
+        caught(old.replan({ id: "order:2" })),
+        caught(old.replan({ id: "order:2" })),
+      ]);
+      expect([one.code, two.code]).toEqual(["STILL_LIVE", "STILL_LIVE"]);
+      advance(emulator, 700);
+      const first = old.replan({ id: "order:2" });
+      const other = caught(old.replan({ id: "order:2b" }));
+      expect((await other).code).toBe("INVALID_STATE");
+      expect(old.replacedBy).toBe("order:2");
+      await (await first).run();
+      expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    });
+
+    it("without a store, a step added to the same object while replan reads its payer: CANNOT_OBSERVE, no mark", async () => {
+      const { emulator, provider, address, old } = await stuck();
+      let once = true;
+      provider.control.hooks.fetchAddressUTxOs = async (
+        forward,
+        at: string,
+      ) => {
+        if (once && at === address) {
+          once = false;
+          await old.add({ x: payTo(dave, 2n * ADA) });
+        }
+        return forward(at);
+      };
+      const error = await caught(old.replan({ id: "order:2" }));
+      expect([error.code, reasonOf(error)]).toEqual([
+        "CANNOT_OBSERVE",
+        "unconfirmed",
+      ]);
+      expect(old.replacedBy).toBeUndefined();
+      expect(names(old)).toEqual(["a", "b", "c", "x"]);
+      expect(times(emulator, dave, 2n * ADA)).toBe(0);
+    });
+
     it("without a store, an object resumed from a JSON saved after the mark: INVALID_STATE, naming the plan made in its place", async () => {
       const { builder, old } = await stuck();
       await old.replan({ id: "order:2" });

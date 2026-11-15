@@ -183,6 +183,8 @@ type PlanState = {
   storeReads: number;
   /** The plan this object made in place of its own by `replan`, never written */
   made?: TxPlan;
+  /** The call of `replan` going on this object, when one is */
+  replanning?: Promise<TxPlan>;
 };
 
 const STATE = new WeakMap<TxPlan, PlanState>();
@@ -1286,6 +1288,8 @@ export class TxPlan {
    *   `replacedBy` names, returns the plan made in its place and makes nothing: with a store the
    *   recorded one, also when this plan came to final since; without a store the one this
    *   object made, and an object that does not hold it (one resumed from a JSON) is refused.
+   *   Calls on one object never overlap: one that finds another going waits for it, then
+   *   answers as a call made after it.
    *   Without a store a copy of this plan's JSON saved before the call does not know it was
    *   replaced, and a plan made in its place again can pay again: save the JSON after the call,
    *   or use a store. The id is the new plan's alone: after a crash that followed the mark, a
@@ -1318,200 +1322,231 @@ export class TxPlan {
     options: PlanOptions & { id: string; steps?: StepParts | PlanSteps },
   ): Promise<TxPlan> {
     return this.#call(async (state) => {
-      const opts: PlanOptions & { steps?: unknown } = optionsObject(
+      const { signal } = optionsObject(
         options,
         REPLAN_MEMBERS,
         REPLAN_ALLOWED,
-      );
-      const { signal, id } = opts;
+      ) as { signal?: unknown };
       checkCallOptions({ signal });
-      if (id === undefined || id === "")
-        throw this.#error(
-          "MISSING_ID",
-          "a plan made in place of another needs an id of its own, a non-empty string: the plan it replaces records it, and so is replaced once",
-          {},
-        );
-      if (typeof id !== "string" || id === state.record.id)
-        throw invalidOption("id", id, REPLAN_ID_ALLOWED);
-      const { builder } = state;
-      // The shapes first, with no request and no read of the store
-      if (opts.payer !== undefined) toPayerSource(opts.payer);
-      if (opts.trace !== undefined && typeof opts.trace !== "function")
-        throw invalidOption("trace", opts.trace, "a function");
-      const { steps, after, ...rest } = opts;
-      const callOptions: MakePlanOptions = {
-        ...rest,
-        ...(after !== undefined && { after: afterOf(after) }),
-      };
-      const own =
-        steps === undefined
-          ? undefined
-          : readReplanSteps(builder, steps, callOptions, true);
-      if (builder.store !== undefined)
-        for (const step of own ?? []) encodeParts(step.parts);
-      const live: LiveObjects = {
-        ...((opts.payer ?? state.payer) !== undefined && {
-          payer: (opts.payer ?? state.payer)!,
-        }),
-        ...((opts.trace ?? state.trace) !== undefined && {
-          trace: (opts.trace ?? state.trace)!,
-        }),
-      };
-      throwIfAborted(signal, CALL);
-      const ask = this.#ask(signal);
-      await this.#takeStoredIfNewer(state, ask);
-      this.#refuseOtherName(state.record, id);
-      const addressOf = addressBook(builder);
-
-      // The same call again: the plan made in place of this one, with nothing looked at, read
-      // or built; also when this plan came to final since. Without a store only the object that
-      // made it holds it
-      if (state.store === undefined && state.record.replacedBy === id) {
-        if (state.made !== undefined) return state.made;
-        throw this.#error(
-          "INVALID_STATE",
-          `the plan was replaced by ${JSON.stringify(id)}, which this object does not hold, and no store can say whether it exists: it is resumed from its own JSON, and nothing is made in its place again`,
-          { details: { reason: "stopped" } },
-        );
-      }
-      if (state.store !== undefined) {
-        const stored = await ask(loadRecord(state.store, id), "read");
-        if (stored !== undefined) {
-          const repeat = await this.#sameReplan(
-            state,
-            stored,
-            id,
-            own,
-            addressOf,
-            signal,
-          );
-          return objectOver(builder, repeat, live, "owed");
-        }
-      }
-      this.#refuseReplaced(state.record, id);
-
-      // One look at the whole line
-      const seen = await this.#look(state, ask, true);
-      this.#refuseUnobservable(seen);
-      const { tip } = seen;
-      if (tip === undefined)
-        throw this.#error(
-          "CANNOT_OBSERVE",
-          "the provider did not give the chain's tip (fetchLatestBlock), which a new plan is judged and built by: nothing was built or written",
-          { details: { reason: "noTip" } },
-        );
-      const base = state.record;
-      this.#refuseReplaced(base, id);
-      const classes = lineClasses(base, seen.answers, tip);
-      this.#refuseNoValidity(classes);
-      if (classes.unconfirmed.length > 0)
-        throw this.#unconfirmed(
-          `${classes.unconfirmed.map((tx) => `step ${JSON.stringify(tx.step)} (${tx.txHash})`).join(", ")} ${classes.unconfirmed.length === 1 ? "is" : "are"} in a block and not final, or found where the depth or the outcome of the scripts is not known: a new plan stands only on what is final`,
-          classes.unconfirmed[0]!.txHash,
-        );
-
-      // The steps: those given, else what the look shows open; none of a kept name
-      const keptNames = keptNamesOf(base, classes);
-      let read: StepInput[];
-      if (own === undefined) {
-        const left: Record<string, PlanStep> = {};
-        for (const step of leftOf(base, classes)) {
-          const given = stepAsGiven(builder, step);
-          if (given !== undefined) left[step.name] = given;
-        }
-        if (Object.keys(left).length === 0)
-          throw stepsRefused(
-            "nothing of the plan is left to build: every step is final, failed or a consolidation step; give the steps of the new plan",
-          );
-        read = readReplanSteps(builder, left, callOptions, false);
-      } else {
-        const final = own.filter((step) => keptNames.has(step.name));
-        if (final.length > 0)
-          throw stepsRefused(
-            `the step(s) ${final.map((step) => JSON.stringify(step.name)).join(", ")} are final in this plan or a plan before it: a final step is never built again`,
-          );
-        read = own;
-      }
-      const keptSteps = base.steps.filter((step) => step.status === "final");
-      read = fillKeptLinks(read, keptSteps);
-      if (openAmong(readAfter(callOptions.after), classes.open) !== undefined)
-        throw invalidOption(
-          "after",
-          after,
-          "transactions that are no open transaction of this plan or the plans before it: a new plan stands only on what is final",
-        );
-      const payer =
-        opts.payer ??
-        (await abortable(
-          payerOfAdded(base, state.payer, read, addressOf),
-          signal,
-          CALL,
-        ));
-
-      // The payers read now, past the cache; the steps built on them with the guards of the
-      // transactions that may still land
-      const settledOnes = new Set(settled(classes.open, classes.kept));
-      this.#clearVolatile(state);
-      const made = await buildReplan(builder, base, read, {
-        id,
-        options: callOptions,
-        ...(payer !== undefined && { payer }),
-        asked: addressOf,
-        tip,
-        open: classes.open.filter((tx) => !settledOnes.has(tx)),
-        withReads: (reads) =>
-          this.#refuseOpenOutputs(state, base, classes.open, reads, ask),
-        keep: (steps) =>
-          beforeOf(
-            base,
-            classes,
-            steps.map((step) => step.built.txHash),
+      // One call at a time on an object: a call that finds another going waits for it before it
+      // reads or builds anything, then answers as a call made after it
+      while (state.replanning !== undefined)
+        await abortable(
+          state.replanning.then(
+            () => undefined,
+            () => undefined,
           ),
-      });
-
-      // Every pair of a step built and an open transaction, judged on the bodies
-      const dead = this.#judgePairs(
-        landsBeside(made.steps, classes.open, classes.kept),
-        base,
-        tip,
-        "nothing was written",
-      );
-      this.#refuseStandingOnOpen(made.steps, classes.open);
-
-      // The provider, as for any new plan; then the mark; then the new record
-      const probed = await probeProvider(
-        state.observer,
-        made.record,
-        ask,
-        (problem) =>
-          this.#error("CANNOT_OBSERVE", problem.message, {
-            details: { reason: problem.reason },
-          }),
-      );
-      await this.#mark(state, base, id, ask);
-      if (state.store === undefined) {
-        // Held, so that the same call again returns it and builds nothing
-        state.made = objectOver(
-          builder,
-          made.record,
-          live,
-          probed ? "done" : "owed",
+          signal as AbortSignal | undefined,
+          CALL,
         );
-        this.#tellNoSharedInput(live.trace, dead);
-        return state.made;
+      const mine = this.#replanOnce(state, options);
+      state.replanning = mine;
+      try {
+        return await mine;
+      } finally {
+        if (state.replanning === mine) state.replanning = undefined;
       }
-      return this.#recordReplan(
-        state,
-        made.record,
-        id,
-        own === undefined ? undefined : read,
-        addressOf,
-        live,
-        probed,
-        ask,
-        dead,
-      );
     });
+  }
+
+  /** One call of `replan`, with no other going on the object */
+  async #replanOnce(
+    state: PlanState,
+    options: PlanOptions & { id: string; steps?: StepParts | PlanSteps },
+  ): Promise<TxPlan> {
+    const opts: PlanOptions & { steps?: unknown } = optionsObject(
+      options,
+      REPLAN_MEMBERS,
+      REPLAN_ALLOWED,
+    );
+    const { signal, id } = opts;
+    checkCallOptions({ signal });
+    if (id === undefined || id === "")
+      throw this.#error(
+        "MISSING_ID",
+        "a plan made in place of another needs an id of its own, a non-empty string: the plan it replaces records it, and so is replaced once",
+        {},
+      );
+    if (typeof id !== "string" || id === state.record.id)
+      throw invalidOption("id", id, REPLAN_ID_ALLOWED);
+    const { builder } = state;
+    // The shapes first, with no request and no read of the store
+    if (opts.payer !== undefined) toPayerSource(opts.payer);
+    if (opts.trace !== undefined && typeof opts.trace !== "function")
+      throw invalidOption("trace", opts.trace, "a function");
+    const { steps, after, ...rest } = opts;
+    const callOptions: MakePlanOptions = {
+      ...rest,
+      ...(after !== undefined && { after: afterOf(after) }),
+    };
+    const own =
+      steps === undefined
+        ? undefined
+        : readReplanSteps(builder, steps, callOptions, true);
+    if (builder.store !== undefined)
+      for (const step of own ?? []) encodeParts(step.parts);
+    const live: LiveObjects = {
+      ...((opts.payer ?? state.payer) !== undefined && {
+        payer: (opts.payer ?? state.payer)!,
+      }),
+      ...((opts.trace ?? state.trace) !== undefined && {
+        trace: (opts.trace ?? state.trace)!,
+      }),
+    };
+    throwIfAborted(signal, CALL);
+    const ask = this.#ask(signal);
+    await this.#takeStoredIfNewer(state, ask);
+    this.#refuseOtherName(state.record, id);
+    const addressOf = addressBook(builder);
+
+    // The same call again: the plan made in place of this one, with nothing looked at, read
+    // or built; also when this plan came to final since. Without a store only the object that
+    // made it holds it
+    if (state.store === undefined && state.record.replacedBy === id) {
+      if (state.made !== undefined) return state.made;
+      throw this.#error(
+        "INVALID_STATE",
+        `the plan was replaced by ${JSON.stringify(id)}, which this object does not hold, and no store can say whether it exists: it is resumed from its own JSON, and nothing is made in its place again`,
+        { details: { reason: "stopped" } },
+      );
+    }
+    if (state.store !== undefined) {
+      const stored = await ask(loadRecord(state.store, id), "read");
+      if (stored !== undefined) {
+        const repeat = await this.#sameReplan(
+          state,
+          stored,
+          id,
+          own,
+          addressOf,
+          signal,
+        );
+        return objectOver(builder, repeat, live, "owed");
+      }
+    }
+    this.#refuseReplaced(state.record, id);
+
+    // One look at the whole line
+    const seen = await this.#look(state, ask, true);
+    this.#refuseUnobservable(seen);
+    const { tip } = seen;
+    if (tip === undefined)
+      throw this.#error(
+        "CANNOT_OBSERVE",
+        "the provider did not give the chain's tip (fetchLatestBlock), which a new plan is judged and built by: nothing was built or written",
+        { details: { reason: "noTip" } },
+      );
+    const base = state.record;
+    this.#refuseReplaced(base, id);
+    const classes = lineClasses(base, seen.answers, tip);
+    this.#refuseNoValidity(classes);
+    if (classes.unconfirmed.length > 0)
+      throw this.#unconfirmed(
+        `${classes.unconfirmed.map((tx) => `step ${JSON.stringify(tx.step)} (${tx.txHash})`).join(", ")} ${classes.unconfirmed.length === 1 ? "is" : "are"} in a block and not final, or found where the depth or the outcome of the scripts is not known: a new plan stands only on what is final`,
+        classes.unconfirmed[0]!.txHash,
+      );
+
+    // The steps: those given, else what the look shows open; none of a kept name
+    const keptNames = keptNamesOf(base, classes);
+    let read: StepInput[];
+    if (own === undefined) {
+      const left: Record<string, PlanStep> = {};
+      for (const step of leftOf(base, classes)) {
+        const given = stepAsGiven(builder, step);
+        if (given !== undefined) left[step.name] = given;
+      }
+      if (Object.keys(left).length === 0)
+        throw stepsRefused(
+          "nothing of the plan is left to build: every step is final, failed or a consolidation step; give the steps of the new plan",
+        );
+      read = readReplanSteps(builder, left, callOptions, false);
+    } else {
+      const final = own.filter((step) => keptNames.has(step.name));
+      if (final.length > 0)
+        throw stepsRefused(
+          `the step(s) ${final.map((step) => JSON.stringify(step.name)).join(", ")} are final in this plan or a plan before it: a final step is never built again`,
+        );
+      read = own;
+    }
+    const keptSteps = base.steps.filter((step) => step.status === "final");
+    read = fillKeptLinks(read, keptSteps);
+    if (openAmong(readAfter(callOptions.after), classes.open) !== undefined)
+      throw invalidOption(
+        "after",
+        after,
+        "transactions that are no open transaction of this plan or the plans before it: a new plan stands only on what is final",
+      );
+    const payer =
+      opts.payer ??
+      (await abortable(
+        payerOfAdded(base, state.payer, read, addressOf),
+        signal,
+        CALL,
+      ));
+
+    // The payers read now, past the cache; the steps built on them with the guards of the
+    // transactions that may still land
+    const settledOnes = new Set(settled(classes.open, classes.kept));
+    this.#clearVolatile(state);
+    const made = await buildReplan(builder, base, read, {
+      id,
+      options: callOptions,
+      ...(payer !== undefined && { payer }),
+      asked: addressOf,
+      tip,
+      open: classes.open.filter((tx) => !settledOnes.has(tx)),
+      withReads: (reads) =>
+        this.#refuseOpenOutputs(state, base, classes.open, reads, ask),
+      keep: (steps) =>
+        beforeOf(
+          base,
+          classes,
+          steps.map((step) => step.built.txHash),
+        ),
+    });
+
+    // Every pair of a step built and an open transaction, judged on the bodies
+    const dead = this.#judgePairs(
+      landsBeside(made.steps, classes.open, classes.kept),
+      base,
+      tip,
+      "nothing was written",
+    );
+    this.#refuseStandingOnOpen(made.steps, classes.open);
+
+    // The provider, as for any new plan; then the mark; then the new record
+    const probed = await probeProvider(
+      state.observer,
+      made.record,
+      ask,
+      (problem) =>
+        this.#error("CANNOT_OBSERVE", problem.message, {
+          details: { reason: problem.reason },
+        }),
+    );
+    await this.#mark(state, base, id, ask);
+    if (state.store === undefined) {
+      // Held, so that the same call again returns it and builds nothing
+      state.made = objectOver(
+        builder,
+        made.record,
+        live,
+        probed ? "done" : "owed",
+      );
+      this.#tellNoSharedInput(live.trace, dead);
+      return state.made;
+    }
+    return this.#recordReplan(
+      state,
+      made.record,
+      id,
+      own === undefined ? undefined : read,
+      addressOf,
+      live,
+      probed,
+      ask,
+      dead,
+    );
   }
 
   /* -------------------------------------------------------------------------------------------
