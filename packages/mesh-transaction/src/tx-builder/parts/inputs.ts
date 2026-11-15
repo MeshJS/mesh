@@ -95,7 +95,7 @@ export const toSpendDatum = (
       fail(
         ctx,
         "INVALID_DATA",
-        `invalid datum ${String(datum)}: expected "inline", "none" or { data }`,
+        `invalid datum ${shownValue(datum)}: expected "inline", "none" or { data }`,
       );
     const provided = toPlutusData(ctx, datum.data);
     if (utxo) {

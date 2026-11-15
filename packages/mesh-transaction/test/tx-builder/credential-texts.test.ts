@@ -627,6 +627,17 @@ const PLACES: readonly {
     run: (text) => auxiliaryScript({ script: text as never }),
     code: "INVALID_SCRIPT",
   },
+  {
+    name: "the datum of a Plutus spend, as text",
+    run: (text) =>
+      spend.plutus({
+        utxo: { txHash, outputIndex: 0 },
+        script: plutus,
+        redeemer,
+        datum: text,
+      } as never),
+    code: "INVALID_DATA",
+  },
 ];
 
 describe("a text given as a credential, a hash, an id or a number that is none", () => {
