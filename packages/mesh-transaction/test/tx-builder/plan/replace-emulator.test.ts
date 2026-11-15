@@ -713,6 +713,18 @@ describe("a plan in place of another", () => {
       expect(next.toJSON().before!.open).toEqual([]);
     });
 
+    it("replan() gives it again as the plan's own: a link by label to it works in the new plan", async () => {
+      const { emulator, old } = await withFund();
+      advance(emulator, 1);
+      const next = await old.replan({ id: "order:2" });
+      expect(names(next)).toEqual(["fund", "payout"]);
+      // Built anew at a later tip, on the output labelled f of the same transaction
+      expect(next.step("payout").txHash).not.toBe(old.step("payout").txHash);
+      const f = next.step("fund").outputs.find((o) => o.label === "f")!;
+      expect(next.step("payout").inputs.map(key)).toContain(key(f));
+      expect(next.step("payout").standsOn).toEqual(["fund"]);
+    });
+
     it("steps without it: STILL_LIVE with no safeAfter, not retryable", async () => {
       const { old } = await withFund();
       const error = await caught(

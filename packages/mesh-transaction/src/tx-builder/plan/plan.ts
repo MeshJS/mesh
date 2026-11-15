@@ -1,9 +1,8 @@
 import type { CachedFetcher, ISubmitter } from "@meshsdk/common";
-import { Crypto, Serialization, Transaction, TxCBOR } from "@meshsdk/core-cst";
+import { Crypto } from "@meshsdk/core-cst";
 
 import type { BuildEvent, BuiltTxData, TxBuilder } from "../builder";
 import type { TxPlanErrorCode, TxPlanErrorDetails } from "../errors";
-import type { TxPart, Utxo } from "../parts/types";
 import type { Payer, PayerRead } from "../payer";
 import type { KeyWitness, Signer } from "../sign";
 import type { RequiredKey } from "../witnesses";
@@ -27,13 +26,7 @@ import type {
   StepInput,
 } from "./make";
 import type { ChainObserver, ObservedTip, TxSearch } from "./observer";
-import type {
-  GuardStep,
-  LineClasses,
-  LineTx,
-  LookAnswer,
-  RuleBody,
-} from "./replace";
+import type { LineClasses, LineTx, LookAnswer } from "./replace";
 import type {
   PlanOptions,
   PlanStep,
@@ -64,7 +57,6 @@ import {
   SIGNERS_IN_PLACE,
   SUBMITTER_IN_PLACE,
 } from "../options";
-import { spend } from "../parts/inputs";
 import { toPayerSource } from "../payer";
 import {
   countedWitnesses,
@@ -90,7 +82,6 @@ import {
   liveSteps,
   missingKeys,
   planUntil,
-  sourcesOf,
   stepUntil,
   tipAheadOfClock,
 } from "./core";
@@ -133,10 +124,14 @@ import {
 } from "./observer";
 import {
   beforeOf,
+  keptNamesOf,
   landsBeside,
+  leftOf,
   lineClasses,
-  rootGuards,
+  openAmong,
+  outRefKey,
   settled,
+  standingOn,
 } from "./replace";
 
 // The object that runs a plan: a group of transactions built together, whose bodies
@@ -803,19 +798,8 @@ export class TxPlan {
     for (const step of record.steps) {
       if (isLanded(step) || step.seen !== undefined || paid.has(step.name))
         continue;
-      if (step.kind === "prebuilt") {
-        rest[step.name] = prebuiltOf(builder, step);
-        continue;
-      }
-      if (step.kind === "consolidation" || step.given === undefined) continue;
-      const parts = step.given.parts as StepParts;
-      const { changeAddress, ...options } = step.given.options ?? {};
-      const own =
-        typeof changeAddress === "string"
-          ? { payer: changeAddress, ...options }
-          : options;
-      rest[step.name] =
-        Object.keys(own).length === 0 ? parts : ({ parts, ...own } as PlanStep);
+      const given = stepAsGiven(builder, step);
+      if (given !== undefined) rest[step.name] = given;
     }
     return Object.freeze(rest);
   }
@@ -1427,21 +1411,11 @@ export class TxPlan {
         );
 
       // The steps: those given, else what the look shows open; none of a kept name
-      const keptNames = new Set([
-        ...(base.before?.final ?? []),
-        ...classes.kept.map((tx) => tx.step),
-      ]);
-      const openHashes = new Set(classes.open.map((tx) => tx.txHash));
+      const keptNames = keptNamesOf(base, classes);
       let read: StepInput[];
       if (own === undefined) {
         const left: Record<string, PlanStep> = {};
-        for (const step of base.steps) {
-          if (
-            !openHashes.has(step.txHash.toLowerCase()) ||
-            step.status === "failed" ||
-            keptNames.has(step.name)
-          )
-            continue;
+        for (const step of leftOf(base, classes)) {
           const given = stepAsGiven(builder, step);
           if (given !== undefined) left[step.name] = given;
         }
@@ -1460,20 +1434,12 @@ export class TxPlan {
       }
       const keptSteps = base.steps.filter((step) => step.status === "final");
       read = fillKeptLinks(read, keptSteps);
-      for (const tx of callOptions.after === undefined
-        ? []
-        : Array.isArray(callOptions.after)
-          ? callOptions.after
-          : [callOptions.after])
-        if (
-          typeof (tx as { txHash?: unknown })?.txHash === "string" &&
-          openHashes.has((tx as { txHash: string }).txHash.toLowerCase())
-        )
-          throw invalidOption(
-            "after",
-            after,
-            "transactions that are no open transaction of this plan or the plans before it: a new plan stands only on what is final",
-          );
+      if (openAmong(readAfter(callOptions.after), classes.open) !== undefined)
+        throw invalidOption(
+          "after",
+          after,
+          "transactions that are no open transaction of this plan or the plans before it: a new plan stands only on what is final",
+        );
       const payer =
         opts.payer ??
         (await abortable(
@@ -1482,7 +1448,8 @@ export class TxPlan {
           CALL,
         ));
 
-      // The payers read now, past the cache; the steps built on them with the guards
+      // The payers read now, past the cache; the steps built on them with the guards of the
+      // transactions that may still land
       const settledOnes = new Set(settled(classes.open, classes.kept));
       this.#clearVolatile(state);
       const made = await buildReplan(builder, base, read, {
@@ -1491,45 +1458,9 @@ export class TxPlan {
         ...(payer !== undefined && { payer }),
         asked: addressOf,
         tip,
-        withReads: async (reads) => {
-          await this.#refuseOpenOutputs(state, base, classes.open, reads, ask);
-          const byPayer = new Map<string, readonly Utxo[]>();
-          for (const each of reads)
-            byPayer.set(
-              each.read.snapshot.changeAddress,
-              each.read.snapshot.utxos,
-            );
-          const payerOf = new Map(
-            reads.map((each) => [
-              each.step.name,
-              each.read.snapshot.changeAddress,
-            ]),
-          );
-          const guardSteps: GuardStep[] = read.map((step) =>
-            step.prebuilt !== undefined
-              ? {
-                  name: step.name,
-                  built: prebuiltBody(step.prebuilt.tx, step.prebuilt.txHash),
-                }
-              : {
-                  name: step.name,
-                  payer: payerOf.get(step.name)!,
-                  parts: step.parts,
-                },
-          );
-          const { added } = rootGuards(
-            classes.open.filter((tx) => !settledOnes.has(tx)),
-            byPayer,
-            guardSteps,
-          );
-          const parts = new Map<string, TxPart[]>();
-          for (const guard of added)
-            parts.set(guard.step, [
-              ...(parts.get(guard.step) ?? []),
-              spend.pubKey({ utxo: guard.utxo }),
-            ]);
-          return parts;
-        },
+        open: classes.open.filter((tx) => !settledOnes.has(tx)),
+        withReads: (reads) =>
+          this.#refuseOpenOutputs(state, base, classes.open, reads, ask),
         keep: (steps) =>
           beforeOf(
             base,
@@ -1624,22 +1555,12 @@ export class TxPlan {
     steps: readonly { readonly name: string; readonly built: BuiltTxData }[],
     open: readonly LineTx[],
   ) {
-    const made = new Set(steps.map((step) => step.built.txHash.toLowerCase()));
-    const standing = new Map(
-      open
-        .filter((tx) => !made.has(tx.txHash) && tx.usedUp !== true)
-        .map((tx) => [tx.txHash, tx]),
-    );
-    for (const step of steps) {
-      const below = sourcesOf(step.built)
-        .map((hash) => standing.get(hash))
-        .find((tx) => tx !== undefined);
-      if (below !== undefined)
-        throw this.#unconfirmed(
-          `step ${JSON.stringify(step.name)} spends, reads or puts up an output of step ${JSON.stringify(below.step)} (${below.txHash}) of the plans before, which the search does not find in a block: a plan stands only on what is final`,
-          below.txHash,
-        );
-    }
+    const found = standingOn(steps, open);
+    if (found !== undefined)
+      throw this.#unconfirmed(
+        `step ${JSON.stringify(found.step.name)} spends, reads or puts up an output of step ${JSON.stringify(found.below.step)} (${found.below.txHash}) of the plans before, which the search does not find in a block: a plan stands only on what is final`,
+        found.below.txHash,
+      );
   }
 
   /** INVALID_STATE (`stopped`) for a plan replaced by a plan of another id */
@@ -1872,12 +1793,12 @@ export class TxPlan {
       if (tx.usedUp !== true) byHash.set(tx.txHash, tx);
       else
         for (const output of step?.built.outputs ?? [])
-          outputs.set(outRefOf(output), tx);
+          outputs.set(outRefKey(output.txHash, output.outputIndex), tx);
       if (step !== undefined && (tx.dead === true || tx.usedUp === true))
         quiet.push(step);
     }
     const check = (utxo: { txHash: string; outputIndex: number }) => {
-      const outRef = outRefOf(utxo);
+      const outRef = outRefKey(utxo.txHash, utxo.outputIndex);
       const tx = byHash.get(utxo.txHash.toLowerCase()) ?? outputs.get(outRef);
       if (tx !== undefined)
         throw this.#unconfirmed(
@@ -3204,12 +3125,6 @@ const onStep = (
   if (fields.txHash === undefined) fields.txHash = step.txHash;
 };
 
-/** An out ref as `txHash#index`, with the hash in lower case */
-const outRefOf = (utxo: {
-  readonly txHash: string;
-  readonly outputIndex: number;
-}) => `${utxo.txHash.toLowerCase()}#${utxo.outputIndex}`;
-
 /**
  * The out refs at an address, read from the provider past its cache, for the check of what a
  * dead step paid: a read that fails is no answer, and refuses the call
@@ -3285,42 +3200,6 @@ const stepAsGiven = (
   return Object.keys(own).length === 0
     ? parts
     : ({ parts, ...own } as PlanStep);
-};
-
-/**
- * What the choice of shared inputs reads of a transaction given built: its body, the object's
- * own or read from its bytes; of bytes it cannot read, the hash alone
- */
-const prebuiltBody = (
-  tx: BuiltTx | string,
-  txHash: string | undefined,
-): RuleBody => {
-  if (tx instanceof BuiltTx) return tx;
-  const none = {
-    txHash: txHash ?? "",
-    inputs: [],
-    referenceInputs: [],
-    collateral: undefined,
-    validity: undefined,
-  } as unknown as RuleBody;
-  try {
-    const read = Transaction.fromCbor(TxCBOR(tx.toLowerCase()));
-    const body = read.body();
-    const refs = (set: readonly Serialization.TransactionInput[] = []) =>
-      set.map((input) => ({
-        txHash: input.transactionId().toString(),
-        outputIndex: Number(input.index()),
-      }));
-    return {
-      ...none,
-      txHash: read.getId().toString(),
-      inputs: refs(body.inputs().values()),
-      referenceInputs: refs(body.referenceInputs()?.values()),
-      collateral: { inputs: refs(body.collateral()?.values()) },
-    } as unknown as RuleBody;
-  } catch {
-    return none;
-  }
 };
 
 /**

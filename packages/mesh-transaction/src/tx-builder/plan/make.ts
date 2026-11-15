@@ -27,6 +27,7 @@ import type {
   StepGiven,
   StepRecord,
 } from "./core";
+import type { GuardStep, LineInput } from "./replace";
 import type {
   PlanOptions,
   PlanStep,
@@ -69,6 +70,7 @@ import {
 import { effectiveDeadlines, horizonSlot } from "./deadlines";
 import { decodeTx, unquoted, UnreadContent } from "./json";
 import { chainObserver } from "./observer";
+import { rootGuards } from "./replace";
 
 // Builds a plan: every body at once, in order, each on the UTxOs the steps before it
 // leave. Each payer is read once; each step is built with the steps before it as `after`, so
@@ -1421,6 +1423,43 @@ export const fillKeptLinks = (
   });
 };
 
+/**
+ * The parts each step of a plan made in place of another gets beside its own: for each root of
+ * the open transactions, the input it shares with the first step built for the payer whose read
+ * holds it (`rootGuards`), as `spend.pubKey({ utxo })`
+ * @param open The open transactions that may still land
+ * @param reads Each step built from parts, with its payer's read
+ * @param prebuilt The steps given built, as `readPrebuilt` read them
+ */
+const guardsOf = (
+  open: readonly LineInput[],
+  reads: readonly { readonly step: StepInput; readonly read: PayerRead }[],
+  read: readonly StepInput[],
+  prebuilt: ReadonlyMap<string, PrebuiltRead>,
+): ReadonlyMap<string, readonly TxPart[]> => {
+  const byPayer = new Map<string, readonly Utxo[]>();
+  for (const each of reads)
+    byPayer.set(each.read.snapshot.changeAddress, each.read.snapshot.utxos);
+  const payerOf = new Map(
+    reads.map((each) => [each.step.name, each.read.snapshot.changeAddress]),
+  );
+  const steps: GuardStep[] = read.flatMap((step): GuardStep[] => {
+    const body = prebuilt.get(step.name);
+    if (body !== undefined) return [{ name: step.name, built: body.built }];
+    const payer = payerOf.get(step.name);
+    return payer === undefined
+      ? []
+      : [{ name: step.name, payer, parts: step.parts }];
+  });
+  const parts = new Map<string, TxPart[]>();
+  for (const guard of rootGuards(open, byPayer, steps).added)
+    parts.set(guard.step, [
+      ...(parts.get(guard.step) ?? []),
+      spend.pubKey({ utxo: guard.utxo }),
+    ]);
+  return parts;
+};
+
 /** What a plan made in place of another was built to: its steps and its first record */
 export type MadeReplan = {
   readonly steps: readonly MadeStep[];
@@ -1449,9 +1488,15 @@ export const buildReplan = async (
     readonly payer?: Payer;
     readonly asked: AddressOf;
     readonly tip: PlanTip;
+    /**
+     * The open transactions of the line that may still land: each root among them gets the
+     * input it shares with the first step built for the payer that holds it
+     */
+    readonly open: readonly LineInput[];
+    /** Told the reads before any step is built; what it throws stops the call */
     readonly withReads: (
       reads: readonly { readonly step: StepInput; readonly read: PayerRead }[],
-    ) => Promise<ReadonlyMap<string, readonly TxPart[]>>;
+    ) => Promise<void>;
     readonly keep: (steps: readonly MadeStep[]) => PlanBefore;
   },
 ): Promise<MadeReplan> => {
@@ -1469,11 +1514,34 @@ export const buildReplan = async (
     ...(signal !== undefined && { signal }),
     asked,
   });
-  const extra = await context.withReads(
-    read
-      .filter((step) => step.prebuilt === undefined)
-      .map((step) => ({ step, read: readOf(step) })),
-  );
+  const reads = read
+    .filter((step) => step.prebuilt === undefined)
+    .map((step) => ({ step, read: readOf(step) }));
+  await context.withReads(reads);
+  const kept = base.steps.filter((step) => step.status === "final");
+  const keptNames = new Set(kept.map((step) => step.name));
+  const merged: MakePlanOptions = { ...recordedOptionsOf(base.options) };
+  for (const [key, value] of Object.entries(options))
+    if (value !== undefined)
+      (merged as Record<string, unknown>)[key] = value as unknown;
+  const before = kept.map((step): StepBefore => ({
+    name: step.name,
+    built: step.built,
+    final: true,
+    ...(step.kind === "consolidation" && { consolidation: true as const }),
+    ...(step.kind === "prebuilt" && { prebuilt: true as const }),
+    standsOn: step.standsOn,
+  }));
+  // Read from the transactions' own bytes, as `makePlan` reads them
+  const after = readAfter(options.after);
+  // The steps given built, read once by the one reader: the guards keep off what they name
+  const prebuilt = await readPrebuilt(builder, read, {
+    before,
+    after,
+    ...(merged.knownUtxos !== undefined && { knownUtxos: merged.knownUtxos }),
+    ...(signal !== undefined && { signal }),
+  });
+  const extra = guardsOf(context.open, reads, read, prebuilt);
   const added = new Set<unknown>();
   const given = read.map((step) => {
     const more = extra.get(step.name);
@@ -1481,23 +1549,10 @@ export const buildReplan = async (
     for (const part of more) added.add(part);
     return { ...step, parts: [...step.parts, ...more] };
   });
-  const kept = base.steps.filter((step) => step.status === "final");
-  const keptNames = new Set(kept.map((step) => step.name));
-  const merged: MakePlanOptions = { ...recordedOptionsOf(base.options) };
-  for (const [key, value] of Object.entries(options))
-    if (value !== undefined)
-      (merged as Record<string, unknown>)[key] = value as unknown;
   const built = await buildSteps(builder, given, {
-    before: kept.map((step): StepBefore => ({
-      name: step.name,
-      built: step.built,
-      final: true,
-      ...(step.kind === "consolidation" && { consolidation: true as const }),
-      ...(step.kind === "prebuilt" && { prebuilt: true as const }),
-      standsOn: step.standsOn,
-    })),
-    // Read from the transactions' own bytes, as `makePlan` reads them
-    after: readAfter(options.after),
+    before,
+    after,
+    prebuilt,
     tip,
     ttlMs: deadlines.ttlMs,
     planId: id,
@@ -2107,17 +2162,23 @@ const buildSteps = async (
     readonly readOf: (step: StepInput) => PayerRead;
     /** The form of a step's payer as it was given */
     readonly formOf: (step: StepInput) => PayerSource["form"];
+    /** The steps given built, read already by `readPrebuilt` with this context */
+    readonly prebuilt?: ReadonlyMap<string, PrebuiltRead>;
   },
 ): Promise<MadeStep[]> => {
   const { after: before, tip, ttlMs, planId, options, readOf } = context;
   const { signal, trace } = options;
   const limit = consolidationLimit(options.consolidate);
-  const prebuilt = await readPrebuilt(builder, given, {
-    before: context.before,
-    after: before,
-    ...(options.knownUtxos !== undefined && { knownUtxos: options.knownUtxos }),
-    ...(signal !== undefined && { signal }),
-  });
+  const prebuilt =
+    context.prebuilt ??
+    (await readPrebuilt(builder, given, {
+      before: context.before,
+      after: before,
+      ...(options.knownUtxos !== undefined && {
+        knownUtxos: options.knownUtxos,
+      }),
+      ...(signal !== undefined && { signal }),
+    }));
   const made: MadeStep[] = [];
   const all: StepBefore[] = [...context.before];
   /** A step built, with what it stands on: steps before it, transactions of `after` */

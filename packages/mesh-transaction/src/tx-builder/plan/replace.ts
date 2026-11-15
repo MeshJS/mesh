@@ -87,7 +87,7 @@ export type LineTx = {
 export type LineInput = StepTx | BeforeEntry | LineTx;
 
 /** An out ref as `txHash#index`, with the hash in lower case */
-const outRefKey = (txHash: string, index: number) =>
+export const outRefKey = (txHash: string, index: number) =>
   `${txHash.toLowerCase()}#${index}`;
 
 const hashOfOutRef = (outRef: string) =>
@@ -668,4 +668,71 @@ export const beforeOf = (
       ...(tx.plutus === true && { plutus: true as const }),
     }));
   return { final, open };
+};
+
+/* ---------------------------------------------------------------------------------------------
+ * What a plan made in place of another builds, and what it may not stand on
+ * ------------------------------------------------------------------------------------------- */
+
+/**
+ * The names a plan made in place of `base` never builds again: the names `base` keeps of the
+ * plans before it, and those of its kept steps and kept entries
+ */
+export const keptNamesOf = (
+  base: Pick<PlanRecord, "before">,
+  classes: Pick<LineClasses, "kept">,
+): ReadonlySet<string> =>
+  new Set([
+    ...(base.before?.final ?? []),
+    ...classes.kept.map((tx) => tx.step),
+  ]);
+
+/**
+ * The steps of `base` a plan made in its place builds when it is given none: each that is open,
+ * not failed, of no kept name; consolidation steps among them, which the caller leaves out
+ */
+export const leftOf = (
+  base: Pick<PlanRecord, "steps" | "before">,
+  classes: Pick<LineClasses, "kept" | "open">,
+): StepRecord[] => {
+  const open = new Set(classes.open.map((tx) => tx.txHash));
+  const kept = keptNamesOf(base, classes);
+  return base.steps.filter(
+    (step) =>
+      open.has(step.txHash.toLowerCase()) &&
+      step.status !== "failed" &&
+      !kept.has(step.name),
+  );
+};
+
+/** The first transaction of `after` that is an open transaction of the line, when one is */
+export const openAmong = (
+  after: readonly Pick<BuiltTxData, "txHash">[],
+  open: readonly LineTx[],
+): Pick<BuiltTxData, "txHash"> | undefined => {
+  const hashes = new Set(open.map((tx) => tx.txHash));
+  return after.find((tx) => hashes.has(tx.txHash.toLowerCase()));
+};
+
+/**
+ * The first step built that spends, reads or puts up an output of an open transaction of the
+ * line whose hash no step built has, with that transaction: the search does not find it in a
+ * block. A used-up transaction is in a block for good, its collateral return with it
+ */
+export const standingOn = <T extends { readonly built: RuleBody }>(
+  steps: readonly T[],
+  open: readonly LineTx[],
+): { readonly step: T; readonly below: LineTx } | undefined => {
+  const made = new Set(steps.map((step) => step.built.txHash.toLowerCase()));
+  const standing = new Map(
+    open
+      .filter((tx) => !made.has(tx.txHash) && tx.usedUp !== true)
+      .map((tx) => [tx.txHash, tx]),
+  );
+  for (const step of steps)
+    for (const hash of sourcesOf(step.built)) {
+      const below = standing.get(hash);
+      if (below !== undefined) return { step, below };
+    }
+  return undefined;
 };

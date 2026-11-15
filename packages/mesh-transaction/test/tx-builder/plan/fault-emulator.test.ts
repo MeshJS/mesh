@@ -15,7 +15,8 @@ import { ADA, alice, bob, carol, dave, payTo } from "./run-util";
 // never returns, before or after it went through; a call that pauses while another process goes
 // on, and wakes. After the fault a fresh process (or, for a fault the process lives through, the
 // same objects) carries every plan to its end. A plan that stops with a payment not made is made
-// again from its `rest`, under a new id, once it is stopped, and that plan is carried to its end.
+// in its place with `replan`, under a new id, once it is stopped, and that plan is carried to its
+// end.
 //
 // Checked around every step and at the end:
 //  - an object never shows a revision ahead of the store, nor a body the store does not hold;
@@ -57,7 +58,7 @@ type Payment = { readonly address: string; readonly lovelace: bigint };
 type Journey = {
   readonly ids: readonly string[];
   /**
-   * "pay": every payment is made once, by the plan or by the plan made again from its rest;
+   * "pay": every payment is made once, by the plan or by the plan made in its place;
    * "end": the plan ends final or stopped
    */
   readonly goal: Record<string, "pay" | "end">;
@@ -108,20 +109,20 @@ const lose = (ctx: Ctx, id: string) => {
   ctx.world.emulator.advanceTo({ time: at(ctx, id).until! + 2_000 });
 };
 
-/** The id of the plan made again from the rest of a stopped plan */
+/** The id of the plan made in place of a stopped plan */
 const againOf = (id: string) => `${id}-again`;
 
 /**
- * A plan made again from the rest of a stopped plan, under a new id, and run to final; the
+ * A plan made in place of a stopped plan by `replan`, under a new id, and run to final; the
  * payer is the wallet, or the address of a journey whose payer is an address
  */
 const again = (id: string, addressPayer = false): Step => ({
-  name: `${againOf(id)}: builder.plan(rest), run(final)`,
+  name: `${againOf(id)}: replan, run(final)`,
   run: async (c) => {
     const stopped = at(c, id);
     if (stopped.status !== "stopped")
       throw new Error(`${id} is ${stopped.status}, not stopped`);
-    const next = await c.builder.plan(stopped.rest, {
+    const next = await stopped.replan({
       id: againOf(id),
       payer: addressPayer ? c.world.address : c.world.wallet,
     });
@@ -300,7 +301,7 @@ const stopsBuilt: Journey = {
 };
 
 // An input of the step spent by someone else while the step is held: the step never lands, and
-// the payment is made by the plan made again from the rest
+// the payment is made by the plan made in its place
 const inputSpent: Journey = {
   ...one,
   goal: { pay: "pay" },
@@ -349,7 +350,7 @@ const chain: Journey = {
   ],
 };
 
-// Held: the first step expires and the second is orphaned; both are made again from the rest
+// Held: the first step expires and the second is orphaned; both are paid by the plan in its place
 const chainHeld: Journey = {
   ...two,
   goal: { pay: "pay" },
@@ -369,7 +370,7 @@ const chainHeld: Journey = {
 };
 
 // Both held: p's first step expires and its second is orphaned; c, built after p on the change of
-// p's last step, expires; both are made again from their rest
+// p's last step, expires; both are paid by the plans in their place
 const afterHeld: Journey = {
   ...chain,
   steps: [
@@ -604,7 +605,7 @@ const carryOn = async (
       );
     } catch (error) {
       if (codeOf(error) !== "PLAN_NOT_FOUND") throw error;
-      plans[again] = await builder.plan(plan.rest, {
+      plans[again] = await plan.replan({
         id: again,
         payer: journey.addressPayer ? world.address : world.wallet,
       });
