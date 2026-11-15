@@ -8,19 +8,10 @@ import {
   TxPlanError,
 } from "../../../src/tx-builder";
 import { makePlan } from "../../../src/tx-builder/plan/make";
-import { stepRecordOf } from "../../../src/tx-builder/plan/step-plan";
+import { recordOf } from "../../../src/tx-builder/plan/plan";
 import { alwaysSucceedCbor } from "../../test-util";
 import { caught } from "./plan-emulator-util";
-import {
-  ADA,
-  alice,
-  bob,
-  carol,
-  paidTo,
-  payTo,
-  planOf,
-  stepSetup,
-} from "./step-plan-util";
+import { ADA, alice, bob, carol, paidTo, payTo, stepSetup } from "./run-util";
 
 // A group as it is built: the steps of one payer stand on each other always, the transactions
 // of `after` a step spends from are recorded with it, a linked part is read as strictly
@@ -187,8 +178,7 @@ describe("a link", () => {
 
     it("is read as strictly when it comes from JSON", async () => {
       const { builder, wallet } = await stepSetup("scalus");
-      const plan = await planOf(
-        builder,
+      const plan = await builder.plan(
         {
           a: payTo(alice, 5n * ADA),
           b: [
@@ -222,11 +212,11 @@ describe("a transaction of after", () => {
   it("that a step spends from is recorded with it: a refusal while it is not in a block proves nothing", async () => {
     const { emulator, builder, wallet } = await stepSetup("scalus");
     const pre = await builder.build(payTo(carol, 2n * ADA), { payer: wallet });
-    const plan = await planOf(builder, payTo(alice, 5n * ADA), {
+    const plan = await builder.plan(payTo(alice, 5n * ADA), {
       payer: wallet,
       after: pre,
     });
-    expect(stepRecordOf(plan).steps[0]!.after).toEqual([pre.txHash]);
+    expect(recordOf(plan).steps[0]!.after).toEqual([pre.txHash]);
     expect(plan.toJSON().steps[0]!.after).toEqual([pre.txHash]);
     // The node refuses main: pre is not on chain
     const error = await caught(plan.run({ waitFor: "sent" }));

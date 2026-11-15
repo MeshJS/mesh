@@ -10,11 +10,11 @@ import { Crypto } from "@meshsdk/core-cst";
 import type { BuiltTxData, Utxo } from "../../../src/tx-builder";
 import type {
   NewStep,
-  StepAdvanced,
-  StepPlanEvent,
-  StepPlanRecord,
+  PlanAdvanced,
+  PlanEvent,
+  PlanRecord,
   StepRecord,
-} from "../../../src/tx-builder/plan/step-core";
+} from "../../../src/tx-builder/plan/core";
 import type { KeyWitness } from "../../../src/tx-builder/sign";
 import {
   output,
@@ -24,15 +24,15 @@ import {
   validity,
 } from "../../../src/tx-builder";
 import {
-  advanceStepPlan,
-  emptyStepPlan,
+  advancePlan,
+  emptyPlan as emptyRecord,
   keyHashOfVkey,
-} from "../../../src/tx-builder/plan/step-core";
+} from "../../../src/tx-builder/plan/core";
 import { baseAddress } from "../../test-util";
 import { TestKey, testKey } from "../hash-signer-util";
 import { hash } from "./plan-util";
 
-// Helpers of the tests of a plan of steps: transactions with the members the state machine
+// Helpers of the tests of a plan: transactions with the members the state machine
 // reads, plans made of them, and plans of real transactions for the record.
 
 export { deepFreeze, hash, seeded, utxo } from "./plan-util";
@@ -110,9 +110,9 @@ export const DEADLINES = {
 
 /** An empty plan with the tests' deadlines */
 export const emptyPlan = (
-  deadlines: Partial<StepPlanRecord["deadlines"]> = {},
-): StepPlanRecord =>
-  emptyStepPlan({
+  deadlines: Partial<PlanRecord["deadlines"]> = {},
+): PlanRecord =>
+  emptyRecord({
     id: "plan-1",
     network: "preprod",
     deadlines: { ...DEADLINES, ...deadlines },
@@ -120,8 +120,8 @@ export const emptyPlan = (
   });
 
 /** The record after the event; fails the test when the event is refused */
-export const accept = (json: StepPlanRecord, event: StepPlanEvent) => {
-  const result = advanceStepPlan(json, event);
+export const accept = (json: PlanRecord, event: PlanEvent) => {
+  const result = advancePlan(json, event);
   if (!result.ok)
     throw new Error(
       `${event.type} refused (${result.reason}): ${result.message}`,
@@ -130,14 +130,12 @@ export const accept = (json: StepPlanRecord, event: StepPlanEvent) => {
 };
 
 /** The record after every event, in order */
-export const acceptAll = (
-  json: StepPlanRecord,
-  ...events: readonly StepPlanEvent[]
-) => events.reduce(accept, json);
+export const acceptAll = (json: PlanRecord, ...events: readonly PlanEvent[]) =>
+  events.reduce(accept, json);
 
 /** The reason of a refusal; fails the test when the event is accepted */
-export const refusal = (json: StepPlanRecord, event: StepPlanEvent) => {
-  const result: StepAdvanced = advanceStepPlan(json, event);
+export const refusal = (json: PlanRecord, event: PlanEvent) => {
+  const result: PlanAdvanced = advancePlan(json, event);
   if (result.ok) throw new Error(`${event.type} accepted`);
   return result.reason;
 };
@@ -145,11 +143,11 @@ export const refusal = (json: StepPlanRecord, event: StepPlanEvent) => {
 /** A plan of these steps, appended to the empty plan in one event */
 export const planOf = (
   steps: readonly NewStep[],
-  deadlines: Partial<StepPlanRecord["deadlines"]> = {},
+  deadlines: Partial<PlanRecord["deadlines"]> = {},
 ) => accept(emptyPlan(deadlines), { type: "steps", steps });
 
 /** The step with this name */
-export const stepOf = (json: StepPlanRecord, name: string): StepRecord => {
+export const stepOf = (json: PlanRecord, name: string): StepRecord => {
   const step = json.steps.find((each) => each.name === name);
   if (step === undefined) throw new Error(`no step ${name}`);
   return step;

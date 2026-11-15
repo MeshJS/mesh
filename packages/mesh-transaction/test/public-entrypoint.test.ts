@@ -7,25 +7,31 @@ import type {
   OutputScript,
   PlanDeadlines,
   PlanOptions,
+  PlanStep,
+  PlanSteps,
   RedeemerContext,
   ResumeOptions,
-  SendOptions,
+  RunOptions,
   SignOptions,
   SignTxOptions,
   SpendPart,
   StepChange,
+  StepOptions,
   StepOutput,
+  StepPartEntry,
+  StepParts,
   StoredTxPlanJSON,
   SubmitFailureReason,
-  TxAttempt,
-  TxAttemptStatus,
   TxInclusion,
+  TxPlan,
   TxPlanJSON,
   TxPlanStatus,
   TxPlanStore,
+  TxStep,
+  TxStepJSON,
+  TxStepStatus,
   Utxo,
   UtxoInput,
-  WaitOptions,
   WaitTarget,
 } from "../src";
 import * as publicApi from "../src";
@@ -66,7 +72,7 @@ describe("public entrypoint", () => {
     expect(publicApi).toHaveProperty(name);
   });
 
-  it("no longer exports requiredSigner: guard.pubKey takes its place", () => {
+  it("does not export requiredSigner: guard.pubKey takes its place", () => {
     expect(publicApi).not.toHaveProperty("requiredSigner");
   });
 
@@ -138,29 +144,43 @@ describe("public entrypoint", () => {
   });
 
   it("exports the plan record types, and not the plan state machine", () => {
-    const status: TxAttemptStatus = "sent";
-    const attempt: TxAttempt = {
-      txHash: "ab".repeat(32),
+    const status: TxStepStatus = "sent";
+    const step: TxStepJSON = {
+      name: "main",
       status,
-      until: 1_700_000_000_000,
+      txHash: "ab".repeat(32),
       sends: 1,
-      parents: [{ txHash: "cd".repeat(32), until: 1_700_000_000_000 }],
+      refused: 0,
+      tx: {
+        kind: "BuiltTx",
+        version: 1,
+        txHash: "ab".repeat(32),
+        built: {},
+        delivered: true,
+      },
     };
-    const planStatus: TxPlanStatus = "draft";
+    const planStatus: TxPlanStatus = "pending";
     const json: TxPlanJSON = {
       kind: "TxPlan",
-      version: 1,
-      rev: 0,
+      version: 2,
+      rev: 2,
       status: planStatus,
       network: "preprod",
       deadlines: { ttlMs: 600_000, expiryMarginMs: 120_000, confirmations: 3 },
-      attempts: [attempt],
-      anchor: undefined,
-      parts: [],
+      steps: [step],
       options: {},
     };
-    expect(json.attempts[0]?.status).toBe("sent");
-    expect(publicApi).not.toHaveProperty("advancePlan");
+    expect(json.steps[0]?.status).toBe("sent");
+    for (const name of [
+      "advancePlan",
+      "emptyPlan",
+      "planStatus",
+      "planUntil",
+      "landedSteps",
+      "liveSteps",
+      "missingKeys",
+    ])
+      expect(publicApi).not.toHaveProperty(name);
   });
 
   it("exports the type of the reason of SUBMIT_FAILED, and not the function that reads it", () => {
@@ -184,8 +204,8 @@ describe("public entrypoint", () => {
       confirmations: 0,
     };
     const waitFor: WaitTarget = "included";
-    const wait: WaitOptions = { waitFor, timeoutMs: 1_000, pollMs: 10 };
-    expect({ ...deadlines, ...wait }).toHaveProperty("waitFor", "included");
+    const run: RunOptions = { waitFor, timeoutMs: 1_000, pollMs: 10 };
+    expect({ ...deadlines, ...run }).toHaveProperty("waitFor", "included");
     for (const name of [
       "ChainObserver",
       "chainObserver",
@@ -201,17 +221,54 @@ describe("public entrypoint", () => {
       expect(publicApi).not.toHaveProperty(name);
   });
 
-  it("exports the plan class and its option types, and not its internal functions", () => {
+  it("exports the plan class, its step and option types, and not its internal functions", () => {
     const options: PlanOptions = { id: "pay-1", ttlMs: 60_000 };
-    const send: SendOptions = { waitFor: "included", signers: [] };
+    const run: RunOptions = { waitFor: "included", signers: [] };
     const sign: SignOptions = { signers: [] };
-    expect({ ...options, ...send, ...sign }).toHaveProperty("id", "pay-1");
+    expect({ ...options, ...run, ...sign }).toHaveProperty("id", "pay-1");
+    const pay = publicApi.output({
+      address:
+        "addr_test1vz46h2at4w46h2at4w46h2at4w46h2at4w46h2at4w46h2cw5nyuy",
+      value: { lovelace: 2_000_000n },
+    });
+    const entry: StepPartEntry = [pay, false];
+    const parts: StepParts = [entry];
+    const own: StepOptions = { fee: 200_000n };
+    const one: PlanStep = { parts, ...own };
+    const steps: PlanSteps = {
+      lock: pay,
+      unlock: [
+        publicApi.spend.pubKey({ utxo: { step: "lock", change: true } }),
+      ],
+      refund: one,
+    };
+    expect(Object.keys(steps)).toEqual(["lock", "unlock", "refund"]);
     expect(typeof publicApi.TxPlan).toBe("function");
+    for (const method of [
+      "sign",
+      "addWitnesses",
+      "run",
+      "refresh",
+      "stop",
+      "step",
+      "toJSON",
+    ])
+      expect(
+        typeof (
+          publicApi.TxPlan.prototype as unknown as Record<string, unknown>
+        )[method],
+      ).toBe("function");
     for (const name of [
       "createPlan",
-      "planOver",
+      "resumePlan",
+      "planFor",
+      "makePlan",
+      "orderOf",
       "recordOf",
-      "PlanLiveObjects",
+      "standingSteps",
+      "LiveObjects",
+      "MAIN_STEP",
+      "MAX_STEPS",
     ])
       expect(publicApi).not.toHaveProperty(name);
   });
@@ -259,22 +316,20 @@ describe("public entrypoint", () => {
     const store: TxPlanStore = publicApi.memoryPlanStore();
     const json: StoredTxPlanJSON = {
       kind: "TxPlan",
-      version: 1,
+      version: 2,
       id: "pay-1",
       rev: 1,
-      status: "abandoned",
-      closing: true,
+      status: "stopped",
+      stopped: true,
       network: "preprod",
       deadlines: { ttlMs: 600_000, expiryMarginMs: 0, confirmations: 0 },
-      attempts: [],
-      anchor: { anchors: [] },
-      parts: [],
+      steps: [],
       options: {},
     };
     expect(await store.save(json, 0)).toBe(true);
     expect(await store.load("pay-1")).toEqual(json);
-    const resume: ResumeOptions = { canSelect: () => true };
-    expect(typeof resume.canSelect).toBe("function");
+    const resume: ResumeOptions = { trace: () => undefined };
+    expect(typeof resume.trace).toBe("function");
     expect(typeof publicApi.TxBuilder.prototype.resume).toBe("function");
     for (const name of ["resumePlan", "loadRecord", "readFirst"])
       expect(publicApi).not.toHaveProperty(name);
@@ -284,9 +339,8 @@ describe("public entrypoint", () => {
       "decodeParts",
       "encodePlan",
       "readPlan",
-      "readPlanWith",
+      "encodeGiven",
       "PLAN_RECORD_VERSION",
-      "migrations",
       "UnreadContent",
       "NOT_UNPAID",
     ])
@@ -301,8 +355,8 @@ type Equal<A, B> =
 
 /** Checked by the compiler only: the exact status values */
 export const statusCases = () => {
-  const attemptStatuses: Equal<
-    TxAttemptStatus,
+  const stepStatuses: Equal<
+    TxStepStatus,
     | "built"
     | "signed"
     | "sent"
@@ -315,12 +369,34 @@ export const statusCases = () => {
   > = true;
   const planStatuses: Equal<
     TxPlanStatus,
-    TxAttemptStatus | "draft" | "abandoned"
+    "pending" | "stopping" | "stopped" | "final"
   > = true;
   const waitTargets: Equal<WaitTarget, "sent" | "included" | "final"> = true;
-  void attemptStatuses;
+  void stepStatuses;
   void planStatuses;
   void waitTargets;
+};
+
+/** Checked by the compiler only: the plan as the builder makes it and as it shows its steps */
+export const planCases = async (builder: publicApi.TxBuilder) => {
+  const plan: TxPlan = await builder.plan([], { payer: "addr_test1" });
+  const again: Promise<TxPlan> = builder.resume(plan.toJSON());
+  const byId: Promise<TxPlan> = builder.resume("pay-1", { payer: "addr" });
+  const step: TxStep = plan.step("main");
+  const steps: readonly TxStep[] = plan.steps;
+  const name: string = step.name;
+  const fee: bigint = plan.fee;
+  // @ts-expect-error a plan is made by builder.plan only
+  new publicApi.TxPlan();
+  // @ts-expect-error a step of a plan is data, not a BuiltTx
+  void step.sign;
+  // @ts-expect-error builder.plan returns a promise of the plan
+  builder.plan([], {}).run();
+  void again;
+  void byId;
+  void steps;
+  void name;
+  void fee;
 };
 
 /** Checked by the compiler only: the exact reasons of SUBMIT_FAILED, and its details as narrowed */

@@ -1,28 +1,36 @@
 import type { MeshWallet } from "@meshsdk/wallet";
+import { deserializeAddress } from "@meshsdk/core";
 
-import type { TxBuilder, TxPlan } from "../../../src/tx-builder";
+import type { PlanSteps, TxBuilder, TxPlan } from "../../../src/tx-builder";
 import type { Fault, StoreFault } from "./fault-util";
 import { guard } from "../../../src/tx-builder";
-import { recordOf } from "../../../src/tx-builder/plan/plan";
 import { ref } from "../utxo-util";
-import { codeOf, Process, runStep, sleep, World } from "./fault-util";
-import { advance, pay } from "./plan-emulator-util";
+import { codeOf, DEAD, Process, runStep, sleep, World } from "./fault-util";
+import { advance } from "./plan-emulator-util";
 import { seeded } from "./plan-util";
+import { ADA, alice, bob, carol, dave, payTo } from "./run-util";
 
 // Journeys of plans with a store, each run once with one fault at one call: a store call that
 // throws, loses its answer, answers false, or never returns; a provider or submitter call that
 // never returns, before or after it went through; a call that pauses while another process goes
 // on, and wakes. After the fault a fresh process (or, for a fault the process lives through, the
-// same objects) carries every plan to its end.
+// same objects) carries every plan to its end. A plan that stops with a payment not made is made
+// again from its `rest`, under a new id, once it is stopped, and that plan is carried to its end.
 //
 // Checked around every step and at the end:
 //  - an object never shows a revision ahead of the store, nor a body the store does not hold;
+//    at the store's revision it shows the stored record;
+//  - the store's record of an id never changes the bodies of its steps;
 //  - a body reaches a signer only once the store holds it; bytes reach a submitter only once the
-//    store recorded their delivery, on the current attempt, as the stored bytes;
-//  - a terminal status, of the store or of an object, never changes; the closing mark stays;
-//  - at most one attempt of a plan lands; final is on the one that landed, abandoned has none;
-//  - a plan meant to be paid ends final, one meant to be abandoned ends abandoned (or final,
-//    with the one attempt that landed).
+//    store recorded their delivery, as the stored signed bytes of the step, and a step reaches a
+//    submitter for the first time only when every step before it is in a block;
+//  - a terminal status (final, stopped), of the store or of an object, never changes; the stop
+//    mark stays;
+//  - every payment is made at most once, and every transaction that lands is a recorded step;
+//  - a final plan has every step in a block; a stopped plan has every step final or dead, and
+//    no step called dead lands, not even when its bytes are sent again at the end;
+//  - a plan meant to pay ends with every payment made once (final, or stopped and made again);
+//    one meant to end ends final or stopped.
 //
 // Each journey runs clean, then `PLAN_FAULT_CASES` of its faults (4 by default), chosen by
 // `PLAN_FAULT_SEED` (1 by default); `PLAN_FAULT_CASES=all` runs every fault at every call.
@@ -33,6 +41,7 @@ const SEED = Number(process.env.PLAN_FAULT_SEED ?? 1);
 
 type Ctx = {
   readonly world: World;
+  readonly builder: TxBuilder;
   readonly plans: Record<string, TxPlan>;
 };
 
@@ -43,10 +52,17 @@ type Step = {
   readonly run: (ctx: Ctx) => Promise<unknown>;
 };
 
+type Payment = { readonly address: string; readonly lovelace: bigint };
+
 type Journey = {
   readonly ids: readonly string[];
-  /** "pay": ends final; "abandon": ends abandoned, unless an attempt landed (then final) */
-  readonly goal: Record<string, "pay" | "abandon">;
+  /**
+   * "pay": every payment is made once, by the plan or by the plan made again from its rest;
+   * "end": the plan ends final or stopped
+   */
+  readonly goal: Record<string, "pay" | "end">;
+  /** Every payment of the journey's plans, each to its own address */
+  readonly payments: readonly Payment[];
   readonly steps: readonly Step[];
   readonly signers: (world: World) => MeshWallet[];
   /** Makes the plan of an id, when no record of it was written */
@@ -55,85 +71,170 @@ type Journey = {
     builder: TxBuilder,
     id: string,
     plans: Record<string, TxPlan>,
-  ) => TxPlan;
+  ) => Promise<TxPlan>;
   /** The held bytes land at the crash */
   readonly flushAtCrash?: true;
   /** The payer is an address: a resumed plan is given none */
   readonly addressPayer?: true;
-  /** A built attempt gets the rest of its signatures through addWitnesses */
+  /** A step that needs signatures gets them through addWitnesses */
   readonly witnesses?: true;
+  /** The plan is stopped by whoever carries it on */
+  readonly stop?: true;
 };
 
 const at = (ctx: Ctx, id: string) => ctx.plans[id]!;
-const untilOf = (plan: TxPlan) => plan.attempts.at(-1)!.until;
 
-/** build(), and a check that the store holds the body it hands out */
-const checkedBuild = async (ctx: Ctx, id: string) => {
-  const built = await at(ctx, id).build();
-  await ctx.world.checkBody(id, built.txHash, `build(${id})`);
-  return built;
-};
-
-/** A step that sends with the submitters holding the bytes back */
-const sendHeld = (id: string): Step => ({
-  name: `${id}.send held`,
-  run: async (ctx) => {
-    ctx.world.submitMode = "hold";
-    return at(ctx, id).send();
+/** The step that makes the plan of an id */
+const make = (journey: () => Journey, id: string): Step => ({
+  name: `${id}: builder.plan`,
+  run: async (c) => {
+    c.plans[id] = await journey().make(c.world, c.builder, id, c.plans);
   },
 });
 
-/** The held bytes are lost, the submitters forward again, and time passes the deadline */
+/** A step that runs a plan with the submitters holding the bytes back */
+const sendHeld = (id: string): Step => ({
+  name: `${id}.run(sent) held`,
+  run: async (ctx) => {
+    ctx.world.submitMode = "hold";
+    return at(ctx, id).run({ waitFor: "sent" });
+  },
+});
+
+/** The held bytes are lost, the submitters forward again, and time passes the plan's deadline */
 const lose = (ctx: Ctx, id: string) => {
   ctx.world.held.length = 0;
   ctx.world.submitMode = "forward";
-  ctx.world.emulator.advanceTo({ time: untilOf(at(ctx, id)) });
+  ctx.world.emulator.advanceTo({ time: at(ctx, id).until! + 2_000 });
 };
 
-const payment: Journey["make"] = (world, builder, id) =>
-  builder.plan(pay(), { id, payer: world.wallet });
-const one = { ids: ["pay"], signers: (w: World) => [w.wallet], make: payment };
+/** The id of the plan made again from the rest of a stopped plan */
+const againOf = (id: string) => `${id}-again`;
+
+/**
+ * A plan made again from the rest of a stopped plan, under a new id, and run to final; the
+ * payer is the wallet, or the address of a journey whose payer is an address
+ */
+const again = (id: string, addressPayer = false): Step => ({
+  name: `${againOf(id)}: builder.plan(rest), run(final)`,
+  run: async (c) => {
+    const stopped = at(c, id);
+    if (stopped.status !== "stopped")
+      throw new Error(`${id} is ${stopped.status}, not stopped`);
+    const next = await c.builder.plan(stopped.rest, {
+      id: againOf(id),
+      payer: addressPayer ? c.world.address : c.world.wallet,
+    });
+    c.plans[againOf(id)] = next;
+    return next.run({ waitFor: "final" });
+  },
+});
+
+const A: Payment = { address: alice, lovelace: 5n * ADA };
+const B: Payment = { address: bob, lovelace: 3n * ADA };
+const C: Payment = { address: carol, lovelace: 2n * ADA };
+const D: Payment = { address: dave, lovelace: 4n * ADA };
+const partOf = ({ address, lovelace }: Payment) => payTo(address, lovelace);
+
+/** A plan of the payer's wallet */
+const planOf =
+  (steps: () => PlanSteps | ReturnType<typeof partOf>): Journey["make"] =>
+  (world, builder, id) =>
+    builder.plan(steps(), { id, payer: world.wallet });
+
+const one = {
+  ids: ["pay"],
+  signers: (w: World) => [w.wallet],
+  payments: [A],
+  make: planOf(() => partOf(A)),
+};
+const three = {
+  ids: ["pay"],
+  signers: (w: World) => [w.wallet],
+  payments: [A, B, C],
+  make: planOf(() => ({ a: partOf(A), b: partOf(B), c: partOf(C) })),
+};
+const two = {
+  ids: ["pay"],
+  signers: (w: World) => [w.wallet],
+  payments: [A, B],
+  make: planOf(() => ({ a: partOf(A), b: partOf(B) })),
+};
 
 const pays: Journey = {
   ...one,
   goal: { pay: "pay" },
   steps: [
-    { name: "build", run: (c) => checkedBuild(c, "pay") },
+    make(() => pays, "pay"),
     { name: "sign", run: (c) => at(c, "pay").sign() },
-    { name: "send(sent)", run: (c) => at(c, "pay").send() },
+    { name: "run(sent)", run: (c) => at(c, "pay").run({ waitFor: "sent" }) },
     {
-      name: "send(final)",
-      run: (c) => at(c, "pay").send({ waitFor: "final" }),
+      name: "run(final)",
+      run: (c) => at(c, "pay").run({ waitFor: "final" }),
     },
   ],
 };
+
+const paysInSteps: Journey = {
+  ...three,
+  goal: { pay: "pay" },
+  steps: [
+    make(() => paysInSteps, "pay"),
+    { name: "sign", run: (c) => at(c, "pay").sign() },
+    { name: "run(sent) a", run: (c) => at(c, "pay").run({ waitFor: "sent" }) },
+    { name: "run(sent) b", run: (c) => at(c, "pay").run({ waitFor: "sent" }) },
+    {
+      name: "run(final)",
+      run: (c) => at(c, "pay").run({ waitFor: "final" }),
+    },
+  ],
+};
+
+/** Runs with a submitter that refuses, then forwards again */
+const refusedRun = (id: string): Step => ({
+  name: `${id}.run(sent) refused`,
+  expect: "REJECTED",
+  run: async (c) => {
+    c.world.submitMode = "refuse";
+    try {
+      return await at(c, id).run({ waitFor: "sent" });
+    } finally {
+      c.world.submitMode = "forward";
+    }
+  },
+});
 
 const refused: Journey = {
   ...one,
   goal: { pay: "pay" },
   steps: [
+    make(() => refused, "pay"),
+    refusedRun("pay"),
     {
-      name: "send refused",
-      expect: "REJECTED",
-      run: async (c) => {
-        c.world.submitMode = "refuse";
-        try {
-          return await at(c, "pay").send();
-        } finally {
-          c.world.submitMode = "forward";
-        }
-      },
-    },
-    {
-      name: "build again",
+      name: "run(final) again",
       run: async (c) => {
         advance(c.world.emulator, 1);
-        return checkedBuild(c, "pay");
+        return at(c, "pay").run({ waitFor: "final" });
       },
     },
+  ],
+};
+
+// The second step refused once the first is in a block: the refusal counts, and the same bytes
+// go again
+const refusedSecond: Journey = {
+  ...two,
+  goal: { pay: "pay" },
+  steps: [
+    make(() => refusedSecond, "pay"),
+    { name: "run(sent) a", run: (c) => at(c, "pay").run({ waitFor: "sent" }) },
+    refusedRun("pay"),
     {
-      name: "send(final)",
-      run: (c) => at(c, "pay").send({ waitFor: "final" }),
+      name: "run(final) again",
+      run: async (c) => {
+        advance(c.world.emulator, 1);
+        return at(c, "pay").run({ waitFor: "final" });
+      },
     },
   ],
 };
@@ -142,162 +243,230 @@ const expires: Journey = {
   ...one,
   goal: { pay: "pay" },
   steps: [
+    make(() => expires, "pay"),
     sendHeld("pay"),
     {
-      name: "advance() past the deadline",
+      name: "run(final) past the deadline",
+      expect: "EXPIRED",
       run: async (c) => {
         lose(c, "pay");
-        return at(c, "pay").advance({ waitFor: "final" });
+        return at(c, "pay").run({ waitFor: "final" });
       },
     },
+    again("pay"),
   ],
 };
 
-const abandons: Journey = {
-  ...one,
-  goal: { pay: "abandon" },
+// Stopped while its first step may land: stopping, then stopped once nothing of it can land
+const stops: Journey = {
+  ...two,
+  goal: { pay: "end" },
+  stop: true,
   steps: [
+    make(() => stops, "pay"),
+    { name: "sign", run: (c) => at(c, "pay").sign() },
     sendHeld("pay"),
+    { name: "stop() while a may land", run: (c) => at(c, "pay").stop() },
     {
-      name: "abandon() while live",
-      expect: "STILL_LIVE",
-      run: (c) => at(c, "pay").abandon(),
+      name: "run() after stop()",
+      expect: "INVALID_STATE",
+      run: (c) => at(c, "pay").run(),
     },
     {
-      name: "advance() once safe",
+      name: "refresh() past the deadline",
       run: async (c) => {
         advance(c.world.emulator, 700);
-        return at(c, "pay").advance();
+        return at(c, "pay").refresh();
       },
     },
   ],
 };
 
-// The payer's anchor spent by someone else while the attempt is held: past its deadline the
-// plan changes its anchor after the double check
-const movesAnchor: Journey = {
+const stopsBuilt: Journey = {
+  ...one,
+  goal: { pay: "end" },
+  stop: true,
+  steps: [
+    make(() => stopsBuilt, "pay"),
+    { name: "stop() a built plan", run: (c) => at(c, "pay").stop() },
+    {
+      name: "refresh() past the deadline",
+      run: async (c) => {
+        advance(c.world.emulator, 700);
+        return at(c, "pay").refresh();
+      },
+    },
+  ],
+};
+
+// An input of the step spent by someone else while the step is held: the step never lands, and
+// the payment is made by the plan made again from the rest
+const inputSpent: Journey = {
   ...one,
   goal: { pay: "pay" },
   steps: [
+    make(() => inputSpent, "pay"),
     sendHeld("pay"),
     {
-      name: "the anchor spent; advance() past the deadline",
+      name: "an input spent; run(final) past the deadline",
+      expect: "EXPIRED",
       run: async (c) => {
-        const anchor = recordOf(at(c, "pay")).anchor.anchors[0]!.utxo;
-        c.world.emulator.removeUtxos([ref(anchor)]);
+        const input = at(c, "pay").step("main").inputs[0]!;
+        c.world.emulator.removeUtxos([ref(input)]);
         lose(c, "pay");
-        return at(c, "pay").advance({ waitFor: "final" });
+        return at(c, "pay").run({ waitFor: "final" });
       },
     },
+    again("pay"),
   ],
 };
 
-const abandonsDraft: Journey = {
-  ...one,
-  goal: { pay: "abandon" },
-  steps: [{ name: "abandon() a draft", run: (c) => at(c, "pay").abandon() }],
-};
+// Two plans: p of two steps, and c built after p, on the change of p's last step
+const chainMake: Journey["make"] = (world, builder, id, plans) =>
+  id === "p"
+    ? builder.plan({ a: partOf(A), b: partOf(B) }, { id, payer: world.wallet })
+    : builder.plan(partOf(D), { id, payer: world.wallet, after: plans.p! });
 
 const chain: Journey = {
   ids: ["p", "c"],
   goal: { p: "pay", c: "pay" },
+  payments: [A, B, D],
   signers: (w) => [w.wallet],
-  make: (world, builder, id, plans) =>
-    id === "p"
-      ? builder.plan(pay(), { id, payer: world.wallet })
-      : builder.plan(pay(3_000_000n), {
-          id,
-          payer: world.wallet,
-          after: plans.p!,
-        }),
+  make: chainMake,
   steps: [
-    { name: "p.send(sent)", run: (c) => at(c, "p").send() },
-    { name: "c.build", run: (c) => checkedBuild(c, "c") },
+    make(() => chain, "p"),
+    { name: "p.run(sent) a", run: (c) => at(c, "p").run({ waitFor: "sent" }) },
+    { name: "p.run(sent) b", run: (c) => at(c, "p").run({ waitFor: "sent" }) },
+    make(() => chain, "c"),
     {
-      name: "c.send(final)",
-      run: (c) => at(c, "c").send({ waitFor: "final" }),
+      name: "c.run(final)",
+      run: (c) => at(c, "c").run({ waitFor: "final" }),
     },
     {
-      name: "p.send(final)",
-      run: (c) => at(c, "p").send({ waitFor: "final" }),
+      name: "p.run(final)",
+      run: (c) => at(c, "p").run({ waitFor: "final" }),
     },
   ],
 };
 
-// Both held: the parent's attempt expires and is replaced, the child is orphaned and built again
+// Held: the first step expires and the second is orphaned; both are made again from the rest
 const chainHeld: Journey = {
+  ...two,
+  goal: { pay: "pay" },
+  steps: [
+    make(() => chainHeld, "pay"),
+    sendHeld("pay"),
+    {
+      name: "run(final) past the deadline",
+      expect: "EXPIRED",
+      run: async (c) => {
+        lose(c, "pay");
+        return at(c, "pay").run({ waitFor: "final" });
+      },
+    },
+    again("pay"),
+  ],
+};
+
+// Both held: p's first step expires and its second is orphaned; c, built after p on the change of
+// p's last step, expires; both are made again from their rest
+const afterHeld: Journey = {
   ...chain,
   steps: [
+    make(() => afterHeld, "p"),
+    make(() => afterHeld, "c"),
     sendHeld("p"),
-    { name: "c.send held", run: (c) => at(c, "c").send() },
+    sendHeld("c"),
     {
-      name: "p.advance(final) past the deadline",
+      name: "p.run(final) past the deadline",
+      expect: "EXPIRED",
       run: async (c) => {
         lose(c, "p");
-        return at(c, "p").advance({ waitFor: "final" });
+        return at(c, "p").run({ waitFor: "final" });
       },
     },
     {
-      name: "c.advance(final)",
-      run: (c) => at(c, "c").advance({ waitFor: "final" }),
+      name: "c.run(final)",
+      expect: "EXPIRED",
+      run: (c) => at(c, "c").run({ waitFor: "final", timeoutMs: 3_000 }),
     },
+    again("p"),
+    again("c"),
   ],
 };
 
+/** The signatures a wallet gives for the steps that still need its key */
+const witnessesOf = async (wallet: MeshWallet, plan: TxPlan) => {
+  const key = deserializeAddress((await wallet.getChangeAddress())!).pubKeyHash;
+  const sets: string[] = [];
+  for (const step of plan.steps)
+    if (step.missing.some((each) => each.keyHash === key))
+      sets.push(await wallet.signTx(step.tx, true));
+  return sets;
+};
+
+// The payer is an address; the first step needs the second key too
 const multisig: Journey = {
   ids: ["ms"],
   goal: { ms: "pay" },
+  payments: [A, B],
   signers: (w) => [w.wallet, w.other],
   addressPayer: true,
   make: (world, builder, id) =>
-    builder.plan([pay(), guard.pubKey({ address: world.otherAddress })], {
-      id,
-      payer: world.address,
-    }),
+    builder.plan(
+      {
+        a: [partOf(A), guard.pubKey({ address: world.otherAddress })],
+        b: partOf(B),
+      },
+      { id, payer: world.address },
+    ),
   steps: [
-    { name: "build", run: (c) => checkedBuild(c, "ms") },
+    make(() => multisig, "ms"),
     {
       name: "addWitnesses(payer)",
       run: async (c) =>
         at(c, "ms").addWitnesses(
-          await c.world.wallet.signTx(at(c, "ms").built!.tx, true),
+          ...(await witnessesOf(c.world.wallet, at(c, "ms"))),
         ),
     },
     {
-      name: "addWitnesses(guard)",
+      name: "addWitnesses(second key)",
       run: async (c) =>
         at(c, "ms").addWitnesses(
-          await c.world.other.signTx(at(c, "ms").built!.tx, true),
+          ...(await witnessesOf(c.world.other, at(c, "ms"))),
         ),
     },
     {
-      name: "send(final)",
-      run: (c) => at(c, "ms").send({ waitFor: "final" }),
+      name: "run(final)",
+      run: (c) => at(c, "ms").run({ waitFor: "final" }),
     },
   ],
 };
 
 const JOURNEYS: Record<string, Journey> = {
   pays,
+  "pays in three steps": paysInSteps,
   refused,
+  "refused at the second step": refusedSecond,
   expires,
   "expires, the held bytes landing at the crash": {
     ...expires,
     flushAtCrash: true,
   },
-  abandons,
-  "abandons, the held bytes landing at the crash": {
-    ...abandons,
+  stops,
+  "stops, the held bytes landing at the crash": {
+    ...stops,
     flushAtCrash: true,
   },
-  abandonsDraft,
-  movesAnchor,
+  stopsBuilt,
+  inputSpent,
   chain,
   chainHeld,
   "chainHeld, the held bytes landing at the crash": {
     ...chainHeld,
     flushAtCrash: true,
   },
+  "a plan built after a plan that does not land": afterHeld,
   multisig,
   "multisig, signatures added after the crash": {
     ...multisig,
@@ -335,77 +504,112 @@ type Result = {
   readonly errors: readonly string[];
 };
 
-const TERMINAL = new Set(["final", "abandoned"]);
-const LATER = new Set(["STILL_LIVE", "EXPIRED", "CONFIRM_TIMEOUT", "ORPHANED"]);
+const TERMINAL = new Set(["final", "stopped"]);
+const LATER = new Set([
+  "EXPIRED",
+  "ORPHANED",
+  "SCRIPT_FAILED",
+  "CONFIRM_TIMEOUT",
+  "INVALID_STATE",
+]);
+
+/** The plan of an id: the recorded one, else a new one */
+const planIn = async (
+  world: World,
+  journey: Journey,
+  builder: TxBuilder,
+  id: string,
+  plans: Record<string, TxPlan>,
+) => {
+  try {
+    return await builder.resume(
+      id,
+      journey.addressPayer ? {} : { payer: world.wallet },
+    );
+  } catch (error) {
+    if (codeOf(error) !== "PLAN_NOT_FOUND") throw error;
+    return journey.make(world, builder, id, plans);
+  }
+};
+
+/** Runs one plan to final or stopped, as the journey means it */
+const carryPlan = async (
+  world: World,
+  journey: Journey,
+  id: string,
+  plan: TxPlan,
+  stop: boolean,
+  errors: string[],
+) => {
+  const signers = journey.signers(world);
+  for (let i = 0; i < 40 && !TERMINAL.has(plan.status); i++) {
+    const status = plan.status;
+    try {
+      if (stop && plan.toJSON().stopped !== true) {
+        await plan.stop();
+        await world.checkObject(plan, id, `${id}.stop`);
+        continue;
+      }
+      if (journey.witnesses && plan.steps.some((s) => s.status === "built")) {
+        for (const wallet of signers) {
+          const sets = await witnessesOf(wallet, plan);
+          if (sets.length === 0) continue;
+          await plan.addWitnesses(...sets);
+          await world.checkObject(plan, id, `${id}.addWitnesses`);
+        }
+        await plan.run({ waitFor: "final", timeoutMs: 3_000 });
+      } else await plan.run({ waitFor: "final", signers, timeoutMs: 3_000 });
+      await world.checkObject(plan, id, `${id}.run`);
+      if (!TERMINAL.has(plan.status)) advance(world.emulator, 700);
+    } catch (error) {
+      const code = codeOf(error);
+      errors.push(`${id} ${status}: ${code}`);
+      await world.checkObject(plan, id, `${id} after ${code}`);
+      if (code === "REJECTED") advance(world.emulator, 1);
+      else if (LATER.has(code)) {
+        advance(world.emulator, 700);
+        await plan
+          .refresh()
+          .then(() => world.checkObject(plan, id, `${id}.refresh`))
+          .catch((again) => errors.push(`${id}.refresh: ${codeOf(again)}`));
+      } else await sleep(5);
+    }
+  }
+};
 
 /** Carries every plan of the journey to its end, in a fault-free process or on `same` */
 const carryOn = async (
   world: World,
   journey: Journey,
   errors: string[],
-  same?: Record<string, TxPlan>,
+  same?: { builder: TxBuilder; plans: Record<string, TxPlan> },
 ) => {
-  const builder = world.builder(new Process(), journey.ids);
-  const plans: Record<string, TxPlan> = same ?? {};
-  if (!same)
-    for (const id of journey.ids)
-      try {
-        plans[id] = await builder.resume(
-          id,
-          journey.addressPayer ? {} : { payer: world.wallet },
-        );
-      } catch (error) {
-        if (codeOf(error) !== "PLAN_NOT_FOUND") throw error;
-        plans[id] = journey.make(world, builder, id, plans);
-      }
-  const signers = journey.signers(world);
+  const builder = same?.builder ?? world.builder(new Process());
+  const plans: Record<string, TxPlan> = same?.plans ?? {};
   for (const id of journey.ids) {
+    plans[id] ??= await planIn(world, journey, builder, id, plans);
     const plan = plans[id]!;
     if (!same)
       await plan
         .refresh()
         .catch((error) => errors.push(`${id}.refresh: ${codeOf(error)}`));
-    for (let i = 0; i < 40 && !TERMINAL.has(plan.status); i++) {
-      const status = plan.status;
-      try {
-        if (
-          journey.goal[id] === "abandon" &&
-          !plan.closing &&
-          plan.landed === undefined
-        ) {
-          await plan.abandon().catch((error) => {
-            const code = codeOf(error);
-            if (code === "STILL_LIVE") advance(world.emulator, 700);
-            else if (code !== "ATTEMPT_ON_CHAIN") throw error;
-          });
-          await world.checkObject(plan, id, `${id}.abandon`);
-          continue;
-        }
-        if (journey.witnesses && status === "built") {
-          for (const wallet of signers) {
-            if (plan.status !== "built") break;
-            await plan.addWitnesses(await wallet.signTx(plan.built!.tx, true));
-            await world.checkObject(plan, id, `${id}.addWitnesses`);
-          }
-          await plan.advance({ waitFor: "final", timeoutMs: 3_000 });
-        } else
-          await plan.advance({ waitFor: "final", signers, timeoutMs: 3_000 });
-        await world.checkObject(plan, id, `${id}.advance`);
-        if (!TERMINAL.has(plan.status)) advance(world.emulator, 700);
-      } catch (error) {
-        const code = codeOf(error);
-        errors.push(`${id} ${status}: ${code}`);
-        await world.checkObject(plan, id, `${id} after ${code}`);
-        if (code === "REJECTED") {
-          advance(world.emulator, 1);
-          await plan.build().then(
-            (built) => world.checkBody(id, built.txHash, `${id}.build`),
-            (again) => errors.push(`${id}.build: ${codeOf(again)}`),
-          );
-        } else if (LATER.has(code)) advance(world.emulator, 700);
-        else await sleep(5);
-      }
+    await carryPlan(world, journey, id, plan, journey.stop === true, errors);
+    // A payment not made is made again, by a plan of its own, once nothing of this one can land
+    if (journey.goal[id] !== "pay" || plan.status !== "stopped") continue;
+    const again = againOf(id);
+    try {
+      plans[again] ??= await builder.resume(
+        again,
+        journey.addressPayer ? {} : { payer: world.wallet },
+      );
+    } catch (error) {
+      if (codeOf(error) !== "PLAN_NOT_FOUND") throw error;
+      plans[again] = await builder.plan(plan.rest, {
+        id: again,
+        payer: journey.addressPayer ? world.address : world.wallet,
+      });
     }
+    await carryPlan(world, journey, again, plans[again]!, false, errors);
   }
 };
 
@@ -417,37 +621,71 @@ const finish = async (
   errors: string[],
 ): Promise<Result> => {
   const landed = await world.landed();
-  const known = new Set<string>();
-  for (const id of journey.ids) {
-    const json = await world.inner.load(id);
-    const status = json?.status ?? "no record";
-    const hashes = json?.attempts.map((a) => a.txHash) ?? [];
-    for (const txHash of hashes) known.add(txHash);
-    const mine = landed.filter((txHash) => hashes.includes(txHash));
-    if (mine.length > 1)
-      world.violation(`${id}: ${mine.length} attempts landed`);
-    if (status === "abandoned" && mine.length > 0)
-      world.violation(`${id}: abandoned, and ${mine[0]!.slice(0, 8)} landed`);
-    if (status === "final" && mine.length !== 1)
-      world.violation(`${id}: final with ${mine.length} attempts landed`);
-    const final = json?.attempts.find((a) => a.status === "final");
-    if (status === "final" && final?.txHash !== mine[0])
-      world.violation(
-        `${id}: final on ${final?.txHash.slice(0, 8)}, while ${mine[0]?.slice(0, 8)} landed`,
-      );
-    const goal = journey.goal[id];
-    if (goal === "pay" && status !== "final")
-      world.violation(`${id}: ended ${status}, not final`);
-    if (
-      goal === "abandon" &&
-      status !== "abandoned" &&
-      !(status === "final" && mine.length === 1)
-    )
-      world.violation(`${id}: ended ${status}, not abandoned`);
-  }
+  const known = world.recordedHashes();
   for (const txHash of landed)
     if (!known.has(txHash))
       world.violation(`${txHash.slice(0, 8)} landed, and no record holds it`);
+  for (const id of world.history.keys()) {
+    const json = await world.inner.load(id);
+    if (json === undefined) continue;
+    for (const step of json.steps) {
+      const on = await world.onChain(step.txHash);
+      if (json.status === "final" && !on)
+        world.violation(`${id}: final, and ${step.name} is in no block`);
+      if (DEAD.has(step.status) && on)
+        world.violation(`${id}: ${step.name} is ${step.status}, and landed`);
+      if (
+        json.status === "stopped" &&
+        step.status !== "final" &&
+        !DEAD.has(step.status)
+      )
+        world.violation(`${id}: stopped, and ${step.name} is ${step.status}`);
+    }
+  }
+  for (const id of journey.ids) {
+    const json = await world.inner.load(id);
+    const status = json?.status ?? "no record";
+    const again = (await world.inner.load(againOf(id)))?.status;
+    const goal = journey.goal[id];
+    if (goal === "end" && !TERMINAL.has(status))
+      world.violation(`${id}: ended ${status}, neither final nor stopped`);
+    if (
+      goal === "pay" &&
+      status !== "final" &&
+      !(status === "stopped" && again === "final")
+    )
+      world.violation(
+        `${id}: ended ${status}${again ? `, made again ${again}` : ""}, not paid`,
+      );
+  }
+  // Every byte string of a step called dead, sent once more: none lands
+  for (const id of world.history.keys()) {
+    const json = await world.inner.load(id);
+    for (const step of json?.steps ?? [])
+      if (DEAD.has(step.status))
+        for (const tx of world.delivered.get(step.txHash) ?? [])
+          await world.emulator.submitTx(tx).catch(() => undefined);
+  }
+  for (const id of world.history.keys())
+    for (const step of (await world.inner.load(id))?.steps ?? [])
+      if (DEAD.has(step.status) && (await world.onChain(step.txHash)))
+        world.violation(
+          `${id}: ${step.name} is ${step.status}, and its bytes landed when sent again`,
+        );
+  const paid = journey.goal;
+  const meant = Object.values(paid).every((goal) => goal === "pay");
+  for (const { address, lovelace } of journey.payments) {
+    const times = world.emulator
+      .utxos({ address })
+      .filter(
+        (utxo) =>
+          utxo.output.amount.find((a) => a.unit === "lovelace")?.quantity ===
+          String(lovelace),
+      ).length;
+    if (times > 1) world.violation(`${address.slice(-8)} paid ${times} times`);
+    if (meant && times !== 1)
+      world.violation(`${address.slice(-8)} paid ${times} times, not once`);
+  }
   return {
     violations: world.violations,
     storeCalls: proc.storeCalls,
@@ -459,14 +697,16 @@ const finish = async (
 
 /** Runs a journey with the fault of `kase`, carries it on after the fault, and checks the end */
 const runJourney = async (journey: Journey, kase: Case): Promise<Result> => {
-  const world = await World.create(journey.ids);
+  const world = await World.create();
   const proc = new Process(kase.fault);
-  const builder = world.builder(proc, journey.ids);
+  const builder = world.builder(proc);
   const plans: Record<string, TxPlan> = {};
-  for (const id of journey.ids)
-    plans[id] = journey.make(world, builder, id, plans);
-  const ctx: Ctx = { world, plans };
+  const ctx: Ctx = { world, builder, plans };
   const errors: string[] = [];
+  const checkAll = async (where: string) => {
+    for (const id of new Set([...journey.ids, ...Object.keys(plans)]))
+      await world.checkObject(plans[id], id, where);
+  };
   let paused: Promise<{ value?: unknown; error?: unknown }> | undefined;
   for (const step of journey.steps) {
     const end = await runStep(proc, () => step.run(ctx));
@@ -482,8 +722,7 @@ const runJourney = async (journey: Journey, kase: Case): Promise<Result> => {
           );
       } else if (step.expect && !proc.fired)
         world.violation(`the step ${step.name} passed, not ${step.expect}`);
-      for (const id of journey.ids)
-        await world.checkObject(plans[id]!, id, `after ${step.name}`);
+      await checkAll(`after ${step.name}`);
     }
     if (proc.fired || end.hung) break;
   }
@@ -506,17 +745,16 @@ const runJourney = async (journey: Journey, kase: Case): Promise<Result> => {
       ]);
       clearTimeout(timer);
       if ("error" in end) errors.push(`the woken step: ${codeOf(end.error)}`);
-      for (const id of journey.ids)
-        await world.checkObject(plans[id]!, id, "after the wake");
+      await checkAll("after the wake");
     };
     try {
       if (kase.wake === "mid") {
-        const other = world.builder(new Process(), journey.ids);
+        const other = world.builder(new Process());
         const id = journey.ids[0]!;
         await other
           .resume(id, journey.addressPayer ? {} : { payer: world.wallet })
           .then((plan) =>
-            plan.advance({
+            plan.run({
               waitFor: "sent",
               signers: journey.signers(world),
               timeoutMs: 2_000,
@@ -544,9 +782,12 @@ const runJourney = async (journey: Journey, kase: Case): Promise<Result> => {
   // Unless it lives on, the process dies: its objects are dropped
   if (!same) proc.crashed = true;
   if (kase.fault !== undefined)
-    await carryOn(world, journey, errors, same ? plans : undefined).catch(
-      (error) => errors.push(`the run went on with ${codeOf(error)}`),
-    );
+    await carryOn(
+      world,
+      journey,
+      errors,
+      same ? { builder, plans } : undefined,
+    ).catch((error) => errors.push(`the run went on with ${codeOf(error)}`));
   return finish(world, journey, proc, errors);
 };
 

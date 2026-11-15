@@ -728,8 +728,10 @@ describe("keySigner", () => {
       expect(error.message.includes(hint)).toBe(true);
       expect(error.message.includes(key)).toBe(false);
 
-      const builder = builderOf(await emulatorOf());
-      const plan = builder.plan(
+      const emulator = await emulatorOf();
+      emulator.fund(baseAddress(1), { lovelace: 10_000_000n });
+      const builder = builderOf(emulator);
+      const plan = await builder.plan(
         output({ address: baseAddress(2), value: { lovelace: 2_000_000n } }),
         { payer: baseAddress(1) },
       );

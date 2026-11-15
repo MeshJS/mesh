@@ -290,27 +290,23 @@ describe("BuiltTx: the object", () => {
     );
   });
 
-  it("returns plain data from what is not a build of the builder: a plan's build", async () => {
+  it("returns plain data from what is not a build of the builder: a step of a plan", async () => {
     const { builder: planBuilder, address } = await setup();
-    const plan = planBuilder.plan(pay(), { payer: address });
-    const data = await plan.build();
+    const plan = await planBuilder.plan(pay(), { payer: address });
+    const data = plan.step("main");
     expect(data).not.toBeInstanceOf(BuiltTx);
     expect("sign" in data).toBe(false);
-    expect(plan.built).not.toBeInstanceOf(BuiltTx);
-    // A plan takes plans only as `after`
+    // A plan takes a built transaction as `after`, and spends its change
     const built = await planBuilder.build(pay(), { payer: address });
     expect(built).toBeInstanceOf(BuiltTx);
-    const error = await caught(() =>
-      planBuilder.plan(pay(), {
-        payer: address,
-        after: built as never,
-      }),
-    );
-    expect(error).toBeInstanceOf(TxBuildError);
-    expect((error as TxBuildError).code).toBe("INVALID_OPTION");
-    expect((error as TxBuildError<"INVALID_OPTION">).details.option).toBe(
-      "after",
-    );
+    const after = await planBuilder.plan(pay(), {
+      payer: address,
+      after: built,
+    });
+    const spent = after.step("main").inputs.map(ref);
+    for (const input of built.inputs)
+      expect(spent).not.toContainEqual(ref(input));
+    expect(spent).toEqual(expect.arrayContaining(built.change.map(ref)));
   });
 
   it("goes wherever a built transaction goes: after, utxosAfter, outputOf", async () => {
@@ -351,14 +347,16 @@ describe("BuiltTx: the object", () => {
     );
   });
 
-  it("types: build and finalize give the class, a plan's build the data alone", async () => {
+  it("types: build and finalize give the class, a step of a plan the data alone", async () => {
     const { built } = await fixture();
     const data: BuiltTxData = built;
     expect(data).toBe(built);
     const { builder: planBuilder, address } = await setup();
-    const attempt = await planBuilder.plan(pay(), { payer: address }).build();
-    // @ts-expect-error: a plan's attempt is data and has no sign
-    expect(attempt.sign).toBeUndefined();
+    const step = (await planBuilder.plan(pay(), { payer: address })).step(
+      "main",
+    );
+    // @ts-expect-error: a step of a plan is data and has no sign
+    expect(step.sign).toBeUndefined();
     // Signers are optional: a payer given as a snapshot without a signing method does not sign
     for (const call of [
       () => built.sign(),
@@ -1915,7 +1913,7 @@ describe("BuiltTx.submit", () => {
     const { code, details, retryable, cause, message } =
       error as TxPlanError<"REJECTED">;
     expect([code, retryable]).toEqual(["REJECTED", false]);
-    expect(details).toEqual({ otherLive: [] });
+    expect(details).toEqual({});
     expect(cause).toBe(thrown);
     expect(message).toContain("the provider does not find the transaction");
     expect(message).not.toContain("could not be asked");
@@ -1989,7 +1987,7 @@ describe("BuiltTx.submit", () => {
       const { code, details, cause, message } =
         error as TxPlanError<"REJECTED">;
       expect(code).toBe("REJECTED");
-      expect(details).toEqual({ otherLive: [] });
+      expect(details).toEqual({});
       expect(cause).toBe(thrown);
       expect(message).toContain(
         "the provider could not be asked whether it holds the transaction",
@@ -2379,7 +2377,7 @@ describe("BuiltTx.submit", () => {
       built.submit(),
     )) as TxPlanError<"REJECTED">;
     expect(error.code).toBe("REJECTED");
-    expect(error.details).toEqual({ otherLive: [] });
+    expect(error.details).toEqual({});
     expect(viaProvider.searches).toEqual([built.txHash]);
   });
 
@@ -4152,8 +4150,7 @@ describe("BuiltTx as JSON, and TxBuilder.restore", () => {
     const { builder: b, address } = await setup({
       builder: { store: store as never },
     });
-    const plan = b.plan(pay(), { payer: address, id: "pay-1" });
-    await plan.build();
+    const plan = await b.plan(pay(), { payer: address, id: "pay-1" });
     const planError = await caught(() =>
       b.restore(plan.toJSON() as unknown as BuiltTxJSON),
     );

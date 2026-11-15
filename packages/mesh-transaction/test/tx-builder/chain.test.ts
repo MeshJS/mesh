@@ -638,11 +638,12 @@ describe("TxBuilder: after", () => {
     const tx1 = await buildWith(pay(10), { payer: snapshot(owned(100)) });
     const { outputs, ...withoutOutputs } = tx1;
     expect(outputs.length).toBeGreaterThan(0);
+    // What is not a built transaction is named by its JavaScript type alone: it may hold a key
     const cases: [string, unknown, unknown][] = [
-      ["after", [{}], {}],
-      ["after", tx1.txHash, tx1.txHash],
-      ["after", withoutOutputs, withoutOutputs],
-      ["after", [tx1, 7], 7],
+      ["after", [{}], "object"],
+      ["after", tx1.txHash, "string"],
+      ["after", withoutOutputs, "object"],
+      ["after", [tx1, 7], "number"],
       ["knownUtxos", [{}], {}],
       // What is not a list is named by its JavaScript type alone: it may hold a key
       ["knownUtxos", tx1.outputs[0], "object"],

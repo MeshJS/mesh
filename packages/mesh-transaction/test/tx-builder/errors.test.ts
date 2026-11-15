@@ -1,6 +1,5 @@
 import {
   PartGaps,
-  TxAttempt,
   TxBuildError,
   TxBuildErrorCode,
   TxError,
@@ -84,9 +83,9 @@ describe("the error tree", () => {
       TX_BUILD_ERROR_CODES,
       TX_PLAN_ERROR_CODES,
     ];
-    expect(lists.map((list) => list.length)).toEqual([7, 30, 24]);
+    expect(lists.map((list) => list.length)).toEqual([7, 30, 21]);
     for (const list of lists) expect(new Set(list).size).toBe(list.length);
-    expect(new Set(ALL).size).toBe(7 + 30 + 24);
+    expect(new Set(ALL).size).toBe(7 + 30 + 21);
   });
 
   it("holds for nothing outside the tree, and never throws", () => {
@@ -184,12 +183,7 @@ describe("the error tree", () => {
   });
 
   it("decides whether a plan error is retryable by its code", () => {
-    const retryable = [
-      "SUBMIT_FAILED",
-      "CONFIRM_TIMEOUT",
-      "NOT_YET_VALID",
-      "STILL_LIVE",
-    ];
+    const retryable = ["SUBMIT_FAILED", "CONFIRM_TIMEOUT", "NOT_YET_VALID"];
     for (const code of TX_PLAN_ERROR_CODES) {
       const error = new TxPlanError(code, "bad", {
         retryAfterMs: 500,
@@ -218,40 +212,53 @@ describe("the error tree", () => {
       "noValidity",
       "noDepth",
       "noSearch",
-      "addressCache",
     ] as const) {
       expect(observe(reason).retryable).toBe(false);
       expect(observe(reason).retryAfterMs).toBeUndefined();
     }
     expect(observe("noTip").message).toBe("bad");
+    // STILL_LIVE is retryable when it says when the call may pass
+    const live = (safeAfter?: number) =>
+      new TxPlanError("STILL_LIVE", "bad", {
+        details: {
+          txHashes: ["ab".repeat(32)],
+          ...(safeAfter !== undefined && { safeAfter }),
+        },
+        retryAfterMs: 1000,
+      });
+    expect(live(1_700_000_000_000)).toMatchObject({
+      retryable: true,
+      retryAfterMs: 1000,
+    });
+    expect(live().retryable).toBe(false);
+    expect(live().retryAfterMs).toBeUndefined();
   });
 
-  it("keeps a plan error's status as plain data", () => {
-    const landed = {
+  it("keeps a plan error's status and step as plain data", () => {
+    const error = new TxPlanError("EXPIRED", "bad", {
+      details: { unsent: true },
+      status: "stopped",
+      planId: "plan-1",
+      step: "pay",
       txHash: "ab".repeat(32),
-      status: "included" as const,
-      until: 1_700_000_000_000,
-      sends: 1,
-    };
-    const error = new TxPlanError("ATTEMPT_ON_CHAIN", "bad", {
-      details: { landed },
-      status: "included",
-      planId: "plan-1",
     });
-    expect(error.status).toBe("included");
-    expect(error.details.landed).toBe(landed);
+    expect(error.status).toBe("stopped");
+    expect(error.step).toBe("pay");
+    expect(error.details).toEqual({ unsent: true });
     expect(error.retryable).toBe(false);
-    expect(Object.keys(error)).toContain("status");
+    expect(Object.keys(error)).toEqual(
+      expect.arrayContaining(["status", "step", "planId", "txHash"]),
+    );
     expect(JSON.parse(JSON.stringify(error))).toMatchObject({
-      status: "included",
+      status: "stopped",
       planId: "plan-1",
+      step: "pay",
     });
-    expect(
-      "status" in
-        new TxPlanError("INVALID_STATE", "bad", {
-          details: { reason: "terminal" },
-        }),
-    ).toBe(false);
+    const bare = new TxPlanError("INVALID_STATE", "bad", {
+      details: { reason: "stopped" },
+    });
+    expect("status" in bare).toBe(false);
+    expect("step" in bare).toBe(false);
   });
 });
 
@@ -262,12 +269,16 @@ type Equal<A, B> =
 
 /** Checked by the compiler only: how the checks narrow */
 export const typeCases = (e: unknown) => {
-  if (TxError.is(e, "ORPHANED", "EXPIRED")) {
-    const narrowed: Equal<typeof e.details.otherLive, string[]> = true;
+  if (TxError.is(e, "EXPIRED")) {
+    const narrowed: Equal<typeof e.details.unsent, true | undefined> = true;
+    void narrowed;
+  }
+  if (TxError.is(e, "ORPHANED")) {
+    const narrowed: Equal<typeof e.details, undefined> = true;
     void narrowed;
   }
   if (TxError.is(e, "REJECTED")) {
-    const narrowed: Equal<typeof e.details.otherLive, string[]> = true;
+    const narrowed: Equal<typeof e.details.tipAgeMs, number | undefined> = true;
     void narrowed;
   }
   if (TxError.is(e, "INSUFFICIENT_FUNDS")) {
@@ -286,12 +297,19 @@ export const typeCases = (e: unknown) => {
     const narrowed: Equal<typeof e.part, TxPart["kind"]> = true;
     void narrowed;
   }
-  if (TxError.is(e, "ATTEMPT_ON_CHAIN")) {
-    const narrowed: Equal<typeof e.details.landed, TxAttempt> = true;
+  if (TxError.is(e, "SCRIPT_FAILED")) {
     const status: TxPlanStatus | undefined = e.status;
-    void narrowed;
+    const four: Equal<
+      TxPlanStatus,
+      "pending" | "stopping" | "stopped" | "final"
+    > = true;
+    const step: string | undefined = e.step;
     void status;
+    void four;
+    void step;
   }
+  // @ts-expect-error not a code
+  TxPlanError.is(e, "ATTEMPT_ON_CHAIN");
   if (TxBuildError.is(e, "FEE_TOO_LOW")) {
     const narrowed: Equal<typeof e.details.minFee, bigint> = true;
     void narrowed;

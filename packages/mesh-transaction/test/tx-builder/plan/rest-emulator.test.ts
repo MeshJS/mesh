@@ -6,10 +6,7 @@ import type {
 } from "../../../src/tx-builder/plan/types";
 import { memoryPlanStore } from "../../../src/tx-builder";
 import { makePlan } from "../../../src/tx-builder/plan/make";
-import {
-  resumeStepPlan,
-  stepRecordOf,
-} from "../../../src/tx-builder/plan/step-plan";
+import { recordOf } from "../../../src/tx-builder/plan/plan";
 import {
   advance,
   builderOf,
@@ -19,15 +16,7 @@ import {
   swallowing,
   walletOf,
 } from "./plan-emulator-util";
-import {
-  ADA,
-  alice,
-  bob,
-  paidTo,
-  payTo,
-  planOf,
-  stepSetup,
-} from "./step-plan-util";
+import { ADA, alice, bob, paidTo, payTo, stepSetup } from "./run-util";
 
 // What a stopped plan gives back, and the record a store holds: `rest` keeps a step's own
 // payer and leaves out every step that is or was found in a block; a record resumed from its
@@ -39,8 +28,7 @@ describe("rest", () => {
     const treasury = await walletOf(1);
     const treasuryAddress = (await treasury.getChangeAddress())!;
     emulator.fund(treasuryAddress, { lovelace: 500n * ADA });
-    const plan = await planOf(
-      builder,
+    const plan = await builder.plan(
       {
         a: payTo(alice, 5n * ADA),
         b: { parts: payTo(bob, 50n * ADA), payer: treasury, fee: 400_000n },
@@ -83,7 +71,7 @@ describe("rest", () => {
         },
       },
     });
-    const plan = await planOf(builder, payTo(alice, 5n * ADA), {
+    const plan = await builder.plan(payTo(alice, 5n * ADA), {
       payer: wallet,
       ttlMs: 60_000,
     });
@@ -109,7 +97,7 @@ describe("rest", () => {
     const { emulator, provider, builder, wallet } = await stepSetup("scalus", {
       builder: { planDefaults: { ...FAST, confirmations: 3 } },
     });
-    const plan = await planOf(builder, payTo(alice, 5n * ADA), {
+    const plan = await builder.plan(payTo(alice, 5n * ADA), {
       payer: wallet,
     });
     const before = emulator.fork();
@@ -129,16 +117,14 @@ describe("a record resumed from its JSON on a builder with a store", () => {
     const { emulator, provider, builder, wallet } = await stepSetup("scalus", {
       builder: { store },
     });
-    const plan = await planOf(
-      builder,
+    const plan = await builder.plan(
       { a: payTo(alice, 5n * ADA), b: payTo(bob, 3n * ADA) },
       { payer: wallet, id: "e1" },
     );
     await plan.sign();
     const snapshot = plan.toJSON();
     // A copy run without a store goes one step on
-    const storeless = await resumeStepPlan(
-      builderOf(provider, { evaluator: emulator }),
+    const storeless = await builderOf(provider, { evaluator: emulator }).resume(
       snapshot,
     );
     const held = swallowing();
@@ -149,7 +135,7 @@ describe("a record resumed from its JSON on a builder with a store", () => {
     expect(plan.toJSON().rev).toBe(forked.rev);
 
     const withStore = builderOf(provider, { store, evaluator: emulator });
-    const resumed = await resumeStepPlan(withStore, forked);
+    const resumed = await withStore.resume(forked);
     expect(resumed.toJSON().stopped).toBe(true);
     expect(resumed.toJSON()).toEqual(plan.toJSON());
     const ran = await caught(
@@ -160,14 +146,14 @@ describe("a record resumed from its JSON on a builder with a store", () => {
       "stopped",
     ]);
     // An older JSON gives the stored record too
-    const older = await resumeStepPlan(withStore, snapshot);
+    const older = await withStore.resume(snapshot);
     expect(older.toJSON().stopped).toBe(true);
 
     // The copy goes further: its JSON is ahead of the store, and is refused
     await storeless.run({ waitFor: "sent", submitter: held });
     const ahead = storeless.toJSON();
     expect(ahead.rev).toBeGreaterThan(plan.toJSON().rev);
-    const refused = await caught(resumeStepPlan(withStore, ahead));
+    const refused = await caught(withStore.resume(ahead));
     expect(refused.code).toBe("VERSION_CONFLICT");
     const stored = (await store.load("e1")) as StoredTxPlanJSON & {
       stopped?: true;
@@ -190,14 +176,13 @@ describe("a record resumed from its JSON on a builder with a store", () => {
     const { emulator, provider, builder, wallet } = await stepSetup("scalus", {
       builder: { store },
     });
-    const plan = await planOf(builder, payTo(alice, 5n * ADA), {
+    const plan = await builder.plan(payTo(alice, 5n * ADA), {
       payer: wallet,
       id: "e2",
     });
     await plan.sign();
     // Another copy of the same revision, with the mark, lands in the store by another route
-    const copy = await resumeStepPlan(
-      builderOf(provider, { evaluator: emulator }),
+    const copy = await builderOf(provider, { evaluator: emulator }).resume(
       plan.toJSON(),
     );
     await copy.stop();
@@ -207,7 +192,7 @@ describe("a record resumed from its JSON on a builder with a store", () => {
       rev: plan.toJSON().rev,
     } as unknown as StoredTxPlanJSON);
     await plan.refresh();
-    expect(stepRecordOf(plan).stopped).toBe(true);
+    expect(recordOf(plan).stopped).toBe(true);
     const ran = await caught(plan.run());
     expect([ran.code, ran.details.reason]).toEqual([
       "INVALID_STATE",

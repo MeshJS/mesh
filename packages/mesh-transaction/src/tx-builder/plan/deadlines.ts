@@ -1,12 +1,27 @@
 import type { NetworkConfig } from "@meshsdk/common";
 
-import type { PlanDeadlines, WaitOptions, WaitTarget } from "./types";
+import type { PlanDeadlines, WaitTarget } from "./types";
 import { TxBuildError } from "../errors";
 
 // The deadlines of plans and the waiting of their calls: the built-in values, the order in
 // which the builder's defaults, a plan's options and a call's options override them, and the
 // check of every value. `awaitInclusion()` of a `BuiltTx` waits by the same defaults and
 // checks. Nothing here is exported from the package.
+
+/** The waiting of one call; never written into the plan */
+export type WaitOptions = {
+  /** How far the call goes; `"included"` by default */
+  waitFor?: WaitTarget;
+  /**
+   * How long the call waits for a block or for depth, in ms. Above 0; 120 000 by default, and
+   * for `"final"` the plan's `confirmations` × 30 000 + 120 000
+   */
+  timeoutMs?: number;
+  /** The pause between two looks at the chain, in ms; above 0; the builder's, else 5 000 */
+  pollMs?: number;
+  /** Aborts the whole call with ABORTED */
+  signal?: AbortSignal;
+};
 
 /** The builder's `planDefaults`: the three deadlines and the pace of waiting */
 export type PlanDefaults = PlanDeadlines & {
@@ -173,7 +188,7 @@ export const checkWaitOptions = (options: WaitOptions) => {
 };
 
 /**
- * The waiting of one call. `waitFor`: the call's, else `"sent"`. `timeoutMs`: the call's as
+ * The waiting of one call. `waitFor`: the call's, else `"included"`. `timeoutMs`: the call's as
  * given, else 120 000, and for `"final"` the plan's `confirmations` × 30 000 + 120 000.
  * `pollMs`: the call's, else the builder's, else 5 000. `resendMs`: the builder's, else 120 000.
  * The call's options are checked here.
@@ -185,7 +200,7 @@ export const effectiveWait = (
   defaults: Readonly<PlanDefaults> | undefined,
 ): EffectiveWait => {
   checkWaitOptions(options);
-  const waitFor = options.waitFor ?? "sent";
+  const waitFor = options.waitFor ?? "included";
   return {
     waitFor,
     timeoutMs:
@@ -210,12 +225,12 @@ const FORECAST_SLOTS: Readonly<Record<string, number>> = Object.freeze({
 });
 
 /**
- * The last slot at which an attempt that runs a Plutus script may end (its `invalidHereafter`):
- * the tip's slot, or the attempt's lower bound when that is later, plus the network's forecast
+ * The last slot at which a step that runs a Plutus script may end (its `invalidHereafter`): the
+ * tip's slot, or the step's lower bound when that is later, plus the network's forecast
  * horizon. Undefined for a network whose horizon is not known (a custom network): nothing is
  * checked there, and the node's refusal answers.
- * @param tipSlot The slot of the tip the attempt is built at
- * @param fromSlot The attempt's `invalidBefore`, when it has one
+ * @param tipSlot The slot of the tip the step is built at
+ * @param fromSlot The step's `invalidBefore`, when it has one
  */
 export const horizonSlot = (
   network: NetworkConfig,

@@ -3,7 +3,7 @@ import type { Budget, ScriptFailure } from "@meshsdk/common";
 import type { TxPartError, TxPartErrorCode } from "./parts/errors";
 import type { OutRef, TxPart, Unresolved } from "./parts/types";
 import type { TxPlan } from "./plan/plan";
-import type { TxAttempt, TxPlanStatus } from "./plan/types";
+import type { TxPlanStatus } from "./plan/types";
 import type { RequiredKey } from "./witnesses";
 
 /** Codes of a `TxBuildError`: why a transaction could not be built from its parts */
@@ -281,8 +281,9 @@ export type TxPlanErrorCode =
    */
   | "SUBMIT_FAILED"
   /**
-   * The ledger rejected the transaction: a plan's attempt, or a transaction none of whose
-   * deliveries can have gone through and that the provider does not find or cannot be asked for
+   * The ledger rejected the transaction: a step of a plan, or a transaction none of whose
+   * deliveries can have gone through and that the provider does not find or cannot be asked
+   * for. The same bytes may still land: the same call of the plan sends them again
    */
   | "REJECTED"
   /**
@@ -290,39 +291,30 @@ export type TxPlanErrorCode =
    * plan's wait, or from `awaitInclusion()` of a transaction
    */
   | "CONFIRM_TIMEOUT"
-  /** The transaction's validity interval ended before it was included */
+  /**
+   * The transaction's validity interval and the margin ended before it was included: a step of a
+   * plan that will not land, so the plan does not go on
+   */
   | "EXPIRED"
   /**
-   * The transaction was included with a failed script, and its collateral taken: a plan's
-   * attempt, or a transaction `awaitInclusion()` finds
+   * The transaction was included with a failed script, and its collateral taken: a step of a
+   * plan, or a transaction `awaitInclusion()` finds
    */
   | "SCRIPT_FAILED"
-  /**
-   * The attempt spends an output of a parent attempt that can no longer land, or the parent has
-   * no live attempt to build on; the attempt is live again once a fresh search finds none of the
-   * parent attempts whose outputs it spends dead: each one is found in a block with
-   * `is_valid = true`, or not found while the tip is before its deadline and the margin, and one
-   * of them at least is found
-   */
+  /** A step of a plan stands on a step that will not land, so it will not land either */
   | "ORPHANED"
   /**
    * The provider cannot tell what is needed, or cannot tell it yet: what a plan follows, or what
    * `awaitInclusion()` of a transaction looks for
    */
   | "CANNOT_OBSERVE"
-  /** An attempt is on chain */
-  | "ATTEMPT_ON_CHAIN"
   /**
    * The call does not fit the plan's state; or a record is not read: a plan's, or the JSON of a
    * transaction given to `restore`
    */
   | "INVALID_STATE"
-  /** An attempt may still land */
+  /** A transaction that may still land stands in the way of the call */
   | "STILL_LIVE"
-  /** The payer is not the one the plan was made for */
-  | "PAYER_MISMATCH"
-  /** Inputs the parts name explicitly are spent */
-  | "INPUTS_SPENT"
   /** A plan with this id is already stored */
   | "PLAN_EXISTS"
   /** No plan with this id is stored */
@@ -351,11 +343,8 @@ export const TX_PLAN_ERROR_CODES = Object.keys({
   SCRIPT_FAILED: true,
   ORPHANED: true,
   CANNOT_OBSERVE: true,
-  ATTEMPT_ON_CHAIN: true,
   INVALID_STATE: true,
   STILL_LIVE: true,
-  PAYER_MISMATCH: true,
-  INPUTS_SPENT: true,
   PLAN_EXISTS: true,
   PLAN_NOT_FOUND: true,
   VERSION_CONFLICT: true,
@@ -374,10 +363,11 @@ export const TX_PLAN_ERROR_CODES = Object.keys({
  * - `"rateLimited"`: a rate limit or an exhausted quota (HTTP 429; gRPC ResourceExhausted)
  * - `"unauthorized"`: an authorization failure, such as a wrong API key (HTTP 401, 403; gRPC
  *   Unauthenticated, PermissionDenied)
- * - `"refused"`: the ledger refused this delivery, and the attempt is not rejected by it: an
- *   earlier delivery of the same bytes may land, a parent attempt is not in a block yet, or a
- *   wallet submitted, whose refusal is never taken as the ledger's. The same call sends the
- *   same bytes again; only the code `REJECTED` means refused for good
+ * - `"refused"`: the ledger refused this delivery, and the step is not rejected by it: an
+ *   earlier delivery of the same bytes may land, a step or a transaction it stands on is not
+ *   found in a block yet, or a wallet submitted, whose refusal is never taken as the ledger's.
+ *   The same call sends the same bytes again; only the code `REJECTED` says that the ledger
+ *   refused it
  * - `"unknown"`: the error gives none of these
  *
  * Read from a refusal of the ledger first, else a provider error's `kind`, else an HTTP
@@ -394,7 +384,7 @@ export type TxPlanErrorDetails = {
     walletCode?: number;
   };
   INVALID_WITNESS: {
-    reason: "undecodable" | "wrongBody" | "staleAttempt";
+    reason: "undecodable" | "wrongBody";
     argument: number;
     keyHash?: string;
   };
@@ -413,11 +403,10 @@ export type TxPlanErrorDetails = {
     status?: number;
     walletCode?: number;
   };
-  /** `otherLive`: a plan's other attempts that may still land; empty from a transaction */
-  REJECTED: { otherLive: string[]; tipAgeMs?: number };
-  /** `unsent`: the plan never sent this attempt */
-  EXPIRED: { otherLive: string[]; unsent?: true; tipAgeMs?: number };
-  ORPHANED: { otherLive: string[] };
+  /** `tipAgeMs`: the age of the last tip the plan read, by the local clock */
+  REJECTED: { tipAgeMs?: number };
+  /** `unsent`: the plan never sent this step */
+  EXPIRED: { unsent?: true; tipAgeMs?: number };
   /** A transaction's `awaitInclusion()` waits for `included` */
   CONFIRM_TIMEOUT: { waitedFor: "included" | "final"; timeoutMs: number };
   /**
@@ -426,38 +415,23 @@ export type TxPlanErrorDetails = {
    * `awaitInclusion()` raises `noSearch` and `noValidity`
    */
   CANNOT_OBSERVE: {
-    reason:
-      | "noTip"
-      | "noValidity"
-      | "noDepth"
-      | "noSearch"
-      | "addressCache"
-      | "unconfirmed";
+    reason: "noTip" | "noValidity" | "noDepth" | "noSearch" | "unconfirmed";
   };
   /**
-   * `closing`: the plan carries the closing mark; `stopped`: the plan was stopped, or a step of
-   * it will not land, so it signs and sends nothing more; `recordVersion`: the record is of a
-   * newer format, another kind, or holds content this library does not know: a plan's record, or
-   * the JSON of a `BuiltTx` given to `restore`, whose error quotes none of its values
+   * `stopped`: the plan was stopped, or a step of it will not land, so it signs and sends
+   * nothing more; `pastHorizon`: a step that runs a Plutus script would end past the network's
+   * forecast horizon; `recordVersion`: the record is of another format or kind, or holds content
+   * this library does not know: a plan's record, or the JSON of a `BuiltTx` given to `restore`,
+   * whose error quotes none of its values
    */
   INVALID_STATE: {
-    reason:
-      | "status"
-      | "terminal"
-      | "closing"
-      | "stopped"
-      | "tooManyAttempts"
-      | "pastHorizon"
-      | "recordVersion";
+    reason: "stopped" | "pastHorizon" | "recordVersion";
   };
-  /** `safeAfter`: POSIX ms */
-  STILL_LIVE: { txHashes: string[]; safeAfter: number };
-  /** The attempt in a block with `is_valid = true`; raised by closing a plan */
-  ATTEMPT_ON_CHAIN: { landed: TxAttempt };
-  /** Change addresses; only when the recorded anchor is not among the payer's UTxOs either */
-  PAYER_MISMATCH: { recorded: string; given: string };
-  /** Explicit inputs of the parts that are gone */
-  INPUTS_SPENT: { inputs: OutRef[] };
+  /**
+   * `txHashes`: the transactions that may still land; `safeAfter`: POSIX ms, their end of
+   * validity plus the margin, absent when one of them has none
+   */
+  STILL_LIVE: { txHashes: string[]; safeAfter?: number };
 };
 
 /** `details` of code `C` in a details table `D`: `undefined` for a code not listed there */
@@ -652,7 +626,7 @@ export const invalidArgument = (
 
 /** The sentence every message of a plan error ends with */
 export const NOT_UNPAID =
-  "This error does not mean that the payment did not go through: only an abandoned plan did not pay.";
+  "This error does not mean that a payment did not go through: only the status of its step says so.";
 
 /**
  * The sentence the messages of SUBMIT_FAILED, REJECTED and CONFIRM_TIMEOUT end with when a
@@ -666,7 +640,6 @@ const RETRYABLE: ReadonlySet<string> = new Set<TxPlanErrorCode>([
   "SUBMIT_FAILED",
   "CONFIRM_TIMEOUT",
   "NOT_YET_VALID",
-  "STILL_LIVE",
 ]);
 
 /** The context of a plan error with code `C` */
@@ -679,16 +652,18 @@ export type TxPlanErrorContext<C extends TxPlanErrorCode> = TxErrorContext & {
   planId?: string;
   /** The plan's status when the error was raised */
   status?: TxPlanStatus;
-  /** The attempt the error is about */
+  /** The transaction the error is about */
   txHash?: string;
+  /** The name of the step of a plan the error is about */
+  step?: string;
 } & (C extends keyof TxPlanErrorDetails
     ? { details: TxPlanErrorDetails[C] }
     : { details?: undefined });
 
 /**
  * Raised by signing, submitting and waiting for a transaction or a plan, and by storing a plan.
- * Retryable for `SUBMIT_FAILED`, `CONFIRM_TIMEOUT`, `NOT_YET_VALID`, `STILL_LIVE`, and
- * `CANNOT_OBSERVE` with the reason `unconfirmed`; for no other code.
+ * Retryable for `SUBMIT_FAILED`, `CONFIRM_TIMEOUT`, `NOT_YET_VALID`, `CANNOT_OBSERVE` with the
+ * reason `unconfirmed`, and `STILL_LIVE` with `safeAfter`; for no other code.
  */
 export class TxPlanError<
   C extends TxPlanErrorCode = TxPlanErrorCode,
@@ -703,9 +678,9 @@ export class TxPlanError<
   declare readonly plan?: TxPlan;
   /** The plan's id: plain data, safe to log */
   declare readonly planId?: string;
-  /** The plan's status when the error was raised; for logs only */
+  /** The plan's status when the error was raised: one of the four of a plan; for logs only */
   declare readonly status?: TxPlanStatus;
-  /** The attempt the error is about */
+  /** The transaction the error is about */
   declare readonly txHash?: string;
   /** The name of the step of a plan the error is about */
   declare readonly step?: string;
@@ -727,13 +702,18 @@ export class TxPlanError<
       planId,
       status,
       txHash,
+      step,
     } = (context ?? {}) as TxPlanErrorContext<TxPlanErrorCode> & {
       details?: unknown;
     };
     const retryable =
       RETRYABLE.has(code) ||
       (code === "CANNOT_OBSERVE" &&
-        (details as { reason?: string } | undefined)?.reason === "unconfirmed");
+        (details as { reason?: string } | undefined)?.reason ===
+          "unconfirmed") ||
+      (code === "STILL_LIVE" &&
+        (details as { safeAfter?: number } | undefined)?.safeAfter !==
+          undefined);
     super(message, {
       part,
       label,
@@ -748,6 +728,7 @@ export class TxPlanError<
       planId?: string;
       status?: TxPlanStatus;
       txHash?: string;
+      step?: string;
     };
     if (plan !== undefined)
       Object.defineProperty(this, "plan", {
@@ -759,6 +740,7 @@ export class TxPlanError<
     if (planId !== undefined) self.planId = planId;
     if (status !== undefined) self.status = status;
     if (txHash !== undefined) self.txHash = txHash;
+    if (step !== undefined) self.step = step;
   }
 
   /** Whether a value is a plan error, and when codes are given, one with any of them */

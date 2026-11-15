@@ -1,7 +1,11 @@
 import { mConStr0 } from "@meshsdk/core";
 
-import type { TxBuilderOptions, TxPlan } from "../../../src/tx-builder";
-import { spend, TxError, validity } from "../../../src/tx-builder";
+import type {
+  TxBuilderOptions,
+  TxPlan,
+  TxStepStatus,
+} from "../../../src/tx-builder";
+import { spend, TxError } from "../../../src/tx-builder";
 import { alwaysSucceedCbor } from "../../test-util";
 import {
   advance,
@@ -12,11 +16,12 @@ import {
   submitterOf,
   swallowing,
 } from "./plan-emulator-util";
+import { refusal } from "./run-util";
 import { watchStore } from "./store-util";
 
 // Plans with a store, restored after a restart: a new builder over the same store and the same
-// emulator. Every status a record can hold is reached, restored with resume(id), and taken one
-// step further with advance(), as a reconcile job does.
+// emulator. Every status a step can hold, and each status of a plan, is reached, restored with
+// resume(id), and taken one call further with run(), as a reconcile job does.
 
 const plutus = { code: alwaysSucceedCbor, version: "V3" as const };
 
@@ -27,16 +32,14 @@ const expectCode = (error: unknown, code: string) => {
 
 const refusing = () =>
   submitterOf(async () => {
-    throw { kind: "rejected" };
+    throw refusal();
   });
 
 /** An emulator, a wallet and a builder over a watched store; `restart` is a new builder */
-const storeSetup = async (options: Parameters<typeof setup>[0] = {}) => {
+const storeSetup = async () => {
   const store = watchStore();
-  const ctx = await setup({
-    ...options,
-    builder: { store, ...options.builder },
-  });
+  // A chain behind the local clock: a step past its end of validity is past it by both
+  const ctx = await setup({ builder: { store }, slot: 100_000_000 });
   const restart = (extra: Partial<TxBuilderOptions> = {}) =>
     builderOf(ctx.provider, { store, ...extra });
   return { ...ctx, store, restart };
@@ -44,7 +47,7 @@ const storeSetup = async (options: Parameters<typeof setup>[0] = {}) => {
 
 type Ctx = Awaited<ReturnType<typeof storeSetup>>;
 
-/** The cases of the table: every status a record can hold, and a mark on a live plan */
+/** The cases of the table: every status a step can hold, and a plan stopped by its mark */
 const CASES = [
   "built",
   "signed",
@@ -55,13 +58,14 @@ const CASES = [
   "failed",
   "orphaned",
   "final",
-  "abandoned from draft",
-  "abandoned",
-  "closing",
+  "stopping",
+  "stopped",
 ] as const;
 type Case = (typeof CASES)[number];
 
-/** A plan with the id "pay" brought to the case's status on a store */
+const statuses = (plan: TxPlan) => plan.steps.map((step) => step.status);
+
+/** A plan with the id "pay" brought to the case's statuses on a store */
 const reach = async (
   which: Case,
 ): Promise<{ ctx: Ctx; plan: TxPlan; id: string }> => {
@@ -71,43 +75,41 @@ const reach = async (
   const made = (options: Parameters<typeof builder.plan>[1] = {}) =>
     builder.plan(pay(), { id, payer: wallet, ...options });
   let plan: TxPlan;
+  let expected: TxStepStatus[] = [which as TxStepStatus];
+  let status = "pending";
   switch (which) {
     case "built":
-      plan = builder.plan(pay(), { id, payer: address });
-      await plan.build();
+      // A payer that cannot sign
+      plan = await builder.plan(pay(), { id, payer: address });
       break;
     case "signed":
-      plan = made();
-      await plan.build();
+      plan = await made();
       await plan.sign();
       break;
     case "sent":
-      plan = made();
-      await plan.send({ submitter: swallowing() });
+      plan = await made();
+      await plan.run({ waitFor: "sent", submitter: swallowing() });
       break;
     case "rejected":
-      plan = made();
-      expectCode(
-        await caught(plan.send({ submitter: refusing() })),
-        "REJECTED",
-      );
+      plan = await made();
+      expectCode(await caught(plan.run({ submitter: refusing() })), "REJECTED");
       break;
     case "included":
-      plan = made({ confirmations: 5 });
-      await plan.send({ waitFor: "included" });
+      plan = await made({ confirmations: 5 });
+      await plan.run();
       break;
     case "expired":
-      plan = made();
-      await plan.build();
+      plan = await made();
       await plan.sign();
       advance(emulator, 700);
       await plan.refresh();
+      status = "stopped";
       break;
     case "failed": {
       const locked = emulator.fund(builder.scriptAddress(plutus), {
         lovelace: 10_000_000n,
       });
-      plan = builder.plan(
+      plan = await builder.plan(
         spend.plutus({
           utxo: locked,
           script: plutus,
@@ -115,69 +117,66 @@ const reach = async (
         }),
         { id, payer: wallet },
       );
-      await plan.send();
-      const txHash = plan.txHash!;
+      // The provider shows the step in a block with is_valid = false
+      const txHash = plan.step("main").txHash;
       provider.control.hooks.fetchTxInfo = async (forward, hash: string) => {
         const info = await forward(hash);
         return hash === txHash ? { ...info, validContract: false } : info;
       };
-      await plan.refresh();
+      expectCode(await caught(plan.run()), "SCRIPT_FAILED");
+      status = "stopped";
       break;
     }
-    case "orphaned": {
-      const parent = builder.plan(pay(), { id: "parent", payer: wallet });
-      await parent.send({ submitter: swallowing() });
-      plan = builder.plan(
-        [pay(3_000_000n), validity({ until: emulator.time + 3_600_000 })],
-        { id, payer: wallet, after: parent, expiryMarginMs: 5_000 },
+    case "orphaned":
+      // a is sent and lost; b stands on it
+      plan = await builder.plan(
+        { a: pay(), b: pay(3_000_000n) },
+        { id, payer: wallet },
       );
-      await plan.send({ submitter: swallowing() });
-      emulator.advanceTo({ time: parent.attempts[0]!.until + 5_000 });
-      await plan.refresh();
-      await parent.refresh();
-      break;
-    }
-    case "final":
-      plan = made();
-      await plan.send({ waitFor: "included" });
-      break;
-    case "abandoned from draft":
-      plan = made();
-      await plan.abandon();
-      break;
-    case "abandoned":
-      plan = made();
-      await plan.build();
       await plan.sign();
+      await plan.run({ waitFor: "sent", submitter: swallowing() });
       advance(emulator, 700);
-      await plan.abandon();
+      await plan.refresh();
+      expected = ["expired", "orphaned"];
+      status = "stopped";
       break;
-    case "closing":
-      plan = made();
-      await plan.send({ submitter: swallowing() });
-      expectCode(await caught(plan.abandon()), "STILL_LIVE");
+    case "final":
+      plan = await made();
+      await plan.run();
+      status = "final";
+      break;
+    case "stopping":
+      plan = await made();
+      await plan.run({ waitFor: "sent", submitter: swallowing() });
+      await plan.stop();
+      expected = ["sent"];
+      status = "stopping";
+      break;
+    case "stopped":
+      plan = await made();
+      await plan.sign();
+      await plan.stop();
+      advance(emulator, 700);
+      await plan.refresh();
+      expected = ["expired"];
+      status = "stopped";
       break;
   }
-  const status =
-    which === "abandoned from draft"
-      ? "abandoned"
-      : which === "closing"
-        ? "sent"
-        : which;
+  expect(statuses(plan)).toEqual(expected);
   expect(plan.status).toBe(status);
   return { ctx, plan, id };
 };
 
 /** What an application reads of a plan */
 const shown = (plan: TxPlan) => ({
+  id: plan.id,
   status: plan.status,
-  attempts: plan.attempts,
-  live: plan.live,
+  steps: plan.steps,
   landed: plan.landed,
-  built: plan.built,
-  txHash: plan.txHash,
-  missing: plan.missing,
-  closing: plan.closing,
+  live: plan.live,
+  fee: plan.fee,
+  until: plan.until,
+  replacedBy: plan.replacedBy,
 });
 
 describe("builder.resume on TxEmulator", () => {
@@ -190,83 +189,89 @@ describe("builder.resume on TxEmulator", () => {
     expect(again.toJSON()).toStrictEqual(record);
     expect(shown(again)).toEqual(shown(plan));
     expect(again.id).toBe(id);
-    if (which === "closing") expect(again.closing).toBe(true);
+    if (which === "stopping" || which === "stopped")
+      expect(again.toJSON().stopped).toBe(true);
   });
 
   it.each(CASES)(
-    "takes the reconcile step with resume(id, { payer }) and advance(): %s",
+    "takes the reconcile step with resume(id, { payer }) and run(): %s",
     async (which) => {
       const { ctx, plan, id } = await reach(which);
       const { provider, wallet, emulator } = ctx;
-      const before = plan.attempts.length;
       const again = await ctx.restart().resume(id, { payer: wallet });
       const requests = () =>
         Object.values(provider.control.calls).reduce((a, b) => a + b, 0);
       const sent = () => provider.control.count("submitTx");
       const calls = requests();
       const sends = sent();
+      const bytes = plan.step(plan.steps[0]!.name).signedTx;
       switch (which) {
         case "built":
         case "signed":
           // Signs with the payer where it must, then the first delivery
-          await again.advance();
-          expect(again.status).not.toBe(which);
-          expect(again.attempts).toHaveLength(1);
-          expect(again.attempts[0]!.sends).toBe(1);
+          await again.run({ waitFor: "sent" });
+          expect(statuses(again)).toEqual(["sent"]);
           expect(sent()).toBe(sends + 1);
           break;
         case "sent":
           // The same bytes again
-          await again.advance();
-          expect(again.attempts).toHaveLength(1);
-          expect(again.attempts[0]!.sends).toBe(1);
+          await again.run({ waitFor: "sent" });
+          expect(again.step("main").signedTx).toBe(bytes);
           expect(sent()).toBe(sends + 1);
           break;
         case "included":
-          await again.advance();
-          expect(again.status).toBe("included");
+          await again.run();
+          expect(statuses(again)).toEqual(["included"]);
           expect(sent()).toBe(sends);
           break;
         case "rejected":
-          expectCode(await caught(again.advance()), "REJECTED");
-          expect(again.attempts).toHaveLength(before);
+          // The same bytes again, refused again
+          expectCode(
+            await caught(again.run({ submitter: refusing() })),
+            "REJECTED",
+          );
+          expect(again.step("main").signedTx).toBe(bytes);
+          expect(statuses(again)).toEqual(["rejected"]);
           break;
         case "expired":
-          // Replaced once, with the payer as the signer, and sent
-          await again.advance();
-          expect(again.attempts).toHaveLength(2);
-          expect(again.attempts[1]!.sends).toBe(1);
-          expect(sent()).toBe(sends + 1);
+        case "stopped": {
+          const error = await caught(again.run());
+          expectCode(error, which === "expired" ? "EXPIRED" : "INVALID_STATE");
+          expect(sent()).toBe(sends);
           break;
+        }
         case "failed":
-          expectCode(await caught(again.advance()), "SCRIPT_FAILED");
-          expect(again.attempts).toHaveLength(1);
+          expectCode(await caught(again.run()), "SCRIPT_FAILED");
+          expect(sent()).toBe(sends);
           break;
-        case "orphaned":
-          // The parent has no live attempt to stand on
-          expectCode(await caught(again.advance()), "ORPHANED");
-          expect(again.attempts).toHaveLength(1);
+        case "orphaned": {
+          // The step b stands on will not land, so b never goes
+          const error = await caught(again.run());
+          expectCode(error, "EXPIRED");
+          expect(error.step).toBe("a");
+          expect(statuses(again)).toEqual(["expired", "orphaned"]);
+          expect(sent()).toBe(sends);
           break;
+        }
         case "final":
-        case "abandoned from draft":
-        case "abandoned":
           // Returned at once, without a request
-          await again.advance();
-          expect(again.status).toBe(plan.status);
+          await again.run();
+          expect(again.status).toBe("final");
           expect(requests()).toBe(calls);
           break;
-        case "closing":
-          // Before safeAfter the plan is returned as it is; once no attempt can land, closed
-          await again.advance();
-          expect(again.status).toBe("sent");
+        case "stopping":
+          // Nothing more goes; once the sent step cannot land, stopped
+          expectCode(await caught(again.run()), "INVALID_STATE");
+          expect(again.status).toBe("stopping");
           expect(sent()).toBe(sends);
           advance(emulator, 700);
-          await again.advance();
-          expect(again.status).toBe("abandoned");
+          await again.refresh();
+          expect(again.status).toBe("stopped");
+          expect(statuses(again)).toEqual(["expired"]);
           expect(sent()).toBe(sends);
           break;
       }
-      // Every step is in the store before the call returned
+      // Every change is in the store before the call returned
       expect(await ctx.store.load(id)).toStrictEqual(again.toJSON());
     },
   );

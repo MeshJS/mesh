@@ -37,6 +37,7 @@ import type {
   TxPlanStore,
   Utxo,
 } from "../../src/tx-builder";
+import type { TxPlan } from "../../src/tx-builder/plan/plan";
 import type { KeyWitness } from "../../src/tx-builder/sign";
 import {
   addWitnesses,
@@ -58,7 +59,15 @@ import { readTransaction, withWitnesses } from "../../src/tx-builder/sign";
 import { alwaysSucceedCbor, baseAddress } from "../test-util";
 import * as cbor from "./cbor-util";
 import { hashSigner, keysSigner, TestKey, testKey } from "./hash-signer-util";
-import { pay, setup, walletOf } from "./plan/plan-emulator-util";
+import {
+  builderOf,
+  hashOf,
+  pay,
+  setup,
+  submitterOf,
+  walletOf,
+} from "./plan/plan-emulator-util";
+import { ADA, alice, bob, carol, payTo, stepSetup } from "./plan/run-util";
 
 /*
  * The safety rules of signing, R1 to R8, each pinned across every call that signs, holds, writes
@@ -254,7 +263,13 @@ const textsOf = (value: unknown, depth = 0): string[] => {
     texts.push(`inspect threw: ${String(error)}`);
   }
   try {
-    texts.push(String(JSON.stringify(value)));
+    texts.push(
+      String(
+        JSON.stringify(value, (_, v) =>
+          typeof v === "bigint" ? String(v) : v,
+        ),
+      ),
+    );
   } catch (error) {
     texts.push(`JSON.stringify threw: ${String(error)}`);
   }
@@ -475,7 +490,7 @@ const planOf = async (
   const ctx = await setup({
     builder: options.store === undefined ? {} : { store: options.store },
   });
-  const plan = ctx.builder.plan(
+  const plan = await ctx.builder.plan(
     [pay(), guard.pubKey({ keyHash: guardKeyHash })],
     {
       payer: ctx.address,
@@ -487,17 +502,13 @@ const planOf = async (
 };
 
 /** The calls of a plan that take signers */
-const PLAN_CALLS = ["sign", "send", "advance"] as const;
+const PLAN_CALLS = ["sign", "run"] as const;
 type PlanCall = (typeof PLAN_CALLS)[number];
 
-const callPlan = (
-  plan: Awaited<ReturnType<typeof planOf>>["plan"],
-  call: PlanCall,
-  signers: unknown,
-) =>
+const callPlan = (plan: TxPlan, call: PlanCall, signers: unknown) =>
   call === "sign"
     ? plan.sign({ signers } as never)
-    : plan[call]({ signers, waitFor: "included" } as never);
+    : plan.run({ signers } as never);
 
 /** A signer of hashes in either form that answers whatever it is told to, recording requests */
 const answering = (form: "object" | "callback", answer: unknown) =>
@@ -682,7 +693,6 @@ describe("R1: key material never leaves the signer object", () => {
       builder: planBuilder,
       address,
     } = await planOf(keys.normal.keyHash);
-    await plan.build();
     const wallet = { signTxWitnesses: async () => "a0" };
     const calls: [string, (value: unknown) => Promise<unknown>][] = [
       ["signWitnesses", (v) => signWitnesses(v as never, built.tx)],
@@ -700,13 +710,20 @@ describe("R1: key material never leaves the signer object", () => {
         ],
       ),
       ["plan.sign({ signal })", (v) => plan.sign({ signal: v } as never)],
-      ["plan.send({ submitter })", (v) => plan.send({ submitter: v } as never)],
+      ["plan.sign(options)", (v) => plan.sign(v as never)],
+      ["plan.run({ submitter })", (v) => plan.run({ submitter: v } as never)],
+      ["plan.run(options)", (v) => plan.run(v as never)],
+      ["plan.addWitnesses", (v) => plan.addWitnesses(v as never)],
+      ["builder.plan(options)", (v) => planBuilder.plan(pay(), v as never)],
       [
-        "plan.advance({ submitter })",
-        (v) => plan.advance({ submitter: v } as never),
+        "builder.plan({ payer })",
+        (v) => planBuilder.plan(pay(), { payer: v } as never),
       ],
-      ["plan.build(options)", (v) => plan.build(v as never)],
-      ["plan.build({ payer })", (v) => plan.build({ payer: v } as never)],
+      ["builder.resume", (v) => planBuilder.resume(v as never)],
+      [
+        "builder.resume({ payer })",
+        (v) => planBuilder.resume(plan.toJSON(), { payer: v } as never),
+      ],
       ["build({ payer })", (v) => b.build(pay(), { payer: v } as never)],
       [
         "build({ payer: { changeAddress } })",
@@ -749,9 +766,16 @@ describe("R1: key material never leaves the signer object", () => {
         for (const [shape, value] of shapes)
           for (const [call, run] of calls) {
             const where = `${fixture.name} (${encoding}) ${shape} to ${call}`;
-            const error = await caught(() => run(value));
+            let error: unknown;
+            try {
+              await run(value);
+              leaks.push(`${where}: not refused`);
+            } catch (thrown) {
+              error = thrown;
+            }
             refusals += 1;
-            if (!(error instanceof Error)) leaks.push(`${where}: not an Error`);
+            if (error !== undefined && !(error instanceof Error))
+              leaks.push(`${where}: not an Error`);
             if (
               call.includes("knownUtxos") &&
               !(
@@ -834,7 +858,6 @@ describe("R1: key material never leaves the signer object", () => {
       seed.keyHash,
     ]);
     const { plan } = await planOf(seed.keyHash);
-    await plan.build();
     const wrongFile = (() => {
       const own = keys.extended.encodings["bech32 stake_xsk of 128 bytes"]!;
       const bytes = Buffer.from(
@@ -985,33 +1008,37 @@ describe("R1: key material never leaves the signer object", () => {
       store,
       id: "order",
     });
-    await plan.build();
     await plan.sign({
       signers: [
         keySigner(keys.normal.encodings["bech32 addr_sk"]!),
         keySigner(keys.extended.encodings["cborHex 5880"]!),
       ],
     });
-    expect(plan.status).toBe("signed");
-    expect(await problemsOf(plan.signedTx!, plan.built!.tx)).toEqual([]);
+    const step = plan.step("main");
+    expect(step.status).toBe("signed");
+    expect(await problemsOf(step.signedTx!, step.tx)).toEqual([]);
     look("plan.toJSON() after signing", plan.toJSON());
     look("the stored record after signing", await store.load("order"));
-    look("plan.signedTx", plan.signedTx);
-    look("plan.built", plan.built);
+    look("the step's signedTx", step.signedTx);
+    look("the step", step);
+    look("plan.steps", plan.steps);
     look("the plan", plan);
-    await plan.send({ waitFor: "included" });
+    await plan.run();
+    expect(plan.status).toBe("final");
     look("plan.toJSON() after sending", plan.toJSON());
     look("the stored record after sending", await store.load("order"));
+    look("plan.steps after sending", plan.steps);
     // A plan that signs and sends in one call
     const sent = await planOf(keys.normal.keyHash);
-    await sent.plan.send({
+    await sent.plan.run({
       signers: [
         keySigner(keys.normal.encodings.hex!),
         keySigner(keys.extended.encodings["bech32 ed25519e_sk"]!),
       ],
-      waitFor: "included",
     });
+    expect(sent.plan.status).toBe("final");
     look("a plan sent with key signers", sent.plan.toJSON());
+    look("the steps of a plan sent with key signers", sent.plan.steps);
     expect(leaks).toEqual([]);
   });
 
@@ -1497,18 +1524,18 @@ describe("R2: nothing is signed but the hash of the body of the transaction give
   });
 
   it.each(PLAN_CALLS)(
-    "a plan's %s() asks every form of signer for the hash of its attempt's body",
+    "a plan's %s() asks every form of signer for the hash of its step's body",
     async (call) => {
       const { plan } = await planOf(keys.normal.keyHash);
-      if (call === "sign") await plan.build();
       const recorded = recorders();
       await callPlan(plan, call, [
         ...recorded.signers,
         keySigner(keys.normal.encodings.hex!),
       ]);
-      const expected = bodyHashOf(plan.built!.tx);
+      const expected = bodyHashOf(plan.step("main").tx);
+      expect(expected).toBe(plan.step("main").txHash);
       expect(wrongs(recorded, expected, 1)).toEqual([]);
-      expect(plan.signedTx === undefined).toBe(false);
+      expect(plan.step("main").signedTx === undefined).toBe(false);
     },
   );
 
@@ -1653,12 +1680,23 @@ describe("R3: a signature is accepted only after it verifies", () => {
       await check(`signedTx of ${name}`, built.signedTx, built.tx);
     }
     // A plan
-    const { plan } = await planOf(keys.normal.keyHash);
-    await plan.send({
-      signers: [wallet, keySigner(keys.normal.hex)],
-      waitFor: "included",
-    });
-    await check("a plan's signedTx", plan.signedTx, plan.built!.tx);
+    const { plan, provider } = await planOf(keys.normal.keyHash);
+    await plan.run({ signers: [wallet, keySigner(keys.normal.hex)] });
+    expect(plan.status).toBe("final");
+    await check(
+      "a plan's signedTx",
+      plan.step("main").signedTx,
+      plan.step("main").tx,
+    );
+    // A plan resumed from its JSON holds the same witnesses
+    const resumed = await builderOf(provider).resume(
+      JSON.parse(JSON.stringify(plan)),
+    );
+    await check(
+      "the signedTx of a plan resumed from its JSON",
+      resumed.step("main").signedTx,
+      plan.step("main").tx,
+    );
     expect(problems).toEqual([]);
   });
 
@@ -1741,21 +1779,26 @@ describe("R3: a signature is accepted only after it verifies", () => {
     const other = testKey();
     const store = memoryPlanStore();
     const { plan } = await planOf(key.keyHash, { store, id: "order" });
-    await plan.build();
     const otherBuilt = await payment(offline(), key.keyHash);
     const kept: string[] = [];
     for (const [name, signer] of forged(
       key,
       other,
-      plan.built!.txHash,
+      plan.step("main").txHash,
       otherBuilt.tx,
       otherBuilt.txHash,
     )) {
-      const error = await caught(() => plan.sign({ signers: signer }));
-      if (codeOf(error) !== "SIGNER_FAILED")
-        kept.push(`${name}: ${codeOf(error)}`);
-      if (plan.missing.length !== 2) kept.push(`${name}: missing`);
-      if (plan.signedTx !== undefined) kept.push(`${name}: signedTx`);
+      for (const [call, run] of [
+        ["sign", () => plan.sign({ signers: signer })],
+        ["run", () => plan.run({ signers: signer })],
+      ] as const) {
+        const error = await caught(run);
+        if (codeOf(error) !== "SIGNER_FAILED")
+          kept.push(`${name}, ${call}: ${codeOf(error)}`);
+      }
+      const step = plan.step("main");
+      if (step.missing.length !== 2) kept.push(`${name}: missing`);
+      if (step.signedTx !== undefined) kept.push(`${name}: signedTx`);
       for (const [where, value] of [
         ["the record", plan.toJSON()],
         ["the stored record", await store.load("order")],
@@ -1764,7 +1807,8 @@ describe("R3: a signature is accepted only after it verifies", () => {
           kept.push(`${name}: ${where}`);
     }
     expect(kept).toEqual([]);
-    expect(plan.status).toBe("built");
+    expect(plan.step("main").status).toBe("built");
+    expect(plan.status).toBe("pending");
   });
 
   it("signWitnesses refuses an answer of a signer of hashes that does not verify", async () => {
@@ -2110,6 +2154,26 @@ describe("R4: signing sends nothing", () => {
     expect(provider.control.calls).toEqual(["fetchTxInfo"]);
     expect(submitter.control.calls).toEqual([]);
   });
+
+  it("a plan's sign and addWitnesses, its JSON and a resume of it send nothing, and read of the provider only the tip", async () => {
+    const { plan, provider } = await planOf(keys.normal.keyHash);
+    const before = { ...provider.control.calls };
+    const made = () =>
+      Object.entries(provider.control.calls)
+        .filter(([method, n]) => n !== (before[method] ?? 0))
+        .map(([method]) => method);
+    await plan.sign({ signers: keySigner(keys.extended.hex) });
+    await plan.addWitnesses(
+      await signWitnesses(keySigner(keys.normal.hex), plan.step("main").tx),
+    );
+    expect(plan.step("main").status).toBe("signed");
+    const json = JSON.stringify(plan);
+    const resumed = await builderOf(provider).resume(JSON.parse(json));
+    await resumed.addWitnesses(plan.step("main").signedTx!);
+    await resumed.sign();
+    expect(resumed.step("main").signedTx).toBe(plan.step("main").signedTx);
+    expect(made()).toEqual(["fetchLatestBlock"]);
+  });
 });
 
 /* ---------------------------------------------------------------------------------------------
@@ -2179,8 +2243,7 @@ describe("R5: an extended key is used only if it is one", () => {
     for (const [name, text, keyHash] of refusedAtUse(seed)) {
       const built = await payment(b, keys.normal.keyHash, [keyHash]);
       const { plan } = await planOf(keyHash);
-      await plan.build();
-      const asked = plan.missing.length;
+      const asked = plan.step("main").missing.length;
       const paths: [string, () => Promise<unknown>][] = [
         [
           "signTxHash",
@@ -2209,7 +2272,8 @@ describe("R5: an extended key is used only if it is one", () => {
       }
       if (built.partialTx !== built.tx)
         signedAnyway.push(`${name}: the object`);
-      if (plan.missing.length !== asked) signedAnyway.push(`${name}: the plan`);
+      if (plan.step("main").missing.length !== asked)
+        signedAnyway.push(`${name}: the plan`);
     }
     expect(signedAnyway).toEqual([]);
   });
@@ -2401,6 +2465,121 @@ describe("R6: one object, one body", () => {
     expect(new Set(sent).size).toBe(1);
     expect(sent[0] === built.signedTx).toBe(true);
   });
+
+  it("a plan sends one byte string for its step from every run, after a lost answer and a refusal, from its JSON resumed and from a resume of that", async () => {
+    const { plan, provider, emulator } = await planOf(keys.normal.keyHash);
+    await plan.sign({
+      signers: [keySigner(keys.extended.hex), keySigner(keys.normal.hex)],
+    });
+    const { tx, txHash, signedTx } = plan.step("main");
+    const sent: string[] = [];
+    let answer: (tx: string) => Promise<string> = async () => {
+      throw new Error("socket hang up");
+    };
+    const submitter = {
+      submitTx: async (bytes: string) => {
+        sent.push(bytes);
+        return answer(bytes);
+      },
+    };
+    expect(
+      codeOf(await caught(() => plan.run({ submitter, waitFor: "sent" }))),
+    ).toBe("SUBMIT_FAILED");
+    answer = async () => {
+      throw refusal();
+    };
+    await plan.run({ submitter, waitFor: "sent" }).catch(() => undefined);
+    const resumed = await builderOf(provider).resume(
+      JSON.parse(JSON.stringify(plan)),
+    );
+    await resumed.run({ submitter, waitFor: "sent" }).catch(() => undefined);
+    const again = await builderOf(provider).resume(
+      JSON.parse(JSON.stringify(resumed)),
+    );
+    answer = (bytes) => emulator.submitTx(bytes);
+    await again.run({ submitter });
+    expect(again.status).toBe("final");
+    expect(sent.length).toBeGreaterThanOrEqual(3);
+    expect(new Set(sent).size).toBe(1);
+    expect(sent[0] === signedTx).toBe(true);
+    expect(bodyHashOf(sent[0]!) === txHash).toBe(true);
+    expect(await problemsOf(sent[0]!, tx)).toEqual([]);
+    for (const each of [plan, resumed, again])
+      expect(
+        each.step("main").txHash === txHash && each.step("main").tx === tx,
+      ).toBe(true);
+  });
+
+  it("a cast change of what a plan's step shows changes nothing the plan holds, writes, signs or sends", async () => {
+    const { plan, provider, emulator } = await planOf(keys.normal.keyHash);
+    const { tx, txHash, missing } = plan.step("main");
+    const json = JSON.stringify(plan);
+    const other = await payment(
+      offline(),
+      keys.extended.keyHash,
+      [keys.normal.keyHash],
+      ada(9),
+    );
+    const view = plan.step("main") as unknown as Record<string, unknown>;
+    // Each change is tried, whether or not the plan lets it happen
+    const changes = [
+      () => {
+        view.tx = other.tx;
+      },
+      () => {
+        view.signedTx = other.tx;
+      },
+      () => Object.defineProperty(view, "txHash", { value: other.txHash }),
+      () => {
+        (plan.steps as unknown[]).length = 0;
+      },
+      () => {
+        (plan.step("main").signers.keys as unknown[]).length = 0;
+        (plan.step("main").signers.keyHashes as unknown[]).length = 0;
+      },
+      () => {
+        (plan.step("main").inputs as unknown[]).length = 0;
+      },
+      () => {
+        (plan.step("main").missing as unknown[]).push({
+          keyHash: keys.normal.keyHash,
+          roles: ["guard"],
+        });
+      },
+    ];
+    for (const change of changes)
+      try {
+        change();
+      } catch {
+        // A frozen member refuses the change
+      }
+    expect(plan.step("main").tx === tx).toBe(true);
+    expect(plan.step("main").txHash === txHash).toBe(true);
+    expect(plan.step("main").missing).toEqual(missing);
+    expect(JSON.stringify(plan)).toBe(json);
+    const resumed = await builderOf(provider).resume(JSON.parse(json));
+    const recorded = hashSigner("object", (request) =>
+      keySigner(keys.normal.hex).signTxHash(request),
+    );
+    await plan.sign({
+      signers: [recorded.signer, keySigner(keys.extended.hex)],
+    });
+    expect(recorded.requests.map((r) => r.txHash === txHash)).toEqual([true]);
+    expect(plan.step("main").missing).toEqual([]);
+    const sent: string[] = [];
+    await plan.run({
+      submitter: {
+        submitTx: async (bytes: string) => {
+          sent.push(bytes);
+          return emulator.submitTx(bytes);
+        },
+      },
+    });
+    expect(plan.status).toBe("final");
+    expect(sent).toEqual([plan.step("main").signedTx]);
+    expect(await problemsOf(sent[0]!, tx)).toEqual([]);
+    expect(resumed.step("main").txHash === txHash).toBe(true);
+  });
 });
 
 /* ---------------------------------------------------------------------------------------------
@@ -2570,7 +2749,7 @@ describe("R7: submit sends signedTx only", () => {
     expect(s.sent.every((tx) => tx === built.signedTx)).toBe(true);
     if (outcome === "REJECTED") {
       const { details, retryable } = error as TxPlanError<"REJECTED">;
-      expect([details, retryable]).toEqual([{ otherLive: [] }, false]);
+      expect([details, retryable]).toEqual([{}, false]);
     }
   });
 
@@ -2674,6 +2853,52 @@ describe("R7: submit sends signedTx only", () => {
       ["REJECTED", true],
       ["CONFIRM_TIMEOUT", true],
     ]);
+  });
+
+  it("a plan's run sends nothing while a key of its step is missing: after one key, after none, and after resume; then its signedTx and nothing else", async () => {
+    const none = await planOf(keys.normal.keyHash);
+    const one = await planOf(keys.normal.keyHash);
+    await one.plan.sign({ signers: keySigner(keys.extended.hex) });
+    expect(one.plan.step("main").missing.map((k) => k.keyHash)).toEqual([
+      keys.normal.keyHash,
+    ]);
+    const resumed = await builderOf(one.provider).resume(
+      JSON.parse(JSON.stringify(one.plan)),
+    );
+    const sent: string[] = [];
+    const submitter = {
+      submitTx: async (tx: string) => {
+        sent.push(tx);
+        return "";
+      },
+    };
+    for (const [name, plan] of [
+      ["none", none.plan],
+      ["one", one.plan],
+      ["resumed", resumed],
+    ] as const)
+      for (const options of [
+        undefined,
+        { submitter },
+        { submitter, waitFor: "sent" as const },
+      ]) {
+        const error = await caught(() => plan.run(options));
+        expect([name, codeOf(error), (error as TxPlanError).step]).toEqual([
+          name,
+          "MISSING_SIGNATURES",
+          "main",
+        ]);
+      }
+    expect(sent).toEqual([]);
+    expect(
+      none.provider.control.count("submitTx") +
+        one.provider.control.count("submitTx"),
+    ).toBe(0);
+    // Once no key is missing, the signed transaction and nothing else is sent
+    await resumed.sign({ signers: keySigner(keys.normal.hex) });
+    await resumed.run({ submitter, waitFor: "sent" });
+    expect(sent).toEqual([resumed.step("main").signedTx]);
+    expect(await problemsOf(sent[0]!, resumed.step("main").tx)).toEqual([]);
   });
 });
 
@@ -3184,6 +3409,148 @@ describe("the rules for an object made by fromCbor", () => {
     });
     await done.submit();
     expect(sent).toEqual([signedLater!.signedTx, fully.text]);
+  });
+});
+
+/* ---------------------------------------------------------------------------------------------
+ * A plan of several steps
+ * ------------------------------------------------------------------------------------------- */
+
+describe("R1, R2 and R7 over a plan of several steps", () => {
+  let keys: Keys;
+  beforeAll(async () => {
+    keys = await keyFixtures();
+  });
+
+  it("shows nothing of a key in an error, its JSON, its stored record, its printing or a trace event", async () => {
+    const secrets = secretsOf(...keys.all);
+    // The search finds a key planted where it looks
+    expect(
+      shown(new Error("x", { cause: { planted: rfc.key } }), secrets),
+    ).toContain("the 32-byte key in hex");
+    const traced: BuildEvent[] = [];
+    const store = memoryPlanStore();
+    const { emulator, provider, builder, wallet } = await stepSetup("scalus", {
+      builder: { store },
+    });
+    const plan = await builder.plan(
+      {
+        a: [payTo(alice, 5n * ADA), guard.pubKey({ keyHash: rfc.keyHash })],
+        b: payTo(bob, 3n * ADA),
+      },
+      {
+        payer: wallet,
+        id: "safe-1",
+        trace: (event) => {
+          traced.push(event);
+          trace(event);
+        },
+      },
+    );
+    const seen: Record<string, unknown> = {};
+    seen["MISSING_SIGNATURES"] = await caught(() => plan.run());
+    await plan.sign({ signers: [wallet, keySigner(rfc.key)] });
+    seen["a signed plan"] = plan;
+    seen["its steps"] = plan.steps;
+    seen["SUBMIT_FAILED"] = await caught(() =>
+      plan.run({
+        submitter: submitterOf(async () => {
+          throw new Error("socket hang up");
+        }),
+      }),
+    );
+    seen["CONFIRM_TIMEOUT"] = await caught(() =>
+      plan.run({
+        submitter: submitterOf(hashOf),
+        timeoutMs: 50,
+      }),
+    );
+    // A submitter that answers with another hash: a warning in the trace
+    seen["a run"] = await plan.run({
+      submitter: submitterOf(async (tx) => {
+        await emulator.submitTx(tx);
+        return "ab".repeat(32);
+      }),
+    });
+    seen["its JSON"] = plan.toJSON();
+    seen["its stored record"] = await store.load("safe-1");
+    seen["the trace"] = traced;
+    seen["a resumed plan"] = await builderOf(provider, { store }).resume(
+      "safe-1",
+      { payer: wallet },
+    );
+    expect(plan.status).toBe("final");
+    expect(traced.some((event) => event.type === "warning")).toBe(true);
+    for (const [name, value] of Object.entries(seen))
+      expect([name, shown(value, secrets)]).toEqual([name, []]);
+  });
+
+  it("asks a signer for the hash of the body of the step it signs, and of no other", async () => {
+    await Crypto.ready();
+    const co = testKey();
+    const { builder, wallet } = await stepSetup("scalus");
+    const plan = await builder.plan(
+      {
+        a: [payTo(alice, 5n * ADA), guard.pubKey({ keyHash: co.keyHash })],
+        b: payTo(bob, 3n * ADA),
+        c: [payTo(carol, 2n * ADA), guard.pubKey({ keyHash: co.keyHash })],
+      },
+      { payer: wallet },
+    );
+    const signer = hashSigner("object", ({ txHash, keys: asked }) =>
+      asked!.some((k) => k.keyHash === co.keyHash) ? [co.answer(txHash)] : [],
+    );
+    await plan.sign({ signers: [wallet, signer.signer] });
+    expect(signer.requests.map((r) => r.txHash)).toEqual([
+      plan.step("a").txHash,
+      plan.step("c").txHash,
+    ]);
+    for (const request of signer.requests) {
+      expect(bodyHashOf(request.tx)).toBe(request.txHash);
+      expect(request.keys!.map((k) => k.keyHash)).toEqual([co.keyHash]);
+    }
+    expect(plan.steps.every((step) => step.status === "signed")).toBe(true);
+    // Nothing is left to ask for: run asks nobody again
+    await plan.run({ signers: [wallet, signer.signer] });
+    expect(signer.requests).toHaveLength(2);
+    expect(plan.status).toBe("final");
+  });
+
+  it("sends the signed transaction of a step and nothing else, also from a plan resumed from its JSON", async () => {
+    await Crypto.ready();
+    const { emulator, builder, wallet } = await stepSetup("scalus");
+    const plan = await builder.plan(
+      { a: payTo(alice, 5n * ADA), b: payTo(bob, 3n * ADA) },
+      { payer: wallet },
+    );
+    await plan.sign();
+    let drop = true;
+    const submitter = submitterOf(async (tx) => {
+      if (drop) {
+        drop = false;
+        throw new Error("socket hang up");
+      }
+      return emulator.submitTx(tx);
+    });
+    expect(codeOf(await caught(() => plan.run({ submitter })))).toBe(
+      "SUBMIT_FAILED",
+    );
+    const resumed = await builderOf(builder.provider!, {
+      evaluator: emulator,
+    }).resume(plan.toJSON());
+    await resumed.run({ submitter });
+    expect(resumed.status).toBe("final");
+    const payerKey = (await signedKeyHashes(resumed.step("a").signedTx!))[0];
+    expect(submitter.calls).toHaveLength(3);
+    for (const tx of submitter.calls) {
+      const step = resumed.steps.find(
+        (each) => each.txHash === bodyHashOf(tx),
+      )!;
+      expect(step).toBeDefined();
+      expect(tx).toBe(step.signedTx);
+      expect(await signedKeyHashes(tx)).toEqual([payerKey]);
+    }
+    expect(submitter.calls[1]).toBe(submitter.calls[0]);
   });
 });
 

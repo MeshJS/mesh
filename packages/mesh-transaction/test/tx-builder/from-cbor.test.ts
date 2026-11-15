@@ -840,10 +840,11 @@ describe("a bootstrap witness beside a vkey witness of one key", () => {
         throw new Error("not found");
       },
     } as unknown as TxBuilderOptions["provider"];
-    const plan = offline("mainnet", { provider: tip }).plan(parts, { payer });
-    await plan.build();
+    const plan = await offline("mainnet", { provider: tip }).plan(parts, {
+      payer,
+    });
     await plan.sign({ signers: walletOf(key) });
-    expect(keysOf(plan.signedTx!)).toEqual({
+    expect(keysOf(plan.step("main").signedTx!)).toEqual({
       vkeys: [key.vkey],
       bootstraps: [key.vkey],
     });
@@ -902,17 +903,20 @@ describe("a bootstrap witness beside a vkey witness of one key", () => {
         throw new Error("not found");
       },
     } as unknown as TxBuilderOptions["provider"];
-    const plan = offline("mainnet", { provider: tip }).plan(parts, { payer });
-    await plan.build();
-    const planHash = plan.built!.txHash;
+    const plan = await offline("mainnet", { provider: tip }).plan(parts, {
+      payer,
+    });
+    const planHash = plan.step("main").txHash;
     await plan.addWitnesses(bootstrapOnly(planHash));
-    expect(plan.status).toBe("built");
-    expect(plan.missing.map((k) => k.keyHash)).toEqual([key.keyHash]);
-    expect(plan.signedTx).toBeUndefined();
+    expect(plan.step("main").status).toBe("built");
+    expect(plan.step("main").missing.map((k) => k.keyHash)).toEqual([
+      key.keyHash,
+    ]);
+    expect(plan.step("main").signedTx).toBeUndefined();
     await plan.addWitnesses(vkeyOnly(planHash));
-    expect(plan.status).toBe("signed");
-    expect(plan.missing).toEqual([]);
-    expect(keysOf(plan.signedTx!)).toEqual({
+    expect(plan.step("main").status).toBe("signed");
+    expect(plan.step("main").missing).toEqual([]);
+    expect(keysOf(plan.step("main").signedTx!)).toEqual({
       vkeys: [key.vkey],
       bootstraps: [key.vkey],
     });

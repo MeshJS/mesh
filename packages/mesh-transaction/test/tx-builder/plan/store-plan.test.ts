@@ -1,19 +1,22 @@
 import type { IFetcher } from "@meshsdk/common";
-import {
-  customNetwork,
-  DEFAULT_PROTOCOL_PARAMETERS,
-  mConStr0,
-} from "@meshsdk/core";
+import { customNetwork, mConStr0 } from "@meshsdk/core";
 
 import type {
   StoredTxPlanJSON,
-  TxBuilderOptions,
   TxBuildError,
   TxPlanError,
 } from "../../../src/tx-builder";
-import { spend, TxBuilder, TxError, TxPlan } from "../../../src/tx-builder";
+import { spend, TxBuilder, TxError } from "../../../src/tx-builder";
+import { NOT_UNPAID } from "../../../src/tx-builder/errors";
 import { alwaysSucceedCbor } from "../../test-util";
-import { caught, pay, setup } from "./plan-emulator-util";
+import {
+  builderOf,
+  caught,
+  pay,
+  setup,
+  submitterOf,
+  wrap,
+} from "./plan-emulator-util";
 import { watchStore } from "./store-util";
 
 // The checks of a builder with a store that come before any request, and those of resume.
@@ -41,13 +44,6 @@ const countingProvider = (members: Record<string, unknown> = {}) => {
   return { provider: provider as unknown as IFetcher, calls };
 };
 
-const builderWith = (options: Partial<TxBuilderOptions> = {}) =>
-  new TxBuilder({
-    network: "preprod",
-    params: { ...DEFAULT_PROTOCOL_PARAMETERS },
-    ...options,
-  });
-
 const thrown = (run: () => unknown): any => {
   try {
     run();
@@ -60,6 +56,22 @@ const thrown = (run: () => unknown): any => {
 const expectCode = (error: unknown, code: string) => {
   expect(TxError.is(error)).toBe(true);
   expect((error as TxError).code).toBe(code);
+};
+
+/** Every request a wrapped provider got */
+const requests = (provider: { control: { calls: Record<string, number> } }) =>
+  Object.values(provider.control.calls).reduce((a, b) => a + b, 0);
+
+/** A plan of one payment recorded under `order-1` on an emulator, and a watched store */
+const recorded = async () => {
+  const store = watchStore();
+  const ctx = await setup({ builder: { store } });
+  const plan = await ctx.builder.plan(pay(), {
+    id: "order-1",
+    payer: ctx.wallet,
+  });
+  store.reset();
+  return { ...ctx, store, plan };
 };
 
 describe("TxBuilder with a store", () => {
@@ -87,35 +99,27 @@ describe("TxBuilder with a store", () => {
     expect(builder.add(pay()).store).toBe(store);
   });
 
-  it("is MISSING_ID at once without an id that is a non-empty string, after the checks of every plan", () => {
+  it("is MISSING_ID from builder.plan without an id that is a non-empty string, before any request or read", async () => {
     const { provider, calls } = countingProvider();
     const store = watchStore();
     const builder = new TxBuilder({ network: "preprod", provider, store });
-    for (const options of [{}, { id: "" }, { id: 7 as unknown as string }]) {
-      const error = thrown(() =>
+    for (const options of [{}, { id: "" }]) {
+      const error = (await caught(
         builder.plan(pay(), options),
-      ) as TxPlanError<"MISSING_ID">;
+      )) as TxPlanError<"MISSING_ID">;
       expectCode(error, "MISSING_ID");
       expect(error.retryable).toBe(false);
+      expect(error.message.endsWith(NOT_UNPAID)).toBe(true);
     }
-    // The checks of every plan come first: a deadline, then the provider
+    // An id that is not a string at all is an option of the wrong type
+    const typed = (await caught(
+      builder.plan(pay(), { id: 7 as unknown as string }),
+    )) as TxBuildError<"INVALID_OPTION">;
+    expectCode(typed, "INVALID_OPTION");
+    expect(typed.details.option).toBe("id");
+    // The id is checked before the parts and the deadlines
     expectCode(
-      thrown(() => builder.plan(pay(), { ttlMs: 0 })),
-      "INVALID_OPTION",
-    );
-    expectCode(
-      thrown(() =>
-        new TxBuilder({
-          network: "preprod",
-          params: { ...DEFAULT_PROTOCOL_PARAMETERS },
-          store,
-        }).plan(pay()),
-      ),
-      "CANNOT_OBSERVE",
-    );
-    // An id is checked before the parts
-    expectCode(
-      thrown(() =>
+      await caught(
         builder.plan(
           spend.plutus({
             utxo: { txHash: "a".repeat(64), outputIndex: 0 },
@@ -126,43 +130,16 @@ describe("TxBuilder with a store", () => {
       ),
       "MISSING_ID",
     );
+    expectCode(await caught(builder.plan(pay(), { ttlMs: 0 })), "MISSING_ID");
     expect(calls).toEqual([]);
     expect(store.calls).toEqual([]);
-    // Without a store no id is needed
-    expect(
-      new TxBuilder({ network: "preprod", provider }).plan(pay()).id,
-    ).toBeUndefined();
   });
 
-  it("is INVALID_OPTION (after) at once for a parent made by a builder without a store", () => {
-    const { provider, calls } = countingProvider();
-    const store = watchStore();
-    const parent = new TxBuilder({ network: "preprod", provider }).plan(pay(), {
-      id: "parent",
-    });
-    const error = thrown(() =>
-      new TxBuilder({ network: "preprod", provider, store }).plan(pay(), {
-        id: "child",
-        after: parent,
-      }),
-    ) as TxBuildError<"INVALID_OPTION">;
-    expectCode(error, "INVALID_OPTION");
-    expect(error.details.option).toBe("after");
-    expect(error.details.value).toEqual(["parent"]);
-    expect(calls).toEqual([]);
-    expect(store.calls).toEqual([]);
-    // A parent of a builder with another store is taken
-    const other = new TxBuilder({
-      network: "preprod",
-      provider,
-      store: watchStore(),
-    }).plan(pay(), { id: "parent" });
-    expect(
-      new TxBuilder({ network: "preprod", provider, store }).plan(pay(), {
-        id: "child",
-        after: other,
-      }),
-    ).toBeInstanceOf(TxPlan);
+  it("needs no id without a store, and records nothing", async () => {
+    const { builder, wallet } = await setup();
+    const plan = await builder.plan(pay(), { payer: wallet });
+    expect(plan.id).toBeUndefined();
+    expect(plan.toJSON()).not.toHaveProperty("id");
   });
 });
 
@@ -198,32 +175,29 @@ describe("TxBuilder.resume", () => {
     expect(calls).toEqual([]);
   });
 
-  it("is CANNOT_OBSERVE for a provider no plan can run on, before the store, also for a final record", async () => {
-    const store = watchStore();
-    const { emulator, builder, wallet } = await setup({ builder: { store } });
-    const plan = builder.plan(pay(), { id: "order-1", payer: wallet });
-    await plan.send({ waitFor: "included" });
-    expect(plan.status).toBe("final");
-    store.reset();
-    const params = await emulator.fetchProtocolParameters();
-    for (const [members, reason] of [
-      [{ fetchLatestBlock: undefined }, "noTip"],
-      [{ isCachingEnabled: () => true }, "addressCache"],
-    ] as const) {
-      const { provider } = countingProvider(members);
-      const error = (await caught(
-        builderWith({ provider, store, params }).resume("order-1"),
-      )) as TxPlanError<"CANNOT_OBSERVE">;
-      expectCode(error, "CANNOT_OBSERVE");
-      expect(error.details.reason).toBe(reason);
-      expect(error.planId).toBe("order-1");
-    }
-    expect(store.calls).toEqual([]);
+  it("makes no request, whatever the provider; the provider is probed before the first delivery, and nothing is sent", async () => {
+    const { emulator, store, plan, wallet } = await recorded();
+    // A provider that cannot search for a transaction
+    const blind = wrap(emulator, { fetchTxInfo: null });
+    const again = await builderOf(blind, { store }).resume("order-1", {
+      payer: wallet,
+    });
+    expect(requests(blind)).toBe(0);
+    expect(again.toJSON()).toStrictEqual(plan.toJSON());
+    const submitter = submitterOf(async () => "never");
+    const error = (await caught(
+      again.run({ submitter }),
+    )) as TxPlanError<"CANNOT_OBSERVE">;
+    expectCode(error, "CANNOT_OBSERVE");
+    expect(error.details.reason).toBe("noSearch");
+    expect(submitter.calls).toEqual([]);
+    expect(blind.control.count("submitTx")).toBe(0);
+    const record = (await store.load("order-1"))!;
+    expect(record.steps[0]!.sends).toBe(0);
   });
 
-  it("is NETWORK_MISMATCH for a record of a network with another slot clock; the same network restores it", async () => {
-    const { provider } = countingProvider();
-    const store = watchStore();
+  it("is NETWORK_MISMATCH for a record of a network with another slot clock, from resume and from builder.plan; the same network restores it", async () => {
+    const { store, plan } = await recorded();
     const devnet = (zeroTime: number) =>
       customNetwork({
         name: "devnet",
@@ -231,56 +205,82 @@ describe("TxBuilder.resume", () => {
         slotLengthMs: 1000,
         epochLength: 500,
       });
-    await builderWith({ network: devnet(1_700_000_000_000), provider, store })
-      .plan(pay(), { id: "order-1" })
-      .abandon();
-    const error = (await caught(
-      builderWith({
-        network: devnet(1_700_000_100_000),
-        provider,
-        store,
-      }).resume("order-1"),
-    )) as TxBuildError<"NETWORK_MISMATCH">;
-    expectCode(error, "NETWORK_MISMATCH");
-    expect(error.message).toMatch(/slot clock/);
-    expect(error.details.found).toEqual([
-      { role: "record", network: "devnet", networkId: 0 },
-    ]);
-    const again = await builderWith({
+    const json = plan.toJSON() as StoredTxPlanJSON;
+    await store.inner.save(
+      {
+        ...json,
+        rev: json.rev + 1,
+        network: devnet(1_700_000_000_000),
+      } as StoredTxPlanJSON,
+      json.rev,
+    );
+    store.reset();
+    const { provider, calls } = countingProvider();
+    const other = new TxBuilder({
+      network: devnet(1_700_000_100_000),
+      provider,
+      store,
+    });
+    for (const call of [
+      other.resume("order-1"),
+      other.plan(pay(), {
+        id: "order-1",
+        payer: { changeAddress: "x" } as never,
+      }),
+    ]) {
+      const error = (await caught(call)) as TxBuildError<"NETWORK_MISMATCH">;
+      expectCode(error, "NETWORK_MISMATCH");
+      expect(error.message).toMatch(/slot clock/);
+      expect(error.details.found).toEqual([
+        { role: "record", network: "devnet", networkId: 0 },
+      ]);
+    }
+    expect(calls).toEqual([]);
+    expect(store.saves()).toEqual([]);
+    const again = await new TxBuilder({
       network: devnet(1_700_000_000_000),
       provider,
       store,
     }).resume("order-1");
-    expect(again.status).toBe("abandoned");
-    // The first await of builder.plan compares the same way
-    expectCode(
-      await caught(
-        builderWith({ network: devnet(1_700_000_100_000), provider, store })
-          .plan(pay(), { id: "order-1" })
-          .refresh(),
-      ),
-      "NETWORK_MISMATCH",
-    );
+    expect(again.status).toBe("pending");
+    expect(again.step("main").txHash).toBe(plan.step("main").txHash);
   });
 
-  it("is recordVersion for a record of version 1 whose shape it cannot read; nothing built, written or sent", async () => {
+  it("is INVALID_STATE (recordVersion) for a record of version 1, saying what it is; nothing built, written or sent", async () => {
     const { provider, calls } = countingProvider();
     const store = watchStore();
-    const builder = new TxBuilder({ network: "preprod", provider, store });
-    await builder.plan(pay(), { id: "order-1" }).abandon();
-    const json = (await store.inner.load("order-1"))!;
-    const { ttlMs: _ttl, ...deadlines } = json.deadlines;
+    // A record of a plan of one payment rebuilt in attempts
     await store.inner.save(
-      { ...json, rev: 2, deadlines } as unknown as StoredTxPlanJSON,
-      1,
+      {
+        kind: "TxPlan",
+        version: 1,
+        id: "order-1",
+        rev: 1,
+        status: "draft",
+        network: "preprod",
+        deadlines: { ttlMs: 600_000, expiryMarginMs: 0, confirmations: 0 },
+        parts: [],
+        attempts: [],
+        anchor: { anchors: [] },
+        options: {},
+      } as unknown as StoredTxPlanJSON,
+      0,
     );
-    store.reset();
-    const error = (await caught(
+    const builder = new TxBuilder({ network: "preprod", provider, store });
+    const payer = { changeAddress: "x", utxos: [] };
+    for (const call of [
       builder.resume("order-1"),
-    )) as TxPlanError<"INVALID_STATE">;
-    expectCode(error, "INVALID_STATE");
-    expect(error.details.reason).toBe("recordVersion");
-    expect(error.message).toMatch(/deadlines\.ttlMs/);
+      builder.plan(pay(), { id: "order-1", payer }),
+    ]) {
+      const error = (await caught(call)) as TxPlanError<"INVALID_STATE">;
+      expectCode(error, "INVALID_STATE");
+      expect(error.details.reason).toBe("recordVersion");
+      expect(error.retryable).toBe(false);
+      expect(error.planId).toBe("order-1");
+      expect(error.message).toMatch(
+        /the version 1: a record of a plan of one payment built anew in attempts, a format this library does not read; it reads version 2/,
+      );
+    }
     expect(store.saves()).toEqual([]);
     expect(calls).toEqual([]);
   });

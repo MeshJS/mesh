@@ -427,7 +427,7 @@ describe.each(["scalus", "cquisitor"] as const)(
       expect([error.code, error.retryable, error.details]).toEqual([
         "REJECTED",
         false,
-        { otherLive: [] },
+        {},
       ]);
       expect(error.cause).toMatchObject({ kind: "rejected" });
       expect(

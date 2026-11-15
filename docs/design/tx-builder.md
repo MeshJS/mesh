@@ -34,7 +34,7 @@ part builders  ──►  parts  ──►  TxBuilder.build  ──►  assemble
    per piece)        may have      look up, balance,     index, hash)
                      gaps)         evaluate)
 
-TxBuilder.plan ──► TxPlan ──► attempts on one anchor: build, sign, submit, observe ──► final
+TxBuilder.plan ──► TxPlan ──► steps built at once; sign, submit, observe, in order ──► final
 ```
 
 Three layers, usable separately:
@@ -46,10 +46,9 @@ Three layers, usable separately:
   or nested lists, where `false`, `null` and `undefined` are skipped), reads the payer, fills in
   what the parts leave open, balances, evaluates, and returns a `BuiltTx`: the unsigned
   transaction with everything the build decided as its data, and the calls that sign that one
-  body, submit it and look for it; no deadline and no anchor.
-- **`builder.plan(parts?, options?)`** — a `TxPlan`: one payment, carried to a final state
-  through attempts that all spend one common input, so at most one lands. Signing, submission and
-  waiting are its steps.
+  body, submit it and look for it; no deadline and no statuses.
+- **`builder.plan(steps, options?)`** — a `TxPlan`: a group of transactions, its steps, built at
+  once and never rebuilt, then signed, submitted and waited for in order.
 
 ```ts
 import { TxBuilder } from "@meshsdk/transaction";
@@ -60,9 +59,9 @@ built.tx; // unsigned CBOR
 built.prototype; // the TransactionPrototype it was serialized from
 built.fee; // and exUnits, redeemers, inputs, outputs, change, collateral, signers, parts, ...
 
-const plan = builder.plan(parts, { payer: wallet });
-await plan.send({ waitFor: "included" }); // builds, signs with the payer, submits, waits
-plan.txHash; // the attempt that landed
+const plan = await builder.plan(parts, { payer: wallet }); // builds; nothing signed or sent
+await plan.run(); // signs with the payer, submits, waits for a block
+plan.step("main").txHash; // the step's transaction
 ```
 
 A builder holds its network, its provider and that provider's shared cache, its settings, and the
@@ -162,20 +161,20 @@ is `INVALID_REDEEMER`.
 | `planDefaults?`    | `ttlMs`, `expiryMarginMs`, `confirmations` copied into each plan when it is made; `pollMs`, `resendMs` |
 | `store?`           | a `TxPlanStore`, where the records of this builder's plans are kept                                    |
 
-| `BuildOptions`       |                                                                                                    |
-| -------------------- | -------------------------------------------------------------------------------------------------- |
-| `payer?`             | who pays and gets the change: a wallet, an address or a snapshot; `MISSING_PAYER` without one      |
-| `canSelect?`         | which of the payer's UTxOs may be selected, for payment and for collateral                         |
-| `coinSelection?`     | a `SelectInputs` function in place of the built-in selection; change stays with the built-in rule  |
-| `sendAllTo?`         | spend every selectable UTxO and send what is left to this address                                  |
-| `after?`             | `BuiltTxData` or `TxPlan` (its current attempt), or a list: transactions the provider has not seen |
-| `knownUtxos?`        | outputs the parts may name by out ref that the provider may not know yet                           |
-| `fee?`               | goes into the body as given; `FEE_TOO_LOW { fee, minFee }` when the final minimum is higher        |
-| `registeredPools?`   | operators whose pool registration is an update, taking no deposit                                  |
-| `extraKeyWitnesses?` | signatures expected beyond those the parts call for                                                |
-| `topUpCollateral?`   | `true` by default: given collateral inputs that do not cover are topped up from the payer's UTxOs  |
-| `collateralReturn?`  | `true` by default; `false`: lovelace-only collateral inputs forfeited whole, no return, no total   |
-| `signal?`, `trace?`  | abort the build (`ABORTED`); receive its steps, for diagnostics                                    |
+| `BuildOptions`       |                                                                                                                                               |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `payer?`             | who pays and gets the change: a wallet, an address or a snapshot; `MISSING_PAYER` without one                                                 |
+| `canSelect?`         | which of the payer's UTxOs may be selected, for payment and for collateral                                                                    |
+| `coinSelection?`     | a `SelectInputs` function in place of the built-in selection; change stays with the built-in rule                                             |
+| `sendAllTo?`         | spend every selectable UTxO and send what is left to this address                                                                             |
+| `after?`             | `BuiltTxData` or `TxPlan` (its steps that are in a block and not final, or may still land), or a list: transactions the provider has not seen |
+| `knownUtxos?`        | outputs the parts may name by out ref that the provider may not know yet                                                                      |
+| `fee?`               | goes into the body as given; `FEE_TOO_LOW { fee, minFee }` when the final minimum is higher                                                   |
+| `registeredPools?`   | operators whose pool registration is an update, taking no deposit                                                                             |
+| `extraKeyWitnesses?` | signatures expected beyond those the parts call for                                                                                           |
+| `topUpCollateral?`   | `true` by default: given collateral inputs that do not cover are topped up from the payer's UTxOs                                             |
+| `collateralReturn?`  | `true` by default; `false`: lovelace-only collateral inputs forfeited whole, no return, no total                                              |
+| `signal?`, `trace?`  | abort the build (`ABORTED`); receive its steps, for diagnostics                                                                               |
 
 The constructor reads nothing and checks every option at once (`MISSING_PARAMETER` with neither
 `provider` nor `params`). The README details the options under [Builder options][r-builder-options]
@@ -384,45 +383,45 @@ starts, or an interval with no slot, is `INVALID_DATA`. `build` sets no `until`.
 `after` builds on transactions the provider has not seen: their inputs are not selected, their
 change at this build's change address is, and every output they make can be named by out ref
 without a lookup. `utxosAfter(utxos, built)` folds them into a list of `Utxo`s for the next build. A
-plan names its parent plans in `after` and is built after their current attempts; see
-[Chains][r-chains].
+plan given in `after` stands for its steps that are in a block and not final, or may still land;
+see [Chains][r-chains].
 
 ## Plans: `TxPlan`
 
-`builder.plan(parts, options)` is the only way to make a plan, and makes no request: the
-plan is `draft` until its first attempt is built. Its options are the build options without
-`signal`, with parent plans in `after`, an `id`, and the deadlines `ttlMs`, `expiryMarginMs` and
-`confirmations`, written into the plan when it is made and never read from the builder again.
+`await builder.plan(steps, options)` is the only way to make a plan: a group of transactions,
+its steps, built at once and never rebuilt, and run in order. One list of parts is a plan of one
+step, `main`; an object of named steps is a plan of several, in the order of its keys. Every body
+is built by that call, each on the payer's UTxOs as the steps before it leave them, and nothing is
+signed or sent. Its options are the build options with an `id` and the deadlines `ttlMs`,
+`expiryMarginMs` and `confirmations`, written into the plan when it is made and never read from
+the builder again.
 
-- **Attempts and the anchor.** Every attempt is a `BuiltTxData` of the plan's parts, and all of them
-  spend one common input, the anchor, so at most one can land. In `draft`, `send()` and
-  `advance()` build the first attempt; after that only `build()`, or `advance()` with a signer
-  where `send()` would throw `EXPIRED` or `ORPHANED` and no other attempt is live, makes a new
-  one, and it first searches the earlier ones and returns one found in a block. Each step can be
-  repeated by the same call without paying twice.
-- **Statuses**: `draft`, `built`, `signed`, `sent`, `rejected`, `included`, `expired`, `failed`,
-  `orphaned`, `final`, `abandoned`. Only `final` and `abandoned` are terminal, only `abandoned`
-  means "not paid", and a rollback can take `included` back to `sent`.
-- **Time is the chain's.** An attempt whose parts set no `until` gets
+- **Steps.** A step is one transaction with a fixed body and hash, a name and a status. A step
+  built from parts stands on the step before it of the same payer: it spends that step's change.
+  `run()` sends a step only when the step before it is in a block; every send of a step is the
+  same bytes, so every call can be repeated without paying twice.
+- **Statuses.** A step is `built`, `signed`, `sent`, `rejected`, `included`, `final`, `expired`,
+  `failed` or `orphaned`; a rollback can take `included` back to `sent`. A plan is `pending`,
+  `stopping`, `stopped` or `final`; only `final` and `stopped` are terminal. Whether a payment
+  went through is the status of its step.
+- **Time is the chain's.** A step whose parts set no `until` gets
   `until = max(tip time, from) + ttlMs`; it is `expired` once the tip time passes `until` plus
   `expiryMarginMs`, and `final` once `confirmations` blocks lie on top of its block. The provider
-  must give the tip and the search with block heights, and `validContract` for a Plutus attempt;
+  must give the tip and the search with block heights, and `validContract` for a Plutus step;
   otherwise `CANNOT_OBSERVE`, before anything is signed or sent. Local timers only set the pace
   of waiting (`pollMs`, `resendMs`).
-- **Steps.** `sign()`, `send()` and `advance()` sign with the call's `signers`, else the payer,
-  checking every witness against the body; the payer gives only the keys it is asked for, and is
-  not asked when none is left. `send()` builds in `draft` only, submits and waits for
-  `waitFor`, and in `sent` sends the same bytes again. `abandon()` records the closing mark and
-  closes the plan once no attempt can land.
+- **Calls.** `sign()` and `run()` sign with the call's `signers`, else the payer, checking every
+  witness against the body; the payer gives only the keys it is asked for, and is not asked when
+  none is left. `run()` looks at the chain, then signs, submits and waits for `waitFor`; `refresh()`
+  looks once; `stop()` records that the plan signs and sends nothing more.
 - **The store.** `TxPlanStore` is `load(id)` and a compare-and-set `save(json, expectedRev)`. Every
   change is saved before the method returns; the record holds data only, never a wallet, signer,
   submitter or function (its UTxOs stand in the builder's form), and `resume(id, options)`
   restores the plan with those given again. `memoryPlanStore()` serves tests;
   `checkPlanStore(store)` checks one's own store ([Storage][r-storage]).
 
-The rules for a lost answer, a refusal, reconciliation, chains and a new plan in place of an old
-one are in the README: [Plans][r-plans], [Servers][r-servers],
-[Deadlines and waiting][r-deadlines] and [New plan instead of an old one][r-new-plan].
+The rules for a lost answer, a refusal, reconciliation and chains are in the README:
+[Plans][r-plans], [Servers][r-servers] and [Deadlines and waiting][r-deadlines].
 
 ## Signing without a plan
 
@@ -443,9 +442,9 @@ from the UTxOs of its inputs, collateral inputs and reference inputs, given in `
 through the provider's cache. The object is one body: its bytes and hash are fixed when it is
 made, no call builds or edits a transaction, a repeated `submit()` sends the same bytes, and
 `awaitInclusion()` promises one sighting in a block and no more, each look bounded by the time
-left. It is not a second lifecycle: no deadline, no anchor, no statuses, no replacement and no
-store; those are a plan's, and a plan's `build()` returns the data without these calls, since a
-plan signs and sends its own attempts. Do not rebuild to retry: a retry is the same call on the
+left. It is not a second lifecycle: no deadline, no statuses and no store; those are a plan's,
+and the steps of a plan are the data without these calls, since a plan signs and sends its own
+transactions. Do not rebuild to retry: a retry is the same call on the
 same object ([The path without a lifecycle][r-no-lifecycle]).
 
 - **Keeping.** A signature is kept once per key and kind, after it verifies against the body: the
@@ -457,8 +456,8 @@ same object ([The path without a lifecycle][r-no-lifecycle]).
 - **A refusal.** `submit()` decides on settled facts. After a delivery of the object that was
   taken, or whose answer was lost, a refusal is no error and the call returns; a delivery that
   has not answered yet is waited for, and decides. Otherwise one look for the transaction: found,
-  the call returns; not found, or the provider cannot be asked, it is `REJECTED`
-  (`otherLive: []`), and the message says which. The call's `signal` stops the waiting. The
+  the call returns; not found, or the provider cannot be asked, it is `REJECTED`, and the
+  message says which. The call's `signal` stops the waiting. The
   messages of `SUBMIT_FAILED`, `REJECTED` and `CONFIRM_TIMEOUT` from the object end with the rule
   not to build another transaction to retry it. `SUBMIT_FAILED`, of a plan too, carries
   `details.reason` and `details.status`, what the submitter's error says; they change nothing of
@@ -541,9 +540,9 @@ and `TxError.is(error, ...codes)` cover the whole tree, across copies of the pac
   balancing, evaluation and serialization; `EVALUATION_FAILED` maps each failure to its part and
   label.
 - `TxPlanError` comes from signing, sending, observing, the lifecycle and the store, of a plan or
-  of a `BuiltTx`; one raised by a plan also carries `planId`, `status`, `txHash` and, not
+  of a `BuiltTx`; one raised by a plan also carries `planId`, `status`, `step`, `txHash` and, not
   enumerable, `plan`. Retryable:
-  `SUBMIT_FAILED`, `CONFIRM_TIMEOUT`, `NOT_YET_VALID`, `STILL_LIVE` and `CANNOT_OBSERVE` with
+  `SUBMIT_FAILED`, `CONFIRM_TIMEOUT`, `NOT_YET_VALID`, `STILL_LIVE` with `safeAfter`, and `CANNOT_OBSERVE` with
   `unconfirmed`.
 
 Options of a call that are not an object, or have a member the call does not know, are
@@ -576,7 +575,7 @@ rule.
   `redeemer-emulator`, `script-witness-emulator`, `sign-emulator`, `built-tx-emulator`,
   `validity-emulator`; the plan tests under `plan/` that need a chain, beside the state machine's
   own tests (`state-table`, `state-rules`, `state-random`) and those of the record and stores
-  (`json`, `store`); the old `MeshTxBuilder`'s adapter tests
+  (`json`, `record`, `store`); the old `MeshTxBuilder`'s adapter tests
   (`test/mesh-tx-builder/legacy-adapter-*`); and the README doc-test, `test/readme.test.ts`, which
   runs the task lines of the README's first example as they stand there and checks that its table of
   errors names every code. See [Testing on the emulator][r-testing].
@@ -588,9 +587,6 @@ rule.
 - Whether a pool registration is an update is not looked up; `registeredPools` says so.
 - Change that cannot reach its minimum lovelace with the UTxOs available is an error; there is
   no option to leave the remainder to the fee.
-- Automatic collateral may take a UTxO the transaction also spends, a plan's anchor included.
-- An orphaned child of two parents can come back to life by the other parent's attempt, since the
-  record does not keep which parent orphaned it; no money can move by it.
 - A reference script is priced by the bytes of `[language, script]`, a few above the ledger's
   count.
 - The CBOR decoder refuses a UTxO whose reference script is in a language it does not know.
@@ -609,6 +605,5 @@ rule.
 [r-storage]: ../../packages/mesh-transaction/README.md#storage
 [r-testing]: ../../packages/mesh-transaction/README.md#testing-on-the-emulator
 [r-deadlines]: ../../packages/mesh-transaction/README.md#deadlines-and-waiting
-[r-new-plan]: ../../packages/mesh-transaction/README.md#new-plan-instead-of-an-old-one
 [r-no-lifecycle]: ../../packages/mesh-transaction/README.md#the-path-without-a-lifecycle
 [r-errors]: ../../packages/mesh-transaction/README.md#errors

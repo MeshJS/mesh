@@ -6,21 +6,37 @@ import {
 } from "../../../src/tx-builder";
 import { readPlan } from "../../../src/tx-builder/plan/json";
 
-/** A stored record of a closed plan, with a note that tells two records apart */
+/**
+ * A stored record of a stopped plan, with a note that tells two records apart; a store keeps
+ * records as they are given and reads none of their content
+ */
 const record = (id: string, rev: number, note = "note"): StoredTxPlanJSON => ({
   kind: "TxPlan",
-  version: 1,
+  version: 2,
   id,
   rev,
-  status: "abandoned",
-  closing: true,
+  status: "stopped",
+  stopped: true,
   network: "preprod",
   deadlines: { ttlMs: 600_000, expiryMarginMs: 0, confirmations: 0 },
-  attempts: [],
-  anchor: { anchors: [] },
-  parts: [{ kind: "donation", amount: "1000000", label: note }],
+  steps: [
+    {
+      name: "main",
+      status: "expired",
+      txHash: "ab".repeat(32),
+      sends: 0,
+      refused: 0,
+      tx: { kind: "BuiltTx", version: 1, txHash: "ab".repeat(32), built: {} },
+      given: { parts: [{ kind: "donation", amount: "1000000", label: note }] },
+    },
+  ],
   options: {},
 });
+
+/** The label of the part of the first step of a record */
+const labelled = (json: unknown) =>
+  (json as { steps: { given: { parts: { label: string }[] } }[] }).steps[0]!
+    .given.parts[0]!;
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -56,12 +72,9 @@ describe("memoryPlanStore", () => {
 
     // A record returned and changed by the caller, or a record saved and changed after, changes
     // nothing stored
-    const loaded = (await store.load("pay-1")) as {
-      parts: { label: string }[];
-    };
-    loaded.parts[0]!.label = "changed";
-    (left.parts[0] as { label: string }).label = "changed";
-    (right.parts[0] as { label: string }).label = "changed";
+    labelled(await store.load("pay-1")).label = "changed";
+    labelled(left).label = "changed";
+    labelled(right).label = "changed";
     expect(await store.load("pay-1")).toEqual(
       record("pay-1", 3, answers[0] ? "left" : "right"),
     );
@@ -177,13 +190,16 @@ describe("checkPlanStore", () => {
     const ids = new Set(calls.map((call) => call.id));
     for (const id of ids) expect(id.startsWith("checkPlanStore:")).toBe(true);
 
-    // Every record left reads as a closed plan without attempts; one is over 10 KB
+    // Every record left reads as a stopped plan whose one step expired unsent; one is over 10 KB
     let largest = 0;
     for (const id of new Set(saved.keys())) {
       const json = await inner.load(id);
       const read = readPlan(json, id);
-      expect(read.status).toBe("abandoned");
-      expect(read.attempts).toEqual([]);
+      expect(read.status).toBe("stopped");
+      expect(read.stopped).toBe(true);
+      expect(read.steps.map((step) => [step.status, step.sends])).toEqual([
+        ["expired", 0],
+      ]);
       largest = Math.max(largest, Buffer.byteLength(JSON.stringify(json)));
     }
     expect(saved.size).toBeGreaterThanOrEqual(2);
@@ -287,23 +303,30 @@ describe("checkPlanStore", () => {
       });
     // A nested member dropped
     await fails(
-      changed((json) => delete json.parts[0].value.value[1][1].value),
-      /does not return the record .*record\.parts\[0\]\.value\.value\[1\]\[1\]\.value is missing/,
+      changed(
+        (json) => delete json.steps[0].given.parts[0].value.value[1][1].value,
+      ),
+      /does not return the record .*record\.steps\[0\]\.given\.parts\[0\]\.value\.value\[1\]\[1\]\.value is missing/,
     );
     // The end of a long text cut
     await fails(
       changed(
-        (json) => (json.parts[0].label = json.parts[0].label.slice(0, 255)),
+        (json) =>
+          (json.steps[0].given.parts[0].label =
+            json.steps[0].given.parts[0].label.slice(0, 255)),
       ),
-      /record\.parts\[0\]\.label is/,
+      /record\.steps\[0\]\.given\.parts\[0\]\.label is/,
     );
     // A character outside ASCII changed
     await fails(
       changed((json) => {
-        json.parts[0].value.value[0][1].value[2].value =
-          json.parts[0].value.value[0][1].value[2].value.replace("東", "?");
+        json.steps[0].given.parts[0].value.value[0][1].value[2].value =
+          json.steps[0].given.parts[0].value.value[0][1].value[2].value.replace(
+            "東",
+            "?",
+          );
       }),
-      /record\.parts\[0\]\.value\.value\[0\]\[1\]\.value\[2\]\.value is/,
+      /record\.steps\[0\]\.given\.parts\[0\]\.value\.value\[0\]\[1\]\.value\[2\]\.value is/,
     );
     // A member of its own added
     await fails(

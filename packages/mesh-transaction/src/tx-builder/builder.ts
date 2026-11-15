@@ -67,7 +67,10 @@ import type {
 import type {
   PlanDeadlines,
   PlanOptions,
+  PlanSteps,
   ResumeOptions,
+  StepParts,
+  TxPlanJSON,
   TxPlanStore,
 } from "./plan/types";
 import type { GovernanceDeposits } from "./resolve";
@@ -144,7 +147,7 @@ import {
   toPayerSource,
 } from "./payer";
 import { checkPlanDefaults } from "./plan/deadlines";
-import { createPlan, resumePlan, TxPlan } from "./plan/plan";
+import { planFor, resumePlan, standingSteps, TxPlan } from "./plan/plan";
 import { fetchTxOutputs, resolveParts, resolveValidity } from "./resolve";
 import {
   bodySigners,
@@ -238,9 +241,9 @@ export type TxBuilderOptions = {
   planDefaults?: PlanDeadlines & { pollMs?: number; resendMs?: number };
   /**
    * Where the records of this builder's plans are kept, so that they survive the process:
-   * every change of a plan is written before the call returns, a new attempt before it is
-   * handed out, a first delivery before the bytes leave. With a store every plan needs an
-   * `id`, its parts must be data (no redeemer function), and `resume(id)` restores it. Builders
+   * every change of a plan is written before the call returns, the first record before the plan
+   * is returned, a delivery before the bytes leave. With a store every plan needs an `id`, its
+   * parts must be data (no redeemer function), and `resume(id)` restores it. Builders
    * made by `add` keep the same store. An object with `load` and `save` functions; checked by
    * the constructor.
    */
@@ -357,8 +360,10 @@ export type BuildOptions = {
    * of their change, only the outputs at this build's change address are selected. A part that
    * names an output they spend is refused with UTXO_NOT_FOUND. Their collateral inputs stay
    * selectable, since a valid transaction does not spend them. The build keeps nothing of them:
-   * a transaction not given here is not known to it. A plan stands for its current attempt,
-   * `plan.built`; one without an attempt is INVALID_OPTION. Their outputs and `knownUtxos`,
+   * a transaction not given here is not known to it. A plan given here stands for its steps that
+   * are in a block and not final, or may still land: the inputs they spend are not selected, their
+   * change at this build's change address is selectable, and their outputs can be named by out
+   * ref; a plan with no such step stands for nothing. Their outputs and `knownUtxos`,
    * not the payer's UTxOs, are what an evaluator without `acceptsKnownUtxos` is handed.
    */
   after?: BuiltTxData | TxPlan | readonly (BuiltTxData | TxPlan)[];
@@ -625,7 +630,7 @@ const unsupportedSerializer = (reason: string, cause?: unknown) =>
 const SEND_ALL_TO_ALLOWED = "a payment address, in bech32 or hex";
 const PARAMS_ALLOWED = "a whole Protocol";
 const AFTER_ALLOWED =
-  "a transaction built by TxBuilder.build (txHash, inputs, outputs, change), a plan with an attempt, or a list of them";
+  "a transaction built by TxBuilder.build (txHash, inputs, outputs, change), a plan, or a list of them";
 
 /** A transaction of `after` as the build reads it: its UTxOs copied, its change marked */
 type AfterTx = ChainedTx & { txHash: string; outputs: BuiltOutput[] };
@@ -643,29 +648,32 @@ const invalidEntry = (
     ...(cause !== undefined && { cause }),
   });
 
+/** The JavaScript type of a value, which an error about `after` names in place of the value */
+const kindOf = (value: unknown) => (value === null ? "null" : typeof value);
+
 /**
  * The transactions of `after`, checked by their shape and copied: UTxOs in normal form, with
- * their own members only, transaction hashes in lower case, change outputs marked
+ * their own members only, transaction hashes in lower case, change outputs marked. An error
+ * names the type of what was given, never its value
  */
 const toAfter = (after: unknown): AfterTx[] => {
   if (after === undefined) return [];
   if (typeof after !== "object" || after === null)
-    throw invalidOption("after", after, AFTER_ALLOWED);
-  const entries: unknown[] = Array.isArray(after) ? after : [after];
-  return entries.map((given, i) => {
+    throw invalidEntry(
+      "after",
+      kindOf(after),
+      AFTER_ALLOWED,
+      `expected ${AFTER_ALLOWED}; got ${kindOf(after)}`,
+    );
+  const given: unknown[] = Array.isArray(after) ? after : [after];
+  // A plan stands for its steps that are in a block and not final, or may still land
+  const entries = given.flatMap((entry, i) =>
+    entry instanceof TxPlan
+      ? standingSteps(entry).map((step) => ({ entry: step as unknown, i }))
+      : [{ entry, i }],
+  );
+  return entries.map(({ entry, i }) => {
     const where = Array.isArray(after) ? `entry ${i}` : "the transaction";
-    // A plan stands for its current attempt; without one it stands for nothing
-    let entry = given;
-    if (given instanceof TxPlan) {
-      if (given.built === undefined)
-        throw invalidEntry(
-          "after",
-          given.status,
-          AFTER_ALLOWED,
-          `${where} is a plan without an attempt (${given.status}): it stands for no transaction`,
-        );
-      entry = given.built;
-    }
     const tx = entry as Record<string, unknown> | null;
     if (
       typeof tx !== "object" ||
@@ -677,9 +685,9 @@ const toAfter = (after: unknown): AfterTx[] => {
     )
       throw invalidEntry(
         "after",
-        entry,
+        kindOf(entry),
         AFTER_ALLOWED,
-        `${where} is not a built transaction: expected ${AFTER_ALLOWED}; got ${describe(entry)}`,
+        `${where} is not a built transaction: expected ${AFTER_ALLOWED}; got ${kindOf(entry)}`,
       );
     try {
       return {
@@ -695,7 +703,7 @@ const toAfter = (after: unknown): AfterTx[] => {
     } catch (error) {
       throw invalidEntry(
         "after",
-        entry,
+        kindOf(entry),
         AFTER_ALLOWED,
         `${where} holds an input or output that is not a UTxO: ${errorText(error)}`,
         error,
@@ -911,8 +919,9 @@ export type BuiltOutput = Utxo & {
 
 /**
  * A transaction built and balanced, ready to sign. Plain data. `build()` and `finalize()` return
- * it as a `BuiltTx`; a plan's `built` is this data. `fromCbor()` returns the same data of a
- * transaction it did not build: read from its bytes and from the UTxOs of its inputs.
+ * it as a `BuiltTx`; a step of a plan is this data with its place in the plan. `fromCbor()`
+ * returns the same data of a transaction it did not build: read from its bytes and from the UTxOs
+ * of its inputs.
  */
 export type BuiltTxData = {
   /**
@@ -2273,63 +2282,86 @@ export class TxBuilder {
   }
 
   /**
-   * A payment as a plan: the parts added with `add`, then `parts` (none when omitted), carried
-   * from building to a final state by the `TxPlan` it returns. It is the only way to make a
-   * plan, and it makes no request: the plan is `draft` until its first attempt is built.
+   * Builds a plan: a group of transactions that are sent in order. One list of parts is a plan
+   * of one step, `main`, with the parts this builder holds from `add` first; an object of named
+   * steps is a plan of several, in the order of its keys. Every transaction is built by this
+   * call, one after another, each on the payer's UTxOs as the steps before it leave them, read
+   * once. Nothing is signed and nothing is sent: the plan it returns shows every transaction, its
+   * fee and what it spends, before anyone signs.
    *
    * ```ts
-   * const plan = builder.plan(output({ address, value }), { payer: wallet });
-   * await plan.send({ waitFor: "included" });
+   * const plan = await builder.plan(
+   *   {
+   *     lock: output({ address: vault, value, datum, label: "vault" }),
+   *     unlock: [
+   *       spend.plutus({ utxo: { step: "lock", output: "vault" }, script, redeemer }),
+   *       output({ address: bob, value: { lovelace: 4_000_000n } }),
+   *     ],
+   *   },
+   *   { payer: wallet },
+   * );
+   * await plan.run();
    * ```
    *
-   * The plan's deadlines are its own options, else this builder's `planDefaults`, else the
-   * built-in values, written into it now and never read from the builder again. Its parts are
-   * fixed: a later `add` does not change them, and so are its parents, the plans of `after`.
+   * - A step built from parts ends at the plan's deadline, the tip's time plus `ttlMs`, unless
+   *   its parts give it an end. It spends the change that the step before it of the same payer
+   *   leaves, unless it already spends an output of that step.
+   * - Selection takes, of the outputs of earlier steps, their change only; any other output of
+   *   an earlier step is spent by the part that names it.
+   * - A plan given in `after` stands for its steps that are in a block and not final, or may
+   *   still land.
    *
-   * With a `store` the plan is kept under its `id`, and creation stays synchronous: the first
-   * awaited method (`build`, `send`, `refresh`, …) reads the record, and until then the plan
-   * shows a draft, whatever the store holds. So read the status after the first `await`; for a
-   * known id there is `await builder.resume(id)`. An id already recorded is the same plan: with
-   * the same parts `build()` returns its current attempt, and other parts, an explicit deadline
-   * or data option other than the recorded one, or an `after` naming other parents is
-   * PLAN_EXISTS from that first method. A repeated request handler is safe this way.
-   * @throws TxBuildError INVALID_OPTION for a parts entry that is not a part, for an `after` that
-   *   holds anything but plans, for an `id` that is not a string (without a store), for a
-   *   deadline out of range, for a `knownUtxos` that is not a list of UTxOs or holds an entry
-   *   that is not one,
-   *   and with a store for a parent made by a builder without one; NOT_SERIALIZABLE with a store,
-   *   for a part that holds a redeemer function
-   * @throws TxPlanError CANNOT_OBSERVE (`noTip`) when the builder has no provider that reads
-   *   the chain's tip; (`addressCache`) when its provider keeps a cache of address UTxOs;
-   *   MISSING_ID with a store, without an id that is a non-empty string
+   * The plan's deadlines are its own options, else this builder's `planDefaults`, else the
+   * built-in values, written into it now and never read from the builder again. On a builder with
+   * a store the plan needs an `id`, and the store is read first: an id it holds with the same
+   * steps and options is the recorded plan, returned as recorded, and nothing is built, so a
+   * repeated request handler is safe; other steps or options are PLAN_EXISTS. A new plan is
+   * recorded before it is returned.
+   * @throws TxBuildError every error of building a transaction, with the step's name at the
+   *   start of its message; INVALID_OPTION (`steps`) for a step that is none of the forms, a
+   *   name that is taken, empty, a whole number or starts with `consolidate-`, more than 32
+   *   steps, a link to a step that is not before it, named steps on a builder that holds parts
+   *   from `add`, and a step that stands on the step before it of its payer neither by its change
+   *   nor by an output its parts name; UNKNOWN_LABEL for a link to a label that no output of the
+   *   step has; INVALID_OPTION (`id`) for an id that is not a string; NOT_SERIALIZABLE on a
+   *   builder with a store, for a part that holds a redeemer function
+   * @throws TxPlanError CANNOT_OBSERVE (`noTip`, `noSearch`, `noDepth`, `noValidity`) for a
+   *   provider that cannot follow the plan; INVALID_STATE (`pastHorizon`); on a builder with a
+   *   store MISSING_ID, PLAN_EXISTS, STORE_FAILED, VERSION_CONFLICT, INVALID_STATE
+   *   (`recordVersion`) for a stored record this library does not read
    */
-  plan(parts: PartsInput = [], options?: PlanOptions): TxPlan {
-    return createPlan(this, this.withAdded(parts), options ?? {});
+  plan(steps: StepParts | PlanSteps, options?: PlanOptions): Promise<TxPlan> {
+    return planFor(this, steps, options ?? {});
   }
 
   /**
-   * The plan recorded under `id` in this builder's store, as the record holds it, with the live
-   * objects given again: the reconcile step after a restart is `resume(id, { payer })`, then
-   * `advance()`. It reads the store only: it makes no request to the chain and does not call the
-   * payer, which is compared with the record when a new attempt is built (PAYER_MISMATCH). The
-   * deadlines, data options and parts stay as recorded; the parts this builder holds from `add`
-   * are not read.
+   * A recorded plan, with the live objects given again: by its id from the builder's store, or
+   * from its JSON. It makes no request to the chain and does not call the payer; the provider is
+   * probed before the first delivery. The transactions are those of the record, each read again
+   * and its witnesses verified against its body. The reconcile step after a restart is
+   * `resume(id, { payer })`, then `run()`.
    *
    * ```ts
    * const plan = await builder.resume(orderId, { payer: wallet });
-   * await plan.advance();
+   * await plan.run();
    * ```
-   * @throws TxPlanError MISSING_STORE without a store; MISSING_ID for an id that is not a
-   *   non-empty string; CANNOT_OBSERVE (`noTip`, `addressCache`) for a provider no plan can run
-   *   on; STORE_FAILED when the store throws; PLAN_NOT_FOUND without a record (`planId` is
-   *   `id`), and for a parent not in the store or without the recorded attempt (`planId` is the
-   *   parent's): give that parent in `after`; INVALID_STATE (`recordVersion`) for a record this
-   *   library does not read
-   * @throws TxBuildError NETWORK_MISMATCH for a record of another network; INVALID_OPTION
-   *   (`after`) for parents other than the recorded ones
+   *
+   * On a builder with a store the store holds the plan: a JSON whose id the store holds gives the
+   * stored record when the stored revision is the same or later; a JSON ahead of the stored one
+   * is VERSION_CONFLICT, and nothing is written.
+   * @throws TxPlanError MISSING_STORE for an id on a builder without a store; MISSING_ID for an
+   *   id that is not a non-empty string, and for a record without one on a builder with a store;
+   *   PLAN_NOT_FOUND; VERSION_CONFLICT; STORE_FAILED; INVALID_STATE (`recordVersion`) for a
+   *   record this library does not read
+   * @throws TxBuildError NETWORK_MISMATCH for a record of another network
    */
-  resume(id: string, options?: ResumeOptions): Promise<TxPlan> {
-    return resumePlan(this, id, options);
+  resume(id: string, options?: ResumeOptions): Promise<TxPlan>;
+  resume(json: TxPlanJSON, options?: ResumeOptions): Promise<TxPlan>;
+  resume(
+    source: string | TxPlanJSON,
+    options?: ResumeOptions,
+  ): Promise<TxPlan> {
+    return resumePlan(this, source, options ?? {});
   }
 
   /**

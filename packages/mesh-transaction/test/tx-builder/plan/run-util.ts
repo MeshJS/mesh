@@ -2,26 +2,13 @@ import { ProviderError } from "@meshsdk/common";
 import { CborWriter } from "@meshsdk/core-cst";
 import { TxEmulator } from "@meshsdk/tx-emulator";
 
-import type {
-  BuildEvent,
-  TxBuilder,
-  TxBuilderOptions,
-} from "../../../src/tx-builder";
-import type {
-  MakePlanOptions,
-  PlanSteps,
-  StepParts,
-} from "../../../src/tx-builder/plan/make";
-import type { StepPlanLiveObjects } from "../../../src/tx-builder/plan/step-plan";
+import type { TxBuilderOptions } from "../../../src/tx-builder";
 import { output } from "../../../src/tx-builder";
-import { makePlan } from "../../../src/tx-builder/plan/make";
-import { createStepPlan } from "../../../src/tx-builder/plan/step-plan";
 import { baseAddress } from "../../test-util";
 import { builderOf, Hooks, walletOf, wrap } from "./plan-emulator-util";
 
-// Helpers of the tests of the object that runs a plan of steps, on TxEmulator: an emulator of
-// either validator behind a wrapped provider, a builder with the fast defaults, a funded
-// wallet, and a plan made by `makePlan` and handed to the object.
+// Helpers of the tests that run plans on TxEmulator: an emulator of either validator behind a
+// wrapped provider, a builder with the fast defaults, and a funded wallet.
 
 export const VALIDATORS = ["scalus", "cquisitor"] as const;
 export type Validator = (typeof VALIDATORS)[number];
@@ -69,20 +56,6 @@ export const stepSetup = async (
     emulator.fund(address, { lovelace }),
   );
   return { emulator, provider, builder, wallet, address, funded };
-};
-
-/** A plan built by `makePlan` and made into the object that runs it */
-export const planOf = async (
-  builder: TxBuilder,
-  steps: StepParts | PlanSteps,
-  options: MakePlanOptions & { trace?: (event: BuildEvent) => void } = {},
-) => {
-  const made = await makePlan(builder, steps, options);
-  const live: StepPlanLiveObjects = {
-    ...(options.payer !== undefined && { payer: options.payer }),
-    ...(options.trace !== undefined && { trace: options.trace }),
-  };
-  return createStepPlan(builder, made, live);
 };
 
 /** The lovelace of each UTxO an address holds on the emulator */

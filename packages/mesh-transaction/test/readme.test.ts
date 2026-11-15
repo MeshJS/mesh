@@ -5,6 +5,7 @@ import { jest } from "@jest/globals";
 import { TxEmulator } from "@meshsdk/tx-emulator";
 import { MeshWallet } from "@meshsdk/wallet";
 
+import type { TxPlan } from "../src";
 import { output, TxBuilder } from "../src";
 import {
   TX_BUILD_ERROR_CODES,
@@ -33,7 +34,7 @@ const lineStarting = (lines: string[], start: string) =>
 const taskLines = (): string => {
   const lines = firstBlock();
   const from = lineStarting(lines, "const builder = new TxBuilder(");
-  const to = lineStarting(lines, "console.log(plan.txHash);");
+  const to = lineStarting(lines, 'console.log(plan.step("main").txHash);');
   if (from < 0 || to < from)
     throw new Error("the first ts block of README.md has no task lines");
   return lines.slice(from, to + 1).join("\n");
@@ -50,7 +51,7 @@ describe("README.md", () => {
     const provider = lineStarting(lines, "const provider = ");
     const wallet = lineStarting(lines, "const wallet = ");
     const builder = lineStarting(lines, "const builder = new TxBuilder(");
-    const log = lineStarting(lines, "console.log(plan.txHash);");
+    const log = lineStarting(lines, 'console.log(plan.step("main").txHash);');
     expect(provider).toBeGreaterThanOrEqual(0);
     expect(wallet).toBeGreaterThanOrEqual(0);
     expect(builder).toBeGreaterThan(Math.max(provider, wallet));
@@ -80,7 +81,7 @@ describe("README.md", () => {
       `${taskLines()}\nreturn plan;`,
     );
     const log = jest.spyOn(console, "log").mockImplementation(() => {});
-    let plan: { status: string; txHash?: string };
+    let plan: TxPlan;
     try {
       plan = (await run(
         TxBuilder,
@@ -90,18 +91,20 @@ describe("README.md", () => {
         recipient,
       )) as typeof plan;
       expect(log).toHaveBeenCalledTimes(1);
-      expect(log).toHaveBeenCalledWith(plan.txHash);
+      expect(log).toHaveBeenCalledWith(plan.step("main").txHash);
     } finally {
       log.mockRestore();
     }
 
-    expect(plan.status).toBe("included");
-    expect((await emulator.fetchTxInfo(plan.txHash!)).hash).toBe(plan.txHash);
+    const { txHash, status } = plan.step("main");
+    expect(status).toBe("included");
+    expect(plan.status).toBe("pending");
+    expect((await emulator.fetchTxInfo(txHash)).hash).toBe(txHash);
     const received = await emulator.fetchAddressUTxOs(recipient);
     expect(
       received.some(
         (utxo) =>
-          utxo.input.txHash === plan.txHash &&
+          utxo.input.txHash === txHash &&
           utxo.output.amount.length === 1 &&
           utxo.output.amount[0]!.unit === "lovelace" &&
           utxo.output.amount[0]!.quantity === "2000000",

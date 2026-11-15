@@ -59,9 +59,76 @@ const WORDS = [
   "✓ 🚀 €",
 ];
 
+/** A transaction of one input and one change output, built for preprod and never signed */
+const SAMPLE_TX =
+  "84a300d90102818258200000000000000000000000000000000000000000000000000000000000000000000181825839005867c3b8e27840f556ac268b781578b14c5661fc63ee720dbeab663f9d4dcd7e454d2434164f4efb8edeb358d86a1dad9ec6224cfcbce3e61a0049c59f021a000285a1a0f5f6";
+const SAMPLE_HASH =
+  "4defba8596afb22e5ef1428513ab5524f08e14d453fe0c312da3ef5147d1cdb5";
+const SAMPLE_ADDRESS =
+  "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9";
+const SAMPLE_KEY = "5867c3b8e27840f556ac268b781578b14c5661fc63ee720dbeab663f";
+const ZERO_HASH = "0".repeat(64);
+
+/** The data of the sample transaction, as a record holds it */
+const sampleBuilt = () => {
+  const input = {
+    txHash: ZERO_HASH,
+    outputIndex: 0,
+    address: SAMPLE_ADDRESS,
+    value: { lovelace: "5000000" },
+  };
+  const change = {
+    txHash: SAMPLE_HASH,
+    outputIndex: 0,
+    address: SAMPLE_ADDRESS,
+    value: { lovelace: "4834719" },
+    change: true,
+  };
+  const output = { address: SAMPLE_ADDRESS, amount: { coin: "4834719" } };
+  return {
+    tx: SAMPLE_TX,
+    txHash: SAMPLE_HASH,
+    prototype: {
+      body: {
+        inputs: [{ transaction_id: ZERO_HASH, index: 0 }],
+        outputs: [output],
+        fee: "165281",
+      },
+      witness_set: {},
+      is_valid: true,
+    },
+    fee: "165281",
+    exUnits: { mem: "0", steps: "0" },
+    redeemers: [],
+    inputs: [input],
+    selectedInputs: [input],
+    referenceInputs: [],
+    outputs: [change],
+    change: [change],
+    signers: {
+      keyHashes: [SAMPLE_KEY],
+      keys: [{ keyHash: SAMPLE_KEY, roles: ["input"] }],
+      byronAddresses: [],
+      nativeScripts: [],
+    },
+    network: { name: "preprod", networkId: 0 },
+    warnings: [],
+    parts: [
+      {
+        kind: "spend",
+        input: { transaction_id: ZERO_HASH, index: 0 },
+        utxo: input,
+        witness: { type: "key" },
+      },
+      { kind: "output", output },
+    ],
+  };
+};
+
 /**
- * A readable record of a closed plan: `abandoned`, no attempts, its bulk in one metadata part
- * with nested lists and maps, long decimal integers and texts outside ASCII
+ * A readable record of a stopped plan: one step that expired unsigned and was never sent, its
+ * bulk in one metadata part of the step as given, with nested lists and maps, long decimal
+ * integers and texts outside ASCII
  */
 const recordOf = (
   id: string,
@@ -75,52 +142,67 @@ const recordOf = (
   }));
   return {
     kind: "TxPlan",
-    version: 1,
+    version: 2,
     id,
     rev,
-    status: "abandoned",
-    closing: true,
+    status: "stopped",
+    stopped: true,
     network: "preprod",
     deadlines: { ttlMs: 600_000, expiryMarginMs: 600_000, confirmations: 30 },
-    attempts: [],
-    anchor: { anchors: [] },
-    parts: [
+    steps: [
       {
-        kind: "metadata",
-        // A long free text, which ends with a character outside ASCII
-        label: `${WORDS.join(" · ").repeat(Math.ceil(bulk / 4))} ${note} ✓`,
-        metadataLabel: "674",
-        value: {
-          type: "MAP",
-          value: [
-            [
-              { type: "STRING", value: "msg" },
-              { type: "LIST", value: lines },
-            ],
-            [
-              { type: "STRING", value: "max" },
-              { type: "INT", value: "18446744073709551615" },
-            ],
-            [
-              { type: "STRING", value: "min" },
-              { type: "INT", value: "-18446744073709551615" },
-            ],
-            [
-              { type: "STRING", value: "bytes" },
-              {
-                type: "LIST",
+        name: "main",
+        status: "expired",
+        txHash: SAMPLE_HASH,
+        sends: 0,
+        refused: 0,
+        tx: {
+          kind: "BuiltTx",
+          version: 1,
+          txHash: SAMPLE_HASH,
+          built: sampleBuilt(),
+        },
+        given: {
+          parts: [
+            {
+              kind: "metadata",
+              // A long free text, which ends with a character outside ASCII
+              label: `${WORDS.join(" · ").repeat(Math.ceil(bulk / 4))} ${note} ✓`,
+              metadataLabel: "674",
+              value: {
+                type: "MAP",
                 value: [
-                  {
-                    type: "BYTES",
-                    value: Array.from({ length: 64 }, (_, i) => i * 4),
-                  },
-                  {
-                    type: "LIST",
-                    value: [{ type: "INT", value: String(rev) }],
-                  },
+                  [
+                    { type: "STRING", value: "msg" },
+                    { type: "LIST", value: lines },
+                  ],
+                  [
+                    { type: "STRING", value: "max" },
+                    { type: "INT", value: "18446744073709551615" },
+                  ],
+                  [
+                    { type: "STRING", value: "min" },
+                    { type: "INT", value: "-18446744073709551615" },
+                  ],
+                  [
+                    { type: "STRING", value: "bytes" },
+                    {
+                      type: "LIST",
+                      value: [
+                        {
+                          type: "BYTES",
+                          value: Array.from({ length: 64 }, (_, i) => i * 4),
+                        },
+                        {
+                          type: "LIST",
+                          value: [{ type: "INT", value: String(rev) }],
+                        },
+                      ],
+                    },
+                  ],
                 ],
               },
-            ],
+            },
           ],
         },
       },
@@ -197,8 +279,8 @@ const suffix = () =>
  *   answer `false` fails.
  *
  * It calls `load` and `save` only, under fresh ids that start with `checkPlanStore:`, and
- * leaves its records in the store, since a store has no delete: a few records of closed
- * (`abandoned`) plans without attempts, which no reconciliation takes up. It is meant for tests
+ * leaves its records in the store, since a store has no delete: a few records of `stopped`
+ * plans whose one step expired unsent, which no reconciliation takes up. It is meant for tests
  * and for setting a store up, not for every start. It cannot show that records survive a
  * restart, nor that the store keeps its guarantees between processes.
  */

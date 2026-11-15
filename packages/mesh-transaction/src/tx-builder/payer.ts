@@ -408,6 +408,27 @@ const collateralMethodOf = (api: Cip30WalletApi): GetCollateral | undefined => {
 };
 
 /**
+ * The change address of a payer whose given data was checked, without its UTxOs: a request to
+ * a wallet, and none for an address or a snapshot
+ * @throws TxBuildError WALLET_FAILED when the wallet fails or answers with no address
+ */
+export const changeAddressOf = async (source: PayerSource): Promise<string> => {
+  if (source.form === "snapshot") return source.snapshot.changeAddress;
+  if (source.form === "address") return source.address;
+  let answer: unknown;
+  try {
+    answer = await attempt(() => source.wallet.getChangeAddress());
+  } catch (error) {
+    throw walletFailed("getChangeAddress", error);
+  }
+  try {
+    return toAddressText(answer);
+  } catch (error) {
+    throw walletFailed("its change address", error, true);
+  }
+};
+
+/**
  * Reads a payer whose given data was checked: a wallet, or the UTxOs of an address; a snapshot
  * is returned as it is. A CIP-30 api also gives its collateral method. What was read is checked
  * for its network: the wallet's network id (only mainnet against the test networks), the change

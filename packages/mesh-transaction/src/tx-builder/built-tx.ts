@@ -330,11 +330,10 @@ const keysText = (keys: readonly RequiredKey[]) =>
  *
  * One object is one body. Its bytes and its hash are fixed when it is made; no call builds,
  * edits or serializes a transaction again, and what is signed and sent is that body. It has no
- * deadline, no anchor, no statuses and no replacement, so do not build another transaction to
- * retry it: a new build may select other inputs, and both may land. A retry is the same call on
- * the same object. A payment that has to be repeated safely, replaced or followed to `final` is
- * a `TxPlan`; a plan's `build()` gives the data alone, since a plan signs and sends its own
- * attempts.
+ * deadline and no statuses, so do not build another transaction to retry it: a new build may
+ * select other inputs, and both may land. A retry is the same call on the same object. A payment
+ * that has to be repeated safely, kept in a store or followed to `final` is a `TxPlan`, made by
+ * `builder.plan`.
  *
  * Two calls at once are safe: a witness is kept once per key, whoever gives it first.
  */
@@ -699,7 +698,7 @@ export class BuiltTx implements BuiltTxData {
         look === "notFound"
           ? `${REFUSED}; the provider does not find the transaction, and the object does not know what another process sent. ${NO_REBUILD}`
           : `${REFUSED}; the provider could not be asked whether it holds the transaction (no provider, no search, or no answer), and the object does not know what another process sent. ${NO_REBUILD}`,
-        { details: { otherLive: [] }, cause: outcome.error },
+        { details: {}, cause: outcome.error },
       );
     } finally {
       internals(this.#builder).cache?.clearVolatile();

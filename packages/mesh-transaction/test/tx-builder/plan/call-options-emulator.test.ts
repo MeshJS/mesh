@@ -18,20 +18,22 @@ import { watchStore } from "./store-util";
 // written or sent.
 
 const SIGN_ALLOWED = "an object { signers?, signal? }";
-const SEND_ALLOWED =
+const RUN_ALLOWED =
   "an object { signers?, submitter?, waitFor?, timeoutMs?, pollMs?, signal? }";
-const BUILD_ALLOWED = "an object { payer?, signal? }";
 
 /** A member name no message may show */
 const LONG_NAME = "ab".repeat(32);
 
-/** A built plan over a store, with a payer, signers and submitters that count their requests */
+/** A plan over a store, with a payer, signers and submitters that count their requests */
 const builtPlan = async () => {
   const store = watchStore();
-  const own = submitterOf(hashOf);
+  // The builder's submitter passes the bytes on to the emulator, made after it
+  const chain: { submitTx?: (tx: string) => Promise<string> } = {};
+  const own = submitterOf((tx) => chain.submitTx!(tx));
   const { builder, emulator, provider } = await setup({
     builder: { store, submitter: own },
   });
+  chain.submitTx = (tx) => emulator.submitTx(tx);
   const api = await cip30Wallet({ words, fetcher: emulator });
   const asked = { payer: 0, named: 0 };
   const payer = {
@@ -52,8 +54,7 @@ const builtPlan = async () => {
     return [];
   };
   const given = submitterOf(hashOf);
-  const plan = builder.plan(pay(), { id: "pay", payer });
-  await plan.build();
+  const plan = await builder.plan(pay(), { id: "pay", payer });
   store.reset();
   const before = plan.toJSON();
   /** Nobody was asked, nothing was written and nothing was sent */
@@ -64,7 +65,7 @@ const builtPlan = async () => {
     expect([own.calls, given.calls]).toEqual([[], []]);
     expect(provider.control.count("submitTx")).toBe(0);
   };
-  return { plan, payer, named, callback, given, asked, untouched };
+  return { plan, payer, named, callback, given, asked, untouched, own };
 };
 
 type Fixture = Awaited<ReturnType<typeof builtPlan>>;
@@ -142,7 +143,7 @@ const SIGN_CASES: readonly Case[] = [
   ],
 ];
 
-const SEND_CASES: readonly Case[] = [
+const RUN_CASES: readonly Case[] = [
   ...SIGNER_CASES,
   [
     "a submitter",
@@ -191,65 +192,30 @@ const expectRefused = (
 describe("TxPlan on TxEmulator: options a call does not take", () => {
   describe.each([
     ["sign", SIGN_ALLOWED, SIGN_CASES],
-    ["send", SEND_ALLOWED, SEND_CASES],
-    ["advance", SEND_ALLOWED, SEND_CASES],
+    ["run", RUN_ALLOWED, RUN_CASES],
   ] as const)("%s()", (call, allowed, cases) => {
     it.each(cases)(
       "refuses %s: the payer is not asked, nothing is written or sent",
       async (_, options, type, says) => {
         const fixture = await builtPlan();
-        const { plan, untouched, asked } = fixture;
-        const run = plan[call].bind(plan) as (o: unknown) => Promise<unknown>;
-        expectRefused(await caught(run(options(fixture))), allowed, type, says);
-        untouched();
-        // Without options the payer signs, and send() and advance() send
-        await run(undefined);
-        expect(asked.payer).toBe(1);
-        expect(plan.status).toBe(call === "sign" ? "signed" : "sent");
-      },
-    );
-  });
-
-  describe("build()", () => {
-    const cases: readonly Case[] = [
-      ["null", () => null, "null", undefined],
-      [
-        "a payer",
-        ({ payer }) => payer,
-        "object",
-        { hint: "a payer is given as { payer }" },
-      ],
-      [
-        "an address",
-        () => "addr_test1",
-        "string",
-        { hint: "a payer is given as { payer }" },
-      ],
-      [
-        "{ payr }",
-        ({ payer }) => ({ payr: payer }),
-        "object",
-        { member: "payr" },
-      ],
-      [
-        "a member named by a 64-digit hex text",
-        () => ({ [LONG_NAME]: true }),
-        "object",
-        { member: null },
-      ],
-    ];
-    it.each(cases)(
-      "refuses %s: nothing is written",
-      async (_, options, type, says) => {
-        const fixture = await builtPlan();
-        const { plan, untouched } = fixture;
+        const { plan, untouched, asked, own } = fixture;
+        const method = plan[call].bind(plan) as (
+          o: unknown,
+        ) => Promise<unknown>;
         expectRefused(
-          await caught(plan.build(options(fixture) as never)),
-          BUILD_ALLOWED,
+          await caught(method(options(fixture))),
+          allowed,
           type,
           says,
         );
         untouched();
+        // Without options the payer signs, and run() sends and waits for a block
+        await method(undefined);
+        expect(asked.payer).toBe(1);
+        expect(plan.step("main").status).toBe(
+          call === "sign" ? "signed" : "final",
+        );
+        expect(own.calls).toHaveLength(call === "sign" ? 0 : 1);
       },
     );
   });

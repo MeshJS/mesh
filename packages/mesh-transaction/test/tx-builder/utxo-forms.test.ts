@@ -34,9 +34,7 @@ import {
   utxosAfter,
 } from "../../src/tx-builder";
 import { refScriptFee } from "../../src/tx-builder/fee";
-import { advancePlan } from "../../src/tx-builder/plan/core";
 import { alwaysSucceedCbor, baseAddress, mockTokenUnit } from "../test-util";
-import { buildEvent, draft } from "./plan/plan-util";
 
 // The three forms the builder takes a UTxO in give one transaction and the same results, and
 // what it reports as an out ref stays exactly an out ref.
@@ -415,23 +413,5 @@ describe("out refs reported", () => {
       txHash: foreign.txHash,
       outputIndex: foreign.outputIndex,
     });
-  });
-
-  it("are recorded as exactly txHash and outputIndex in an attempt's anchors", () => {
-    const anchor = full("33".repeat(32));
-    const result = advancePlan(
-      draft(),
-      buildEvent({
-        txHash: "34".repeat(32),
-        anchors: [{ utxo: anchor, kind: "payer" }],
-      }),
-    );
-    if (!result.ok) throw new Error(result.message);
-    const [attempt] = result.json.attempts;
-    expect(attempt!.anchors).toStrictEqual([
-      { txHash: anchor.txHash, outputIndex: anchor.outputIndex },
-    ]);
-    // The anchor itself is kept whole, for the address it is read at
-    expect(result.json.anchor.anchors[0]!.utxo).toBe(anchor);
   });
 });

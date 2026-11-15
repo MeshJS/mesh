@@ -1,15 +1,12 @@
-import type { StepPlanRecord } from "../../../src/tx-builder/plan/step-core";
+import type { PlanRecord } from "../../../src/tx-builder/plan/core";
+import type { TxPlanJSON } from "../../../src/tx-builder/plan/types";
 import { TxPlanError } from "../../../src/tx-builder";
-import { emptyStepPlan } from "../../../src/tx-builder/plan/step-core";
-import {
-  encodeStepPlan,
-  readStepPlan,
-  StepPlanJSON,
-} from "../../../src/tx-builder/plan/step-json";
+import { emptyPlan } from "../../../src/tx-builder/plan/core";
+import { encodePlan, readPlan } from "../../../src/tx-builder/plan/json";
 import { readTransaction, withWitnesses } from "../../../src/tx-builder/sign";
-import { accept, acceptAll, realSteps, signedBy } from "./step-util";
+import { accept, acceptAll, realSteps, signedBy } from "./state-util";
 
-// The record of a plan of steps as data: written, read back strictly, and refused whole when it
+// The record of a plan as data: written, read back strictly, and refused whole when it
 // holds what this library does not read or what the state machine could not have written.
 
 type Fixture = Awaited<ReturnType<typeof realSteps>>;
@@ -20,7 +17,7 @@ beforeAll(async () => {
 
 const firstRecord = () =>
   accept(
-    emptyStepPlan({
+    emptyPlan({
       id: "order-7",
       network: "preprod",
       deadlines: { ttlMs: 600_000, expiryMarginMs: 0, confirmations: 2 },
@@ -30,7 +27,7 @@ const firstRecord = () =>
   );
 
 /** A record that has seen every kind of event */
-const busyRecord = (): StepPlanRecord => {
+const busyRecord = (): PlanRecord => {
   const json = firstRecord();
   const tx = (name: string) => json.steps.find((s) => s.name === name)!.txHash;
   return acceptAll(
@@ -73,12 +70,12 @@ const busyRecord = (): StepPlanRecord => {
 };
 
 /** The JSON text of the record, read back */
-const throughText = (json: StepPlanJSON) =>
-  readStepPlan(JSON.parse(JSON.stringify(json)));
+const throughText = (json: TxPlanJSON) =>
+  readPlan(JSON.parse(JSON.stringify(json)));
 
-describe("the record of a plan of steps", () => {
+describe("the record of a plan", () => {
   it("is written with each step's transaction as the JSON of a BuiltTx", () => {
-    const json = encodeStepPlan(busyRecord());
+    const json = encodePlan(busyRecord());
     expect(Object.keys(json)).toEqual([
       "kind",
       "version",
@@ -94,7 +91,7 @@ describe("the record of a plan of steps", () => {
     ]);
     expect(json).toMatchObject({
       kind: "TxPlan",
-      version: 1,
+      version: 2,
       id: "order-7",
       status: "stopping",
       stopped: true,
@@ -132,9 +129,9 @@ describe("the record of a plan of steps", () => {
 
   it("is read back to the same record, through JSON text, whatever events it has seen", () => {
     for (const record of [firstRecord(), busyRecord()]) {
-      const json = encodeStepPlan(record);
+      const json = encodePlan(record);
       const read = throughText(json);
-      expect(encodeStepPlan(read)).toEqual(json);
+      expect(encodePlan(read)).toEqual(json);
       expect(read.steps.map((s) => s.witnesses)).toEqual(
         record.steps.map((s) => s.witnesses),
       );
@@ -143,23 +140,23 @@ describe("the record of a plan of steps", () => {
   });
 
   it("keeps the transactions of after a step stands on", () => {
-    const json = JSON.parse(JSON.stringify(encodeStepPlan(firstRecord())));
+    const json = JSON.parse(JSON.stringify(encodePlan(firstRecord())));
     const source = fixture.steps[0]!.built.inputs[0]!.txHash;
     json.steps[0].after = [source];
-    const read = readStepPlan(json);
+    const read = readPlan(json);
     expect(read.steps[0]!.after).toEqual([source]);
-    expect(encodeStepPlan(read).steps[0]!.after).toEqual([source]);
+    expect(encodePlan(read).steps[0]!.after).toEqual([source]);
   });
 
   it("is read only with the id it has, when an id is asked for", () => {
-    const json = encodeStepPlan(firstRecord());
-    expect(readStepPlan(json, "order-7").id).toBe("order-7");
-    expect(() => readStepPlan(json, "order-8")).toThrow(/order-8/);
+    const json = encodePlan(firstRecord());
+    expect(readPlan(json, "order-7").id).toBe("order-7");
+    expect(() => readPlan(json, "order-8")).toThrow(/order-8/);
   });
 
   describe("is refused whole, as INVALID_STATE (recordVersion)", () => {
     const busy = () =>
-      JSON.parse(JSON.stringify(encodeStepPlan(busyRecord()))) as Record<
+      JSON.parse(JSON.stringify(encodePlan(busyRecord()))) as Record<
         string,
         any
       >;
@@ -170,7 +167,19 @@ describe("the record of a plan of steps", () => {
     };
     const cases: [string, (json: Record<string, any>) => void, RegExp][] = [
       ["another kind", (j) => (j.kind = "BuiltTx"), /kind/],
-      ["another version", (j) => (j.version = 2), /version/],
+      ["another version", (j) => (j.version = 3), /version 3/],
+      [
+        "version 1, the record of a plan of one payment in attempts",
+        (j) => {
+          j.version = 1;
+          j.status = "draft";
+          j.attempts = [];
+          j.anchor = { anchors: [] };
+          j.parts = [];
+          delete j.steps;
+        },
+        /the version 1: a record of a plan of one payment built anew in attempts, a format this library does not read; it reads version 2/,
+      ],
       ["a member it does not know", (j) => (j.extra = 1), /extra/],
       [
         "the record of attempts",
@@ -192,6 +201,16 @@ describe("the record of a plan of steps", () => {
         /after/,
       ],
       ["an empty list of after", (j) => (j.steps[0].after = []), /after/],
+      [
+        "an expirySource of a step whose inputs come from the chain",
+        (j) => (j.steps[0].expirySource = "ee".repeat(32)),
+        /expirySource, and an input of it comes from no transaction of after/,
+      ],
+      [
+        "an expirySource that is not a transaction hash",
+        (j) => (j.steps[0].expirySource = "x"),
+        /expirySource that is not a transaction hash/,
+      ],
       ["no step", (j) => (j.steps = []), /steps/],
       ["a plan status it does not know", (j) => (j.status = "open"), /status/],
       [
@@ -246,7 +265,7 @@ describe("the record of a plan of steps", () => {
       [
         "a witness of another body",
         (j) => {
-          j.steps[2].tx.witnesses = encodeStepPlan(
+          j.steps[2].tx.witnesses = encodePlan(
             accept(firstRecord(), {
               type: "signature",
               step: "a",
@@ -260,7 +279,7 @@ describe("the record of a plan of steps", () => {
         "a witness of a key the step does not need, where its key is missing",
         (j) => {
           const c = j.steps[2];
-          c.tx.witnesses = encodeStepPlan(
+          c.tx.witnesses = encodePlan(
             accept(firstRecord(), {
               type: "signature",
               step: "c",
@@ -370,11 +389,11 @@ describe("the record of a plan of steps", () => {
 
     it.each(cases)("%s", (_, change, message) => {
       const json = busy();
-      expect(() => readStepPlan(json)).not.toThrow();
+      expect(() => readPlan(json)).not.toThrow();
       change(json);
       let error: unknown;
       try {
-        readStepPlan(json);
+        readPlan(json);
       } catch (thrown) {
         error = thrown;
       }

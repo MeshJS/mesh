@@ -11,10 +11,12 @@ import type {
   Linked,
   LinkedPart,
   PartsInput,
+  PlanSteps,
   ReferenceInputPart,
   SpendPart,
   StepChange,
   StepOutput,
+  StepParts,
   TxPart,
   Utxo,
 } from "../../../src/tx-builder";
@@ -382,14 +384,31 @@ describe("a part linked to an earlier step outside a plan", () => {
     expect(alone.details).toEqual([unresolvedDetails[0]]);
   });
 
-  it("is UNRESOLVED from add and from a plan of the builder", async () => {
-    const { builder } = counting();
+  it("is UNRESOLVED from add; a plan refuses a link to a step it does not have before it, before any request", async () => {
+    const { builder, asked } = counting();
     await refusal(() => builder.add(linked as never));
-    await refusal(() =>
-      builder.plan([linked] as never, {
-        payer: { changeAddress: keyAddress, utxos: [] },
-      }),
-    );
+    const forms: (StepParts | PlanSteps)[] = [
+      [linked],
+      { pay: [pay, linked] },
+      { pay, b: linked },
+    ];
+    for (const steps of forms)
+      await expect(
+        builder.plan(steps, {
+          payer: { changeAddress: keyAddress, utxos: [] },
+        }),
+      ).rejects.toMatchObject({
+        code: "INVALID_OPTION",
+        details: { option: "steps" },
+      });
+    // Named after it, the step is not before it
+    await expect(
+      builder.plan(
+        { first: linked, [vault.step]: pay },
+        { payer: { changeAddress: keyAddress, utxos: [] } },
+      ),
+    ).rejects.toThrow(/which is not before step "first"/);
+    expect(asked).toEqual([]);
   });
 
   it("is UNRESOLVED from assembleTxPrototype, listed with the other incomplete parts", async () => {

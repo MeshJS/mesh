@@ -2,12 +2,13 @@ import { mConStr0, UTxO } from "@meshsdk/core";
 import { TxEmulator } from "@meshsdk/tx-emulator";
 import { MeshWallet } from "@meshsdk/wallet";
 
-import type { BuiltTxData, Utxo } from "../../../src/tx-builder";
 import type {
-  MadePlan,
+  BuiltTxData,
   PlanSteps,
   StepParts,
-} from "../../../src/tx-builder/plan/make";
+  Utxo,
+} from "../../../src/tx-builder";
+import type { MadePlan } from "../../../src/tx-builder/plan/make";
 import {
   output,
   spend,
@@ -16,15 +17,12 @@ import {
   TxPartError,
   validity,
 } from "../../../src/tx-builder";
+import { encodePlan, readPlan } from "../../../src/tx-builder/plan/json";
 import { makePlan } from "../../../src/tx-builder/plan/make";
-import {
-  encodeStepPlan,
-  readStepPlan,
-} from "../../../src/tx-builder/plan/step-json";
 import { alwaysSucceedCbor, baseAddress } from "../../test-util";
 import { caught, walletOf } from "./plan-emulator-util";
 
-// A plan of steps built on the emulator: every body at once, threaded through the payer's
+// A plan built on the emulator: every body at once, threaded through the payer's
 // UTxOs, links filled in from the earlier steps' transactions, one deadline. The tests sign and
 // submit the transactions by hand, in order, and see each land.
 
@@ -88,7 +86,7 @@ const stepOf = (plan: MadePlan, name: string): BuiltTxData =>
   plan.steps.find((step) => step.name === name)!.built;
 
 describe.each(["scalus", "cquisitor"] as const)(
-  "a plan of steps built on TxEmulator (%s)",
+  "a plan built on TxEmulator (%s)",
   (validator) => {
     it("builds every step before anything is sent, each spending the change of the step before it: one UTxO of 1000 ada through three steps", async () => {
       const { emulator, builder, wallet, address } = await setup(validator);
@@ -274,7 +272,7 @@ describe.each(["scalus", "cquisitor"] as const)(
   },
 );
 
-describe("a plan of steps", () => {
+describe("a plan", () => {
   it("gives every step it builds the plan's deadline, and keeps an end its parts give", async () => {
     const { emulator, builder, wallet } = await setup("scalus");
     const tipTime = builder.timeAt(emulator.slot);
@@ -330,10 +328,10 @@ describe("a plan of steps", () => {
       network: "preprod",
       deadlines: { ttlMs: TTL },
     });
-    const json = encodeStepPlan(plan.record);
-    expect(
-      encodeStepPlan(readStepPlan(JSON.parse(JSON.stringify(json)))),
-    ).toEqual(json);
+    const json = encodePlan(plan.record);
+    expect(encodePlan(readPlan(JSON.parse(JSON.stringify(json))))).toEqual(
+      json,
+    );
   });
 
   it("puts the step's name at the start of an error of building it", async () => {

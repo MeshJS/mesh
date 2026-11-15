@@ -26,7 +26,6 @@ import type {
   OutputScript,
   TxPart,
   TxPlanError,
-  TxPlanJSON,
   Utxo,
 } from "../../../src/tx-builder";
 import type { PlanRecord } from "../../../src/tx-builder/plan/core";
@@ -53,14 +52,14 @@ import {
   vote,
   withdrawal,
 } from "../../../src/tx-builder";
-import { draftPlan } from "../../../src/tx-builder/plan/core";
+import { NOT_UNPAID } from "../../../src/tx-builder/errors";
+import { emptyPlan } from "../../../src/tx-builder/plan/core";
 import {
   decodeParts,
   encodeParts,
   encodePlan,
   PLAN_RECORD_VERSION,
   readPlan,
-  readPlanWith,
   UnreadContent,
 } from "../../../src/tx-builder/plan/json";
 import {
@@ -72,7 +71,8 @@ import {
   mockTokenUnit,
   rewardAddress,
 } from "../../test-util";
-import { accept, acceptAll, hash } from "./plan-util";
+import { hash } from "./plan-util";
+import { accept } from "./state-util";
 
 /* ---------------------------------------------------------------------------------------------
  * Fixtures
@@ -456,7 +456,7 @@ const expectUnread = (run: () => unknown, message: RegExp) => {
   expect(planError.details.reason).toBe("recordVersion");
   expect(planError.retryable).toBe(false);
   expect(planError.message).toMatch(message);
-  expect(planError.message).toContain("only an abandoned plan did not pay");
+  expect(planError.message).toContain(NOT_UNPAID);
   return planError;
 };
 
@@ -671,7 +671,7 @@ describe("the encoding of a built transaction", () => {
     expect(built.redeemers).toHaveLength(1);
     const record = recordWith([built]);
     const encoded = encodePlan(record) as any;
-    const json = encoded.attempts[0].built;
+    const json = encoded.steps[0].tx.built;
     expect(json.fee).toBe(String(built.fee));
     expect(json.exUnits).toEqual({ mem: "5000", steps: "7000" });
     expect(json.redeemers[0].exUnits).toEqual({ mem: "5000", steps: "7000" });
@@ -679,7 +679,7 @@ describe("the encoding of a built transaction", () => {
     expect(json.signers.nativeScripts[0].value.n).toBe("1");
     expect(JSON.parse(JSON.stringify(encoded))).toStrictEqual(encoded);
 
-    const read = readPlan(encoded).attempts[0]!.built as BuiltTxData;
+    const read = readPlan(encoded).steps[0]!.built;
     expect(read).toEqual(built);
     expect(read.fee).toBe(built.fee);
     expect(read.exUnits.mem).toBe(5000n);
@@ -744,7 +744,7 @@ describe("the encoding of a built transaction", () => {
       undefined,
     ]);
     const encoded = encodePlan(recordWith([built])) as any;
-    const json = encoded.attempts[0].built;
+    const json = encoded.steps[0].tx.built;
     expect(json.outputs[0].value).toEqual({
       lovelace: "3000000",
       [unit]: "2",
@@ -752,7 +752,7 @@ describe("the encoding of a built transaction", () => {
     expect(JSON.parse(JSON.stringify(encoded))).toStrictEqual(encoded);
 
     const record = readPlan(encoded);
-    const read = record.attempts[0]!.built as BuiltTxData;
+    const read = record.steps[0]!.built;
     expect(read).toEqual(built);
     expect(read.outputs).toEqual(built.outputs);
     expect(read.inputs).toEqual(built.inputs);
@@ -761,8 +761,6 @@ describe("the encoding of a built transaction", () => {
     expect(read.inputs[0]!.value[unit]).toBe(7n);
     expect(read.change[0]!.value[unit]).toBe(5n);
     expect(read.change[0]!.change).toBe(true);
-    expect(record.anchor.anchors[0]!.utxo).toEqual(built.selectedInputs[0]);
-    expect(record.anchor.anchors[0]!.utxo.value.lovelace).toBe(80_000_000n);
     expect((record.options as any).knownUtxos[0].value.lovelace).toBe(
       5_000_000n,
     );
@@ -778,198 +776,80 @@ const PARTS = (): TxPart[] => [
   metadata({ metadataLabel: 674, value: { n: 2n ** 60n } }),
 ];
 
-/** A draft with parts and data options, and a build event for each transaction */
-const recordWith = (builts: readonly BuiltTxData[]): PlanRecord => {
-  const start = draftPlan({
-    id: "pay-1",
-    network: "preprod",
-    deadlines: { ttlMs: 600_000, expiryMarginMs: 60_000, confirmations: 3 },
-    parts: PARTS(),
-    options: {
-      fee: 400_000n,
-      sendAllTo: recipient,
-      knownUtxos: [utxoAt(7, wallet)],
-      registeredPools: [poolHash],
-      extraKeyWitnesses: 1,
-      topUpCollateral: false,
-      collateralReturn: false,
-      changeAddress: wallet,
-    },
-  });
-  return builts.reduce(
-    (json, built) =>
-      accept(json, {
-        type: "build",
-        built,
-        anchors: [{ utxo: built.selectedInputs[0]!, kind: "payer" }],
-      }),
-    start,
-  );
-};
-
-/** A record that went through an anchor change, signatures, a refusal and the closing mark */
-const replacedRecord = async () => {
-  const first = await scriptTx(funds(50_000_000n));
-  const second = await scriptTx(funds(60_000_000n));
-  const keys = first.signers.keyHashes;
-  expect(keys.length).toBeGreaterThan(0);
-  const start = recordWith([first]);
-  return acceptAll(
-    start,
+/**
+ * A plan of these transactions, each a step of its own given with the parts and two data options,
+ * with the plan's data options
+ */
+const recordWith = (
+  builts: readonly BuiltTxData[],
+  network: PlanRecord["network"] = "preprod",
+): PlanRecord =>
+  accept(
+    emptyPlan({
+      id: "pay-1",
+      network,
+      deadlines: { ttlMs: 600_000, expiryMarginMs: 60_000, confirmations: 3 },
+      options: {
+        knownUtxos: [utxoAt(7, wallet)],
+        registeredPools: [poolHash],
+        extraKeyWitnesses: 1,
+        topUpCollateral: false,
+        collateralReturn: false,
+        changeAddress: wallet,
+      },
+    }),
     {
-      type: "signature",
-      txHash: first.txHash,
-      witnesses: keys.map((keyHash) => ({ keyHash, witness: `w-${keyHash}` })),
-    },
-    { type: "delivery", txHash: first.txHash },
-    { type: "answer", txHash: first.txHash, refused: true },
-    {
-      type: "observation",
-      tip: { slot: 100, timeMs: UNTIL + 60_000, height: 100 },
-      attempts: [{ txHash: first.txHash, found: false }],
-    },
-    {
-      type: "build",
-      built: second,
-      anchors: [{ utxo: second.selectedInputs[0]!, kind: "payer" }],
-      tipTimeMs: UNTIL + 60_000,
-    },
-    { type: "closing" },
-  );
-};
-
-/** A child whose attempt spends its parent's output, delivered, answered and found */
-const childRecord = async () => {
-  const parentHash = hash(0x700);
-  const parentOutput = utxoAt(1, wallet, {}, parentHash);
-  const built = await builder.build(
-    [
-      spend.pubKey({ utxo: parentOutput }),
-      output({ address: recipient, value: { lovelace: 2_000_000n } }),
-      validity({ until: UNTIL }),
-    ],
-    { payer: { changeAddress: wallet, utxos: [funds(10_000_000n)] } },
-  );
-  const start = draftPlan({
-    id: "child-1",
-    network: "preprod",
-    deadlines: { ttlMs: 600_000, expiryMarginMs: 0, confirmations: 2 },
-    parts: PARTS(),
-    options: { changeAddress: wallet },
-  });
-  return acceptAll(
-    start,
-    {
-      type: "build",
-      built,
-      anchors: [{ utxo: parentOutput, kind: "parent" }],
-      parents: [{ txHash: parentHash, until: UNTIL - 1, planId: "parent-1" }],
-    },
-    {
-      type: "signature",
-      txHash: built.txHash,
-      witnesses: built.signers.keyHashes.map((keyHash) => ({
-        keyHash,
-        witness: `w-${keyHash}`,
+      type: "steps",
+      steps: builts.map((built, i) => ({
+        name: `pay-${i + 1}`,
+        // The data of the build, as a plan holds it
+        built: { ...built },
+        standsOn: [],
+        given: {
+          parts: PARTS(),
+          options: { fee: 400_000n, sendAllTo: recipient },
+        },
+        extraKeyWitnesses: 1,
       })),
     },
-    { type: "delivery", txHash: built.txHash },
-    {
-      type: "answer",
-      txHash: built.txHash,
-      refused: false,
-      reportedHash: hash(0x701),
-    },
-    {
-      type: "observation",
-      tip: { slot: 210, timeMs: 210_000, height: 11 },
-      attempts: [
-        {
-          txHash: built.txHash,
-          found: true,
-          slot: 200,
-          block: "bb".repeat(32),
-          blockHeight: 10,
-        },
-      ],
-    },
   );
-};
 
-const expectWritten = (json: TxPlanJSON) => {
-  expect(json.version).toBe(1);
-  expect(json.kind).toBe("TxPlan");
-  expect(Object.keys(json.deadlines).sort()).toEqual([
-    "confirmations",
-    "expiryMarginMs",
-    "ttlMs",
-  ]);
-  for (const value of Object.values(json.deadlines))
-    expect(typeof value).toBe("number");
-  expect([undefined, true]).toContain(json.closing);
-  expect(JSON.parse(JSON.stringify(json))).toStrictEqual(json);
+/** A plan of a Plutus and native spend and a plain payment, stopped before anything was sent */
+const stoppedRecord = async () => {
+  const script = await scriptTx(funds(50_000_000n));
+  const plain = await builder.build(
+    [output({ address: recipient, value: { lovelace: 2_000_000n } })],
+    { payer: { changeAddress: wallet, utxos: [funds(10_000_000n)] } },
+  );
+  return accept(recordWith([script, plain]), { type: "stop" });
 };
 
 describe("the encoding of a record", () => {
-  it("gives back a record with attempts, signatures, an anchor change and the closing mark", async () => {
-    const record = await replacedRecord();
-    expect(record.attempts.map((a) => a.status)).toEqual(["expired", "built"]);
-    expect(record.anchor.anchors).toHaveLength(2);
-    expect(record.closing).toBe(true);
+  it("gives back a plan of a Plutus and native spend and a payment, its given parts and options, and the mark", async () => {
+    const record = await stoppedRecord();
+    expect(record.steps.map((step) => step.status)).toEqual(["built", "built"]);
+    // Its steps may still be signed and sent by another party: it is stopping
+    expect(record.status).toBe("stopping");
     const encoded = encodePlan(record);
-    expectWritten(encoded);
-    expect(encoded.options.fee).toBe("400000");
+    expect(encoded).toMatchObject({
+      kind: "TxPlan",
+      version: PLAN_RECORD_VERSION,
+      rev: 2,
+      stopped: true,
+    });
+    expect(PLAN_RECORD_VERSION).toBe(2);
     expect(encoded.options.topUpCollateral).toBe(false);
     expect(encoded.options.collateralReturn).toBe(false);
+    expect(encoded.steps[0]!.given!.options!.fee).toBe("400000");
+    expect(encoded.steps[0]!.tx.extraKeyWitnesses).toBe(1);
+    expect(encoded.steps[0]!.tx.built.collateral).toBeDefined();
+    expect(JSON.parse(JSON.stringify(encoded))).toStrictEqual(encoded);
     expect(readPlan(encoded)).toEqual(record);
     expect(readPlan(encoded, "pay-1")).toEqual(record);
     expect(encodePlan(readPlan(encoded))).toStrictEqual(encoded);
   });
 
-  it("gives back a child's record with parents, a reported hash and a sighting", async () => {
-    const record = await childRecord();
-    expect(record.status).toBe("included");
-    expect(record.attempts[0]!.parents).toEqual([
-      { txHash: hash(0x700), until: UNTIL - 1, planId: "parent-1" },
-    ]);
-    expect(record.attempts[0]!.dependsOn).toEqual([hash(0x700)]);
-    const encoded = encodePlan(record);
-    expectWritten(encoded);
-    expect(encoded.closing).toBeUndefined();
-    expect(readPlan(encoded)).toEqual(record);
-  });
-
-  it("writes a draft with revision 0 and no id when it has none, and reads it back", () => {
-    const record = draftPlan({
-      network: "preprod",
-      deadlines: { ttlMs: 1, expiryMarginMs: 0, confirmations: 0 },
-      parts: PARTS(),
-      options: {},
-    });
-    const encoded = encodePlan(record);
-    expectWritten(encoded);
-    expect(encoded).not.toHaveProperty("id");
-    expect(encoded.rev).toBe(0);
-    expect(readPlan(encoded)).toEqual(record);
-    // An abandoned draft carries the mark and no attempts
-    const closed = accept(record, { type: "closing" });
-    expect(encodePlan(closed)).toMatchObject({
-      status: "abandoned",
-      closing: true,
-      rev: 1,
-      attempts: [],
-    });
-    expect(readPlan(encodePlan(closed))).toEqual(closed);
-    // The mark is never removed: an abandoned record without it is not read
-    const unmarked: any = encodePlan(closed);
-    delete unmarked.closing;
-    expectUnread(
-      () => readPlan(unmarked),
-      /closing is missing on an abandoned plan/,
-    );
-  });
-
-  it("writes a custom network as its whole configuration", () => {
+  it("writes a custom network as its whole configuration", async () => {
     const network = {
       name: "devnet",
       networkId: 0 as const,
@@ -981,13 +861,11 @@ describe("the encoding of a record", () => {
         epochLength: 500,
       },
     };
-    const record = draftPlan({
-      id: "pay-2",
-      network,
-      deadlines: { ttlMs: 1, expiryMarginMs: 0, confirmations: 0 },
-      parts: [],
-      options: {},
-    });
+    const plain = await builder.build(
+      [output({ address: recipient, value: { lovelace: 2_000_000n } })],
+      { payer: { changeAddress: wallet, utxos: [funds(10_000_000n)] } },
+    );
+    const record = recordWith([plain], network);
     const encoded = encodePlan(record);
     expect(encoded.network).toEqual(network);
     expect(readPlan(encoded)).toEqual(record);
@@ -1001,7 +879,7 @@ describe("the encoding of a record", () => {
 describe("readPlan", () => {
   let base: any;
   beforeAll(async () => {
-    base = encodePlan(await replacedRecord());
+    base = encodePlan(await stoppedRecord());
   });
   /** The base record with a change made to a copy of it */
   const changed = (change: (json: any) => void) => {
@@ -1011,50 +889,22 @@ describe("readPlan", () => {
   };
 
   it("refuses a version it does not read, naming the value", () => {
-    expect(PLAN_RECORD_VERSION).toBe(1);
-    expectUnread(
-      () => readPlan(changed((json) => (json.version = 2))),
-      /the version 2, newer than 1/,
-    );
     for (const [version, shown] of [
+      [3, "3"],
       [0, "0"],
-      [-1, "-1"],
-      [1.5, "1.5"],
-      ["1", '"1"'],
+      [1.5, "1\\.5"],
+      ["2", '"2"'],
       [undefined, "none"],
     ] as const)
       expectUnread(
         () => readPlan(changed((json) => (json.version = version))),
-        new RegExp(
-          `the version ${shown.replace(/[.]/g, "\\.")}: a record version is a whole number from 1`,
-        ),
+        new RegExp(`the version ${shown}: this library reads version 2`),
       );
-    // A record written now is in version 1
-    expect(base.version).toBe(1);
-  });
-
-  it("migrates an older version through its steps and refuses one it has no step for", () => {
-    const steps = new Map([
-      [
-        1,
-        (json: Record<string, unknown>) => ({
-          ...json,
-          options: { ...(json.options as object), extraKeyWitnesses: 7 },
-        }),
-      ],
-    ]);
-    const read = readPlanWith(base, { migrations: steps, version: 2 });
-    expect(read.version).toBe(2);
-    expect(read.options.extraKeyWitnesses).toBe(7);
     expectUnread(
-      () => readPlanWith(base, { migrations: steps, version: 3 }),
-      /the version 2: this library has no step from it to 3/,
+      () => readPlan(changed((json) => (json.version = 1))),
+      /the version 1: a record of a plan of one payment built anew in attempts, a format this library does not read; it reads version 2/,
     );
-    // A record of the newest version is not migrated
-    expect(
-      readPlanWith({ ...base, version: 2 }, { migrations: steps, version: 2 })
-        .options.extraKeyWitnesses,
-    ).toBe(1);
+    expect(base.version).toBe(2);
   });
 
   it("refuses another kind, a part kind and a status it does not know, naming them", () => {
@@ -1063,27 +913,30 @@ describe("readPlan", () => {
       /the kind "Other"/,
     );
     expectUnread(
-      () => readPlan(changed((json) => (json.parts[0].kind = "split"))),
-      /parts\[0\]: the part kind "split"/,
+      () =>
+        readPlan(
+          changed((json) => (json.steps[0].given.parts[0].kind = "split")),
+        ),
+      /steps\[0\]\.given\.parts\[0\]: the part kind "split"/,
     );
     expectUnread(
-      () => readPlan(changed((json) => (json.attempts[0].status = "pending"))),
-      /attempts\[0\]\.status: the attempt status "pending"/,
+      () => readPlan(changed((json) => (json.steps[0].status = "pending"))),
+      /steps\[0\]\.status: the step status "pending"/,
     );
     expectUnread(
       () => readPlan(changed((json) => (json.status = "paused"))),
       /status: the plan status "paused"/,
     );
     expectUnread(
-      () => readPlan(changed((json) => (json.status = "sent"))),
-      /the plan status "sent", which its attempts do not give/,
+      () => readPlan(changed((json) => (json.status = "final"))),
+      /the plan status "final", which its steps and mark do not give/,
     );
     expectUnread(
       () =>
         readPlan(
-          changed((json) => (json.attempts[0].built.parts[0].kind = "split")),
+          changed((json) => (json.steps[0].tx.built.parts[0].kind = "split")),
         ),
-      /attempts\[0\]\.built\.parts\[0\]: the part kind "split"/,
+      /steps\[0\]\.tx\.built\.parts\[0\]: the part kind "split"/,
     );
     expectUnread(() => readPlan("text"), /the record is "text", not an object/);
     expectUnread(() => readPlan(null), /the record is null, not an object/);
@@ -1097,12 +950,12 @@ describe("readPlan", () => {
       ],
       [(json) => (json.rev = "3"), /rev is "3", not a whole number/],
       [
-        (json) => delete json.attempts[0].txHash,
-        /attempts\[0\]\.txHash is none, not a text/,
+        (json) => delete json.steps[0].txHash,
+        /steps\[0\]\.txHash is none, not a text/,
       ],
       [
-        (json) => (json.options.fee = "1.5"),
-        /options\.fee is "1\.5", not a decimal integer/,
+        (json) => (json.steps[0].given.options.fee = "1.5"),
+        /steps\[0\]\.given\.options\.fee is "1\.5", not a decimal integer/,
       ],
       [
         (json) => (json.options.topUpCollateral = "false"),
@@ -1113,19 +966,13 @@ describe("readPlan", () => {
         /options\.collateralReturn is 0, not true or false/,
       ],
       [
-        (json) => delete json.attempts[1].built,
-        /attempts\[1\]\.built is missing on the current attempt/,
+        (json) => delete json.steps[1].tx,
+        /steps\[1\]\.tx is none, not an object/,
       ],
       [
-        (json) => (json.attempts[0].built.fee = 7),
-        /attempts\[0\]\.built\.fee is 7, not a decimal integer/,
+        (json) => (json.steps[0].tx.built.fee = 7),
+        /steps\[0\]\.tx\.built\.fee is 7, not a decimal integer/,
       ],
-      [
-        (json) => (json.anchor.anchors[0].kind = "loan"),
-        /anchor\.anchors\[0\]\.kind: the anchor kind "loan"/,
-      ],
-      [(json) => (json.closing = false), /closing is false, not true/],
-      [(json) => (json.rev = 0), /rev is 0: a draft has revision 0/],
       // Members this library does not know
       [
         (json) => (json.storedAt = 1),
@@ -1136,28 +983,20 @@ describe("readPlan", () => {
         /deadlines\.graceMs, a member this library does not know/,
       ],
       [
-        (json) => (json.attempts[0].level = 1),
-        /attempts\[0\]\.level, a member this library does not know/,
+        (json) => (json.steps[0].level = 1),
+        /steps\[0\]\.level, a member this library does not know/,
       ],
       [
-        (json) => (json.attempts[0].built.level = "dijkstra"),
-        /attempts\[0\]\.built\.level, a member this library does not know/,
-      ],
-      [
-        (json) => (json.anchor.general = 1),
-        /anchor\.general, a member this library does not know/,
-      ],
-      [
-        (json) => (json.anchor.anchors[0].note = 1),
-        /anchor\.anchors\[0\]\.note, a member this library does not know/,
+        (json) => (json.steps[0].tx.built.level = "dijkstra"),
+        /steps\[0\]\.tx\.built\.level, a member this library does not know/,
       ],
       [
         (json) => (json.options.changeSelection = { name: "x" }),
         /options\.changeSelection, a member this library does not know/,
       ],
       [
-        (json) => (json.parts[0].change = true),
-        /parts\[0\]\.change, a member this library does not know/,
+        (json) => (json.steps[0].given.parts[0].change = true),
+        /steps\[0\]\.given\.parts\[0\]\.change, a member this library does not know/,
       ],
     ];
     for (const [change, message] of cases)
@@ -1176,18 +1015,17 @@ describe("readPlan", () => {
       /id is none, where "pay-1" was asked for/,
     );
     const error = expectUnread(
-      () => readPlan(changed((json) => (json.version = 2))),
-      /newer/,
+      () => readPlan(changed((json) => (json.version = 3))),
+      /version 3/,
     );
     expect(error.planId).toBe("pay-1");
   });
 
   it("refuses required keys that are not those of keyHashes with known roles, naming the member", () => {
-    const signers = (json: any) => json.attempts[1].built.signers;
+    const signers = (json: any) => json.steps[0].tx.built.signers;
     const [first] = signers(base).keys;
     expect(first.roles.length).toBeGreaterThan(0);
     const cases: [(json: any) => void, RegExp][] = [
-      // The shape of a required key before it listed its roles
       [
         (json) => delete signers(json).keys[0].roles,
         /signers\.keys\[0\]\.roles is none, not a list/,
@@ -1238,106 +1076,92 @@ describe("readPlan", () => {
         amount: [{ unit: "lovelace", quantity: "5000000" }],
       },
     };
+    const built = "steps\\[0\\]\\.tx\\.built";
     const cases: [(json: any) => void, RegExp][] = [
       [
         (json) => (json.options.knownUtxos = [mesh]),
         /options\.knownUtxos\[0\]\.input, a member this library does not know/,
       ],
       [
-        (json) => (json.attempts[0].built.inputs[0] = mesh),
-        /attempts\[0\]\.built\.inputs\[0\]\.input, a member this library does not know/,
+        (json) => (json.steps[0].tx.built.inputs[0] = mesh),
+        new RegExp(`${built}\\.inputs\\[0\\]\\.input, a member`),
       ],
       [
-        (json) => (json.attempts[0].built.outputs[0] = { ...mesh, label: "x" }),
-        /attempts\[0\]\.built\.outputs\[0\]\.input, a member this library does not know/,
+        (json) => (json.steps[0].tx.built.outputs[0] = { ...mesh, label: "x" }),
+        new RegExp(`${built}\\.outputs\\[0\\]\\.input, a member`),
       ],
       [
-        (json) => (json.anchor.anchors[0].utxo = mesh),
-        /anchor\.anchors\[0\]\.utxo\.input, a member this library does not know/,
-      ],
-      [
-        (json) => (json.attempts[0].built.parts[0].utxo = mesh),
-        /attempts\[0\]\.built\.parts\[0\]\.utxo\.input, a member this library does not know/,
+        (json) => (json.steps[0].tx.built.parts[0].utxo = mesh),
+        new RegExp(`${built}\\.parts\\[0\\]\\.utxo\\.input, a member`),
       ],
       [
         (json) =>
-          (json.attempts[0].built.collateral.return = {
+          (json.steps[0].tx.built.collateral.return = {
             address: wallet,
             amount: { coin: "1000000" },
           }),
-        /attempts\[0\]\.built\.collateral\.return\.amount, a member this library does not know/,
+        new RegExp(`${built}\\.collateral\\.return\\.amount, a member`),
       ],
       // The marks of a built output belong to outputs only
       [
-        (json) => (json.attempts[0].built.inputs[0].change = true),
-        /attempts\[0\]\.built\.inputs\[0\]\.change, a member this library does not know/,
+        (json) => (json.steps[0].tx.built.inputs[0].change = true),
+        new RegExp(`${built}\\.inputs\\[0\\]\\.change, a member`),
       ],
       [
-        (json) => (json.attempts[0].built.inputs[0].value.lovelace = 5),
-        /attempts\[0\]\.built\.inputs\[0\]\.value\.lovelace is 5, not a decimal integer/,
+        (json) => (json.steps[0].tx.built.inputs[0].value.lovelace = 5),
+        new RegExp(
+          `${built}\\.inputs\\[0\\]\\.value\\.lovelace is 5, not a decimal integer`,
+        ),
       ],
       [
-        (json) => delete json.attempts[0].built.inputs[0].value.lovelace,
-        /attempts\[0\]\.built\.inputs\[0\]\.value holds no lovelace/,
+        (json) => delete json.steps[0].tx.built.inputs[0].value.lovelace,
+        new RegExp(`${built}\\.inputs\\[0\\]\\.value holds no lovelace`),
       ],
       [
         (json) =>
-          (json.attempts[0].built.inputs[0].datum = {
+          (json.steps[0].tx.built.inputs[0].datum = {
             type: "inline",
             data: "d87980",
           }),
-        /attempts\[0\]\.built\.inputs\[0\]\.datum\.data is "d87980", not an object/,
+        new RegExp(
+          `${built}\\.inputs\\[0\\]\\.datum\\.data is "d87980", not an object`,
+        ),
       ],
       [
         (json) =>
-          (json.attempts[0].built.inputs[0].script = {
+          (json.steps[0].tx.built.inputs[0].script = {
             type: "plutus",
             version: "V4",
             code: "00",
             hash: "00",
           }),
-        /attempts\[0\]\.built\.inputs\[0\]\.script\.version: the Plutus version "V4"/,
+        new RegExp(
+          `${built}\\.inputs\\[0\\]\\.script\\.version: the Plutus version "V4"`,
+        ),
       ],
       [
         (json) =>
-          (json.attempts[0].built.inputs[0].script = {
+          (json.steps[0].tx.built.inputs[0].script = {
             type: "bytes",
             cbor: "00",
           }),
-        /attempts\[0\]\.built\.inputs\[0\]\.script: a script of the type "bytes"/,
+        new RegExp(
+          `${built}\\.inputs\\[0\\]\\.script: a script of the type "bytes"`,
+        ),
       ],
     ];
-    expect(base.attempts[0].built.collateral.return).toBeDefined();
+    expect(base.steps[0].tx.built.collateral.return).toBeDefined();
     for (const [change, message] of cases)
       expectUnread(() => readPlan(changed(change)), message);
   });
 
   it("refuses a record that is not plain JSON data", () => {
     expectUnread(
-      () => readPlan(changed((json) => (json.options.fee = 400_000n))),
+      () =>
+        readPlan(
+          changed((json) => (json.steps[0].given.options.fee = 400_000n)),
+        ),
       /the record is not JSON data/,
     );
-  });
-
-  it("takes a terminal record without the bodies of its replaced attempts", () => {
-    const json = changed((record) => {
-      // Abandoned: only the current attempt keeps its body
-      record.status = "abandoned";
-      delete record.attempts[0].built;
-      record.attempts[1].status = "expired";
-    });
-    expect(readPlan(json).status).toBe("abandoned");
-    // Final: only the landed attempt keeps its body, also when it is not the current one
-    const final = changed((record) => {
-      record.status = "final";
-      record.attempts[0].status = "final";
-      record.attempts[0].seen = { slot: 900 };
-      delete record.attempts[1].built;
-      record.attempts[1].status = "expired";
-    });
-    const read = readPlan(final);
-    expect(read.status).toBe("final");
-    expect(read.attempts[0]!.built).toBeDefined();
-    expect(read.attempts[1]!.built).toBeUndefined();
   });
 });

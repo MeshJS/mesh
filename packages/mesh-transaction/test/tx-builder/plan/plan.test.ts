@@ -6,16 +6,15 @@ import type { IFetcher } from "@meshsdk/common";
 import { DEFAULT_PROTOCOL_PARAMETERS } from "@meshsdk/core";
 
 import type { TxPlanError } from "../../../src/tx-builder";
+import type { TxPlan } from "../../../src/tx-builder/plan/plan";
 import {
   output,
   TxBuilder,
   TxBuildError,
   TxError,
-  TxPlan,
 } from "../../../src/tx-builder";
-import { recordOf } from "../../../src/tx-builder/plan/plan";
 import { baseAddress } from "../../test-util";
-import { caught, emulatorOf, FAST, pay, wrap } from "./plan-emulator-util";
+import { caught, FAST, pay, setup } from "./plan-emulator-util";
 
 const A = output({
   label: "A",
@@ -71,77 +70,44 @@ const invalidOption = async (run: () => unknown) => {
   return error as TxBuildError<"INVALID_OPTION">;
 };
 
+/** The labels of the outputs of the step main, change left out */
+const labelsOf = (plan: TxPlan) =>
+  plan
+    .step("main")
+    .outputs.filter((o) => o.change !== true)
+    .map((o) => o.label);
+
+/** A plan of one payment on the emulator, with the count of every request made after it */
+const madePlan = async () => {
+  const { provider, builder, wallet } = await setup();
+  const plan = await builder.plan(pay(), { payer: wallet });
+  const all = () =>
+    Object.values(provider.control.calls).reduce((sum, n) => sum + n, 0);
+  const before = all();
+  return { plan, wallet, requests: () => all() - before };
+};
+
 describe("TxBuilder.plan", () => {
-  it("takes the parts the builder holds first, and keeps them when the builder gets more", () => {
-    const { provider } = countingProvider();
-    const builder = new TxBuilder({ network: "preprod", provider });
+  it("takes the parts the builder holds first, in their order, and skips false, null and nesting", async () => {
+    const { builder, wallet } = await setup();
     const held = builder.add(A);
-    const plan = held.plan(B);
-    const later = held.add(C);
-    expect(recordOf(plan).parts).toEqual([A, B]);
+    const plan = await held.plan([[B, false], null], { payer: wallet });
+    expect(labelsOf(plan)).toEqual(["A", "B"]);
     // A later builder and its plans do not touch this plan's parts
-    later.plan([]);
-    expect(recordOf(plan).parts).toEqual([A, B]);
-    expect(recordOf(held.plan()).parts).toEqual([A]);
-    expect(recordOf(later.plan([[B, false], null])).parts).toEqual([A, C, B]);
+    const later = held.add(C);
+    expect(labelsOf(await later.plan(B, { payer: wallet }))).toEqual([
+      "A",
+      "C",
+      "B",
+    ]);
+    expect(labelsOf(plan)).toEqual(["A", "B"]);
+    expect(labelsOf(await held.plan([], { payer: wallet }))).toEqual(["A"]);
   });
 
-  it("returns a draft at once, without a request", () => {
-    const { provider, calls } = countingProvider();
-    const builder = new TxBuilder({ network: "preprod", provider });
-    const plan = builder.plan(pay(), { id: "pay-1" });
-    expect(plan).toBeInstanceOf(TxPlan);
-    expect(calls).toEqual([]);
-    expect(plan.id).toBe("pay-1");
-    expect(plan.status).toBe("draft");
-    expect(plan.built).toBeUndefined();
-    expect(plan.signedTx).toBeUndefined();
-    expect(plan.txHash).toBeUndefined();
-    expect(plan.landed).toBeUndefined();
-    expect(plan.attempts).toEqual([]);
-    expect(plan.live).toEqual([]);
-    expect(plan.missing).toEqual([]);
-    expect(plan.closing).toBe(false);
-    expect(builder.plan(pay()).id).toBeUndefined();
-  });
-
-  it("refuses a parent that is not a plan, at once", async () => {
-    const emulator = await emulatorOf();
-    const provider = wrap(emulator);
-    const builder = new TxBuilder({ network: "preprod", provider });
-    const built = await builder.build(pay(), {
-      payer: {
-        changeAddress: baseAddress(9),
-        utxos: [emulator.fund(baseAddress(9), { lovelace: 50_000_000n })],
-      },
+  it("is CANNOT_OBSERVE (noTip) without a tip to read, before any other request", async () => {
+    const { provider, calls } = countingProvider({
+      fetchLatestBlock: undefined,
     });
-    const calls = provider.control.count(
-      "fetchLatestBlock",
-      "fetchTxInfo",
-      "fetchAddressUTxOs",
-    );
-    const plan = builder.plan(pay());
-    for (const after of [built, [plan, built], {}, "parent", null]) {
-      const error = await invalidOption(() =>
-        builder.plan(pay(), { after } as never),
-      );
-      expect(error.details.option).toBe("after");
-    }
-    // Plans are parents, alone or in a list
-    expect(builder.plan(pay(), { after: plan }).status).toBe("draft");
-    expect(builder.plan(pay(), { after: [plan] }).status).toBe("draft");
-    expect(builder.plan(pay(), { after: [] }).status).toBe("draft");
-    expect(
-      provider.control.count(
-        "fetchLatestBlock",
-        "fetchTxInfo",
-        "fetchAddressUTxOs",
-      ),
-    ).toBe(calls);
-  });
-
-  it("is CANNOT_OBSERVE (noTip) without a tip to read", async () => {
-    const { provider } = countingProvider({ fetchLatestBlock: undefined });
     for (const builder of [
       new TxBuilder({ network: "preprod", provider }),
       new TxBuilder({
@@ -150,7 +116,7 @@ describe("TxBuilder.plan", () => {
       }),
     ]) {
       const error = (await caught(
-        (async () => builder.plan(pay(), { id: "no-tip" }))(),
+        builder.plan(pay(), { id: "no-tip", payer: baseAddress(9) }),
       )) as TxPlanError<"CANNOT_OBSERVE">;
       expect(TxError.is(error, "CANNOT_OBSERVE")).toBe(true);
       expect(error.details.reason).toBe("noTip");
@@ -158,24 +124,7 @@ describe("TxBuilder.plan", () => {
       expect(error.planId).toBe("no-tip");
       expect(error.plan).toBeUndefined();
     }
-  });
-
-  it("is CANNOT_OBSERVE (addressCache) for a provider that keeps an address cache", async () => {
-    const cached = countingProvider({ isCachingEnabled: () => true });
-    const error = (await caught(
-      (async () =>
-        new TxBuilder({ network: "preprod", provider: cached.provider }).plan(
-          pay(),
-        ))(),
-    )) as TxPlanError<"CANNOT_OBSERVE">;
-    expect(TxError.is(error, "CANNOT_OBSERVE")).toBe(true);
-    expect(error.details.reason).toBe("addressCache");
-    for (const members of [{ isCachingEnabled: () => false }, {}]) {
-      const { provider } = countingProvider(members);
-      expect(
-        new TxBuilder({ network: "preprod", provider }).plan(pay()).status,
-      ).toBe("draft");
-    }
+    expect(calls).toEqual([]);
   });
 
   it.each([
@@ -185,27 +134,35 @@ describe("TxBuilder.plan", () => {
     { options: { confirmations: 1.5 }, option: "confirmations" },
     { options: { confirmations: -1 }, option: "confirmations" },
     { options: { id: 5 }, option: "id" },
-  ])("refuses $option out of range, at once", async ({ options, option }) => {
+  ])(
+    "refuses $option out of range before any request",
+    async ({ options, option }) => {
+      const { provider, calls } = countingProvider();
+      const builder = new TxBuilder({ network: "preprod", provider });
+      const error = await invalidOption(() =>
+        builder.plan(pay(), { payer: baseAddress(9), ...options } as never),
+      );
+      expect(error.details.option).toBe(option);
+      expect(calls).toEqual([]);
+    },
+  );
+
+  it("refuses an entry that is not a part before any request", async () => {
     const { provider, calls } = countingProvider();
     const builder = new TxBuilder({ network: "preprod", provider });
     const error = await invalidOption(() =>
-      builder.plan(pay(), options as never),
+      builder.plan([pay(), 5 as never], { payer: baseAddress(9) }),
     );
-    expect(error.details.option).toBe(option);
+    expect(error.details.option).toBe("parts");
     expect(calls).toEqual([]);
   });
 
-  it("refuses an entry that is not a part", async () => {
-    const { provider } = countingProvider();
-    const builder = new TxBuilder({ network: "preprod", provider });
-    const error = await invalidOption(() => builder.plan([pay(), 5 as never]));
-    expect(error.details.option).toBe("parts");
-  });
-
-  it("works out its deadlines once: its own, else the builder's, else the built-in values", () => {
-    const { provider } = countingProvider();
+  it("works out its deadlines once: its own, else the builder's, else the built-in values", async () => {
+    const { provider, builder: fast, wallet } = await setup();
     const plain = new TxBuilder({ network: "preprod", provider });
-    expect(recordOf(plain.plan(pay())).deadlines).toEqual({
+    expect(
+      (await plain.plan(pay(), { payer: wallet })).toJSON().deadlines,
+    ).toEqual({
       ttlMs: 600_000,
       expiryMarginMs: 600_000,
       confirmations: 30,
@@ -215,106 +172,89 @@ describe("TxBuilder.plan", () => {
       provider,
       planDefaults: { ttlMs: 120_000, confirmations: 5, pollMs: 50 },
     });
-    const plan = builder.plan(pay(), {
+    const plan = await builder.plan(pay(), {
+      payer: wallet,
       confirmations: 2,
       expiryMarginMs: 1_000,
     });
-    expect(recordOf(plan).deadlines).toEqual({
+    expect(plan.toJSON().deadlines).toEqual({
       ttlMs: 120_000,
       expiryMarginMs: 1_000,
       confirmations: 2,
     });
-    expect(recordOf(builder.plan(pay())).deadlines).toEqual({
-      ttlMs: 120_000,
-      expiryMarginMs: 600_000,
-      confirmations: 5,
-    });
-    // `add` carries the defaults on; a builder whose defaults differ changes no plan made
-    // before: the plan holds the numbers it was made with
-    expect(recordOf(builder.add(A).plan(B)).deadlines).toEqual(
-      recordOf(builder.plan(B)).deadlines,
-    );
-    const other = builder.add(A);
-    Object.defineProperty(other, "planDefaults", {
-      value: Object.freeze({ ttlMs: 1_000, confirmations: 0 }),
-    });
-    expect(recordOf(other.plan(pay())).deadlines).toMatchObject({
-      ttlMs: 1_000,
-      confirmations: 0,
+    expect(
+      (await builder.plan(pay(), { payer: wallet })).toJSON().deadlines,
+    ).toEqual({ ttlMs: 120_000, expiryMarginMs: 600_000, confirmations: 5 });
+    // `add` carries the defaults on
+    expect(
+      (await builder.add(A).plan(B, { payer: wallet })).toJSON().deadlines,
+    ).toEqual({ ttlMs: 120_000, expiryMarginMs: 600_000, confirmations: 5 });
+    expect(
+      (await fast.plan(pay(), { payer: wallet })).toJSON().deadlines,
+    ).toEqual({
+      ttlMs: 600_000,
+      expiryMarginMs: FAST.expiryMarginMs,
+      confirmations: FAST.confirmations,
     });
     // New defaults on the plan's own builder change nothing it holds
     Object.defineProperty(builder, "planDefaults", {
       value: Object.freeze({ ttlMs: 1_000, confirmations: 0 }),
     });
-    expect(recordOf(plan).deadlines).toEqual({
+    expect(plan.toJSON().deadlines).toEqual({
       ttlMs: 120_000,
       expiryMarginMs: 1_000,
       confirmations: 2,
     });
   });
 
-  it("writes the data options, the network and the id into its record, and never a live object", () => {
-    const { provider } = countingProvider();
-    const builder = new TxBuilder({
-      network: "preprod",
-      provider,
-      planDefaults: FAST,
-    });
+  it("writes the data options, the network and the id into its record, and never a live object", async () => {
+    const { builder, wallet, address } = await setup();
     const canSelect = () => true;
     const trace = () => undefined;
-    const record = recordOf(
-      builder.plan(pay(), {
-        id: "pay-2",
-        payer: baseAddress(9),
-        canSelect,
-        trace,
-        fee: 300_000n,
-        extraKeyWitnesses: 1,
-      }),
-    );
+    const plan = await builder.plan(pay(), {
+      id: "pay-2",
+      payer: wallet,
+      canSelect,
+      trace,
+      fee: 300_000n,
+      extraKeyWitnesses: 1,
+    });
+    const record = plan.toJSON();
     expect(record).toMatchObject({
       kind: "TxPlan",
       id: "pay-2",
-      rev: 0,
-      status: "draft",
+      rev: 1,
+      status: "pending",
       network: "preprod",
-      options: { fee: 300_000n, extraKeyWitnesses: 1 },
+      options: { changeAddress: address, extraKeyWitnesses: 1 },
     });
-    expect(
-      JSON.stringify(record, (_, v) => (typeof v === "bigint" ? `${v}` : v)),
-    ).not.toContain(baseAddress(9));
-    expect(Object.values(record.options)).not.toContain(canSelect);
-    expect(Object.values(record.options)).not.toContain(trace);
+    // The fee describes one transaction: it is the step's own option
+    expect(record.steps[0]!.given).toMatchObject({
+      options: { fee: "300000" },
+    });
+    // Plain JSON data: text gives it back member for member
+    expect(JSON.parse(JSON.stringify(record))).toEqual(record);
+    const text = inspect(record, { depth: Infinity });
+    expect(text).not.toContain("[Function");
+    expect(text).not.toContain("MeshWallet");
   });
 
-  it("makes no request from refresh() in draft", async () => {
-    const { provider, calls } = countingProvider();
-    const builder = new TxBuilder({ network: "preprod", provider });
-    const plan = builder.plan(pay(), { payer: baseAddress(9) });
-    expect(await plan.refresh()).toBe(plan);
-    expect(calls).toEqual([]);
-    expect(plan.status).toBe("draft");
-  });
-
-  it("checks the wait options of send() and advance() before any request", async () => {
-    const { provider, calls } = countingProvider();
-    const builder = new TxBuilder({ network: "preprod", provider });
-    const plan = builder.plan(pay(), { payer: baseAddress(9) });
-    for (const method of ["send", "advance"] as const)
-      for (const [options, option] of [
-        [{ waitFor: "landed" }, "waitFor"],
-        [{ timeoutMs: 0 }, "timeoutMs"],
-        [{ pollMs: -1 }, "pollMs"],
-        [{ pollMs: NaN }, "pollMs"],
-        [{ submitter: {} }, "submitter"],
-        [{ signers: [{}] }, "signers"],
-        [{ signal: {} }, "signal"],
-      ] as const) {
-        const error = await invalidOption(() => plan[method](options as never));
-        expect(error.details.option).toBe(option);
-      }
-    expect(calls).toEqual([]);
-    expect(plan.status).toBe("draft");
+  it("checks the wait options of run() before any request", async () => {
+    const { plan, requests } = await madePlan();
+    for (const [options, option] of [
+      [{ waitFor: "landed" }, "waitFor"],
+      [{ timeoutMs: 0 }, "timeoutMs"],
+      [{ pollMs: -1 }, "pollMs"],
+      [{ pollMs: NaN }, "pollMs"],
+      [{ submitter: {} }, "submitter"],
+      [{ signers: [{}] }, "signers"],
+      [{ signal: {} }, "signal"],
+    ] as const) {
+      const error = await invalidOption(() => plan.run(options as never));
+      expect(error.details.option).toBe(option);
+    }
+    expect(requests()).toBe(0);
+    expect(plan.step("main").status).toBe("built");
   });
 
   describe("a value given as signers that cannot sign", () => {
@@ -341,12 +281,10 @@ describe("TxBuilder.plan", () => {
     ];
 
     it.each(cases)(
-      "refuses %s in sign(), send() and advance(), naming only its type",
+      "refuses %s in sign() and run(), naming only its type",
       async (_, signers, type, secrets) => {
-        const { provider, calls } = countingProvider();
-        const builder = new TxBuilder({ network: "preprod", provider });
-        const plan = builder.plan(pay(), { payer: baseAddress(9) });
-        for (const method of ["sign", "send", "advance"] as const) {
+        const { plan, requests } = await madePlan();
+        for (const method of ["sign", "run"] as const) {
           const error = await invalidOption(() =>
             plan[method]({ signers } as never),
           );
@@ -362,15 +300,13 @@ describe("TxBuilder.plan", () => {
           );
           expect(shown.length).toBe(0);
         }
-        expect(calls).toEqual([]);
-        expect(plan.status).toBe("draft");
+        expect(requests()).toBe(0);
+        expect(plan.step("main").status).toBe("built");
       },
     );
 
     it("names the type of the entry of a list that cannot sign", async () => {
-      const { provider } = countingProvider();
-      const builder = new TxBuilder({ network: "preprod", provider });
-      const plan = builder.plan(pay(), { payer: baseAddress(9) });
+      const { plan } = await madePlan();
       const wallet = { signTxWitnesses: async () => "a0" };
       const error = await invalidOption(() =>
         plan.sign({ signers: [wallet, key] as never }),
@@ -382,70 +318,57 @@ describe("TxBuilder.plan", () => {
       expect(error.message.includes(key)).toBe(false);
     });
 
-    it("takes a function that has a wallet method as a signer", async () => {
-      const { provider } = countingProvider();
-      const builder = new TxBuilder({ network: "preprod", provider });
-      const plan = builder.plan(pay(), { payer: baseAddress(9) });
+    it("takes a function that has a wallet method as a wallet", async () => {
+      const { plan, wallet } = await madePlan();
+      let asked = 0;
       const signer = Object.assign(() => undefined, {
-        signTx: async () => "",
+        signTx: async (tx: string) => {
+          asked += 1;
+          return wallet.signTx(tx, true);
+        },
       });
-      // The signer is taken: the call goes on to the draft, which has no attempt to sign
-      const error = await caught(plan.sign({ signers: signer }));
-      expect(TxError.is(error, "INVALID_STATE")).toBe(true);
+      await plan.sign({ signers: signer });
+      expect(asked).toBe(1);
+      expect(plan.step("main").status).toBe("signed");
     });
 
-    it("takes a bare function as a signer of transaction hashes, without calling it", async () => {
-      const { provider } = countingProvider();
-      const builder = new TxBuilder({ network: "preprod", provider });
-      const plan = builder.plan(pay(), { payer: baseAddress(9) });
+    it("takes a bare function as a signer of transaction hashes", async () => {
+      const { plan, requests } = await madePlan();
       let called = 0;
       const signer = async () => {
         called++;
         return [];
       };
-      // The signer is taken: the call goes on to the draft, which has no attempt to sign
-      const error = await caught(plan.sign({ signers: signer }));
-      expect(TxError.is(error, "INVALID_STATE")).toBe(true);
-      for (const method of ["send", "advance"] as const) {
-        const failed = await caught(plan[method]({ signers: [signer] }));
-        expect(TxError.is(failed, "INVALID_OPTION")).toBe(false);
-      }
-      expect(called).toBe(0);
+      // Taken, and asked: it gives no witness, so the step stays built
+      await plan.sign({ signers: signer });
+      expect(called).toBe(1);
+      expect(plan.step("main").status).toBe("built");
+      const failed = await caught(
+        plan.run({ signers: [signer], waitFor: "sent" }),
+      );
+      expect(TxError.is(failed, "MISSING_SIGNATURES")).toBe(true);
+      expect(called).toBe(2);
+      expect(plan.step("main").status).toBe("built");
+      expect(requests()).toBeGreaterThan(0);
     });
   });
 
-  it("closes a draft at once, without a request", async () => {
-    const { provider, calls } = countingProvider();
-    const builder = new TxBuilder({ network: "preprod", provider });
-    const plan = builder.plan(pay(), { payer: baseAddress(9) });
-    expect(await plan.abandon()).toBe(plan);
-    expect(plan.status).toBe("abandoned");
-    expect(plan.closing).toBe(true);
-    expect(plan.built).toBeUndefined();
-    expect(plan.live).toEqual([]);
-    // Closed: the same call, and advance(), return at once
-    expect(await plan.abandon()).toBe(plan);
-    expect(await plan.advance()).toBe(plan);
-    expect(calls).toEqual([]);
-  });
-
-  it("refuses a plan without an attempt as after of builder.build(), before any request", async () => {
-    const { provider, calls } = countingProvider();
-    const builder = new TxBuilder({ network: "preprod", provider });
-    const draft = builder.plan(pay(), { payer: baseAddress(9) });
-    const closed = builder.plan(pay(), { payer: baseAddress(9) });
-    await closed.abandon();
-    for (const after of [draft, [closed]]) {
-      const error = await invalidOption(() =>
-        builder.build(pay(), {
-          payer: baseAddress(9),
-          after: after as never,
-        }),
-      );
-      expect(error.details.option).toBe("after");
-      expect(["draft", "abandoned"]).toContain(error.details.value);
-      expect(error.details.value).not.toBeInstanceOf(TxPlan);
-    }
-    expect(calls).toEqual([]);
+  it("stops a plan nothing of which was signed without a request, and signs nothing after", async () => {
+    const { plan, requests, wallet } = await madePlan();
+    expect(await plan.stop()).toBe(plan);
+    expect(plan.status).toBe("stopping");
+    expect(plan.toJSON().stopped).toBe(true);
+    expect(plan.live.map((step) => step.name)).toEqual(["main"]);
+    const rev = plan.toJSON().rev;
+    // Stopped: the same call changes nothing, and sign() refuses at once
+    expect(await plan.stop()).toBe(plan);
+    expect(plan.toJSON().rev).toBe(rev);
+    const error = (await caught(
+      plan.sign({ signers: wallet }),
+    )) as TxPlanError<"INVALID_STATE">;
+    expect(TxError.is(error, "INVALID_STATE")).toBe(true);
+    expect(error.details.reason).toBe("stopped");
+    expect(plan.step("main").status).toBe("built");
+    expect(requests()).toBe(0);
   });
 });

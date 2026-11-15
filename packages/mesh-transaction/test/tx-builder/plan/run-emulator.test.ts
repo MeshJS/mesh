@@ -2,15 +2,11 @@ import { ProviderError } from "@meshsdk/common";
 import { mConStr0 } from "@meshsdk/core";
 
 import type { TxPlanError } from "../../../src/tx-builder";
-import type { StepPlanJSON } from "../../../src/tx-builder/plan/step-json";
-import type { StepPlan } from "../../../src/tx-builder/plan/step-plan";
+import type { TxPlan } from "../../../src/tx-builder/plan/plan";
+import type { TxPlanJSON } from "../../../src/tx-builder/plan/types";
 import { memoryPlanStore, spend } from "../../../src/tx-builder";
+import { NOT_UNPAID } from "../../../src/tx-builder/errors";
 import { makePlan } from "../../../src/tx-builder/plan/make";
-import {
-  createStepPlan,
-  resumeStepPlan,
-  STEP_NOT_UNPAID,
-} from "../../../src/tx-builder/plan/step-plan";
 import { alwaysSucceedCbor } from "../../test-util";
 import {
   advance,
@@ -29,18 +25,17 @@ import {
   carol,
   paidTo,
   payTo,
-  planOf,
   refusal,
   stepSetup,
   VALIDATORS,
-} from "./step-plan-util";
+} from "./run-util";
 
-// The object that runs a plan of steps, on the emulator: the walk-throughs of one payment, of a
+// The object that runs a plan, on the emulator: the walk-throughs of one payment, of a
 // lock and its unlock, of a crash and a resume, and of a payment that does not land; lost
 // answers, refusals that count and refusals that do not, a rollback, how far a call waits,
 // stopping, and two objects on one stored plan.
 
-const statuses = (plan: StepPlan) =>
+const statuses = (plan: TxPlan) =>
   Object.fromEntries(plan.steps.map((step) => [step.name, step.status]));
 
 const script = { code: alwaysSucceedCbor, version: "V3" as const };
@@ -52,10 +47,10 @@ const threeSteps = () => ({
   c: payTo(carol, 2n * ADA),
 });
 
-describe.each(VALIDATORS)("a plan of steps run on TxEmulator (%s)", (v) => {
+describe.each(VALIDATORS)("a plan run on TxEmulator (%s)", (v) => {
   it("one payment: built, then run to final with the payer as signer", async () => {
     const { emulator, builder, wallet } = await stepSetup(v);
-    const plan = await planOf(builder, payTo(alice, 5n * ADA), {
+    const plan = await builder.plan(payTo(alice, 5n * ADA), {
       payer: wallet,
     });
     expect(plan.status).toBe("pending");
@@ -76,8 +71,7 @@ describe.each(VALIDATORS)("a plan of steps run on TxEmulator (%s)", (v) => {
   it("lock, then unlock by alias with all the change of the first: both signed before anything is sent, then run to final", async () => {
     const { emulator, provider, builder, wallet, address } = await stepSetup(v);
     const vault = builder.scriptAddress(script);
-    const plan = await planOf(
-      builder,
+    const plan = await builder.plan(
       {
         lock: payTo(vault, 10n * ADA, "vault"),
         unlock: [
@@ -124,7 +118,7 @@ describe.each(VALIDATORS)("a plan of steps run on TxEmulator (%s)", (v) => {
     const { emulator, provider, builder, wallet } = await stepSetup(v, {
       builder: { store },
     });
-    const plan = await planOf(builder, threeSteps(), {
+    const plan = await builder.plan(threeSteps(), {
       payer: wallet,
       id: "order-7",
     });
@@ -137,7 +131,7 @@ describe.each(VALIDATORS)("a plan of steps run on TxEmulator (%s)", (v) => {
 
     // A new process: a new builder over the same store, without a wallet
     const restarted = builderOf(provider, { store, evaluator: emulator });
-    const resumed = await resumeStepPlan(restarted, "order-7");
+    const resumed = await restarted.resume("order-7");
     expect(resumed.steps.map((step) => step.txHash)).toEqual(
       plan.steps.map((step) => step.txHash),
     );
@@ -147,15 +141,14 @@ describe.each(VALIDATORS)("a plan of steps run on TxEmulator (%s)", (v) => {
     // a was found by the first look, not sent again
     expect(provider.control.count("submitTx")).toBe(3);
 
-    const second = await resumeStepPlan(
-      builderOf(provider, { store, evaluator: emulator }),
-      "order-7",
-    );
+    const second = await builderOf(provider, {
+      store,
+      evaluator: emulator,
+    }).resume("order-7");
     await second.run();
     expect(second.status).toBe("final");
     // From the stale record, without a store: one look, nothing sent
-    const fromStale = await resumeStepPlan(
-      builderOf(provider, { evaluator: emulator }),
+    const fromStale = await builderOf(provider, { evaluator: emulator }).resume(
       stale,
     );
     expect(statuses(fromStale)).toEqual({
@@ -173,7 +166,7 @@ describe.each(VALIDATORS)("a plan of steps run on TxEmulator (%s)", (v) => {
 
   it("does not pay when the bytes are lost: CONFIRM_TIMEOUT, then stopped after the deadline, and the lost bytes are refused by the ledger", async () => {
     const { emulator, builder, wallet } = await stepSetup(v);
-    const plan = await planOf(builder, payTo(alice, 5n * ADA), {
+    const plan = await builder.plan(payTo(alice, 5n * ADA), {
       payer: wallet,
       ttlMs: 60_000,
     });
@@ -185,7 +178,7 @@ describe.each(VALIDATORS)("a plan of steps run on TxEmulator (%s)", (v) => {
     expect(error.retryable).toBe(true);
     expect(error.step).toBe("main");
     expect(error.txHash).toBe(plan.step("main").txHash);
-    expect(error.message.endsWith(STEP_NOT_UNPAID)).toBe(true);
+    expect(error.message.endsWith(NOT_UNPAID)).toBe(true);
     expect(plan.status).toBe("pending");
     expect(statuses(plan)).toEqual({ main: "sent" });
     expect(lost.calls.length).toBeGreaterThanOrEqual(1);
@@ -207,7 +200,7 @@ describe.each(VALIDATORS)("a plan of steps run on TxEmulator (%s)", (v) => {
   it("sends the same bytes after a lost answer, and pays once", async () => {
     const { emulator, builder, wallet } = await stepSetup(v);
     // The bytes arrive and the answer is lost
-    const arrived = await planOf(builder, payTo(alice, 5n * ADA), {
+    const arrived = await builder.plan(payTo(alice, 5n * ADA), {
       payer: wallet,
     });
     const answerLost = submitterOf(async (tx) => {
@@ -225,7 +218,7 @@ describe.each(VALIDATORS)("a plan of steps run on TxEmulator (%s)", (v) => {
     expect(paidTo(emulator, alice)).toEqual([5n * ADA]);
 
     // The bytes are lost with the answer, then sent again
-    const sentAgain = await planOf(builder, payTo(bob, 3n * ADA), {
+    const sentAgain = await builder.plan(payTo(bob, 3n * ADA), {
       payer: wallet,
     });
     let drop = true;
@@ -262,8 +255,7 @@ describe.each(VALIDATORS)("a plan of steps run on TxEmulator (%s)", (v) => {
         },
       },
     });
-    const plan = await planOf(
-      builder,
+    const plan = await builder.plan(
       { a: payTo(alice, 5n * ADA), b: payTo(bob, 3n * ADA) },
       { payer: wallet },
     );
@@ -301,8 +293,7 @@ describe.each(VALIDATORS)("a plan of steps run on TxEmulator (%s)", (v) => {
     expect(paidTo(emulator, bob)).toEqual([3n * ADA]);
 
     // A call that waits goes on waiting and sends the same bytes again
-    const waiting = await planOf(
-      builder,
+    const waiting = await builder.plan(
       { a: payTo(alice, 1n * ADA), b: payTo(carol, 2n * ADA) },
       { payer: wallet },
     );
@@ -327,7 +318,7 @@ describe.each(VALIDATORS)("a plan of steps run on TxEmulator (%s)", (v) => {
 
   it("sends a step only when the step before it is in a block, and the same bytes of the step before until then", async () => {
     const { emulator, builder, wallet } = await stepSetup(v);
-    const plan = await planOf(builder, threeSteps(), { payer: wallet });
+    const plan = await builder.plan(threeSteps(), { payer: wallet });
     // A submitter that takes the bytes and holds them: nothing reaches a block
     const held = swallowing();
     await plan.run({ waitFor: "sent", submitter: held });
@@ -354,8 +345,7 @@ describe.each(VALIDATORS)("a plan of steps run on TxEmulator (%s)", (v) => {
       funds: [1000n * ADA, 7n * ADA],
     });
     const voucher = funded[1]!;
-    const plan = await planOf(
-      builder,
+    const plan = await builder.plan(
       {
         a: payTo(alice, 5n * ADA),
         b: [spend.pubKey({ utxo: voucher }), payTo(bob, 3n * ADA)],
@@ -415,8 +405,7 @@ describe.each(VALIDATORS)("a plan of steps run on TxEmulator (%s)", (v) => {
     const { emulator, provider, builder, wallet } = await stepSetup(v, {
       builder: { planDefaults: { ...FAST, confirmations: 3 } },
     });
-    const plan = await planOf(
-      builder,
+    const plan = await builder.plan(
       { a: payTo(alice, 5n * ADA), b: payTo(bob, 3n * ADA) },
       { payer: wallet },
     );
@@ -452,7 +441,7 @@ describe.each(VALIDATORS)("a plan of steps run on TxEmulator (%s)", (v) => {
         },
       },
     });
-    const plan = await planOf(builder, threeSteps(), { payer: wallet });
+    const plan = await builder.plan(threeSteps(), { payer: wallet });
     const submits = () => provider.control.count("submitTx");
     await plan.run({ waitFor: "sent" });
     expect([submits(), statuses(plan)]).toEqual([
@@ -472,8 +461,7 @@ describe.each(VALIDATORS)("a plan of steps run on TxEmulator (%s)", (v) => {
       { a: "included", b: "included", c: "included" },
     ]);
 
-    const other = await planOf(
-      builder,
+    const other = await builder.plan(
       { a: payTo(alice, 1n * ADA), b: payTo(bob, 1n * ADA) },
       { payer: wallet },
     );
@@ -490,8 +478,7 @@ describe.each(VALIDATORS)("a plan of steps run on TxEmulator (%s)", (v) => {
 
   it("stop(): signs and sends nothing more; stopping while a step may land, then stopped", async () => {
     const { emulator, provider, builder, wallet } = await stepSetup(v);
-    const plan = await planOf(
-      builder,
+    const plan = await builder.plan(
       { a: payTo(alice, 5n * ADA), b: payTo(bob, 3n * ADA) },
       { payer: wallet, ttlMs: 60_000 },
     );
@@ -531,15 +518,14 @@ describe.each(VALIDATORS)("a plan of steps run on TxEmulator (%s)", (v) => {
     const { emulator, provider, builder, wallet } = await stepSetup(v, {
       builder: { store },
     });
-    const one = await planOf(builder, threeSteps(), {
+    const one = await builder.plan(threeSteps(), {
       payer: wallet,
       id: "order-9",
     });
-    const two = await resumeStepPlan(
-      builderOf(provider, { store, evaluator: emulator }),
-      "order-9",
-      { payer: wallet },
-    );
+    const two = await builderOf(provider, {
+      store,
+      evaluator: emulator,
+    }).resume("order-9", { payer: wallet });
     const submitter = submitterOf((tx) => emulator.submitTx(tx));
     await Promise.all([one.run({ submitter }), two.run({ submitter })]);
     expect(one.status).toBe("final");
@@ -552,33 +538,33 @@ describe.each(VALIDATORS)("a plan of steps run on TxEmulator (%s)", (v) => {
     expect(paidTo(emulator, alice)).toEqual([5n * ADA]);
     expect(paidTo(emulator, bob)).toEqual([3n * ADA]);
     expect(paidTo(emulator, carol)).toEqual([2n * ADA]);
-    const stored = (await store.load("order-9")) as unknown as StepPlanJSON;
+    const stored = (await store.load("order-9")) as unknown as TxPlanJSON;
     expect(stored.status).toBe("final");
     expect(new Set(stored.steps.map((step) => step.txHash))).toEqual(hashes);
   });
 });
 
-describe("a plan of steps made on a provider", () => {
+describe("a plan made on a provider", () => {
   it("probes the provider when it is made: a search, block heights, and validity for a Plutus step", async () => {
     const make = async (hooks: Hooks) => {
       const { builder, wallet } = await stepSetup("scalus", { hooks });
       const vault = builder.scriptAddress(script);
-      const made = await makePlan(
-        builder,
-        {
-          lock: payTo(vault, 10n * ADA, "vault"),
-          unlock: [
-            spend.plutus({
-              utxo: { step: "lock", output: "vault" },
-              script,
-              redeemer: { data: mConStr0([]) },
-            }),
-            payTo(bob, 4n * ADA),
-          ],
-        },
-        { payer: wallet },
+      return caught(
+        builder.plan(
+          {
+            lock: payTo(vault, 10n * ADA, "vault"),
+            unlock: [
+              spend.plutus({
+                utxo: { step: "lock", output: "vault" },
+                script,
+                redeemer: { data: mConStr0([]) },
+              }),
+              payTo(bob, 4n * ADA),
+            ],
+          },
+          { payer: wallet },
+        ),
       );
-      return caught(createStepPlan(builder, made, { payer: wallet }));
     };
     const noSearch = await make({ fetchTxInfo: null });
     expect([noSearch.code, noSearch.details.reason]).toEqual([
@@ -605,7 +591,7 @@ describe("a plan of steps made on a provider", () => {
       "CANNOT_OBSERVE",
       "noValidity",
     ]);
-    expect(noValidity.message.endsWith(STEP_NOT_UNPAID)).toBe(true);
+    expect(noValidity.message.endsWith(NOT_UNPAID)).toBe(true);
   });
 
   it("refuses a recorded id with other steps, and gives the recorded plan for the same steps", async () => {
@@ -613,28 +599,28 @@ describe("a plan of steps made on a provider", () => {
     const { builder, provider, wallet } = await stepSetup("scalus", {
       builder: { store },
     });
-    const first = await planOf(builder, payTo(alice, 5n * ADA), {
+    const first = await builder.plan(payTo(alice, 5n * ADA), {
       payer: wallet,
       id: "order-1",
     });
-    const again = await planOf(builder, payTo(alice, 5n * ADA), {
+    const again = await builder.plan(payTo(alice, 5n * ADA), {
       payer: wallet,
       id: "order-1",
     });
     expect(again.step("main").txHash).toBe(first.step("main").txHash);
     const other = await caught(
-      planOf(builder, payTo(alice, 6n * ADA), { payer: wallet, id: "order-1" }),
+      builder.plan(payTo(alice, 6n * ADA), { payer: wallet, id: "order-1" }),
     );
     expect(other.code).toBe("PLAN_EXISTS");
     const missing = await caught(
-      planOf(builder, payTo(alice, 5n * ADA), { payer: wallet }),
+      builder.plan(payTo(alice, 5n * ADA), { payer: wallet }),
     );
     expect(missing.code).toBe("MISSING_ID");
-    expect((await caught(resumeStepPlan(builder, "nothing"))).code).toBe(
+    expect((await caught(builder.resume("nothing"))).code).toBe(
       "PLAN_NOT_FOUND",
     );
     const storeless = builderOf(provider);
-    expect((await caught(resumeStepPlan(storeless, "order-1"))).code).toBe(
+    expect((await caught(storeless.resume("order-1"))).code).toBe(
       "MISSING_STORE",
     );
     expect(() => first.step("nope")).toThrow(/step/);

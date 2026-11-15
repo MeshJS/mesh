@@ -1,12 +1,12 @@
 import { customNetwork, DEFAULT_PROTOCOL_PARAMETERS } from "@meshsdk/core";
 
+import type { WaitOptions } from "../../../src/tx-builder/plan/deadlines";
 import {
   PlanDeadlines,
   TxBuilder,
   TxBuilderOptions,
   TxBuildError,
   TxError,
-  WaitOptions,
 } from "../../../src/tx-builder";
 import {
   DEFAULT_DEADLINES,
@@ -149,9 +149,9 @@ describe("plan deadlines", () => {
 describe("plan waiting", () => {
   const deadlines = effectiveDeadlines({}, undefined);
 
-  it("defaults to sent, 120 s, a poll of 5 s and a resend every 2 min", () => {
+  it("defaults to included, 120 s, a poll of 5 s and a resend every 2 min", () => {
     expect(effectiveWait({}, deadlines, undefined)).toEqual({
-      waitFor: "sent",
+      waitFor: "included",
       timeoutMs: 120_000,
       pollMs: 5_000,
       resendMs: 120_000,

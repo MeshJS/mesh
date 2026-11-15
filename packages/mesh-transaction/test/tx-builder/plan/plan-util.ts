@@ -1,12 +1,7 @@
-import type { BuiltTxData, Utxo } from "../../../src/tx-builder";
-import {
-  Advanced,
-  advancePlan,
-  AnchorKind,
-  draftPlan,
-  PlanRecord,
-  TxPlanEvent,
-} from "../../../src/tx-builder/plan/core";
+import type { Utxo } from "../../../src/tx-builder";
+
+// Small helpers of the plan tests: hashes and outputs made from numbers, a deep freeze, and a
+// seeded random source.
 
 /** A 32-byte hash from a number */
 export const hash = (n: number) => n.toString(16).padStart(64, "0");
@@ -24,118 +19,6 @@ export const utxo = (txHash: string, outputIndex = 0): Utxo => ({
   address: ADDRESS,
   value: { lovelace: 5_000_000n },
 });
-
-/**
- * A built transaction with the members the state machine reads: its hash, its inputs, the keys
- * that must sign, its deadline and, for a Plutus transaction, one redeemer.
- */
-export const builtTx = (spec: {
-  txHash: string;
-  inputs: readonly Utxo[];
-  keys?: readonly string[];
-  until?: number;
-  plutus?: boolean;
-}): BuiltTxData =>
-  ({
-    tx: "84a0",
-    txHash: spec.txHash,
-    inputs: [...spec.inputs],
-    signers: {
-      keyHashes: [...(spec.keys ?? [])],
-      keys: (spec.keys ?? []).map((keyHash) => ({
-        keyHash,
-        roles: ["input"],
-      })),
-      byronAddresses: [],
-      nativeScripts: [],
-    },
-    validity: spec.until === undefined ? {} : { until: spec.until },
-    redeemers: spec.plutus
-      ? [
-          {
-            tag: "SPEND",
-            index: 0,
-            exUnits: { mem: 1n, steps: 1n },
-            data: "00",
-            part: "spend",
-          },
-        ]
-      : [],
-  }) as unknown as BuiltTxData;
-
-/** A build event spending `anchors` (and `extra` inputs) */
-export const buildEvent = (spec: {
-  txHash: string;
-  anchors: readonly { utxo: Utxo; kind: AnchorKind }[];
-  extra?: readonly Utxo[];
-  keys?: readonly string[];
-  until?: number;
-  plutus?: boolean;
-  parents?: readonly { txHash: string; until: number; planId?: string }[];
-  tipTimeMs?: number;
-}): TxPlanEvent => ({
-  type: "build",
-  built: builtTx({
-    txHash: spec.txHash,
-    inputs: [...spec.anchors.map((a) => a.utxo), ...(spec.extra ?? [])],
-    keys: spec.keys,
-    until: "until" in spec ? spec.until : 1_000_000,
-    plutus: spec.plutus,
-  }),
-  anchors: spec.anchors,
-  ...(spec.parents !== undefined && { parents: spec.parents }),
-  ...(spec.tipTimeMs !== undefined && { tipTimeMs: spec.tipTimeMs }),
-});
-
-/** A witness of one key */
-export const witness = (key: string) => ({ keyHash: key, witness: `w-${key}` });
-
-/** A new record, with the deadlines given */
-export const draft = (
-  deadlines: Partial<PlanRecord["deadlines"]> = {},
-): PlanRecord =>
-  draftPlan({
-    id: "plan-1",
-    network: "preprod",
-    deadlines: {
-      ttlMs: 600_000,
-      expiryMarginMs: 100_000,
-      confirmations: 3,
-      ...deadlines,
-    },
-    parts: [],
-    options: {},
-  });
-
-/** The record after the event; fails the test when the event is refused */
-export const accept = (json: PlanRecord, event: TxPlanEvent) => {
-  const result = advancePlan(json, event);
-  if (!result.ok)
-    throw new Error(
-      `${event.type} refused (${result.reason}): ${result.message}`,
-    );
-  return result.json;
-};
-
-/** The record after every event, in order */
-export const acceptAll = (
-  json: PlanRecord,
-  ...events: readonly TxPlanEvent[]
-) => events.reduce(accept, json);
-
-/** The reason of a refusal; fails the test when the event is accepted */
-export const refusal = (json: PlanRecord, event: TxPlanEvent) => {
-  const result: Advanced = advancePlan(json, event);
-  if (result.ok) throw new Error(`${event.type} accepted`);
-  return result.reason;
-};
-
-/** The attempt with this hash */
-export const attemptOf = (json: PlanRecord, txHash: string) => {
-  const attempt = json.attempts.find((each) => each.txHash === txHash);
-  if (attempt === undefined) throw new Error(`no attempt ${txHash}`);
-  return attempt;
-};
 
 /** Freezes the value in place, all the way down, and returns it; nothing is copied */
 export const deepFreeze = <T>(value: T): T => {

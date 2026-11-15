@@ -17,28 +17,37 @@ import type {
   Utxo,
 } from "../parts/types";
 import type { Payer, PayerRead, PayerSource } from "../payer";
-import type { NewStep, StepGiven, StepPlanRecord, StepTip } from "./step-core";
-import type { PlanDeadlines } from "./types";
+import type { NewStep, PlanRecord, PlanTip, StepGiven } from "./core";
+import type {
+  PlanOptions,
+  PlanStep,
+  PlanSteps,
+  StepOptions,
+  StepParts,
+} from "./types";
 import { isKeyLocked } from "../balance";
 import { flattenParts } from "../builder";
 import { BuiltTx } from "../built-tx";
+import { toKnownUtxos } from "../chain";
 import { NOT_UNPAID, TxBuildError, TxError, TxPlanError } from "../errors";
+import { checkNetworks } from "../network";
 import { checkLock, spend, toSpendDatum } from "../parts/inputs";
 import { fail, freeze, withKnownHash } from "../parts/normalize";
 import { validity } from "../parts/scalars";
 import { isLinkedPart } from "../parts/unresolved";
 import { plainUtxo, utxoKey } from "../parts/utxo";
-import { effectiveDeadlines, horizonSlot } from "./deadlines";
-import { chainObserver } from "./observer";
+import { changeAddressOf, givenPayerEntries, toPayerSource } from "../payer";
 import {
-  advanceStepPlan,
-  emptyStepPlan,
+  advancePlan,
+  emptyPlan,
+  planUntil,
   sourcesOf,
   standsOnOf,
-  stepPlanUntil,
-} from "./step-core";
+} from "./core";
+import { effectiveDeadlines, horizonSlot } from "./deadlines";
+import { chainObserver } from "./observer";
 
-// Builds a plan of steps: every body at once, in order, each on the UTxOs the steps before it
+// Builds a plan: every body at once, in order, each on the UTxOs the steps before it
 // leave. Each payer is read once; each step is built with the steps before it as `after`, so
 // that their inputs are not selected again and their change at the step's change address is
 // selectable; a step spends the change of the step before it of the same payer; a part linked
@@ -46,52 +55,10 @@ import {
 // ends at the plan's one deadline. Nothing is signed and nothing is sent. Nothing here is
 // exported from the package.
 
-/**
- * One entry of a step's parts: a part, a part linked to an earlier step, a nested list, or a
- * value that is skipped
- */
-export type StepPartEntry =
-  TxPart | LinkedPart | false | null | undefined | readonly StepPartEntry[];
-
-/** The parts of one step: one part, or a list; nested lists are flattened, as for `build` */
-export type StepParts = TxPart | LinkedPart | readonly StepPartEntry[];
-
-/**
- * The build options a step may have of its own; each replaces the plan's for that step. A step
- * with a payer of its own is built on that payer's UTxOs, and its change goes to that payer
- */
-export type StepOptions = Pick<
-  BuildOptions,
-  | "payer"
-  | "canSelect"
-  | "coinSelection"
-  | "sendAllTo"
-  | "fee"
-  | "registeredPools"
-  | "extraKeyWitnesses"
-  | "topUpCollateral"
-  | "collateralReturn"
->;
-
-/** One step as the plan takes it: parts, or parts with options of their own */
-export type PlanStep =
-  StepParts | ({ readonly parts: StepParts } & StepOptions);
-
-/** The steps of a plan by name, in the order they are sent */
-export type PlanSteps = Readonly<Record<string, PlanStep>>;
-
-/**
- * The options of a plan of steps. The build options apply to every step built from parts,
- * unless the step has its own; `sendAllTo` and `fee` describe one transaction, so with named
- * steps they are given in the step. `after` is transactions built before the plan and not yet
- * seen by the provider.
- */
-export type MakePlanOptions = Omit<BuildOptions, "after"> &
-  PlanDeadlines & {
-    /** The application's id of the plan, written into its record */
-    id?: string;
-    after?: BuiltTxData | readonly BuiltTxData[];
-  };
+/** The options `makePlan` takes: those of a plan, with `after` as built data only */
+export type MakePlanOptions = Omit<PlanOptions, "after"> & {
+  after?: BuiltTxData | readonly BuiltTxData[];
+};
 
 /** A step the plan built: its transaction, its name, what it stands on, and how it was given */
 export type MadeStep = {
@@ -101,6 +68,8 @@ export type MadeStep = {
   readonly standsOn: readonly string[];
   /** The hashes of the transactions of `after` whose outputs it spends, reads or puts up */
   readonly after?: readonly string[];
+  /** A transaction before those of `after`, when every input comes from one of them */
+  readonly expirySource?: string;
   readonly given: StepGiven;
   readonly extraKeyWitnesses?: number;
 };
@@ -108,8 +77,8 @@ export type MadeStep = {
 /** A plan built: its steps in order, the first record, the tip it was built at and its deadline */
 export type MadePlan = {
   readonly steps: readonly MadeStep[];
-  readonly record: StepPlanRecord;
-  readonly tip: StepTip;
+  readonly record: PlanRecord;
+  readonly tip: PlanTip;
   /** The latest end of validity among its transactions, POSIX ms; undefined when one has none */
   readonly until?: number;
 };
@@ -201,10 +170,37 @@ const flatten = (parts: unknown, name: string): (TxPart | LinkedPart)[] => {
 
 /**
  * The steps as given, read in order: one list of parts is the step `main` with the parts the
- * builder holds from `add` first; named steps are each parts or parts with options
+ * builder holds from `add` first; named steps are each parts or parts with options. A part
+ * linked to a step that is not before its own is refused here, before any request
  * @throws TxBuildError INVALID_OPTION (`steps`)
  */
 const readSteps = (
+  builder: TxBuilder,
+  steps: unknown,
+  options: MakePlanOptions,
+): StepInput[] => {
+  const read = readStepForms(builder, steps, options);
+  // A link names a step before it: refused here, before any request
+  read.forEach((step, index) => {
+    for (const part of step.parts) {
+      if (!isLinkedPart(part)) continue;
+      const named = part.link.step;
+      if (read.slice(0, index).some((each) => each.name === named)) continue;
+      throw withStep(
+        invalidSteps(
+          read.some((each) => each.name === named)
+            ? `a link names step ${JSON.stringify(named)}, which is not before step ${JSON.stringify(step.name)}: a step names only the steps before it`
+            : `a link names step ${JSON.stringify(named)}, which the plan does not have`,
+        ),
+        step.name,
+      );
+    }
+  });
+  return read;
+};
+
+/** The steps as given, in their forms, read in order; their links are not read here */
+const readStepForms = (
   builder: TxBuilder,
   steps: unknown,
   options: MakePlanOptions,
@@ -533,7 +529,7 @@ const changeToSpend = (
 const withDeadline = (
   builder: TxBuilder,
   parts: readonly TxPart[],
-  tip: StepTip,
+  tip: PlanTip,
   ttlMs: number,
   name: string,
   planId: string | undefined,
@@ -609,8 +605,156 @@ const dataOptions = (options: StepOptions, changeAddress?: string) => {
   return Object.keys(out).length === 0 ? undefined : out;
 };
 
+/** The data options of a plan, with its payer's change address, for its record */
+const planOptionsOf = (
+  options: MakePlanOptions,
+  changeAddress: string | undefined,
+): Record<string, unknown> => ({
+  ...(changeAddress !== undefined && { changeAddress }),
+  // In the builder's form of a UTxO, whatever form they were given in
+  ...(options.knownUtxos !== undefined && {
+    knownUtxos: toKnownUtxos(options.knownUtxos),
+  }),
+  ...(options.registeredPools !== undefined && {
+    registeredPools: options.registeredPools,
+  }),
+  ...(options.extraKeyWitnesses !== undefined && {
+    extraKeyWitnesses: options.extraKeyWitnesses,
+  }),
+  ...(options.topUpCollateral !== undefined && {
+    topUpCollateral: options.topUpCollateral,
+  }),
+  ...(options.collateralReturn !== undefined && {
+    collateralReturn: options.collateralReturn,
+  }),
+});
+
+/** The step as its record holds it given: its parts, links kept, and its data options */
+const givenOf = (step: StepInput, changeAddress: string): StepGiven => {
+  const data = dataOptions(
+    step.options,
+    step.options.payer === undefined ? undefined : changeAddress,
+  );
+  return { parts: step.parts, ...(data !== undefined && { options: data }) };
+};
+
 /**
- * Builds a plan of steps. Every body is built by this call, in order: each payer is read once,
+ * What a plan made of these steps and options records of them, worked out before anything is
+ * built: its network, the deadlines given explicitly, its data options with its payer's change address, and each
+ * step's name and parts as given. Two plans with the same order are the same order of the
+ * application. Each payer is asked for its change address only
+ */
+export type PlanOrder = {
+  readonly network: PlanRecord["network"];
+  /** The deadlines the options give explicitly; the builder's defaults are not part of it */
+  readonly deadlines: Partial<PlanRecord["deadlines"]>;
+  readonly options: Readonly<Record<string, unknown>>;
+  readonly steps: readonly {
+    readonly name: string;
+    readonly given: StepGiven;
+  }[];
+};
+
+/**
+ * The parts of every step as given, read as `makePlan` reads them, without a request: for a
+ * check that needs them before anything is built
+ * @throws TxBuildError INVALID_OPTION (`steps`) as `makePlan`
+ */
+export const givenParts = (
+  builder: TxBuilder,
+  steps: StepParts | PlanSteps,
+  options: MakePlanOptions = {},
+): (TxPart | LinkedPart)[][] =>
+  readSteps(builder, steps, options).map((step) => [...step.parts]);
+
+/**
+ * The order these steps and options give, without building: what `makePlan` would record of
+ * them. A wallet is asked for its change address alone, and no UTxO is read
+ * @throws TxBuildError INVALID_OPTION (`steps`) as `makePlan`; MISSING_PAYER; INVALID_OPTION for
+ *   a payer of no known form; NETWORK_MISMATCH for a payer given with another network's
+ *   address; WALLET_FAILED
+ */
+export const orderOf = async (
+  builder: TxBuilder,
+  steps: StepParts | PlanSteps,
+  options: MakePlanOptions = {},
+): Promise<PlanOrder> => {
+  const given = readSteps(builder, steps, options);
+  const addresses = new Map<Payer, string>();
+  const addressOf = async (payer: Payer | undefined, name?: string) => {
+    if (payer === undefined)
+      throw new TxBuildError(
+        "MISSING_PAYER",
+        `step ${JSON.stringify(name)}: no payer: give the plan a payer, or the step its own`,
+      );
+    let address = addresses.get(payer);
+    if (address === undefined) {
+      const source = toPayerSource(payer);
+      checkNetworks(builder.network, givenPayerEntries(source));
+      address = await changeAddressOf(source);
+      addresses.set(payer, address);
+    }
+    return address;
+  };
+  // The deadlines are checked as `makePlan` checks them
+  effectiveDeadlines(options, builder.planDefaults);
+  const out: { name: string; given: StepGiven }[] = [];
+  for (const step of given)
+    out.push({
+      name: step.name,
+      given: givenOf(
+        step,
+        await addressOf(step.options.payer ?? options.payer, step.name),
+      ),
+    });
+  return {
+    network: recordNetwork(builder),
+    deadlines: {
+      ...(options.ttlMs !== undefined && { ttlMs: options.ttlMs }),
+      ...(options.expiryMarginMs !== undefined && {
+        expiryMarginMs: options.expiryMarginMs,
+      }),
+      ...(options.confirmations !== undefined && {
+        confirmations: options.confirmations,
+      }),
+    },
+    options: planOptionsOf(
+      options,
+      options.payer === undefined ? undefined : await addressOf(options.payer),
+    ),
+    steps: out,
+  };
+};
+
+/**
+ * The source of an input of these transactions of `after`, followed back through the other
+ * transactions of `after`, that is neither one of them nor a step of the plan; undefined when
+ * there is none
+ */
+const sourceBefore = (
+  before: readonly BuiltTxData[],
+  after: readonly string[],
+  made: readonly MadeStep[],
+): string | undefined => {
+  const byHash = new Map(before.map((tx) => [tx.txHash.toLowerCase(), tx]));
+  const steps = new Set(made.map((each) => each.built.txHash.toLowerCase()));
+  const queue = after.map((txHash) => txHash.toLowerCase());
+  const visited = new Set<string>();
+  while (queue.length > 0) {
+    const txHash = queue.shift()!;
+    if (visited.has(txHash)) continue;
+    visited.add(txHash);
+    for (const input of byHash.get(txHash)?.inputs ?? []) {
+      const source = input.txHash.toLowerCase();
+      if (byHash.has(source)) queue.push(source);
+      else if (!steps.has(source)) return source;
+    }
+  }
+  return undefined;
+};
+
+/**
+ * Builds a plan. Every body is built by this call, in order: each payer is read once,
  * and each step is built on the payer's UTxOs as the steps before it leave them. A step spends
  * the change that the step before it of the same payer leaves at the payer's change address,
  * unless it spends an output of that step already, so the steps of one payer form a chain the
@@ -651,7 +795,7 @@ export const makePlan = async (
         ...(id !== undefined && { planId: id }),
       },
     );
-  const tip: StepTip = {
+  const tip: PlanTip = {
     slot: observed.slot,
     timeMs: builder.timeAt(observed.slot),
     ...(observed.height !== undefined && { height: observed.height }),
@@ -753,10 +897,6 @@ export const makePlan = async (
       );
       const extraKeyWitnesses =
         own.extraKeyWitnesses ?? options.extraKeyWitnesses ?? 0;
-      const data = dataOptions(
-        own,
-        own.payer === undefined ? undefined : changeAddress,
-      );
       owner.set(name, changeAddress);
       const sources = new Set(sourcesOf(built));
       const after = before
@@ -765,6 +905,18 @@ export const makePlan = async (
           (txHash, i, all) =>
             sources.has(txHash.toLowerCase()) && all.indexOf(txHash) === i,
         );
+      // A step every input of which comes from a transaction of `after` is shown expired by a
+      // search that finds a transaction before them: an input's source that is none of them
+      const expirySource =
+        after.length > 0 &&
+        built.inputs.length > 0 &&
+        built.inputs.every((input) =>
+          after.some(
+            (txHash) => txHash.toLowerCase() === input.txHash.toLowerCase(),
+          ),
+        )
+          ? sourceBefore(before, after, made)
+          : undefined;
       made.push({
         name,
         built,
@@ -773,10 +925,8 @@ export const makePlan = async (
           made.map((each) => ({ name: each.name, txHash: each.built.txHash })),
         ),
         ...(after.length > 0 && { after }),
-        given: {
-          parts: step.parts,
-          ...(data !== undefined && { options: data }),
-        },
+        ...(expirySource !== undefined && { expirySource }),
+        given: givenOf(step, changeAddress),
         ...(extraKeyWitnesses > 0 && { extraKeyWitnesses }),
       });
     } catch (error) {
@@ -788,36 +938,22 @@ export const makePlan = async (
     options.payer === undefined
       ? undefined
       : reads[payers.indexOf(options.payer)];
-  const planOptions: Record<string, unknown> = {
-    ...(planPayer !== undefined && {
-      changeAddress: planPayer.snapshot.changeAddress,
-    }),
-    ...(options.knownUtxos !== undefined && { knownUtxos: options.knownUtxos }),
-    ...(options.registeredPools !== undefined && {
-      registeredPools: options.registeredPools,
-    }),
-    ...(options.extraKeyWitnesses !== undefined && {
-      extraKeyWitnesses: options.extraKeyWitnesses,
-    }),
-    ...(options.topUpCollateral !== undefined && {
-      topUpCollateral: options.topUpCollateral,
-    }),
-    ...(options.collateralReturn !== undefined && {
-      collateralReturn: options.collateralReturn,
-    }),
-  };
+  const planOptions = planOptionsOf(options, planPayer?.snapshot.changeAddress);
   const newSteps: NewStep[] = made.map((step) => ({
     name: step.name,
     built: step.built,
     standsOn: step.standsOn,
     ...(step.after !== undefined && { after: step.after }),
+    ...(step.expirySource !== undefined && {
+      expirySource: step.expirySource,
+    }),
     given: step.given,
     ...(step.extraKeyWitnesses !== undefined && {
       extraKeyWitnesses: step.extraKeyWitnesses,
     }),
   }));
-  const first = advanceStepPlan(
-    emptyStepPlan({
+  const first = advancePlan(
+    emptyPlan({
       ...(id !== undefined && { id }),
       network: recordNetwork(builder),
       deadlines,
@@ -832,8 +968,8 @@ export const makePlan = async (
     steps: made,
     record: first.json,
     tip,
-    ...(stepPlanUntil(first.json) !== undefined && {
-      until: stepPlanUntil(first.json),
+    ...(planUntil(first.json) !== undefined && {
+      until: planUntil(first.json),
     }),
   };
 };
