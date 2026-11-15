@@ -742,11 +742,11 @@ try {
   if (!TxError.is(error, "EXPIRED", "SCRIPT_FAILED", "ORPHANED")) throw error;
   // error.step: "b"   plan.landed: [a]   plan.rest: { b }
 }
-// later, in the reconciliation: a plan in place of this one pays what is left; the same call
-// again returns the same plan
+// later, in the reconciliation: a plan in place of this one pays what is left. A replaced plan
+// names it in `replacedBy`, and the same call again returns it
 await plan.refresh();
 if (plan.status !== "final") {
-  const next = await plan.replan({ id: "order-7:2" });
+  const next = await plan.replan({ id: plan.replacedBy ?? "order-7:2" });
   await next.run();
 }
 ```
@@ -769,12 +769,15 @@ are the old plan's unless given; deadlines given are the new plan's and carry on
   land, never both. Without such an input it throws `STILL_LIVE`; the same call passes after
   `details.safeAfter`. So open steps of two payers wait until they are dead.
 - An address that lists an output of an old transaction the search does not find refuses the call
-  (`CANNOT_OBSERVE`). A search that fails is no answer; a read that fails throws its error.
+  (`CANNOT_OBSERVE`). A search that fails is no answer: past the end and the margin it is
+  `CANNOT_OBSERVE` (`unconfirmed`), not `STILL_LIVE`. A read of an address that fails or gives no
+  list throws its error (`PROVIDER_FAILED`); an empty list is an answer, and so is a list the
+  provider's own cache gives, which the library does not control.
 - The one case that goes by time: an old transaction this call's look answered "not found", past
   its end and the margin, that shares no input with the new plan. `trace` gets `NO_SHARED_INPUT`
   once the new plan is recorded. A provider that hides a landed transaction from that look, and
-  shows none of its outputs in the payers' reads or at the addresses it paid (at most 16 are
-  read), makes the new plan pay twice.
+  shows none of its outputs in the payers' reads or at the addresses it paid (at most 16 a call;
+  the warning's `unread` counts those left), makes the new plan pay twice.
 - Dead ends, where no plan is made: nothing left to build (every step is final, failed or a
   consolidation step: `INVALID_OPTION`, `steps`), unless `steps` are given; an old transaction
   found in a block once and gone, its inputs spent by others; a step given built that never
@@ -783,13 +786,16 @@ are the old plan's unless given; deadlines given are the new plan's and carry on
 - The old plan is marked first, by compare-and-set: `replacedBy` names the new plan, and the old
   one signs and sends nothing more. The id is the new plan's alone. The same call again returns
   the same plan, also after a crash that followed the mark; with other options, the plan recorded
-  with the first. Without a store only the object that made it does so, another object refuses
-  (`INVALID_STATE`), and a copy of the old plan's JSON saved before the call can be replaced
-  again, which pays again: save the JSON after `replan`, or use a store.
+  with the first; calls on one object never overlap, a second waits for the first. Without a
+  store only the object that made it does so, another object refuses (`INVALID_STATE`), and a
+  copy of the old plan's JSON saved before the call can be replaced again, which pays again: save
+  both JSONs, the old plan's with its mark and the new plan's, after `replan` and before `run()`,
+  or use a store.
 - A transaction that runs a Plutus script, found by a provider that does not say whether its
   scripts passed, is `CANNOT_OBSERVE` (`noValidity`); a plain payment counts as passed.
 - A new plan that finds an old transaction in a block stops (`INVALID_STATE`, its hash in
-  `error.txHash`): `replan` it; when its `rest` is empty, the old plan made the payment.
+  `error.txHash`): `replan` it; when that finds nothing left to build and no plan of it names one
+  in its place, the old plan made the payment.
 
 ### Refusal to sign; edits on a preview
 
@@ -1063,10 +1069,10 @@ for (const id of await db.openPlanIds()) {
   try {
     let plan = await builder.resume(id, { payer: await payerFor(id) });
     await plan.refresh();
-    // What is left of a stopped plan is paid by the plan in its place; the same call again
-    // returns that plan, so each pass follows the line to its last plan
-    while (plan.status === "stopped")
-      plan = await plan.replan({ id: `${plan.id}:next` });
+    // A plan made in its place is named in `replacedBy`; a stopped one gets one. The same call
+    // again returns that plan, so each pass follows the line to its last plan
+    while (plan.replacedBy !== undefined || plan.status === "stopped")
+      plan = await plan.replan({ id: plan.replacedBy ?? `${plan.id}:next` });
     await plan.run({ waitFor: "sent" }).catch(report); // a look, then what can be done at once
     if (plan.status === "final") await db.close(id, plan.status); // release the goods
   } catch (error) {
@@ -2154,9 +2160,10 @@ another hash, `{ code: "DEAD_STEP_FOUND", step, txHash, was }` when a step calle
 `orphaned` is found in a block, `{ code: "TIP_AHEAD_OF_CLOCK", slot, aheadMs }` when the
 provider's tip is more than two minutes ahead of the local clock (the look goes on without it),
 `{ code: "CONSOLIDATION_STEPS", steps, fee }` when it puts consolidation steps in, and
-`{ code: "NO_SHARED_INPUT", step, txHash }` when a step `replan` or `add` built shares no input
-with an old transaction called dead, which rests on its end of validity and the provider's
-search. A step that comes back because the step below it was found warns of nothing.
+`{ code: "NO_SHARED_INPUT", step, txHash, unread? }` when a step `replan` or `add` built shares
+no input with an old transaction called dead, which rests on its end of validity and the
+provider's search (`unread`: the addresses past the 16 a call reads). A step that comes back
+because the step below it was found warns of nothing.
 
 The lists the library gives out are open: part kinds, `SignerRole`, redeemer tags,
 `LanguageVersion`, native script variants, plan and step statuses, the values of `reason`,

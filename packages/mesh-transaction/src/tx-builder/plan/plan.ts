@@ -1299,7 +1299,11 @@ export class TxPlan {
    *   recorded one, also when this plan came to final since; without a store the one this
    *   object made, and an object that does not hold it (one resumed from a JSON) is refused.
    *   Calls on one object never overlap: one that finds another going waits for it, then
-   *   answers as a call made after it.
+   *   answers as a call made after it. Without a store save both JSONs, this plan's with its
+   *   mark and the new plan's, after the call and before `run()`.
+   * - The addresses a transaction called dead pays, at most 16 in a call, are read past the
+   *   builder's cache; a provider's own cache of address reads is not under the library's
+   *   control, and a list it gives counts as its answer.
    *   Without a store a copy of this plan's JSON saved before the call does not know it was
    *   replaced, and a plan made in its place again can pay again: save the JSON after the call,
    *   or use a store. The id is the new plan's alone: after a crash that followed the mark, a
