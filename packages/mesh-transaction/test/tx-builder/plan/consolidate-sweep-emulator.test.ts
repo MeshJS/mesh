@@ -1,5 +1,5 @@
-import type { TxPlan } from "../../../src/tx-builder";
-import { TxPlanError } from "../../../src/tx-builder";
+import type { TxPlan, Utxo } from "../../../src/tx-builder";
+import { spend, TxPlanError } from "../../../src/tx-builder";
 import {
   consolidationsOf,
   fragmented,
@@ -124,6 +124,44 @@ describe("a sweep after consolidation steps", () => {
       expect(plan.step("sweep").status).toBe("included");
       expect(emulator.utxos({ address })).toEqual([]);
       expect(unitAt(emulator, alice, wanted)).toBe(250n);
+    },
+    LONG,
+  );
+
+  it(
+    "takes the parked outputs under a canSelect that allows only what the wallet held, and nothing else it refuses",
+    async () => {
+      const { emulator, provider, builder, wallet, address } = await fragmented(
+        withWanted(250),
+        { maxTxSize: 4096 },
+      );
+      const known = new Set(
+        (await provider.fetchAddressUTxOs(address)).map((u) => keyOf(u.input)),
+      );
+      // A UTxO the filter refuses: no step takes it
+      const refused = emulator.fund(address, { lovelace: 7n * ADA });
+      const canSelect = (utxo: Utxo) => known.has(keyOf(utxo));
+      const plan = await builder.plan(
+        {
+          first: pay({ lovelace: 400n * ADA }),
+          sweep: {
+            parts: [spend.pubKey({ utxo: { step: "first", change: true } })],
+            sendAllTo: alice,
+          },
+        },
+        { payer: wallet, canSelect, consolidate: { maxSteps: 8 } },
+      );
+      const parked = parkedKeys(plan);
+      expect(parked.length).toBeGreaterThan(0);
+      expect(inputKeys(plan, "sweep")).toEqual(expect.arrayContaining(parked));
+      for (const step of plan.steps)
+        expect(step.inputs.map(keyOf)).not.toContain(keyOf(refused.input));
+      await plan.run();
+      expect(plan.status).toBe("final");
+      expect(unitAt(emulator, alice, wanted)).toBe(250n);
+      expect(emulator.utxos({ address }).map((u) => keyOf(u.input))).toEqual([
+        keyOf(refused.input),
+      ]);
     },
     LONG,
   );

@@ -595,8 +595,9 @@ step is built on the change of the last. They are signed, sent and recorded as a
 - **Parked tokens.** A later step that needs one of those tokens may spend its output. With
   `plan.add`, the parked outputs of a consolidation step that is in a block are the payer's UTxOs
   like any other, which an added step may select.
-- **A sweep.** A later step of the payer with `sendAllTo` takes every parked output. A step with
-  `sendAllTo` is never consolidated itself.
+- **A sweep.** A later step of the payer with `sendAllTo` takes every parked output, without
+  asking `canSelect`: they hold only what it let through. A step with `sendAllTo` is never
+  consolidated itself.
 - **`consolidate`.** At most 4 in the plan as a whole, those of `plan.add` counted;
   `consolidate: { maxSteps }` (1 to 31) sets the limit, and `consolidate: false` leaves the step's
   `TX_TOO_LARGE`. The step's `TX_TOO_LARGE` is also thrown when more are needed than the limit

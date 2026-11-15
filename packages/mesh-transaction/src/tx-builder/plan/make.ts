@@ -2144,7 +2144,8 @@ const warn = (
  * plan, and at most the option's limit of them are in the plan as a whole. The
  * outputs a consolidation step parks are out of reach of the step it serves; a later step may
  * select those that hold a token unit its parts take out beyond what they bring in, and a later
- * step with `sendAllTo` every one of its payer.
+ * step with `sendAllTo` every one of its payer, without asking `canSelect`, since they hold only
+ * what it let through.
  *
  * Every step given as a transaction built before is read first, in order (`readPrebuilt`); it
  * takes its place among the steps in the order given. A step the loop builds gets in `after`
@@ -2388,6 +2389,32 @@ const buildSteps = async (
           ),
           ...later.map((each) => asAfter(each.built, true)),
         ];
+        // A sweep takes the outputs its payer's earlier consolidation steps parked without asking
+        // canSelect, as a consolidation change is spent: they hold only what canSelect let
+        // through. Nothing else bypasses it
+        const parked = sweep
+          ? new Set(
+              all
+                .filter(
+                  (each) =>
+                    each.consolidation === true &&
+                    !each.final &&
+                    each.serves !== name &&
+                    each.changeAddress === changeAddress,
+                )
+                .flatMap((each) =>
+                  each.built.outputs
+                    .filter((output) => output.change !== true)
+                    .map(refKey),
+                ),
+            )
+          : new Set<string>();
+        const choose =
+          parked.size === 0 || canSelect === undefined
+            ? selectable
+            : (utxo: Utxo) =>
+                !held.has(refKey(utxo)) &&
+                (parked.has(refKey(utxo)) || canSelect(utxo));
         try {
           built = await internals(builder).buildList(
             {
@@ -2399,7 +2426,7 @@ const buildSteps = async (
             },
             parts,
             {
-              ...(selectable !== undefined && { canSelect: selectable }),
+              ...(choose !== undefined && { canSelect: choose }),
               ...pick(options, own, "coinSelection"),
               ...pick(options, own, "registeredPools"),
               ...pick(options, own, "extraKeyWitnesses"),
