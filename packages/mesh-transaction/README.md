@@ -1098,8 +1098,9 @@ record member by member as it was saved; it leaves a few records under ids that 
 Applications read `id`, `rev`, `status`, `stopped` (set by `stop()`), `halted` (the plan came to
 `stopped` by its steps), `deadlines` and, of each step, `name`, `status` and `txHash`; the rest is
 the library's. `stopped` and `halted` are `true` when present and never removed. `replacedBy`
-names a plan made in place of this one, only on a `final` or `stopped` plan; no public call
-writes it yet. A step's `tx` is the JSON of its `BuiltTx` without what its bytes and its recorded
+names the plan `replan` made in place of this one, which then signs and sends nothing more; that
+plan holds `replaces`, this plan's id, and `before`, what it keeps of the plans before it. A
+step's `tx` is the JSON of its `BuiltTx` without what its bytes and its recorded
 UTxOs give again: `prototype` is read from the bytes when they give it as it was built (only the
 members they give otherwise are written, such as Plutus data given as a value), and a part, selected
 input, change output or redeemer's part that repeats an entry of the same transaction is written as

@@ -280,7 +280,11 @@ export type TxStepJSON = {
   /** The library's: how many deliveries of it were recorded, and how many of them were refused */
   readonly sends: number;
   readonly refused: number;
-  /** The library's: the transaction with the witnesses it holds, as the JSON of a `BuiltTx` */
+  /**
+   * The library's: the transaction with the witnesses it holds. It is the JSON of a `BuiltTx`
+   * without what the bytes and the recorded UTxOs give again, so `builder.restore` does not
+   * take it; a record that holds that JSON whole is read too
+   */
   readonly tx: {
     readonly kind: "BuiltTx";
     readonly version: number;
