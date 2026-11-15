@@ -409,7 +409,7 @@ step, `main`. `builder.build(parts)` stays one transaction or an error, with no 
 | `replan({ id, steps? })`                 | a new plan in place of this one, for what is left of it; this one is marked first                  |
 | `toJSON()`, `builder.resume(id \| json)` | the record, and the plan back from it                                                              |
 | `id`, `status`, `steps`, `step(name)`    | the plan as data; `step(name)` of a name it does not have is `INVALID_OPTION`                      |
-| `fee`, `until`                           | the fees of all its transactions; the latest end of validity among them                            |
+| `fee`, `until`, `replacedBy`             | the fees of all its transactions; the latest end of validity; the id of the plan in its place      |
 | `landed`, `live`, `rest`                 | the steps in a block; those that may still land; what is left, as steps (given built: a `BuiltTx`) |
 
 A step is the `BuiltTxData` of its transaction with `name`, `kind` (`"consolidation"` for a step
@@ -434,12 +434,12 @@ know, are `INVALID_OPTION`, before anything is asked, written or sent.
 | `failed`   | in a block with a failed script: its collateral is taken                           | it will not land                                           |
 | `orphaned` | a step it stands on will not land                                                  | it will not land, by what the chain shows                  |
 
-| Plan       | Meaning                                                                                                                     | The application may conclude                                            |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `pending`  | it may still complete                                                                                                       | `run()` takes it on                                                     |
-| `stopping` | it does not go on: a step will not land, `stop()` was called, or it was `stopped` once (`halted`); steps in `live` may land | wait: no new plan for the rest yet                                      |
-| `stopped`  | it does not go on, and every step is `final` or will not land                                                               | nothing more of it is expected to land, by what the chain shows: `rest` |
-| `final`    | every step is `final`                                                                                                       | every payment of it is paid; this status never changes                  |
+| Plan       | Meaning                                                                                                                                                                | The application may conclude                                                                 |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `pending`  | it may still complete                                                                                                                                                  | `run()` takes it on                                                                          |
+| `stopping` | it does not go on: a step will not land, `stop()` or `replan` marked it, it was `stopped` once (`halted`), or a plan `replan` made found an old transaction in a block | steps in `live` may still land: no "not paid" yet; `replan` keeps a new plan apart from them |
+| `stopped`  | it does not go on, and every step is `final` or will not land                                                                                                          | nothing more of it is expected to land, by what the chain shows: `rest`                      |
+| `final`    | every step is `final`                                                                                                                                                  | every payment of it is paid; this status never changes                                       |
 
 A payment is paid when its step is `final`, and `plan.status === "final"` says it of every step.
 Goods are released at `final`: never at `included`, which a rollback can undo (the step goes back
@@ -449,19 +449,17 @@ that a payment did not go through; only the status of its step does. A status th
 know means neither "landed" nor "will not land".
 
 `expired` and `orphaned` rest on the provider's searches, so a step called dead is still looked
-for. Found in a block, it counts as landed: it is `included`, then `final`, the plan's status
-follows its steps (a `stopped` plan may leave `stopped`), and `trace` gets the warning
-`DEAD_STEP_FOUND`. A step is `orphaned` only while a step it stands on is called dead: when that
-step is found, the orphan is what its own record says again (`sent` if it was sent or found
-before, else `signed` or `built`), and that look's facts about it apply. `final` and `failed`
-never change, so a step that stands on a `failed` one stays `orphaned`.
+for. Found in a block, it is `included`, then `final`; the plan's status follows (a `stopped` plan
+may leave `stopped`), and `trace` gets `DEAD_STEP_FOUND`. A step is `orphaned` only while a step
+it stands on is called dead; once that step is found, the orphan is what its own record says
+(`sent` if it was sent or found before, else `signed` or `built`). `final` and `failed` never
+change, so a step on a `failed` one stays `orphaned`.
 
-A plan that came to `stopped` by its steps records it (`halted: true`, never removed). A later
-find takes it to `stopping` or `final`, never back to `pending`, and it never sends a step for the
-first time again. A step orphaned before its first send comes back `signed` or `built` and stays
-in `live` and `rest`: this plan never sends it, and stays `stopping` until it is found in a block
-(another party may send its bytes) or expires by its own end of validity and the margin. The
-plan is `final` or `stopped` once every step is `final` or will not land.
+A plan that came to `stopped` by its steps records it (`halted: true`). A later find takes it to
+`stopping` or `final`, never back to `pending`, and it never sends a step for the first time
+again. A step orphaned before its first send comes back `signed` or `built` and stays in `live`
+and `rest`: the plan stays `stopping` until that step is found in a block (another party may send
+its bytes) or expires by its own end of validity and the margin.
 
 ### Several transactions
 
@@ -496,13 +494,17 @@ await plan.sign(); // both bodies, before anything is sent
 await plan.run(); // lock, a block, then unlock
 ```
 
-Named steps are an object, sent in the order of its keys. A step is parts, a transaction built
-before (below), or `{ parts, ...options }` with build options of its own: `payer`, `canSelect`,
-`coinSelection`, `sendAllTo`, `fee`, `registeredPools`, `extraKeyWitnesses`, `topUpCollateral`,
-`collateralReturn`. A name is not empty, not a whole number and does not start with `consolidate-`;
-a plan has at most 32 steps. With named steps, `sendAllTo` and `fee` are given in the step, and a
-builder that holds parts from `.add()` is `INVALID_OPTION`. Every error of building a step names the
-step at the start of its message.
+Named steps are an object, sent in the order of its keys. A step is parts, `{ parts, ...options }`
+with build options of its own (`payer`, `canSelect`, `coinSelection`, `sendAllTo`, `fee`,
+`registeredPools`, `extraKeyWitnesses`, `topUpCollateral`, `collateralReturn`), or a transaction
+built before ([below](#a-transaction-built-elsewhere-as-a-step)). A name is not empty, not a whole
+number and does not start with `consolidate-`; a plan has at most 32 steps. With named steps,
+`sendAllTo` and `fee` are given in the step, and a builder that holds parts from `.add()` is
+`INVALID_OPTION`. Every error of building a step names the step at the start of its message. A
+payer that answers two change addresses within one call is `INVALID_OPTION` (`payer`): a
+snapshot has one.
+
+### Links and order
 
 A part names an output of an earlier step by a link, where it takes a UTxO; nothing is looked up
 and no hash is written by hand:
@@ -520,78 +522,20 @@ are checked as for a UTxO given in full. Outside a plan a linked part is `UNRESO
 
 **Order.** A step built from parts spends the change that the step before it of the same payer
 leaves, unless it already spends, reads or puts up an output of that step. So the ledger keeps the
-order: step 3 cannot land without step 2. When that step leaves no change this one may take (it paid
-everything out, `canSelect` refuses its change, `sendAllTo` sends it elsewhere, or another step
-spends it), `builder.plan()` throws `INVALID_OPTION` (`steps`): link the step to an output of the
-step before, or make it a plan of its own. `run()` sends a step only when every step before it is in
-a block. Selection takes, of the outputs of earlier steps, their change only.
+order: step 3 cannot land without step 2. When that step leaves no change this one may take (it
+paid everything out, `canSelect` refuses its change, `sendAllTo` sends it elsewhere, or another
+step spends it), `builder.plan()` throws `INVALID_OPTION` (`steps`): link the step to an output of
+the step before, or make it a plan of its own. `run()` sends a step only when every step before it
+is in a block. Selection takes, of the outputs of earlier steps, their change only.
 
 **Another payer.** A step given as `{ parts, payer: treasuryAddress }` is built on that payer's
 UTxOs, its change goes there, and it stands on the step before it of that payer. Its payer does not
 sign by default: name it among the call's signers, as in
 `plan.run({ signers: [wallet, keySigner(treasuryKey)] })`.
 
-**One deadline.** Every step whose parts give no `until` ends at `max(tip time, from) + ttlMs`,
-the tip read once when the plan is made; signing and landing every step fit in it, so a plan of
-many steps or slow signers gets a longer `ttlMs`. A step whose parts give `until` keeps it.
-`plan.until` is the latest end among the steps.
-
-**A fragmented wallet.** A step that does not fit a transaction because of the inputs its
-selection needs (`TX_TOO_LARGE`, `cause: "selection"`) gets consolidation steps before it,
-`consolidate-1`, `consolidate-2`, … with `kind: "consolidation"`: each spends many of the payer's
-UTxOs and pays the payer alone, the tokens the step does not need in outputs of their own, and the
-step is built on the change of the last; a later step of the plan that needs one of those tokens
-may spend such an output, and a later step of the payer with `sendAllTo` takes every one of them.
-With `plan.add`, the parked outputs of a consolidation step that is in a block are the payer's
-UTxOs like any other, which an added step may select. They are signed, sent and recorded as any
-step; `plan.steps` and `plan.fee` show them and their fees before anyone signs, and `trace` gets
-`{ type: "warning", code: "CONSOLIDATION_STEPS", steps, fee }`. A plan has at most 4, those of
-`plan.add` counted; `consolidate: { maxSteps }` (1 to 31) sets the limit, and
-`consolidate: false` leaves the step's `TX_TOO_LARGE`. A step with `sendAllTo` is never
-consolidated, and `rest` leaves them out.
-
-**A transaction built before.** A step may be a transaction built before: a `BuiltTx`, or its CBOR
-hex, in `builder.plan` and in `plan.add`. It is taken as it is and read from its own bytes as
-`fromCbor` reads them; what `fromCbor` refuses is refused, with the step's name, and a text that
-is no transaction at all before any request. The UTxOs it names come from the plan's earlier steps,
-`after` (the outputs its transactions' own bytes hold, never those an object of it states),
-`knownUtxos`, else the provider; never from the object.
-
-A plan asks no signer for it, in `sign()` or `run()`, with signers named or without: sign the
-`BuiltTx` before it is given, after reading `missing`, `collateral` and `warnings`, or give its
-witnesses to `plan.addWitnesses`; at its turn without a key it is `MISSING_SIGNATURES`, and
-nothing is sent. It is `kind: "prebuilt"` in `plan.steps`, and its warnings are in
-`plan.step(name).warnings`.
-
-Without an end of validity it never expires (`NEVER_EXPIRES`): `plan.until` is undefined and the
-plan is not `stopped` while that step may still land, so a transaction built for a plan gets a
-`validity({ until })`. When such a step was never sent and another transaction spends one of its
-inputs, it can never land, but the plan cannot tell who spent the input: it stays `stopping`,
-never `stopped`, and `stop()` does not change that. Ask its maker for a transaction with an end of
-validity, or let the plan build the step. A plan in its place (`replan`) holds that transaction
-byte for byte, or must spend an input of it.
-
-What it spends no other step spends or selects, and what it reads or puts up as collateral no step
-the plan builds spends or selects, whether it stands before or after it; a part that spends such
-an output, and two steps that spend one output, are `INVALID_OPTION` (`steps`). Two steps may read
-one output, or put up one UTxO as collateral. Its outputs are named by position. Labels come only
-with an object that `build` or `finalize` made in this process, or that `rest` gave back: an
-object of `restore` or `fromCbor`, and CBOR, are read by position, and a link by label to them is
-`UNKNOWN_LABEL`. Selectable change comes only with an object, and only an output its bytes put at
-the payer's own change address is selected. Such a transaction, with an output marked change at the
-payer's change address, is a step of that payer: `run()` sends the steps in order, but the ledger
-keeps it in order only where a later step spends an output of it. A transaction that spends an
-output of a step the plan builds is added afterwards with `plan.add`, once its maker has that
-step's hash. `rest` gives it back as a `BuiltTx` with the witnesses the plan holds, its labels and
-change marks, and no payer; the same transaction in another plan cannot pay twice, and a new one
-comes from its maker.
-
-```ts
-const swap = await builder.fromCbor(tx); // the partner's bytes; read missing and warnings
-await swap.sign({ signers: wallet });
-const swapPlan = await builder.plan({ swap, pay }, { payer: wallet }); // the plan signs pay only
-await swapPlan.run();
-```
+**One deadline.** Every step whose parts give no `until` ends at `max(tip time, from) + ttlMs`, the
+tip read once when the plan is made; signing and landing every step fit in it, so a plan of many
+steps or slow signers gets a longer `ttlMs` ([Deadlines and waiting](#deadlines-and-waiting)).
 
 ### Adding steps
 
@@ -624,11 +568,11 @@ if (order.status === "pending") await order.run(); // a repeat returns the plan 
 - **The repeat.** The same call again builds nothing and returns the plan, whatever its status:
   read `plan.status` after `add`. A name the plan has with other parts is `INVALID_OPTION`
   (`steps`). After `ABORTED` or `STORE_FAILED` while the record is written the steps may be
-  recorded, and the same call tells.
+  recorded, and the same call tells. A repeated id: [One id, one plan](#one-id-one-plan).
 - **Two writers.** The one that lost gets `VERSION_CONFLICT`: none of its steps is recorded, and
   the same call builds on the plan as it is.
-- **A repeated id.** `builder.plan(steps, { id })` returns the recorded plan when `steps` are the
-  steps it was made with, or all its steps in order; anything else is `PLAN_EXISTS`.
+- **On a plan `replan` made**, no added step may land beside an old transaction that may still
+  land: one that shares no input with it is `STILL_LIVE` until that transaction is dead.
 
 Limits: a plan has at most 32 steps, consolidation steps counted. Without a store, a copy of the
 JSON saved before an `add` does not hold the added steps, and the same `add` on it builds and pays
@@ -637,6 +581,70 @@ made with are not known to `add`: a step added while one of them is not in a blo
 input it spends, and the ledger refuses one of the two. A link to an output of a final step is not
 checked against the chain again. A builder that holds parts from `builder.add` cannot add steps
 (`INVALID_OPTION`): resume the plan on one that holds none.
+
+### A fragmented wallet
+
+A step that does not fit a transaction because of the inputs its selection needs (`TX_TOO_LARGE`,
+`cause: "selection"`) gets consolidation steps before it, in `builder.plan` and in `plan.add`:
+`consolidate-1`, `consolidate-2`, … with `kind: "consolidation"`. Each spends many of the payer's
+UTxOs and pays the payer alone, the tokens the step does not need in outputs of their own, and the
+step is built on the change of the last. They are signed, sent and recorded as any step;
+`plan.steps` and `plan.fee` show them and their fees before anyone signs, and `trace` gets
+`{ type: "warning", code: "CONSOLIDATION_STEPS", steps, fee }`. `rest` leaves them out.
+
+- **Parked tokens.** A later step that needs one of those tokens may spend its output. With
+  `plan.add`, the parked outputs of a consolidation step that is in a block are the payer's UTxOs
+  like any other, which an added step may select.
+- **A sweep.** A later step of the payer with `sendAllTo` takes every parked output. A step with
+  `sendAllTo` is never consolidated itself.
+- **`consolidate`.** At most 4 in the plan as a whole, those of `plan.add` counted;
+  `consolidate: { maxSteps }` (1 to 31) sets the limit, and `consolidate: false` leaves the step's
+  `TX_TOO_LARGE`. The step's `TX_TOO_LARGE` is also thrown when more are needed than the limit
+  allows, or one cannot be built.
+
+### A transaction built elsewhere as a step
+
+A step may be a transaction built before: a `BuiltTx`, or its CBOR hex, in `builder.plan` and in
+`plan.add`. It is `kind: "prebuilt"` in `plan.steps`, and its warnings are in
+`plan.step(name).warnings`. Read one another party built as
+[A transaction built elsewhere](#a-transaction-built-elsewhere) says.
+
+```ts
+const swap = await builder.fromCbor(tx); // the partner's bytes; read missing and warnings
+await swap.sign({ signers: wallet });
+const swapPlan = await builder.plan({ swap, pay }, { payer: wallet }); // the plan signs pay only
+await swapPlan.run();
+```
+
+- **Who signs.** A plan asks no signer for it, in `sign()` or `run()`, with signers named or
+  without: sign the `BuiltTx` before it is given, after reading `missing`, `collateral` and
+  `warnings`, or give its witnesses to `plan.addWitnesses`. At its turn without a key it is
+  `MISSING_SIGNATURES`, and nothing is sent.
+- **What is read from bytes.** It is taken as it is and read from its own bytes as `fromCbor`
+  reads them; what `fromCbor` refuses is refused, with the step's name, and a text that is no
+  transaction at all before any request. The UTxOs it names come from the plan's earlier steps,
+  `after` (the outputs its transactions' own bytes hold), `knownUtxos`, else the provider; never
+  from the object.
+- **Labels and change.** Its outputs are named by position. Labels come only with an object that
+  `build` or `finalize` made in this process, or that `rest` gave back: of an object of `restore`
+  or `fromCbor`, and of CBOR, a link by label is `UNKNOWN_LABEL`. Selectable change comes only
+  with an object, and only an output its bytes put at the payer's own change address. Such a
+  transaction is a step of that payer: `run()` sends the steps in order, but the ledger keeps it
+  in order only where a later step spends an output of it. A transaction that spends an output of
+  a step the plan builds is added afterwards with `plan.add`, once its maker has that step's hash.
+- **What it uses is kept for it.** What it spends no other step spends or selects, and what it
+  reads or puts up as collateral no step the plan builds spends or selects, before it or after.
+  A part that spends such an output, and two steps that spend one output, are `INVALID_OPTION`
+  (`steps`). Two steps may read one output, or put up one UTxO as collateral.
+- **A step that never expires.** Without an end of validity (`NEVER_EXPIRES`) `plan.until` is
+  undefined, and the plan is not `stopped` while the step may still land. Never sent, with an
+  input another transaction spent, it can never land, but the plan cannot tell who spent the
+  input: it stays `stopping`, never `stopped`, and `stop()` does not change that. Give a
+  transaction built for a plan a `validity({ until })`, or let the plan build the step. A plan in
+  its place (`replan`) holds that transaction byte for byte, or must spend an input of it.
+- **Given back.** `rest` gives it back as a `BuiltTx` with the witnesses the plan holds, its
+  labels and change marks, and no payer; the same transaction in another plan cannot pay twice,
+  and a new one comes from its maker.
 
 ### Chains
 
@@ -682,18 +690,22 @@ call. Every request of the call (a search, the tip, a read or write of the store
 no longer than the time left, then the call throws `CONFIRM_TIMEOUT`: a submit that did not answer
 leaves the step `sent`, its outcome unknown, as a lost answer does; a write that did not answer
 may have passed. A signer is bounded not by `timeoutMs` but by the step's end of validity
-(`SIGNER_FAILED`, `timeout`); in `run()` the time it takes counts in `timeoutMs`.
+(`SIGNER_FAILED`, `timeout`); in `run()` the time it takes counts in `timeoutMs`, so after a slow
+signer the call may end in `CONFIRM_TIMEOUT` before it sends, and the same `run()` goes on. Give a
+slow signer to `sign()` first: it has no `timeoutMs`.
 
 `sign()` signs every step up front where the signer can; a step a signer gives no witness for (a
 browser wallet that does not know an input yet) stays `built`, and `run()` asks again at its turn.
 A co-signer's witnesses go through `addWitnesses`. Once a step was sent, its bytes are fixed:
-signatures given later change nothing. After `stop()`, `run()` looks, then throws `INVALID_STATE`
-(`stopped`), and so do `sign()` and `addWitnesses()`. On a plan with a step that will not land,
-`run()` looks, sends again the bytes of the steps it sent that stand on no dead step, then throws
-that step's error. A `halted` plan goes on only while its first step not in a block is one it
-sent: `run()` sends the same bytes and waits; when that step is one it never sent, `run()` throws
-`INVALID_STATE` (`stopped`). On both, `sign()` and `addWitnesses()` throw `INVALID_STATE`
-(`stopped`).
+signatures given later change nothing. A plan that does not go on sends no step for the first
+time:
+
+| The plan                        | `run()`                                                                                        | `sign()`, `addWitnesses()`       |
+| ------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------- |
+| stopped by `stop()` or replaced | looks, then throws `INVALID_STATE` (`stopped`)                                                 | `INVALID_STATE` (`stopped`)      |
+| a step will not land            | looks, sends again the steps it sent that stand on no dead step, then throws that step's error | `INVALID_STATE` (`stopped`)      |
+| `halted`, and found again       | sends again the steps it sent and waits; `INVALID_STATE` (`stopped`) at a step it never sent   | `INVALID_STATE` (`stopped`)      |
+| `final`, also after `halted`    | returns at once                                                                                | sign nothing and keep no witness |
 
 | Error                | What it says                                                                                                                                        | What the application does                                               |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
@@ -706,12 +718,11 @@ sent: `run()` sends the same bytes and waits; when that step is one it never sen
 | `SCRIPT_FAILED`      | a step is in a block with a failed script; its collateral is taken                                                                                  | the same, with the parts fixed                                          |
 | `ORPHANED`           | a step stands on a step that will not land                                                                                                          | the same as for that step                                               |
 
-`rejected` is not "will not land": the bytes exist, anyone may send them until their validity ends,
-and a refusal by a lagging node passes on the next try. Each of these errors names its step in
-`error.step`. `EXPIRED`, `SCRIPT_FAILED` and `ORPHANED` say the plan's status, `stopping` or
-`stopped`, in the message and in `error.status`: a `stopping` plan has steps that may still land,
-so they do not mean "pay again". A retry is the same call on the same plan: a new build of the
-same transaction by `builder.build()` could pick other inputs, and both could land.
+Each names its step in `error.step`. A refusal by a lagging node passes on the next try.
+`EXPIRED`, `SCRIPT_FAILED` and `ORPHANED` give the plan's status in `error.status`: a `stopping`
+plan has steps that may still land, so they do not mean "pay again". A retry is the same call on
+the same plan: a new build of the same transaction by `builder.build()` could pick other inputs,
+and both could land.
 
 ### A step that does not go through
 
@@ -740,16 +751,15 @@ if (plan.status !== "final") {
 }
 ```
 
-`plan.landed` lists the steps in a block, `plan.live` those not in a block and not known to be
-dead. `plan.rest` is the steps never found in a block, as `builder.plan` takes them: the parts
-each was given, links kept, with its own options; a step with its own payer comes back with that
-payer's change address as its payer (give the payer itself in its place to sign with it). It shows
-what is left; once the plan is replaced it is empty.
+`plan.rest` is the steps never found in a block, as `builder.plan` takes them: the parts each was
+given, links kept, with its own options; a step with its own payer comes back with that payer's
+change address as its payer (give the payer itself in its place to sign with it). It shows what
+is left; once the plan is replaced it is empty.
 
 What is left is paid by a plan in its place: `plan.replan({ id })` builds what its look shows
-open, or the application's `steps`. The payer, deadlines and data options are the old plan's
-unless given; deadlines given are the new plan's and carry on. Never `builder.plan(plan.rest)`:
-nothing keeps that plan apart from the old one.
+open, less a `failed` step, or the application's `steps`. The payer, deadlines and data options
+are the old plan's unless given; deadlines given are the new plan's and carry on. Never
+`builder.plan(plan.rest)`: nothing keeps that plan apart from the old one.
 
 - It stands only on final steps: while one is in a block and not final it throws `CANNOT_OBSERVE`
   (`unconfirmed`, again after `retryAfterMs`). A final step is never built again; a link to one is
@@ -765,9 +775,11 @@ nothing keeps that plan apart from the old one.
   once the new plan is recorded. A provider that hides a landed transaction from that look, and
   shows none of its outputs in the payers' reads or at the addresses it paid (at most 16 are
   read), makes the new plan pay twice.
-- Dead ends, where no plan is made: an old transaction found in a block once and gone, its inputs
-  spent by others; a step given built that never expires, which the new plan neither holds nor
-  shares an input with; an id another plan took after a crash that followed the mark.
+- Dead ends, where no plan is made: nothing left to build (every step is final, failed or a
+  consolidation step: `INVALID_OPTION`, `steps`), unless `steps` are given; an old transaction
+  found in a block once and gone, its inputs spent by others; a step given built that never
+  expires, which the new plan neither holds nor shares an input with; an id another plan took
+  after a crash that followed the mark.
 - The old plan is marked first, by compare-and-set: `replacedBy` names the new plan, and the old
   one signs and sends nothing more. The id is the new plan's alone. The same call again returns
   the same plan, also after a crash that followed the mark; with other options, the plan recorded
@@ -806,15 +818,10 @@ are fixed, and new content is a new plan.
 ```ts
 const plan = await builder.plan(pay, { id: orderId, payer: api }); // a builder with a store, in the browser
 await plan.run({ submitter: api }); // submitTx of the wallet; the tip and the search are the provider's
-// a submitTx error (TxSendError: Refused 1, Failure 2) is SUBMIT_FAILED, not a refusal: the outcome
-// is unknown, the code is in details.walletCode, details.reason is "unknown" for a TxSendError
-// ("refused" when the wallet passes on the ledger's refusal); the same run() sends the same bytes
-// after a reload of the tab:
+// a submitTx error (TxSendError) is SUBMIT_FAILED, not a refusal: the outcome is unknown, the code is
+// in details.walletCode; after a reload of the tab the same run() sends the same bytes:
 const resumed = await builder.resume(orderId, { payer: api });
-await resumed.run({ submitter: api });
-// submitter is an option of the call: a run() without it sends the same bytes through the
-// builder's submitter or the provider; a builder of one user may hold the wallet itself:
-// new TxBuilder({ network: "preprod", provider, store, submitter: api })
+await resumed.run({ submitter: api }); // given in each call: see Payer, signer, submitter
 ```
 
 ### Without a wallet: an address or a snapshot
@@ -834,9 +841,7 @@ await bySnapshot.run({ signers: api });
 
 ### A cold signer
 
-A transaction built by a machine with a provider and signed elsewhere is an ordinary plan:
-`await builder.plan()`, the step's `tx` to the signer, `addWitnesses()` with what comes back,
-`run()`.
+A transaction built by a machine with a provider and signed elsewhere is an ordinary plan.
 
 ```ts
 const plan = await builder.plan(pay, { payer: coldAddress });
@@ -964,18 +969,20 @@ On a builder with a store every plan needs an `id` (`MISSING_ID`), the key of it
 `await builder.plan(steps, { id })` reads the store first: an `id` recorded with the same steps
 and options returns the recorded plan as recorded, and reads nothing but the payer's change
 address, so a repeated request handler is safe; other steps or options are `PLAN_EXISTS`, and
-nothing is written. Compared: the steps as given (links kept; one built before by the hash of its
-body), their data options and each payer's change address, the plan's data options, the network and
-the deadlines the call gives. Not compared: the builder's `planDefaults`, `after` and functions. The
-comparison is strict: an option the record holds that the call leaves out, or a default the call
-states that the record does not hold, is `PLAN_EXISTS`. A known `id` is opened with
-`await builder.resume(id)`.
+nothing is written. After `plan.add`, the same steps are those the plan was made with, or all its
+steps in order. Compared: the steps as given (links kept; one built before by the hash of its
+body), their data options and each payer's change address, the plan's data options, the network
+and the deadlines the call gives. Not compared: the builder's `planDefaults`, `after` and
+functions. The comparison is strict: an option the record holds that the call leaves out, or a
+default the call states that the record does not hold, is `PLAN_EXISTS`. A known `id` is opened
+with `await builder.resume(id)`; a new id is for a new order, and under a new id the same steps
+are paid again.
 
 Recorded: the steps, the data options (`knownUtxos`, `registeredPools`, `extraKeyWitnesses`,
 `topUpCollateral`, `collateralReturn`, `consolidate`, and a step's `sendAllTo` and `fee`), each
-payer's change address and the three effective deadlines. Not recorded: wallets, signers, the submitter,
-functions (`canSelect`, `coinSelection`, `trace`) and `signal`. Every change is saved before the
-method returns: a new plan before it is returned, a delivery before the bytes leave.
+payer's change address and the three effective deadlines. Not recorded: wallets, signers, the
+submitter, functions (`canSelect`, `coinSelection`, `trace`) and `signal`. Every change is saved
+before the method returns: a new plan before it is returned, a delivery before the bytes leave.
 
 Two processes may hold one plan, and both send the same bytes. A write over a revision another
 writer changed reads the record again and applies the same fact, up to three times, then
@@ -1041,18 +1048,18 @@ it.
 
 ### Reconciliation of unfinished plans
 
-The application keeps the ids of its plans that are neither `final` nor `stopped`. It writes an
-id into that list, with the order or payout it pays, before the plan's first `await`: a crash
-inside `run()` may come after the delivery is recorded and the bytes have left, and an id written
-only after `run()` returns would then be missing from the list, with nobody to learn whether it
-paid. It removes the id only once its last plan is `final`. A retried job uses the same
-id, never a fresh one: under a fresh id it may pay a second time. Once a minute and after a
-restart it calls `resume(id)` and `run()` for each.
+The application keeps the ids of its plans that are not `final`. It writes an id into that list,
+with the order or payout it pays, before the plan's first `await`: a crash inside `run()` may come
+after the delivery is recorded and the bytes have left, and an id written only after `run()`
+returns would then be missing from the list, with nobody to learn whether it paid. It removes the
+id only once its last plan is `final`. A retried job uses the same id, never a fresh one: under a
+fresh id it may pay a second time. Once a minute and after a restart it calls `resume(id)` and
+`run()` for each.
 
 ```ts
 // Once a minute and after a restart (a builder with a store)
 for (const id of await db.openPlanIds()) {
-  // plans neither final nor stopped
+  // plans that are not final
   try {
     let plan = await builder.resume(id, { payer: await payerFor(id) });
     await plan.refresh();
@@ -1069,12 +1076,16 @@ for (const id of await db.openPlanIds()) {
 ```
 
 `resume` reads the store only: it makes no request to the chain and does not call the payer; the
-provider is probed before the first delivery. The reconciliation has no list of statuses of its
-own: it reports an error and goes on to the next id. Errors with `retryable: true` are a wait,
-not a failure. With `waitFor: "sent"` each pass moves a plan one step on. A plan with a step that
-will not land is `stopping` until nothing more of it can land, which may take until its steps'
-end of validity and the margin; the loop keeps it until it is `stopped`, then pays what is left by
-`replan` ([A step that does not go through](#a-step-that-does-not-go-through)). A payer is
+provider is probed before the first delivery. Errors with `retryable: true` are a wait, not a
+failure. With `waitFor: "sent"` each pass moves a plan one step on. A plan with a step that will
+not land is `stopping` until nothing more of it can land, which may take until its steps' end of
+validity and the margin; the loop keeps it until it is `stopped`, then pays what is left by
+`replan` ([A step that does not go through](#a-step-that-does-not-go-through)). A `stopped` plan
+that a later look finds a step of is `stopping` or `final` again: the loop follows it as it is, and
+a plan already made in its place stops by itself once it finds that step. A line that ends where
+nothing is left to build (a `failed` step, whose parts need fixing) stays in the list, and the
+loop reports its `INVALID_OPTION` on every pass until the application decides. A plan the
+application stops on purpose leaves this list: the loop would pay what is left of it. A payer is
 needed only to sign: a plan whose record holds every signature needs none, and a separate signer
 or sender is given to `run({ signers, submitter })`.
 
@@ -1093,12 +1104,13 @@ The library owns the record's format: a store keeps it as data and adds no membe
 database key, a timestamp). The reader refuses a member it does not know, so a store that returns
 `_id` or `updatedAt` inside the record makes every read throw `INVALID_STATE` (`recordVersion`);
 keep such columns beside the record. A store without compare-and-set can record two different
-plans under one `id`, which the library cannot detect. Records are never deleted while their plan
-is neither `final` nor `stopped`. Tests use `memoryPlanStore()`. Each store below ends with
-`await checkPlanStore(store)`, run once when a store is set up, not at every start: it checks
-two writers, a lost acknowledgement, a crash between a write and a send, and that `load` returns a
-record member by member as it was saved; it leaves a few records under ids that start with
-`checkPlanStore:`, and rejects with a plain `Error` naming the check that failed.
+plans under one `id`, which the library cannot detect. A record is kept while its plan is not
+`final`: a `stopped` plan may be found again, and its line is followed from it. Tests use
+`memoryPlanStore()`. Each store below ends with `await checkPlanStore(store)`, run once when a
+store is set up, not at every start: it checks two writers, a lost acknowledgement, a crash
+between a write and a send, and that `load` returns a record member by member as it was saved; it
+leaves a few records under ids that start with `checkPlanStore:`, and rejects with a plain `Error`
+naming the check that failed.
 
 **The record.** `plan.toJSON()`, and what a store holds, shortened:
 
@@ -1116,48 +1128,23 @@ record member by member as it was saved; it leaves a few records under ids that 
     "confirmations": 30
   },
   "steps": [
-    {
-      "name": "lock",
-      "status": "included",
-      "txHash": "40da3c83…",
-      "seen": { "slot": 138994726 },
-      "sends": 1,
-      "refused": 0,
-      "tx": { "kind": "BuiltTx", "txHash": "40da3c83…", "…": "…" },
-      "given": { "parts": [{ "kind": "output", "label": "vault", "…": "…" }] }
-    },
-    {
-      "name": "unlock",
-      "status": "signed",
-      "txHash": "9b1e07f2…",
-      "standsOn": ["lock"],
-      "sends": 0,
-      "refused": 0,
-      "tx": { "kind": "BuiltTx", "txHash": "9b1e07f2…", "…": "…" },
-      "given": { "parts": [{ "link": { "step": "lock", "output": "vault" } }] }
-    }
+    { "name": "lock", "status": "included", "txHash": "40da3c83…", "…": "…" },
+    { "name": "unlock", "status": "signed", "txHash": "9b1e07f2…", "…": "…" }
   ],
   "options": { "changeAddress": "addr_test1…" }
 }
 ```
 
-Applications read `id`, `rev`, `status`, `stopped` (set by `stop()`), `halted` (the plan came to
-`stopped` by its steps), `deadlines` and, of each step, `name`, `status` and `txHash`; the rest is
-the library's. `stopped` and `halted` are `true` when present and never removed. `replacedBy`
-names the plan `replan` made in place of this one, which then signs and sends nothing more; that
-plan holds `replaces`, this plan's id, and `before`, what it keeps of the plans before it. A
-step's `tx` is the JSON of its `BuiltTx` without what its bytes and its recorded
-UTxOs give again: `prototype` is read from the bytes when they give it as it was built (only the
-members they give otherwise are written, such as Plutus data given as a value), and a part, selected
-input, change output or redeemer's part that repeats an entry of the same transaction is written as
-that entry's place. The reader reads the bytes again, compares the hash, finds the recorded inputs
-to be those of the body, in its order, and verifies every witness; it also reads a step's `tx`
-written whole, as `toJSON()` of a `BuiltTx` writes it, which `restore` takes and a step's `tx` no
-longer is. A consolidation step of 444 inputs is about 360 KB written whole and 165 KB so. `given`
-is the step as it was given, links kept, which `rest` returns (a step given built has
-`kind: "prebuilt"`, no `given`, and its witnesses in the set-tag form they came in); `seen` stays
-when a rollback takes a step out of its block, and a step built on transactions of `after` names
-them in `after`. This release writes version 2 and reads no other.
+Applications read `id`, `rev`, `status`, `stopped` (the plan signs and sends nothing more: set by
+`stop()`, by `replan`, or when a plan `replan` made finds an old transaction in a block),
+`halted` (the plan came to `stopped` by its steps), `replaces`, `replacedBy`, `deadlines` and, of
+each step, `name`, `kind`, `status` and `txHash`; the rest is the library's. `stopped` and
+`halted` are `true` when present and never removed. `replacedBy` names the plan `replan` made in
+place of this one; that plan holds `replaces`, this plan's id. A step's `tx` is its transaction
+with the witnesses the plan holds, written shorter than `toJSON()` of a `BuiltTx`, which
+`restore` takes and a step's `tx` is not; the reader reads its bytes again, compares the hash and
+verifies every witness. `seen` stays when a rollback takes a step out of its block. This release
+writes version 2 and reads no other.
 
 **A server**: a table keyed by `id`, with a `rev` column and a conditional write.
 
@@ -1203,35 +1190,11 @@ const store = sqlPlanStore(pool);
 await checkPlanStore(store);
 ```
 
-**A browser**: web storage. Two tabs on one key are two writers: web storage has no
-compare-and-set across tabs, so keep one plan to one tab (the checkout), or use a server store.
-Cleared site data loses the records.
-
-```ts
-import type { StoredTxPlanJSON, TxPlanStore } from "@meshsdk/transaction";
-import { checkPlanStore } from "@meshsdk/transaction";
-
-const webPlanStore = (storage: Storage, prefix = "tx-plan:"): TxPlanStore => ({
-  async load(id) {
-    const text = storage.getItem(prefix + id);
-    return text === null ? undefined : (JSON.parse(text) as StoredTxPlanJSON);
-  },
-  async save(json, expectedRev) {
-    const text = storage.getItem(prefix + json.id);
-    const rev = text === null ? 0 : (JSON.parse(text) as StoredTxPlanJSON).rev;
-    if (rev !== expectedRev) return false;
-    storage.setItem(prefix + json.id, JSON.stringify(json));
-    return true;
-  },
-});
-
-const store = webPlanStore(window.localStorage);
-await checkPlanStore(store);
-```
-
-**A mobile application**: the platform's asynchronous key-value storage, with the application as
-its only writer; saves are run one after another, so that each compares and writes in one step.
-On SQLite, the server recipe applies as it is.
+**A browser or a mobile application**: asynchronous key-value storage, with the application as
+its only writer; saves run one after another, so that each compares and writes in one step. In a
+browser, two tabs on one key are two writers: web storage has no compare-and-set across tabs, so
+keep one plan to one tab (the checkout), or use a server store; cleared site data loses the
+records. On SQLite, the server recipe applies as it is.
 
 ```ts
 import type { StoredTxPlanJSON, TxPlanStore } from "@meshsdk/transaction";
@@ -1264,8 +1227,13 @@ const keyValuePlanStore = (kv: KeyValue, prefix = "tx-plan:"): TxPlanStore => {
   };
 };
 
-const store = keyValuePlanStore(deviceStorage);
+const store = keyValuePlanStore(deviceStorage); // a mobile platform's storage
 await checkPlanStore(store);
+const webStore = keyValuePlanStore({
+  getItem: async (key) => window.localStorage.getItem(key),
+  setItem: async (key, value) => window.localStorage.setItem(key, value),
+});
+await checkPlanStore(webStore);
 ```
 
 A plan without a store lives in its object only: the whole lifecycle works, and a crashed
@@ -1299,45 +1267,35 @@ await claim.run();
 
 ## Deadlines and waiting
 
-**Where they are set.**
-
-- **Deadlines**: `ttlMs`, `expiryMarginMs` and `confirmations` (`PlanDeadlines`). The builder's
-  default (`planDefaults`) and the plan's options give them. The effective values are worked
-  out once, when the plan is made, and all three are always written into its record
-  (`deadlines`). They are never read from the builder again: neither `resume` nor a change of
-  `planDefaults` changes them.
-- **Waiting**: `waitFor`, `timeoutMs`, `pollMs` (`RunOptions`). They are options of a call of
-  `run()` (`timeoutMs` and `pollMs` also of `awaitInclusion()` of a transaction of `build()`),
-  and are not recorded. `pollMs` also has a builder default: the pace of polling depends on the
-  provider's limits. `signal` in the same options aborts the whole call.
-- **`resendMs`**: a builder default only; not written into a plan.
+- **Deadlines**: `ttlMs`, `expiryMarginMs` and `confirmations` (`PlanDeadlines`): the plan's
+  options, else the builder's `planDefaults`, else the built-in values. The effective values are
+  worked out once, when the plan is made, and all three are written into its record
+  (`deadlines`); neither `resume` nor a change of `planDefaults` changes them, so the margin of an
+  unfinished plan cannot be raised.
+- **Waiting**: `waitFor`, `timeoutMs`, `pollMs` and `signal` (`RunOptions`), options of a call of
+  `run()` (`timeoutMs` and `pollMs` also of `awaitInclusion()` of a transaction of `build()`), never
+  recorded. `waitFor` and `timeoutMs` are the call's, else built in; `pollMs` the call's, else
+  `planDefaults`, else built in: the pace of polling depends on the provider's limits.
+- **`resendMs`**: `planDefaults`, else built in; never written into a plan.
 
 | Setting          | Default                                                                                  | What it sets                                                                                                                                                                                                                                                | What it costs                                                                                                                                                                                                                                                      | Allowed                                                                           |
 | ---------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
 | `ttlMs`          | `600_000` (10 min)                                                                       | builder and plan; recorded. The end of validity of a step whose parts set no `validity({ until })`: `max(tip time, from) + ttlMs`; also the time left to sign it                                                                                            | longer: the outcome after a lost answer is known later (`ttlMs + expiryMarginMs`); shorter: the signature does not come in time, the step is `expired` (`EXPIRED { unsent: true }`), and the plan does not go on                                                   | `> 0`; for Plutus, a deadline within the horizon (`INVALID_STATE`, `pastHorizon`) |
-| `expiryMarginMs` | `600_000` (10 min)                                                                       | builder and plan; recorded. The margin after a step's end of validity: `expired` once the tip time and the local clock are past the end of validity plus the margin. Not `final`                                                                            | longer: `expired` comes later; shorter: a rollback deeper than the margin is more likely                                                                                                                                                                           | `>= 0`; `0` on an emulator                                                        |
-| `confirmations`  | `30` (about 10 min on average)                                                           | builder and plan; recorded. The depth of `final`: at least this many blocks on top of the step's block. The margin does not change it                                                                                                                       | more: `final` later, 20 s per block on average, though blocks come unevenly; when the chain stalls, `final` waits for blocks, not for time; fewer: a rollback after `final` is more likely. Needs a provider with block heights, else `CANNOT_OBSERVE` (`noDepth`) | a whole number `>= 0`; `0` on an emulator                                         |
+| `expiryMarginMs` | `600_000` (10 min)                                                                       | builder and plan; recorded. The margin after a step's end of validity: `expired` once the tip time and the local clock are past the end of validity plus the margin. Not `final`                                                                            | longer: `expired` comes later; shorter: a rollback deeper than the margin is more likely, and could bring back a step called `expired`                                                                                                                             | `>= 0`; `0` on an emulator and in tests only                                      |
+| `confirmations`  | `30` (about 10 min on average)                                                           | builder and plan; recorded. The depth of `final`: at least this many blocks on top of the step's block. The margin does not change it                                                                                                                       | more: `final` later, 20 s per block on average, though blocks come unevenly; when the chain stalls, `final` waits for blocks, not for time; fewer: a rollback after `final` is more likely. Needs a provider with block heights, else `CANNOT_OBSERVE` (`noDepth`) | a whole number `>= 0`; `0` on an emulator and in tests only                       |
 | `waitFor`        | `"included"`                                                                             | the call only: how far `run()` goes: a delivery, every step in a block, or every step `final`                                                                                                                                                               | further: the caller is busy longer; with `"sent"` only a later call sees the block and `final`                                                                                                                                                                     | `"sent"`, `"included"`, `"final"`                                                 |
 | `timeoutMs`      | `120_000`; for `"final"` `confirmations × 30_000 + 120_000` (`1_020_000`, 17 min, at 30) | the call only: how long `run()` waits for `"included"` or `"final"`, counted anew from the answer to the first send of each step in the call; every request of the call waits no longer than the time left. Then `CONFIRM_TIMEOUT { waitedFor, timeoutMs }` | longer: the caller is busy longer; shorter: `run()` is called again more often                                                                                                                                                                                     | `> 0`                                                                             |
 | `pollMs`         | `5_000`                                                                                  | the call, else the builder: the pause between two looks at the search and the tip while waiting                                                                                                                                                             | shorter: more requests (formula below), up to the provider's limits; longer: inclusion, `final` and `expired` show up to `pollMs` later; with `pollMs` close to `timeoutMs` the call polls once or twice                                                           | `> 0`                                                                             |
 | `resendMs`       | `120_000`                                                                                | the builder only: how often the same bytes of a step that was sent go again while it is not found and a call waits; with a store, after reading the record                                                                                                  | shorter: more submissions and `load`s; longer: a transaction dropped from the mempool comes back later                                                                                                                                                             | `>= pollMs` of the builder                                                        |
 
-**Priority.** Deadlines: the plan's, else `planDefaults`, else the built-in value (`600_000`,
-`600_000`, `30`); the result is recorded when the plan is made. `waitFor` and `timeoutMs`: the
-call's, else the built-in value. `pollMs`: the call's, else `planDefaults`, else the built-in
-value. `resendMs`: `planDefaults`, else the built-in value. For `waitFor: "final"` the built-in
-`timeoutMs` is `confirmations × 30_000 + 120_000` with the plan's recorded `confirmations`; a
-call's `timeoutMs` is taken as it is.
-
-**Validation.** Every number is finite; `ttlMs > 0`; `expiryMarginMs >= 0`; `confirmations` is a
-whole number `>= 0`; `timeoutMs > 0`; `pollMs > 0`; `resendMs >= pollMs` of the builder; `waitFor`
-is `"sent"`, `"included"` or `"final"`. The builder's defaults are checked by its constructor, a
-plan's deadlines by `builder.plan()`, wait options at the start of `run()`, before any request; a
-value out of range is `TxBuildError` `INVALID_OPTION { option, value, allowed }`. A call polling
-less often than `resendMs` is fine: bytes go again on a poll, never more often. The Plutus horizon
-cannot be checked this way, since it depends on the tip and on `from`: `builder.plan()` checks it
-for each step, and an end of validity past it is `INVALID_STATE` (`pastHorizon`), with nothing
-built.
+The built-in `timeoutMs` for `"final"` uses the plan's recorded `confirmations`: one and a half
+times the average block time, since blocks come unevenly; a call's `timeoutMs` is taken as it is.
+Every number is finite. The builder's defaults are checked by its constructor, a plan's deadlines
+by `builder.plan()`, wait options at the start of `run()`, before any request; a value out of
+range is `TxBuildError` `INVALID_OPTION { option, value, allowed }`. A call polling less often
+than `resendMs` is fine: bytes go again on a poll, never more often. The Plutus horizon depends on
+the tip and on `from`: `builder.plan()` and `plan.add` check it for each step, and an end of
+validity past it is `INVALID_STATE` (`pastHorizon`), with nothing built.
 
 **Not configurable:** up to three repeats of a write another writer overtook, then
 `VERSION_CONFLICT`. A plan's time is the chain's: a step expires only when the provider's tip and
@@ -1345,7 +1303,10 @@ the local clock are both past its end of validity plus the margin, and a tip mor
 minutes ahead of the local clock is neither taken nor remembered: that look has no tip, so it
 expires nothing and counts no depth, `trace` gets the warning `TIP_AHEAD_OF_CLOCK`, and later
 looks go by their own tips. While a step past its end of validity may still land, a call that
-waits ends in `CONFIRM_TIMEOUT`, not `EXPIRED`.
+waits ends in `CONFIRM_TIMEOUT`, not `EXPIRED`. A provider's lagging tip does not stop a plan from
+being built: the end of validity is counted from it, and a step may expire before it is signed.
+`REJECTED` and `EXPIRED` say so in `details.tipAgeMs`, the age of the last tip read, by the local
+clock.
 
 **Formulas.**
 
@@ -1363,12 +1324,8 @@ waits ends in `CONFIRM_TIMEOUT`, not `EXPIRED`.
   requests (36 a minute); with the subclass of [Providers and networks](#providers-and-networks) a
   tip costs two requests and a found step three (60 a minute). With a provider that returns block
   heights itself, they come with the tip and the search: depth costs no requests of its own.
-- The signing window runs from the build to the step's end of validity: about `ttlMs`, or up to
-  `from + ttlMs` with `from` in the future.
 - Plutus: the end of validity is not past `max(tip, from)` plus 3k/f slots. The default one is
   counted from the same `max(tip time, from)`, so `ttlMs` stays below the horizon itself.
-- The default wait for `"final"` is `confirmations × 30_000 + 120_000`: one and a half times the
-  average block time, since blocks come unevenly; 17 minutes by default.
 
 **Scenarios.**
 
@@ -1381,25 +1338,6 @@ waits ends in `CONFIRM_TIMEOUT`, not `EXPIRED`.
 | signatures over several days, native script | `ttlMs` in days, a builder with a store                                                                                                                                                            | `ttlMs: 3 * 86_400_000`                                                                                                                                                                                                                                | a signing window of three days; the outcome after a lost answer is known after up to three days and 10 min                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Plutus                                      | `ttlMs` no longer than the horizon: 129 600 slots (36 h) on mainnet and preprod, 25 920 slots (7 h 12 min) on preview                                                                              | `126_000_000` (35 h) on mainnet and preprod, `25_200_000` (7 h) on preview; the limits are `129_600_000` and `25_920_000`. Keep the gap: a node counts the horizon from its own tip, and a lagging one may refuse an end of validity right at the edge | further: `INVALID_STATE` (`pastHorizon`), nothing built; a network whose horizon is not known gets no check                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | an emulator, and tests                      | nothing is required; for fast tests `expiryMarginMs: 0` and `confirmations: 0`                                                                                                                     | `planDefaults: { expiryMarginMs: 0, confirmations: 0 }`; for fast tests also `pollMs: 10, resendMs: 10`                                                                                                                                                | `expired` right after the end of validity (`expiryMarginMs: 0`); `final` right after inclusion (`confirmations: 0`). The emulator's tip is its current slot, and time moves only by `advanceTo`, never by `submitTx`; pauses between polls and `timeoutMs` count real time. A step expires only when the local clock is past its end too, and the emulator starts at the current time: a test that wants `expired` starts it at a past `slot` (`TxEmulator.create({ slot })`), or moves `Date.now` with it. With `confirmations` above 0, `final` comes that many slots after inclusion (`advanceTo`): the emulator makes a block in every slot. With the default margin, `expired` comes 10 min after the end of validity |
-
-**Warnings.**
-
-- A small `expiryMarginMs` declares `expired` while a rollback deeper than the margin could still
-  bring the step back. `expiryMarginMs: 0` is for emulators and tests only.
-- `confirmations` counts blocks for `final` only. The margin stays a time: `expired` follows
-  `expiryMarginMs`. For large sums raise both: the library does not tie them. A small
-  `confirmations` risks a rollback after `final`; `confirmations: 0` is for emulators and tests
-  only.
-- A small `pollMs` runs into the provider's limits: requests a minute as in the formula above, for
-  each step not final and the tip.
-- A short `ttlMs`: the user cannot sign in time, the step is `expired` (`EXPIRED { unsent: true }`),
-  and the plan does not go on.
-- A long `ttlMs`: the outcome after a lost answer takes longer (`ttlMs + expiryMarginMs`).
-- A change of `planDefaults` does not touch recorded plans: their deadlines are in the record.
-  The margin of an unfinished plan cannot be raised.
-- A provider's lagging tip does not stop a plan from being built: the end of validity is counted
-  from it, and a step may expire before it is signed. `REJECTED` and `EXPIRED` say so in
-  `details.tipAgeMs`, the age of the last tip read, by the local clock.
 
 ```ts
 import { MeshWallet } from "@meshsdk/core";
@@ -1790,7 +1728,7 @@ const final = await builder.finalize(edited, {
 
 In a plan, the `utxo` of `spend.*`, `referenceInput` and `collateral` also takes an output of an
 earlier step, `{ step, output }`, and that of `spend.pubKey` all the change of one,
-`{ step, change: true }`: see [Several transactions](#several-transactions).
+`{ step, change: true }`: see [Links and order](#links-and-order).
 
 Parts are immutable and their order does not matter, except for certificates, proposals and outputs,
 which keep it. Outputs given by out ref alone (`{ txHash, outputIndex }`) are looked up; passing the
@@ -2207,14 +2145,18 @@ Warnings do not stop a build: `BuiltTxData.warnings` lists `VALID_FROM_FUTURE` (
 starts after the local clock's time), `COLLATERAL_FORFEITED` (collateral without a collateral
 return: all of it is at stake), `COLLATERAL_RETURN_ELSEWHERE` (only from `fromCbor`: a collateral
 input is held by another payment credential than the one the return pays; the message names each
-holder that loses if a script fails, with its lovelace) and `FEE_ABOVE_MINIMUM` (the `fee` given is
-above the minimum). A transaction made by `fromCbor` lists the first three when they apply. A plan
-tells `trace` `{ type: "warning", code: "HASH_MISMATCH", txHash, reportedHash }` when a submitter
-answers with another hash, `{ code: "DEAD_STEP_FOUND", step, txHash, was }` when a step called
-`expired` or `orphaned` is found in a block, `{ code: "TIP_AHEAD_OF_CLOCK", slot, aheadMs }`
-when the provider's tip is more than two minutes ahead of the local clock (the look goes on
-without it), and `{ code: "CONSOLIDATION_STEPS", steps, fee }` when it puts consolidation steps
-in. A step that comes back because the step below it was found warns of nothing.
+holder that loses if a script fails, with its lovelace), `FEE_ABOVE_MINIMUM` (the `fee` given is
+above the minimum) and `NEVER_EXPIRES` (only on a step of a plan given built without an end of
+validity: see [A transaction built elsewhere as a step](#a-transaction-built-elsewhere-as-a-step)).
+A transaction made by `fromCbor` lists the first three when they apply. A plan tells `trace`
+`{ type: "warning", code: "HASH_MISMATCH", txHash, reportedHash }` when a submitter answers with
+another hash, `{ code: "DEAD_STEP_FOUND", step, txHash, was }` when a step called `expired` or
+`orphaned` is found in a block, `{ code: "TIP_AHEAD_OF_CLOCK", slot, aheadMs }` when the
+provider's tip is more than two minutes ahead of the local clock (the look goes on without it),
+`{ code: "CONSOLIDATION_STEPS", steps, fee }` when it puts consolidation steps in, and
+`{ code: "NO_SHARED_INPUT", step, txHash }` when a step `replan` or `add` built shares no input
+with an old transaction called dead, which rests on its end of validity and the provider's
+search. A step that comes back because the step below it was found warns of nothing.
 
 The lists the library gives out are open: part kinds, `SignerRole`, redeemer tags,
 `LanguageVersion`, native script variants, plan and step statuses, the values of `reason`,

@@ -396,8 +396,9 @@ of named steps is a plan of several, in the order of its keys, each step parts,
 or its CBOR hex, read by `fromCbor` and taken as it is). Every other body is built by that call,
 each on its payer's UTxOs as the steps before it leave them, read once, and nothing is signed or
 sent, so the whole plan can be shown before anyone signs. Its options are the build options with an
-`id` and the deadlines `ttlMs`, `expiryMarginMs` and `confirmations`, written into the plan when it
-is made and never read from the builder again. `build` stays one transaction or an error.
+`id`, `consolidate` and the deadlines `ttlMs`, `expiryMarginMs` and `confirmations`, written into
+the plan when it is made and never read from the builder again. `build` stays one transaction or an
+error.
 
 - **Steps.** A step is one transaction with a fixed body and hash, a name and a status. Nothing is
   rebuilt: every call signs, sends and looks for the same bytes, so every call can be repeated,
@@ -407,7 +408,10 @@ is made and never read from the builder again. `build` stays one transaction or 
   from parts spends the change of the step before it of the same payer, unless it already spends,
   reads or puts up an output of that step, so the ledger keeps the order; a step that can do
   neither is `INVALID_OPTION` (`steps`). `run()` sends a step only when every step before it is in
-  a block.
+  a block. A step whose selection does not fit a transaction gets consolidation steps before it
+  (`kind: "consolidation"`, at most 4 by default), which pay the payer alone. `plan.add(steps)`
+  builds named steps at the end of a `pending` plan, at the tip of that call, and changes none it
+  has; a plan has at most 32 steps.
 - **Statuses.** A step is `built`, `signed`, `sent`, `rejected`, `included`, `final`, `expired`,
   `failed` or `orphaned`; a rollback can take `included` back to `sent`, and `rejected` may still
   land. A plan is `pending`, `stopping`, `stopped` or `final`; only `final` and `stopped` are
@@ -416,7 +420,8 @@ is made and never read from the builder again. `build` stays one transaction or 
   or `orphaned` is still looked for, and found in a block it counts as landed and the plan's
   status follows (`DEAD_STEP_FOUND`). A step is `orphaned` only while a step it stands on is
   called dead; then it is what its own record says again. A plan that came to `stopped` by its
-  steps records it (`halted`): a later find takes it to `stopping`, never back to `pending`.
+  steps records it (`halted`): a later find takes it to `stopping` or `final`, never back to
+  `pending`.
 - **Time is the chain's.** A step whose parts set no `until` gets
   `until = max(tip time, from) + ttlMs`, the tip read once for the plan; it is `expired` once the
   provider's tip and the local clock are both past `until` plus `expiryMarginMs` (a tip more than
