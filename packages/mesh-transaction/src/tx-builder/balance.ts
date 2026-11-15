@@ -475,31 +475,133 @@ const shortfallOf = (value: Value): Value => {
 
 const isEmpty = (value: Value) => value.coin === 0n && value.assets.size === 0;
 
+/** Bytes of a CBOR head carrying a number: an integer's value, or a string's or a map's length */
+const headBytes = (n: bigint): number =>
+  n < 24n ? 1 : n < 0x100n ? 2 : n < 0x10000n ? 3 : n < 0x100000000n ? 5 : 9;
+
+/** Bytes of a CBOR byte string written from hex: its head and its bytes */
+const hexStringBytes = (hex: string): number => {
+  const length = Math.ceil(hex.length / 2);
+  return headBytes(BigInt(length)) + length;
+};
+
+/** Bytes of a value's array head and of its lovelace, the most an output can hold */
+const VALUE_HEAD_BYTES = 1 + headBytes(BigInt(MAX_COIN));
+
+/** Hex characters of a policy id at the start of a unit */
+const POLICY_HEX = 56;
+
+/**
+ * What a bundle's size is worked out from: how many policies it holds, its last policy and how
+ * many of its tokens that one has, and the bytes of everything else but the value's heads: the
+ * policy ids, the names, the quantities, and the heads of the maps of names of the policies
+ * before the last
+ */
+type BundleBytes = {
+  policies: number;
+  policy: string;
+  inPolicy: number;
+  bytes: number;
+};
+
+const NO_BYTES: BundleBytes = {
+  policies: 0,
+  policy: "",
+  inPolicy: 0,
+  bytes: 0,
+};
+
+/** A bundle's figures with one more token, which sorts after all of its own */
+const withToken = (
+  bundle: BundleBytes,
+  unit: string,
+  quantity: bigint,
+): BundleBytes => {
+  const policy = unit.slice(0, POLICY_HEX);
+  // A negative quantity is written as -1 - n, which takes no more bytes than its magnitude
+  const token =
+    hexStringBytes(unit.slice(POLICY_HEX)) +
+    headBytes(quantity < 0n ? -quantity : quantity);
+  if (bundle.policies > 0 && policy === bundle.policy)
+    return {
+      ...bundle,
+      inPolicy: bundle.inPolicy + 1,
+      bytes: bundle.bytes + token,
+    };
+  return {
+    policies: bundle.policies + 1,
+    policy,
+    inPolicy: 1,
+    bytes:
+      bundle.bytes +
+      (bundle.policies > 0 ? headBytes(BigInt(bundle.inPolicy)) : 0) +
+      hexStringBytes(policy) +
+      token,
+  };
+};
+
+/**
+ * A bundle's size, never below the size of its value serialized with the most lovelace: the
+ * array head, the lovelace, the head of the map of policies, and the head of the last policy's
+ * map of names, beside the bytes counted as tokens are added. Each head is the size its count
+ * takes; quantities at the size of their magnitude, names and ids rounded up to whole bytes.
+ */
+const bundleBytes = (bundle: BundleBytes): number =>
+  VALUE_HEAD_BYTES +
+  headBytes(BigInt(bundle.policies)) +
+  bundle.bytes +
+  headBytes(BigInt(bundle.inPolicy));
+
 /**
  * Splits tokens into bundles each fitting in an output, in unit order so that a policy's tokens
- * stay together as far as possible
+ * stay together as far as possible. A bundle fits when its value, with the most lovelace an
+ * output can hold, takes at most `maxValSize` bytes; a token that does not fit on its own is
+ * VALUE_TOO_LARGE.
+ *
+ * In one pass: the bundle's size is estimated as tokens are added, never below its serialized
+ * size, and the bundle is serialized to be measured only when the estimate is above
+ * `maxValSize`.
  */
-const bundleAssets = (
-  assets: Map<string, bigint>,
+export const bundleTokens = (
+  assets: ReadonlyMap<string, bigint>,
   maxValSize: number,
 ): Map<string, bigint>[] => {
   const bundles: Map<string, bigint>[] = [];
   let current = new Map<string, bigint>();
-  const sizeOf = (bundle: Map<string, bigint>) =>
-    valueSize({ coin: MAX_COIN, multiasset: toMultiAsset(bundle) });
-  const fits = (bundle: Map<string, bigint>) => sizeOf(bundle) <= maxValSize;
+  let figures = NO_BYTES;
+  const sizeOf = (multiasset: ReturnType<typeof toMultiAsset>) =>
+    valueSize({ coin: MAX_COIN, multiasset });
+  // The serialized size of the current bundle with one more token, which sorts after its own
+  const sizeWith = (unit: string, quantity: bigint) => {
+    const multiasset = toMultiAsset(current) ?? {};
+    (multiasset[unit.slice(0, POLICY_HEX)] ??= {})[unit.slice(POLICY_HEX)] =
+      quantity.toString();
+    return sizeOf(multiasset);
+  };
   for (const unit of Array.from(assets.keys()).sort()) {
-    const next = new Map(current).set(unit, assets.get(unit)!);
-    if (current.size > 0 && !fits(next)) {
+    const quantity = assets.get(unit)!;
+    const grown = withToken(figures, unit, quantity);
+    if (
+      current.size > 0 &&
+      bundleBytes(grown) > maxValSize &&
+      sizeWith(unit, quantity) > maxValSize
+    ) {
       bundles.push(current);
-      current = new Map([[unit, assets.get(unit)!]]);
-    } else current = next;
-    if (!fits(current))
-      throw new TxBuildError(
-        "VALUE_TOO_LARGE",
-        `token ${unit} does not fit in an output on its own`,
-        { details: { size: sizeOf(current), maxValSize } },
-      );
+      current = new Map([[unit, quantity]]);
+      figures = withToken(NO_BYTES, unit, quantity);
+    } else {
+      current.set(unit, quantity);
+      figures = grown;
+    }
+    if (current.size === 1 && bundleBytes(figures) > maxValSize) {
+      const size = sizeOf(toMultiAsset(current));
+      if (size > maxValSize)
+        throw new TxBuildError(
+          "VALUE_TOO_LARGE",
+          `token ${unit} does not fit in an output on its own`,
+          { details: { size, maxValSize } },
+        );
+    }
   }
   if (current.size > 0) bundles.push(current);
   return bundles;
@@ -515,7 +617,7 @@ const leastChange = (
   params: Protocol,
 ) => {
   const bundles =
-    assets.size > 0 ? bundleAssets(assets, params.maxValSize) : [];
+    assets.size > 0 ? bundleTokens(assets, params.maxValSize) : [];
   const outputs: TransactionOutputPrototype[] = (
     bundles.length > 0 ? bundles : [new Map<string, bigint>()]
   ).map((bundle) => {
