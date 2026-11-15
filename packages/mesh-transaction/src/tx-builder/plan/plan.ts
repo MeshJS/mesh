@@ -186,6 +186,8 @@ type PlanState = {
   writing: Promise<unknown>;
   /** How often a record read from the store replaced the one the object held */
   storeReads: number;
+  /** The plan this object made in place of its own by `replan`, never written */
+  made?: TxPlan;
 };
 
 const STATE = new WeakMap<TxPlan, PlanState>();
@@ -789,6 +791,8 @@ export class TxPlan {
    */
   get rest(): PlanSteps {
     const { builder, record } = stateOf(this);
+    // What was left of a plan made in place of another is that plan's
+    if (record.replacedBy !== undefined) return Object.freeze({});
     const rest: Record<string, PlanStep> = {};
     // A step whose name a transaction of the plans before has, found in a block: paid there
     const paid = new Set(
@@ -1278,12 +1282,19 @@ export class TxPlan {
    *   call (STILL_LIVE); one called dead, which no look ever found, is left to its end of
    *   validity and the provider's search, and `trace` is told (`NO_SHARED_INPUT`).
    * - This plan is marked before the new one is recorded: `replacedBy` names it, and this plan
-   *   signs and sends nothing more. A plan is replaced once; the same call again returns the
-   *   same plan. The new plan stops when a look of it finds one of those transactions in a
-   *   block.
+   *   signs and sends nothing more. A plan is replaced once. The same call again, with the id
+   *   `replacedBy` names, returns the plan made in its place and makes nothing: with a store the
+   *   recorded one, also when this plan came to final since; without a store the one this
+   *   object made, and an object that does not hold it (one resumed from a JSON) is refused.
+   *   Without a store a copy of this plan's JSON saved before the call does not know it was
+   *   replaced, and a plan made in its place again can pay again: save the JSON after the call,
+   *   or use a store. The id is the new plan's alone: after a crash that followed the mark, a
+   *   plan of another order under it ends this line. The new plan stops when a look of it finds
+   *   one of those transactions in a block.
    * @throws TxPlanError STILL_LIVE (retryable with `details.safeAfter`); CANNOT_OBSERVE
    *   (`unconfirmed`, retryable; `noTip`); INVALID_STATE (`final`) for a final plan, (`stopped`)
-   *   for a plan replaced by a plan of another id, (`pastHorizon`); MISSING_ID; PLAN_EXISTS;
+   *   for a plan replaced by a plan of another id, or by one this object does not hold and no
+   *   store can tell of, (`pastHorizon`); MISSING_ID; PLAN_EXISTS;
    *   VERSION_CONFLICT; STORE_FAILED; what probing the provider throws
    * @throws TxBuildError INVALID_OPTION (`id`) for an id that is not a string or is this
    *   plan's; (`steps`) when nothing is left and no step is given, for a name that is final in
@@ -1337,11 +1348,20 @@ export class TxPlan {
       throwIfAborted(signal, CALL);
       const ask = this.#ask(signal);
       await this.#takeStoredIfNewer(state, ask);
-      this.#refuseReplaced(state.record, id);
+      this.#refuseOtherName(state.record, id);
       const addressOf = addressBook(builder);
 
-      // The same call again, after the plan was recorded: the plan, with nothing looked at,
-      // read or built
+      // The same call again: the plan made in place of this one, with nothing looked at, read
+      // or built; also when this plan came to final since. Without a store only the object that
+      // made it holds it
+      if (state.store === undefined && state.record.replacedBy === id) {
+        if (state.made !== undefined) return state.made;
+        throw this.#error(
+          "INVALID_STATE",
+          `the plan was replaced by ${JSON.stringify(id)}, which this object does not hold, and no store can say whether it exists: it is resumed from its own JSON, and nothing is made in its place again`,
+          { details: { reason: "stopped" } },
+        );
+      }
       if (state.store !== undefined) {
         const stored = await ask(loadRecord(state.store, id), "read");
         if (stored !== undefined) {
@@ -1356,6 +1376,7 @@ export class TxPlan {
           return objectOver(builder, repeat, live, "owed");
         }
       }
+      this.#refuseReplaced(state.record, id);
 
       // One look at the whole line
       const seen = await this.#look(state, ask, true);
@@ -1532,8 +1553,16 @@ export class TxPlan {
           }),
       );
       await this.#mark(state, base, id, ask);
-      if (state.store === undefined)
-        return objectOver(builder, made.record, live, probed ? "done" : "owed");
+      if (state.store === undefined) {
+        // Held, so that the same call again returns it and builds nothing
+        state.made = objectOver(
+          builder,
+          made.record,
+          live,
+          probed ? "done" : "owed",
+        );
+        return state.made;
+      }
       return this.#recordReplan(
         state,
         made.record,
@@ -1556,17 +1585,22 @@ export class TxPlan {
    * plan
    */
   #refuseReplaced(record: PlanRecord, id: string) {
-    if (record.replacedBy !== undefined && record.replacedBy !== id)
-      throw this.#error(
-        "INVALID_STATE",
-        `the plan was replaced by ${JSON.stringify(record.replacedBy)}: a plan is replaced once, and the plan made in its place is the one to replan`,
-        { details: { reason: "stopped" } },
-      );
+    this.#refuseOtherName(record, id);
     if (record.status === "final")
       throw this.#error(
         "INVALID_STATE",
         "the plan is final: every step of it is final, and nothing is made in its place",
         { details: { reason: "final" } },
+      );
+  }
+
+  /** INVALID_STATE (`stopped`) for a plan replaced by a plan of another id */
+  #refuseOtherName(record: PlanRecord, id: string) {
+    if (record.replacedBy !== undefined && record.replacedBy !== id)
+      throw this.#error(
+        "INVALID_STATE",
+        `the plan was replaced by ${JSON.stringify(record.replacedBy)}: a plan is replaced once, and the plan made in its place is the one to replan`,
+        { details: { reason: "stopped" } },
       );
   }
 

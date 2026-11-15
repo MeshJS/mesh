@@ -334,7 +334,8 @@ export type TxPlanJSON = {
   readonly replaces?: string;
   /**
    * The id of the plan made in its place by `replan`, written with `stopped` before that plan is
-   * recorded; set once, never on a final plan
+   * recorded; set once, taken only by a plan that is not final, and kept when that plan comes to
+   * final afterwards
    */
   readonly replacedBy?: string;
   /**

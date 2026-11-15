@@ -1082,4 +1082,79 @@ describe("a plan in place of another", () => {
     expect(again.status).toBe("final");
     paidOnce(emulator);
   });
+
+  describe("the same call again", () => {
+    it("without a store, on a plan whose only step is dead: returns the plan this object made, and rest is empty", async () => {
+      const { emulator, builder, wallet, address } = await stepSetup("scalus", {
+        funds: [100n * ADA],
+      });
+      const old = await builder.plan(
+        { main: payTo(alice, 11n * ADA) },
+        { id: "order", payer: wallet },
+      );
+      await old.sign();
+      emulator.removeUtxos(old.step("main").inputs.map(ref));
+      emulator.fund(address, { lovelace: 50n * ADA });
+      expect((await caught(old.run())).code).toBe("REJECTED");
+      advance(emulator, 700);
+      const first = await old.replan({ id: "order:2" });
+      await first.run();
+      expect(first.status).toBe("final");
+      // A reconciliation run again on the same object: nothing is left, and the call made again
+      // returns the same plan
+      await old.refresh();
+      expect(old.rest).toEqual({});
+      expect(await old.replan({ id: "order:2" })).toBe(first);
+      expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    });
+
+    it("without a store, after the plan made in its place is final and the old steps are past their end: the same plan", async () => {
+      const { emulator, old } = await stuck();
+      const first = await old.replan({ id: "order:2" });
+      await first.run();
+      expect(first.status).toBe("final");
+      expect(await old.replan({ id: "order:2" })).toBe(first);
+      advance(emulator, 700);
+      await old.refresh();
+      expect(await old.replan({ id: "order:2" })).toBe(first);
+      paidOnce(emulator);
+    });
+
+    it("without a store, an object resumed from a JSON saved after the mark: INVALID_STATE, naming the plan made in its place", async () => {
+      const { builder, old } = await stuck();
+      await old.replan({ id: "order:2" });
+      const copy = await builder.resume(old.toJSON());
+      const error = await caught(copy.replan({ id: "order:2" }));
+      expect([error.code, reasonOf(error)]).toEqual([
+        "INVALID_STATE",
+        "stopped",
+      ]);
+      expect(error.message).toContain('"order:2"');
+      expect(copy.rest).toEqual({});
+    });
+
+    it("with a store, on a marked plan that came to final since: the recorded plan", async () => {
+      const { emulator, builder, wallet } = await storeSetup({
+        funds: [100n * ADA, 50n * ADA],
+      });
+      const old = await builder.plan(
+        { a: payTo(alice, 11n * ADA), b: payTo(bob, 12n * ADA) },
+        { id: "order", payer: wallet },
+      );
+      await old.sign();
+      const bHash = old.step("b").txHash;
+      const relay = relayOf(emulator, (txHash) => txHash === bHash);
+      await caught(old.run({ submitter: relay, timeoutMs: 300 }));
+      advance(emulator, 1);
+      const next = await old.replan({ id: "order:2" });
+      await emulator.submitTx(relay.kept[0]!);
+      await old.refresh();
+      expect(old.status).toBe("final");
+      const again = await old.replan({ id: "order:2" });
+      expect(again.steps.map((step) => step.txHash)).toEqual(
+        next.steps.map((step) => step.txHash),
+      );
+      expect(times(emulator, bob, 12n * ADA)).toBe(1);
+    });
+  });
 });
