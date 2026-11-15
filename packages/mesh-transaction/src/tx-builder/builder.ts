@@ -314,7 +314,14 @@ export type BuildEvent =
       code: "CONSOLIDATION_STEPS";
       steps: number;
       fee: bigint;
-    };
+    }
+  /**
+   * A step of a plan made by `replan`, or added to one, shares no input with this transaction of
+   * the plans before it, which is called dead and no look ever found in a block: that it never
+   * lands rests on its end of validity and on the provider's search; sent by a plan, never by a
+   * build
+   */
+  | { type: "warning"; code: "NO_SHARED_INPUT"; step: string; txHash: string };
 
 /** Per-build options */
 export type BuildOptions = {

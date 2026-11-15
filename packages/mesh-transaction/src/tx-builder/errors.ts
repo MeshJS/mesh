@@ -411,16 +411,20 @@ export type TxPlanErrorDetails = {
   /** A transaction's `awaitInclusion()` waits for `included` */
   CONFIRM_TIMEOUT: { waitedFor: "included" | "final"; timeoutMs: number };
   /**
-   * `unconfirmed`: this answer confirms nothing now (retryable); the other reasons are about the
-   * provider itself; `noDepth`: no block heights, for any plan. A transaction's
+   * `unconfirmed`: this answer confirms nothing now (retryable); of `replan`, a transaction of
+   * the plan or the plans before it is in a block and not final, an address shows an output of
+   * one the search does not find, or the record moved under the build. The other reasons are
+   * about the provider itself; `noDepth`: no block heights, for any plan. A transaction's
    * `awaitInclusion()` raises `noSearch` and `noValidity`
    */
   CANNOT_OBSERVE: {
     reason: "noTip" | "noValidity" | "noDepth" | "noSearch" | "unconfirmed";
   };
   /**
-   * `stopped`: the plan was stopped, or a step of it will not land, so it signs and sends
-   * nothing more; `final`: every step of the plan is final, so it takes no more steps;
+   * `stopped`: the plan was stopped or replaced, a step of it will not land, or a look found a
+   * transaction of the plans it was made in place of in a block (`error.txHash`), so it signs
+   * and sends nothing more; also `replan` of a plan replaced by a plan of another id. `final`:
+   * every step of the plan is final, so it takes no more steps and nothing is made in its place;
    * `pastHorizon`: a step that runs a Plutus script would end past the network's forecast
    * horizon; `recordVersion`: the record is of another format or kind, or holds content this
    * library does not know: a plan's record, or the JSON of a `BuiltTx` given to `restore`, whose
@@ -430,8 +434,9 @@ export type TxPlanErrorDetails = {
     reason: "stopped" | "final" | "pastHorizon" | "recordVersion";
   };
   /**
-   * `txHashes`: the transactions that may still land; `safeAfter`: POSIX ms, their end of
-   * validity plus the margin, absent when one of them has none
+   * `txHashes`: the transactions of the plans before that may still land beside a step `replan`
+   * or `add` built; `safeAfter`: POSIX ms, their latest end of validity plus the margin, absent
+   * when one of them has none or was found in a block once, which time does not settle
    */
   STILL_LIVE: { txHashes: string[]; safeAfter?: number };
 };

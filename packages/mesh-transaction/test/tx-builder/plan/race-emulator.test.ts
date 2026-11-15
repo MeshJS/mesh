@@ -1,7 +1,9 @@
 import type { TxEmulator } from "@meshsdk/tx-emulator";
 import type { MeshWallet } from "@meshsdk/wallet";
+import { ProviderError } from "@meshsdk/common";
 
 import type {
+  BuildEvent,
   PlanSteps,
   StoredTxPlanJSON,
   TxPlan,
@@ -25,20 +27,26 @@ import { alice, payTo } from "./run-util";
 // other makes it too at the same moment, or resumes it through another builder over the same
 // records; the second selects from fewer of the payer's UTxOs, so that the two would build
 // different bodies, and only one set of bodies may be recorded. A plan has one, two or three
-// named steps. Both objects run random calls at once. Once a plan is final or stopped, the next
-// rounds run a new one; a plan that stopped with a payment not made is made again from its `rest`.
-// Between and during the calls time passes, someone else spends an input of a step that is not
-// in a block, the plan is sometimes stopped, and the chain rolls back to a fork no deeper than the
-// margin and the depth. A replayer holds every body the store ever recorded and every byte string
-// a submitter held back, signs the bodies with the payer's key and submits them at random
-// moments, to the chain and to its forks.
+// named steps. Both objects run random calls at once. Once a plan is final, the next rounds run
+// a new one. At a drawn moment of a plan, and once it stopped with a payment not made, either
+// object makes a plan in its place with `replan`, under one of two ids, and the next rounds run
+// that one. Between and during the calls time passes, someone else spends an input of a step that
+// is not in a block, the plan is sometimes stopped, the chain rolls back to a fork no deeper than
+// the margin and the depth, a search hides a hash for some looks, an address is read from a fork,
+// and the store answers a read with an earlier revision. A replayer holds every body the store
+// ever recorded and every byte string a submitter held back, signs the bodies with the payer's
+// key and submits them at random moments, to the chain and to its forks.
 //
 // After every round, for every plan run so far:
 //  - the bodies of its steps are the ones of its first record, in every revision the store
 //    wrote, and both objects show those bodies only;
 //  - for each step, at most one transaction recorded under its name is in a block of the chain;
-//    every payment of an order (a plan and the plan made again from its rest) is made at most
-//    once;
+//    a step of an order (the plans of one line) and each payment of it are made at most once,
+//    unless `trace` was told NO_SHARED_INPUT for a transaction a search hid;
+//  - a plan names at most one plan made in its place, and never another later; a final plan
+//    names none; a record that names the plan it replaces exists only when that plan names it;
+//  - a revision with that name, or with a transaction of the plans before found in a block, is
+//    followed by no delivery, signature or step;
 //  - a terminal status (final, stopped), once an object or the store shows it, stays; so does
 //    the stop mark;
 //  - a final plan has every step in a block of the chain;
@@ -113,7 +121,7 @@ const CALLS = [
   "refresh",
   "refresh",
 ] as const;
-type Call = (typeof CALLS)[number] | "stop";
+type Call = (typeof CALLS)[number] | "stop" | "replan";
 
 /** A move of the chain, with every choice in it drawn when the move is scheduled */
 type Move =
@@ -127,7 +135,13 @@ type Move =
       readonly body?: number;
     }
   | { readonly kind: "replay"; readonly body: number }
-  | { readonly kind: "replayHeld"; readonly held: number };
+  | { readonly kind: "replayHeld"; readonly held: number }
+  /** A search hides a recorded hash for some looks */
+  | { readonly kind: "hide"; readonly body: number; readonly looks: number }
+  /** The next address read of a provider answers from a fork */
+  | { readonly kind: "forkRead"; readonly fork: number }
+  /** The next read of the store answers with an earlier revision */
+  | { readonly kind: "staleRead"; readonly back: number };
 
 /** What the runs of the seeds reached, so that the coverage of the default run is checked */
 const reached = {
@@ -137,15 +151,21 @@ const reached = {
   foreignSpends: 0,
   /** Plans that stopped with a step that did not land */
   stoppedShort: 0,
-  /** Plans made again from the rest of a stopped plan */
-  remade: 0,
+  /** Plans made in place of another by replan */
+  replaced: 0,
+  /** Calls of replan refused because the plan was replaced by another id */
+  replacedTwice: 0,
+  /** Searches that hid a hash, address reads from a fork, store reads of an earlier revision */
+  hiddenLooks: 0,
+  forkReads: 0,
+  staleReads: 0,
   plans: 0,
 };
 
 /** One plan of a run: its id, its order, its two objects, and what the checks saw of it */
 type Life = {
   readonly id: string;
-  /** The order the plan pays: a plan made again from its rest pays the same order */
+  /** The order the plan pays: a plan made in its place pays the same order */
   readonly order: number;
   readonly X: TxPlan;
   Y?: TxPlan;
@@ -174,7 +194,37 @@ const run = async (seed: number) => {
   let main: TxEmulator = await emulatorOf(START_SLOT);
   let maxSlot = main.slot;
   const forks: { chain: TxEmulator; slot: number }[] = [];
-  const providers = [wrap(main), wrap(main)];
+  /** Hashes a search hides, with the looks left; every hash a search ever hid */
+  const hidden = new Map<string, number>();
+  const everHidden = new Set<string>();
+  /** The chain the next address read of a provider answers from */
+  let forkReadNext: TxEmulator | undefined;
+  const hooks = {
+    fetchTxInfo: (forward: (hash: string) => unknown, hash: string) => {
+      const left = hidden.get(hash.toLowerCase()) ?? 0;
+      if (left > 0) {
+        hidden.set(hash.toLowerCase(), left - 1);
+        reached.hiddenLooks += 1;
+        throw new ProviderError("not found", {
+          kind: "notFound",
+          status: 404,
+          retryable: false,
+        });
+      }
+      return forward(hash);
+    },
+    fetchAddressUTxOs: (
+      forward: (address: string) => unknown,
+      address: string,
+    ) => {
+      const fork = forkReadNext;
+      if (fork === undefined) return forward(address);
+      forkReadNext = undefined;
+      reached.forkReads += 1;
+      return fork.fetchAddressUTxOs(address);
+    },
+  };
+  const providers = [wrap(main, hooks), wrap(main, hooks)];
   const setMain = (chain: TxEmulator) => {
     main = chain;
     for (const provider of providers) provider.control.target = chain;
@@ -186,15 +236,34 @@ const run = async (seed: number) => {
   const bodies = new Map<string, string>();
   const recorded = new Map<string, { id: string; name: string }>();
   const firstSteps = new Map<string, string>();
+  /** Every revision the store wrote, by id */
+  const revisions = new Map<string, StoredTxPlanJSON[]>();
+  /** How far back the next read of the store answers, when it does */
+  let staleNext: number | undefined;
   const stepsOf = (json: {
     readonly steps: readonly { name: string; txHash: string }[];
   }) => json.steps.map((step) => `${step.name}:${step.txHash}`).join(",");
   const store: TxPlanStore = {
-    load: (id) => inner.load(id),
+    load: async (id) => {
+      const back = staleNext;
+      const kept = revisions.get(id) ?? [];
+      if (back !== undefined && kept.length > 1) {
+        staleNext = undefined;
+        reached.staleReads += 1;
+        return JSON.parse(
+          JSON.stringify(kept[Math.max(0, kept.length - 1 - back)]),
+        ) as StoredTxPlanJSON;
+      }
+      return inner.load(id);
+    },
     save: async (json: StoredTxPlanJSON, expectedRev) => {
       const written = await inner.save(json, expectedRev);
       if (!written) reached.refusedSaves += 1;
       if (written) {
+        revisions.set(json.id, [
+          ...(revisions.get(json.id) ?? []),
+          JSON.parse(JSON.stringify(json)) as StoredTxPlanJSON,
+        ]);
         const first = firstSteps.get(json.id);
         if (first === undefined) firstSteps.set(json.id, stepsOf(json));
         else if (first !== stepsOf(json))
@@ -441,18 +510,38 @@ const run = async (seed: number) => {
         const tx = at(held, move.held);
         return tx === undefined ? undefined : replayHeld(main, tx);
       }
+      case "hide": {
+        const body = at([...bodies.keys()], move.body);
+        if (body === undefined) return;
+        hidden.set(body, move.looks);
+        everHidden.add(body);
+        log(`a search hides ${short(body)} for ${move.looks} looks`);
+        return;
+      }
+      case "forkRead": {
+        const fork = at(forks, move.fork);
+        if (fork !== undefined) forkReadNext = fork.chain;
+        return;
+      }
+      case "staleRead":
+        staleNext = move.back;
+        return;
     }
   };
   /** A random move: mostly a little time, sometimes much, a rollback or a replay */
   const randomMove = (): Move => {
     const move = random.next();
-    if (move < 0.25) return { kind: "advance", slots: 1 + random.int(2) };
-    if (move < 0.35) return { kind: "advance", slots: 3 + random.int(10) };
-    if (move < 0.42) return { kind: "foreignSpend" };
-    if (move < 0.52) return { kind: "forkPoint" };
-    if (move < 0.72) return rollbackMove();
-    if (move < 0.88) return { kind: "replay", body: random.next() };
-    return { kind: "replayHeld", held: random.next() };
+    if (move < 0.22) return { kind: "advance", slots: 1 + random.int(2) };
+    if (move < 0.3) return { kind: "advance", slots: 3 + random.int(10) };
+    if (move < 0.36) return { kind: "foreignSpend" };
+    if (move < 0.44) return { kind: "forkPoint" };
+    if (move < 0.6) return rollbackMove();
+    if (move < 0.72) return { kind: "replay", body: random.next() };
+    if (move < 0.8) return { kind: "replayHeld", held: random.next() };
+    if (move < 0.9)
+      return { kind: "hide", body: random.next(), looks: 1 + random.int(6) };
+    if (move < 0.95) return { kind: "forkRead", fork: random.next() };
+    return { kind: "staleRead", back: 1 + random.int(3) };
   };
   const rollbackMove = (): Move => ({
     kind: "rollback",
@@ -464,10 +553,57 @@ const run = async (seed: number) => {
   const statusesOf = (plan: TxPlan) =>
     plan.steps.map((step) => `${step.name}:${step.status}`).join(" ");
 
-  const call = async (owner: Life, who: TxPlan, name: Call, kind: Kind) => {
+  /** The NO_SHARED_INPUT warnings of the plans of each order, by hash */
+  const noShared = new Map<number, Set<string>>();
+  const traceOf = (order: number) => (event: BuildEvent) => {
+    if (event.type !== "warning" || event.code !== "NO_SHARED_INPUT") return;
+    noShared.set(order, (noShared.get(order) ?? new Set()).add(event.txHash));
+    log(`order ${order}: NO_SHARED_INPUT for ${short(event.txHash)}`);
+  };
+  /** The plan made in place of each plan, by id */
+  const successors = new Map<string, string>();
+  /** The life of a plan made in place of `owner`: a new one, or the one of that id */
+  const adopt = (owner: Life, plan: TxPlan): Life => {
+    successors.set(owner.id, plan.id!);
+    const known = lives.find((each) => each.id === plan.id);
+    if (known !== undefined) {
+      if (known.Y === undefined && known.X !== plan) known.Y = plan;
+      return known;
+    }
+    reached.replaced += 1;
+    const next: Life = {
+      id: plan.id!,
+      order: owner.order,
+      X: plan,
+      terminal: new Map(),
+      stopMark: new Set(),
+    };
+    lives.push(next);
+    log(
+      `${plan.id} in place of ${owner.id}: steps ${plan.steps.map((s) => s.name)}`,
+    );
+    return next;
+  };
+  /** One of the two ids of a plan made in place of `owner`, by a number drawn before */
+  const replanId = (owner: Life, u: number) =>
+    `${owner.id}.${u < 0.5 ? "x" : "y"}`;
+
+  const call = async (
+    owner: Life,
+    who: TxPlan,
+    name: Call,
+    kind: Kind,
+    u: number,
+  ) => {
     const label = `${owner.id} ${who === owner.X ? "X" : "Y"}.${name}${name === "sent" || name === "included" ? `(${kind})` : ""}`;
     try {
-      if (name === "sign") await who.sign({ signers: signer });
+      if (name === "replan") {
+        const next = await who.replan({
+          id: replanId(owner, u),
+          trace: traceOf(owner.order),
+        });
+        adopt(owner, next);
+      } else if (name === "sign") await who.sign({ signers: signer });
       else if (name === "sent")
         await who.run({
           waitFor: "sent",
@@ -485,6 +621,8 @@ const run = async (seed: number) => {
       log(`${label}: ${who.status} ${statusesOf(who)}`);
     } catch (error) {
       const code = (error as { code?: string }).code;
+      if (name === "replan" && who.replacedBy !== undefined)
+        reached.replacedTwice += 1;
       log(
         `${label}: ${code ?? String(error).slice(0, 60)}, ${who.status} ${statusesOf(who)}`,
       );
@@ -551,7 +689,10 @@ const run = async (seed: number) => {
     }
   };
 
-  /** Each payment of each order is made at most once on the chain */
+  /**
+   * Each payment of each order is made at most once on the chain, unless `trace` was told
+   * NO_SHARED_INPUT, for a plan of that order, of a transaction a search hid
+   */
   const checkPayments = () => {
     const amounts = new Map<string, number>();
     for (const utxo of main.utxos({ address: alice })) {
@@ -560,11 +701,69 @@ const run = async (seed: number) => {
       )!.quantity;
       amounts.set(lovelace, (amounts.get(lovelace) ?? 0) + 1);
     }
-    for (const [lovelace, times] of amounts)
-      if (times > 1)
+    for (const [lovelace, times] of amounts) {
+      if (times < 2) continue;
+      const order = Math.floor((Number(lovelace) - 2_000_000) / 10_000);
+      const told = [...(noShared.get(order) ?? [])].some((txHash) =>
+        everHidden.has(txHash),
+      );
+      if (told) log(`the payment of ${lovelace} was made ${times} times, told`);
+      else
         findings.push(
           `the payment of ${lovelace} lovelace was made ${times} times`,
         );
+    }
+  };
+
+  /**
+   * Over every revision the store wrote: a plan names at most one plan made in its place and
+   * never another later, and a final one is never given a name; a record that names the plan it
+   * replaces exists only while that plan names it; a revision with that name, or with a
+   * transaction of the plans before found in a block, is followed by no delivery, signature or
+   * step
+   */
+  const checkLines = async () => {
+    for (const [id, kept] of revisions) {
+      let named: string | undefined;
+      let closed: StoredTxPlanJSON | undefined;
+      let previous: StoredTxPlanJSON | undefined;
+      for (const json of kept) {
+        if (named !== undefined && json.replacedBy !== named)
+          findings.push(
+            `${id}: rev ${json.rev} names ${json.replacedBy}, and an earlier one ${named}`,
+          );
+        if (
+          previous?.status === "final" &&
+          previous.replacedBy === undefined &&
+          json.replacedBy !== undefined
+        )
+          findings.push(`${id}: final, then named ${json.replacedBy}`);
+        named ??= json.replacedBy;
+        if (closed !== undefined) {
+          const was = closed.steps.map(
+            (step) => `${step.name}:${step.sends}:${step.tx.witnesses ?? ""}`,
+          );
+          const now = json.steps.map(
+            (step) => `${step.name}:${step.sends}:${step.tx.witnesses ?? ""}`,
+          );
+          if (was.join(",") !== now.join(","))
+            findings.push(
+              `${id}: rev ${json.rev} took a delivery, a signature or a step after rev ${closed.rev} closed it`,
+            );
+        } else if (
+          json.replacedBy !== undefined ||
+          json.before?.open.some((entry) => entry.seen !== undefined)
+        )
+          closed = json;
+        previous = json;
+      }
+      const replaces = kept[0]?.replaces;
+      if (
+        replaces !== undefined &&
+        (await inner.load(replaces))?.replacedBy !== id
+      )
+        findings.push(`${id} replaces ${replaces}, which does not name it`);
+    }
   };
 
   for (let round = 0; round < ROUNDS; round++) {
@@ -582,8 +781,12 @@ const run = async (seed: number) => {
     const calls = 1 + random.int(3);
     for (let i = 0; i < calls; i++) {
       const who = pick(objects);
-      const name: Call = chance(0.05) ? "stop" : pick(CALLS);
-      tasks.push(call(life, who, name, pick(KINDS)));
+      const name: Call = chance(0.05)
+        ? "stop"
+        : chance(0.08)
+          ? "replan"
+          : pick(CALLS);
+      tasks.push(call(life, who, name, pick(KINDS), random.next()));
     }
     // Now and then a call on a plan that ended, which must stay as it ended
     const ended = lives.slice(0, -1);
@@ -596,6 +799,7 @@ const run = async (seed: number) => {
           pick(owner.Y ? [owner.X, owner.Y] : [owner.X]),
           name,
           pick(KINDS),
+          random.next(),
         ),
       );
     }
@@ -610,24 +814,38 @@ const run = async (seed: number) => {
     if (chance(0.6)) await advanceSlots(1 + random.int(14));
 
     for (const each of lives) await check(each);
+    await checkLines();
     checkPayments();
     if (findings.length > before) findings.push(`in round ${round}`);
     const stored = await inner.load(life.id);
     log(
       `round ${round}: slot ${main.slot}, ${life.id} X ${life.X.status}, Y ${life.Y?.status}, stored ${stored?.status} ${stored?.steps.map((s) => `${s.name}:${s.status}`).join(" ")}`,
     );
-    // A final or stopped plan: the next rounds run a new one; a stopped one with a payment not
-    // made is made again from its rest
+    // A plan made in place of this one: the next rounds run it. A final or stopped plan: the
+    // next rounds run a new one; a stopped one with a payment not made is replaced
+    const successor = successors.get(life.id);
+    if (successor !== undefined) {
+      life = lives.find((each) => each.id === successor)!;
+      continue;
+    }
     if (!TERMINAL.has(stored?.status ?? "")) continue;
     reached.plans += 1;
     const unpaid = stored!.steps.some((step) => step.status !== "final");
     if (stored!.status === "stopped" && unpaid) {
       reached.stoppedShort += 1;
-      const rest = (await bX.resume(life.id, { payer: signer })).rest;
-      if (Object.keys(rest).length > 0) {
-        reached.remade += 1;
-        life = await begin(rest, life.order);
+      const who = life.Y !== undefined && chance(0.5) ? life.Y : life.X;
+      const id = replanId(life, random.next());
+      try {
+        life = adopt(
+          life,
+          await who.replan({ id, trace: traceOf(life.order) }),
+        );
         continue;
+      } catch (error) {
+        const code = (error as { code?: string; retryable?: boolean }).code;
+        log(`${life.id}.replan(${id}) at the end of the round: ${code}`);
+        // Retryable: the next rounds go on with this plan and try again
+        if ((error as { retryable?: boolean }).retryable === true) continue;
       }
     }
     life = await begin(stepsOfOrder(orders), orders++);
@@ -672,14 +890,16 @@ describe("Two objects on one record, with a moving chain and a replayer", () => 
 
   // The runs above are only worth something if they reach these moves
   (ONLY_SEED === undefined ? it : it.skip)(
-    "reached two writers on one revision, foreign spends, rollbacks, plans stopped short and made again",
+    "reached two writers on one revision, foreign spends, rollbacks, hidden searches, plans stopped short and plans in place of others",
     () => {
       expect(reached.refusedSaves).toBeGreaterThan(0);
       expect(reached.rollbacks).toBeGreaterThan(0);
       expect(reached.foreignSpends).toBeGreaterThan(0);
       expect(reached.stoppedShort).toBeGreaterThan(0);
-      expect(reached.remade).toBeGreaterThan(0);
+      expect(reached.replaced).toBeGreaterThan(0);
+      expect(reached.hiddenLooks).toBeGreaterThan(0);
       expect(reached.plans).toBeGreaterThan(0);
+      console.log(`reached: ${JSON.stringify(reached)}`);
     },
   );
 });

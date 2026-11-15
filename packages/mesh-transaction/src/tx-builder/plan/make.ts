@@ -19,7 +19,14 @@ import type {
 } from "../parts/types";
 import type { Payer, PayerRead, PayerSource } from "../payer";
 import type { KeyWitness, KeyWitnessTags } from "../sign";
-import type { NewStep, PlanRecord, PlanTip, StepGiven } from "./core";
+import type {
+  NewStep,
+  PlanBefore,
+  PlanRecord,
+  PlanTip,
+  StepGiven,
+  StepRecord,
+} from "./core";
 import type {
   PlanOptions,
   PlanStep,
@@ -376,13 +383,17 @@ const checkLinks = (read: readonly StepInput[], before: readonly string[]) => {
   });
 };
 
-/** The steps as given, in their forms, read in order; their links are not read here */
+/**
+ * The steps as given, in their forms, read in order; their links are not read here
+ * @param held The parts one list of parts gets first, and that named steps are refused beside:
+ *   the builder's from `add`, unless the plan makes the steps itself
+ */
 const readStepForms = (
   builder: TxBuilder,
   steps: unknown,
   options: MakePlanOptions,
+  held: readonly TxPart[] = internals(builder).added,
 ): StepInput[] => {
-  const held = internals(builder).added;
   if (!isBuiltTransaction(steps) && (Array.isArray(steps) || isOnePart(steps)))
     return [
       {
@@ -1348,6 +1359,179 @@ export const buildAddedSteps = async (
     throw asAdded(error);
   });
   return made.map(newStepOf);
+};
+
+/**
+ * The steps of a plan made in place of another, read as `builder.plan` reads steps. Steps the
+ * application gives (`own`) take the builder's parts from `add` as `builder.plan` does; steps
+ * the plan makes of what is left hold their parts already, and take none
+ * @throws TxBuildError INVALID_OPTION (`steps`) as `builder.plan`
+ */
+export const readReplanSteps = (
+  builder: TxBuilder,
+  steps: unknown,
+  options: MakePlanOptions,
+  own: boolean,
+): StepInput[] =>
+  readStepForms(builder, steps, options, own ? internals(builder).added : []);
+
+/**
+ * Checks the links of the steps of a plan made in place of another, and fills in those to a
+ * kept step from that step's own transaction: the filled part stands in the step from here on.
+ * A link names a step given before its own, or a kept step
+ * @param kept The final steps of the plan replaced
+ * @throws TxBuildError INVALID_OPTION (`steps`) for a link to any other step, to an output past
+ *   the last, or to an output a kept step spends; UNKNOWN_LABEL; TxPartError for an output the
+ *   part cannot take
+ */
+export const fillKeptLinks = (
+  read: readonly StepInput[],
+  kept: readonly Pick<StepRecord, "name" | "kind" | "built">[],
+): StepInput[] => {
+  checkLinks(
+    read,
+    kept.map((step) => step.name),
+  );
+  const earlier = kept.map((step) => ({
+    name: step.name,
+    built: step.built,
+    ...(step.kind === "prebuilt" && { prebuilt: true as const }),
+  }));
+  return read.map((step) => {
+    if (!step.parts.some((part) => isLinkedPart(part))) return step;
+    try {
+      const parts = step.parts.flatMap((part) =>
+        isLinkedPart(part) && kept.some((each) => each.name === part.link.step)
+          ? fillLinks([part], step.name, earlier, [])
+          : [part],
+      );
+      return { ...step, parts };
+    } catch (error) {
+      throw withStep(error, step.name);
+    }
+  });
+};
+
+/** What a plan made in place of another was built to: its steps and its first record */
+export type MadeReplan = {
+  readonly steps: readonly MadeStep[];
+  readonly record: PlanRecord;
+};
+
+/**
+ * Builds the steps of a plan made in place of `base`, in the one loop of `makePlan`, and its
+ * first record in memory. Each payer is read once; `withReads` is told the reads before any
+ * step is built and gives the parts a step gets beside its own, which are built with it and are
+ * no part of how it was given. The steps before are the final steps of `base`: what they spent
+ * is never selected, their outputs are known to a link and to a step given built, and no step
+ * stands on them by the order rule. The deadlines and data options are the call's, else those
+ * `base` records
+ * @param keep What the new record keeps of the plans before it, from the steps built
+ * @throws as `makePlan` throws of building its steps; MISSING_PAYER; what `withReads` throws
+ */
+export const buildReplan = async (
+  builder: TxBuilder,
+  base: PlanRecord,
+  read: readonly StepInput[],
+  context: {
+    readonly id: string;
+    readonly options: MakePlanOptions;
+    /** The payer of the steps that name none */
+    readonly payer?: Payer;
+    readonly asked: AddressOf;
+    readonly tip: PlanTip;
+    readonly withReads: (
+      reads: readonly { readonly step: StepInput; readonly read: PayerRead }[],
+    ) => Promise<ReadonlyMap<string, readonly TxPart[]>>;
+    readonly keep: (steps: readonly MadeStep[]) => PlanBefore;
+  },
+): Promise<MadeReplan> => {
+  const { id, options, tip, asked } = context;
+  const deadlines = effectiveDeadlines(options, base.deadlines);
+  consolidateOf(options.consolidate);
+  const { signal } = options;
+  const payerOf = (step: StepInput) => step.options.payer ?? context.payer;
+  const { readOf, readOfPayer } = await readStepPayers(builder, read, payerOf, {
+    missing: (step) =>
+      new TxBuildError(
+        "MISSING_PAYER",
+        `step ${JSON.stringify(step.name)}: no payer: give the call a payer, or the step its own`,
+      ),
+    ...(signal !== undefined && { signal }),
+    asked,
+  });
+  const extra = await context.withReads(
+    read
+      .filter((step) => step.prebuilt === undefined)
+      .map((step) => ({ step, read: readOf(step) })),
+  );
+  const added = new Set<unknown>();
+  const given = read.map((step) => {
+    const more = extra.get(step.name);
+    if (more === undefined || more.length === 0) return step;
+    for (const part of more) added.add(part);
+    return { ...step, parts: [...step.parts, ...more] };
+  });
+  const kept = base.steps.filter((step) => step.status === "final");
+  const keptNames = new Set(kept.map((step) => step.name));
+  const merged: MakePlanOptions = { ...recordedOptionsOf(base.options) };
+  for (const [key, value] of Object.entries(options))
+    if (value !== undefined)
+      (merged as Record<string, unknown>)[key] = value as unknown;
+  const built = await buildSteps(builder, given, {
+    before: kept.map((step): StepBefore => ({
+      name: step.name,
+      built: step.built,
+      final: true,
+      ...(step.kind === "consolidation" && { consolidation: true as const }),
+      ...(step.kind === "prebuilt" && { prebuilt: true as const }),
+      standsOn: step.standsOn,
+    })),
+    // Read from the transactions' own bytes, as `makePlan` reads them
+    after: readAfter(options.after),
+    tip,
+    ttlMs: deadlines.ttlMs,
+    planId: id,
+    options: merged,
+    readOf,
+    formOf: (step) => toPayerSource(payerOf(step)!).form,
+  });
+  // The steps of the plan replaced are no steps of this one; the parts given beside a step's
+  // own are no part of how it was given
+  const steps = built.map((step): MadeStep => ({
+    ...step,
+    standsOn: step.standsOn.filter((name) => !keptNames.has(name)),
+    ...(step.given !== undefined && {
+      given: {
+        ...step.given,
+        parts: step.given.parts.filter((part) => !added.has(part)),
+      },
+    }),
+  }));
+  const planPayer =
+    context.payer === undefined ? undefined : readOfPayer(context.payer);
+  const planAddress =
+    planPayer?.snapshot.changeAddress ??
+    (context.payer === undefined
+      ? typeof base.options.changeAddress === "string"
+        ? base.options.changeAddress
+        : undefined
+      : await abortable(asked(context.payer), signal, CALL));
+  const first = advancePlan(
+    emptyPlan({
+      id,
+      ...(base.id !== undefined && { replaces: base.id }),
+      before: context.keep(steps),
+      network: recordNetwork(builder),
+      deadlines,
+      options: planOptionsOf(merged, planAddress),
+    }),
+    { type: "steps", steps: steps.map(newStepOf) },
+  );
+  // The steps are built here, so the state machine refusing them is a fault of this code
+  if (!first.ok)
+    throw new Error(`the plan's first record was refused: ${first.message}`);
+  return { steps, record: first.json };
 };
 
 /**

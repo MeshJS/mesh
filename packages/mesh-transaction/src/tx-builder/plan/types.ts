@@ -128,8 +128,8 @@ export type PlanOptions = Omit<BuildOptions, "after"> &
  */
 export type ResumeOptions = {
   /**
-   * Signs when a call names no signer, when it can sign. Pays the steps `add` builds that name
-   * no payer, when its change address is the plan's
+   * Signs when a call names no signer, when it can sign. Pays the steps `add` and `replan`
+   * build that name no payer, when its change address is the plan's
    */
   payer?: Payer;
   /** Gets the warnings of the plan; never recorded */
@@ -215,9 +215,10 @@ export type TxStepStatus =
 /**
  * Status of a plan, worked out from its steps and its mark:
  * - `pending`: it may still complete;
- * - `stopping`: it does not go on: a step will not land, or the plan was stopped. Steps that
- *   are not known to be dead may still land, since another party may sign or send them (`live`
- *   lists them), or a step in a block may still be rolled back;
+ * - `stopping`: it does not go on: a step will not land, the plan was stopped or replaced, or a
+ *   look of a plan made by `replan` found a transaction of the plans before it in a block. Steps
+ *   that are not known to be dead may still land, since another party may sign or send them
+ *   (`live` lists them), or a step in a block may still be rolled back;
  * - `stopped`: it does not go on, and every step is final or will not land. `landed` says what
  *   did;
  * - `final`: every step is final.
@@ -318,7 +319,11 @@ export type TxPlanJSON = {
   readonly rev: number;
   /** The plan's status, worked out from its steps and its mark */
   readonly status: TxPlanStatus;
-  /** The decision that the plan signs and sends nothing more is recorded; never removed */
+  /**
+   * The decision that the plan signs and sends nothing more is recorded: by `stop()`, by
+   * `replan` with `replacedBy`, or by a look of a plan made by `replan` that found a transaction
+   * of the plans before it in a block; never removed
+   */
   readonly stopped?: true;
   /**
    * The plan came to `stopped` by steps that will not land: it sends no step for the first time,
@@ -327,7 +332,10 @@ export type TxPlanJSON = {
   readonly halted?: true;
   /** The id of the plan it was made in place of */
   readonly replaces?: string;
-  /** The id of the plan made in its place */
+  /**
+   * The id of the plan made in its place by `replan`, written with `stopped` before that plan is
+   * recorded; set once, never on a final plan
+   */
   readonly replacedBy?: string;
   /**
    * The library's, on a plan made by `replan`: what it keeps of the plans before it. `final`:

@@ -405,6 +405,7 @@ step, `main`. `builder.build(parts)` stays one transaction or an error, with no 
 | `run(options?)`                          | looks at the chain, then signs, sends and waits for each step in order, until `waitFor`            |
 | `refresh()`                              | one look at the chain; never signs or sends, and throws nothing for what it sees                   |
 | `stop()`                                 | records that the plan signs and sends nothing more                                                 |
+| `replan({ id, steps? })`                 | a new plan in place of this one, for what is left of it; this one is marked first                  |
 | `toJSON()`, `builder.resume(id \| json)` | the record, and the plan back from it                                                              |
 | `id`, `status`, `steps`, `step(name)`    | the plan as data; `step(name)` of a name it does not have is `INVALID_OPTION`                      |
 | `fee`, `until`                           | the fees of all its transactions; the latest end of validity among them                            |
@@ -684,13 +685,10 @@ try {
   if (!TxError.is(error, "EXPIRED", "SCRIPT_FAILED", "ORPHANED")) throw error;
   // error.step: "b"   plan.landed: [a]   plan.rest: { b }
 }
-// later, in the reconciliation: a new plan for what is left, once nothing more of this one lands
+// later, in the reconciliation: a new plan in place of this one, for what is left of it
 await plan.refresh();
-if (plan.status === "stopped" && Object.keys(plan.rest).length > 0) {
-  const next = await builder.plan(plan.rest, {
-    id: "order-7:2",
-    payer: wallet,
-  });
+if (plan.status !== "final" && Object.keys(plan.rest).length > 0) {
+  const next = await plan.replan({ id: "order-7:2" });
   await next.run();
 }
 ```
@@ -698,15 +696,31 @@ if (plan.status === "stopped" && Object.keys(plan.rest).length > 0) {
 `plan.landed` lists the steps in a block, `plan.live` those not in a block and not known to be
 dead. `plan.rest` is the steps never found in a block, as `builder.plan` takes them: the parts
 each was given, links kept, with its own options; a step with its own payer comes back with that
-payer's change address as its payer (give the payer itself in its place to sign with it). A link
-in `rest` to a step that landed names a step the new plan does not have: put the output itself,
-`outputOf(plan.step("a"), label)`, in its place.
+payer's change address as its payer (give the payer itself in its place to sign with it).
 
-A new plan for what is left is made only once the old plan is `stopped`, from `rest`: until then
-a step of the old plan may still land beside it. `stopped` rests on what the provider's searches
-show: a later find may take the plan back to `stopping` (`DEAD_STEP_FOUND`), and with a provider
-that hides a landed transaction past the end of validity and the margin, the step is called
-`expired`, and a new plan from `rest` pays a second time.
+What is left is a new plan in place of the old one: `await plan.replan({ id })`, or with `steps`
+of the application's own; the payer, deadlines and data options are the old plan's unless given.
+It looks at the chain first and stands only on final steps: while one is in a block and not final
+it throws `CANNOT_OBSERVE` (`unconfirmed`, retryable); a final step is never built again, its name
+is refused, and a link to one is filled in with its output. The first step built for a payer
+spends an input of each transaction of the old plan that is not final, dead ones too: the ledger
+lets one of the two land and never both, whatever the provider shows. Where no such input is
+left and the old transaction may still land, it throws `STILL_LIVE`, and the same call passes
+after `details.safeAfter`; without it (a step that never expires, or one found in a block once
+and gone) time settles nothing, and the new plan holds that step or spends an input of it, else
+none is made. Where no such input is left and the old transaction is called dead, the new plan
+rests on the provider's word, and `trace` gets `NO_SHARED_INPUT`. That is the limit: a provider
+that hides a landed transaction past its end and the margin, and shows none of its outputs, makes
+the new plan pay twice.
+
+The old plan is marked first, by compare-and-set: `replacedBy` names the new plan, and the old
+one signs and sends nothing more and is not replaced again. The same call again returns the same
+plan; after a crash `replacedBy` may name a plan the store does not hold, and `replan` with that
+id makes it. A new plan that finds a transaction of the old one in a block stops: `replan` it,
+and when its `rest` is empty the old plan made the payment. `builder.plan(plan.rest)` is never the
+way: nothing keeps that plan apart from the old one. Without a store, or with one that loses a
+write, a plan can be replaced twice; open steps of two payers are replaced only once they are
+dead.
 
 ### Refusal to sign; edits on a preview
 
@@ -2112,7 +2126,7 @@ message of a plan's `TxPlanError` says.
 | `ORPHANED`                 | `TxPlanError`  | a step stands on a step that will not land, so it will not land either: the plan does not go on, and is `stopping` or `stopped` (`error.status`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | none                                                                                                          | no                                                                           |
 | `CANNOT_OBSERVE`           | `TxPlanError`  | the provider cannot follow plans (`noTip`, `noSearch`, `noDepth`, `noValidity`), or confirmed nothing this time (`unconfirmed`); also `noSearch` and `noValidity` from `awaitInclusion()` of a transaction                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `{ reason }`                                                                                                  | only `unconfirmed`, `retryAfterMs` = the builder's `pollMs`                  |
 | `INVALID_STATE`            | `TxPlanError`  | the plan was stopped, or a step of it will not land, so it signs and sends nothing more, or it came to `stopped` once (`halted`) and its next step is one it never sent (`stopped`); a step that runs a Plutus script would end past the horizon (`pastHorizon`); a record this library does not read, also from `restore` of a transaction's JSON (`recordVersion`)                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `{ reason: "stopped" \| "pastHorizon" \| "recordVersion" }`                                                   | no                                                                           |
-| `STILL_LIVE`               | `TxPlanError`  | a transaction that may still land stands in the way of the call; no call of this release raises it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `{ txHashes, safeAfter? }`                                                                                    | yes when it carries `safeAfter`, `retryAfterMs` until then by the tip's time |
+| `STILL_LIVE`               | `TxPlanError`  | a step `replan` or `add` built could land beside a transaction of the plans before that may still land; nothing was written; retryable after `details.safeAfter` when it has one                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | `{ txHashes, safeAfter? }`                                                                                    | yes when it carries `safeAfter`, `retryAfterMs` until then by the tip's time |
 | `PLAN_EXISTS`              | `TxPlanError`  | an `id` already recorded with other parts or options                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | none                                                                                                          | no                                                                           |
 | `PLAN_NOT_FOUND`           | `TxPlanError`  | no record under the `id` (`error.planId`), or the record is gone                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | none                                                                                                          | no                                                                           |
 | `VERSION_CONFLICT`         | `TxPlanError`  | another writer changed the record and the change could not be applied again: go on through `resume`; also a JSON given to `resume` that is ahead of the stored record                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | none                                                                                                          | no                                                                           |

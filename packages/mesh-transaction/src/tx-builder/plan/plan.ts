@@ -1,13 +1,14 @@
 import type { CachedFetcher, ISubmitter } from "@meshsdk/common";
-import { Crypto } from "@meshsdk/core-cst";
+import { Crypto, Serialization, Transaction, TxCBOR } from "@meshsdk/core-cst";
 
 import type { BuildEvent, TxBuilder } from "../builder";
-import type { BuiltTx } from "../built-tx";
 import type { TxPlanErrorCode, TxPlanErrorDetails } from "../errors";
-import type { Payer } from "../payer";
+import type { TxPart, Utxo } from "../parts/types";
+import type { Payer, PayerRead } from "../payer";
 import type { KeyWitness, Signer } from "../sign";
 import type { RequiredKey } from "../witnesses";
 import type {
+  BeforeEntry,
   PlanEvent,
   PlanRecord,
   PlanRefusal,
@@ -17,8 +18,22 @@ import type {
   TxSighting,
 } from "./core";
 import type { EffectiveWait } from "./deadlines";
-import type { GivenStep, MadePlan, MakePlanOptions, PlanOrder } from "./make";
+import type {
+  AddressOf,
+  GivenStep,
+  MadePlan,
+  MakePlanOptions,
+  PlanOrder,
+  StepInput,
+} from "./make";
 import type { ChainObserver, ObservedTip, TxSearch } from "./observer";
+import type {
+  GuardStep,
+  LineClasses,
+  LineTx,
+  LookAnswer,
+  RuleBody,
+} from "./replace";
 import type {
   PlanOptions,
   PlanStep,
@@ -41,7 +56,7 @@ import {
   within,
 } from "../abort";
 import { readAfter } from "../builder";
-import { makeBuiltTx } from "../built-tx";
+import { BuiltTx, makeBuiltTx } from "../built-tx";
 import { NOT_UNPAID, TxBuildError, TxPlanError } from "../errors";
 import {
   invalidOption,
@@ -49,6 +64,7 @@ import {
   SIGNERS_IN_PLACE,
   SUBMITTER_IN_PLACE,
 } from "../options";
+import { spend } from "../parts/inputs";
 import { toPayerSource } from "../payer";
 import {
   countedWitnesses,
@@ -74,6 +90,7 @@ import {
   liveSteps,
   missingKeys,
   planUntil,
+  sourcesOf,
   stepUntil,
   tipAheadOfClock,
 } from "./core";
@@ -91,8 +108,10 @@ import {
   addressBook,
   asAfter,
   buildAddedSteps,
+  buildReplan,
   checkAddedSteps,
   checkPlanSteps,
+  fillKeptLinks,
   givenParts,
   givenSteps,
   invalidAddedSteps,
@@ -100,6 +119,7 @@ import {
   orderOf,
   payerOfAdded,
   readAddedSteps,
+  readReplanSteps,
   refuseUnread,
   withRecordedMarks,
 } from "./make";
@@ -111,6 +131,13 @@ import {
   submitFailure,
   submitFailureText,
 } from "./observer";
+import {
+  beforeOf,
+  landsBeside,
+  lineClasses,
+  rootGuards,
+  settled,
+} from "./replace";
 
 // The object that runs a plan: a group of transactions built together, whose bodies
 // never change. It makes the requests: it reads the chain through its observer, asks signers
@@ -193,6 +220,36 @@ const SIGN_ALLOWED = "an object { signers?, signal? }";
 /** The members of the options of `add()`, and what the call takes */
 const ADD_MEMBERS: readonly string[] = ["signal"];
 const ADD_ALLOWED = "an object { signal? }";
+
+/** The members of the options of `replan()`, and what the call takes */
+const REPLAN_MEMBERS: readonly string[] = [
+  "id",
+  "steps",
+  "payer",
+  "canSelect",
+  "coinSelection",
+  "sendAllTo",
+  "fee",
+  "registeredPools",
+  "extraKeyWitnesses",
+  "topUpCollateral",
+  "collateralReturn",
+  "after",
+  "knownUtxos",
+  "signal",
+  "trace",
+  "ttlMs",
+  "expiryMarginMs",
+  "confirmations",
+  "consolidate",
+];
+const REPLAN_ALLOWED =
+  "an object { id, steps?, ...the options of builder.plan }";
+const REPLAN_ID_ALLOWED =
+  "a non-empty string, other than the id of the plan it replaces";
+
+/** The most addresses one call of `replan` reads for the outputs of a dead step */
+const MAX_PAID_ADDRESSES = 16;
 
 /** The members of the options of `builder.resume`, and what the call takes */
 const RESUME_MEMBERS: readonly string[] = ["payer", "trace"];
@@ -563,6 +620,8 @@ type Observed = {
   readonly noValidity: boolean;
   /** A step was found while the tip or the find has no block height */
   readonly noDepth: boolean;
+  /** What each search of the look answered */
+  readonly answers: readonly LookAnswer[];
 };
 
 /** One call of `run()`, its options worked out */
@@ -716,22 +775,30 @@ export class TxPlan {
    * no payer: the same transaction in another plan cannot pay twice, and a new one comes from
    * its maker.
    *
-   * A new plan for what is left is made only once this plan is `stopped`: until then a step of
-   * it may still land, and a new plan built from `rest` beside it may pay a second time.
+   * A step whose name a transaction of the plans before this one has, found in a block by a look
+   * of this plan, is not among them either. `rest` shows what is left without a look; a new plan
+   * for it is `replan`: nothing keeps a plan made with `builder.plan(plan.rest)` apart from this
+   * one, and both may pay.
    *
    * A step given built with no end of validity (`NEVER_EXPIRES`) that was never sent may land
    * as long as every input of it is unspent. When another transaction spends one of them it can
    * never land, but the plan cannot tell who spent the input, and keeps it as a step that may
    * land: such a plan is `stopping`, and never `stopped`. Ask the maker for a transaction with
-   * an end of validity, or let the plan build the step. A new plan in place of this one would
-   * have to hold that transaction too, or spend an input of it; no call of this release makes
-   * one.
+   * an end of validity, or let the plan build the step. A plan made in place of this one
+   * (`replan`) holds that transaction too or spends an input of it; otherwise none is made.
    */
   get rest(): PlanSteps {
     const { builder, record } = stateOf(this);
     const rest: Record<string, PlanStep> = {};
+    // A step whose name a transaction of the plans before has, found in a block: paid there
+    const paid = new Set(
+      (record.before?.open ?? []).flatMap((entry) =>
+        entry.seen === undefined ? [] : [entry.step],
+      ),
+    );
     for (const step of record.steps) {
-      if (isLanded(step) || step.seen !== undefined) continue;
+      if (isLanded(step) || step.seen !== undefined || paid.has(step.name))
+        continue;
       if (step.kind === "prebuilt") {
         rest[step.name] = prebuiltOf(builder, step);
         continue;
@@ -904,8 +971,12 @@ export class TxPlan {
    *   with, are not checked against the chain again: a step that names an output spent since is
    *   refused by the ledger, and a step added while a transaction of `after` is not in a block
    *   may take an input that transaction spends, so that one of the two is refused.
+   * - On a plan made by `replan`, no step added may land beside a transaction of the plans before
+   *   it that may still land: one of another payer, which shares no input with it, is STILL_LIVE
+   *   until that transaction is dead.
    * @throws TxPlanError INVALID_STATE (`final`) for a final plan, (`stopped`) for a plan that
-   *   is stopping or stopped; VERSION_CONFLICT when another writer added other steps meanwhile,
+   *   is stopping or stopped; STILL_LIVE on a plan made by `replan`, as above, nothing added;
+   *   VERSION_CONFLICT when another writer added other steps meanwhile,
    *   or the store refused four writes of the record (this call's, or that of its look at the
    *   chain): none of this call's steps is recorded, and the same call builds on the plan as it
    *   is;
@@ -975,8 +1046,13 @@ export class TxPlan {
         return { payer };
       };
       if ((await judge(state.record)) === undefined) return this;
-      // The statuses are what the chain shows before anything is built on them
-      const seen = await this.#look(state, ask);
+      // The statuses are what the chain shows before anything is built on them; a plan made in
+      // place of another looks at its whole line
+      const seen = await this.#look(
+        state,
+        ask,
+        state.record.before !== undefined,
+      );
       // The look may have taken a record another writer extended: the build starts from it, so
       // the steps are judged on it again
       const base = state.record;
@@ -998,6 +1074,36 @@ export class TxPlan {
         ...(signal !== undefined && { signal }),
         ...(state.trace !== undefined && { trace: state.trace }),
       });
+      // A plan made in place of another: no step added lands beside a transaction of the plans
+      // before it that may still land
+      if (base.before !== undefined) {
+        const classes = lineClasses(base, seen.answers, tip);
+        const entries = new Set(
+          base.before.open.flatMap((entry) =>
+            entry.seen === undefined ? [entry.txHash] : [],
+          ),
+        );
+        const dead = this.#judgePairs(
+          landsBeside(
+            newSteps,
+            [...classes.open, ...classes.unconfirmed].filter((tx) =>
+              entries.has(tx.txHash),
+            ),
+            base.steps.filter((step) => step.status === "final"),
+            base.steps,
+          ),
+          base,
+          tip,
+          "nothing was added",
+        );
+        for (const tx of dead)
+          emit(state.trace, {
+            type: "warning",
+            code: "NO_SHARED_INPUT",
+            step: tx.step,
+            txHash: tx.txHash,
+          });
+      }
       // The event goes only to a record with the steps the build started from
       let shown = base;
       await this.#write(
@@ -1062,8 +1168,10 @@ export class TxPlan {
    *   answer is recorded, and its outcome is unknown (retryable).
    *   NOT_YET_VALID before a step's lower bound (retryable). MISSING_SIGNATURES,
    *   MISSING_SUBMITTER, SIGN_DECLINED, SIGNER_FAILED: nothing was sent. CANNOT_OBSERVE when the
-   *   provider cannot follow the plan. INVALID_STATE (`stopped`) for a plan that was stopped, or
-   *   that came to `stopped` and would have to send a step for the first time
+   *   provider cannot follow the plan. INVALID_STATE (`stopped`) for a plan that was stopped or
+   *   replaced, that came to `stopped` and would have to send a step for the first time, or, made
+   *   by `replan`, whose look found a transaction of the plans before it in a block, its hash in
+   *   `error.txHash`: it sends nothing more, also not bytes it sent before
    * @throws TxBuildError ABORTED; INVALID_OPTION for a wait option out of range, and for options
    *   that are not an object or have a member other than those of `RunOptions`
    */
@@ -1109,11 +1217,13 @@ export class TxPlan {
 
   /**
    * One look at the chain: a search for each step that is not final, also one called dead, and
-   * for a transaction one of the inputs of each step not in a block comes from, then the tip. A
-   * step the plan never sent that stands on a step not in a block is not searched for. It records
+   * for a transaction one of the inputs of each step not in a block comes from, then the tip; on
+   * a plan made by `replan`, also each transaction of the plans before it not found yet. A step
+   * the plan never sent that stands on a step not in a block is not searched for. It records
    * what they show, sends nothing, and throws nothing for what it sees. A step called dead that
-   * is found in a block is included, and the plan's status follows. On a final plan it returns at
-   * once, without a request.
+   * is found in a block is included, and the plan's status follows; a transaction of the plans
+   * before that is found in a block stops the plan. On a final plan it returns at once, without
+   * a request.
    */
   refresh(): Promise<this> {
     return this.#call(async (state) => {
@@ -1143,6 +1253,593 @@ export class TxPlan {
       );
       return this;
     });
+  }
+
+  /**
+   * A new plan in place of this one, for what is left of it. Without `steps` it builds the
+   * steps its look shows open, as `rest` gives a step, less a failed one; with `steps`, those:
+   * one list of parts or named steps, as `builder.plan` takes them. The other options are
+   * those of `builder.plan`; where the call gives none, the payer this object holds and the
+   * deadlines and data options this plan records apply. `id` is the new plan's id.
+   *
+   * ```ts
+   * const next = await plan.replan({ id: "order-7:2" });
+   * await next.run();
+   * ```
+   *
+   * - The call looks at the chain first. The new plan stands on the steps that are final, of
+   *   this plan and of the plans before it: none is built again, and a link to one of this
+   *   plan's is filled in with its output. While a step is in a block and not final the call
+   *   is CANNOT_OBSERVE (`unconfirmed`).
+   * - Every other transaction of those plans is one the new plan must not land beside. The
+   *   first step built for a payer spends an input of each that the payer still holds, also
+   *   of one called dead: the ledger then takes one of the two and never both, whatever a
+   *   provider shows. Where no input is shared, a transaction that may still land refuses the
+   *   call (STILL_LIVE); one called dead, which no look ever found, is left to its end of
+   *   validity and the provider's search, and `trace` is told (`NO_SHARED_INPUT`).
+   * - This plan is marked before the new one is recorded: `replacedBy` names it, and this plan
+   *   signs and sends nothing more. A plan is replaced once; the same call again returns the
+   *   same plan. The new plan stops when a look of it finds one of those transactions in a
+   *   block.
+   * @throws TxPlanError STILL_LIVE (retryable with `details.safeAfter`); CANNOT_OBSERVE
+   *   (`unconfirmed`, retryable; `noTip`); INVALID_STATE (`final`) for a final plan, (`stopped`)
+   *   for a plan replaced by a plan of another id, (`pastHorizon`); MISSING_ID; PLAN_EXISTS;
+   *   VERSION_CONFLICT; STORE_FAILED; what probing the provider throws
+   * @throws TxBuildError INVALID_OPTION (`id`) for an id that is not a string or is this
+   *   plan's; (`steps`) when nothing is left and no step is given, for a name that is final in
+   *   this plan or a plan before it, for a link to a step that is neither given nor final, and
+   *   for all that `builder.plan` refuses; (`after`) for a transaction of these plans that is
+   *   not final; MISSING_PAYER; NOT_SERIALIZABLE; every error of building a step; ABORTED
+   */
+  replan(
+    options: PlanOptions & { id: string; steps?: StepParts | PlanSteps },
+  ): Promise<TxPlan> {
+    return this.#call(async (state) => {
+      const opts: PlanOptions & { steps?: unknown } = optionsObject(
+        options,
+        REPLAN_MEMBERS,
+        REPLAN_ALLOWED,
+      );
+      const { signal, id } = opts;
+      checkCallOptions({ signal });
+      if (id === undefined || id === "")
+        throw this.#error(
+          "MISSING_ID",
+          "a plan made in place of another needs an id of its own, a non-empty string: the plan it replaces records it, and so is replaced once",
+          {},
+        );
+      if (typeof id !== "string" || id === state.record.id)
+        throw invalidOption("id", id, REPLAN_ID_ALLOWED);
+      const { builder } = state;
+      // The shapes first, with no request and no read of the store
+      if (opts.payer !== undefined) toPayerSource(opts.payer);
+      if (opts.trace !== undefined && typeof opts.trace !== "function")
+        throw invalidOption("trace", opts.trace, "a function");
+      const { steps, after, ...rest } = opts;
+      const callOptions: MakePlanOptions = {
+        ...rest,
+        ...(after !== undefined && { after: afterOf(after) }),
+      };
+      const own =
+        steps === undefined
+          ? undefined
+          : readReplanSteps(builder, steps, callOptions, true);
+      if (builder.store !== undefined)
+        for (const step of own ?? []) encodeParts(step.parts);
+      const live: LiveObjects = {
+        ...((opts.payer ?? state.payer) !== undefined && {
+          payer: (opts.payer ?? state.payer)!,
+        }),
+        ...((opts.trace ?? state.trace) !== undefined && {
+          trace: (opts.trace ?? state.trace)!,
+        }),
+      };
+      throwIfAborted(signal, CALL);
+      const ask = this.#ask(signal);
+      await this.#takeStoredIfNewer(state, ask);
+      this.#refuseReplaced(state.record, id);
+      const addressOf = addressBook(builder);
+
+      // The same call again, after the plan was recorded: the plan, with nothing looked at,
+      // read or built
+      if (state.store !== undefined) {
+        const stored = await ask(loadRecord(state.store, id), "read");
+        if (stored !== undefined) {
+          const repeat = await this.#sameReplan(
+            state,
+            stored,
+            id,
+            own,
+            addressOf,
+            signal,
+          );
+          return objectOver(builder, repeat, live, "owed");
+        }
+      }
+
+      // One look at the whole line
+      const seen = await this.#look(state, ask, true);
+      this.#refuseUnobservable(seen);
+      const { tip } = seen;
+      if (tip === undefined)
+        throw this.#error(
+          "CANNOT_OBSERVE",
+          "the provider did not give the chain's tip (fetchLatestBlock), which a new plan is judged and built by: nothing was built or written",
+          { details: { reason: "noTip" } },
+        );
+      const base = state.record;
+      this.#refuseReplaced(base, id);
+      const classes = lineClasses(base, seen.answers, tip);
+      if (classes.unconfirmed.length > 0)
+        throw this.#unconfirmed(
+          `${classes.unconfirmed.map((tx) => `step ${JSON.stringify(tx.step)} (${tx.txHash})`).join(", ")} ${classes.unconfirmed.length === 1 ? "is" : "are"} in a block and not final, or found where the depth or the outcome of the scripts is not known: a new plan stands only on what is final`,
+          classes.unconfirmed[0]!.txHash,
+        );
+
+      // The steps: those given, else what the look shows open; none of a kept name
+      const keptNames = new Set([
+        ...(base.before?.final ?? []),
+        ...classes.kept.map((tx) => tx.step),
+      ]);
+      const openHashes = new Set(classes.open.map((tx) => tx.txHash));
+      let read: StepInput[];
+      if (own === undefined) {
+        const left: Record<string, PlanStep> = {};
+        for (const step of base.steps) {
+          if (
+            !openHashes.has(step.txHash.toLowerCase()) ||
+            step.status === "failed" ||
+            keptNames.has(step.name)
+          )
+            continue;
+          const given = stepAsGiven(builder, step);
+          if (given !== undefined) left[step.name] = given;
+        }
+        if (Object.keys(left).length === 0)
+          throw stepsRefused(
+            "nothing of the plan is left to build: every step is final, failed or a consolidation step; give the steps of the new plan",
+          );
+        read = readReplanSteps(builder, left, callOptions, false);
+      } else {
+        const final = own.filter((step) => keptNames.has(step.name));
+        if (final.length > 0)
+          throw stepsRefused(
+            `the step(s) ${final.map((step) => JSON.stringify(step.name)).join(", ")} are final in this plan or a plan before it: a final step is never built again`,
+          );
+        read = own;
+      }
+      const keptSteps = base.steps.filter((step) => step.status === "final");
+      read = fillKeptLinks(read, keptSteps);
+      for (const tx of callOptions.after === undefined
+        ? []
+        : Array.isArray(callOptions.after)
+          ? callOptions.after
+          : [callOptions.after])
+        if (
+          typeof (tx as { txHash?: unknown })?.txHash === "string" &&
+          openHashes.has((tx as { txHash: string }).txHash.toLowerCase())
+        )
+          throw invalidOption(
+            "after",
+            after,
+            "transactions that are no open transaction of this plan or the plans before it: a new plan stands only on what is final",
+          );
+      const payer =
+        opts.payer ??
+        (await abortable(
+          payerOfAdded(base, state.payer, read, addressOf),
+          signal,
+          CALL,
+        ));
+
+      // The payers read now, past the cache; the steps built on them with the guards
+      const settledOnes = new Set(settled(classes.open, classes.kept));
+      this.#clearVolatile(state);
+      const made = await buildReplan(builder, base, read, {
+        id,
+        options: callOptions,
+        ...(payer !== undefined && { payer }),
+        asked: addressOf,
+        tip,
+        withReads: async (reads) => {
+          await this.#refuseOpenOutputs(state, base, classes, reads, ask);
+          const byPayer = new Map<string, readonly Utxo[]>();
+          for (const each of reads)
+            byPayer.set(
+              each.read.snapshot.changeAddress,
+              each.read.snapshot.utxos,
+            );
+          const payerOf = new Map(
+            reads.map((each) => [
+              each.step.name,
+              each.read.snapshot.changeAddress,
+            ]),
+          );
+          const guardSteps: GuardStep[] = read.map((step) =>
+            step.prebuilt !== undefined
+              ? {
+                  name: step.name,
+                  built: prebuiltBody(step.prebuilt.tx, step.prebuilt.txHash),
+                }
+              : {
+                  name: step.name,
+                  payer: payerOf.get(step.name)!,
+                  parts: step.parts,
+                },
+          );
+          const { added } = rootGuards(
+            classes.open.filter((tx) => !settledOnes.has(tx)),
+            byPayer,
+            guardSteps,
+          );
+          const parts = new Map<string, TxPart[]>();
+          for (const guard of added)
+            parts.set(guard.step, [
+              ...(parts.get(guard.step) ?? []),
+              spend.pubKey({ utxo: guard.utxo }),
+            ]);
+          return parts;
+        },
+        keep: (steps) =>
+          beforeOf(
+            base,
+            classes,
+            steps.map((step) => step.built.txHash),
+          ),
+      });
+
+      // Every pair of a step built and an open transaction, judged on the bodies
+      const dead = this.#judgePairs(
+        landsBeside(made.steps, classes.open, classes.kept),
+        base,
+        tip,
+        "nothing was written",
+      );
+      const madeHashes = new Set(
+        made.steps.map((step) => step.built.txHash.toLowerCase()),
+      );
+      const standing = new Map(
+        classes.open
+          .filter((tx) => !madeHashes.has(tx.txHash) && tx.usedUp !== true)
+          .map((tx) => [tx.txHash, tx]),
+      );
+      for (const step of made.steps) {
+        const below = sourcesOf(step.built)
+          .map((hash) => standing.get(hash))
+          .find((tx) => tx !== undefined);
+        if (below !== undefined)
+          throw this.#unconfirmed(
+            `step ${JSON.stringify(step.name)} of the new plan spends, reads or puts up an output of step ${JSON.stringify(below.step)} (${below.txHash}), which the search does not find in a block: a new plan stands only on what is final`,
+            below.txHash,
+          );
+      }
+      for (const tx of dead)
+        emit(live.trace, {
+          type: "warning",
+          code: "NO_SHARED_INPUT",
+          step: tx.step,
+          txHash: tx.txHash,
+        });
+
+      // The provider, as for any new plan; then the mark; then the new record
+      const probed = await probeProvider(
+        state.observer,
+        made.record,
+        ask,
+        (problem) =>
+          this.#error("CANNOT_OBSERVE", problem.message, {
+            details: { reason: problem.reason },
+          }),
+      );
+      await this.#mark(state, base, id, ask);
+      if (state.store === undefined)
+        return objectOver(builder, made.record, live, probed ? "done" : "owed");
+      return this.#recordReplan(
+        state,
+        made.record,
+        id,
+        own === undefined ? undefined : read,
+        addressOf,
+        live,
+        probed,
+        ask,
+      );
+    });
+  }
+
+  /* -------------------------------------------------------------------------------------------
+   * Replacing
+   * ----------------------------------------------------------------------------------------- */
+
+  /**
+   * INVALID_STATE (`stopped`) for a plan replaced by a plan of another id, (`final`) for a final
+   * plan
+   */
+  #refuseReplaced(record: PlanRecord, id: string) {
+    if (record.replacedBy !== undefined && record.replacedBy !== id)
+      throw this.#error(
+        "INVALID_STATE",
+        `the plan was replaced by ${JSON.stringify(record.replacedBy)}: a plan is replaced once, and the plan made in its place is the one to replan`,
+        { details: { reason: "stopped" } },
+      );
+    if (record.status === "final")
+      throw this.#error(
+        "INVALID_STATE",
+        "the plan is final: every step of it is final, and nothing is made in its place",
+        { details: { reason: "final" } },
+      );
+  }
+
+  /** CANNOT_OBSERVE (`unconfirmed`): nothing was written, and the same call later tells */
+  #unconfirmed(why: string, txHash?: string) {
+    return this.#error(
+      "CANNOT_OBSERVE",
+      `${why}; nothing was written, and the same call later tells`,
+      {
+        details: { reason: "unconfirmed" },
+        ...(txHash !== undefined && { txHash }),
+      },
+    );
+  }
+
+  /**
+   * The plan recorded under `id` when it is the plan made in place of this one by the same call:
+   * it names this plan in `replaces`, this plan names it, and the steps given, when given, are
+   * those it was made with
+   * @throws TxPlanError PLAN_EXISTS for any other record; TxBuildError NETWORK_MISMATCH
+   */
+  async #sameReplan(
+    state: PlanState,
+    stored: PlanRecord,
+    id: string,
+    own: readonly StepInput[] | undefined,
+    addressOf: AddressOf,
+    signal: AbortSignal | undefined,
+  ): Promise<PlanRecord> {
+    const exists = () =>
+      this.#error(
+        "PLAN_EXISTS",
+        `the store holds the plan ${id}, and not as the plan made in place of this one with the steps given: nothing was looked at, built or written`,
+        {},
+      );
+    if (
+      state.record.id === undefined ||
+      stored.replaces !== state.record.id ||
+      state.record.replacedBy !== id
+    )
+      throw exists();
+    checkRecordNetwork(state.builder, stored);
+    if (own !== undefined) {
+      const filled = fillKeptLinks(
+        own,
+        state.record.steps.filter((step) => step.status === "final"),
+      );
+      const given = await abortable(
+        givenSteps(filled, addressOf),
+        signal,
+        CALL,
+      );
+      if (!stepsOfOrder(stored, given)) throw exists();
+    }
+    return stored;
+  }
+
+  /**
+   * The first record of the plan made in place of this one, written over no record. A record
+   * the store holds under its id already is the plan of the same call, or PLAN_EXISTS
+   */
+  async #recordReplan(
+    state: PlanState,
+    record: PlanRecord,
+    id: string,
+    own: readonly StepInput[] | undefined,
+    addressOf: AddressOf,
+    live: LiveObjects,
+    probed: boolean,
+    ask: Ask,
+  ): Promise<TxPlan> {
+    const store = state.store!;
+    const json = encodePlan(record) as unknown as StoredTxPlanJSON;
+    const saving = (async () => {
+      try {
+        return (await store.save(json, 0)) === true;
+      } catch (error) {
+        throw this.#error(
+          "STORE_FAILED",
+          `the store failed to write the first record of the plan ${id}, and the write may have passed: this plan names it, and the same call finds out`,
+          { cause: error },
+        );
+      }
+    })();
+    if (await ask(saving, "write"))
+      return objectOver(state.builder, record, live, probed ? "done" : "owed");
+    const stored = await ask(loadRecord(store, id), "read");
+    if (stored === undefined)
+      throw this.#error(
+        "VERSION_CONFLICT",
+        `the store refused the first record of the plan ${id} and holds none: nothing of it was signed or sent, and the same call builds it again`,
+        {},
+      );
+    const repeat = await this.#sameReplan(
+      state,
+      stored,
+      id,
+      own,
+      addressOf,
+      undefined,
+    );
+    return objectOver(state.builder, repeat, live, "owed");
+  }
+
+  /**
+   * The mark on this plan: `replacedBy` is `id`, by compare-and-set over the record the build
+   * started from. Refused when it names another plan, or when the record moved under the build:
+   * steps added, a step found in a block, a transaction of the plans before found
+   * @throws TxPlanError INVALID_STATE (`stopped`, `final`); CANNOT_OBSERVE (`unconfirmed`);
+   *   VERSION_CONFLICT; STORE_FAILED
+   */
+  async #mark(state: PlanState, base: PlanRecord, id: string, ask: Ask) {
+    const inBlock = (step: StepRecord | undefined) =>
+      step !== undefined && (isLanded(step) || step.status === "failed");
+    const seenIn = (record: PlanRecord) =>
+      new Set(
+        (record.before?.open ?? []).flatMap((entry) =>
+          entry.seen === undefined ? [] : [entry.txHash],
+        ),
+      );
+    const moved = () =>
+      this.#unconfirmed(
+        "the plan's record moved while the new plan was built: a step was added, or a look found one of its transactions in a block",
+      );
+    await this.#write(
+      state,
+      (record) => {
+        if (record.replacedBy !== undefined && record.replacedBy !== id)
+          return {
+            stop: this.#error(
+              "INVALID_STATE",
+              `the plan was replaced by ${JSON.stringify(record.replacedBy)} while this call built: a plan is replaced once; nothing of ${JSON.stringify(id)} was written`,
+              { details: { reason: "stopped" } },
+            ),
+          };
+        if (!sameSteps(record, base)) return { stop: moved() };
+        if (
+          record.steps.some(
+            (step, i) => inBlock(step) && !inBlock(base.steps[i]),
+          )
+        )
+          return { stop: moved() };
+        const before = seenIn(base);
+        if ([...seenIn(record)].some((txHash) => !before.has(txHash)))
+          return { stop: moved() };
+        if (record.replacedBy === id) return { skip: true };
+        return {
+          event: { type: "stop", replacedBy: id },
+          refused: (refusal) =>
+            refusal.reason === "terminal"
+              ? this.#error(
+                  "INVALID_STATE",
+                  "the plan came to final while the new plan was built: nothing is made in its place",
+                  { details: { reason: "final" } },
+                )
+              : this.#refused(refusal),
+        };
+      },
+      undefined,
+      ask,
+    );
+  }
+
+  /**
+   * CANNOT_OBSERVE (`unconfirmed`) when a payer's read holds an output of an open transaction
+   * of the line, or an address an open step that is dead or used up pays holds one of its
+   * outputs: the search says it is in no block, and the address says it is
+   */
+  async #refuseOpenOutputs(
+    state: PlanState,
+    base: PlanRecord,
+    classes: LineClasses,
+    reads: readonly { readonly read: PayerRead }[],
+    ask: Ask,
+  ) {
+    const stepOf = new Map(
+      base.steps.map((step) => [step.txHash.toLowerCase(), step]),
+    );
+    const outputs = new Map<string, LineTx>();
+    const entries = new Map<string, LineTx>();
+    const quiet: { tx: LineTx; step: StepRecord }[] = [];
+    for (const tx of classes.open) {
+      const step = stepOf.get(tx.txHash);
+      if (step === undefined) {
+        // A used-up transaction left its collateral's return on chain, and nothing else
+        if (tx.usedUp !== true) entries.set(tx.txHash, tx);
+        continue;
+      }
+      for (const output of step.built.outputs)
+        outputs.set(outRefOf(output), tx);
+      if (tx.dead === true || tx.usedUp === true) quiet.push({ tx, step });
+    }
+    const shown = (tx: LineTx, outRef: string) =>
+      this.#unconfirmed(
+        `an address lists ${outRef}, an output of step ${JSON.stringify(tx.step)} (${tx.txHash}), which the search does not find in a block`,
+        tx.txHash,
+      );
+    const covered = new Set<string>();
+    for (const { read } of reads) {
+      covered.add(read.snapshot.changeAddress);
+      for (const utxo of read.snapshot.utxos) {
+        covered.add(utxo.address);
+        const outRef = outRefOf(utxo);
+        const tx =
+          outputs.get(outRef) ?? entries.get(utxo.txHash.toLowerCase());
+        if (tx !== undefined) throw shown(tx, outRef);
+      }
+    }
+    // The addresses a step that is dead or used up pays, that no read covered
+    const addresses: string[] = [];
+    for (const { step } of quiet)
+      for (const output of step.built.outputs)
+        if (
+          !covered.has(output.address) &&
+          !addresses.includes(output.address) &&
+          addresses.length < MAX_PAID_ADDRESSES
+        )
+          addresses.push(output.address);
+    if (addresses.length === 0) return;
+    const lists = await ask(
+      Promise.all(addresses.map((address) => state.observer.utxosAt(address))),
+      "look",
+    );
+    const quietTx = new Set(quiet.map(({ tx }) => tx));
+    for (const list of lists)
+      for (const ref of list ?? []) {
+        const outRef = outRefOf(ref);
+        const tx = outputs.get(outRef);
+        if (tx !== undefined && quietTx.has(tx)) throw shown(tx, outRef);
+      }
+  }
+
+  /**
+   * The pairs `landsBeside` gives, judged: a transaction that is dead passes; any other refuses
+   * the call, STILL_LIVE, with every such hash and, when time settles them all, `safeAfter`
+   * @returns the dead transactions a step passed beside
+   * @throws TxPlanError STILL_LIVE
+   */
+  #judgePairs(
+    pairs: readonly { readonly open: readonly LineTx[] }[],
+    base: PlanRecord,
+    tip: PlanTip,
+    done: string,
+  ): LineTx[] {
+    const live = new Map<string, LineTx>();
+    const dead = new Map<string, LineTx>();
+    for (const pair of pairs)
+      for (const tx of pair.open)
+        (tx.dead === true ? dead : live).set(tx.txHash, tx);
+    if (live.size === 0) return [...dead.values()];
+    const txs = [...live.values()];
+    const timed = txs.every(
+      (tx) => tx.until !== undefined && tx.seen === undefined,
+    );
+    const safeAfter = timed
+      ? Math.max(...txs.map((tx) => tx.until!)) + base.deadlines.expiryMarginMs
+      : undefined;
+    const waitMs = safeAfter === undefined ? 0 : safeAfter - tip.timeMs;
+    throw this.#error(
+      "STILL_LIVE",
+      `a step built could land beside ${txs.map((tx) => `step ${JSON.stringify(tx.step)} (${tx.txHash})`).join(", ")} of this plan or a plan before it, which may still land and share no input with it: ${done}; ${
+        safeAfter === undefined
+          ? "no time settles it, as one of them has no end of validity or was found in a block once: steps that hold that transaction or spend an input of it are the way"
+          : "the same call passes once its end of validity and the margin have passed (safeAfter)"
+      }`,
+      {
+        details: {
+          txHashes: [...live.keys()],
+          ...(safeAfter !== undefined && { safeAfter }),
+        },
+        ...(waitMs > 0 && { retryAfterMs: waitMs }),
+      },
+    );
   }
 
   /* -------------------------------------------------------------------------------------------
@@ -1189,6 +1886,8 @@ export class TxPlan {
         : undefined;
       retryAfterMs?: number;
       step?: Pick<StepRecord, "name" | "txHash">;
+      /** The transaction the error is about, when it is no step of this plan */
+      txHash?: string;
       cause?: unknown;
     },
   ): TxPlanError<C> {
@@ -1317,17 +2016,31 @@ export class TxPlan {
     return new Error(`the steps built were refused: ${refusal.message}`);
   }
 
-  /** INVALID_STATE (`stopped`) for a plan that was stopped or replaced */
+  /**
+   * INVALID_STATE (`stopped`) for a plan that was stopped or replaced, or that found a
+   * transaction of the plans before it in a block, its hash in `error.txHash`
+   */
   #refuseMarked(state: PlanState) {
     const { record } = state;
-    if (record.stopped === true)
+    if (record.stopped !== true) return;
+    if (record.replacedBy !== undefined)
       throw this.#error(
         "INVALID_STATE",
-        record.replacedBy === undefined
-          ? "the plan was stopped: it signs and sends nothing more"
-          : `the plan was replaced by ${JSON.stringify(record.replacedBy)}: it signs and sends nothing more`,
+        `the plan was replaced by ${JSON.stringify(record.replacedBy)}: it signs and sends nothing more`,
         { details: { reason: "stopped" } },
       );
+    const found = record.before?.open.find((entry) => entry.seen !== undefined);
+    if (found !== undefined)
+      throw this.#error(
+        "INVALID_STATE",
+        `a look found the transaction ${found.txHash} of step ${JSON.stringify(found.step)} of the plan it was made in place of in a block: that plan's step may have paid, so this plan signs and sends nothing more; replan it`,
+        { details: { reason: "stopped" }, txHash: found.txHash },
+      );
+    throw this.#error(
+      "INVALID_STATE",
+      "the plan was stopped: it signs and sends nothing more",
+      { details: { reason: "stopped" } },
+    );
   }
 
   /**
@@ -1593,8 +2306,8 @@ export class TxPlan {
    * is unknown and changes nothing. A find without its slot is unknown. A step called dead that
    * the look finds in a block is told to `trace`.
    */
-  async #look(state: PlanState, ask: Ask): Promise<Observed> {
-    let seen: Observed = { noValidity: false, noDepth: false };
+  async #look(state: PlanState, ask: Ask, line = false): Promise<Observed> {
+    let seen: Observed = { noValidity: false, noDepth: false, answers: [] };
     // Each round searches steps no round of this look searched; a round that finds a step in a
     // block lets the next one search the steps that stand on it. Every round searches one step
     // more at least, so a look ends
@@ -1605,8 +2318,16 @@ export class TxPlan {
         (step) =>
           step.status !== "final" &&
           !searched.has(step.name) &&
-          !cannotBeSeen(record, step),
+          (line || !cannotBeSeen(record, step)),
       );
+      // The transactions of the plans before this one: those not found yet in every look, all
+      // of them in a look of the whole line; in the first round
+      const entries =
+        round > 0
+          ? []
+          : (record.before?.open ?? []).filter(
+              (entry) => line || entry.seen === undefined,
+            );
       if (watched.length === 0 && round > 0) break;
       for (const step of watched) searched.add(step.name);
       // A later round takes the tip of the first: a search made after a tip finds nothing deeper
@@ -1616,6 +2337,11 @@ export class TxPlan {
         watched,
         ask,
         round > 0 ? (seen.tip ?? null) : undefined,
+        entries,
+        line,
+      );
+      const answers = new Map(
+        [...seen.answers, ...found.answers].map((each) => [each.txHash, each]),
       );
       seen = {
         ...(found.tip !== undefined
@@ -1623,6 +2349,7 @@ export class TxPlan {
           : seen.tip !== undefined && { tip: seen.tip }),
         noValidity: seen.noValidity || found.noValidity,
         noDepth: seen.noDepth || found.noDepth,
+        answers: [...answers.values()],
       };
       if (watched.length === 0) break;
     }
@@ -1630,29 +2357,49 @@ export class TxPlan {
   }
 
   /**
-   * One round of a look: a search for each of these steps and the sources, then the tip
+   * One round of a look: a search for each of these steps, these transactions of the plans
+   * before, and the sources, then the tip
    * @param earlier The tip of an earlier round, taken instead of reading one; `null` for none
+   * @param line A look of the whole line: also the source of each step called dead and of each
+   *   transaction of the plans before that is not in a block and has an end
    */
   async #lookOnce(
     state: PlanState,
     watched: readonly StepRecord[],
     ask: Ask,
     earlier?: PlanTip | null,
+    entries: readonly BeforeEntry[] = [],
+    line = false,
   ): Promise<Observed> {
     const hashes = watched.map((step) => step.txHash.toLowerCase());
+    for (const entry of entries)
+      if (!hashes.includes(entry.txHash)) hashes.push(entry.txHash);
     const sources: string[] = [];
+    const covered = (from: readonly string[]) =>
+      from.some((hash) => hashes.includes(hash) || sources.includes(hash));
     for (const step of watched) {
-      if (!isUnlandedStep(step) || stepUntil(step) === undefined) continue;
+      if (
+        !(isUnlandedStep(step) || (line && isDeadStep(step))) ||
+        stepUntil(step) === undefined
+      )
+        continue;
       const from = step.built.inputs.map((input) => input.txHash.toLowerCase());
       if (step.expirySource !== undefined) {
         if (!sources.includes(step.expirySource))
           sources.push(step.expirySource);
         continue;
       }
-      if (from.some((hash) => hashes.includes(hash) || sources.includes(hash)))
-        continue;
+      if (covered(from)) continue;
       if (from[0] !== undefined) sources.push(from[0]);
     }
+    if (line)
+      for (const entry of entries) {
+        if (entry.seen !== undefined || entry.until === undefined) continue;
+        const from = entry.spends.map((outRef) =>
+          outRef.slice(0, outRef.indexOf("#")).toLowerCase(),
+        );
+        if (!covered(from) && from[0] !== undefined) sources.push(from[0]);
+      }
     const all = [...hashes, ...sources];
     let searches: ReadonlyMap<string, TxSearch>;
     let tip: PlanTip | undefined;
@@ -1692,12 +2439,36 @@ export class TxPlan {
       )
         noDepth = true;
     }
-    for (const txHash of sources) {
+    const ownHashes = new Set(hashes.slice(0, watched.length));
+    for (const txHash of all) {
+      if (ownHashes.has(txHash)) continue;
       const search = searches.get(txHash);
       if (search === undefined || "unsupported" in search) continue;
       if (!search.found) sightings.push({ txHash, found: false });
       else if (search.slot !== undefined)
         sightings.push(sightingOf(txHash, search));
+    }
+    // What each search said, also of a find without its slot or its scripts' outcome
+    const answers: LookAnswer[] = [];
+    for (const txHash of all) {
+      const search = searches.get(txHash);
+      if (search === undefined || "unsupported" in search) continue;
+      answers.push(
+        search.found
+          ? {
+              txHash,
+              found: true,
+              ...(search.slot !== undefined && { slot: search.slot }),
+              ...(search.block !== undefined && { block: search.block }),
+              ...(search.blockHeight !== undefined && {
+                blockHeight: search.blockHeight,
+              }),
+              ...(search.validContract !== undefined && {
+                valid: search.validContract,
+              }),
+            }
+          : { txHash, found: false },
+      );
     }
     const landed = landedSteps(state.record).length;
     const dead = new Map(
@@ -1730,7 +2501,12 @@ export class TxPlan {
           was: was as "expired" | "orphaned",
         });
     }
-    return { ...(tip !== undefined && { tip }), noValidity, noDepth };
+    return {
+      ...(tip !== undefined && { tip }),
+      noValidity,
+      noDepth,
+      answers,
+    };
   }
 
   /** Clears the builder's cache of reads that a delivery or a landing makes stale */
@@ -2313,6 +3089,102 @@ const onStep = (
   const fields = error as { step?: string; txHash?: string };
   if (fields.step === undefined) fields.step = step.name;
   if (fields.txHash === undefined) fields.txHash = step.txHash;
+};
+
+/** An out ref as `txHash#index`, with the hash in lower case */
+const outRefOf = (utxo: {
+  readonly txHash: string;
+  readonly outputIndex: number;
+}) => `${utxo.txHash.toLowerCase()}#${utxo.outputIndex}`;
+
+/** INVALID_OPTION (`steps`) of `replan` */
+const stepsRefused = (reason: string) =>
+  new TxBuildError("INVALID_OPTION", `invalid steps: ${reason}`, {
+    details: {
+      option: "steps",
+      value: undefined,
+      allowed:
+        "one list of parts, or an object of named steps none of which is final in the plan or a plan before it",
+    },
+  });
+
+/**
+ * A step of a record as `builder.plan` takes it, as `rest` gives it: its parts and own options,
+ * with its own payer's change address as its payer; a step given built as that transaction.
+ * Undefined for a consolidation step
+ */
+const stepAsGiven = (
+  builder: TxBuilder,
+  step: StepRecord,
+): PlanStep | undefined => {
+  if (step.kind === "prebuilt") return prebuiltOf(builder, step);
+  if (step.kind === "consolidation" || step.given === undefined)
+    return undefined;
+  const parts = step.given.parts as StepParts;
+  const { changeAddress, ...options } = step.given.options ?? {};
+  const own =
+    typeof changeAddress === "string"
+      ? { payer: changeAddress, ...options }
+      : options;
+  return Object.keys(own).length === 0
+    ? parts
+    : ({ parts, ...own } as PlanStep);
+};
+
+/**
+ * What the choice of shared inputs reads of a transaction given built: its body, the object's
+ * own or read from its bytes; of bytes it cannot read, the hash alone
+ */
+const prebuiltBody = (
+  tx: BuiltTx | string,
+  txHash: string | undefined,
+): RuleBody => {
+  if (tx instanceof BuiltTx) return tx;
+  const none = {
+    txHash: txHash ?? "",
+    inputs: [],
+    referenceInputs: [],
+    collateral: undefined,
+    validity: undefined,
+  } as unknown as RuleBody;
+  try {
+    const read = Transaction.fromCbor(TxCBOR(tx.toLowerCase()));
+    const body = read.body();
+    const refs = (set: readonly Serialization.TransactionInput[] = []) =>
+      set.map((input) => ({
+        txHash: input.transactionId().toString(),
+        outputIndex: Number(input.index()),
+      }));
+    return {
+      ...none,
+      txHash: read.getId().toString(),
+      inputs: refs(body.inputs().values()),
+      referenceInputs: refs(body.referenceInputs()?.values()),
+      collateral: { inputs: refs(body.collateral()?.values()) },
+    } as unknown as RuleBody;
+  } catch {
+    return none;
+  }
+};
+
+/**
+ * Whether a record holds the steps given, as `builder.plan` compares them: those it was made
+ * with, or all it has, in order; consolidation steps left out of both
+ */
+const stepsOfOrder = (record: PlanRecord, given: readonly GivenStep[]) => {
+  const order = JSON.parse(
+    JSON.stringify(
+      shapeOfOrder({
+        network: record.network,
+        deadlines: {},
+        options: {},
+        steps: given,
+      }).steps,
+    ),
+  ) as unknown;
+  return [false, true].some((added) =>
+    sameJson(JSON.parse(JSON.stringify(shapeOf(record, added).steps)), order),
+  );
 };
 
 /** A find of a search as the state machine takes it */
