@@ -89,7 +89,8 @@ state of a payment lives in its `TxPlan`, and with a `store` in the store's reco
 ## Assembly: `assembleTxPrototype`
 
 Every part must be complete — `unresolved(part)` empty. Otherwise it throws `UNRESOLVED` with the
-gaps of every incomplete part in `details`.
+gaps of every incomplete part in `details`. A part linked to an earlier step of a plan has the gap
+`link`, which only `builder.plan` fills in.
 
 ### Redeemer indices
 
@@ -388,40 +389,56 @@ see [Chains][r-chains].
 
 ## Plans: `TxPlan`
 
-`await builder.plan(steps, options)` is the only way to make a plan: a group of transactions,
-its steps, built at once and never rebuilt, and run in order. One list of parts is a plan of one
-step, `main`; an object of named steps is a plan of several, in the order of its keys. Every body
-is built by that call, each on the payer's UTxOs as the steps before it leave them, and nothing is
-signed or sent. Its options are the build options with an `id` and the deadlines `ttlMs`,
-`expiryMarginMs` and `confirmations`, written into the plan when it is made and never read from
-the builder again.
+`await builder.plan(steps, options)` is the only way to make a plan: several transactions, its
+steps, built at once and sent in order. One list of parts is a plan of one step, `main`; an object
+of named steps is a plan of several, in the order of its keys, each step parts or
+`{ parts, ...options }` with build options of its own. Every body is built by that call, each on
+its payer's UTxOs as the steps before it leave them, read once, and nothing is signed or sent, so
+the whole plan can be shown before anyone signs. Its options are the build options with an `id`
+and the deadlines `ttlMs`, `expiryMarginMs` and `confirmations`, written into the plan when it is
+made and never read from the builder again. `build` stays one transaction or an error.
 
-- **Steps.** A step is one transaction with a fixed body and hash, a name and a status. A step
-  built from parts stands on the step before it of the same payer: it spends that step's change.
-  `run()` sends a step only when the step before it is in a block; every send of a step is the
-  same bytes, so every call can be repeated without paying twice.
+- **Steps.** A step is one transaction with a fixed body and hash, a name and a status. Nothing is
+  rebuilt: every call signs, sends and looks for the same bytes, so every call can be repeated,
+  after a crash or from another process, without paying twice. A part names an output of an
+  earlier step by a link, `{ step, output }` (a label or a position) or `{ step, change: true }`
+  (all its change, in `spend.pubKey`), filled in from that step's own transaction. A step built
+  from parts spends the change of the step before it of the same payer, unless it already spends,
+  reads or puts up an output of that step, so the ledger keeps the order; a step that can do
+  neither is `INVALID_OPTION` (`steps`). `run()` sends a step only when every step before it is in
+  a block.
 - **Statuses.** A step is `built`, `signed`, `sent`, `rejected`, `included`, `final`, `expired`,
-  `failed` or `orphaned`; a rollback can take `included` back to `sent`. A plan is `pending`,
-  `stopping`, `stopped` or `final`; only `final` and `stopped` are terminal. Whether a payment
-  went through is the status of its step.
+  `failed` or `orphaned`; a rollback can take `included` back to `sent`, and `rejected` may still
+  land. A plan is `pending`, `stopping`, `stopped` or `final`; only `final` and `stopped` are
+  terminal. A payment is paid when its step is `final`, which never changes. `stopped` means that
+  nothing more of the plan is expected to land, by what the chain shows: a step called `expired`
+  or `orphaned` is still looked for, and found in a block it counts as landed and the plan's
+  status follows (`DEAD_STEP_FOUND`).
 - **Time is the chain's.** A step whose parts set no `until` gets
-  `until = max(tip time, from) + ttlMs`; it is `expired` once the tip time passes `until` plus
-  `expiryMarginMs`, and `final` once `confirmations` blocks lie on top of its block. The provider
-  must give the tip and the search with block heights, and `validContract` for a Plutus step;
-  otherwise `CANNOT_OBSERVE`, before anything is signed or sent. Local timers only set the pace
-  of waiting (`pollMs`, `resendMs`).
+  `until = max(tip time, from) + ttlMs`, the tip read once for the plan; it is `expired` once the
+  provider's tip and the local clock are both past `until` plus `expiryMarginMs` (a tip more than
+  two minutes ahead of the clock is not believed: `TIP_AHEAD_OF_CLOCK`), and `final` once
+  `confirmations` blocks lie on top of its block. The provider must give the tip and the search
+  with block heights, and `validContract` for a Plutus step; otherwise `CANNOT_OBSERVE`, before
+  anything is signed or sent. Other timers only set the pace of waiting (`pollMs`, `resendMs`).
 - **Calls.** `sign()` and `run()` sign with the call's `signers`, else the payer, checking every
   witness against the body; the payer gives only the keys it is asked for, and is not asked when
-  none is left. `run()` looks at the chain, then signs, submits and waits for `waitFor`; `refresh()`
-  looks once; `stop()` records that the plan signs and sends nothing more.
+  none is left. `run()` looks at the chain, then signs, submits and waits for `waitFor` (`"sent"`,
+  `"included"` by default, `"final"`); `refresh()` looks once; `stop()` records that the plan
+  signs and sends nothing more. A plan with a step that will not land sends no step for the first
+  time. `landed`, `live` and `rest` say what landed, what may still land and what is left, as
+  steps `builder.plan` takes; a new plan for what is left is made only once the plan is
+  `stopped`.
 - **The store.** `TxPlanStore` is `load(id)` and a compare-and-set `save(json, expectedRev)`. Every
   change is saved before the method returns; the record holds data only, never a wallet, signer,
   submitter or function (its UTxOs stand in the builder's form), and `resume(id, options)`
-  restores the plan with those given again. `memoryPlanStore()` serves tests;
-  `checkPlanStore(store)` checks one's own store ([Storage][r-storage]).
+  restores the plan with those given again. A recorded `id` with the same steps and options is the
+  recorded plan, and nothing is built. `memoryPlanStore()` serves tests; `checkPlanStore(store)`
+  checks one's own store ([Storage][r-storage]).
 
-The rules for a lost answer, a refusal, reconciliation and chains are in the README:
-[Plans][r-plans], [Servers][r-servers] and [Deadlines and waiting][r-deadlines].
+The rules for a lost answer, a refusal, a step that does not go through, reconciliation and
+chains are in the README: [Plans][r-plans], [Servers][r-servers] and
+[Deadlines and waiting][r-deadlines].
 
 ## Signing without a plan
 
