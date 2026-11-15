@@ -558,7 +558,12 @@ A plan asks no signer for it: sign it on the `BuiltTx` after reading `missing`, 
 `MISSING_SIGNATURES`. It is `kind: "prebuilt"` in `plan.steps`, and its warnings are in
 `plan.step(name).warnings`. Without an end of validity it never expires (`NEVER_EXPIRES`):
 `plan.until` is undefined and the plan is not `stopped` while that step may still land, so a
-transaction built for a plan gets a `validity({ until })`. What it spends no other step spends or
+transaction built for a plan gets a `validity({ until })`. When such a step was never sent and
+another transaction spends one of its inputs, it can never land, but the plan cannot tell who
+spent the input: it stays `stopping`, never `stopped`, and `stop()` does not change that. Ask
+its maker for a transaction with an end of validity, or let the plan build the step. A new plan
+in place of this one would have to hold that transaction too, or spend an input of it; no call
+of this release makes one. What it spends no other step spends or
 selects; two steps that spend one output are `INVALID_OPTION` (`steps`). Its outputs are named by
 position. Labels come only with an object that `build` or `finalize` made in this process: an
 object of `restore` or `fromCbor`, and CBOR, are read by position, and a link by label to them is

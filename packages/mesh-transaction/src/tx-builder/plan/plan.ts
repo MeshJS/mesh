@@ -712,6 +712,14 @@ export class TxPlan {
    *
    * A new plan for what is left is made only once this plan is `stopped`: until then a step of
    * it may still land, and a new plan built from `rest` beside it may pay a second time.
+   *
+   * A step given built with no end of validity (`NEVER_EXPIRES`) that was never sent may land
+   * as long as every input of it is unspent. When another transaction spends one of them it can
+   * never land, but the plan cannot tell who spent the input, and keeps it as a step that may
+   * land: such a plan is `stopping`, and never `stopped`. Ask the maker for a transaction with
+   * an end of validity, or let the plan build the step. A new plan in place of this one would
+   * have to hold that transaction too, or spend an input of it; no call of this release makes
+   * one.
    */
   get rest(): PlanSteps {
     const { builder, record } = stateOf(this);
@@ -1101,8 +1109,11 @@ export class TxPlan {
 
   /**
    * Records the decision that the plan signs and sends nothing more. Steps that were sent, or
-   * signed, may still land: the plan is `stopping` until none of them can, then `stopped`. On a
-   * plan that is `final` or `stopped` it does nothing
+   * signed, may still land: the plan is `stopping` until none of them can, then `stopped`. A
+   * step given built with no end of validity (`NEVER_EXPIRES`) that is not in a block may land
+   * for as long as the plan can see, also when an input of it was spent elsewhere: such a plan
+   * stays `stopping` and is never `stopped` (see `rest`). On a plan that is `final` or `stopped`
+   * it does nothing
    */
   stop(): Promise<this> {
     return this.#call(async (state) => {

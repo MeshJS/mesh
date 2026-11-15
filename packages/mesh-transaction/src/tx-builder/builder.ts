@@ -929,7 +929,9 @@ export type BuildWarning = {
    * - `FEE_ABOVE_MINIMUM`: the `fee` given is above the minimum fee of the transaction
    * - `NEVER_EXPIRES`: the transaction has no end of validity. Only on a step of a plan that was
    *   given built: the plan never calls such a step expired, and is not `stopped` while the step
-   *   may still land
+   *   may still land. When the step was never sent and another transaction spends an input of
+   *   it, the plan cannot tell, so it is never `stopped`: ask for a transaction with an end of
+   *   validity, or let the plan build the step
    *
    * The list is open: later versions may add codes, so code that reads it keeps a default
    * branch.
