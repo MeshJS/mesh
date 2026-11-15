@@ -16,7 +16,8 @@ import { plainUtxo } from "../parts/utxo";
 // One consolidation step for a step whose build failed by its selection: a transaction that
 // spends the UTxOs of the payer that build selected, as many as fit, and the change of the step
 // before it, and gives all of it back to the payer's change address. Tokens the served step does
-// not need go into outputs of their own, which are not change, so no later build selects them;
+// not need go into outputs of their own, which are not change, so the served step never selects
+// them (a later step of the plan may, when it needs one of those tokens: the plan's loop decides);
 // the lovelace and the tokens it needs go to the change, which the served step spends when it is
 // built again. One call makes one step; the caller builds the served step again after it. Nothing
 // is signed, sent or recorded here, and nothing here is exported from the package.
