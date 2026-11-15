@@ -19,9 +19,11 @@ import { atFinalDepth, pastMarginAt, sourcesOf, stepUntil } from "./core";
 //
 // Words. The line of a plan is the plan and the plans it was made in place of. A transaction of
 // the line is kept when it is final, open when it is not. A transaction stands on another when
-// it spends, reads or puts up an output of it. Two transactions are kept apart when one of them,
-// or a transaction it stands on, spends an out ref that the other, or a transaction that one
-// stands on, spends too: no chain holds both.
+// it spends, reads or puts up one of its regular outputs. Two transactions are kept apart when
+// one of them, or a transaction it stands on, spends an out ref that the other, or a transaction
+// that one stands on, spends too: no chain holds both. The collateral return of a transaction,
+// the output after its regular ones, exists only when its scripts failed and it spent none of
+// its inputs: a reference to it stands on nothing.
 
 /**
  * A transaction's body as the rule reads it: its hash, what it spends, reads and puts up, and
@@ -57,6 +59,16 @@ export type LineTx = {
    * of an entry, those of the out refs it spends alone: an entry keeps nothing else
    */
   readonly sources: readonly string[];
+  /**
+   * The out refs it spends, reads or puts up, `txHash#index` with the hash in lower case; of an
+   * entry, those it spends alone
+   */
+  readonly refs: readonly string[];
+  /**
+   * How many regular outputs it makes; the output at this index is its collateral return. Absent
+   * when not known: nothing stands on it then
+   */
+  readonly outputs?: number;
   /** A step the plan put in itself to gather its payer's UTxOs */
   readonly consolidation?: true;
   /** The end of its validity, POSIX ms; absent when it has none */
@@ -81,6 +93,25 @@ const outRefKey = (txHash: string, index: number) =>
 const hashOfOutRef = (outRef: string) =>
   outRef.slice(0, outRef.indexOf("#")).toLowerCase();
 
+const indexOfOutRef = (outRef: string) =>
+  Number(outRef.slice(outRef.indexOf("#") + 1));
+
+/**
+ * The transaction of `pool` an out ref names, when the out ref is one of its regular outputs:
+ * never by its collateral return, which exists only when its scripts failed
+ */
+const regularIn = (
+  outRef: string,
+  pool: ReadonlyMap<string, LineTx>,
+): LineTx | undefined => {
+  const below = pool.get(hashOfOutRef(outRef));
+  return below !== undefined &&
+    below.outputs !== undefined &&
+    indexOfOutRef(outRef) < below.outputs
+    ? below
+    : undefined;
+};
+
 const lowerOutRef = (outRef: string) => {
   const at = outRef.indexOf("#");
   return at < 0
@@ -104,6 +135,18 @@ export const lineTxOf = (tx: LineInput): LineTx => {
         outRefKey(input.txHash, input.outputIndex),
       ),
       sources: sourcesOf(tx.built),
+      refs: Array.from(
+        new Set(
+          [
+            ...tx.built.inputs,
+            ...(tx.built.referenceInputs ?? []),
+            ...(tx.built.collateral?.inputs ?? []),
+          ].map((utxo) => outRefKey(utxo.txHash, utxo.outputIndex)),
+        ),
+      ),
+      ...(tx.built.outputs !== undefined && {
+        outputs: tx.built.outputs.length,
+      }),
       ...(tx.kind === "consolidation" && { consolidation: true as const }),
       ...(until !== undefined && { until }),
       ...(seen !== undefined && { seen }),
@@ -117,8 +160,12 @@ export const lineTxOf = (tx: LineInput): LineTx => {
     txHash: tx.txHash.toLowerCase(),
     spends,
     sources: Array.from(new Set(spends.map(hashOfOutRef))),
+    refs: spends,
+    outputs: tx.outputs,
     ...(tx.until !== undefined && { until: tx.until }),
-    ...(tx.seen !== undefined && { seen: tx.seen }),
+    ...((tx.seen ?? tx.seenBefore) !== undefined && {
+      seen: (tx.seen ?? tx.seenBefore)!,
+    }),
     ...(tx.plutus === true && { plutus: true as const }),
   };
 };
@@ -130,15 +177,18 @@ const byHash = (txs: readonly LineTx[]) => {
   return map;
 };
 
-/** The transaction and every transaction of `pool` it stands on, all the way down */
+/**
+ * The transaction and every transaction of `pool` it stands on by a regular output, all the way
+ * down
+ */
 const closureOf = (tx: LineTx, pool: ReadonlyMap<string, LineTx>): LineTx[] => {
   const all = [tx];
   const met = new Set([tx.txHash]);
   for (let i = 0; i < all.length; i++)
-    for (const source of all[i]!.sources) {
-      const below = pool.get(source);
-      if (below === undefined || met.has(source)) continue;
-      met.add(source);
+    for (const ref of all[i]!.refs) {
+      const below = regularIn(ref, pool);
+      if (below === undefined || met.has(below.txHash)) continue;
+      met.add(below.txHash);
       all.push(below);
     }
   return all;
@@ -397,9 +447,10 @@ export const lineClasses = (
     marked.forEach((tx, i) => {
       if (tx.dead === true || tx.seen !== undefined || tx.usedUp === true)
         return;
-      const deadBelow = tx.sources.some(
-        (source) => source !== tx.txHash && pool.get(source)?.dead === true,
-      );
+      const deadBelow = tx.refs.some((ref) => {
+        const below = regularIn(ref, pool);
+        return below !== undefined && below !== tx && below.dead === true;
+      });
       if (!deadBelow) return;
       marked[i] = { ...tx, dead: true };
       pool.set(tx.txHash, marked[i]!);
@@ -504,7 +555,10 @@ export const rootGuards = (
   const lines = open.map(lineTxOf).filter((tx) => !held.has(tx.txHash));
   const pool = byHash(lines);
   const roots = lines.filter((tx) =>
-    tx.sources.every((source) => source === tx.txHash || !pool.has(source)),
+    tx.refs.every((ref) => {
+      const below = regularIn(ref, pool);
+      return below === undefined || below.txHash === tx.txHash;
+    }),
   );
 
   // Which steps name each out ref, and which each step spends
@@ -606,8 +660,11 @@ export const beforeOf = (
       step: tx.step,
       txHash: tx.txHash,
       spends: [...tx.spends],
+      // Not known: no output of it stands for one it made
+      outputs: tx.outputs ?? 0,
       ...(tx.seen === undefined &&
         tx.until !== undefined && { until: tx.until }),
+      ...(tx.seen !== undefined && { seenBefore: tx.seen }),
       ...(tx.plutus === true && { plutus: true as const }),
     }));
   return { final, open };

@@ -845,9 +845,10 @@ describe("the transactions of the plans before", () => {
       step: "b",
       txHash: hash(0xe1),
       spends: [`${hash(0xe0)}#0`],
+      outputs: 2,
       until: UNTIL,
     },
-    { step: "c", txHash: hash(0xe2), spends: [`${hash(0xe1)}#1`] },
+    { step: "c", txHash: hash(0xe2), spends: [`${hash(0xe1)}#1`], outputs: 2 },
   ];
   /** A plan made in place of another, with one step of its own */
   const replacing = (deadlines: Partial<PlanRecord["deadlines"]> = {}) =>

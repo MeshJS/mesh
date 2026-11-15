@@ -49,6 +49,7 @@ const body = (
   ({
     txHash,
     inputs: spends.map(([tx, i]) => utxo(tx, i)),
+    outputs: Array.from({ length: OUTPUTS }, (_, i) => utxo(txHash, i)),
     referenceInputs: (more.reads ?? []).map(([tx, i]) => utxo(tx, i)),
     ...(more.collateral !== undefined && {
       collateral: {
@@ -85,61 +86,58 @@ const Y = hash(0xcd02);
 const Z = hash(0xef03);
 
 /* ---------------------------------------------------------------------------------------------
- * A toy ledger
+ * A ledger of small worlds
  * ------------------------------------------------------------------------------------------- */
 
-/** A transaction as the toy ledger takes it */
-type ToyTx = {
+/** The regular outputs of every transaction of a world; the collateral return is the next */
+const OUTPUTS = 2;
+const ref = (txHash: string, index: number) => `${txHash}#${index}`;
+const lower = (outRef: string) => {
+  const at = outRef.indexOf("#");
+  return `${outRef.slice(0, at).toLowerCase()}${outRef.slice(at)}`;
+};
+
+/** The part a transaction of a world plays for the rule */
+type Role = "made" | "earlier" | "openStep" | "openEntry" | "kept" | "usedUp";
+
+/** A transaction of a world: what it spends, reads and puts up, and whether its scripts fail */
+type WorldTx = {
   readonly name: string;
   readonly txHash: string;
   readonly spends: readonly string[];
   readonly reads: readonly string[];
   readonly putUp: readonly string[];
+  readonly fails: boolean;
+  readonly role: Role;
+  readonly consolidation?: true;
 };
 
-const OUTPUTS = 2;
-const ref = (txHash: string, index: number) => `${txHash}#${index}`;
+const split = (outRef: string): [string, number] => {
+  const at = outRef.indexOf("#");
+  return [outRef.slice(0, at), Number(outRef.slice(at + 1))];
+};
 
-const toyOf = (name: string, built: RuleBody): ToyTx => ({
-  name,
-  txHash: built.txHash.toLowerCase(),
-  spends: built.inputs.map((u) => ref(u.txHash.toLowerCase(), u.outputIndex)),
-  reads: (built.referenceInputs ?? []).map((u) =>
-    ref(u.txHash.toLowerCase(), u.outputIndex),
-  ),
-  putUp: (built.collateral?.inputs ?? []).map((u) =>
-    ref(u.txHash.toLowerCase(), u.outputIndex),
-  ),
-});
+const asStep = (tx: WorldTx): StepTx =>
+  step(
+    tx.name,
+    body(tx.txHash, tx.spends.map(split), {
+      reads: tx.reads.map(split),
+      ...(tx.putUp.length > 0 && { collateral: tx.putUp.map(split) }),
+    }),
+    tx.consolidation ? "consolidation" : undefined,
+  );
 
-/**
- * A ledger that takes a transaction when every out ref it spends, reads or puts up is unspent,
- * and a hash once. `genesis` holds the out refs that exist before any transaction
- */
-class ToyLedger {
-  readonly unspent: Set<string>;
-  readonly landed = new Set<string>();
-  constructor(genesis: Iterable<string>) {
-    this.unspent = new Set(genesis);
-  }
-  submit(tx: ToyTx): boolean {
-    if (this.landed.has(tx.txHash)) return false;
-    const needs = [...tx.spends, ...tx.reads, ...tx.putUp];
-    if (!needs.every((each) => this.unspent.has(each))) return false;
-    for (const each of tx.spends) this.unspent.delete(each);
-    for (let i = 0; i < OUTPUTS; i++) this.unspent.add(ref(tx.txHash, i));
-    this.landed.add(tx.txHash);
-    return true;
-  }
-  /** Submits the transactions in this order, again and again, until none more lands */
-  settle(txs: readonly ToyTx[]) {
-    let more = true;
-    while (more) {
-      more = false;
-      for (const tx of txs) if (this.submit(tx)) more = true;
-    }
-  }
-}
+const asOpen = (tx: WorldTx): LineInput =>
+  tx.role === "openEntry"
+    ? ({
+        step: tx.name,
+        txHash: tx.txHash.toLowerCase(),
+        spends: tx.spends.map(lower),
+        outputs: OUTPUTS,
+      } satisfies BeforeEntry)
+    : tx.role === "usedUp"
+      ? { ...lineTxOf(asStep(tx)), usedUp: true }
+      : asStep(tx);
 
 const shuffled = <T>(r: Random, items: readonly T[]): T[] => {
   const copy = [...items];
@@ -150,152 +148,157 @@ const shuffled = <T>(r: Random, items: readonly T[]): T[] => {
   return copy;
 };
 
-/** The transaction and every transaction of `all` it stands on, all the way down */
-const depsOf = (tx: ToyTx, all: ReadonlyMap<string, ToyTx>): ToyTx[] => {
-  const out = [tx];
-  const met = new Set([tx.txHash]);
-  for (let i = 0; i < out.length; i++)
-    for (const each of [
-      ...out[i]!.spends,
-      ...out[i]!.reads,
-      ...out[i]!.putUp,
-    ]) {
-      const source = each.slice(0, each.indexOf("#"));
-      const below = all.get(source);
-      if (below === undefined || met.has(source)) continue;
-      met.add(source);
-      out.push(below);
+/** What landed on a chain, and how: its scripts passed, or failed */
+type Landed = ReadonlyMap<string, "valid" | "failed">;
+
+/**
+ * Every chain of a world, from the out refs that exist before it: a transaction lands when every
+ * out ref it spends, reads or puts up exists unspent; with scripts that pass it spends its
+ * inputs and makes its regular outputs, with scripts that fail it spends what it puts up alone
+ * and makes its collateral return; a hash lands once
+ */
+const chainsOf = (genesis: readonly string[], txs: readonly WorldTx[]) => {
+  type State = { unspent: ReadonlySet<string>; landed: Landed };
+  const keyOf = (state: State) =>
+    `${[...state.landed].map(([h, m]) => `${h}:${m}`).sort()}|${[...state.unspent].sort()}`;
+  const met = new Set<string>();
+  const out: Landed[] = [];
+  const stack: State[] = [
+    { unspent: new Set(genesis.map(lower)), landed: new Map() },
+  ];
+  while (stack.length > 0) {
+    const state = stack.pop()!;
+    const key = keyOf(state);
+    if (met.has(key)) continue;
+    met.add(key);
+    out.push(state.landed);
+    for (const tx of txs) {
+      const txHash = tx.txHash.toLowerCase();
+      if (state.landed.has(txHash)) continue;
+      if (
+        ![...tx.spends, ...tx.reads, ...tx.putUp].every((each) =>
+          state.unspent.has(lower(each)),
+        )
+      )
+        continue;
+      if (tx.fails && tx.putUp.length === 0) continue;
+      const unspent = new Set(state.unspent);
+      const landed = new Map(state.landed);
+      if (tx.fails) {
+        for (const each of tx.putUp) unspent.delete(lower(each));
+        unspent.add(ref(txHash, OUTPUTS));
+        landed.set(txHash, "failed");
+      } else {
+        for (const each of tx.spends) unspent.delete(lower(each));
+        for (let i = 0; i < OUTPUTS; i++) unspent.add(ref(txHash, i));
+        landed.set(txHash, "valid");
+      }
+      stack.push({ unspent, landed });
     }
+  }
   return out;
 };
 
-/* ---------------------------------------------------------------------------------------------
- * A random line: kept, open and made bodies
- * ------------------------------------------------------------------------------------------- */
-
-type World = {
-  genesis: string[];
-  kept: StepTx[];
-  open: StepTx[];
-  /** The open transactions as the rule is given them: some as entries of before.open */
-  openGiven: LineInput[];
-  made: StepTx[];
+/**
+ * A random world: out refs that exist before it, and transactions of every role, each spending,
+ * reading or putting up out refs of those before it, regular outputs and collateral returns
+ * alike; a fifth of them fail their scripts
+ */
+const randomWorld = (r: Random) => {
+  const genesis = Array.from({ length: 2 + r.int(4) }, (_, i) =>
+    ref(hash(0x900 + i), r.int(2)),
+  );
+  const refs = [...genesis];
+  const roles: Role[] = [
+    "made",
+    "made",
+    "earlier",
+    "openStep",
+    "openEntry",
+    "openStep",
+    "kept",
+    "usedUp",
+  ];
+  const world: WorldTx[] = [];
+  for (let i = 0; i < 3 + r.int(4); i++) {
+    const role = r.pick(roles);
+    const fails = role === "usedUp" || (role !== "kept" && r.chance(0.2));
+    const txHash = r.chance(0.2)
+      ? hash(0xe00 + i).toUpperCase()
+      : hash(0xe00 + i);
+    const spends = Array.from(
+      new Set(Array.from({ length: 1 + r.int(2) }, () => r.pick(refs))),
+    ).map((each) => (r.chance(0.15) ? each.toUpperCase() : each));
+    world.push({
+      name: `t${i}`,
+      txHash,
+      spends,
+      reads: r.chance(0.25) ? [r.pick(refs)] : [],
+      putUp: fails || r.chance(0.2) ? [r.pick(refs)] : [],
+      fails,
+      role,
+      ...(role === "made" && r.chance(0.1) && { consolidation: true as const }),
+    });
+    for (let k = 0; k < OUTPUTS; k++) refs.push(ref(txHash.toLowerCase(), k));
+    if (fails) refs.push(ref(txHash.toLowerCase(), OUTPUTS));
+  }
+  return { genesis, world };
 };
 
-const randomWorld = (r: Random): World => {
-  const genesis = Array.from({ length: 6 + r.int(6) }, (_, i) =>
-    ref(hash(0x9000 + i), r.int(2)),
+/**
+ * What the rule says of a world against what its chains show: a pair of a made step and an open
+ * transaction called apart, or an open transaction called settled, of which one chain lands
+ * both with scripts that pass (unsound); and how many pairs it returns that one chain lands
+ */
+const judge = (genesis: readonly string[], world: readonly WorldTx[]) => {
+  const of = (...roles: Role[]) =>
+    world.filter((tx) => roles.includes(tx.role));
+  const made = of("made");
+  const open = of("openStep", "openEntry", "usedUp");
+  const kept = of("kept");
+  const usedUp = of("usedUp");
+  const valid = (chain: Landed, tx: WorldTx) =>
+    chain.get(tx.txHash.toLowerCase()) === "valid";
+  const chains = chainsOf(genesis, world).filter(
+    (chain) =>
+      kept.every((tx) => valid(chain, tx)) &&
+      usedUp.every((tx) => chain.get(tx.txHash.toLowerCase()) === "failed"),
   );
-  const pickFrom = <T>(items: readonly T[]) =>
-    items.length === 0 ? undefined : r.pick(items);
-  const split = (outRef: string): [string, number] => {
-    const at = outRef.indexOf("#");
-    return [outRef.slice(0, at), Number(outRef.slice(at + 1))];
-  };
-
-  // Kept: each spends what no other kept transaction spends
-  const kept: StepTx[] = [];
-  const keptSpent = new Set<string>();
-  const keptOutputs: string[] = [];
-  for (let i = 0; i < r.int(3); i++) {
-    const free = genesis.filter((each) => !keptSpent.has(each));
-    const one = pickFrom(free);
-    if (one === undefined) break;
-    keptSpent.add(one);
-    const txHash = hash(0x3000 + i);
-    kept.push(step(`k${i}`, body(txHash, [split(one)])));
-    for (let k = 0; k < OUTPUTS; k++) keptOutputs.push(ref(txHash, k));
-  }
-
-  // Open: each spends one or two out refs of the chain, of a kept transaction or of an earlier
-  // open one, and sometimes reads or puts up one more
-  const open: StepTx[] = [];
-  const openOutputs: string[] = [];
-  for (let i = 0; i < 1 + r.int(5); i++) {
-    const pool = [...genesis, ...keptOutputs, ...openOutputs, ...openOutputs];
-    const spends = Array.from(
-      new Set(Array.from({ length: 1 + r.int(2) }, () => r.pick(pool))),
-    );
-    const extra = r.pick(pool);
-    const txHash = hash(0x1000 + i);
-    open.push(
-      step(
-        `o${i}`,
-        body(
-          txHash,
-          spends.map(split),
-          r.chance(0.2)
-            ? { reads: [split(extra)] }
-            : r.chance(0.1)
-              ? { collateral: [split(extra)] }
-              : {},
-        ),
-      ),
-    );
-    for (let k = 0; k < OUTPUTS; k++) openOutputs.push(ref(txHash, k));
-  }
-  // An open transaction without reads is sometimes given as an entry of before.open
-  const openGiven: LineInput[] = open.map((each) =>
-    each.built.referenceInputs.length === 0 &&
-    each.built.collateral === undefined &&
-    r.chance(0.4)
-      ? ({
-          step: each.name,
-          txHash: each.built.txHash,
-          spends: each.built.inputs.map((u) => ref(u.txHash, u.outputIndex)),
-        } satisfies BeforeEntry)
-      : each,
+  const unsound: string[] = [];
+  let returnedLanding = 0;
+  if (chains.length === 0) return { worlds: 0, unsound, returnedLanding };
+  const answer = landsBeside(
+    made.map(asStep),
+    open.map(asOpen),
+    kept.map(asStep),
+    of("earlier").map(asStep),
   );
-
-  // Made: no two spend one out ref, none spends what a kept transaction spends, none stands on
-  // an open transaction; one may hold a root of the open ones byte for byte
-  const made: StepTx[] = [];
-  const madeSpent = new Set<string>();
-  const madeOutputs: string[] = [];
-  const openHashes = new Set(open.map((each) => each.built.txHash));
-  const roots = open.filter((each) =>
-    each.built.inputs.every((u) => !openHashes.has(u.txHash)),
+  const returned = new Set(
+    answer.flatMap(({ step: t, open: rs }) =>
+      rs.map((each) => `${lineTxOf(t).step}|${lineTxOf(each).step}`),
+    ),
   );
-  if (r.chance(0.2) && roots.length > 0) {
-    const held = r.pick(roots);
-    made.push(step(`held-${held.name}`, held.built));
-    for (const u of held.built.inputs)
-      madeSpent.add(ref(u.txHash, u.outputIndex));
-    for (let k = 0; k < OUTPUTS; k++)
-      madeOutputs.push(ref(held.built.txHash, k));
+  const hashes = (txs: readonly WorldTx[]) =>
+    new Set(txs.map((tx) => tx.txHash.toLowerCase()));
+  const openHashes = hashes(open);
+  const madeHashes = hashes(made);
+  for (const t of made) {
+    if (t.consolidation || openHashes.has(t.txHash.toLowerCase())) continue;
+    for (const o of open) {
+      if (madeHashes.has(o.txHash.toLowerCase())) continue;
+      const both = chains.some((chain) => valid(chain, t) && valid(chain, o));
+      if (returned.has(`${t.name}|${o.name}`)) {
+        if (both) returnedLanding++;
+      } else if (both) unsound.push(`${t.name} and ${o.name} called apart`);
+    }
   }
-  for (let i = 0; i < 1 + r.int(4); i++) {
-    const pool = [...genesis, ...keptOutputs, ...madeOutputs].filter(
-      (each) => !keptSpent.has(each) && !madeSpent.has(each),
-    );
-    const spends = Array.from(
-      new Set(
-        Array.from({ length: 1 + r.int(2) }, () => pickFrom(pool)).filter(
-          (each): each is string => each !== undefined,
-        ),
-      ),
-    );
-    if (spends.length === 0) break;
-    for (const each of spends) madeSpent.add(each);
-    const reads = [...genesis, ...keptOutputs, ...madeOutputs, ...openOutputs]
-      .filter((each) => !openOutputs.includes(each))
-      .filter((each) => !spends.includes(each));
-    const read = r.chance(0.25) ? pickFrom(reads) : undefined;
-    const txHash = hash(0x2000 + i);
-    made.push(
-      step(
-        `m${i}`,
-        body(
-          txHash,
-          spends.map(split),
-          read !== undefined ? { reads: [split(read)] } : {},
-        ),
-        r.chance(0.1) ? "consolidation" : undefined,
-      ),
-    );
-    for (let k = 0; k < OUTPUTS; k++) madeOutputs.push(ref(txHash, k));
+  for (const each of settled(open.map(asOpen), kept.map(asStep))) {
+    const name = lineTxOf(each).step;
+    const o = open.find((tx) => tx.name === name)!;
+    if (chains.some((chain) => valid(chain, o)))
+      unsound.push(`${name} called settled`);
   }
-  return { genesis, kept, open, openGiven, made };
+  return { worlds: 1, unsound, returnedLanding };
 };
 
 /* ---------------------------------------------------------------------------------------------
@@ -304,102 +307,82 @@ const randomWorld = (r: Random): World => {
 
 describe("landsBeside", () => {
   it("keeps apart only what no chain holds together", () => {
-    const SEEDS = 2_000;
-    let apart = 0;
-    let besides = 0;
-    let checked = 0;
-    let crossings = 0;
+    const SEEDS = 20_000;
+    let worlds = 0;
+    let returnedLanding = 0;
     for (let seed = 1; seed <= SEEDS; seed++) {
       const r = seeded(Math.imul(seed, 0x9e3779b1) >>> 0);
-      const world = randomWorld(r);
-      const answer = landsBeside(world.made, world.openGiven, world.kept);
-      const returned = new Set(
-        answer.flatMap(({ step, open }) =>
-          open.map((each) => `${step.name}|${lineTxOf(each).step}`),
-        ),
-      );
-      const toys = new Map<string, ToyTx>();
-      for (const each of [...world.open, ...world.made])
-        toys.set(each.built.txHash, toyOf(each.name, each.built));
-      const keptToys = world.kept.map((each) => toyOf(each.name, each.built));
-      const fresh = () => {
-        const ledger = new ToyLedger(world.genesis);
-        for (const tx of keptToys)
-          if (!ledger.submit(tx)) throw new Error(`seed ${seed}: kept refused`);
-        return ledger;
-      };
-      const openHashes = new Set(world.open.map((each) => each.built.txHash));
-      for (const made of world.made) {
-        if (made.kind === "consolidation") continue;
-        if (openHashes.has(made.built.txHash)) continue;
-        const mine = depsOf(toys.get(made.built.txHash)!, toys);
-        for (const open of world.open) {
-          if (world.made.some((m) => m.built.txHash === open.built.txHash))
-            continue;
-          const theirs = depsOf(toys.get(open.built.txHash)!, toys);
-          const both = [...mine, ...theirs];
-          const tHash = made.built.txHash;
-          const rHash = open.built.txHash;
-          if (!returned.has(`${made.name}|${open.name}`)) {
-            // Kept apart or settled: no order of submissions lands both
-            apart++;
-            const orders = [
-              [mine, theirs],
-              [theirs, mine],
-              ...Array.from({ length: 10 }, () => [shuffled(r, both)]),
-            ];
-            for (const sides of orders) {
-              const ledger = fresh();
-              for (const side of sides) ledger.settle(side);
-              if (ledger.landed.has(tHash) && ledger.landed.has(rHash))
-                throw new Error(
-                  `seed ${seed}: ${made.name} and ${open.name} both landed, and were called apart`,
-                );
-            }
-            continue;
-          }
-          besides++;
-          // Returned: some order lands both, where each side lands alone
-          const alone = (txs: ToyTx[], txHash: string) => {
-            const ledger = fresh();
-            ledger.settle(txs);
-            return ledger.landed.has(txHash);
-          };
-          if (!alone(mine, tHash) || !alone(theirs, rHash)) continue;
-          // A read comes before the spend: either side first, and some orders more
-          const orders = [
-            [mine, theirs],
-            [theirs, mine],
-            ...Array.from({ length: 4 }, () => [shuffled(r, both)]),
-          ];
-          const landsBoth = orders.some((sides) => {
-            const ledger = fresh();
-            for (const side of sides) ledger.settle(side);
-            return ledger.landed.has(tHash) && ledger.landed.has(rHash);
-          });
-          if (landsBoth) {
-            checked++;
-            continue;
-          }
-          // Each side reads what the other spends: neither can go first. The rule counts no
-          // read, and calls such a pair able to land
-          const readsOf = (txs: ToyTx[]) =>
-            new Set(txs.flatMap((tx) => [...tx.reads, ...tx.putUp]));
-          const spentBy = (txs: ToyTx[]) => txs.flatMap((tx) => tx.spends);
-          const crossed =
-            spentBy(theirs).some((each) => readsOf(mine).has(each)) &&
-            spentBy(mine).some((each) => readsOf(theirs).has(each));
-          crossings++;
-          if (!crossed)
-            throw new Error(
-              `seed ${seed}: ${made.name} and ${open.name} were returned, and no chain holds both`,
-            );
-        }
-      }
+      const { genesis, world } = randomWorld(r);
+      const found = judge(genesis, world);
+      if (found.unsound.length > 0)
+        throw new Error(
+          `seed ${seed}: ${found.unsound.join(", ")}: ${JSON.stringify(world)}`,
+        );
+      worlds += found.worlds;
+      returnedLanding += found.returnedLanding;
     }
-    expect(apart).toBeGreaterThan(1_000);
-    expect(besides).toBeGreaterThan(1_000);
-    expect(checked).toBeGreaterThan(500);
+    expect(worlds).toBeGreaterThan(10_000);
+    expect(returnedLanding).toBeGreaterThan(3_000);
+  });
+
+  it("calls able to land what stands on a collateral return, which exists only when scripts failed", () => {
+    const g0 = ref(hash(0xa0), 0);
+    const g1 = ref(hash(0xa1), 0);
+    const g2 = ref(hash(0xa2), 0);
+    const U = hash(0xb1);
+    const u = (role: Role): WorldTx => ({
+      name: "u",
+      txHash: U,
+      spends: [g0],
+      reads: [],
+      putUp: [g1],
+      fails: true,
+      role,
+    });
+    const tx = (name: string, role: Role, spends: string[]): WorldTx => ({
+      name,
+      txHash: name === "T" ? hash(0xc1) : hash(0xd1),
+      spends,
+      reads: [],
+      putUp: [],
+      fails: false,
+      role,
+    });
+    // An earlier step of the plan landed failed; the step added spends its collateral return; an
+    // entry spends what the earlier step's inputs were
+    const added = [
+      u("earlier"),
+      tx("T", "made", [ref(U, OUTPUTS)]),
+      tx("r", "openEntry", [g0]),
+    ];
+    // An old step on the collateral return of a used-up one is not settled by it
+    const onUsedUp = [
+      u("usedUp"),
+      tx("r", "openStep", [ref(U, OUTPUTS)]),
+      tx("T", "made", [g2]),
+    ];
+    // A guard taken from an input of a step that lands failed keeps nothing on its collateral
+    // return apart
+    const guarded = [
+      u("openStep"),
+      tx("r", "openStep", [ref(U, OUTPUTS)]),
+      tx("T", "made", [g0]),
+    ];
+    for (const [genesis, world] of [
+      [[g0, g1], added],
+      [[g0, g1, g2], onUsedUp],
+      [[g0, g1], guarded],
+    ] as const) {
+      expect(judge(genesis, world).unsound).toEqual([]);
+      expect(judge(genesis, world).returnedLanding).toBe(1);
+    }
+    // And r is a root of its own, with its own guard
+    const roots = rootGuards(
+      guarded.filter((x) => x.role !== "made").map(asOpen),
+      new Map(),
+      [],
+    );
+    expect(roots.roots.map((each) => each.root.step)).toEqual(["u", "r"]);
   });
 
   it("returns an out ref one spends and the other only reads or puts up", () => {
@@ -435,6 +418,7 @@ describe("landsBeside", () => {
       step: "r",
       txHash: hash(0x11),
       spends: [`${X.toUpperCase()}#0`],
+      outputs: 2,
     };
     expect(pairs([step("t", body(hash(0x21), [[X, 0]]))], [entry])).toEqual({});
     // A step that holds the open transaction, its hash in upper case
@@ -465,6 +449,7 @@ describe("landsBeside", () => {
       step: each.name,
       txHash: each.built.txHash,
       spends: each.built.inputs.map((u) => `${u.txHash}#${u.outputIndex}`),
+      outputs: OUTPUTS,
     }));
     expect(pairs([t], entries)).toEqual({});
     // A step that only reads an output of the step that shares the input is apart through it
@@ -717,11 +702,13 @@ describe("rootGuards", () => {
       step: "e",
       txHash: hash(0x16),
       spends: [`${hash(0x12)}#0`],
+      outputs: 2,
     };
     const lone: BeforeEntry = {
       step: "f",
       txHash: hash(0x17),
       spends: [`${Y}#0`],
+      outputs: 2,
     };
     const reads = new Map([["wallet", [x1, y1]]]);
     expect(
@@ -778,34 +765,46 @@ describe("lineClasses and beforeOf", () => {
   const missing = (txHash: string): LookAnswer => ({ txHash, found: false });
   const SOURCE = hash(0xf0);
 
+  /** A body of two regular outputs */
+  const withOutputs = (built: BuiltTxData): BuiltTxData => ({
+    ...built,
+    outputs: [utxo(built.txHash, 0), utxo(built.txHash, 1)],
+  });
+
   /** A plan of a final step a, a sent step b on X, and c on the change of b */
   const record = (before?: PlanRecord["before"]) => {
     const steps = [
       {
         name: "a",
-        built: stepTx({
-          txHash: hash(0xa0),
-          inputs: [utxo(SOURCE)],
-          until: UNTIL,
-        }),
+        built: withOutputs(
+          stepTx({
+            txHash: hash(0xa0),
+            inputs: [utxo(SOURCE)],
+            until: UNTIL,
+          }),
+        ),
         standsOn: [],
       },
       {
         name: "b",
-        built: stepTx({
-          txHash: hash(0xa1),
-          inputs: [utxo(SOURCE, 1)],
-          until: UNTIL,
-        }),
+        built: withOutputs(
+          stepTx({
+            txHash: hash(0xa1),
+            inputs: [utxo(SOURCE, 1)],
+            until: UNTIL,
+          }),
+        ),
         standsOn: [],
       },
       {
         name: "c",
-        built: stepTx({
-          txHash: hash(0xa2),
-          inputs: [utxo(hash(0xa1), 1)],
-          until: UNTIL,
-        }),
+        built: withOutputs(
+          stepTx({
+            txHash: hash(0xa2),
+            inputs: [utxo(hash(0xa1), 1)],
+            until: UNTIL,
+          }),
+        ),
         standsOn: ["b"],
       },
     ];
@@ -875,11 +874,18 @@ describe("lineClasses and beforeOf", () => {
 
   it("lets the look decide for an entry, and for a failed step", () => {
     const entries = [
-      { step: "p", txHash: hash(0xb1), spends: [`${SOURCE}#2`], until: UNTIL },
+      {
+        step: "p",
+        txHash: hash(0xb1),
+        spends: [`${SOURCE}#2`],
+        outputs: 2,
+        until: UNTIL,
+      },
       {
         step: "q",
         txHash: hash(0xb2),
         spends: [`${hash(0xb1)}#1`],
+        outputs: 2,
         until: UNTIL,
       },
     ];
@@ -953,10 +959,22 @@ describe("lineClasses and beforeOf", () => {
 
   it("keeps in the new record the names kept and what is open and not settled", () => {
     const entries = [
-      { step: "p", txHash: hash(0xb1), spends: [`${SOURCE}#2`], until: UNTIL },
-      { step: "q", txHash: hash(0xb2), spends: [`${SOURCE}#3`] },
+      {
+        step: "p",
+        txHash: hash(0xb1),
+        spends: [`${SOURCE}#2`],
+        outputs: 2,
+        until: UNTIL,
+      },
+      { step: "q", txHash: hash(0xb2), spends: [`${SOURCE}#3`], outputs: 2 },
       // Settled: it spends what the kept step a spends
-      { step: "s", txHash: hash(0xb3), spends: [`${SOURCE}#0`], until: UNTIL },
+      {
+        step: "s",
+        txHash: hash(0xb3),
+        spends: [`${SOURCE}#0`],
+        outputs: 2,
+        until: UNTIL,
+      },
     ];
     const base = record({ final: ["z", "a"], open: entries });
     const classes = lineClasses(base, [], tip(0));
@@ -967,16 +985,48 @@ describe("lineClasses and beforeOf", () => {
           step: "b",
           txHash: hash(0xa1),
           spends: [`${SOURCE}#1`],
+          outputs: 2,
           until: UNTIL,
         },
         entries[0],
         entries[1],
       ],
     });
-    // One found in a block once keeps no end: time never settles it
+    // One found in a block once keeps no end, and the next plan knows it was found: time never
+    // settles it, however many plans on
     const once = { ...lineTxOf(entries[0]!), seen: { slot: 3 } };
-    expect(beforeOf(base, { kept: [], open: [once] }, []).open).toEqual([
-      { step: "p", txHash: hash(0xb1), spends: [`${SOURCE}#2`] },
+    const carried = beforeOf(base, { kept: [], open: [once] }, []);
+    expect(carried.open).toEqual([
+      {
+        step: "p",
+        txHash: hash(0xb1),
+        spends: [`${SOURCE}#2`],
+        outputs: 2,
+        seenBefore: { slot: 3 },
+      },
     ]);
+    // Two plans on, what stands on a dead one is not dead when it was found once
+    const D = hash(0xd0);
+    const E = hash(0xe0);
+    const n = record({
+      final: [],
+      open: [
+        { step: "d", txHash: D, spends: [`${SOURCE}#5`], outputs: 2, until: 1 },
+        {
+          step: "e",
+          txHash: E,
+          spends: [`${D}#0`],
+          outputs: 2,
+          seen: { slot: 50 },
+        },
+      ],
+    });
+    const late = tip(UNTIL + MARGIN);
+    const answers = [missing(D), missing(E), found(SOURCE)];
+    const inN = lineClasses(n, answers, late);
+    const m = record({ final: [], open: [...beforeOf(n, inN, []).open] });
+    const inM = lineClasses(m, answers, late).open;
+    expect(inM.find((tx) => tx.step === "d")?.dead).toBe(true);
+    expect(inM.find((tx) => tx.step === "e")?.dead).toBeUndefined();
   });
 });

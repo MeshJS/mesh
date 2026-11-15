@@ -1,7 +1,7 @@
 import type { CachedFetcher, ISubmitter } from "@meshsdk/common";
 import { Crypto, Serialization, Transaction, TxCBOR } from "@meshsdk/core-cst";
 
-import type { BuildEvent, TxBuilder } from "../builder";
+import type { BuildEvent, BuiltTxData, TxBuilder } from "../builder";
 import type { TxPlanErrorCode, TxPlanErrorDetails } from "../errors";
 import type { TxPart, Utxo } from "../parts/types";
 import type { Payer, PayerRead } from "../payer";
@@ -1071,31 +1071,43 @@ export class TxPlan {
           "the provider did not give the chain's tip (fetchLatestBlock), which the end of validity of an added step is counted from: nothing was built or added",
           { details: { reason: "noTip" } },
         );
+      // A plan made in place of another: the transactions of the plans before it that were not
+      // found yet, which no step added may land beside, stand on, or find at an address
+      const line =
+        base.before === undefined
+          ? undefined
+          : (() => {
+              const classes = lineClasses(base, seen.answers, tip);
+              const entries = new Set(
+                base.before.open.flatMap((entry) =>
+                  entry.seen === undefined ? [entry.txHash] : [],
+                ),
+              );
+              this.#refuseNoValidity({
+                noValidity: classes.noValidity.filter((tx) =>
+                  entries.has(tx.txHash),
+                ),
+              });
+              return [...classes.open, ...classes.unconfirmed].filter((tx) =>
+                entries.has(tx.txHash),
+              );
+            })();
       const newSteps = await buildAddedSteps(builder, base, read, {
         ...(payer !== undefined && { payer }),
         asked: addressOf,
         tip,
         ...(signal !== undefined && { signal }),
         ...(state.trace !== undefined && { trace: state.trace }),
+        ...(line !== undefined && {
+          withReads: (reads) =>
+            this.#refuseOpenOutputs(state, base, line, reads, ask),
+        }),
       });
-      // A plan made in place of another: no step added lands beside a transaction of the plans
-      // before it that may still land
-      if (base.before !== undefined) {
-        const classes = lineClasses(base, seen.answers, tip);
-        const entries = new Set(
-          base.before.open.flatMap((entry) =>
-            entry.seen === undefined ? [entry.txHash] : [],
-          ),
-        );
-        this.#refuseNoValidity({
-          noValidity: classes.noValidity.filter((tx) => entries.has(tx.txHash)),
-        });
+      if (line !== undefined) {
         const dead = this.#judgePairs(
           landsBeside(
             newSteps,
-            [...classes.open, ...classes.unconfirmed].filter((tx) =>
-              entries.has(tx.txHash),
-            ),
+            line,
             base.steps.filter((step) => step.status === "final"),
             base.steps,
           ),
@@ -1103,6 +1115,7 @@ export class TxPlan {
           tip,
           "nothing was added",
         );
+        this.#refuseStandingOnOpen(newSteps, line);
         for (const tx of dead)
           emit(state.trace, {
             type: "warning",
@@ -1520,24 +1533,7 @@ export class TxPlan {
         tip,
         "nothing was written",
       );
-      const madeHashes = new Set(
-        made.steps.map((step) => step.built.txHash.toLowerCase()),
-      );
-      const standing = new Map(
-        classes.open
-          .filter((tx) => !madeHashes.has(tx.txHash) && tx.usedUp !== true)
-          .map((tx) => [tx.txHash, tx]),
-      );
-      for (const step of made.steps) {
-        const below = sourcesOf(step.built)
-          .map((hash) => standing.get(hash))
-          .find((tx) => tx !== undefined);
-        if (below !== undefined)
-          throw this.#unconfirmed(
-            `step ${JSON.stringify(step.name)} of the new plan spends, reads or puts up an output of step ${JSON.stringify(below.step)} (${below.txHash}), which the search does not find in a block: a new plan stands only on what is final`,
-            below.txHash,
-          );
-      }
+      this.#refuseStandingOnOpen(made.steps, classes.open);
       for (const tx of dead)
         emit(live.trace, {
           type: "warning",
@@ -1610,6 +1606,33 @@ export class TxPlan {
         `step ${JSON.stringify(found.step)} (${found.txHash}) of the plans before runs a Plutus script and was found in a block, and the provider does not report whether its scripts passed (validContract): it never will; use a provider that does`,
         { details: { reason: "noValidity" }, txHash: found.txHash },
       );
+  }
+
+  /**
+   * CANNOT_OBSERVE (`unconfirmed`) for a step built that spends, reads or puts up an output of
+   * an open transaction of the line whose hash no step built has: the search does not find it
+   * in a block. A used-up transaction is in a block for good, its collateral return with it
+   */
+  #refuseStandingOnOpen(
+    steps: readonly { readonly name: string; readonly built: BuiltTxData }[],
+    open: readonly LineTx[],
+  ) {
+    const made = new Set(steps.map((step) => step.built.txHash.toLowerCase()));
+    const standing = new Map(
+      open
+        .filter((tx) => !made.has(tx.txHash) && tx.usedUp !== true)
+        .map((tx) => [tx.txHash, tx]),
+    );
+    for (const step of steps) {
+      const below = sourcesOf(step.built)
+        .map((hash) => standing.get(hash))
+        .find((tx) => tx !== undefined);
+      if (below !== undefined)
+        throw this.#unconfirmed(
+          `step ${JSON.stringify(step.name)} spends, reads or puts up an output of step ${JSON.stringify(below.step)} (${below.txHash}) of the plans before, which the search does not find in a block: a plan stands only on what is final`,
+          below.txHash,
+        );
+    }
   }
 
   /** INVALID_STATE (`stopped`) for a plan replaced by a plan of another id */

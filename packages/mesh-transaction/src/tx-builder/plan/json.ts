@@ -1655,7 +1655,16 @@ const encodeBefore = (
     step: entry.step,
     txHash: entry.txHash,
     spends: [...entry.spends],
+    outputs: entry.outputs,
     ...(entry.until !== undefined && { until: entry.until }),
+    ...(entry.seenBefore !== undefined && {
+      seenBefore: {
+        slot: entry.seenBefore.slot,
+        ...(entry.seenBefore.block !== undefined && {
+          block: entry.seenBefore.block,
+        }),
+      },
+    }),
     ...(entry.plutus === true && { plutus: true as const }),
     ...(entry.seen !== undefined && {
       seen: {
@@ -2202,7 +2211,26 @@ const decodeBefore = (
   list(json.open, "before.open").forEach((item, i) => {
     const at = `before.open[${i}]`;
     const entry = object(item, at);
-    known(entry, ["step", "txHash", "spends", "until", "plutus", "seen"], at);
+    known(
+      entry,
+      [
+        "step",
+        "txHash",
+        "spends",
+        "outputs",
+        "until",
+        "seenBefore",
+        "plutus",
+        "seen",
+      ],
+      at,
+    );
+    // A record that holds no count of outputs was written before entries held one
+    if (entry.outputs === undefined) unread(`${at}.outputs is missing`);
+    if (entry.until !== undefined && entry.seenBefore !== undefined)
+      unread(
+        `${at} has until and seenBefore: time never settles what was found`,
+      );
     if (entry.plutus !== undefined && entry.plutus !== true)
       unread(`${at}.plutus is neither true nor absent`);
     const step = nonEmpty(entry.step, `${at}.step`);
@@ -2226,8 +2254,12 @@ const decodeBefore = (
       step,
       txHash,
       spends,
+      outputs: count(entry.outputs, `${at}.outputs`),
       ...(entry.until !== undefined && {
         until: finite(entry.until, `${at}.until`),
+      }),
+      ...(entry.seenBefore !== undefined && {
+        seenBefore: decodeSeen(entry.seenBefore, `${at}.seenBefore`),
       }),
       ...(entry.plutus === true && { plutus: true as const }),
       ...(entry.seen !== undefined && {

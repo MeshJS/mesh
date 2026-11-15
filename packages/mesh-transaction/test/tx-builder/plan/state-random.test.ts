@@ -191,9 +191,15 @@ const ENTRIES = [
     step: "a",
     txHash: hash(0xe001),
     spends: [`${hash(0xe000)}#0`],
+    outputs: 2,
     until: UNTIL,
   },
-  { step: "b", txHash: hash(0xe002), spends: [`${hash(0xe001)}#1`] },
+  {
+    step: "b",
+    txHash: hash(0xe002),
+    spends: [`${hash(0xe001)}#1`],
+    outputs: 2,
+  },
 ];
 
 /** Whether a record takes no delivery, signature or step: replaced, or an entry found */

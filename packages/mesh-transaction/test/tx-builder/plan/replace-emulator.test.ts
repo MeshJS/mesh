@@ -483,6 +483,8 @@ describe("a plan in place of another", () => {
           step: "a",
           txHash: old.step("a").txHash,
           spends: old.step("a").inputs.map(key),
+          outputs: old.step("a").outputs.length,
+          seenBefore: old.step("a").seen,
         },
       ]);
       await next.run();
@@ -1277,6 +1279,66 @@ describe("a plan in place of another", () => {
       await last.run();
       expect(last.status).toBe("final");
       paidOnce(emulator);
+    });
+  });
+
+  describe("add on a plan made in place of another", () => {
+    /** O: one payment held by a relay; N in its place */
+    const heldOne = async (hidden: Set<string>) => {
+      const ctx = await stepSetup("scalus", {
+        hooks: hiding(hidden),
+        funds: [100n * ADA, 50n * ADA],
+      });
+      const old = await ctx.builder.plan(
+        { a: payTo(alice, 11n * ADA) },
+        { id: "order", payer: ctx.wallet },
+      );
+      await old.sign();
+      const aHash = old.step("a").txHash;
+      const relay = relayOf(ctx.emulator, (txHash) => txHash === aHash);
+      await caught(old.run({ submitter: relay, timeoutMs: 300 }));
+      advance(ctx.emulator, 1);
+      const next = await old.replan({ id: "order:2" });
+      return { ...ctx, old, next, aHash, held: relay.kept[0]! };
+    };
+
+    it("a payer's read that lists an output of a transaction of the plans before the search does not find: CANNOT_OBSERVE", async () => {
+      const hidden = new Set<string>();
+      const { emulator, next, aHash, held } = await heldOne(hidden);
+      hidden.add(aHash);
+      await emulator.submitTx(held);
+      const error = await caught(next.add({ y: payTo(dave, 14n * ADA) }));
+      expect([error.code, reasonOf(error), error.txHash]).toEqual([
+        "CANNOT_OBSERVE",
+        "unconfirmed",
+        aHash,
+      ]);
+      expect(names(next)).toEqual(["a"]);
+    });
+
+    it("a step that spends an output of a transaction of the plans before: CANNOT_OBSERVE", async () => {
+      const { address, next, aHash } = await heldOne(new Set());
+      const error = await caught(
+        next.add({
+          y: [
+            spend.pubKey({
+              utxo: {
+                txHash: aHash,
+                outputIndex: 1,
+                address,
+                value: { lovelace: 80n * ADA },
+              },
+            }),
+            payTo(dave, 14n * ADA),
+          ],
+        }),
+      );
+      expect([error.code, reasonOf(error), error.txHash]).toEqual([
+        "CANNOT_OBSERVE",
+        "unconfirmed",
+        aHash,
+      ]);
+      expect(names(next)).toEqual(["a"]);
     });
   });
 });

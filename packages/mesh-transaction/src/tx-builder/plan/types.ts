@@ -342,9 +342,11 @@ export type TxPlanJSON = {
    * The library's, on a plan made by `replan`: what it keeps of the plans before it. `final`:
    * the names of their steps that were final. `open`: their transactions that were not, which
    * this plan must not land beside: the step's name, the hash, the out refs it spends
-   * (`txHash#index`), `until`: its end of validity in POSIX ms, absent when it has none or was
-   * found in a block before this plan was made, `plutus`: it runs a Plutus script, and `seen`:
-   * the block a look of this plan found it in
+   * (`txHash#index`), `outputs`: how many regular outputs it makes (the next index is its
+   * collateral return), `until`: its end of validity in POSIX ms, absent when it has none or was
+   * found in a block before this plan was made, `seenBefore`: the block a look of a plan before
+   * found it in, `plutus`: it runs a Plutus script, and `seen`: the block a look of this plan
+   * found it in
    */
   readonly before?: {
     readonly final: readonly string[];
@@ -352,7 +354,9 @@ export type TxPlanJSON = {
       readonly step: string;
       readonly txHash: string;
       readonly spends: readonly string[];
+      readonly outputs: number;
       readonly until?: number;
+      readonly seenBefore?: { readonly slot: number; readonly block?: string };
       readonly plutus?: true;
       readonly seen?: { readonly slot: number; readonly block?: string };
     }[];

@@ -207,9 +207,15 @@ describe("the record of a plan", () => {
           step: "b",
           txHash: hash(0xe1),
           spends: [`${hash(0xe0)}#1`, `${hash(0xe3)}#0`],
+          outputs: 2,
           until: UNTIL,
         },
-        { step: "c", txHash: hash(0xe2), spends: [`${hash(0xe1)}#1`] },
+        {
+          step: "c",
+          txHash: hash(0xe2),
+          spends: [`${hash(0xe1)}#1`],
+          outputs: 2,
+        },
       ],
     };
     const made = accept(
@@ -242,6 +248,7 @@ describe("the record of a plan", () => {
       "step",
       "txHash",
       "spends",
+      "outputs",
       "until",
     ]);
     const read = throughText(json);
@@ -314,6 +321,25 @@ describe("the record of a plan", () => {
     expect(refused(json, (j) => (j.before.open[0].spends = []))).toMatch(
       /spends is empty/,
     );
+    // An entry holds how many regular outputs its transaction makes: a record written before
+    // entries held one is not read
+    expect(refused(json, (j) => delete j.before.open[0].outputs)).toMatch(
+      /outputs is missing/,
+    );
+    expect(refused(json, (j) => (j.before.open[0].outputs = -1))).toMatch(
+      /outputs/,
+    );
+    expect(refused(json, (j) => (j.before.open[0].plutus = false))).toMatch(
+      /plutus/,
+    );
+    expect(
+      refused(json, (j) => (j.before.open[0].seenBefore = { slot: 3 })),
+    ).toMatch(/until and seenBefore/);
+    // Whether it runs a Plutus script, and the block a plan before found it in, read back
+    const more = JSON.parse(JSON.stringify(json));
+    more.before.open[1].plutus = true;
+    more.before.open[1].seenBefore = { slot: 3, block: "b1" };
+    expect(encodePlan(throughText(more))).toEqual(more);
     expect(
       refused(json, (j) => (j.before.open[0].spends = [hash(0xe0)])),
     ).toMatch(/not an out ref/);

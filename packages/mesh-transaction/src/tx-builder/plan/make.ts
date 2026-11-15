@@ -1304,6 +1304,10 @@ export const buildAddedSteps = async (
     readonly trace?: MakePlanOptions["trace"];
     /** The change addresses asked before in the call, which the reads must give again */
     readonly asked?: AddressOf;
+    /** Told each payer's read before any step is built; what it throws stops the call */
+    readonly withReads?: (
+      reads: readonly { readonly step: StepInput; readonly read: PayerRead }[],
+    ) => Promise<void>;
   },
 ): Promise<NewStep[]> => {
   const { signal, trace } = context;
@@ -1315,6 +1319,11 @@ export const buildAddedSteps = async (
     ...(signal !== undefined && { signal }),
     ...(context.asked !== undefined && { asked: context.asked }),
   });
+  await context.withReads?.(
+    read
+      .filter((step) => step.prebuilt === undefined)
+      .map((step) => ({ step, read: readOf(step) })),
+  );
   const recorded = base.options;
   const planAddress =
     typeof recorded.changeAddress === "string"

@@ -100,10 +100,17 @@ export type BeforeEntry = {
   /** The out refs it spends, `txHash#index` with the hash in lower case, in body order */
   readonly spends: readonly string[];
   /**
+   * How many regular outputs its transaction makes: the output at this index is its collateral
+   * return, which exists only when its scripts failed, and on which nothing stands
+   */
+  readonly outputs: number;
+  /**
    * The end of its validity, POSIX ms; absent when it has none, or was found in a block before
    * this plan was made: time never settles it then
    */
   readonly until?: number;
+  /** The block a look of a plan before this one found it in: time never settles it */
+  readonly seenBefore?: { readonly slot: number; readonly block?: string };
   /** The block a look of this plan found it in; set once, with the mark */
   readonly seen?: { readonly slot: number; readonly block?: string };
   /** It runs a Plutus script: a find of it counts only when it says whether its scripts passed */
