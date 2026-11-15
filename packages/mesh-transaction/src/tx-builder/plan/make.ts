@@ -173,6 +173,10 @@ const STEPS_ALLOWED =
 const ADDED_ALLOWED =
   "an object of named steps, each parts or { parts, ...options }";
 
+/** The steps `plan.add` takes, and the builder it takes them on */
+const ADDED_HELD_ALLOWED =
+  "an object of named steps, on a builder that holds no parts from add";
+
 const invalidSteps = (
   reason: string,
   value?: unknown,
@@ -689,32 +693,46 @@ const dataOptions = (options: StepOptions, changeAddress?: string) => {
   return Object.keys(out).length === 0 ? undefined : out;
 };
 
+/** The data options a plan records, in the order of its record, and builds its steps with */
+const PLAN_DATA_OPTIONS = [
+  "knownUtxos",
+  "registeredPools",
+  "extraKeyWitnesses",
+  "topUpCollateral",
+  "collateralReturn",
+  "consolidate",
+] as const;
+
 /** The data options of a plan, with its payer's change address, for its record */
 const planOptionsOf = (
   options: MakePlanOptions,
   changeAddress: string | undefined,
-): Record<string, unknown> => ({
-  ...(changeAddress !== undefined && { changeAddress }),
-  // In the builder's form of a UTxO, whatever form they were given in
-  ...(options.knownUtxos !== undefined && {
-    knownUtxos: toKnownUtxos(options.knownUtxos),
-  }),
-  ...(options.registeredPools !== undefined && {
-    registeredPools: options.registeredPools,
-  }),
-  ...(options.extraKeyWitnesses !== undefined && {
-    extraKeyWitnesses: options.extraKeyWitnesses,
-  }),
-  ...(options.topUpCollateral !== undefined && {
-    topUpCollateral: options.topUpCollateral,
-  }),
-  ...(options.collateralReturn !== undefined && {
-    collateralReturn: options.collateralReturn,
-  }),
-  ...(options.consolidate !== undefined && {
-    consolidate: consolidateOf(options.consolidate),
-  }),
-});
+): Record<string, unknown> => {
+  const out: Record<string, unknown> =
+    changeAddress === undefined ? {} : { changeAddress };
+  for (const key of PLAN_DATA_OPTIONS) {
+    const value = options[key];
+    if (value === undefined) continue;
+    // UTxOs in the builder's form, whatever form they were given in; `consolidate` checked
+    out[key] =
+      key === "knownUtxos"
+        ? toKnownUtxos(value as NonNullable<MakePlanOptions["knownUtxos"]>)
+        : key === "consolidate"
+          ? consolidateOf(value)
+          : value;
+  }
+  return out;
+};
+
+/** The data options a plan records, as its steps are built with them */
+const recordedOptionsOf = (
+  recorded: PlanRecord["options"],
+): Pick<MakePlanOptions, (typeof PLAN_DATA_OPTIONS)[number]> => {
+  const out: Record<string, unknown> = {};
+  for (const key of PLAN_DATA_OPTIONS)
+    if (recorded[key] !== undefined) out[key] = recorded[key];
+  return out;
+};
 
 /**
  * The step as its record holds it given: its parts, links kept, and its data options, with the
@@ -825,10 +843,11 @@ const readStepPayers = async (
 export type GivenStep = { readonly name: string; readonly given: StepGiven };
 
 /**
- * Each step's name and how its record holds it given, worked out without building: a step with
- * a payer of its own has that payer asked for its change address, and no other payer is asked
+ * Each step's name and how its record holds it given, worked out without building, for
+ * `orderOf` and `plan.add`: a step with a payer of its own has that payer asked for its change
+ * address, and no other payer is asked; no UTxO is read
  */
-const givenSteps = async (
+export const givenSteps = async (
   read: readonly StepInput[],
   addressOf: AddressOf,
 ): Promise<GivenStep[]> => {
@@ -950,7 +969,8 @@ const sourceBefore = (
 
 /**
  * The steps given to `plan.add`, read as `builder.plan` reads named steps: names, members,
- * flattening, a builder that holds parts. Their links are not read here
+ * flattening. A builder that holds parts from `add` is refused: they are not the steps'.
+ * Their links are not read here
  * @throws TxBuildError INVALID_OPTION (`steps`) for one list of parts, one part, a text, a
  *   transaction built before, or anything but an object of named steps, with the JavaScript type
  *   in `details.value`; for all that `builder.plan` refuses of named steps
@@ -968,18 +988,15 @@ export const readAddedSteps = (
     );
   if (Object.keys(steps).length === 0)
     throw invalidAddedSteps("no step is given", typeof steps);
+  const held = internals(builder).added.length;
+  if (held > 0)
+    throw invalidSteps(
+      `the builder holds ${held} part(s) from add: steps added to a plan are built without the parts a builder holds; resume the plan on a builder that holds none`,
+      undefined,
+      ADDED_HELD_ALLOWED,
+    );
   return readStepForms(builder, steps, {});
 };
-
-/**
- * Each step's name and how a record holds it given, as `orderOf` works it out: a step with a
- * payer of its own has that payer asked for its change address, once for each payer; no other
- * payer is asked, and no UTxO is read
- */
-export const givenOfSteps = (
-  read: readonly StepInput[],
-  addressOf: AddressOf,
-): Promise<GivenStep[]> => givenSteps(read, addressOf);
 
 /**
  * Checks steps to append to a plan that has the steps of `recorded`: each link names a step of
@@ -1092,24 +1109,7 @@ export const buildAddedSteps = async (
     ttlMs: base.deadlines.ttlMs,
     ...(base.id !== undefined && { planId: base.id }),
     options: {
-      ...(recorded.knownUtxos !== undefined && {
-        knownUtxos: recorded.knownUtxos as Utxo[],
-      }),
-      ...(recorded.registeredPools !== undefined && {
-        registeredPools: recorded.registeredPools as string[],
-      }),
-      ...(recorded.extraKeyWitnesses !== undefined && {
-        extraKeyWitnesses: recorded.extraKeyWitnesses as number,
-      }),
-      ...(recorded.topUpCollateral !== undefined && {
-        topUpCollateral: recorded.topUpCollateral as boolean,
-      }),
-      ...(recorded.collateralReturn !== undefined && {
-        collateralReturn: recorded.collateralReturn as boolean,
-      }),
-      ...(recorded.consolidate !== undefined && {
-        consolidate: recorded.consolidate as MakePlanOptions["consolidate"],
-      }),
+      ...recordedOptionsOf(recorded),
       ...(signal !== undefined && { signal }),
       ...(trace !== undefined && { trace }),
     },

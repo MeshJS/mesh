@@ -15,9 +15,9 @@ export type PlanDeadlines = {
   /**
    * The validity of a step whose parts set no `until`, in ms: it ends at
    * `max(tip time, from) + ttlMs`, the tip read once when the plan is made (for a step `add`
-   * adds, once by that call), which is also the time left to sign it. Above 0; 600 000 when neither the plan nor the builder gives one. A
-   * step that runs a Plutus script may not end past the network's forecast horizon
-   * (`INVALID_STATE`, `pastHorizon`).
+   * adds, once by that call), which is also the time left to sign it. Above 0; 600 000 when
+   * neither the plan nor the builder gives one. A step that runs a Plutus script may not end
+   * past the network's forecast horizon (`INVALID_STATE`, `pastHorizon`).
    */
   ttlMs?: number;
   /**
@@ -117,7 +117,8 @@ export type PlanOptions = Omit<BuildOptions, "after"> &
 
 /**
  * The options of `builder.resume`: the live objects of a plan, given again after a restart;
- * none of them is written into the record
+ * none of them is written into the record. A plan resumed from its JSON without a store has the
+ * steps of that JSON alone: a copy saved before an `add` does not have the steps it added
  */
 export type ResumeOptions = {
   /**

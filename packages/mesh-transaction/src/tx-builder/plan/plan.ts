@@ -88,8 +88,8 @@ import {
   asAfter,
   buildAddedSteps,
   checkAddedSteps,
-  givenOfSteps,
   givenParts,
+  givenSteps,
   invalidAddedSteps,
   makePlan,
   orderOf,
@@ -696,7 +696,11 @@ export class TxPlan {
     return Object.freeze(rest);
   }
 
-  /** The plan as plain JSON data, as it is: `JSON.stringify(plan)` writes it */
+  /**
+   * The plan as plain JSON data, as it is: `JSON.stringify(plan)` writes it. Without a store it
+   * is the only record: save it again after every `add`, since a copy saved before holds no
+   * added step, and the same `add` on that copy builds and pays the steps again
+   */
   toJSON(): TxPlanJSON {
     return encodePlan(stateOf(this).record);
   }
@@ -824,17 +828,33 @@ export class TxPlan {
    *   are numbered after the plan's, and counted against its limit with them.
    * - The same call again builds nothing and returns the plan, whatever its status: the steps
    *   are in it. A call whose answer was lost is made again as it is.
+   * - ABORTED or STORE_FAILED while the record is written: the steps may be recorded; the same
+   *   call again returns the plan when they are.
+   * - After `add`, read `plan.status`: the same call again returns the plan also when the plan
+   *   stopped meanwhile, and a stopped plan sends nothing.
+   * - Without a store the plan's JSON is the only record: a copy saved before an `add` does not
+   *   hold the added steps, and the same `add` on it builds and pays them again. Save `toJSON()`
+   *   after `add`, or use a store.
+   * - A link to an output of a final step, and the transactions of `after` the plan was made
+   *   with, are not checked against the chain again: a step that names an output spent since is
+   *   refused by the ledger, and a step added while a transaction of `after` is not in a block
+   *   may take an input that transaction spends, so that one of the two is refused.
    * @throws TxPlanError INVALID_STATE (`final`) for a final plan, (`stopped`) for a plan that
    *   is stopping or stopped; VERSION_CONFLICT when another writer added steps meanwhile: none
    *   of this call's steps is recorded, and the same call builds on the plan as it is;
-   *   CANNOT_OBSERVE (`noTip`); INVALID_STATE (`pastHorizon`)
+   *   CANNOT_OBSERVE (`noTip`); INVALID_STATE (`pastHorizon`); STORE_FAILED when the store fails
+   *   to read or write the record; PLAN_NOT_FOUND when the record is gone from the store;
+   *   INVALID_STATE (`recordVersion`) for a stored record this library does not read
    * @throws TxBuildError INVALID_OPTION (`steps`) for steps that are not named steps, for all
-   *   that `builder.plan` refuses of named steps, for more than 32 steps in the plan, for a
-   *   name the plan has with other parts or options, and for steps only some of which the plan
-   *   has; MISSING_PAYER for a step without a payer when the object does not hold the plan's;
-   *   NOT_SERIALIZABLE on a builder with a store; every error of building a step, its name at
-   *   the start of the message; ABORTED; INVALID_OPTION for options that are not an object or
-   *   have a member other than `signal`
+   *   that `builder.plan` refuses of named steps, on a builder that holds parts from `add`, for
+   *   more than 32 steps in the plan, for a name the plan has with other parts or options, for
+   *   steps only some of which the plan has, and for a step on the change of the step before it
+   *   of its payer, in a block, that the payer's read does not list; INVALID_OPTION (`payer`)
+   *   for a payer that answered two change addresses in the call; MISSING_PAYER for a step
+   *   without a payer when the object does not hold the plan's; NETWORK_MISMATCH for a payer of
+   *   another network; WALLET_FAILED; NOT_SERIALIZABLE on a builder with a store; every error
+   *   of building a step, its name at the start of the message; ABORTED; INVALID_OPTION for
+   *   options that are not an object or have a member other than `signal`
    */
   add(steps: PlanSteps, options?: Pick<RunOptions, "signal">): Promise<this> {
     return this.#call(async (state) => {
@@ -855,11 +875,7 @@ export class TxPlan {
       await this.#takeStoredIfNewer(state, ask);
       // A repeat is told by names and parts, before anything is looked at or built
       const addressOf = addressBook(builder);
-      const given = await abortable(
-        givenOfSteps(read, addressOf),
-        signal,
-        CALL,
-      );
+      const given = await abortable(givenSteps(read, addressOf), signal, CALL);
       /**
        * The steps judged against a record: undefined when it has them all, else their links, the
        * limit of steps, and the payer of the steps that name none

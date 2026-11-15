@@ -3,10 +3,8 @@ import { mConStr0 } from "@meshsdk/core";
 import type {
   PlanSteps,
   StoredTxPlanJSON,
-  TxBuilderOptions,
   TxPlan,
 } from "../../../src/tx-builder";
-import type { WatchedStore } from "./store-util";
 import {
   spend,
   TxBuildError,
@@ -16,7 +14,6 @@ import {
 import { MAX_STEPS } from "../../../src/tx-builder/plan/make";
 import { alwaysSucceedCbor } from "../../test-util";
 import {
-  builderOf,
   caught,
   FAST,
   forwarding,
@@ -24,13 +21,19 @@ import {
   pay,
   reasonOf,
   recipient,
-  setup,
   submitterOf,
   swallowing,
   wrap,
 } from "./plan-emulator-util";
 import { ADA, alice, bob, paidTo, payTo, stepSetup } from "./run-util";
-import { stored, watchStore } from "./store-util";
+import {
+  answers,
+  gate,
+  holdSave,
+  stored,
+  storeSetup,
+  watchStore,
+} from "./store-util";
 
 // Steps added to a plan kept in a store: two objects that add at once, a stop written during the
 // build, a write whose answer was lost, and the id of a plan that took steps.
@@ -41,69 +44,6 @@ const expectCode = (error: unknown, code: string) => {
   expect(TxError.is(error)).toBe(true);
   expect((error as TxError).code).toBe(code);
 };
-
-/** An emulator, a wallet and a builder over a watched store */
-const storeSetup = async (
-  options: { planDefaults?: TxBuilderOptions["planDefaults"] } = {},
-) => {
-  const store = watchStore();
-  const planDefaults = options.planDefaults ?? FAST;
-  const ctx = await setup({
-    builder: { store, planDefaults },
-    slot: 100_000_000,
-    funds: [1000n * ADA],
-  });
-  /**
-   * Another instance: a new builder over the same records, through its own watched store and
-   * provider, so that each instance's calls can be told apart and held up
-   */
-  const instance = () => {
-    const own = watchStore(store.inner);
-    const provider = wrap(ctx.emulator);
-    return {
-      store: own,
-      provider,
-      builder: builderOf(provider, { store: own, planDefaults }),
-    };
-  };
-  return { ...ctx, store, instance };
-};
-
-/** A promise that a test opens; `reached` resolves once something waits at it */
-const gate = () => {
-  let open!: () => void;
-  let reached!: () => void;
-  const opened = new Promise<void>((resolve) => (open = resolve));
-  const arrived = new Promise<void>((resolve) => (reached = resolve));
-  return {
-    open,
-    reached: arrived,
-    pass: () => {
-      reached();
-      return opened;
-    },
-  };
-};
-
-/** Holds up the first save of a store that `when` picks until the gate opens */
-const holdSave = (
-  store: WatchedStore,
-  when: (json: StoredTxPlanJSON) => boolean,
-) => {
-  const held = gate();
-  store.hooks.save = async (forward, json, rev) => {
-    if (when(json)) {
-      delete store.hooks.save;
-      await held.pass();
-    }
-    return forward(json, rev);
-  };
-  return held;
-};
-
-/** The answers of the saves a store made, in order */
-const answers = (store: WatchedStore) =>
-  store.saves().map((c) => c.op === "save" && c.answer);
 
 /** The names of the steps of a plan, or of a record */
 const names = (plan: TxPlan | StoredTxPlanJSON) =>
@@ -142,7 +82,9 @@ const holdRead = (provider: ReturnType<typeof wrap>) => {
 
 describe("two objects that add steps to one plan", () => {
   it("records exactly one of two objects adding different steps at once; the other is VERSION_CONFLICT, and its steps are in no record", async () => {
-    const { builder, wallet, instance, store, emulator } = await storeSetup();
+    const { builder, wallet, instance, store, emulator } = await storeSetup({
+      funds: [1000n * ADA],
+    });
     await builder.plan(pay(), { id: "pay", payer: wallet });
     const one = instance();
     const two = instance();
@@ -175,7 +117,9 @@ describe("two objects that add steps to one plan", () => {
   it("returns the recorded steps when two objects add the same steps at once, and applies its event over a change that added nothing", async () => {
     // The same steps at once
     {
-      const { builder, wallet, instance, store } = await storeSetup();
+      const { builder, wallet, instance, store } = await storeSetup({
+        funds: [1000n * ADA],
+      });
       await builder.plan(pay(), { id: "pay", payer: wallet });
       const one = instance();
       const two = instance();
@@ -195,7 +139,9 @@ describe("two objects that add steps to one plan", () => {
     }
     // A delivery recorded during the build
     {
-      const { builder, wallet, instance, store } = await storeSetup();
+      const { builder, wallet, instance, store } = await storeSetup({
+        funds: [1000n * ADA],
+      });
       const first = await builder.plan(pay(), { id: "pay", payer: wallet });
       await first.sign();
       const one = instance();
@@ -227,7 +173,9 @@ describe("two objects that add steps to one plan", () => {
   });
 
   it("a stop another object wrote during the build wins", async () => {
-    const { builder, wallet, instance, store } = await storeSetup();
+    const { builder, wallet, instance, store } = await storeSetup({
+      funds: [1000n * ADA],
+    });
     await builder.plan(pay(), { id: "pay", payer: wallet });
     const one = instance();
     const a = await one.builder.resume("pay", { payer: wallet });
@@ -257,6 +205,7 @@ describe("two objects that add steps to one plan", () => {
 describe("a record another writer changed during the look", () => {
   it("returns the plan when another object added the same steps while this one looked", async () => {
     const { builder, wallet, instance, store, emulator } = await storeSetup({
+      funds: [1000n * ADA],
       planDefaults: { ...FAST, confirmations: 3 },
     });
     const first = await builder.plan(pay(), { id: "pay", payer: wallet });
@@ -282,6 +231,7 @@ describe("a record another writer changed during the look", () => {
 
   it("refuses steps that would pass the limit of a plan with the steps another object added while this one looked", async () => {
     const { builder, wallet, instance, store, emulator } = await storeSetup({
+      funds: [1000n * ADA],
       planDefaults: { ...FAST, confirmations: 3 },
     });
     const first = await builder.plan(pay(), { id: "pay", payer: wallet });
@@ -312,7 +262,9 @@ describe("a record another writer changed during the look", () => {
   });
 
   it("is INVALID_STATE (final) for a plan another object saw come to final during the build", async () => {
-    const { builder, wallet, instance, store, emulator } = await storeSetup();
+    const { builder, wallet, instance, store, emulator } = await storeSetup({
+      funds: [1000n * ADA],
+    });
     const plan = await builder.plan(pay(), { id: "pay", payer: wallet });
     const sink = swallowing();
     await plan.run({ submitter: sink, waitFor: "sent" });
@@ -381,9 +333,68 @@ describe("a record another writer changed during the look", () => {
 });
 
 describe("a write whose answer was lost", () => {
+  it("is ABORTED by a signal during the write, which may still pass: the same call then returns the plan", async () => {
+    const { builder, wallet, store } = await storeSetup({
+      funds: [1000n * ADA],
+    });
+    const plan = await builder.plan(pay(), { id: "pay", payer: wallet });
+    const held = holdSave(store, adding);
+    const controller = new AbortController();
+    const aborted = caught(
+      plan.add({ x: payTo(alice, 5n * ADA) }, { signal: controller.signal }),
+    );
+    await held.reached;
+    controller.abort();
+    const error = await aborted;
+    expectCode(error, "ABORTED");
+    held.open();
+    // The write went on: the store holds the step, the object does not yet
+    for (let i = 0; i < 50 && store.written().length < 2; i++)
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(names(await stored(store, "pay"))).toEqual(["main", "x"]);
+    expect(names(plan)).toEqual(["main"]);
+    const recorded = (await stored(store, "pay")).steps[1]!.txHash;
+    expect(await plan.add({ x: payTo(alice, 5n * ADA) })).toBe(plan);
+    expect(names(plan)).toEqual(["main", "x"]);
+    expect(plan.step("x").txHash).toBe(recorded);
+  });
+
+  it("is NOT_SERIALIZABLE for a redeemer function on a builder with a store, before any request", async () => {
+    const { builder, wallet, store, emulator, provider } = await storeSetup({
+      funds: [1000n * ADA],
+    });
+    const plan = await builder.plan(pay(), { id: "pay", payer: wallet });
+    const locked = emulator.fund(builder.scriptAddress(plutus), {
+      lovelace: 10n * ADA,
+    });
+    const calls = Object.values(provider.control.calls).reduce(
+      (sum, n) => sum + n,
+      0,
+    );
+    store.reset();
+    const error = await caught(
+      plan.add({
+        x: [
+          spend.plutus({
+            utxo: locked,
+            script: plutus,
+            redeemer: { data: () => mConStr0([]) },
+          }),
+          payTo(bob, 4n * ADA),
+        ],
+      }),
+    );
+    expect(TxBuildError.is(error, "NOT_SERIALIZABLE")).toBe(true);
+    expect(
+      Object.values(provider.control.calls).reduce((sum, n) => sum + n, 0),
+    ).toBe(calls);
+    expect(store.calls).toEqual([]);
+    expect(names(plan)).toEqual(["main"]);
+  });
+
   it("finds the steps of a write that passed while its answer was lost", async () => {
     const { builder, wallet, instance, store, emulator, provider } =
-      await storeSetup();
+      await storeSetup({ funds: [1000n * ADA] });
     const plan = await builder.plan(pay(), { id: "pay", payer: wallet });
     store.hooks.save = async (forward, json, rev) => {
       const written = await forward(json, rev);
@@ -436,7 +447,9 @@ describe("a write whose answer was lost", () => {
 
 describe("the id of a plan that took steps", () => {
   it("builder.plan with the id returns the recorded plan after an add, given the steps it was made with or all it has", async () => {
-    const { builder, wallet, store, provider } = await storeSetup();
+    const { builder, wallet, store, provider } = await storeSetup({
+      funds: [1000n * ADA],
+    });
     const plan = await builder.plan(pay(), { id: "pay", payer: wallet });
     await plan.add({ x: payTo(alice, 5n * ADA) });
     const record = await stored(store, "pay");
@@ -459,7 +472,9 @@ describe("the id of a plan that took steps", () => {
   });
 
   it("is PLAN_EXISTS for a part of the steps, another order or a step changed, and says where the recorded plan is", async () => {
-    const { builder, wallet, store } = await storeSetup();
+    const { builder, wallet, store } = await storeSetup({
+      funds: [1000n * ADA],
+    });
     const a = payTo(alice, 5n * ADA);
     const b = payTo(bob, 3n * ADA);
     const c = payTo(recipient, 2n * ADA);

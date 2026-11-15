@@ -118,6 +118,32 @@ describe("an added step", () => {
     await emulator.submitTx(bytes);
     expect(paidTo(emulator, alice)).toEqual([5n * ADA]);
     expect(paidTo(emulator, bob)).toEqual([3n * ADA]);
+
+    // A payment the change of a does not cover: the step selects, and never what a spends
+    {
+      const { builder, wallet, address } = await stepSetup("scalus", {
+        funds: [1000n * ADA, 30n * ADA],
+      });
+      const plan = await builder.plan(
+        { a: payTo(alice, 5n * ADA) },
+        { payer: wallet, canSelect: (u) => u.value.lovelace !== 30n * ADA },
+      );
+      await plan.run({ submitter: swallowing(), waitFor: "sent" });
+      await plan.add({ b: payTo(bob, 1010n * ADA) });
+      const a = plan.step("a");
+      const b = plan.step("b");
+      const spent = new Set(a.inputs.map(ref));
+      expect(b.inputs.some((input) => spent.has(ref(input)))).toBe(false);
+      expect(b.inputs.map(ref)).toEqual(
+        expect.arrayContaining(
+          a.change.filter((o) => o.address === address).map(ref),
+        ),
+      );
+      expect(b.inputs.some((input) => input.value.lovelace === 30n * ADA)).toBe(
+        true,
+      );
+      expect(b.standsOn).toEqual(["a"]);
+    }
   });
 
   it("does not spend twice an output of a landed step that the payer's read and the plan both show", async () => {
@@ -565,6 +591,32 @@ describe("an added step", () => {
         pending.add({ b: { parts: payTo(bob, 3n * ADA), fee: 300_000n } }),
       ),
     );
+  });
+
+  it("is refused on a builder that holds parts from add, which resuming on one that holds none mends", async () => {
+    const { builder, wallet } = await stepSetup("scalus");
+    const holding = builder.add(payTo(carol, 1n * ADA));
+    const plan = await holding.plan([payTo(alice, 5n * ADA)], {
+      payer: wallet,
+    });
+    for (const on of [
+      plan,
+      await holding.resume(plan.toJSON(), { payer: wallet }),
+    ]) {
+      const error = await caught(on.add({ b: payTo(bob, 3n * ADA) }));
+      expectSteps(error);
+      expect(error.message).toMatch(
+        /steps added to a plan are built without the parts a builder holds; resume the plan on a builder that holds none/,
+      );
+      expect(error.message).not.toMatch(/one list of parts/);
+      expect(error.details.allowed).toBe(
+        "an object of named steps, on a builder that holds no parts from add",
+      );
+      expect(names(on)).toEqual(["main"]);
+    }
+    const resumed = await builder.resume(plan.toJSON(), { payer: wallet });
+    await resumed.add({ b: payTo(bob, 3n * ADA) });
+    expect(names(resumed)).toEqual(["main", "b"]);
   });
 
   it("refuses with no request to the provider", async () => {

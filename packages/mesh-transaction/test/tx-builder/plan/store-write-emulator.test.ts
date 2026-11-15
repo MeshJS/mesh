@@ -3,7 +3,6 @@ import { deserializeAddress } from "@meshsdk/core";
 
 import type {
   StoredTxPlanJSON,
-  TxBuilderOptions,
   TxPlan,
   TxPlanError,
 } from "../../../src/tx-builder";
@@ -29,9 +28,15 @@ import {
   submitterOf,
   swallowing,
   walletOf,
-  wrap,
 } from "./plan-emulator-util";
-import { stored, watchStore } from "./store-util";
+import {
+  answers,
+  gate,
+  holdSave,
+  stored,
+  storeSetup,
+  watchStore,
+} from "./store-util";
 
 // The writes of plans with a store: two objects on one record, refused and failed writes, the
 // read before a pause, a rollback another object saw, and the crash table of a restart.
@@ -41,75 +46,8 @@ const expectCode = (error: unknown, code: string) => {
   expect((error as TxError).code).toBe(code);
 };
 
-/** An emulator, a wallet and a builder over a watched store */
-const storeSetup = async (
-  options: {
-    funds?: bigint[];
-    planDefaults?: TxBuilderOptions["planDefaults"];
-  } = {},
-) => {
-  const store = watchStore();
-  const planDefaults = options.planDefaults ?? FAST;
-  // A chain behind the local clock: a step past its end of validity is past it by both
-  const ctx = await setup({
-    builder: { store, planDefaults },
-    slot: 100_000_000,
-    ...(options.funds && { funds: options.funds }),
-  });
-  /**
-   * Another instance: a new builder over the same records, through its own watched store and
-   * provider, so that each instance's calls can be told apart and held up
-   */
-  const instance = () => {
-    const own = watchStore(store.inner);
-    const provider = wrap(ctx.emulator);
-    return {
-      store: own,
-      provider,
-      builder: builderOf(provider, { store: own, planDefaults }),
-    };
-  };
-  return { ...ctx, store, instance };
-};
-
-/** A promise that a test opens; `reached` resolves once something waits at it */
-const gate = () => {
-  let open!: () => void;
-  let reached!: () => void;
-  const opened = new Promise<void>((resolve) => (open = resolve));
-  const arrived = new Promise<void>((resolve) => (reached = resolve));
-  return {
-    open,
-    reached: arrived,
-    pass: () => {
-      reached();
-      return opened;
-    },
-  };
-};
-
-/** Holds up the first save of a store that `when` picks until the gate opens */
-const holdSave = (
-  store: WatchedStore,
-  when: (json: StoredTxPlanJSON) => boolean,
-) => {
-  const held = gate();
-  store.hooks.save = async (forward, json, rev) => {
-    if (when(json)) {
-      delete store.hooks.save;
-      await held.pass();
-    }
-    return forward(json, rev);
-  };
-  return held;
-};
-
 /** Whether a record holds a delivery of its first step */
 const delivered = (json: StoredTxPlanJSON) => json.steps[0]!.sends > 0;
-
-/** The answers of the saves a store made, in order */
-const answers = (store: WatchedStore) =>
-  store.saves().map((c) => c.op === "save" && c.answer);
 
 /** A guard part that needs the payment key of another wallet of the seed */
 const secondKey = async () => {
