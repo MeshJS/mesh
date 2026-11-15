@@ -860,14 +860,21 @@ describe("The crash table, after a restart on the same store", () => {
     });
     await b.sign();
     const hanging = submitterOf(() => new Promise<string>(() => undefined));
-    void b.run({ submitter: hanging });
-    while (!delivered((await store.load("pay-2"))!))
-      await new Promise((resolve) => setTimeout(resolve, 5));
-    const after = await restart().resume("pay-2");
-    expect(statuses(after)).toEqual(["sent"]);
-    const resent = swallowing();
-    await after.run({ waitFor: "sent", submitter: resent });
-    expect(resent.calls).toEqual([hanging.calls[0]]);
+    // The call of the object that crashed never gets its answer: the test ends it by its signal
+    const crash = new AbortController();
+    const crashed = caught(b.run({ submitter: hanging, signal: crash.signal }));
+    try {
+      while (!delivered((await store.load("pay-2"))!))
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      const after = await restart().resume("pay-2");
+      expect(statuses(after)).toEqual(["sent"]);
+      const resent = swallowing();
+      await after.run({ waitFor: "sent", submitter: resent });
+      expect(resent.calls).toEqual([hanging.calls[0]]);
+    } finally {
+      crash.abort();
+    }
+    expectCode(await crashed, "ABORTED");
   });
 
   it("collects the other signatures with addWitnesses after a crash between them", async () => {
