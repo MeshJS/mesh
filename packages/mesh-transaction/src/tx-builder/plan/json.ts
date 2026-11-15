@@ -19,7 +19,7 @@ import type {
 import { readTxValue } from "../builder";
 import { NOT_UNPAID, TxBuildError, TxPlanError } from "../errors";
 import { freeze } from "../parts/normalize";
-import { utxoKey } from "../parts/utxo";
+import { plainUtxo, utxoKey } from "../parts/utxo";
 import {
   keyWitnessTags,
   readTransaction,
@@ -1461,25 +1461,17 @@ const encodeStepBuilt = (built: BuiltTxData): Record<string, unknown> => {
 };
 
 /**
- * The prototype of a step's transaction from its bytes, with what the record wrote of it: the
- * whole prototype, or the members of its sections the build made otherwise
+ * The prototype of a step's transaction, read from its bytes, with what the record wrote of it:
+ * the whole prototype, or the members of its sections the build made otherwise
  * @throws UnreadContent for what it does not read
  */
 const prototypeOfStep = (
-  raw: RawTx,
+  read: BuiltTxData["prototype"],
   written: unknown,
   path: string,
 ): BuiltTxData["prototype"] => {
   if (isPlainObject(written) && written.is_valid !== undefined)
     return transaction(written, path) as BuiltTxData["prototype"];
-  let read: BuiltTxData["prototype"];
-  try {
-    read = readTxValue(raw).prototype;
-  } catch {
-    return unread(
-      `${path}: the transaction holds what this library does not read as a value`,
-    );
-  }
   if (written === undefined) return read;
   const patch = object(written, path);
   known(patch, SECTIONS, path);
@@ -1849,9 +1841,38 @@ const listsProblem = (
   return undefined;
 };
 
+/** Whether two UTxOs are one output: the same out ref, address, value, datum and script */
+const sameOutput = (a: Utxo, b: Utxo) =>
+  sameValue(encodeValue(plainUtxo(a)), encodeValue(plainUtxo(b)));
+
+/**
+ * Whether the outputs a build records are those its bytes make: each, by position, the same
+ * out ref, address, value, datum (hash or inline) and reference script; and each change output
+ * one of them. What bytes cannot say, a label and the change mark, is taken as recorded
+ */
+const outputsProblem = (
+  built: Omit<BuiltTxData, "prototype">,
+  made: readonly Utxo[],
+): string | undefined => {
+  if (built.outputs.length !== made.length)
+    return `outputs are ${built.outputs.length}, and the transaction makes ${made.length}`;
+  const at = built.outputs.findIndex(
+    (output, i) => !sameOutput(output, made[i]!),
+  );
+  if (at >= 0) return `outputs[${at}] is not output ${at} of the transaction`;
+  const change = built.change.findIndex((output) => {
+    const own = made[output.outputIndex];
+    return own === undefined || !sameOutput(output, own);
+  });
+  if (change >= 0)
+    return `change[${change}] is not an output of the transaction`;
+  return undefined;
+};
+
 /**
  * A step's transaction: its JSON read, its bytes read again and found unsigned, its hash
- * compared, its recorded inputs found to be those of its body, and every witness verified
+ * compared, its recorded inputs found to be those of its body, its recorded outputs those its
+ * bytes make (a record that states another address, value, datum or script is refused), and every witness verified
  * against its body; its prototype read from its bytes with what the record wrote of it; with the
  * set tag of each of the two entries of its witnesses, else as its body writes its input set. It
  * takes the transaction as a plan's record writes it, and the JSON of a `BuiltTx` written whole,
@@ -1924,9 +1945,19 @@ export const decodeTx = (
     );
   const lists = listsProblem(read, raw.body);
   if (lists !== undefined) unread(`${path}.built.${lists}`);
+  let fromBytes: ReturnType<typeof readTxValue>;
+  try {
+    fromBytes = readTxValue(raw);
+  } catch {
+    return unread(
+      `${at}.prototype: the transaction holds what this library does not read as a fromBytes`,
+    );
+  }
+  const outputs = outputsProblem(read, fromBytes.outputs);
+  if (outputs !== undefined) unread(`${path}.built.${outputs}`);
   const built: BuiltTxData = {
     ...read,
-    prototype: prototypeOfStep(raw, kept, `${at}.prototype`),
+    prototype: prototypeOfStep(fromBytes.prototype, kept, `${at}.prototype`),
   };
   // A prototype read from the bytes alone is written so again, with no second reading
   if (kept === undefined) WRITTEN.set(built, { prototype: undefined });

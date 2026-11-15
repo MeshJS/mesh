@@ -2533,8 +2533,12 @@ export class TxBuilder {
    * A recorded plan, with the live objects given again: by its id from the builder's store, or
    * from its JSON. It makes no request to the chain and does not call the payer; the provider is
    * probed before the first delivery. The transactions are those of the record, each read again
-   * and its witnesses verified against its body. The reconcile step after a restart is
-   * `resume(id, { payer })`, then `run()`.
+   * and its witnesses verified against its body; what each spends, reads, puts up and makes is
+   * checked against its bytes, and a record that states other inputs or outputs is
+   * INVALID_STATE (`recordVersion`). The rest of the record is the store's word, which is
+   * trusted: a step's kind and `given`, its labels and change marks, its statuses. A record is
+   * the application's own data: never resume a JSON another party wrote. The reconcile step
+   * after a restart is `resume(id, { payer })`, then `run()`.
    *
    * ```ts
    * const plan = await builder.resume(orderId, { payer: wallet });
