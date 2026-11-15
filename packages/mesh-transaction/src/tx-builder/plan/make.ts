@@ -466,6 +466,39 @@ const readStepForms = (
   });
 };
 
+/**
+ * Refuses a step given as text that no transaction is read from, not hex, empty or refused by
+ * the walk of its bytes, with the error `builder.fromCbor` gives that text, the step's name at
+ * the start of its message: the reader refuses it before it makes any request, so nothing is
+ * read before, neither the tip, nor a payer, nor the store
+ * @throws every error `builder.fromCbor` throws before a request
+ */
+export const refuseUnread = async (
+  builder: TxBuilder,
+  read: readonly StepInput[],
+): Promise<void> => {
+  for (const step of read) {
+    if (step.prebuilt === undefined || step.prebuilt.txHash !== undefined)
+      continue;
+    try {
+      await builder.fromCbor(step.prebuilt.text);
+    } catch (error) {
+      throw withStep(error, step.name);
+    }
+  }
+};
+
+/**
+ * The steps of `builder.plan` read in their forms, a step given as text that no transaction is
+ * read from refused, with no request
+ * @throws TxBuildError INVALID_OPTION (`steps`) as `readSteps`; what `refuseUnread` throws
+ */
+export const checkPlanSteps = async (
+  builder: TxBuilder,
+  steps: unknown,
+  options: MakePlanOptions,
+): Promise<void> => refuseUnread(builder, readSteps(builder, steps, options));
+
 /** The error of building a step, with the step's name at the start of its message */
 const withStep = (error: unknown, name: string): unknown => {
   const prefix = `step ${JSON.stringify(name)}: `;
@@ -1318,8 +1351,9 @@ export const buildAddedSteps = async (
 };
 
 /**
- * Builds a plan. Every body is built by this call, in order: each payer is read once,
- * and each step is built on the payer's UTxOs as the steps before it leave them. A step spends
+ * Builds a plan. Every step given as parts is built by this call, in order, and every step given
+ * as a transaction built before is read from its bytes first: each payer is read once, and each
+ * step is built on the payer's UTxOs as the steps before it leave them. A step spends
  * the change that the step before it of the same payer leaves at the payer's change address,
  * unless it spends an output of that step already, so the steps of one payer form a chain the
  * ledger keeps in order. A part linked to an earlier step is read as strictly as a record reads
@@ -1336,9 +1370,15 @@ export const buildAddedSteps = async (
  *   payer neither by its change nor by an output its parts name; INVALID_OPTION (`parts`) and
  *   TxPartError INVALID_OUT_REF for a linked part the part builders could not have made;
  *   UNKNOWN_LABEL for a label no output of the step has; every error of building a step, with
- *   the step's name at the start of its message
+ *   the step's name at the start of its message; for a step given built, the refusals of
+ *   `readPrebuilt` (two steps on one output, an output one reads or puts up that another spends,
+ *   one transaction under two names, an object that lists another number of outputs, a
+ *   transaction a record does not hold) and of `buildSteps` (a step that spends what one reads
+ *   or puts up, a link to the change of one with no output marked change), and the TxBuildError
+ *   errors of `fromCbor`, with the step's name at the start of their message
  * @throws TxPlanError CANNOT_OBSERVE (`noTip`) when the tip cannot be read; INVALID_STATE
- *   (`pastHorizon`)
+ *   (`pastHorizon`); INVALID_WITNESS (`wrongBody`) of `fromCbor`, for a step given built that
+ *   holds a signature that is not of its body
  */
 export const makePlan = async (
   builder: TxBuilder,
@@ -1398,8 +1438,9 @@ export const makePlan = async (
     formOf: (step) => toPayerSource(payerOf(step)).form,
   });
 
-  // The plan's payer was read when a step built from parts is paid by it; else, for a plan of
-  // transactions given built, its change address is asked alone
+  // The plan's payer was read when a step built from parts is paid by it; else (every step is
+  // given built or has a payer of its own) its change address is asked alone, so that the
+  // record holds it as the order of the same call does
   const planPayer =
     options.payer === undefined ? undefined : readOfPayer(options.payer);
   const planAddress =
@@ -1488,12 +1529,27 @@ type PrebuiltRead = {
 };
 
 /**
+ * The objects `rest` of a plan gives for its steps given built: their labels are those the
+ * record holds, which came only with an object built here
+ */
+const RECORDED_MARKS = new WeakSet<BuiltTx>();
+
+/**
+ * Marks an object `rest` gives for a step given built: a plan made from it takes its labels as
+ * of an object built here
+ */
+export const withRecordedMarks = (tx: BuiltTx): BuiltTx => {
+  RECORDED_MARKS.add(tx);
+  return tx;
+};
+
+/**
  * The data of a transaction read from its bytes, with the two marks an object of it gives by
  * position, and nothing else of the object: `label` where its output is labelled, only of an
- * object `build` or `finalize` made in this process (a label of a restored object is the word of
- * whoever wrote its JSON, and decides what a link spends); `change` where its output is marked
- * change, of any object, since selection takes only such an output at the payer's own change
- * address
+ * object `build` or `finalize` made in this process, or that `rest` gave from a record (a label
+ * of a restored object is the word of whoever wrote its JSON, and decides what a link spends);
+ * `change` where its output is marked change, of any object, since selection takes only such
+ * an output at the payer's own change address
  * @throws TxBuildError INVALID_OPTION (`steps`) for an object that lists another number of
  *   outputs than its transaction has
  */
@@ -1509,7 +1565,7 @@ const withMarks = (
     throw invalidSteps(
       `step ${JSON.stringify(name)} is an object that lists ${listed.length} output(s), and its transaction has ${built.outputs.length}: give the object as it was made, or the transaction's CBOR hex`,
     );
-  const labelled = isBuiltHere(object);
+  const labelled = isBuiltHere(object) || RECORDED_MARKS.has(object);
   const outputs = built.outputs.map((output, i): BuiltOutput => {
     const mark = listed[i];
     const label =

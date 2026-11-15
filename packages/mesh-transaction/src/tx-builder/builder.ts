@@ -2379,16 +2379,22 @@ export class TxBuilder {
    *   nor by an output its parts name; UNKNOWN_LABEL for a link to a label that no output of the
    *   step has; INVALID_OPTION (`id`) for an id that is not a string; INVALID_OPTION
    *   (`consolidate`); INVALID_OPTION (`steps`) for a transaction built before that spends an
-   *   output another step or a transaction of `after` spends, that is given under two names,
-   *   whose object lists another number of outputs than its transaction has, or that a plan's
-   *   record cannot hold, and for a link to the change of one with no output marked change; every
-   *   error of `fromCbor` for such a transaction, with the step's name at the start of its
-   *   message; TX_TOO_LARGE (`cause: "selection"`) for a step that needs more
+   *   output another step or a transaction of `after` spends, or one another such transaction
+   *   reads or puts up as collateral; that reads or puts up as collateral an output another step
+   *   spends; that is given under two names; whose object lists another number of outputs than
+   *   its transaction has; or that a plan's record cannot hold; for a step that spends what such
+   *   a transaction reads or puts up, and for a link to the change of one with no output marked
+   *   change; the errors of `fromCbor` for such a transaction, with the step's name at the start
+   *   of their message: INVALID_OPTION (`tx`), before any request for a text no transaction is
+   *   read from, NETWORK_MISMATCH, UTXO_NOT_FOUND, MISSING_FETCHER and PROVIDER_FAILED;
+   *   TX_TOO_LARGE (`cause: "selection"`) for a step that needs more
    *   consolidation steps than the plan allows, whose consolidation step cannot be built, or
    *   leaves no change the step can stand on;
    *   NOT_SERIALIZABLE on a builder with a store, for a part that holds a redeemer function
    * @throws TxPlanError CANNOT_OBSERVE (`noTip`, `noSearch`, `noDepth`, `noValidity`) for a
-   *   provider that cannot follow the plan; INVALID_STATE (`pastHorizon`); on a builder with a
+   *   provider that cannot follow the plan; INVALID_STATE (`pastHorizon`); INVALID_WITNESS
+   *   (`wrongBody`) of `fromCbor`, for a transaction built before that holds a signature that
+   *   is not of its body, the step's name first; on a builder with a
    *   store MISSING_ID, PLAN_EXISTS, STORE_FAILED, VERSION_CONFLICT, INVALID_STATE
    *   (`recordVersion`) for a stored record this library does not read
    */

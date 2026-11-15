@@ -91,6 +91,7 @@ import {
   asAfter,
   buildAddedSteps,
   checkAddedSteps,
+  checkPlanSteps,
   givenParts,
   givenSteps,
   invalidAddedSteps,
@@ -98,6 +99,8 @@ import {
   orderOf,
   payerOfAdded,
   readAddedSteps,
+  refuseUnread,
+  withRecordedMarks,
 } from "./make";
 import {
   chainObserver,
@@ -471,12 +474,14 @@ const VIEWS = new WeakMap<StepRecord, TxStep>();
  * the plan holds, in the form they came in, and no payer
  */
 const prebuiltOf = (builder: TxBuilder, step: StepRecord): BuiltTx =>
-  makeBuiltTx(builder, step.built, step.extraKeyWitnesses ?? 0, {
-    raw: readTransaction(step.built.tx),
-    held: step.witnesses,
-    delivered: deliveredOf(step),
-    ...(step.tags !== undefined && { tags: step.tags }),
-  });
+  withRecordedMarks(
+    makeBuiltTx(builder, step.built, step.extraKeyWitnesses ?? 0, {
+      raw: readTransaction(step.built.tx),
+      held: step.witnesses,
+      delivered: deliveredOf(step),
+      ...(step.tags !== undefined && { tags: step.tags }),
+    }),
+  );
 
 /** A step as the public `TxStep`: the data of its transaction with its place in the plan */
 const viewOf = (step: StepRecord): TxStep => {
@@ -905,10 +910,19 @@ export class TxPlan {
    *   is;
    *   CANNOT_OBSERVE (`noTip`); INVALID_STATE (`pastHorizon`); STORE_FAILED when the store fails
    *   to read or write the record; PLAN_NOT_FOUND when the record is gone from the store;
-   *   INVALID_STATE (`recordVersion`) for a stored record this library does not read
+   *   INVALID_STATE (`recordVersion`) for a stored record this library does not read;
+   *   INVALID_WITNESS (`wrongBody`) of `fromCbor`, for a step given built that holds a signature
+   *   that is not of its body
    * @throws TxBuildError INVALID_OPTION (`steps`) for steps that are not named steps, for all
    *   that `builder.plan` refuses of named steps, on a builder that holds parts from `add`, for
-   *   more than 32 steps in the plan, for a name the plan has with other parts or options, for
+   *   more than 32 steps in the plan, for a name the plan has with other parts or options or with
+   *   another transaction, for a transaction given built that the plan holds under another name,
+   *   that spends an output a step of the plan spends, reads or puts up as a step given built,
+   *   or reads or puts up an output a step spends, whose object lists another number of outputs
+   *   than its transaction has, or that a record does not hold, for a step that spends what a
+   *   step given built reads or puts up, and a link to the change of a step given built with no
+   *   output marked change; the errors of `fromCbor` for a step given built, its name first,
+   *   INVALID_OPTION (`tx`) before any request for a text no transaction is read from; for
    *   steps only some of which the plan has, and for a step on the change of the step before it
    *   of its payer, in a block, that the payer's read does not list; INVALID_OPTION (`payer`)
    *   for a payer that answered two change addresses in the call; MISSING_PAYER for a step
@@ -931,6 +945,7 @@ export class TxPlan {
       const { builder } = state;
       // The shapes first, with no request and no read of the store
       const read = readAddedSteps(builder, steps);
+      await refuseUnread(builder, read);
       if (builder.store !== undefined)
         for (const step of read) encodeParts(step.parts);
       throwIfAborted(signal, CALL);
@@ -2791,6 +2806,9 @@ export const planFor = async (
     ...rest,
     ...(after !== undefined && { after: afterOf(after) }),
   };
+  // The shapes first, with no request: a step given as text no transaction is read from is
+  // refused before the store, the tip or a payer is read
+  await checkPlanSteps(builder, steps, given);
   const { store } = builder;
   if (store !== undefined) {
     if (id === undefined || id === "")
