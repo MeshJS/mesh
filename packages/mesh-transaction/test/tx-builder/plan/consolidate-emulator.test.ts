@@ -71,12 +71,17 @@ type World = {
   funded: Utxo[];
 };
 
-/** An emulator holding the wallet's UTxOs with these values, a builder and the payer as read */
+/**
+ * An emulator holding the wallet's UTxOs with these values, a builder and the payer as read; with
+ * `maxTxSize` the builder takes the emulator's parameters with a smaller limit, so that fewer
+ * UTxOs fragment the wallet
+ */
 const world = async (
   values: Record<string, bigint>[],
   options: {
     serializer?: (prototype: TransactionPrototype) => string;
     plutus?: boolean;
+    maxTxSize?: number;
   } = {},
 ): Promise<World> => {
   const emulator = await TxEmulator.create({
@@ -100,6 +105,12 @@ const world = async (
   const builder = new TxBuilder({
     network: "preprod",
     provider: emulator,
+    ...(options.maxTxSize !== undefined && {
+      params: {
+        ...(await emulator.fetchProtocolParameters()),
+        maxTxSize: options.maxTxSize,
+      },
+    }),
     ...(options.plutus && { evaluator: emulator }),
     ...(options.serializer && {
       serializer: { serializeTxPrototype: options.serializer } as never,
@@ -131,14 +142,17 @@ const consolidated = async (
     maxSteps?: number;
     /** Called with the served step's error before each consolidation step is made */
     before?: (error: unknown) => void;
+    /** The change of a step before it, which the step spends */
+    standOn?: Utxo;
+    collateralReturn?: false;
   } = {},
 ): Promise<Loop> => {
-  const { canSelect, maxSteps = 6 } = options;
+  const { canSelect, maxSteps = 6, collateralReturn } = options;
   const deadline = parts.find(
     (part): part is ValidityPart => part.kind === "validity",
   );
   const steps: BuiltTxData[] = [];
-  let standOn: Utxo | undefined;
+  let standOn = options.standOn;
   let first: unknown;
   for (;;) {
     const served = standOn
@@ -149,6 +163,7 @@ const consolidated = async (
         payer: w.payer,
         after: steps,
         ...(canSelect && { canSelect }),
+        ...(collateralReturn === false && { collateralReturn }),
       });
       return { steps, served: built, ...(first !== undefined && { first }) };
     } catch (error) {
@@ -433,18 +448,89 @@ describe("consolidation steps on the emulator", () => {
       const selected = oversizedRoundOf(first)!.selected;
       expect(selected.length).toBeGreaterThanOrEqual(497);
       expect(steps.length).toBeGreaterThanOrEqual(1);
-      // What selection left cannot cover the most collateral a transaction may call for, so
-      // some of what it selected stays out of every consolidation step
+      // What the failed build put up as collateral stays out of every consolidation step
       const consolidatedKeys = spentBy(steps);
       expect(
         selected.filter((u) => !consolidatedKeys.has(keyOf(u))).length,
       ).toBeGreaterThan(0);
+      const putUp = oversizedRoundOf(first)!.collateral;
+      expect(putUp.length).toBeGreaterThan(0);
+      for (const each of putUp)
+        expect(consolidatedKeys.has(keyOf(each))).toBe(false);
       for (const step of steps) expectPaysOnlyThePayer(step, w.address);
       expect(served.collateral!.inputs.length).toBeGreaterThan(0);
       for (const each of served.collateral!.inputs)
         expect(consolidatedKeys.has(keyOf(each))).toBe(false);
       await sendAll(w, [...steps, served]);
       expect((await heldAt(w, recipient)).coin).toBe(963n * ADA);
+    },
+    LONG,
+  );
+
+  it(
+    "keeps out of every consolidation step the collateral the served step put up",
+    async () => {
+      const token = `${"d4".repeat(28)}cafe`;
+      // The change the step stands on holds the token it pays, so the change of a consolidation
+      // step holds it too, and without a collateral return no change can be collateral
+      const w = await world(
+        [
+          { lovelace: 5n * ADA, [token]: 1000n },
+          ...Array.from({ length: 100 }, () => ({ lovelace: 900_000n })),
+        ],
+        { maxTxSize: 4096 },
+      );
+      const locked = { txHash: "7".repeat(64), outputIndex: 0 };
+      w.emulator.addUtxos([
+        {
+          input: locked,
+          output: {
+            address: resolvePlutusScriptAddress(script, 0),
+            amount: [{ unit: "lovelace", quantity: "20000000" }],
+            plutusData: "d87980",
+          },
+        },
+      ]);
+      // Nearly all the wallet holds: selection takes every lovelace-only UTxO, and one
+      // consolidation step can spend them all
+      const parts = [
+        spend.plutus({
+          utxo: locked,
+          script,
+          redeemer: {
+            data: mConStr0([]),
+            exUnits: { mem: 200_000, steps: 100_000_000 },
+          },
+        }),
+        pay({ lovelace: 113n * ADA, [token]: 500n }),
+        until(w),
+      ];
+      const { steps, served, first } = await consolidated(w, parts, {
+        standOn: w.funded[0]!,
+        collateralReturn: false,
+      });
+      const round = oversizedRoundOf(first)!;
+      const selected = new Set(round.selected.map(keyOf));
+      expect(selected.size).toBe(100);
+      // What the failed build put up was selected too
+      expect(round.collateral.length).toBeGreaterThan(0);
+      for (const each of round.collateral)
+        expect(selected.has(keyOf(each))).toBe(true);
+      expect(steps.length).toBeGreaterThanOrEqual(1);
+      const consolidatedKeys = spentBy(steps);
+      for (const each of round.collateral)
+        expect(consolidatedKeys.has(keyOf(each))).toBe(false);
+      for (const step of steps) {
+        expectPaysOnlyThePayer(step, w.address);
+        expect(sumOf(step.change).assets.get(token)).toBe(1000n);
+      }
+      expect(served.collateral!.inputs.length).toBeGreaterThan(0);
+      for (const each of served.collateral!.inputs)
+        expect(consolidatedKeys.has(keyOf(each))).toBe(false);
+      await sendAll(w, [...steps, served]);
+      const paid = await heldAt(w, recipient);
+      expect(paid.coin).toBe(113n * ADA);
+      expect(paid.assets.get(token)).toBe(500n);
     },
     LONG,
   );

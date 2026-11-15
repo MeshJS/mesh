@@ -328,11 +328,13 @@ export const isPoolShortfall = (error: unknown) =>
 
 /**
  * What balancing knew of a round that was larger than the ledger allows: the inputs selection
- * had added, in the order it took them, and what the parts bring into the transaction and take
- * out of it, the fee aside, as `valueFlow` gives them
+ * had added, in the order it took them, the inputs the round put up as collateral (given by
+ * parts, chosen by the builder or given by a wallet), and what the parts bring into the
+ * transaction and take out of it, the fee aside, as `valueFlow` gives them
  */
 export type OversizedRound = {
   readonly selected: readonly Utxo[];
+  readonly collateral: readonly Utxo[];
   readonly consumed: Value;
   readonly produced: Value;
 };
@@ -1258,6 +1260,7 @@ export const balance = (
       if (ctx.sendAllTo === undefined)
         oversized.set(tooLarge, {
           selected: [...selected],
+          collateral: collateral ? [...collateral.inputs] : [],
           consumed: flow.consumed,
           produced: flow.produced,
         });

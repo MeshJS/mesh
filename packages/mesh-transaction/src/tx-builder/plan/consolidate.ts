@@ -4,10 +4,10 @@ import { Address } from "@meshsdk/core-cst";
 import type { BuildOptions, BuiltTxData, TxBuilder } from "../builder";
 import type { OutputPart, TxPart, Utxo, ValidityPart } from "../parts/types";
 import type { PayerRead, PayerSource } from "../payer";
-import { isKeyLocked, lovelaceOnly, oversizedRoundOf } from "../balance";
+import { isKeyLocked, oversizedRoundOf } from "../balance";
 import { foldTransactions, spentByTransactions } from "../chain";
 import { TxBuildError } from "../errors";
-import { feeForSize, outputSize, valueSize } from "../fee";
+import { outputSize, valueSize } from "../fee";
 import { spend } from "../parts/inputs";
 import { output } from "../parts/output";
 import { validity } from "../parts/scalars";
@@ -143,14 +143,6 @@ const namedByParts = (parts: readonly TxPart[]): Set<string> => {
   return named;
 };
 
-/** Whether the parts call for collateral: a Plutus script, or a collateral part */
-const callsForCollateral = (parts: readonly TxPart[]) =>
-  parts.some(
-    (part) =>
-      part.kind === "collateral" ||
-      ("witness" in part && part.witness.type === "plutus"),
-  );
-
 /** The validity part of a consolidation step: the end of the served step's interval alone */
 const endOf = (part: ValidityPart | undefined): TxPart | undefined => {
   if (part?.until !== undefined) return validity({ until: part.until });
@@ -235,45 +227,6 @@ const parkedOutputs = (
   return bundles.map((bundle) =>
     output({ address: changeAddress, value: Object.fromEntries(bundle) }),
   );
-};
-
-/**
- * The UTxOs a consolidation step leaves alone so that the served step can still put up
- * collateral, when it runs a Plutus script: none when the payer's other lovelace-only UTxOs can
- * cover the most collateral a transaction may call for, else the largest lovelace-only UTxOs
- * among the candidates that, with the others, cover it within `maxCollateralInputs`
- */
-const keptForCollateral = (
-  candidates: readonly Utxo[],
-  others: readonly Utxo[],
-  params: Protocol,
-): Set<string> => {
-  const most = feeForSize(
-    params.maxTxSize,
-    0n,
-    { mem: BigInt(params.maxTxExMem), steps: BigInt(params.maxTxExSteps) },
-    params,
-  );
-  const required = (most * BigInt(params.collateralPercent) + 99n) / 100n;
-  const largest = (utxos: readonly Utxo[]) =>
-    utxos
-      .filter((utxo) => lovelaceOnly(utxo) && !utxo.script)
-      .sort((a, b) => {
-        const diff = b.value.lovelace - a.value.lovelace;
-        return diff > 0n ? 1 : diff < 0n ? -1 : 0;
-      });
-  const covers = (utxos: readonly Utxo[]) =>
-    utxos
-      .slice(0, params.maxCollateralInputs)
-      .reduce((total, utxo) => total + utxo.value.lovelace, 0n) >= required;
-  if (covers(largest(others))) return new Set();
-  const pick = largest([...others, ...candidates]).slice(
-    0,
-    params.maxCollateralInputs,
-  );
-  if (!covers(pick)) return new Set();
-  const own = new Set(candidates.map(keyOf));
-  return new Set(pick.map(keyOf).filter((key) => own.has(key)));
 };
 
 /**
@@ -362,8 +315,8 @@ const judgedSize = (built: BuiltTxData) =>
  * spends as many of those UTxOs as fit a transaction: the count is estimated, and a build that
  * does not fit is made again with fewer, each time strictly fewer, until one fits. It never
  * spends a UTxO the served step's parts name, one `canSelect` refuses (or throws for), one a
- * transaction of `after` spends, one that is not the payer's or not locked by a key, nor those
- * the served step needs for its collateral. The build selects nothing: the fee comes from the
+ * transaction of `after` spends, one that is not the payer's or not locked by a key, nor one
+ * the served step's failed build put up as collateral. The build selects nothing: the fee comes from the
  * step's own inputs, and it ends when the served step ends. Nothing is signed or sent.
  * @throws the served step's error when it is not consolidable, or when no UTxO it selected may
  *   be spent by a consolidation step, or one may and the step would change nothing
@@ -393,6 +346,8 @@ export const buildConsolidation = async (
     Array.from(spentByTransactions(after).keys(), (key) => key.toLowerCase()),
   );
   const named = namedByParts(parts);
+  // Built again, the served step can put up the collateral it put up before
+  const putUp = new Set(round.collateral.map(keyOf));
   const standKey = standOn === undefined ? undefined : keyOf(standOn);
   const allowed = (utxo: Utxo) => {
     if (options.canSelect === undefined) return true;
@@ -405,12 +360,13 @@ export const buildConsolidation = async (
   /** Whether the step may spend a UTxO of the payer */
   const spendable = (key: string, utxo: Utxo) =>
     !named.has(key) &&
+    !putUp.has(key) &&
     !spentBefore.has(key) &&
     key !== standKey &&
     isKeyLocked(utxo) &&
     allowed(utxo);
 
-  let candidates: Utxo[] = [];
+  const candidates: Utxo[] = [];
   const seen = new Set<string>();
   for (const selected of round.selected) {
     const key = keyOf(selected);
@@ -418,13 +374,6 @@ export const buildConsolidation = async (
     if (seen.has(key) || utxo === undefined || !spendable(key, utxo)) continue;
     seen.add(key);
     candidates.push(utxo);
-  }
-  if (callsForCollateral(parts)) {
-    const others = Array.from(owned).flatMap(([key, utxo]) =>
-      seen.has(key) || key === standKey || !spendable(key, utxo) ? [] : [utxo],
-    );
-    const keep = keptForCollateral(candidates, others, params);
-    candidates = candidates.filter((utxo) => !keep.has(keyOf(utxo)));
   }
 
   const needed = neededTokens(error, parts, standOn);
