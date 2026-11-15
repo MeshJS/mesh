@@ -19,6 +19,7 @@ import {
   toNativeScriptSource,
   toPlutusScriptCode,
 } from "./normalize";
+import { shownValue } from "./shape";
 import {
   AuxiliaryScriptPart,
   DonationPart,
@@ -76,7 +77,11 @@ export const guard = {
     } else if (keyHash !== undefined) {
       value = typeof keyHash === "string" ? keyHash.toLowerCase() : "";
       if (!isHash28(value))
-        fail(ctx, "INVALID_DATA", `invalid key hash ${String(keyHash)}`);
+        fail(
+          ctx,
+          "INVALID_DATA",
+          `invalid key hash: expected a 28-byte key hash in hex; got ${shownValue(keyHash)}`,
+        );
     } else return fail(ctx, "INVALID_DATA", "give keyHash or address");
     return freeze({
       kind: "guard",
@@ -103,7 +108,7 @@ const toSlot = (
     slot < 0 ||
     BigInt(slot) >= 2n ** 64n
   )
-    fail(ctx, "INVALID_DATA", `invalid ${name} slot ${slot}`);
+    fail(ctx, "INVALID_DATA", `invalid ${name} slot ${shownValue(slot)}`);
   if (BigInt(slot) > MAX_SLOT)
     fail(
       ctx,
@@ -139,9 +144,7 @@ const toTime = (
 const describeTime = (time: unknown) =>
   time instanceof Date
     ? `Date ${Number.isNaN(time.getTime()) ? "(invalid)" : time.getTime()}`
-    : typeof time === "string"
-      ? JSON.stringify(time)
-      : String(time);
+    : shownValue(time);
 
 /**
  * Limit when the transaction is valid, by POSIX time (`from`, `until`) or by slot
@@ -294,7 +297,11 @@ export const metadata = (params: {
     metadataLabel < 0 ||
     BigInt(metadataLabel) > MAX_METADATA_INT
   )
-    fail(ctx, "INVALID_DATA", `invalid metadata label ${metadataLabel}`);
+    fail(
+      ctx,
+      "INVALID_DATA",
+      `invalid metadata label ${shownValue(metadataLabel)}`,
+    );
   return freeze({
     kind: "metadata",
     metadataLabel: BigInt(metadataLabel).toString(),
@@ -436,7 +443,7 @@ const toCoin = (
   { allowZero }: { allowZero: boolean },
 ): string => {
   if (typeof amount !== "bigint" || amount < (allowZero ? 0n : 1n))
-    fail(ctx, "INVALID_VALUE", `invalid amount ${amount}`);
+    fail(ctx, "INVALID_VALUE", `invalid amount ${shownValue(amount)}`);
   return amount.toString();
 };
 

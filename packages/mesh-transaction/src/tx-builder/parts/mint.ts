@@ -12,6 +12,7 @@ import {
   toPlutusScriptSource,
   toRedeemer,
 } from "./normalize";
+import { shownValue } from "./shape";
 import {
   MintAssetsInput,
   MintPart,
@@ -31,21 +32,29 @@ const toMintAssets = (
   assets: MintAssetsInput,
 ): AssetsPrototype => {
   if (typeof assets !== "object" || assets === null)
-    fail(ctx, "INVALID_VALUE", `invalid assets ${String(assets)}`);
+    fail(ctx, "INVALID_VALUE", `invalid assets ${shownValue(assets)}`);
   const entries = Object.entries(assets);
   if (entries.length === 0) fail(ctx, "INVALID_VALUE", "no assets to mint");
   const result: AssetsPrototype = {};
   for (const [rawName, quantity] of entries) {
     const assetName = rawName.toLowerCase();
     if (!isHex(assetName) || assetName.length > 64)
-      fail(ctx, "INVALID_VALUE", `invalid asset name ${rawName}`);
+      fail(
+        ctx,
+        "INVALID_VALUE",
+        `invalid asset name: expected hex of at most 32 bytes; got ${shownValue(rawName)}`,
+      );
     if (
       typeof quantity !== "bigint" ||
       quantity === 0n ||
       quantity > MAX_INT64 ||
       quantity < MIN_INT64
     )
-      fail(ctx, "INVALID_VALUE", `invalid quantity ${quantity} of ${rawName}`);
+      fail(
+        ctx,
+        "INVALID_VALUE",
+        `invalid quantity ${shownValue(quantity)} of ${rawName}`,
+      );
     if (assetName in result)
       fail(ctx, "INVALID_VALUE", `asset name ${rawName} given twice`);
     result[assetName] = quantity.toString();
@@ -64,7 +73,11 @@ const toPolicyId = <T extends PlutusScriptSource | NativeScriptSource>(
 ): { policyId: string; script: T } => {
   const given = policyId?.toLowerCase();
   if (given !== undefined && !isHash28(given))
-    fail(ctx, "INVALID_SCRIPT", `invalid policy id ${policyId}`);
+    fail(
+      ctx,
+      "INVALID_SCRIPT",
+      `invalid policy id: expected a 28-byte script hash in hex; got ${shownValue(policyId)}`,
+    );
   if (given && script.scriptHash && given !== script.scriptHash)
     fail(
       ctx,

@@ -509,7 +509,13 @@ describe("TxBuilder: collateral without a return", () => {
   });
 
   it("is INVALID_OPTION for a collateralReturn that is not a boolean", async () => {
-    for (const value of ["no", 0, null, {}]) {
+    // A text or an object is named by its type
+    for (const [value, held] of [
+      ["no", "string"],
+      [0, 0],
+      [null, null],
+      [{}, "object"],
+    ]) {
       const error = await expectCode(
         () =>
           build([scriptSpend()], [utxo(ada(10))], {
@@ -519,7 +525,7 @@ describe("TxBuilder: collateral without a return", () => {
       );
       expect(error.details).toEqual({
         option: "collateralReturn",
-        value,
+        value: held,
         allowed: "a boolean",
       });
     }

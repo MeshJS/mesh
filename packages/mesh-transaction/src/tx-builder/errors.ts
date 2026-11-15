@@ -5,6 +5,7 @@ import type { OutRef, TxPart, Unresolved } from "./parts/types";
 import type { TxPlan } from "./plan/plan";
 import type { TxPlanStatus } from "./plan/types";
 import type { RequiredKey } from "./witnesses";
+import { heldValue, shownValue } from "./parts/shape";
 
 /** Codes of a `TxBuildError`: why a transaction could not be built from its parts */
 export type TxBuildErrorCode =
@@ -615,15 +616,21 @@ export class TxBuildError<
 }
 brandClass(TxBuildError, "build");
 
-/** An argument of a public function that is not of its type */
+/**
+ * An argument of a public function that is not of its type. A key may be given there by
+ * mistake, so the message tells a text by its shape and `details.value` holds a text, an object
+ * or a list by its JavaScript type, never the value
+ */
 export const invalidArgument = (
   option: string,
   value: unknown,
   allowed: string,
 ) =>
-  new TxBuildError("INVALID_OPTION", `invalid ${option}: expected ${allowed}`, {
-    details: { option, value, allowed },
-  });
+  new TxBuildError(
+    "INVALID_OPTION",
+    `invalid ${option}: expected ${allowed}; got ${shownValue(value)}`,
+    { details: { option, value: heldValue(value), allowed } },
+  );
 
 /** The sentence every message of a plan error ends with */
 export const NOT_UNPAID =

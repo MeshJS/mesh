@@ -16,6 +16,7 @@ import type { RequiredKeys } from "./payer";
 import type { Collected, SignerRole, TxSigners } from "./witnesses";
 import { TxBuildError, TxPlanError } from "./errors";
 import { errorText } from "./parts/normalize";
+import { heldValue } from "./parts/shape";
 import { readUtxo } from "./parts/utxo";
 import { walletCodeOf } from "./payer";
 import {
@@ -1374,7 +1375,11 @@ export function requiredSigners(
       "INVALID_OPTION",
       "invalid spent: expected a list of UTxOs",
       {
-        details: { option: "spent", value: spent, allowed: "a list of UTxOs" },
+        details: {
+          option: "spent",
+          value: heldValue(spent),
+          allowed: "a list of UTxOs",
+        },
       },
     );
   // Each entry read as a payer's UTxO is: an entry whose address cannot be read would

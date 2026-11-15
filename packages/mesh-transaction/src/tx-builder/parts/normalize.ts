@@ -38,7 +38,7 @@ import type {
 } from "./types";
 import type { UtxoProblem } from "./utxo";
 import { TxPartError } from "./errors";
-import { givenShape } from "./shape";
+import { givenShape, shownValue } from "./shape";
 import { addressOf, readUtxo, scriptSize, UtxoError, utxoKey } from "./utxo";
 
 export { textShape } from "./shape";
@@ -157,13 +157,21 @@ export const toResolvableInput = (
     const transactionId =
       typeof txHash === "string" ? txHash.toLowerCase() : txHash;
     if (typeof transactionId !== "string" || !isHash32(transactionId))
-      fail(ctx, "INVALID_OUT_REF", `invalid transaction hash ${txHash}`);
+      fail(
+        ctx,
+        "INVALID_OUT_REF",
+        `invalid transaction hash: expected a 32-byte hash in hex; got ${shownValue(txHash)}`,
+      );
     if (
       !Number.isInteger(outputIndex) ||
       outputIndex < 0 ||
       outputIndex > 0xffff
     )
-      fail(ctx, "INVALID_OUT_REF", `invalid output index ${outputIndex}`);
+      fail(
+        ctx,
+        "INVALID_OUT_REF",
+        `invalid output index ${shownValue(outputIndex)}`,
+      );
     return { input: { transaction_id: transactionId, index: outputIndex } };
   }
   let utxo: Utxo;
@@ -225,7 +233,7 @@ export const toStepLink = (
       fail(
         ctx,
         "INVALID_OUT_REF",
-        `expected ${expected}; got change ${String(ref.change)}${"output" in ref ? " with an output" : ""}`,
+        `expected ${expected}; got change ${shownValue(ref.change)}${"output" in ref ? " with an output" : ""}`,
       );
     return { step: step as string, change: true };
   }
@@ -328,10 +336,14 @@ export const toExUnits = (
   budget: Budget,
 ): ExUnitsPrototype => {
   if (!isObject(budget))
-    fail(ctx, "INVALID_DATA", `invalid execution units ${String(budget)}`);
+    fail(ctx, "INVALID_DATA", `invalid execution units ${shownValue(budget)}`);
   for (const [name, value] of Object.entries(budget)) {
     if (!Number.isSafeInteger(value) || value < 0)
-      fail(ctx, "INVALID_DATA", `invalid execution units ${name}: ${value}`);
+      fail(
+        ctx,
+        "INVALID_DATA",
+        `invalid execution units ${name}: ${shownValue(value)}`,
+      );
   }
   return { mem: String(budget.mem), steps: String(budget.steps) };
 };
@@ -348,7 +360,7 @@ export const toRedeemer = (
     fail(
       ctx,
       "INVALID_DATA",
-      `invalid redeemer ${String(redeemer)}: expected { data, exUnits }`,
+      `invalid redeemer ${shownValue(redeemer)}: expected { data, exUnits }`,
     );
   const { data } = redeemer;
   return {
@@ -478,7 +490,11 @@ const agree = <T>(
 
 const checkScriptHash = (ctx: PartContext, scriptHash?: string) => {
   if (scriptHash !== undefined && !isHash28(scriptHash))
-    fail(ctx, "INVALID_SCRIPT", `invalid script hash ${scriptHash}`);
+    fail(
+      ctx,
+      "INVALID_SCRIPT",
+      `invalid script hash: expected a 28-byte script hash in hex; got ${shownValue(scriptHash)}`,
+    );
 };
 
 const checkScriptSize = (ctx: PartContext, scriptSize?: number) => {
@@ -486,7 +502,11 @@ const checkScriptSize = (ctx: PartContext, scriptSize?: number) => {
     scriptSize !== undefined &&
     (!Number.isSafeInteger(scriptSize) || scriptSize <= 0)
   )
-    fail(ctx, "INVALID_SCRIPT", `invalid script size ${scriptSize}`);
+    fail(
+      ctx,
+      "INVALID_SCRIPT",
+      `invalid script size ${shownValue(scriptSize)}`,
+    );
 };
 
 /**
@@ -522,7 +542,7 @@ export const toPlutusScriptSource = (
     fail(
       ctx,
       "INVALID_SCRIPT",
-      `invalid Plutus script ${String(script)}: expected { code, version } or { reference }`,
+      `invalid Plutus script ${shownValue(script)}: expected { code, version } or { reference }`,
     );
   if ("code" in script) {
     const code = toPlutusScriptCode(
@@ -588,7 +608,7 @@ export const toNativeScriptSource = (
     fail(
       ctx,
       "INVALID_SCRIPT",
-      `invalid native script ${String(script)}: expected a script, its CBOR or { reference }`,
+      `invalid native script ${shownValue(script)}: expected a script, its CBOR or { reference }`,
     );
   if (typeof script === "string" || "type" in script) {
     let nativeScript: CstNativeScript;

@@ -29,7 +29,7 @@ import {
   splitUtxoBytes,
 } from "../tx-scan";
 import { emptyValue, toAssets } from "../value";
-import { givenShape } from "./shape";
+import { givenShape, shownValue } from "./shape";
 
 /*
  * The builder's UTxO form. Every UTxO the builder is given, as a `Utxo`, a Mesh `UTxO` or the
@@ -61,6 +61,16 @@ const HASH_28 = /^[0-9a-f]{56}$/i;
 const HEX_BYTES = /^(?:[0-9a-f]{2})+$/i;
 /** A token's unit: a policy id followed by an asset name of up to 32 bytes */
 const TOKEN_UNIT = /^[0-9a-f]{56}(?:[0-9a-f]{2}){0,32}$/i;
+
+/**
+ * An asset unit for an error about its quantity: as given when it reads as one, else by its
+ * shape, as it may be a key given by mistake
+ */
+const unitShown = (unit: unknown): string =>
+  typeof unit === "string" &&
+  (unit === "lovelace" || unit === "" || TOKEN_UNIT.test(unit))
+    ? unit
+    : shownValue(unit);
 /** The largest quantity of lovelace or of a token an output can hold */
 const MAX_QUANTITY = 2n ** 64n - 1n;
 
@@ -88,14 +98,17 @@ const readHex = (
 
 const readOutRefMembers = (txHash: unknown, outputIndex: unknown): OutRef => {
   if (typeof txHash !== "string" || !HASH_32.test(txHash))
-    return problem("outRef", `invalid transaction hash ${String(txHash)}`);
+    return problem(
+      "outRef",
+      `invalid transaction hash: expected a 32-byte hash in hex; got ${shownValue(txHash)}`,
+    );
   if (
     typeof outputIndex !== "number" ||
     !Number.isInteger(outputIndex) ||
     outputIndex < 0 ||
     outputIndex > 0xffff
   )
-    return problem("outRef", `invalid output index ${String(outputIndex)}`);
+    return problem("outRef", `invalid output index ${shownValue(outputIndex)}`);
   return { txHash: txHash.toLowerCase(), outputIndex };
 };
 
@@ -160,7 +173,7 @@ const normalValue = (
     if (typeof quantity !== "bigint" || quantity < 0n)
       return problem(
         "value",
-        `${at}: invalid quantity ${String(quantity)} of ${String(unit)}`,
+        `${at}: invalid quantity ${shownValue(quantity)} of ${unitShown(unit)}`,
       );
     if (unit === "lovelace") {
       value.coin += quantity;
@@ -170,7 +183,7 @@ const normalValue = (
     if (typeof unit !== "string" || !TOKEN_UNIT.test(unit))
       return problem(
         "value",
-        `${at}: invalid unit ${String(unit)}: expected lovelace or a policy id and an asset name in hex`,
+        `${at}: invalid unit ${shownValue(unit)}: expected lovelace or a policy id and an asset name in hex`,
       );
     const token = unit.toLowerCase();
     const sum = (value.assets.get(token) ?? 0n) + quantity;
@@ -209,13 +222,16 @@ const inlineDatum = (content: string): OutputDatum => ({
 
 const hashDatum = (at: string, hash: unknown): OutputDatum => {
   if (typeof hash !== "string" || !HASH_32.test(hash))
-    return problem("datum", `${at}: invalid datum hash ${String(hash)}`);
+    return problem(
+      "datum",
+      `${at}: invalid datum hash: expected a 32-byte hash in hex; got ${shownValue(hash)}`,
+    );
   return { type: "hash", hash: hash.toLowerCase() };
 };
 
 const readDatum = (at: string, datum: unknown): OutputDatum => {
   if (!isObject(datum))
-    return problem("datum", `${at}: invalid datum ${String(datum)}`);
+    return problem("datum", `${at}: invalid datum ${shownValue(datum)}`);
   if (datum.type === "hash") return hashDatum(at, datum.hash);
   if (datum.type === "inline") {
     const { data } = datum;
@@ -241,7 +257,10 @@ const LANGUAGE_TAG: Record<LanguageVersion, string> = {
 
 const readScriptHash = (at: string, hash: unknown): string => {
   if (typeof hash !== "string" || !HASH_28.test(hash))
-    return problem("script", `${at}: invalid script hash ${String(hash)}`);
+    return problem(
+      "script",
+      `${at}: invalid script hash: expected a 28-byte script hash in hex; got ${shownValue(hash)}`,
+    );
   return hash.toLowerCase();
 };
 
@@ -351,7 +370,7 @@ const plutusCode = (at: string, code: unknown): string => {
 /** A reference script given in the builder's form, read again from its bytes */
 const readScript = (at: string, script: unknown): OutputScript => {
   if (!isObject(script))
-    return problem("script", `${at}: invalid script ${String(script)}`);
+    return problem("script", `${at}: invalid script ${shownValue(script)}`);
   const stated =
     script.hash === undefined ? undefined : readScriptHash(at, script.hash);
   if (script.type === "unknown")
@@ -497,7 +516,7 @@ const meshQuantity = (at: string, unit: unknown, quantity: unknown) => {
   if (typeof quantity !== "string" || !/^\d+$/.test(quantity))
     return problem(
       "value",
-      `${at}: invalid quantity ${String(quantity)} of ${String(unit)}: expected decimal digits`,
+      `${at}: invalid quantity ${shownValue(quantity)} of ${unitShown(unit)}: expected decimal digits`,
     );
   return BigInt(quantity);
 };
@@ -519,7 +538,7 @@ const fromMesh = (given: Record<string, unknown>): Utxo => {
     if (!isObject(asset))
       return problem(
         "value",
-        `${at}: an asset of the amount is not an object { unit, quantity }: ${String(asset)}`,
+        `${at}: an asset of the amount is not an object { unit, quantity }: ${shownValue(asset)}`,
       );
     // The empty unit is read as lovelace, as across the repository
     const unit = asset.unit === "" ? "lovelace" : asset.unit;
@@ -537,7 +556,7 @@ const fromMesh = (given: Record<string, unknown>): Utxo => {
     )
       return problem(
         "datum",
-        `${at}: its dataHash ${String(dataHash)} is not the hash of its plutusData`,
+        `${at}: its dataHash, ${shownValue(dataHash)}, is not the hash of its plutusData`,
       );
     datum = inlineDatum(content);
   } else if (isSet(dataHash)) datum = hashDatum(at, dataHash);
@@ -592,7 +611,7 @@ const fromOwn = (given: Record<string, unknown>): Utxo => {
   if (typeof lovelace !== "bigint")
     return problem(
       "value",
-      `${at}: its value has no lovelace as a bigint: ${String(lovelace)}`,
+      `${at}: its value has no lovelace as a bigint: ${shownValue(lovelace)}`,
     );
   return {
     ...ref,

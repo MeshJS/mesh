@@ -273,28 +273,18 @@ describe("Plutus script code", () => {
         "a native script that is not CBOR",
         () => mint.native({ script: "ffff00", assets: { "": 1n } }),
       ],
-      [
-        "a pool id that does not parse",
-        () =>
-          certificate.stakeDelegation({ stake: plutusStake, pool: "pool1x" }),
-        // The message names the pool id, not what the parser said
-        false,
-      ],
-    ])(
-      "keeps the error it was rejected for as the cause: %s",
-      (_, build, quotesCause = true) => {
-        try {
-          build();
-        } catch (error) {
-          expect(error).toBeInstanceOf(TxPartError);
-          const { cause, message } = error as TxPartError;
-          expect(cause).toBeInstanceOf(Error);
-          expect(message.endsWith((cause as Error).message)).toBe(quotesCause);
-          return;
-        }
-        throw new Error("expected a part error");
-      },
-    );
+    ])("keeps the error it was rejected for as the cause: %s", (_, build) => {
+      try {
+        build();
+      } catch (error) {
+        expect(error).toBeInstanceOf(TxPartError);
+        const { cause, message } = error as TxPartError;
+        expect(cause).toBeInstanceOf(Error);
+        expect(message.endsWith((cause as Error).message)).toBe(true);
+        return;
+      }
+      throw new Error("expected a part error");
+    });
 
     it("refuses a reference UTxO whose script is not CBOR: it holds a script this library cannot read", () => {
       // Carried as a script of no known form, it is never decoded again, so there is no cause

@@ -2,6 +2,7 @@ import type { NetworkConfig } from "@meshsdk/common";
 
 import type { PlanDeadlines, WaitTarget } from "./types";
 import { TxBuildError } from "../errors";
+import { heldValue, textShape } from "../parts/shape";
 
 // The deadlines of plans and the waiting of their calls: the built-in values, the order in
 // which the builder's defaults, a plan's options and a call's options override them, and the
@@ -62,8 +63,12 @@ const ABOVE_ZERO = "a finite number of milliseconds above 0";
 const ZERO_OR_MORE = "a finite number of milliseconds, 0 or more";
 const WHOLE_BLOCKS = "a whole number of blocks, 0 or more";
 
+/**
+ * A value given by mistake, as a message tells it: a text by its shape, as it may be a key given
+ * by mistake
+ */
 const describe = (value: unknown): string => {
-  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "string") return textShape(value);
   if (typeof value === "bigint") return `${value}n`;
   if (typeof value === "object" && value !== null)
     return Array.isArray(value) ? "a list" : "an object";
@@ -74,7 +79,7 @@ const invalidOption = (option: string, value: unknown, allowed: string) =>
   new TxBuildError(
     "INVALID_OPTION",
     `invalid ${option}: expected ${allowed}; got ${describe(value)}`,
-    { details: { option, value, allowed } },
+    { details: { option, value: heldValue(value), allowed } },
   );
 
 const isFiniteNumber = (value: unknown): value is number =>

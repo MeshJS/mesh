@@ -12,6 +12,7 @@ import {
   toRewardAddress,
   withKnownHash,
 } from "./normalize";
+import { shownValue } from "./shape";
 import {
   KeyWitness,
   NativeScriptInput,
@@ -61,7 +62,11 @@ const build = (
       : toRewardAddress(ctx, params.rewardAddress!);
   const { amount } = params;
   if (amount !== "all" && (typeof amount !== "bigint" || amount < 0n))
-    fail(ctx, "INVALID_VALUE", `invalid withdrawal amount ${amount}`);
+    fail(
+      ctx,
+      "INVALID_VALUE",
+      `invalid withdrawal amount ${shownValue(amount)}`,
+    );
   const witness = makeWitness(ctx, given?.credential);
   if (given)
     checkCredential(

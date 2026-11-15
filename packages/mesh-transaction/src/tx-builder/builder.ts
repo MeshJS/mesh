@@ -133,7 +133,7 @@ import {
   paymentCredential,
   toStepLink,
 } from "./parts/normalize";
-import { givenShape } from "./parts/shape";
+import { givenShape, heldValue, shownValue, textShape } from "./parts/shape";
 import {
   outputAsUtxo,
   plainUtxo,
@@ -477,9 +477,14 @@ const missingMember = (part: TxPart): string | undefined =>
 const PARTS_ALLOWED =
   "a part, or a list of parts, nested lists, false, null and undefined";
 
+/** Refused parts; `details.value` holds a text, an object or a list by its JavaScript type */
 const invalidParts = (entry: unknown, reason: string) =>
   new TxBuildError("INVALID_OPTION", `invalid parts: ${reason}`, {
-    details: { option: "parts", value: entry, allowed: PARTS_ALLOWED },
+    details: {
+      option: "parts",
+      value: heldValue(entry),
+      allowed: PARTS_ALLOWED,
+    },
   });
 
 /** The members a part linked to an earlier step has beside kind, label and link, by its kind */
@@ -609,14 +614,22 @@ export const flattenParts = (
 /** The parts of a builder made by the constructor: none */
 const EMPTY_PARTS: readonly TxPart[] = Object.freeze([]);
 
+/**
+ * A value given by mistake, as a message tells it: a text by its shape, as it may be a key given
+ * by mistake
+ */
 const describe = (value: unknown): string => {
-  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "string") return textShape(value);
   if (typeof value === "bigint") return `${value}n`;
   if (typeof value === "object" && value !== null)
     return Array.isArray(value) ? "a list" : "an object";
   return String(value);
 };
 
+/**
+ * An option of a call that is refused; `details.value` holds a text, an object or a list by its
+ * JavaScript type, never the value
+ */
 const invalidOption = (
   option: string,
   value: unknown,
@@ -627,7 +640,7 @@ const invalidOption = (
     "INVALID_OPTION",
     `invalid ${option}: expected ${allowed}; got ${describe(value)}`,
     {
-      details: { option, value, allowed },
+      details: { option, value: heldValue(value), allowed },
       ...(cause !== undefined && { cause }),
     },
   );
@@ -1391,11 +1404,11 @@ export class TxBuilder {
     ))
       throw new TxBuildError(
         "INVALID_OPTION",
-        `invalid time ${String(time)}: expected POSIX milliseconds as a finite number or a bigint, or a valid Date`,
+        `invalid time ${time instanceof Date ? String(time) : shownValue(time)}: expected POSIX milliseconds as a finite number or a bigint, or a valid Date`,
         {
           details: {
             option: "time",
-            value: time,
+            value: time instanceof Date ? time : heldValue(time),
             allowed:
               "a finite number or a bigint of POSIX milliseconds, or a valid Date",
           },
@@ -1404,9 +1417,13 @@ export class TxBuilder {
     if (round !== undefined && round !== "down" && round !== "up")
       throw new TxBuildError(
         "INVALID_OPTION",
-        `invalid round ${String(round)}: expected "down" or "up"`,
+        `invalid round: expected "down" or "up"; got ${shownValue(round)}`,
         {
-          details: { option: "round", value: round, allowed: '"down" or "up"' },
+          details: {
+            option: "round",
+            value: heldValue(round),
+            allowed: '"down" or "up"',
+          },
         },
       );
     try {
@@ -1433,11 +1450,11 @@ export class TxBuilder {
     ))
       throw new TxBuildError(
         "INVALID_OPTION",
-        `invalid slot ${String(slot)}: expected a finite number or a bigint`,
+        `invalid slot ${shownValue(slot)}: expected a finite number or a bigint`,
         {
           details: {
             option: "slot",
-            value: slot,
+            value: heldValue(slot),
             allowed: "a finite number, or a bigint",
           },
         },

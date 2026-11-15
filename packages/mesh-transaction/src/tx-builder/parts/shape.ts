@@ -21,3 +21,32 @@ export const givenShape = (value: unknown): string =>
   typeof value === "string"
     ? textShape(value)
     : `a value of type ${value === null ? "null" : typeof value}`;
+
+/**
+ * A value given by mistake, as an error tells it: a text by its shape, a number, a bigint, a
+ * boolean or undefined as it is, anything else by its JavaScript type. A text may be a key given
+ * by mistake; an object or a list may hold one
+ */
+export const shownValue = (value: unknown): string => {
+  switch (typeof value) {
+    case "string":
+      return textShape(value);
+    case "number":
+    case "bigint":
+    case "boolean":
+    case "undefined":
+      return String(value);
+    default:
+      return givenShape(value);
+  }
+};
+
+/**
+ * A value given by mistake, as the `details` of an error hold it: a number, a bigint, a boolean,
+ * null or undefined as it is, anything else (a text, an object, a list) by its JavaScript type
+ */
+export const heldValue = (value: unknown): unknown =>
+  value === null ||
+  ["number", "bigint", "boolean", "undefined"].includes(typeof value)
+    ? value
+    : typeof value;

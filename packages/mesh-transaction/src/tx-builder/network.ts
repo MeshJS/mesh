@@ -19,6 +19,7 @@ import { TxBuildError } from "./errors";
 import { toCredential } from "./parts/credentials";
 import { TxPartError } from "./parts/errors";
 import { toNativeScriptSource, toPlutusScriptSource } from "./parts/normalize";
+import { heldValue, shownValue, textShape } from "./parts/shape";
 
 /** The networks a provider can state, and whose name the builder passes on to its evaluator */
 const PUBLIC_NETWORKS = ["mainnet", "preprod", "preview"] as const;
@@ -56,13 +57,20 @@ const isUsableConfig = (value: object): value is NetworkConfig => {
  * @throws TxBuildError INVALID_OPTION for anything else, `"testnet"` included
  */
 export const resolveNetwork = (value: unknown): NetworkConfig => {
+  // A text that is no short name may be a key given by mistake: it is told by its shape, and
+  // the reader's error, which quotes it, is not kept
+  const named = typeof value !== "string" || SHOWN_NAME.test(value);
   const invalid = (cause?: unknown) =>
     new TxBuildError(
       "INVALID_OPTION",
       `the network option must be ${ALLOWED_NETWORKS}; got ${describe(value)}`,
       {
-        details: { option: "network", value, allowed: ALLOWED_NETWORKS },
-        ...(cause !== undefined && { cause }),
+        details: {
+          option: "network",
+          value: named ? value : "string",
+          allowed: ALLOWED_NETWORKS,
+        },
+        ...(cause !== undefined && named && { cause }),
       },
     );
   if (typeof value === "string") {
@@ -77,8 +85,12 @@ export const resolveNetwork = (value: unknown): NetworkConfig => {
   throw invalid();
 };
 
+/** A network name an error may quote: short, plain letters, digits and dashes */
+const SHOWN_NAME = /^[A-Za-z][A-Za-z0-9-]{0,15}$/;
+
 const describe = (value: unknown): string => {
-  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "string")
+    return SHOWN_NAME.test(value) ? JSON.stringify(value) : textShape(value);
   if (value === undefined || value === null) return "nothing";
   if (typeof value === "object")
     return "a config without a usable name, network id or slot clock";
@@ -261,6 +273,11 @@ const SCRIPTS_ALLOWED = "a Plutus script { code, version } or a native script";
 const CREDENTIALS_ALLOWED =
   'a bech32 reward address, or a credential { type: "KEY" | "SCRIPT", value: <28-byte hash in hex> }';
 
+/**
+ * An argument of a builder method that is refused. A key may be given as a credential by
+ * mistake, so `details.value` holds a text, an object or a list by its JavaScript type, never
+ * the value; the part normaliser's reason, which tells a text by its shape, is kept
+ */
 const invalidArgument = (
   option: string,
   value: unknown,
@@ -270,9 +287,9 @@ const invalidArgument = (
   new TxBuildError(
     "INVALID_OPTION",
     // The reason the part normaliser gave, without the part it names
-    `invalid ${option}: expected ${allowed}${cause ? ` (${cause.message.replace(`${cause.part}: `, "")})` : ""}`,
+    `invalid ${option}: expected ${allowed}${cause ? ` (${cause.message.replace(`${cause.part}: `, "")})` : `; got ${shownValue(value)}`}`,
     {
-      details: { option, value, allowed },
+      details: { option, value: heldValue(value), allowed },
       ...(cause !== undefined && { cause }),
     },
   );

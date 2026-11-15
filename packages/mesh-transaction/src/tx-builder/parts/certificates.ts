@@ -27,6 +27,7 @@ import {
   PartContext,
   toRewardAddress,
 } from "./normalize";
+import { shownValue } from "./shape";
 import {
   AnchorInput,
   CertificateFragment,
@@ -112,13 +113,13 @@ const toPort = (ctx: PartContext, port: number | undefined) => {
     port !== undefined &&
     (!Number.isInteger(port) || port < 0 || port > 0xffff)
   )
-    fail(ctx, "INVALID_DATA", `invalid port ${port}`);
+    fail(ctx, "INVALID_DATA", `invalid port ${shownValue(port)}`);
   return port;
 };
 
 const toRelay = (ctx: PartContext, relay: Relay): RelayPrototype => {
   if (typeof relay !== "object" || relay === null)
-    return fail(ctx, "INVALID_DATA", `invalid relay ${String(relay)}`);
+    return fail(ctx, "INVALID_DATA", `invalid relay ${shownValue(relay)}`);
   switch (relay.type) {
     case "SingleHostAddr": {
       const port = toPort(ctx, relay.port);
@@ -163,20 +164,28 @@ const toPoolParams = (
   params: PoolParams,
 ): PoolParamsPrototype => {
   if (typeof params !== "object" || params === null)
-    fail(ctx, "INVALID_DATA", `invalid pool parameters ${String(params)}`);
+    fail(ctx, "INVALID_DATA", `invalid pool parameters ${shownValue(params)}`);
   if (!Array.isArray(params.margin))
-    fail(ctx, "INVALID_VALUE", `invalid margin ${String(params.margin)}`);
+    fail(ctx, "INVALID_VALUE", `invalid margin ${shownValue(params.margin)}`);
   if (!Array.isArray(params.owners))
-    fail(ctx, "INVALID_DATA", `invalid pool owners ${String(params.owners)}`);
+    fail(
+      ctx,
+      "INVALID_DATA",
+      `invalid pool owners ${shownValue(params.owners)}`,
+    );
   const vrf =
     typeof params.vrfKeyHash === "string"
       ? params.vrfKeyHash.toLowerCase()
       : "";
   if (!isHash32(vrf))
-    fail(ctx, "INVALID_DATA", `invalid VRF key hash ${params.vrfKeyHash}`);
+    fail(
+      ctx,
+      "INVALID_DATA",
+      `invalid VRF key hash: expected a 32-byte hash in hex; got ${shownValue(params.vrfKeyHash)}`,
+    );
   const coin = (name: string, value: string) => {
     if (typeof value !== "string" || !/^\d+$/.test(value))
-      fail(ctx, "INVALID_VALUE", `invalid ${name} ${value}`);
+      fail(ctx, "INVALID_VALUE", `invalid ${name} ${shownValue(value)}`);
     return value;
   };
   const [numerator, denominator] = params.margin;
@@ -187,11 +196,19 @@ const toPoolParams = (
     numerator < 0 ||
     numerator > denominator
   )
-    fail(ctx, "INVALID_VALUE", `invalid margin ${params.margin.join("/")}`);
+    fail(
+      ctx,
+      "INVALID_VALUE",
+      `invalid margin ${params.margin.map(shownValue).join("/")}`,
+    );
   const owners = params.owners.map((owner) => {
     const hash = typeof owner === "string" ? owner.toLowerCase() : "";
     if (!isHash28(hash))
-      fail(ctx, "INVALID_DATA", `invalid pool owner ${owner}`);
+      fail(
+        ctx,
+        "INVALID_DATA",
+        `invalid pool owner: expected a 28-byte key hash in hex; got ${shownValue(owner)}`,
+      );
     return hash;
   });
   const rewardAccount = toRewardAddress(ctx, params.rewardAddress).address;
@@ -205,7 +222,7 @@ const toPoolParams = (
       fail(
         ctx,
         "INVALID_DATA",
-        `invalid pool metadata hash ${params.metadata.hash}`,
+        `invalid pool metadata hash: expected a 32-byte hash in hex; got ${shownValue(params.metadata.hash)}`,
       );
     if (
       typeof params.metadata.URL !== "string" ||
@@ -229,7 +246,7 @@ const toPoolParams = (
     pool_owners: owners,
     relays: (Array.isArray(params.relays)
       ? params.relays
-      : fail(ctx, "INVALID_DATA", `invalid relays ${String(params.relays)}`)
+      : fail(ctx, "INVALID_DATA", `invalid relays ${shownValue(params.relays)}`)
     ).map((relay) => toRelay(ctx, relay)),
     ...(poolMetadata && { pool_metadata: poolMetadata }),
   };
@@ -588,7 +605,7 @@ export const certificate = {
       epoch < 0 ||
       BigInt(epoch) >= 2n ** 64n
     )
-      fail(ctx, "INVALID_DATA", `invalid epoch ${epoch}`);
+      fail(ctx, "INVALID_DATA", `invalid epoch ${shownValue(epoch)}`);
     return build(
       ctx,
       {

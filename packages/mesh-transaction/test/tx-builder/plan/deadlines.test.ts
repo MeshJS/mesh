@@ -75,7 +75,10 @@ describe("TxBuilder: planDefaults", () => {
       const error = invalidOption(() => builderWith(defaults));
       expect(error).toBeInstanceOf(TxBuildError);
       expect(error.details.option).toBe(option);
-      expect(error.details.value).toEqual(value);
+      // A text is named by its type
+      expect(error.details.value).toEqual(
+        typeof value === "string" ? "string" : value,
+      );
       expect(typeof error.details.allowed).toBe("string");
       expect(error.message).toContain(option);
     },

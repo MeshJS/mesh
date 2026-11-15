@@ -253,7 +253,7 @@ describe("a part put together by hand", () => {
         expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
         const invalid = error as TxBuildError<"INVALID_OPTION">;
         expect(invalid.details.option).toBe("parts");
-        expect(invalid.details.value).toBe(part);
+        expect(invalid.details.value).toBe("object");
         expect(invalid.message).toContain(`without ${member}`);
       }
     },

@@ -24,22 +24,37 @@ import {
   toPlutusData,
   toPlutusScriptCode,
 } from "./normalize";
+import { shownValue } from "./shape";
 import { isOneItem } from "./utxo";
 
 /** Asset names are at most 32 bytes */
 const MAX_ASSET_NAME_HEX = 64;
+
+/**
+ * An asset unit for an error about its quantity: as given when it reads as one, else by its
+ * shape, as it may be a key given by mistake
+ */
+const unitShown = (unit: unknown): string =>
+  typeof unit === "string" &&
+  (unit === "lovelace" ||
+    unit === "" ||
+    (isHash28(unit.slice(0, 56).toLowerCase()) &&
+      isHex(unit.slice(56).toLowerCase()) &&
+      unit.length <= 56 + MAX_ASSET_NAME_HEX))
+    ? unit
+    : shownValue(unit);
 
 const toValue = (ctx: PartContext, value: ValueInput) => {
   if (typeof value !== "object" || value === null)
     fail(
       ctx,
       "INVALID_VALUE",
-      `invalid value ${String(value)}: expected a list of assets or { unit: quantity }`,
+      `invalid value ${shownValue(value)}: expected a list of assets or { unit: quantity }`,
     );
   const entries: [string, bigint][] = Array.isArray(value)
     ? value.map((asset: unknown) => {
         if (typeof asset !== "object" || asset === null)
-          fail(ctx, "INVALID_VALUE", `invalid asset ${String(asset)}`);
+          fail(ctx, "INVALID_VALUE", `invalid asset ${shownValue(asset)}`);
         const { unit, quantity } = asset as {
           unit: unknown;
           quantity: unknown;
@@ -48,7 +63,7 @@ const toValue = (ctx: PartContext, value: ValueInput) => {
           fail(
             ctx,
             "INVALID_VALUE",
-            `invalid quantity ${String(quantity)} of ${String(unit)}`,
+            `invalid quantity ${shownValue(quantity)} of ${unitShown(unit)}`,
           );
         return [unit as string, BigInt(quantity as string)];
       })
@@ -58,9 +73,13 @@ const toValue = (ctx: PartContext, value: ValueInput) => {
   const multiasset: MultiAssetPrototype = {};
   for (const [rawUnit, quantity] of entries) {
     if (typeof quantity !== "bigint" || quantity <= 0n)
-      fail(ctx, "INVALID_VALUE", `invalid quantity ${quantity} of ${rawUnit}`);
+      fail(
+        ctx,
+        "INVALID_VALUE",
+        `invalid quantity ${shownValue(quantity)} of ${unitShown(rawUnit)}`,
+      );
     if (typeof rawUnit !== "string")
-      fail(ctx, "INVALID_VALUE", `invalid asset unit ${String(rawUnit)}`);
+      fail(ctx, "INVALID_VALUE", `invalid asset unit ${shownValue(rawUnit)}`);
     if (rawUnit === "lovelace" || rawUnit === "") {
       coin = (coin ?? 0n) + quantity;
       continue;
@@ -73,7 +92,11 @@ const toValue = (ctx: PartContext, value: ValueInput) => {
       !isHex(assetName) ||
       assetName.length > MAX_ASSET_NAME_HEX
     )
-      fail(ctx, "INVALID_VALUE", `invalid asset unit ${rawUnit}`);
+      fail(
+        ctx,
+        "INVALID_VALUE",
+        `invalid asset unit: expected lovelace or a policy id and an asset name in hex; got ${shownValue(rawUnit)}`,
+      );
     const assets: AssetsPrototype = (multiasset[policyId] ??= {});
     assets[assetName] = (BigInt(assets[assetName] ?? 0) + quantity).toString();
   }
@@ -92,7 +115,7 @@ const toDatum = (
     fail(
       ctx,
       "INVALID_DATA",
-      `invalid datum ${String(datum)}: expected { type: "inline" | "hash", ... }`,
+      `invalid datum ${shownValue(datum)}: expected { type: "inline" | "hash", ... }`,
     );
   if (datum.type === "inline") {
     const { data } = toPlutusData(ctx, datum.data);
@@ -109,7 +132,11 @@ const toDatum = (
     const hash =
       typeof datum.hash === "string" ? datum.hash.toLowerCase() : datum.hash;
     if (typeof hash !== "string" || !isHash32(hash))
-      fail(ctx, "INVALID_DATA", `invalid datum hash ${datum.hash}`);
+      fail(
+        ctx,
+        "INVALID_DATA",
+        `invalid datum hash: expected a 32-byte hash in hex; got ${shownValue(datum.hash)}`,
+      );
     return { plutus_data: { type: "DATA_HASH", value: hash } };
   }
   const { data, hash } = toPlutusData(ctx, datum.data);

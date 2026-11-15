@@ -1202,7 +1202,12 @@ describe("requiredSigners", () => {
 
   it("throws INVALID_OPTION at the call for a spent that is not a list", async () => {
     const { tx } = await payment();
-    for (const spent of [undefined, null, {}]) {
+    // A value that may hold a text is named by its type
+    for (const [spent, held] of [
+      [undefined, undefined],
+      [null, null],
+      [{}, "object"],
+    ]) {
       let error: unknown;
       try {
         requiredSigners(tx, spent as never);
@@ -1212,7 +1217,7 @@ describe("requiredSigners", () => {
       expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
       expect((error as TxBuildError<"INVALID_OPTION">).details).toEqual({
         option: "spent",
-        value: spent,
+        value: held,
         allowed: "a list of UTxOs",
       });
     }

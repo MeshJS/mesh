@@ -22,6 +22,7 @@ import {
   freeze,
   isHash28,
   isHash32,
+  isObject,
   labelOf,
   partContext,
   PartContext,
@@ -29,6 +30,7 @@ import {
   toPlutusScriptSource,
   toRewardAddress,
 } from "./normalize";
+import { shownValue } from "./shape";
 import {
   AnchorInput,
   CredentialInput,
@@ -54,7 +56,11 @@ const toGovActionId = (
     fail(
       ctx,
       "INVALID_DATA",
-      `invalid governance action id ${JSON.stringify(id)}`,
+      `invalid governance action id: expected { txHash: <32-byte hash in hex>, index }; got ${
+        isObject(id)
+          ? `{ txHash: ${shownValue(id.txHash)}, index: ${shownValue(id.index)} }`
+          : shownValue(id)
+      }`,
     );
   return { transaction_id: txHash, index: id.index };
 };
@@ -86,7 +92,7 @@ export const vote = (params: {
     return fail(
       ctx,
       "INVALID_DATA",
-      `invalid voter ${String(voterInput)}: expected { pool }, { drep } or { committee }`,
+      `invalid voter ${shownValue(voterInput)}: expected { pool }, { drep } or { committee }`,
     );
   if ("pool" in voterInput) {
     if (params.witness)
@@ -112,7 +118,7 @@ export const vote = (params: {
     return fail(
       ctx,
       "INVALID_DATA",
-      `invalid voter ${JSON.stringify(voterInput)}`,
+      "invalid voter: expected { pool }, { drep } or { committee }; got an object with none of them",
     );
   }
 
@@ -121,7 +127,7 @@ export const vote = (params: {
   const seen = new Set<string>();
   const votes = params.votes.map((input): VotePrototype => {
     if (typeof input !== "object" || input === null)
-      fail(ctx, "INVALID_DATA", `invalid vote ${String(input)}`);
+      fail(ctx, "INVALID_DATA", `invalid vote ${shownValue(input)}`);
     const action = toGovActionId(ctx, input.action);
     const key = `${action.transaction_id}#${action.index}`;
     if (seen.has(key))
@@ -186,7 +192,11 @@ const toGuardrail = (
 ): { policyHash?: string; witness: ProposalPart["witness"] } => {
   const given = policyHash?.toLowerCase();
   if (given !== undefined && !isHash28(given))
-    fail(ctx, "INVALID_SCRIPT", `invalid policy hash ${policyHash}`);
+    fail(
+      ctx,
+      "INVALID_SCRIPT",
+      `invalid policy hash: expected a 28-byte script hash in hex; got ${shownValue(policyHash)}`,
+    );
   if (!guardrail) {
     if (given)
       fail(
@@ -264,7 +274,11 @@ const toUnitInterval = (
     !/^\d+$/.test(denominator) ||
     BigInt(denominator) === 0n
   )
-    fail(ctx, "INVALID_VALUE", `invalid ${name} ${numerator}/${denominator}`);
+    fail(
+      ctx,
+      "INVALID_VALUE",
+      `invalid ${name} ${shownValue(value?.numerator)}/${shownValue(value?.denominator)}`,
+    );
   return { numerator, denominator };
 };
 
@@ -285,7 +299,7 @@ const checkParamUpdate = (
         fail(ctx, "INVALID_VALUE", `invalid ${path}: ${value}`);
     } else if (typeof value === "string") {
       if (!(signed ? /^-?\d+$/ : /^\d+$/).test(value))
-        fail(ctx, "INVALID_VALUE", `invalid ${path}: ${value}`);
+        fail(ctx, "INVALID_VALUE", `invalid ${path}: ${shownValue(value)}`);
     } else if (Array.isArray(value)) {
       value.forEach((item, i) => check(`${path}[${i}]`, item, signed));
     } else if (value !== null && typeof value === "object") {
@@ -345,7 +359,11 @@ export const proposal = {
       ["minor", minor],
     ] as const)
       if (!Number.isSafeInteger(value) || value! < 0 || value! > 0xffffffff)
-        fail(ctx, "INVALID_DATA", `invalid protocol version ${name} ${value}`);
+        fail(
+          ctx,
+          "INVALID_DATA",
+          `invalid protocol version ${name} ${shownValue(value)}`,
+        );
     return build(ctx, params, {
       type: "HARD_FORK_INITIATION_ACTION",
       value: {
@@ -372,7 +390,11 @@ export const proposal = {
     for (const [key, amount] of entries) {
       const { address } = toRewardAddress(ctx, key);
       if (typeof amount !== "bigint" || amount < 0n)
-        fail(ctx, "INVALID_VALUE", `invalid withdrawal ${amount} to ${key}`);
+        fail(
+          ctx,
+          "INVALID_VALUE",
+          `invalid withdrawal ${shownValue(amount)} to ${key}`,
+        );
       if (address in withdrawals)
         fail(ctx, "INVALID_VALUE", `reward account ${key} given twice`);
       withdrawals[address] = amount.toString();
@@ -426,7 +448,11 @@ export const proposal = {
         termLimit < 0 ||
         BigInt(termLimit) >= 2n ** 64n
       )
-        fail(ctx, "INVALID_DATA", `invalid term limit ${termLimit}`);
+        fail(
+          ctx,
+          "INVALID_DATA",
+          `invalid term limit ${shownValue(termLimit)}`,
+        );
       return {
         stake_credential: toPrototypeCredential(toCredential(ctx, credential)),
         term_limit: BigInt(termLimit),
@@ -464,7 +490,7 @@ export const proposal = {
       fail(
         ctx,
         "INVALID_SCRIPT",
-        `invalid guardrail script hash ${scriptHash}`,
+        `invalid guardrail script hash: expected a 28-byte script hash in hex; got ${shownValue(scriptHash)}`,
       );
     return build(ctx, params, {
       type: "NEW_CONSTITUTION_ACTION",

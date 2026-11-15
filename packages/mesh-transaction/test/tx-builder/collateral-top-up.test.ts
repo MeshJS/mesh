@@ -641,7 +641,13 @@ describe("TxBuilder: topping up given collateral", () => {
   });
 
   it("is INVALID_OPTION for a topUpCollateral that is not a boolean", async () => {
-    for (const value of ["yes", 1, null, {}]) {
+    // A text or an object is named by its type
+    for (const [value, held] of [
+      ["yes", "string"],
+      [1, 1],
+      [null, null],
+      [{}, "object"],
+    ]) {
       const error = await expectCode(
         () =>
           build([scriptSpend()], [utxo(ada(10))], {
@@ -651,7 +657,7 @@ describe("TxBuilder: topping up given collateral", () => {
       );
       expect(error.details).toEqual({
         option: "topUpCollateral",
-        value,
+        value: held,
         allowed: "a boolean",
       });
     }

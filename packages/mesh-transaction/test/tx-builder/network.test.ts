@@ -952,7 +952,13 @@ describe("TxBuilder: addresses and slots on its network", () => {
       const error = expectCode(caughtSync(run), "INVALID_OPTION");
       expect(error).not.toBeInstanceOf(TxPartError);
       expect(error.details.option).toBe(option);
-      expect(error.details.value).toBe(value);
+      // A text, or an object other than a Date, is named by its type
+      expect(error.details.value).toBe(
+        typeof value === "string" ||
+          (typeof value === "object" && !(value instanceof Date))
+          ? typeof value
+          : value,
+      );
       expect(error.part).toBeUndefined();
       expect(error.message).not.toMatch(/\b(output|withdrawal)\b/);
       if (option === "script") expect(error.cause).toBeInstanceOf(TxPartError);

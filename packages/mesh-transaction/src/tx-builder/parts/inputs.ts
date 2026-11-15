@@ -35,6 +35,7 @@ import {
   toStepLink,
   withKnownHash,
 } from "./normalize";
+import { shownValue } from "./shape";
 import { utxoKey } from "./utxo";
 
 /**
@@ -392,7 +393,11 @@ export const collateralReturn = (params: {
     totalCollateral !== undefined &&
     (typeof totalCollateral !== "bigint" || totalCollateral <= 0n)
   )
-    fail(ctx, "INVALID_VALUE", `invalid total collateral ${totalCollateral}`);
+    fail(
+      ctx,
+      "INVALID_VALUE",
+      `invalid total collateral ${shownValue(totalCollateral)}`,
+    );
   return freeze({
     kind: "collateralReturn",
     address: addressText(address),
