@@ -1530,6 +1530,48 @@ const withMarks = (
   };
 };
 
+/** An out ref as `txHash#index`, the hash in lower case */
+const refKey = (ref: {
+  readonly txHash: string;
+  readonly outputIndex: number;
+}) => `${ref.txHash.toLowerCase()}#${ref.outputIndex}`;
+
+/**
+ * What a transaction given built keeps for itself beside what it spends: the out refs it reads
+ * (reference inputs, those of reference scripts among them) and those it puts up as collateral,
+ * each with how it uses it. Another step that spends one makes it fail for ever; two steps may
+ * read one output, and may put up one UTxO as collateral, which a transaction whose scripts pass
+ * does not spend
+ */
+const keptBy = (
+  built: Pick<BuiltTxData, "referenceInputs" | "collateral">,
+): Map<string, string> => {
+  const kept = new Map<string, string>();
+  for (const utxo of built.collateral?.inputs ?? [])
+    kept.set(refKey(utxo), "puts up as collateral");
+  for (const utxo of built.referenceInputs)
+    if (!kept.has(refKey(utxo))) kept.set(refKey(utxo), "reads");
+  return kept;
+};
+
+/**
+ * The first of these out refs that a step given built keeps for itself, with that step and how
+ * it uses it
+ */
+const keptAmong = (
+  spends: readonly { readonly txHash: string; readonly outputIndex: number }[],
+  keepers: readonly { readonly name: string; readonly built: BuiltTxData }[],
+): { outRef: string; name: string; use: string } | undefined => {
+  for (const ref of spends) {
+    const outRef = refKey(ref);
+    for (const each of keepers) {
+      const use = keptBy(each.built).get(outRef);
+      if (use !== undefined) return { outRef, name: each.name, use };
+    }
+  }
+  return undefined;
+};
+
 /**
  * The outputs of a transaction of `after` as its own bytes hold them: its `tx` walked and read as
  * `fromCbor` reads the outputs of a body, under the hash of that body. The outputs the entry
@@ -1650,6 +1692,25 @@ const readPrebuilt = async (
       if (spender !== undefined)
         throw invalidSteps(
           `step ${JSON.stringify(name)} spends ${spender.outRef}, which step ${JSON.stringify(spender.name)} spends: two steps of a plan never spend one output`,
+        );
+      // What it reads or puts up no step of the plan spends, and what it spends no other step
+      // given built reads or puts up: either would keep one of the two from ever landing
+      for (const each of [...context.before, ...done]) {
+        const taken = keptAmong(each.built.inputs, [{ name, built }]);
+        if (taken !== undefined)
+          throw invalidSteps(
+            `step ${JSON.stringify(name)} ${taken.use} ${taken.outRef}, which step ${JSON.stringify(each.name)} spends: an output a step given built reads or puts up is never spent by another step of the plan`,
+          );
+      }
+      const keeper = keptAmong(built.inputs, [
+        ...context.before.filter(
+          (each) => each.prebuilt === true && !each.final,
+        ),
+        ...done,
+      ]);
+      if (keeper !== undefined)
+        throw invalidSteps(
+          `step ${JSON.stringify(name)} spends ${keeper.outRef}, which step ${JSON.stringify(keeper.name)} ${keeper.use}: an output a step given built reads or puts up is never spent by another step of the plan`,
         );
       const afterSpender = spentBefore(
         built,
@@ -1803,8 +1864,9 @@ const warn = (
  * Every step given as a transaction built before is read first, in order (`readPrebuilt`); it
  * takes its place among the steps in the order given. A step the loop builds gets in `after`
  * each such step before it whole, and each one after it with its inputs alone, so that nothing
- * such a step spends is selected or spent by another. Such a step is of a payer only by its
- * outputs marked change at that payer's change address
+ * such a step spends is selected or spent by another; nor is what such a step that is not final
+ * reads or puts up as collateral, a part that spends it being INVALID_OPTION (`steps`). Such a
+ * step is of a payer only by its outputs marked change at that payer's change address
  * @throws as `makePlan` throws of building its steps, each error with the step's name at the
  *   start of its message; TxBuildError TX_TOO_LARGE (`cause: "selection"`) for a step that
  *   needs more consolidation steps than the plan allows, whose consolidation step cannot be
@@ -1916,6 +1978,21 @@ const buildSteps = async (
         all,
         given.slice(index + 1).map((each) => each.name),
       );
+      // What a step given built that is not final reads or puts up, before this step or after
+      // it, this step neither spends nor selects
+      const keepers = [
+        ...all.filter((each) => each.prebuilt === true && !each.final),
+        ...later,
+      ];
+      const held = new Set(
+        keepers.flatMap((each) => Array.from(keptBy(each.built).keys())),
+      );
+      const selectable =
+        held.size === 0
+          ? canSelect
+          : (utxo: Utxo) =>
+              !held.has(refKey(utxo)) &&
+              (canSelect === undefined || canSelect(utxo));
       let built: BuiltTxData | undefined;
       /** The step's last TX_TOO_LARGE, which its consolidation steps serve */
       let served: TxBuildError<"TX_TOO_LARGE"> | undefined;
@@ -1985,6 +2062,23 @@ const buildSteps = async (
           name,
           planId,
         );
+        const kept = keptAmong(
+          parts.flatMap((part) =>
+            part.kind === "spend"
+              ? [
+                  {
+                    txHash: part.input.transaction_id,
+                    outputIndex: part.input.index,
+                  },
+                ]
+              : [],
+          ),
+          keepers,
+        );
+        if (kept !== undefined)
+          throw invalidSteps(
+            `step ${JSON.stringify(name)} spends ${kept.outRef}, which step ${JSON.stringify(kept.name)} ${kept.use}: an output a step given built reads or puts up is never spent by another step of the plan`,
+          );
         // Tokens an earlier consolidation step parked are within reach of a later step that
         // needs them; never of the step it serves, nor of a step that needs none of them. A
         // sweep sends all the payer has: every parked output is within its reach
@@ -2014,7 +2108,7 @@ const buildSteps = async (
             },
             parts,
             {
-              ...pick(options, own, "canSelect"),
+              ...(selectable !== undefined && { canSelect: selectable }),
               ...pick(options, own, "coinSelection"),
               ...pick(options, own, "registeredPools"),
               ...pick(options, own, "extraKeyWitnesses"),
