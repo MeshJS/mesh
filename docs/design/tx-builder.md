@@ -433,8 +433,9 @@ is made and never read from the builder again. `build` stays one transaction or 
   step that will not land, or that was `halted`, sends no step for the first time. `timeoutMs`
   bounds every request of `run()` (a search, the tip, the store, a submit) by the time left; a
   signer is bounded by the step's end of validity. `landed`, `live` and `rest` say what landed, what
-  may still land and what is left, as steps `builder.plan` takes; a new plan for what is left is
-  made only once the plan is `stopped`.
+  may still land and what is left, as steps `builder.plan` takes; what is left is paid by a plan
+  in its place, `replan({ id, steps? })`, which marks the old plan first and spends an input of
+  each old transaction that may still land, never by `builder.plan(rest)`.
 - **The store.** `TxPlanStore` is `load(id)` and a compare-and-set `save(json, expectedRev)`. Every
   change is saved before the method returns; the record holds data only, never a wallet, signer,
   submitter or function (its UTxOs stand in the builder's form), and `resume(id, options)`
