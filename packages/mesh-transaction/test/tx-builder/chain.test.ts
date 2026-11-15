@@ -765,23 +765,36 @@ describe("TxBuilder: after", () => {
     expect(built.fee).toBeLessThanOrEqual(priced + 88n);
   });
 
-  it("checks the network of the outputs of after", async () => {
+  it("checks the network of the outputs of after, as its bytes hold them", async () => {
     const tx1 = await buildWith(pay(10), { payer: snapshot(owned(100)) });
     const mainnet = serializeAddressObj(pubKeyAddress(keyHashHex(1)), 1);
+    // An address an object states and its bytes do not hold is not believed
     const moved: BuiltTxData = {
       ...tx1,
       outputs: tx1.outputs.map((o, i) =>
         i === 0 ? { ...o, address: mainnet } : o,
       ),
     };
+    await buildWith(pay(5), { payer: snapshot(owned(100)), after: moved });
+    // A transaction whose bytes pay another network's address is refused
+    const onMainnet = await new TxBuilder({
+      network: "mainnet",
+      params,
+      costModels,
+    }).build(output({ address: mainnet, value: { lovelace: ada(10) } }), {
+      payer: {
+        changeAddress: mainnet,
+        utxos: [utxoAt(mainnet, ada(100))],
+      },
+    });
     const error = await caught(
-      buildWith(pay(5), { payer: snapshot(owned(100)), after: moved }),
+      buildWith(pay(5), { payer: snapshot(owned(100)), after: onMainnet }),
     );
     expect(error.code).toBe("NETWORK_MISMATCH");
     const { details } = error as TxBuildError<"NETWORK_MISMATCH">;
-    expect(details.found.map((f) => [f.role, f.address])).toEqual([
-      ["utxo", mainnet],
-    ]);
+    expect(details.found.map((f) => [f.role, f.address])).toEqual(
+      onMainnet.outputs.map((o) => ["utxo", o.address]),
+    );
   });
 });
 

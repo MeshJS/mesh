@@ -1017,21 +1017,30 @@ describe("a transaction built before as a step of a plan", () => {
   );
 
   it(
-    "takes no output of a transaction of after whose bytes are not read",
+    "refuses a transaction of after whose bytes are not read, and takes none of its outputs",
     async () => {
       const ctx = await setup();
       const { fund, stated } = await statedElsewhere(ctx, ctx.partnerAddress);
       const cbor = await takesFromWallet(ctx, stated.outputs[0]!);
       const unread = { ...stated, tx: "00" };
-      // Nobody else knows the output: the reader's own refusal, as without after
-      const error = await caught(
-        ctx.builder.plan({ swap: cbor }, { payer: ctx.wallet, after: unread }),
-      );
-      expect(TxBuildError.is(error, "UTXO_NOT_FOUND")).toBe(true);
-      // The application's knownUtxos come next
+      for (const knownUtxos of [undefined, fund.outputs]) {
+        const error = await caught(
+          ctx.builder.plan(
+            { swap: cbor },
+            {
+              payer: ctx.wallet,
+              after: unread,
+              ...(knownUtxos !== undefined && { knownUtxos }),
+            },
+          ),
+        );
+        expect(TxBuildError.is(error, "INVALID_OPTION")).toBe(true);
+        expect(error.details).toMatchObject({ option: "after" });
+      }
+      // Without it, the application's knownUtxos give the output
       const plan = await ctx.builder.plan(
         { swap: cbor },
-        { payer: ctx.wallet, after: unread, knownUtxos: fund.outputs },
+        { payer: ctx.wallet, knownUtxos: fund.outputs },
       );
       expect(plan.step("swap").inputs[0]!.address).toBe(ctx.address);
       expect(plan.step("swap").missing.map((k) => k.keyHash)).toContain(

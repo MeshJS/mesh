@@ -367,11 +367,15 @@ export type BuildOptions = {
   /**
    * Transactions built before this one and not yet seen by the provider: their inputs are not
    * selected again, their change is selectable, and all their outputs can be spent or read by
-   * out ref without a lookup. Only change becomes selectable, never an output paid to another:
-   * of their change, only the outputs at this build's change address are selected. A part that
-   * names an output they spend is refused with UTXO_NOT_FOUND. Their collateral inputs stay
-   * selectable, since a valid transaction does not spend them. The build keeps nothing of them:
-   * a transaction not given here is not known to it. A plan given here stands for its steps that
+   * out ref without a lookup. Each is read from its own bytes, its `tx`: what it spends and the
+   * outputs it makes are those of the bytes, never those the object states (an object restored
+   * from a JSON another party wrote can state anything); of the object only the change marks are
+   * taken, by position. An object whose bytes are not read, or that lists another number of
+   * outputs than they hold, is INVALID_OPTION (`after`). Only change becomes selectable, never
+   * an output paid to another: of their change, only the outputs at this build's change address
+   * are selected. A part that names an output they spend is refused with UTXO_NOT_FOUND. Their
+   * collateral inputs stay selectable, since a valid transaction does not spend them. The build
+   * keeps nothing of them: a transaction not given here is not known to it. A plan given here stands for its steps that
    * are in a block, or may still land: the inputs they spend are not selected, their change at
    * this build's change address is selectable, and their outputs can be named by out ref. A
    * final step stands for its inputs alone: what it spent is never selected, also from a read
@@ -668,9 +672,9 @@ const unsupportedSerializer = (reason: string, cause?: unknown) =>
 const SEND_ALL_TO_ALLOWED = "a payment address, in bech32 or hex";
 const PARAMS_ALLOWED = "a whole Protocol";
 const AFTER_ALLOWED =
-  "a transaction built by TxBuilder.build (txHash, inputs, outputs, change), a plan, or a list of them";
+  "a transaction built by TxBuilder.build, finalize, fromCbor or restore (its tx and outputs), a plan, or a list of them";
 
-/** A transaction of `after` as the build reads it: its UTxOs copied, its change marked */
+/** A transaction of `after` as the build reads it: what it spends, its outputs, its change marked */
 type AfterTx = ChainedTx & { txHash: string; outputs: BuiltOutput[] };
 
 /** An entry of a list option that is not of its type, with why */
@@ -690,11 +694,73 @@ const invalidEntry = (
 const kindOf = (value: unknown) => (value === null ? "null" : typeof value);
 
 /**
- * The transactions of `after`, checked by their shape and copied: UTxOs in normal form, with
- * their own members only, transaction hashes in lower case, change outputs marked. An error
- * names the type of what was given, never its value
+ * The entries of `after` whose data is the library's own: those a plan makes for its own steps
+ * and for the steps of a plan given in `after` (the entry of a final step holds its inputs alone,
+ * on purpose), and those read from their bytes at the door. They are taken as they state, and
+ * never read again
  */
-const toAfter = (after: unknown): AfterTx[] => {
+const OWN_ENTRIES = new WeakSet<object>();
+
+/**
+ * Marks an entry of `after` as the library's own data: a plan's entry for one of its steps, or
+ * an entry already read from its bytes
+ */
+export const ownAfterEntry = <T extends object>(entry: T): T => {
+  OWN_ENTRIES.add(entry);
+  return entry;
+};
+
+/**
+ * What a transaction's own bytes say of what it spends and makes: the hash of its body, the out
+ * refs of its inputs in body order, and its outputs as the UTxOs they become, read as
+ * `fromCbor` reads the outputs of a body after the same walk. Undefined for a value no
+ * transaction is read from. It makes no request
+ */
+export const readTxBytes = (
+  tx: unknown,
+):
+  | {
+      readonly txHash: string;
+      readonly inputs: { txHash: string; outputIndex: number }[];
+      readonly outputs: Utxo[];
+    }
+  | undefined => {
+  if (typeof tx !== "string") return undefined;
+  try {
+    const text = tx.toLowerCase();
+    scanTransaction(text);
+    const { txId, body } = readTransaction(text);
+    return {
+      txHash: txId.toLowerCase(),
+      inputs: body
+        .inputs()
+        .values()
+        .map((input) => ({
+          txHash: input.transactionId().toLowerCase(),
+          outputIndex: Number(input.index()),
+        })),
+      outputs: body.outputs().map((output, i) => outputAsUtxo(txId, i, output)),
+    };
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * The transactions of `after` at the door, before anything is built on them. A plan stands for
+ * its steps that are in a block and not final, or may still land. An entry that is the
+ * library's own data is taken as it is. Any other is read from its own bytes, its `tx`: the out
+ * refs it spends and the outputs it makes are those of the bytes, never those the object states,
+ * which may come from a JSON another party wrote; of the object only the change marks are taken,
+ * by position, since bytes cannot say them (selection takes only such an output at the payer's
+ * own change address). Its labels are not taken: no build reads a label of `after`. The entry
+ * read is marked as the library's own. An error names the type of what was given, never its
+ * value
+ * @throws TxBuildError INVALID_OPTION (`after`) for a value that is no transaction, no plan and
+ *   no list of them, a transaction whose bytes this library does not read, and an object that
+ *   lists another number of outputs than its bytes hold
+ */
+export const readAfter = (after: unknown): BuiltTxData[] => {
   if (after === undefined) return [];
   if (typeof after !== "object" || after === null)
     throw invalidEntry(
@@ -713,24 +779,76 @@ const toAfter = (after: unknown): AfterTx[] => {
   return entries.map(({ entry, i }) => {
     const where = Array.isArray(after) ? `entry ${i}` : "the transaction";
     const tx = entry as Record<string, unknown> | null;
-    if (
-      typeof tx !== "object" ||
-      tx === null ||
-      typeof tx.txHash !== "string" ||
-      !Array.isArray(tx.inputs) ||
-      !Array.isArray(tx.outputs) ||
-      !Array.isArray(tx.change)
-    )
-      throw invalidEntry(
+    const notBuilt = () =>
+      invalidEntry(
         "after",
         kindOf(entry),
         AFTER_ALLOWED,
         `${where} is not a built transaction: expected ${AFTER_ALLOWED}; got ${kindOf(entry)}`,
       );
+    if (typeof tx !== "object" || tx === null) throw notBuilt();
+    if (OWN_ENTRIES.has(tx)) {
+      if (
+        typeof tx.txHash !== "string" ||
+        !Array.isArray(tx.inputs) ||
+        !Array.isArray(tx.outputs) ||
+        !Array.isArray(tx.change)
+      )
+        throw notBuilt();
+      return tx as unknown as BuiltTxData;
+    }
+    if (!Array.isArray(tx.outputs)) throw notBuilt();
+    const read = readTxBytes(tx.tx);
+    if (read === undefined)
+      throw invalidEntry(
+        "after",
+        kindOf(entry),
+        AFTER_ALLOWED,
+        `${where} holds no transaction this library reads in its tx: a transaction of after is read from its own bytes`,
+      );
+    const stated = tx.outputs as unknown[];
+    if (stated.length !== read.outputs.length)
+      throw invalidEntry(
+        "after",
+        kindOf(entry),
+        AFTER_ALLOWED,
+        `${where} lists ${stated.length} output(s), and its transaction has ${read.outputs.length}: give the object as it was made`,
+      );
+    const outputs = read.outputs.map((output, k): BuiltOutput => {
+      const mark = stated[k];
+      return typeof mark === "object" &&
+        mark !== null &&
+        (mark as { change?: unknown }).change === true
+        ? { ...output, change: true as const }
+        : output;
+    });
+    return ownAfterEntry({
+      tx: tx.tx as string,
+      txHash: read.txHash,
+      inputs: read.inputs,
+      outputs,
+      change: outputs.filter((output) => output.change === true),
+    }) as unknown as BuiltTxData;
+  });
+};
+
+/**
+ * The transactions of `after` as a build reads them (`readAfter`), copied: UTxOs in normal form,
+ * with their own members only, transaction hashes in lower case, change outputs marked
+ * @throws TxBuildError INVALID_OPTION (`after`) as `readAfter`, and for an entry that holds an
+ *   output that is not a UTxO
+ */
+const toAfter = (after: unknown): AfterTx[] =>
+  readAfter(after).map((tx, i) => {
     try {
       return {
         txHash: tx.txHash.toLowerCase(),
-        inputs: (tx.inputs as unknown[]).map((input) => readUtxo(input)),
+        inputs: (
+          tx.inputs as readonly { txHash: string; outputIndex: number }[]
+        ).map((input) => ({
+          txHash: input.txHash.toLowerCase(),
+          outputIndex: input.outputIndex,
+        })),
         outputs: (tx.outputs as unknown[]).map((output): BuiltOutput => ({
           ...readUtxo(output),
           ...((output as BuiltOutput).change === true && {
@@ -741,14 +859,13 @@ const toAfter = (after: unknown): AfterTx[] => {
     } catch (error) {
       throw invalidEntry(
         "after",
-        kindOf(entry),
+        "object",
         AFTER_ALLOWED,
-        `${where} holds an input or output that is not a UTxO: ${errorText(error)}`,
+        `${Array.isArray(after) ? `entry ${i}` : "the transaction"} holds an output that is not a UTxO: ${errorText(error)}`,
         error,
       );
     }
   });
-};
 
 /** An abort signal by its shape, whatever made it */
 const isAbortSignal = (value: unknown): value is AbortSignal =>

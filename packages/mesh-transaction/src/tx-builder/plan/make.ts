@@ -29,7 +29,7 @@ import type {
 } from "./types";
 import { abortable } from "../abort";
 import { isKeyLocked } from "../balance";
-import { flattenParts } from "../builder";
+import { flattenParts, ownAfterEntry, readAfter } from "../builder";
 import { BuiltTx, isBuiltHere } from "../built-tx";
 import { toKnownUtxos } from "../chain";
 import { NOT_UNPAID, TxBuildError, TxError, TxPlanError } from "../errors";
@@ -39,9 +39,9 @@ import { checkLock, spend, toSpendDatum } from "../parts/inputs";
 import { fail, freeze, withKnownHash } from "../parts/normalize";
 import { validity } from "../parts/scalars";
 import { isLinkedPart } from "../parts/unresolved";
-import { outputAsUtxo, plainUtxo, utxoKey } from "../parts/utxo";
+import { plainUtxo, utxoKey } from "../parts/utxo";
 import { changeAddressOf, givenPayerEntries, toPayerSource } from "../payer";
-import { readTransaction, readTransactionItems } from "../sign";
+import { readTransactionItems } from "../sign";
 import { scanTransaction } from "../tx-scan";
 import { addValues, fromMultiAsset, negate, valueOf } from "../value";
 import {
@@ -1424,12 +1424,8 @@ export const makePlan = async (
 
   const made = await buildSteps(builder, given, {
     before: [],
-    after:
-      options.after === undefined
-        ? []
-        : Array.isArray(options.after)
-          ? (options.after as readonly BuiltTxData[])
-          : [options.after as BuiltTxData],
+    // Read from their bytes at the door; an entry read already is taken as it is
+    after: readAfter(options.after),
     tip,
     ttlMs: deadlines.ttlMs,
     ...(id !== undefined && { planId: id }),
@@ -1629,33 +1625,11 @@ const keptAmong = (
 };
 
 /**
- * The outputs of a transaction of `after` as its own bytes hold them: its `tx` walked and read as
- * `fromCbor` reads the outputs of a body, under the hash of that body. The outputs the entry
- * states are never taken: it may be an object restored from a JSON another party wrote. None for
- * an entry that stands for a final step (its inputs alone), and none for one whose `tx` is not
- * read: the UTxOs it names then come from `knownUtxos` or the provider
- */
-const afterOutputs = (builder: TxBuilder, entry: BuiltTxData): Utxo[] => {
-  if (typeof entry !== "object" || entry === null || INPUTS_ALONE.has(entry))
-    return [];
-  const tx: unknown = (entry as { tx?: unknown }).tx;
-  if (typeof tx !== "string") return [];
-  try {
-    const text = tx.toLowerCase();
-    scanTransaction(text, builder.params?.maxTxSize);
-    const { txId, body } = readTransaction(text);
-    return body.outputs().map((output, i) => outputAsUtxo(txId, i, output));
-  } catch {
-    return [];
-  }
-};
-
-/**
  * Reads every step given built, in order, before any step is built: each through
  * `builder.fromCbor`, the public reader, from the bytes given or the object's `partialTx`, with
  * the UTxOs the plan knows: the outputs of the steps before and of the steps given built before
  * it, from their own transactions; then those of the transactions of `after`, read from their
- * own bytes (`afterOutputs`); then the
+ * own bytes at the door (`readAfter`); then the
  * `knownUtxos` the call builds with; each out ref once, the first. Any other is read through the
  * provider. The object `fromCbor` returns becomes the step through its JSON and the reader of a
  * record: so a step enters a plan as a record gives it back.
@@ -1678,9 +1652,8 @@ const readPrebuilt = async (
   const read = new Map<string, PrebuiltRead>();
   const done: { readonly name: string; readonly built: BuiltTxData }[] = [];
   const known = toKnownUtxos(context.knownUtxos);
-  const ofAfter = given.some((step) => step.prebuilt !== undefined)
-    ? context.after.flatMap((each) => afterOutputs(builder, each))
-    : [];
+  // The transactions of `after` were read from their own bytes at the door
+  const ofAfter = context.after.flatMap((each) => each.outputs);
   for (const step of given) {
     if (step.prebuilt === undefined) continue;
     const { name } = step;
@@ -1831,15 +1804,15 @@ const withParkedOpen = (
       Object.entries(output.value).some(
         ([unit, quantity]) => needed.has(unit) && quantity > 0n,
       ));
-  if (!built.outputs.some(opens)) return built;
+  if (!built.outputs.some(opens)) return ownAfterEntry(built);
   const outputs = built.outputs.map((output) =>
     opens(output) ? { ...output, change: true as const } : output,
   );
-  return {
+  return ownAfterEntry({
     ...built,
     outputs,
     change: outputs.filter((output) => output.change === true),
-  };
+  });
 };
 
 /**
@@ -1848,10 +1821,10 @@ const withParkedOpen = (
  * payer's read, since it may be spent by now
  */
 export const asAfter = <T extends BuiltTxData>(built: T, final: boolean): T => {
-  if (!final) return built;
+  if (!final) return ownAfterEntry(built);
   const alone = { ...built, outputs: [], change: [] };
   INPUTS_ALONE.add(alone);
-  return alone;
+  return ownAfterEntry(alone);
 };
 
 /**

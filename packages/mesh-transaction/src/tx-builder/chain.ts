@@ -69,7 +69,8 @@ export const bodyOutputs = (
 
 /** What folding transactions into a list of UTxOs reads of each */
 export type ChainedTx = {
-  readonly inputs: readonly Utxo[];
+  /** What it spends: only the out refs are read */
+  readonly inputs: readonly Readonly<{ txHash: string; outputIndex: number }>[];
   readonly outputs: readonly BuiltOutput[];
 };
 

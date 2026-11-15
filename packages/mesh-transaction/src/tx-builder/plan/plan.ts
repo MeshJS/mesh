@@ -40,6 +40,7 @@ import {
   TIMED_OUT,
   within,
 } from "../abort";
+import { readAfter } from "../builder";
 import { makeBuiltTx } from "../built-tx";
 import { NOT_UNPAID, TxBuildError, TxPlanError } from "../errors";
 import {
@@ -2804,7 +2805,8 @@ export const planFor = async (
   const { after, ...rest } = options;
   const given: MakePlanOptions = {
     ...rest,
-    ...(after !== undefined && { after: afterOf(after) }),
+    // The transactions of `after` are read from their own bytes at the door
+    ...(after !== undefined && { after: readAfter(afterOf(after)) }),
   };
   // The shapes first, with no request: a step given as text no transaction is read from is
   // refused before the store, the tip or a payer is read
