@@ -220,6 +220,25 @@ const invalidSteps = (
 export const invalidAddedSteps = (reason: string, value?: string) =>
   invalidSteps(reason, value, ADDED_ALLOWED);
 
+/**
+ * A refusal of steps as `plan.add` tells it: the forms `add` takes in `details.allowed` of the
+ * error and of its causes, in place of those of `builder.plan`
+ */
+const asAdded = (error: unknown): unknown => {
+  for (
+    let each: unknown = error;
+    each instanceof TxError;
+    each = (each as TxError).cause
+  )
+    if (
+      TxBuildError.is(each, "INVALID_OPTION") &&
+      each.details.option === "steps" &&
+      each.details.allowed === STEPS_ALLOWED
+    )
+      (each.details as { allowed: string }).allowed = ADDED_ALLOWED;
+  return error;
+};
+
 /** The members a step given with options may have */
 const STEP_MEMBERS = new Set([
   "parts",
@@ -1136,7 +1155,11 @@ export const readAddedSteps = (
       undefined,
       ADDED_HELD_ALLOWED,
     );
-  return readStepForms(builder, steps, {});
+  try {
+    return readStepForms(builder, steps, {});
+  } catch (error) {
+    throw asAdded(error);
+  }
 };
 
 /**
@@ -1149,7 +1172,11 @@ export const checkAddedSteps = (
   read: readonly StepInput[],
   recorded: readonly string[],
 ) => {
-  checkLinks(read, recorded);
+  try {
+    checkLinks(read, recorded);
+  } catch (error) {
+    throw asAdded(error);
+  }
   if (recorded.length + read.length > MAX_STEPS)
     throw invalidAddedSteps(
       `a plan has at most ${MAX_STEPS} steps: it has ${recorded.length}, and ${read.length} are given`,
@@ -1229,7 +1256,7 @@ export const buildAddedSteps = async (
       ? recorded.changeAddress
       : undefined;
   const made = await buildSteps(builder, read, {
-    before: base.steps.map((step) => {
+    before: base.steps.map((step): StepBefore => {
       const own = step.given?.options?.changeAddress;
       // A consolidation step pays its payer alone: its outputs are at that payer's address. A
       // prebuilt step is of no payer by default: its outputs marked change tell
@@ -1262,6 +1289,9 @@ export const buildAddedSteps = async (
       ...(trace !== undefined && { trace }),
     },
     readOf,
+    formOf: (step) => toPayerSource(payerOf(step)).form,
+  }).catch((error: unknown) => {
+    throw asAdded(error);
   });
   return made.map(newStepOf);
 };
@@ -1344,6 +1374,7 @@ export const makePlan = async (
     ...(id !== undefined && { planId: id }),
     options,
     readOf,
+    formOf: (step) => toPayerSource(payerOf(step)).form,
   });
 
   // The plan's payer was read when a step built from parts is paid by it; else, for a plan of
@@ -1737,6 +1768,8 @@ const buildSteps = async (
     readonly planId?: string;
     readonly options: LoopOptions;
     readonly readOf: (step: StepInput) => PayerRead;
+    /** The form of a step's payer as it was given */
+    readonly formOf: (step: StepInput) => PayerSource["form"];
   },
 ): Promise<MadeStep[]> => {
   const { after: before, tip, ttlMs, planId, options, readOf } = context;
@@ -1882,7 +1915,12 @@ const buildSteps = async (
           )
         )
           throw invalidSteps(
-            `step ${JSON.stringify(name)} cannot stand on step ${JSON.stringify(previous.name)}, the step before it of the same payer: the change of step ${JSON.stringify(previous.name)} is not in the payer's read; it was spent outside the plan, or the read is behind the block step ${JSON.stringify(previous.name)} is in. The same call again later tells; a step that cannot stand on it is a new plan's`,
+            `step ${JSON.stringify(name)} cannot stand on step ${JSON.stringify(previous.name)}, the step before it of the same payer: the change of step ${JSON.stringify(previous.name)} is not in the payer's read; ${
+              // A snapshot is read as it is given: nothing catches up by itself
+              context.formOf(step) === "snapshot"
+                ? `it was spent outside the plan, or the snapshot was taken before the block step ${JSON.stringify(previous.name)} is in. A snapshot is read as it is given: a snapshot taken after that block tells`
+                : `it was spent outside the plan, or the read is behind the block step ${JSON.stringify(previous.name)} is in. The same call again later tells`
+            }; a step that cannot stand on it is a new plan's`,
           );
         const parts = withDeadline(
           builder,
@@ -1959,9 +1997,8 @@ const buildSteps = async (
           // The first consolidation step made for the step stands on the step before it of its
           // payer, by that step's change, whenever the step's parts leave that change: so it
           // never lands before that step, however the step itself stands on it
-          const standOn =
-            change ??
-            (previous !== undefined && previous.serves !== name
+          const before =
+            previous !== undefined && previous.serves !== name
               ? changeBefore(
                   parts,
                   previous,
@@ -1969,6 +2006,17 @@ const buildSteps = async (
                   [...all, ...later],
                   canSelect,
                 )
+              : undefined;
+          // Of a step in a block, a change the payer's read does not list may be spent: there
+          // is none to stand on
+          const standOn =
+            change ??
+            (before !== undefined &&
+            (previous?.included !== true ||
+              payer.snapshot.utxos.some(
+                (utxo) => utxoKey(utxo) === utxoKey(before),
+              ))
+              ? before
               : undefined);
           // Nor does it take what a step of the plan not on chain reads or puts up
           const readers = [

@@ -74,6 +74,52 @@ describe("a consolidation step and the step before it", () => {
   );
 
   it(
+    "stands on nothing when the change of the step before it, in a block, is not in the payer's read",
+    async () => {
+      const { emulator, builder, wallet, address } = await fragmented(
+        coins(300, 2n * ADA),
+        { maxTxSize: 4096, confirmations: 3 },
+      );
+      const plan = await builder.plan(
+        {
+          a: [
+            output({ address, value: { lovelace: 20n * ADA }, label: "keep" }),
+          ],
+        },
+        { payer: wallet },
+      );
+      await plan.run();
+      const a = plan.step("a");
+      expect(a.status).toBe("included");
+      // The wallet spends the change of a outside the plan, and keeps the labelled output
+      const keep = a.outputs.find((each) => each.label === "keep")!;
+      const outside = await builder.build(
+        [
+          spend.pubKey({ utxo: a.change[0]! }),
+          pay({ lovelace: 1n * ADA }, alice),
+        ],
+        { payer: wallet, canSelect: (utxo) => keyOf(utxo) !== keyOf(keep) },
+      );
+      await emulator.submitTx(await wallet.signTx(outside.tx));
+
+      await plan.add({
+        b: [
+          spend.pubKey({ utxo: { step: "a", output: "keep" } }),
+          pay({ lovelace: 500n * ADA }),
+        ],
+      });
+      const extra = consolidationsOf(plan);
+      expect(extra.length).toBeGreaterThan(0);
+      expect(extra[0]!.standsOn).toEqual([]);
+      expect(extra[0]!.inputs.map(keyOf)).not.toContain(keyOf(a.change[0]!));
+      await plan.run();
+      expect(plan.step("b").status).toBe("included");
+      expect(paidTo(emulator, recipient)).toEqual([500n * ADA]);
+    },
+    LONG,
+  );
+
+  it(
     "takes no UTxO the step before it reads or puts up as collateral when the served step names all its change",
     async () => {
       const { emulator, builder, wallet, address } = await fragmented(

@@ -891,8 +891,10 @@ export class TxPlan {
    *   refused by the ledger, and a step added while a transaction of `after` is not in a block
    *   may take an input that transaction spends, so that one of the two is refused.
    * @throws TxPlanError INVALID_STATE (`final`) for a final plan, (`stopped`) for a plan that
-   *   is stopping or stopped; VERSION_CONFLICT when another writer added steps meanwhile: none
-   *   of this call's steps is recorded, and the same call builds on the plan as it is;
+   *   is stopping or stopped; VERSION_CONFLICT when another writer added other steps meanwhile,
+   *   or the store refused four writes of the record (this call's, or that of its look at the
+   *   chain): none of this call's steps is recorded, and the same call builds on the plan as it
+   *   is;
    *   CANNOT_OBSERVE (`noTip`); INVALID_STATE (`pastHorizon`); STORE_FAILED when the store fails
    *   to read or write the record; PLAN_NOT_FOUND when the record is gone from the store;
    *   INVALID_STATE (`recordVersion`) for a stored record this library does not read
@@ -903,7 +905,9 @@ export class TxPlan {
    *   of its payer, in a block, that the payer's read does not list; INVALID_OPTION (`payer`)
    *   for a payer that answered two change addresses in the call; MISSING_PAYER for a step
    *   without a payer when the object does not hold the plan's; NETWORK_MISMATCH for a payer of
-   *   another network; WALLET_FAILED; NOT_SERIALIZABLE on a builder with a store; every error
+   *   another network; WALLET_FAILED; MISSING_FETCHER and PROVIDER_FAILED when the payer's UTxOs
+   *   are read through the provider (an address, or a wallet that reads none itself) and there
+   *   is none, or the read fails; NOT_SERIALIZABLE on a builder with a store; every error
    *   of building a step, its name at the start of the message; ABORTED; INVALID_OPTION for
    *   options that are not an object or have a member other than `signal`
    */
