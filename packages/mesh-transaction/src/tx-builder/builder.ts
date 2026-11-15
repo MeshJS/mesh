@@ -303,6 +303,16 @@ export type BuildEvent =
       code: "TIP_AHEAD_OF_CLOCK";
       slot: number;
       aheadMs: number;
+    }
+  /**
+   * A plan put consolidation steps before a step that did not fit a transaction: how many this
+   * call put in, and their fees in all; sent when a plan builds its steps, never by a build
+   */
+  | {
+      type: "warning";
+      code: "CONSOLIDATION_STEPS";
+      steps: number;
+      fee: bigint;
     };
 
 /** Per-build options */
@@ -2312,6 +2322,10 @@ export class TxBuilder {
    *   an earlier step is spent by the part that names it.
    * - A plan given in `after` stands for its steps that are in a block, or may still land; a
    *   final step for what it spent alone.
+   * - A step that does not fit a transaction because of the inputs its selection needs gets
+   *   consolidation steps before it (`consolidate-1`, … with `kind: "consolidation"`), which
+   *   pay the payer alone, unless `consolidate` is `false`; `trace` is told how many, and their
+   *   fees.
    *
    * The plan's deadlines are its own options, else this builder's `planDefaults`, else the
    * built-in values, written into it now and never read from the builder again. On a builder with
@@ -2325,8 +2339,10 @@ export class TxBuilder {
    *   steps, a link to a step that is not before it, named steps on a builder that holds parts
    *   from `add`, and a step that stands on the step before it of its payer neither by its change
    *   nor by an output its parts name; UNKNOWN_LABEL for a link to a label that no output of the
-   *   step has; INVALID_OPTION (`id`) for an id that is not a string; NOT_SERIALIZABLE on a
-   *   builder with a store, for a part that holds a redeemer function
+   *   step has; INVALID_OPTION (`id`) for an id that is not a string; INVALID_OPTION
+   *   (`consolidate`); TX_TOO_LARGE (`cause: "selection"`) for a step that needs more
+   *   consolidation steps than the plan allows, or whose consolidation step cannot be built;
+   *   NOT_SERIALIZABLE on a builder with a store, for a part that holds a redeemer function
    * @throws TxPlanError CANNOT_OBSERVE (`noTip`, `noSearch`, `noDepth`, `noValidity`) for a
    *   provider that cannot follow the plan; INVALID_STATE (`pastHorizon`); on a builder with a
    *   store MISSING_ID, PLAN_EXISTS, STORE_FAILED, VERSION_CONFLICT, INVALID_STATE

@@ -81,9 +81,9 @@ export type PlanSteps = Readonly<Record<string, PlanStep>>;
  * from parts, unless the step has its own; `sendAllTo` and `fee` describe one transaction, so
  * with named steps they are given in the step, and here are INVALID_OPTION. The deadlines and
  * the data options (`knownUtxos`, `registeredPools`, `extraKeyWitnesses`, `topUpCollateral`,
- * `collateralReturn`, and the payer's change address) are written into the plan; `payer`,
- * `after`, `canSelect`, `coinSelection`, `signal` and `trace` are kept by the object only, or
- * not at all.
+ * `collateralReturn`, `consolidate`, and the payer's change address) are written into the plan;
+ * `payer`, `after`, `canSelect`, `coinSelection`, `signal` and `trace` are kept by the object
+ * only, or not at all.
  */
 export type PlanOptions = Omit<BuildOptions, "after"> &
   PlanDeadlines & {
@@ -100,6 +100,17 @@ export type PlanOptions = Omit<BuildOptions, "after"> &
      * stands for what it spent alone, and what it left is taken from the payer's read
      */
     after?: BuildOptions["after"];
+    /**
+     * `true`, the default: when a step built from parts does not fit a transaction because of
+     * the inputs its selection needs (TX_TOO_LARGE, `cause: "selection"`), the plan puts
+     * consolidation steps before it, `consolidate-1`, `consolidate-2`, … with
+     * `kind: "consolidation"`: transactions that spend the payer's UTxOs and pay the payer
+     * alone, the tokens the step does not need in outputs of their own. At most `maxSteps` of
+     * them in the plan as a whole, those `plan.add` puts in counted (a whole number from 1 to
+     * 31; 4 by default). `false`: such a step is TX_TOO_LARGE, as from `build`. A step with
+     * `sendAllTo` is never consolidated. Written into the plan when given; `plan.add` follows it
+     */
+    consolidate?: boolean | { readonly maxSteps?: number };
   };
 
 /**

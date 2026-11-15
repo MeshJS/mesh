@@ -410,7 +410,8 @@ step, `main`. `builder.build(parts)` stays one transaction or an error, with no 
 | `fee`, `until`                           | the fees of all its transactions; the latest end of validity among them                            |
 | `landed`, `live`, `rest`                 | the steps in a block; those not in a block that may still land; what is left, as steps             |
 
-A step is the `BuiltTxData` of its transaction with `name`, `status`, `missing` (the keys that
+A step is the `BuiltTxData` of its transaction with `name`, `kind` (`"consolidation"` for a step
+the plan put in itself), `status`, `missing` (the keys that
 have not signed it), `signedTx`, `standsOn` (the earlier steps whose outputs it spends, reads or
 puts up as collateral) and `seen` (the block it was last found in). The calls return the plan.
 `signers` and `submitter` are options of a call, not of a plan: give them to `sign()` and
@@ -532,6 +533,17 @@ sign by default: name it among the call's signers, as in
 the tip read once when the plan is made; signing and landing every step fit in it, so a plan of
 many steps or slow signers gets a longer `ttlMs`. A step whose parts give `until` keeps it.
 `plan.until` is the latest end among the steps.
+
+**A fragmented wallet.** A step that does not fit a transaction because of the inputs its
+selection needs (`TX_TOO_LARGE`, `cause: "selection"`) gets consolidation steps before it,
+`consolidate-1`, `consolidate-2`, … with `kind: "consolidation"`: each spends many of the payer's
+UTxOs and pays the payer alone, the tokens the step does not need in outputs of their own, and the
+step is built on the change of the last. They are signed, sent and recorded as any step;
+`plan.steps` and `plan.fee` show them and their fees before anyone signs, and `trace` gets
+`{ type: "warning", code: "CONSOLIDATION_STEPS", steps, fee }`. A plan has at most 4, those of
+`plan.add` counted; `consolidate: { maxSteps }` (1 to 31) sets the limit, and
+`consolidate: false` leaves the step's `TX_TOO_LARGE`. A step with `sendAllTo` is never
+consolidated, and `rest` leaves them out.
 
 ### Chains
 
@@ -842,8 +854,8 @@ option the record holds that the call leaves out, or a default the call states t
 does not hold, is `PLAN_EXISTS`. A known `id` is opened with `await builder.resume(id)`.
 
 Recorded: the steps, the data options (`knownUtxos`, `registeredPools`, `extraKeyWitnesses`,
-`topUpCollateral`, `collateralReturn`, and a step's `sendAllTo` and `fee`), each payer's change
-address and the three effective deadlines. Not recorded: wallets, signers, the submitter,
+`topUpCollateral`, `collateralReturn`, `consolidate`, and a step's `sendAllTo` and `fee`), each
+payer's change address and the three effective deadlines. Not recorded: wallets, signers, the submitter,
 functions (`canSelect`, `coinSelection`, `trace`) and `signal`. Every change is saved before the
 method returns: a new plan before it is returned, a delivery before the bytes leave.
 
@@ -2024,7 +2036,7 @@ message of a plan's `TxPlanError` says.
 | `INSUFFICIENT_COLLATERAL`  | `TxBuildError` | no collateral, or not enough, can be put up, given inputs and what can be added to them counted; given inputs that do not cover it with `topUpCollateral: false`; with `collateralReturn: false`, UTxOs holding tokens are not counted; also a wallet's `getCollateral` that failed (the `cause`)                                                                                                                                                                                                                                                                                                                                              | `{ required, available }`                                                                                     | no                                                                           |
 | `OUTPUT_BELOW_MIN_COIN`    | `TxBuildError` | an output holds less lovelace than the ledger requires                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | `{ coin, minCoin }`                                                                                           | no                                                                           |
 | `VALUE_TOO_LARGE`          | `TxBuildError` | an output's value is larger than `maxValSize`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `{ size, maxValSize }`                                                                                        | no                                                                           |
-| `TX_TOO_LARGE`             | `TxBuildError` | the transaction is larger than `maxTxSize`: its parts (`cause: "parts"`), or the inputs selected for them with their change (`"selection"`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `{ size, maxTxSize, cause }`                                                                                  | no                                                                           |
+| `TX_TOO_LARGE`             | `TxBuildError` | the transaction is larger than `maxTxSize`: its parts (`cause: "parts"`), or the inputs selected for them with their change (`"selection"`); a plan puts consolidation steps before such a step instead, unless `consolidate: false`, more are needed than it allows, or one cannot be built                                                                                                                                                                                                                                                                                                                                                   | `{ size, maxTxSize, cause }`                                                                                  | no                                                                           |
 | `FEE_TOO_LOW`              | `TxBuildError` | the `fee` given is below the final transaction's minimum fee                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `{ fee, minFee }`                                                                                             | no                                                                           |
 | `FEE_NOT_CONVERGED`        | `TxBuildError` | balancing did not settle on a fee within its rounds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | none                                                                                                          | no                                                                           |
 | `UNSUPPORTED_SERIALIZER`   | `TxBuildError` | the serializer cannot serialize a `TransactionPrototype`, throws, or answers with something that is not a transaction                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | none                                                                                                          | no                                                                           |
@@ -2069,9 +2081,10 @@ holder that loses if a script fails, with its lovelace) and `FEE_ABOVE_MINIMUM` 
 above the minimum). A transaction made by `fromCbor` lists the first three when they apply. A plan
 tells `trace` `{ type: "warning", code: "HASH_MISMATCH", txHash, reportedHash }` when a submitter
 answers with another hash, `{ code: "DEAD_STEP_FOUND", step, txHash, was }` when a step called
-`expired` or `orphaned` is found in a block, and `{ code: "TIP_AHEAD_OF_CLOCK", slot, aheadMs }`
+`expired` or `orphaned` is found in a block, `{ code: "TIP_AHEAD_OF_CLOCK", slot, aheadMs }`
 when the provider's tip is more than two minutes ahead of the local clock (the look goes on
-without it). A step that comes back because the step below it was found warns of nothing.
+without it), and `{ code: "CONSOLIDATION_STEPS", steps, fee }` when it puts consolidation steps
+in. A step that comes back because the step below it was found warns of nothing.
 
 The lists the library gives out are open: part kinds, `SignerRole`, redeemer tags,
 `LanguageVersion`, native script variants, plan and step statuses, the values of `reason`,

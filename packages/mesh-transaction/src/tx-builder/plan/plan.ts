@@ -819,6 +819,9 @@ export class TxPlan {
    *   and of a final step it takes what the payer's read shows.
    * - A step whose parts give no end of validity ends at the tip of this call plus the plan's
    *   `ttlMs`; `until` follows.
+   * - A step that does not fit a transaction because of the inputs it needs gets consolidation
+   *   steps before it, as in `builder.plan`, unless the plan records `consolidate: false`; they
+   *   are numbered after the plan's, and counted against its limit with them.
    * - The same call again builds nothing and returns the plan, whatever its status: the steps
    *   are in it. A call whose answer was lost is made again as it is.
    * @throws TxPlanError INVALID_STATE (`final`) for a final plan, (`stopped`) for a plan that
@@ -2385,7 +2388,8 @@ const sameRecord = (a: PlanRecord, b: PlanRecord) =>
 
 /**
  * What makes two records of one id the same plan: its network, deadlines, options and the steps
- * it was made with; steps added later are not of it
+ * it was made with; steps added later are not of it, nor the consolidation steps the plan put
+ * in, which depend on the wallet as it was read
  */
 const shapeOf = (record: PlanRecord) => {
   const json = encodePlan(record);
@@ -2394,7 +2398,7 @@ const shapeOf = (record: PlanRecord) => {
     deadlines: json.deadlines,
     options: json.options,
     steps: json.steps
-      .filter((step) => step.added !== true)
+      .filter((step) => step.added !== true && step.kind !== "consolidation")
       .map((step) => ({
         name: step.name,
         kind: step.kind,

@@ -1359,6 +1359,21 @@ const STEP_OPTIONS: Readonly<
   changeAddress: text,
 };
 
+/** The option `consolidate` as a plan records it: a flag, or `{ maxSteps? }` of 1 to 31 */
+const consolidation = (
+  value: unknown,
+  path: string,
+): boolean | { maxSteps?: number } => {
+  if (typeof value === "boolean") return value;
+  const json = object(value, path);
+  known(json, ["maxSteps"], path);
+  if (json.maxSteps === undefined) return {};
+  const maxSteps = count(json.maxSteps, `${path}.maxSteps`);
+  if (maxSteps < 1 || maxSteps > 31)
+    unread(`${path}.maxSteps is ${show(maxSteps)}, not from 1 to 31`);
+  return { maxSteps };
+};
+
 const PLAN_OPTIONS: Readonly<
   Record<string, (value: unknown, path: string) => unknown>
 > = {
@@ -1367,6 +1382,7 @@ const PLAN_OPTIONS: Readonly<
   extraKeyWitnesses: count,
   topUpCollateral: flag,
   collateralReturn: flag,
+  consolidate: consolidation,
   changeAddress: text,
 };
 

@@ -1,4 +1,5 @@
 import type {
+  BuildEvent,
   BuildOptions,
   BuiltOutput,
   BuiltTxData,
@@ -15,6 +16,7 @@ import type {
   StepOutput,
   TxPart,
   Utxo,
+  ValidityPart,
 } from "../parts/types";
 import type { Payer, PayerRead, PayerSource } from "../payer";
 import type { NewStep, PlanRecord, PlanTip, StepGiven } from "./core";
@@ -31,12 +33,14 @@ import { BuiltTx } from "../built-tx";
 import { toKnownUtxos } from "../chain";
 import { NOT_UNPAID, TxBuildError, TxError, TxPlanError } from "../errors";
 import { checkNetworks } from "../network";
+import { invalidOption, typeOf } from "../options";
 import { checkLock, spend, toSpendDatum } from "../parts/inputs";
 import { fail, freeze, withKnownHash } from "../parts/normalize";
 import { validity } from "../parts/scalars";
 import { isLinkedPart } from "../parts/unresolved";
 import { plainUtxo, utxoKey } from "../parts/utxo";
 import { changeAddressOf, givenPayerEntries, toPayerSource } from "../payer";
+import { buildConsolidation, isConsolidable } from "./consolidate";
 import {
   advancePlan,
   emptyPlan,
@@ -60,9 +64,13 @@ export type MakePlanOptions = Omit<PlanOptions, "after"> & {
   after?: BuiltTxData | readonly BuiltTxData[];
 };
 
-/** A step the plan built: its transaction, its name, what it stands on, and how it was given */
+/**
+ * A step the plan built: its transaction, its name, what it stands on, and how it was given; a
+ * consolidation step the plan put in itself has its kind and was not given
+ */
 export type MadeStep = {
   readonly name: string;
+  readonly kind?: "consolidation";
   readonly built: BuiltTxData;
   /** The names of the earlier steps whose outputs it spends, reads or puts up as collateral */
   readonly standsOn: readonly string[];
@@ -70,7 +78,7 @@ export type MadeStep = {
   readonly after?: readonly string[];
   /** A transaction before those of `after`, when every input comes from one of them */
   readonly expirySource?: string;
-  readonly given: StepGiven;
+  readonly given?: StepGiven;
   readonly extraKeyWitnesses?: number;
 };
 
@@ -91,6 +99,57 @@ export const MAX_STEPS = 32;
 
 /** The start of the names the plan gives the steps it puts in itself */
 const RESERVED_PREFIX = "consolidate-";
+
+/** The most consolidation steps a plan has when its options give no limit */
+const DEFAULT_CONSOLIDATION_STEPS = 4;
+
+/** The most consolidation steps a plan may be allowed: all its steps but the one they serve */
+const MAX_CONSOLIDATION_STEPS = MAX_STEPS - 1;
+
+const CONSOLIDATE_ALLOWED = `true, false or { maxSteps? }, maxSteps a whole number from 1 to ${MAX_CONSOLIDATION_STEPS}`;
+
+/**
+ * The option `consolidate` as a plan records it, checked: a flag, or `{ maxSteps? }`
+ * @throws TxBuildError INVALID_OPTION (`consolidate`) for any other value, with its JavaScript
+ *   type only
+ */
+const consolidateOf = (
+  value: unknown,
+): boolean | { readonly maxSteps?: number } | undefined => {
+  if (value === undefined || typeof value === "boolean") return value;
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    throw invalidOption("consolidate", value, CONSOLIDATE_ALLOWED);
+  const { maxSteps, ...others } = value as Record<string, unknown>;
+  if (Object.keys(others).length > 0)
+    throw invalidOption(
+      "consolidate",
+      value,
+      CONSOLIDATE_ALLOWED,
+      ", with a member other than maxSteps",
+    );
+  if (maxSteps === undefined) return {};
+  if (
+    typeof maxSteps !== "number" ||
+    !Number.isInteger(maxSteps) ||
+    maxSteps < 1 ||
+    maxSteps > MAX_CONSOLIDATION_STEPS
+  )
+    throw invalidOption(
+      "consolidate",
+      value,
+      CONSOLIDATE_ALLOWED,
+      `, and its maxSteps, a ${typeOf(maxSteps)}, is not such a number`,
+    );
+  return { maxSteps };
+};
+
+/** The most consolidation steps a plan allows, 0 when it is not to consolidate */
+const consolidationLimit = (value: unknown): number => {
+  const read = consolidateOf(value);
+  if (read === false) return 0;
+  if (read === undefined || read === true) return DEFAULT_CONSOLIDATION_STEPS;
+  return read.maxSteps ?? DEFAULT_CONSOLIDATION_STEPS;
+};
 
 /** The builder's private members a plan uses */
 type BuilderInternals = {
@@ -651,6 +710,9 @@ const planOptionsOf = (
   ...(options.collateralReturn !== undefined && {
     collateralReturn: options.collateralReturn,
   }),
+  ...(options.consolidate !== undefined && {
+    consolidate: consolidateOf(options.consolidate),
+  }),
 });
 
 /**
@@ -940,12 +1002,19 @@ export const buildAddedSteps = async (
   const made = await buildSteps(builder, read, {
     before: base.steps.map((step) => {
       const own = step.given?.options?.changeAddress;
-      const changeAddress = typeof own === "string" ? own : planAddress;
+      // A consolidation step pays its payer alone: its outputs are at that payer's address
+      const changeAddress =
+        step.kind === "consolidation"
+          ? (step.built.change[0] ?? step.built.outputs[0])?.address
+          : typeof own === "string"
+            ? own
+            : planAddress;
       return {
         name: step.name,
         built: step.built,
         ...(changeAddress !== undefined && { changeAddress }),
         final: step.status === "final",
+        ...(step.kind === "consolidation" && { consolidation: true as const }),
       };
     }),
     after: [],
@@ -967,6 +1036,9 @@ export const buildAddedSteps = async (
       }),
       ...(recorded.collateralReturn !== undefined && {
         collateralReturn: recorded.collateralReturn as boolean,
+      }),
+      ...(recorded.consolidate !== undefined && {
+        consolidate: recorded.consolidate as MakePlanOptions["consolidate"],
       }),
       ...(signal !== undefined && { signal }),
       ...(trace !== undefined && { trace }),
@@ -1006,6 +1078,7 @@ export const makePlan = async (
 ): Promise<MadePlan> => {
   const given = readSteps(builder, steps, options);
   const deadlines = effectiveDeadlines(options, builder.planDefaults);
+  consolidateOf(options.consolidate);
   const { id, signal } = options;
 
   const observed = await chainObserver(builder.provider).tip();
@@ -1090,6 +1163,8 @@ type StepBefore = {
   readonly changeAddress?: string;
   /** It is final: its outputs may be spent by now */
   readonly final: boolean;
+  /** It is a consolidation step the plan put in itself */
+  readonly consolidation?: true;
 };
 
 /**
@@ -1110,9 +1185,29 @@ type LoopOptions = Pick<
   | "topUpCollateral"
   | "collateralReturn"
   | "knownUtxos"
+  | "consolidate"
   | "signal"
   | "trace"
 >;
+
+/** Sends a warning to `trace`; what it returns or throws is dropped */
+const warn = (
+  trace: ((event: BuildEvent) => void) | undefined,
+  event: BuildEvent,
+) => {
+  if (!trace) return;
+  try {
+    const answer: unknown = trace(event);
+    if (
+      typeof answer === "object" &&
+      answer !== null &&
+      typeof (answer as PromiseLike<unknown>).then === "function"
+    )
+      (answer as PromiseLike<unknown>).then(undefined, () => undefined);
+  } catch {
+    // Diagnostics never change a plan
+  }
+};
 
 /**
  * Builds steps in order, each on its payer's UTxOs as the steps before it leave them: the
@@ -1121,9 +1216,17 @@ type LoopOptions = Pick<
  * of its payer, told by the change address, unless that step is final or the parts spend an
  * output of it already; a step whose parts give no end of validity ends at the tip's time plus
  * `ttlMs`. Each build is given `after` (the transactions of `after`, then every step before it,
- * a final one with its inputs alone), so that nothing a step before it spends is selected again
+ * a final one with its inputs alone), so that nothing a step before it spends is selected again.
+ *
+ * A step that does not fit a transaction because of the inputs its selection needs gets
+ * consolidation steps before it, unless the option `consolidate` is `false` or the step has
+ * `sendAllTo`: one at a time, each from what the failed build selected, then the step is built
+ * again on the change of the last one, until it fits. They are named `consolidate-N`, counted
+ * through the plan, and at most the option's limit of them are in the plan as a whole
  * @throws as `makePlan` throws of building its steps, each error with the step's name at the
- *   start of its message
+ *   start of its message; TxBuildError TX_TOO_LARGE (`cause: "selection"`) for a step that
+ *   needs more consolidation steps than the plan allows, or whose consolidation step cannot be
+ *   built
  */
 const buildSteps = async (
   builder: TxBuilder,
@@ -1140,13 +1243,53 @@ const buildSteps = async (
 ): Promise<MadeStep[]> => {
   const { after: before, tip, ttlMs, planId, options, readOf } = context;
   const { signal, trace } = options;
+  const limit = consolidationLimit(options.consolidate);
   const made: MadeStep[] = [];
   const all: StepBefore[] = [...context.before];
+  /** A step built, with what it stands on: steps before it, transactions of `after` */
+  const madeOf = (
+    name: string,
+    built: BuiltTxData,
+  ): Pick<
+    MadeStep,
+    "name" | "built" | "standsOn" | "after" | "expirySource"
+  > => {
+    const sources = new Set(sourcesOf(built));
+    const after = before
+      .map((tx) => tx.txHash)
+      .filter(
+        (txHash, i, list) =>
+          sources.has(txHash.toLowerCase()) && list.indexOf(txHash) === i,
+      );
+    // A step every input of which comes from a transaction of `after` is shown expired by a
+    // search that finds a transaction before them: an input's source that is none of them
+    const expirySource =
+      after.length > 0 &&
+      built.inputs.length > 0 &&
+      built.inputs.every((input) =>
+        after.some(
+          (txHash) => txHash.toLowerCase() === input.txHash.toLowerCase(),
+        ),
+      )
+        ? sourceBefore(before, after, all)
+        : undefined;
+    return {
+      name,
+      built,
+      standsOn: standsOnOf(
+        built,
+        all.map((each) => ({ name: each.name, txHash: each.built.txHash })),
+      ),
+      ...(after.length > 0 && { after }),
+      ...(expirySource !== undefined && { expirySource }),
+    };
+  };
   for (const [index, step] of given.entries()) {
     const { name } = step;
     const own = step.options;
     const payer = readOf(step);
     const { changeAddress } = payer.snapshot;
+    const canSelect = own.canSelect ?? options.canSelect;
     try {
       const filled = fillLinks(
         step.parts,
@@ -1154,97 +1297,111 @@ const buildSteps = async (
         all,
         given.slice(index + 1).map((each) => each.name),
       );
-      // The step before it of the same payer, told by the change address; a final one is on
-      // chain, and the ledger keeps nothing in order after it
-      const nearest = [...all]
-        .reverse()
-        .find((each) => each.changeAddress === changeAddress);
-      const previous = nearest?.final === true ? undefined : nearest;
-      const found = changeToSpend(
-        filled,
-        previous,
-        changeAddress,
-        all,
-        own.canSelect ?? options.canSelect,
-      );
-      // The steps of one payer form a chain the ledger keeps in order: a step stands on the
-      // step before it of its payer, by its change or by an output its parts name
-      if (
-        found !== undefined &&
-        "none" in found &&
-        !filled.some((part) => standsOnTx(part, previous!.built.txHash))
-      )
-        throw invalidSteps(
-          `step ${JSON.stringify(name)} cannot stand on step ${JSON.stringify(previous!.name)}, the step before it of the same payer: ${found.none}, so step ${JSON.stringify(name)} could land before it. Link step ${JSON.stringify(name)} to an output of step ${JSON.stringify(previous!.name)}, or make it a plan of its own`,
+      let built: BuiltTxData | undefined;
+      while (built === undefined) {
+        // The step before it of the same payer, told by the change address; a final one is on
+        // chain, and the ledger keeps nothing in order after it
+        const nearest = [...all]
+          .reverse()
+          .find((each) => each.changeAddress === changeAddress);
+        const previous = nearest?.final === true ? undefined : nearest;
+        const found = changeToSpend(
+          filled,
+          previous,
+          changeAddress,
+          all,
+          canSelect,
         );
-      const change = found === undefined || "none" in found ? undefined : found;
-      const parts = withDeadline(
-        builder,
-        change === undefined
-          ? filled
-          : [...filled, spend.pubKey({ utxo: change })],
-        tip,
-        ttlMs,
-        name,
-        planId,
-      );
-      const built = await internals(builder).buildList(
-        {
-          form: "snapshot",
-          snapshot: payer.snapshot,
-          ...(payer.getCollateral && { getCollateral: payer.getCollateral }),
-        },
-        parts,
-        {
-          ...pick(options, own, "canSelect"),
-          ...pick(options, own, "coinSelection"),
-          ...pick(options, own, "registeredPools"),
-          ...pick(options, own, "extraKeyWitnesses"),
-          ...pick(options, own, "topUpCollateral"),
-          ...pick(options, own, "collateralReturn"),
-          ...pick({}, own, "sendAllTo"),
-          ...pick({}, own, "fee"),
-          ...(options.knownUtxos !== undefined && {
-            knownUtxos: options.knownUtxos,
-          }),
-          ...(signal !== undefined && { signal }),
-          ...(trace !== undefined && { trace }),
-          after: [
-            ...before,
-            ...all.map((each) => asAfter(each.built, each.final)),
-          ],
-        },
-      );
+        // The steps of one payer form a chain the ledger keeps in order: a step stands on the
+        // step before it of its payer, by its change or by an output its parts name
+        if (
+          found !== undefined &&
+          "none" in found &&
+          !filled.some((part) => standsOnTx(part, previous!.built.txHash))
+        )
+          throw invalidSteps(
+            `step ${JSON.stringify(name)} cannot stand on step ${JSON.stringify(previous!.name)}, the step before it of the same payer: ${found.none}, so step ${JSON.stringify(name)} could land before it. Link step ${JSON.stringify(name)} to an output of step ${JSON.stringify(previous!.name)}, or make it a plan of its own`,
+          );
+        const change =
+          found === undefined || "none" in found ? undefined : found;
+        const parts = withDeadline(
+          builder,
+          change === undefined
+            ? filled
+            : [...filled, spend.pubKey({ utxo: change })],
+          tip,
+          ttlMs,
+          name,
+          planId,
+        );
+        const after = [
+          ...before,
+          ...all.map((each) => asAfter(each.built, each.final)),
+        ];
+        try {
+          built = await internals(builder).buildList(
+            {
+              form: "snapshot",
+              snapshot: payer.snapshot,
+              ...(payer.getCollateral && {
+                getCollateral: payer.getCollateral,
+              }),
+            },
+            parts,
+            {
+              ...pick(options, own, "canSelect"),
+              ...pick(options, own, "coinSelection"),
+              ...pick(options, own, "registeredPools"),
+              ...pick(options, own, "extraKeyWitnesses"),
+              ...pick(options, own, "topUpCollateral"),
+              ...pick(options, own, "collateralReturn"),
+              ...pick({}, own, "sendAllTo"),
+              ...pick({}, own, "fee"),
+              ...(options.knownUtxos !== undefined && {
+                knownUtxos: options.knownUtxos,
+              }),
+              ...(signal !== undefined && { signal }),
+              ...(trace !== undefined && { trace }),
+              after,
+            },
+          );
+        } catch (error) {
+          if (
+            limit === 0 ||
+            own.sendAllTo !== undefined ||
+            !isConsolidable(error)
+          )
+            throw error;
+          const consolidation = await consolidate(error, {
+            builder,
+            payer,
+            parts,
+            change,
+            after,
+            canSelect,
+            options,
+            limit,
+            count: all.filter((each) => each.consolidation === true).length,
+            room: MAX_STEPS - all.length - (given.length - index),
+          });
+          const next: MadeStep = {
+            ...madeOf(consolidation.name, consolidation.built),
+            kind: "consolidation",
+          };
+          made.push(next);
+          all.push({
+            name: next.name,
+            built: next.built,
+            changeAddress,
+            final: false,
+            consolidation: true,
+          });
+        }
+      }
       const extraKeyWitnesses =
         own.extraKeyWitnesses ?? options.extraKeyWitnesses ?? 0;
-      const sources = new Set(sourcesOf(built));
-      const after = before
-        .map((tx) => tx.txHash)
-        .filter(
-          (txHash, i, list) =>
-            sources.has(txHash.toLowerCase()) && list.indexOf(txHash) === i,
-        );
-      // A step every input of which comes from a transaction of `after` is shown expired by a
-      // search that finds a transaction before them: an input's source that is none of them
-      const expirySource =
-        after.length > 0 &&
-        built.inputs.length > 0 &&
-        built.inputs.every((input) =>
-          after.some(
-            (txHash) => txHash.toLowerCase() === input.txHash.toLowerCase(),
-          ),
-        )
-          ? sourceBefore(before, after, all)
-          : undefined;
       const next: MadeStep = {
-        name,
-        built,
-        standsOn: standsOnOf(
-          built,
-          all.map((each) => ({ name: each.name, txHash: each.built.txHash })),
-        ),
-        ...(after.length > 0 && { after }),
-        ...(expirySource !== undefined && { expirySource }),
+        ...madeOf(name, built),
         given: givenOf(step, changeAddress),
         ...(extraKeyWitnesses > 0 && { extraKeyWitnesses }),
       };
@@ -1254,19 +1411,116 @@ const buildSteps = async (
       throw withStep(error, name);
     }
   }
+  const consolidations = made.filter((each) => each.kind === "consolidation");
+  if (consolidations.length > 0)
+    warn(trace, {
+      type: "warning",
+      code: "CONSOLIDATION_STEPS",
+      steps: consolidations.length,
+      fee: consolidations.reduce((sum, each) => sum + each.built.fee, 0n),
+    });
   return made;
+};
+
+/**
+ * One consolidation step for a step whose build did not fit because of what it selected: named
+ * after those the plan has, built from that build's selection
+ * @throws TxBuildError TX_TOO_LARGE (`cause: "selection"`) when the plan has as many
+ *   consolidation steps as it allows, or as many steps as a plan may have, saying how many it
+ *   allows; and when the consolidation step's own build fails for a reason of its own, that
+ *   error as its cause; the served step's error when no consolidation step can be made of its
+ *   selection; ABORTED, PROVIDER_FAILED and an error that is not of building, as they are
+ */
+const consolidate = async (
+  error: unknown,
+  context: {
+    readonly builder: TxBuilder;
+    readonly payer: PayerRead;
+    readonly parts: readonly TxPart[];
+    readonly change: Utxo | undefined;
+    readonly after: readonly BuiltTxData[];
+    readonly canSelect: ((utxo: Utxo) => boolean) | undefined;
+    readonly options: LoopOptions;
+    /** The most consolidation steps the plan allows */
+    readonly limit: number;
+    /** The consolidation steps the plan has */
+    readonly count: number;
+    /** The steps the plan may still take beside those given */
+    readonly room: number;
+  },
+): Promise<{ readonly name: string; readonly built: BuiltTxData }> => {
+  const served = error as TxBuildError<"TX_TOO_LARGE">;
+  const { limit, count, room, options } = context;
+  /** The served step's TX_TOO_LARGE, with why consolidation could not make it fit */
+  const tooLarge = (why: string, cause: unknown) =>
+    new TxBuildError("TX_TOO_LARGE", `${served.message}; ${why}`, {
+      details: { ...served.details },
+      cause,
+    });
+  if (count >= limit)
+    throw tooLarge(
+      `the plan allows ${limit} consolidation step(s) to make room for the inputs it needs, and has ${count}: nothing was recorded`,
+      served,
+    );
+  if (room < 1)
+    throw tooLarge(
+      `a plan has at most ${MAX_STEPS} steps, consolidation steps among them, and has no room for another consolidation step: nothing was recorded`,
+      served,
+    );
+  const name = `${RESERVED_PREFIX}${count + 1}`;
+  const validity = context.parts.find(
+    (part): part is ValidityPart => part.kind === "validity",
+  );
+  try {
+    const built = await buildConsolidation({
+      builder: context.builder,
+      payer: context.payer,
+      error,
+      parts: context.parts,
+      ...(context.change !== undefined && { standOn: context.change }),
+      after: context.after,
+      ...(validity !== undefined && { validity }),
+      options: {
+        ...(context.canSelect !== undefined && {
+          canSelect: context.canSelect,
+        }),
+        ...(options.knownUtxos !== undefined && {
+          knownUtxos: options.knownUtxos,
+        }),
+        ...(options.signal !== undefined && { signal: options.signal }),
+        ...(options.trace !== undefined && { trace: options.trace }),
+      },
+    });
+    return { name, built };
+  } catch (failed) {
+    // Nothing of the selection could be consolidated: the step's own error stands
+    if (failed === error) throw failed;
+    // A stop the application asked for, and a failure of a request, stay what they are
+    if (
+      !TxBuildError.is(failed) ||
+      TxBuildError.is(failed, "ABORTED") ||
+      TxBuildError.is(failed, "PROVIDER_FAILED")
+    )
+      throw failed;
+    // Any other refusal is of a transaction the plan made, not of the parts the step was given
+    throw tooLarge(
+      `the consolidation step ${JSON.stringify(name)} the plan would put before it could not be built (${failed.code}): nothing was recorded`,
+      failed,
+    );
+  }
 };
 
 /** A step built, as the event that appends it takes it: the first record's and `add`'s */
 const newStepOf = (step: MadeStep): NewStep => ({
   name: step.name,
+  ...(step.kind !== undefined && { kind: step.kind }),
   built: step.built,
   standsOn: step.standsOn,
   ...(step.after !== undefined && { after: step.after }),
   ...(step.expirySource !== undefined && {
     expirySource: step.expirySource,
   }),
-  given: step.given,
+  ...(step.given !== undefined && { given: step.given }),
   ...(step.extraKeyWitnesses !== undefined && {
     extraKeyWitnesses: step.extraKeyWitnesses,
   }),

@@ -162,7 +162,7 @@ describe.each(["scalus", "cquisitor"] as const)(
         expect.arrayContaining(outRefs([a.outputs[0]!, a.outputs[1]!])),
       );
       // The given parts keep their links; the built parts hold the filled inputs
-      expect(plan.steps[1]!.given.parts[0]).toMatchObject({
+      expect(plan.steps[1]!.given!.parts[0]).toMatchObject({
         link: { step: "a", output: "keep" },
       });
       expect(
@@ -209,7 +209,7 @@ describe.each(["scalus", "cquisitor"] as const)(
       expect(outRefs(d.inputs)).toEqual(outRefs([c.outputs[1]!]));
       expect(d.parts.filter((part) => part.kind === "spend")).toHaveLength(1);
       expect(plan.steps[3]!.standsOn).toEqual(["c"]);
-      expect(plan.steps[3]!.given.parts).toHaveLength(3);
+      expect(plan.steps[3]!.given!.parts).toHaveLength(3);
     });
 
     it("builds a Plutus step that spends an output an earlier step makes, evaluated before that step is on chain", async () => {
@@ -264,7 +264,7 @@ describe.each(["scalus", "cquisitor"] as const)(
       expect(plan.steps.map((step) => step.standsOn)).toEqual([[], [], ["a"]]);
       const b = stepOf(plan, "b");
       expect(b.change.every((o) => o.address === otherAddress)).toBe(true);
-      expect(plan.steps[1]!.given.options).toEqual({
+      expect(plan.steps[1]!.given!.options).toEqual({
         changeAddress: otherAddress,
       });
       await land(emulator, plan, (name) => (name === "b" ? other : wallet));
@@ -320,7 +320,7 @@ describe("a plan", () => {
     expect(main.built.outputs.map((o) => o.label)).toEqual(
       expect.arrayContaining(["fee"]),
     );
-    expect(main.given.options).toEqual({ fee: 400_000n });
+    expect(main.given!.options).toEqual({ fee: 400_000n });
     expect(plan.record).toMatchObject({
       id: "order-1",
       rev: 1,
