@@ -1,7 +1,11 @@
 import type { TxEmulator } from "@meshsdk/tx-emulator";
 import type { MeshWallet } from "@meshsdk/wallet";
 
-import type { StoredTxPlanJSON, TxPlan } from "../../../src/tx-builder";
+import type {
+  BuildEvent,
+  StoredTxPlanJSON,
+  TxPlan,
+} from "../../../src/tx-builder";
 import type { Fault, StoreFault } from "./fault-util";
 import { ref } from "../utxo-util";
 import { codeOf, Process, runStep, World } from "./fault-util";
@@ -13,6 +17,7 @@ import {
   hashOf,
   reasonOf,
   submitterOf,
+  walletOf as walletOfIndex,
 } from "./plan-emulator-util";
 import { seeded } from "./plan-util";
 import { ADA, alice, bob, carol, dave, paidTo, payTo } from "./run-util";
@@ -38,6 +43,8 @@ const relayOf = (emulator: TxEmulator, hold: (txHash: string) => boolean) => {
   });
   return Object.assign(submitter, { kept });
 };
+
+const names = (plan: TxPlan) => plan.steps.map((step) => step.name);
 
 /** A wallet that counts the bodies it is handed */
 const counting = (wallet: MeshWallet) => {
@@ -94,6 +101,62 @@ const paidOnce = (emulator: TxEmulator) => {
 };
 
 describe("a plan in place of another, on a store", () => {
+  it("add tells NO_SHARED_INPUT only when its steps are recorded", async () => {
+    const { emulator, store, wallet, address, builder, provider, instance } =
+      await storeSetup({
+        funds: [100n * ADA, 50n * ADA],
+      });
+    const other = await walletOfIndex(1);
+    emulator.fund((await other.getChangeAddress())!, { lovelace: 50n * ADA });
+    const old = await builder.plan(
+      { a: payTo(alice, 11n * ADA) },
+      { id: "order", payer: wallet },
+    );
+    await old.sign();
+    const relay = submitterOf(async (tx) => hashOf(tx));
+    await old.run({ waitFor: "sent", submitter: relay });
+    advance(emulator, 1);
+    const next = await old.replan({ id: "i1", ttlMs: 3_600_000 });
+    // The old a was never on chain: past its end it is dead
+    advance(emulator, 700);
+    await next.refresh();
+    const events: BuildEvent[] = [];
+    const told = () =>
+      events.filter(
+        (event) => event.type === "warning" && event.code === "NO_SHARED_INPUT",
+      );
+    const resumed = await builder.resume("i1", {
+      payer: wallet,
+      trace: (event) => void events.push(event),
+    });
+    store.hooks.save = async (forward, json, rev) => {
+      if (json.id === "i1" && json.steps.length > 1) throw new Error("down");
+      return forward(json, rev);
+    };
+    const failed = await caught(
+      resumed.add({ x: { parts: payTo(dave, 2n * ADA), payer: other } }),
+    );
+    expect(failed.code).toBe("STORE_FAILED");
+    expect(told()).toEqual([]);
+    delete store.hooks.save;
+    // Another object adds the same step while this one reads its payers: this one's write finds
+    // it recorded, writes nothing, and tells nothing
+    const second = instance();
+    const by = await second.builder.resume("i1", { payer: wallet });
+    let once = true;
+    provider.control.hooks.fetchAddressUTxOs = async (forward, at: string) => {
+      if (once) {
+        once = false;
+        await by.add({ x: { parts: payTo(dave, 2n * ADA), payer: other } });
+      }
+      return forward(at);
+    };
+    await resumed.add({ x: { parts: payTo(dave, 2n * ADA), payer: other } });
+    expect(names(resumed)).toEqual(["a", "x"]);
+    expect(told()).toEqual([]);
+    void address;
+  });
+
   it("a repeat with other steps is PLAN_EXISTS", async () => {
     const { old } = await stuck();
     await old.replan({ id: "i1" });

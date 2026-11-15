@@ -1612,6 +1612,85 @@ describe("a plan in place of another", () => {
     expect(times(emulator, alice, 11n * ADA)).toBe(1);
   });
 
+  describe("fixes each of which a test holds", () => {
+    it("add on a plan made in place of another judges an old transaction found where no block is known", async () => {
+      const { emulator, provider, old } = await stuck();
+      const treasury = await treasuryOf(emulator);
+      const next = await old.replan({ id: "order:2" });
+      // The old b is found, with no slot: neither in a block nor not found
+      const bHash = old.step("b").txHash;
+      provider.control.hooks.fetchTxInfo = async (forward, hash: string) =>
+        hash === bHash ? { hash: bHash } : forward(hash);
+      const error = await caught(
+        next.add({
+          x: { parts: payTo(dave, 14n * ADA), payer: treasury.other },
+        }),
+      );
+      expect(error.code).toBe("STILL_LIVE");
+      expect(error.details.txHashes).toContain(bHash);
+      expect(names(next)).toEqual(["b", "c"]);
+    });
+
+    it("a link by position to a kept step given by its bytes; a link to its change, which none marks, refused", async () => {
+      const { emulator, builder, wallet, address } = await stepSetup("scalus", {
+        funds: [100n * ADA, 50n * ADA],
+      });
+      const fund = await builder.build(
+        [payTo(address, 20n * ADA, "f"), payTo(address, 15n * ADA, "g")],
+        { payer: wallet },
+      );
+      await fund.sign();
+      // Given by its bytes: no output of it is marked change
+      const old = await builder.plan(
+        { fund: fund.signedTx!, pay: payTo(bob, 12n * ADA) },
+        { id: "order", payer: wallet },
+      );
+      const payHash = old.step("pay").txHash;
+      const relay = relayOf(emulator, (txHash) => txHash === payHash);
+      await caught(old.run({ submitter: relay, timeoutMs: 300 }));
+      expect(statuses(old)).toEqual({ fund: "final", pay: "sent" });
+      advance(emulator, 1);
+      const f = old.step("fund").outputs[0]!;
+      const g = old.step("fund").outputs[1]!;
+      // A link to the change of a kept step given built with none marked would spend nothing
+      const changeLink = await caught(
+        old.replan({
+          id: "order:2",
+          steps: {
+            pay: [
+              spend.pubKey({ utxo: { step: "fund", change: true } }),
+              payTo(bob, 12n * ADA),
+            ],
+          },
+        }),
+      );
+      expect([changeLink.code, changeLink.details?.option]).toEqual([
+        "INVALID_OPTION",
+        "steps",
+      ]);
+      const next = await old.replan({
+        id: "order:2",
+        steps: {
+          pay: [
+            spend.pubKey({ utxo: { step: "fund", output: 0 } }),
+            payTo(bob, 12n * ADA),
+          ],
+          more: [
+            spend.pubKey({ utxo: { step: "fund", output: g.outputIndex } }),
+            payTo(carol, 13n * ADA),
+          ],
+        },
+      });
+      expect(next.step("pay").inputs.map(key)).toContain(key(f));
+      expect(next.step("more").inputs.map(key)).toContain(key(g));
+      await next.run();
+      expect(next.status).toBe("final");
+      expect(await refused(emulator, relay.kept[0]!)).toBe(true);
+      expect(times(emulator, bob, 12n * ADA)).toBe(1);
+      expect(times(emulator, carol, 13n * ADA)).toBe(1);
+    });
+  });
+
   describe("rules each of which a test holds", () => {
     it("refuses a step given that spends an output of an open transaction of the plan", async () => {
       const { old } = await stuck();

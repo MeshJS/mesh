@@ -936,6 +936,8 @@ describe("lineClasses and beforeOf", () => {
     // the chain before it, and what stands on it with it
     expect(kinds([]).open).toEqual(["b", "c", "p", "q"]);
     const late = tip(UNTIL + MARGIN);
+    // Not dead without this look's "not found" for it, whatever is known of its source
+    expect(kinds([found(SOURCE)], late).open).toEqual(["b", "c", "p", "q"]);
     expect(kinds([missing(hash(0xb1)), found(SOURCE)], late).open).toEqual([
       "b",
       "c",
@@ -955,6 +957,58 @@ describe("lineClasses and beforeOf", () => {
     expect(
       kinds([missing(hash(0xb1)), found(SOURCE)], { ...late, clockMs: 0 }).open,
     ).toEqual(["b", "c", "p", "q"]);
+  });
+
+  it("knows a transaction that runs a Plutus script, by its redeemers, and keeps that on", () => {
+    const plain = { name: "s", built: stepTx({ txHash: hash(0xc1) }) };
+    const script = {
+      name: "s",
+      built: stepTx({ txHash: hash(0xc2), plutus: true }),
+    };
+    expect(lineTxOf(plain).plutus).toBeUndefined();
+    expect(lineTxOf(script).plutus).toBe(true);
+    const base = record();
+    const carried = beforeOf(
+      base,
+      { kept: [], open: [lineTxOf(script), lineTxOf(plain)] },
+      [],
+    ).open;
+    expect(carried.map((entry) => entry.plutus)).toEqual([true, undefined]);
+    // A failed step that runs a script, found with no word on its scripts: no validity to be
+    // had; one that runs none: used up when found failed, kept when found passed
+    const failed = accept(
+      emptyRecord({
+        id: "s",
+        network: "preprod",
+        deadlines: DEADLINES,
+        options: {},
+      }),
+      {
+        type: "steps",
+        steps: [{ ...script, standsOn: [] }],
+      },
+    );
+    const marked = accept(failed, {
+      type: "observation",
+      tip: tip(0, 100),
+      sightings: [
+        {
+          txHash: hash(0xc2),
+          found: true,
+          slot: 900,
+          blockHeight: 90,
+          valid: false,
+        },
+      ],
+    });
+    expect(stepOf(marked, "s").status).toBe("failed");
+    expect(
+      lineClasses(
+        marked,
+        [found(hash(0xc2), { blockHeight: 90 })],
+        tip(0),
+      ).noValidity.map((tx) => tx.step),
+    ).toEqual(["s"]);
   });
 
   it("keeps in the new record the names kept and what is open and not settled", () => {
