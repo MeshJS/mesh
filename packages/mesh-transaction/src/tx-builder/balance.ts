@@ -327,6 +327,29 @@ export const isPoolShortfall = (error: unknown) =>
   typeof error === "object" && error !== null && poolShortfalls.has(error);
 
 /**
+ * What balancing knew of a round that was larger than the ledger allows: the inputs selection
+ * had added, in the order it took them, and what the parts bring into the transaction and take
+ * out of it, the fee aside, as `valueFlow` gives them
+ */
+export type OversizedRound = {
+  readonly selected: readonly Utxo[];
+  readonly consumed: Value;
+  readonly produced: Value;
+};
+
+/** The rounds behind TX_TOO_LARGE errors, by error; none for a sweep (`sendAllTo`) */
+const oversized = new WeakMap<object, OversizedRound>();
+
+/**
+ * The round behind a TX_TOO_LARGE error balancing raised, when it was not a sweep; undefined for
+ * any other value. The error itself is not changed: this is known only to the code that asks.
+ */
+export const oversizedRoundOf = (error: unknown): OversizedRound | undefined =>
+  typeof error === "object" && error !== null
+    ? oversized.get(error)
+    : undefined;
+
+/**
  * The out refs of the UTxOs a filter refuses, asking it once about each UTxO it could let be
  * selected: key-locked, not read by a part and not named as collateral. What the filter throws
  * is not caught.
@@ -1117,8 +1140,8 @@ export const balance = (
     });
     const size = ctx.serialize(sized.prototype).length / 2;
     ctx.onRound?.({ round, fee, size, selected: selected.length });
-    if (size > params.maxTxSize)
-      throw new TxBuildError(
+    if (size > params.maxTxSize) {
+      const tooLarge = new TxBuildError(
         "TX_TOO_LARGE",
         `the transaction takes ${size} bytes, more than the ${params.maxTxSize} allowed`,
         {
@@ -1129,6 +1152,15 @@ export const balance = (
           },
         },
       );
+      // A sweep spends every selectable UTxO by rule: its selection is not one to split
+      if (ctx.sendAllTo === undefined)
+        oversized.set(tooLarge, {
+          selected: [...selected],
+          consumed: flow.consumed,
+          produced: flow.produced,
+        });
+      throw tooLarge;
+    }
     const required = feeForSize(
       size,
       refScriptSize(sized, ctx.known, ctx.scriptSizes),
