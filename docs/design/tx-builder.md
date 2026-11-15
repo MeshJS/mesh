@@ -393,11 +393,11 @@ see [Chains][r-chains].
 steps, built at once and sent in order. One list of parts is a plan of one step, `main`; an object
 of named steps is a plan of several, in the order of its keys, each step parts,
 `{ parts, ...options }` with build options of its own, or a transaction built before (a `BuiltTx`
-or its CBOR hex, read by `fromCbor` and taken as it is). Every other body is built by that call, each on
-its payer's UTxOs as the steps before it leave them, read once, and nothing is signed or sent, so
-the whole plan can be shown before anyone signs. Its options are the build options with an `id`
-and the deadlines `ttlMs`, `expiryMarginMs` and `confirmations`, written into the plan when it is
-made and never read from the builder again. `build` stays one transaction or an error.
+or its CBOR hex, read by `fromCbor` and taken as it is). Every other body is built by that call,
+each on its payer's UTxOs as the steps before it leave them, read once, and nothing is signed or
+sent, so the whole plan can be shown before anyone signs. Its options are the build options with an
+`id` and the deadlines `ttlMs`, `expiryMarginMs` and `confirmations`, written into the plan when it
+is made and never read from the builder again. `build` stays one transaction or an error.
 
 - **Steps.** A step is one transaction with a fixed body and hash, a name and a status. Nothing is
   rebuilt: every call signs, sends and looks for the same bytes, so every call can be repeated,
@@ -426,14 +426,15 @@ made and never read from the builder again. `build` stays one transaction or an 
   `CANNOT_OBSERVE`, before anything is signed or sent. Other timers only set the pace of waiting
   (`pollMs`, `resendMs`).
 - **Calls.** `sign()` and `run()` sign with the call's `signers`, else the payer, checking every
-  witness against the body, and never hand a transaction given built to a signer; the payer gives only the keys it is asked for, and is not asked when
-  none is left. `run()` looks at the chain, then signs, submits and waits for `waitFor` (`"sent"`,
-  `"included"` by default, `"final"`); `refresh()` looks once; `stop()` records that the plan
-  signs and sends nothing more. A plan with a step that will not land, or that was `halted`, sends
-  no step for the first time. `timeoutMs` bounds every request of `run()` (a search, the tip, the
-  store, a submit) by the time left; a signer is bounded by the step's end of validity.
-  `landed`, `live` and `rest` say what landed, what may still land and what is left, as steps
-  `builder.plan` takes; a new plan for what is left is made only once the plan is `stopped`.
+  witness against the body, and never hand a transaction given built to a signer; the payer gives
+  only the keys it is asked for, and is not asked when none is left. `run()` looks at the chain,
+  then signs, submits and waits for `waitFor` (`"sent"`, `"included"` by default, `"final"`);
+  `refresh()` looks once; `stop()` records that the plan signs and sends nothing more. A plan with a
+  step that will not land, or that was `halted`, sends no step for the first time. `timeoutMs`
+  bounds every request of `run()` (a search, the tip, the store, a submit) by the time left; a
+  signer is bounded by the step's end of validity. `landed`, `live` and `rest` say what landed, what
+  may still land and what is left, as steps `builder.plan` takes; a new plan for what is left is
+  made only once the plan is `stopped`.
 - **The store.** `TxPlanStore` is `load(id)` and a compare-and-set `save(json, expectedRev)`. Every
   change is saved before the method returns; the record holds data only, never a wallet, signer,
   submitter or function (its UTxOs stand in the builder's form), and `resume(id, options)`

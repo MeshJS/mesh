@@ -495,12 +495,12 @@ await plan.run(); // lock, a block, then unlock
 ```
 
 Named steps are an object, sent in the order of its keys. A step is parts, a transaction built
-before (below), or `{ parts, ...options }` with build options of its own: `payer`, `canSelect`, `coinSelection`,
-`sendAllTo`, `fee`, `registeredPools`, `extraKeyWitnesses`, `topUpCollateral`, `collateralReturn`. A
-name is not empty, not a whole number and does not start with `consolidate-`; a plan has at most 32
-steps. With named steps, `sendAllTo` and `fee` are given in the step, and a builder that holds parts
-from `.add()` is `INVALID_OPTION`. Every error of building a step names the step at the start of its
-message.
+before (below), or `{ parts, ...options }` with build options of its own: `payer`, `canSelect`,
+`coinSelection`, `sendAllTo`, `fee`, `registeredPools`, `extraKeyWitnesses`, `topUpCollateral`,
+`collateralReturn`. A name is not empty, not a whole number and does not start with `consolidate-`;
+a plan has at most 32 steps. With named steps, `sendAllTo` and `fee` are given in the step, and a
+builder that holds parts from `.add()` is `INVALID_OPTION`. Every error of building a step names the
+step at the start of its message.
 
 A part names an output of an earlier step by a link, where it takes a UTxO; nothing is looked up
 and no hash is written by hand:
@@ -550,28 +550,39 @@ consolidated, and `rest` leaves them out.
 
 **A transaction built before.** A step may be a transaction built before: a `BuiltTx`, or its CBOR
 hex, in `builder.plan` and in `plan.add`. It is taken as it is and read from its own bytes as
-`fromCbor` reads them; what `fromCbor` refuses is refused, with the step's name. The UTxOs it names
-come from the plan's earlier steps, `after` (the outputs its transactions' own bytes hold, never
-those an object of it states), `knownUtxos`, else the provider; never from the object.
-A plan asks no signer for it: sign it on the `BuiltTx` after reading `missing`, `collateral` and
-`warnings`, or give its witnesses to `plan.addWitnesses`; at its turn without a key it is
-`MISSING_SIGNATURES`. It is `kind: "prebuilt"` in `plan.steps`, and its warnings are in
-`plan.step(name).warnings`. Without an end of validity it never expires (`NEVER_EXPIRES`):
-`plan.until` is undefined and the plan is not `stopped` while that step may still land, so a
-transaction built for a plan gets a `validity({ until })`. When such a step was never sent and
-another transaction spends one of its inputs, it can never land, but the plan cannot tell who
-spent the input: it stays `stopping`, never `stopped`, and `stop()` does not change that. Ask
-its maker for a transaction with an end of validity, or let the plan build the step. A new plan
-in place of this one would have to hold that transaction too, or spend an input of it; no call
-of this release makes one. What it spends no other step spends or
-selects; two steps that spend one output are `INVALID_OPTION` (`steps`). Its outputs are named by
-position. Labels come only with an object that `build` or `finalize` made in this process: an
+`fromCbor` reads them; what `fromCbor` refuses is refused, with the step's name, and a text that
+is no transaction at all before any request. The UTxOs it names come from the plan's earlier steps,
+`after` (the outputs its transactions' own bytes hold, never those an object of it states),
+`knownUtxos`, else the provider; never from the object.
+
+A plan asks no signer for it, in `sign()` or `run()`, with signers named or without: sign the
+`BuiltTx` before it is given, after reading `missing`, `collateral` and `warnings`, or give its
+witnesses to `plan.addWitnesses`; at its turn without a key it is `MISSING_SIGNATURES`, and
+nothing is sent. It is `kind: "prebuilt"` in `plan.steps`, and its warnings are in
+`plan.step(name).warnings`.
+
+Without an end of validity it never expires (`NEVER_EXPIRES`): `plan.until` is undefined and the
+plan is not `stopped` while that step may still land, so a transaction built for a plan gets a
+`validity({ until })`. When such a step was never sent and another transaction spends one of its
+inputs, it can never land, but the plan cannot tell who spent the input: it stays `stopping`,
+never `stopped`, and `stop()` does not change that. Ask its maker for a transaction with an end of
+validity, or let the plan build the step. A new plan in place of this one would have to hold that
+transaction too, or spend an input of it; no call of this release makes one.
+
+What it spends no other step spends or selects, and what it reads or puts up as collateral no step
+the plan builds spends or selects, whether it stands before or after it; a part that spends such
+an output, and two steps that spend one output, are `INVALID_OPTION` (`steps`). Two steps may read
+one output, or put up one UTxO as collateral. Its outputs are named by position. Labels come only
+with an object that `build` or `finalize` made in this process, or that `rest` gave back: an
 object of `restore` or `fromCbor`, and CBOR, are read by position, and a link by label to them is
 `UNKNOWN_LABEL`. Selectable change comes only with an object, and only an output its bytes put at
-the payer's own change address is selected. A transaction that
-spends an output of a step the plan builds is added afterwards with `plan.add`, once its maker has
-that step's hash. `rest` gives it back as a `BuiltTx`; the same transaction in another plan cannot
-pay twice, and a new one comes from its maker.
+the payer's own change address is selected. Such a transaction, with an output marked change at the
+payer's change address, is a step of that payer: `run()` sends the steps in order, but the ledger
+keeps it in order only where a later step spends an output of it. A transaction that spends an
+output of a step the plan builds is added afterwards with `plan.add`, once its maker has that
+step's hash. `rest` gives it back as a `BuiltTx` with the witnesses the plan holds, its labels and
+change marks, and no payer; the same transaction in another plan cannot pay twice, and a new one
+comes from its maker.
 
 ```ts
 const swap = await builder.fromCbor(tx); // the partner's bytes; read missing and warnings
@@ -643,7 +654,7 @@ sent: `run()` sends the same bytes and waits; when that step is one it never sen
 | `CONFIRM_TIMEOUT`    | `waitFor` not reached in `timeoutMs`; also while a step past its end of validity may still land, or when a request does not answer in the time left | `run()` again later; it is not "not paid"                               |
 | `REJECTED`           | the ledger refused a step, no delivery of it can have gone through, and every step and transaction of `after` it stands on is found in a block      | `run()` again sends the same bytes; or `stop()`, and wait for `stopped` |
 | `NOT_YET_VALID`      | a step before its lower bound; nothing sent                                                                                                         | `run()` again after `retryAfterMs`                                      |
-| `MISSING_SIGNATURES` | a step whose turn it is lacks keys, and nobody in the call can sign, or it was given built (only `addWitnesses` signs it then); nothing sent        | `sign({ signers })`, `addWitnesses`, or `run({ signers })`              |
+| `MISSING_SIGNATURES` | a step whose turn it is lacks keys, and nobody in the call can sign, or it was given built (only `addWitnesses` signs it then); nothing sent        | `sign`/`run({ signers })`; given built: sign first, or `addWitnesses`   |
 | `EXPIRED`            | a step's end of validity and the margin passed and it is not found (`unsent`: never sent)                                                           | the plan does not go on: once `stopped`, a new plan from `rest`         |
 | `SCRIPT_FAILED`      | a step is in a block with a failed script; its collateral is taken                                                                                  | the same, with the parts fixed                                          |
 | `ORPHANED`           | a step stands on a step that will not land                                                                                                          | the same as for that step                                               |
@@ -883,10 +894,11 @@ On a builder with a store every plan needs an `id` (`MISSING_ID`), the key of it
 and options returns the recorded plan as recorded, and reads nothing but the payer's change
 address, so a repeated request handler is safe; other steps or options are `PLAN_EXISTS`, and
 nothing is written. Compared: the steps as given (links kept; one built before by the hash of its
-body), their data options and each payer's change address, the plan's data options, the network and the deadlines the call gives.
-Not compared: the builder's `planDefaults`, `after` and functions. The comparison is strict: an
-option the record holds that the call leaves out, or a default the call states that the record
-does not hold, is `PLAN_EXISTS`. A known `id` is opened with `await builder.resume(id)`.
+body), their data options and each payer's change address, the plan's data options, the network and
+the deadlines the call gives. Not compared: the builder's `planDefaults`, `after` and functions. The
+comparison is strict: an option the record holds that the call leaves out, or a default the call
+states that the record does not hold, is `PLAN_EXISTS`. A known `id` is opened with
+`await builder.resume(id)`.
 
 Recorded: the steps, the data options (`knownUtxos`, `registeredPools`, `extraKeyWitnesses`,
 `topUpCollateral`, `collateralReturn`, `consolidate`, and a step's `sendAllTo` and `fee`), each
@@ -1060,10 +1072,9 @@ the library's. `stopped` and `halted` are `true` when present and never removed.
 names a plan made in place of this one, only on a `final` or `stopped` plan; no public call
 writes it yet. A step's `tx` is the JSON of its `BuiltTx`, read back as `restore` reads one;
 `given` is the step as it was given, links kept, which `rest` returns (a step given built has
-`kind: "prebuilt"`, no `given`, and its witnesses in the set-tag form they came in); `seen` stays when a
-rollback takes a step out of its block, and a step built on transactions of `after` names them in
-`after`. This release writes version 2 and reads no
-other.
+`kind: "prebuilt"`, no `given`, and its witnesses in the set-tag form they came in); `seen` stays
+when a rollback takes a step out of its block, and a step built on transactions of `after` names
+them in `after`. This release writes version 2 and reads no other.
 
 **A server**: a table keyed by `id`, with a `rev` column and a conditional write.
 
