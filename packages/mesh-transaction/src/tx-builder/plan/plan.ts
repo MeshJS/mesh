@@ -1071,6 +1071,8 @@ export class TxPlan {
           "the provider did not give the chain's tip (fetchLatestBlock), which the end of validity of an added step is counted from: nothing was built or added",
           { details: { reason: "noTip" } },
         );
+      /** The dead transactions a step passed beside, told once the steps are recorded */
+      let told: readonly LineTx[] = [];
       // A plan made in place of another: the transactions of the plans before it that were not
       // found yet, which no step added may land beside, stand on, or find at an address
       const line =
@@ -1116,17 +1118,11 @@ export class TxPlan {
           "nothing was added",
         );
         this.#refuseStandingOnOpen(newSteps, line);
-        for (const tx of dead)
-          emit(state.trace, {
-            type: "warning",
-            code: "NO_SHARED_INPUT",
-            step: tx.step,
-            txHash: tx.txHash,
-          });
+        told = dead;
       }
       // The event goes only to a record with the steps the build started from
       let shown = base;
-      await this.#write(
+      const written = await this.#write(
         state,
         (record) => {
           shown = record;
@@ -1148,6 +1144,7 @@ export class TxPlan {
         undefined,
         ask,
       );
+      if (written === "written") this.#tellNoSharedInput(state.trace, told);
       return this;
     });
   }
@@ -1290,13 +1287,16 @@ export class TxPlan {
    * - The call looks at the chain first. The new plan stands on the steps that are final, of
    *   this plan and of the plans before it: none is built again, and a link to one of this
    *   plan's is filled in with its output. While a step is in a block and not final the call
-   *   is CANNOT_OBSERVE (`unconfirmed`).
+   *   is CANNOT_OBSERVE (`unconfirmed`); an address that lists an output of a transaction of
+   *   those plans the search does not find refuses it the same way.
    * - Every other transaction of those plans is one the new plan must not land beside. The
-   *   first step built for a payer spends an input of each that the payer still holds, also
-   *   of one called dead: the ledger then takes one of the two and never both, whatever a
-   *   provider shows. Where no input is shared, a transaction that may still land refuses the
-   *   call (STILL_LIVE); one called dead, which no look ever found, is left to its end of
-   *   validity and the provider's search, and `trace` is told (`NO_SHARED_INPUT`).
+   *   first step built for a payer spends an input of each that may still land and stands on
+   *   no other, also of one called dead, that the payer still holds: the ledger then takes one
+   *   of the two and never both, whatever a provider shows. Where no input is shared, a
+   *   transaction that may still land refuses the call (STILL_LIVE); one this call's look
+   *   answered it did not find, past its end of validity, which no look ever found, is left to
+   *   its end and the provider's search, and `trace` is told (`NO_SHARED_INPUT`) once the new
+   *   plan is recorded. A search that fails is no answer: the transaction may still land.
    * - This plan is marked before the new one is recorded: `replacedBy` names it, and this plan
    *   signs and sends nothing more. A plan is replaced once. The same call again, with the id
    *   `replacedBy` names, returns the plan made in its place and makes nothing: with a store the
@@ -1305,18 +1305,30 @@ export class TxPlan {
    *   Without a store a copy of this plan's JSON saved before the call does not know it was
    *   replaced, and a plan made in its place again can pay again: save the JSON after the call,
    *   or use a store. The id is the new plan's alone: after a crash that followed the mark, a
-   *   plan of another order under it ends this line. The new plan stops when a look of it finds
-   *   one of those transactions in a block.
+   *   plan of another order under it ends this line. A repeat compares the steps given, not the
+   *   other options: with other options it returns the plan recorded with the first ones. The
+   *   deadlines given are the new plan's, and carry on to a plan made in its place. The new plan
+   *   stops when a look of it finds one of those transactions in a block.
    * @throws TxPlanError STILL_LIVE (retryable with `details.safeAfter`); CANNOT_OBSERVE
-   *   (`unconfirmed`, retryable; `noTip`); INVALID_STATE (`final`) for a final plan, (`stopped`)
-   *   for a plan replaced by a plan of another id, or by one this object does not hold and no
-   *   store can tell of, (`pastHorizon`); MISSING_ID; PLAN_EXISTS;
-   *   VERSION_CONFLICT; STORE_FAILED; what probing the provider throws
-   * @throws TxBuildError INVALID_OPTION (`id`) for an id that is not a string or is this
-   *   plan's; (`steps`) when nothing is left and no step is given, for a name that is final in
-   *   this plan or a plan before it, for a link to a step that is neither given nor final, and
-   *   for all that `builder.plan` refuses; (`after`) for a transaction of these plans that is
-   *   not final; MISSING_PAYER; NOT_SERIALIZABLE; every error of building a step; ABORTED
+   *   (`unconfirmed`, retryable after the builder's `pollMs`; `noTip`; `noValidity`, not
+   *   retryable, for a transaction that runs a Plutus script found by a provider that does not
+   *   say whether its scripts passed; `noSearch`, `noDepth` from probing the provider);
+   *   INVALID_STATE (`final`) for a final plan, also one that came to final while the new plan
+   *   was built, (`stopped`) for a plan replaced by a plan of another id, or by one this object
+   *   does not hold and no store can tell of, (`pastHorizon`), (`recordVersion`) for a stored
+   *   record this library does not read; MISSING_ID; PLAN_EXISTS for an id the store holds
+   *   otherwise; PLAN_NOT_FOUND when the record is gone from the store; VERSION_CONFLICT;
+   *   STORE_FAILED
+   * @throws TxBuildError INVALID_OPTION for options that are not an object or have a member
+   *   other than those of `builder.plan` and `steps`, (`id`) for an id that is not a string or
+   *   is this plan's, (`payer`) for a payer of no known form or one that answered two change
+   *   addresses, (`trace`) for a trace that is not a function, (`signal`), (`steps`) when
+   *   nothing is left and no step is given, for a name that is final in this plan or a plan
+   *   before it, for a link to a step that is neither given nor final, and for all that
+   *   `builder.plan` refuses, (`after`) for a transaction of these plans that is not final;
+   *   MISSING_PAYER; NETWORK_MISMATCH for a payer of another network or a recorded plan of
+   *   another; WALLET_FAILED; MISSING_FETCHER and PROVIDER_FAILED for a read of a payer or of an
+   *   address that fails; NOT_SERIALIZABLE; every error of building a step; ABORTED
    */
   replan(
     options: PlanOptions & { id: string; steps?: StepParts | PlanSteps },
@@ -1534,13 +1546,6 @@ export class TxPlan {
         "nothing was written",
       );
       this.#refuseStandingOnOpen(made.steps, classes.open);
-      for (const tx of dead)
-        emit(live.trace, {
-          type: "warning",
-          code: "NO_SHARED_INPUT",
-          step: tx.step,
-          txHash: tx.txHash,
-        });
 
       // The provider, as for any new plan; then the mark; then the new record
       const probed = await probeProvider(
@@ -1561,6 +1566,7 @@ export class TxPlan {
           live,
           probed ? "done" : "owed",
         );
+        this.#tellNoSharedInput(live.trace, dead);
         return state.made;
       }
       return this.#recordReplan(
@@ -1572,6 +1578,7 @@ export class TxPlan {
         live,
         probed,
         ask,
+        dead,
       );
     });
   }
@@ -1645,16 +1652,39 @@ export class TxPlan {
       );
   }
 
-  /** CANNOT_OBSERVE (`unconfirmed`): nothing was written, and the same call later tells */
+  /**
+   * CANNOT_OBSERVE (`unconfirmed`): nothing was written, and the same call later tells; retry
+   * after the builder's `pollMs`
+   */
   #unconfirmed(why: string, txHash?: string) {
+    const { builder, record } = stateOf(this);
     return this.#error(
       "CANNOT_OBSERVE",
       `${why}; nothing was written, and the same call later tells`,
       {
         details: { reason: "unconfirmed" },
+        retryAfterMs: effectiveWait({}, record.deadlines, builder.planDefaults)
+          .pollMs,
         ...(txHash !== undefined && { txHash }),
       },
     );
+  }
+
+  /**
+   * Tells `trace` of each dead transaction a step passed beside (`NO_SHARED_INPUT`): only by a
+   * call whose steps were recorded
+   */
+  #tellNoSharedInput(
+    trace: ((event: BuildEvent) => void) | undefined,
+    dead: readonly LineTx[],
+  ) {
+    for (const tx of dead)
+      emit(trace, {
+        type: "warning",
+        code: "NO_SHARED_INPUT",
+        step: tx.step,
+        txHash: tx.txHash,
+      });
   }
 
   /**
@@ -1712,6 +1742,7 @@ export class TxPlan {
     live: LiveObjects,
     probed: boolean,
     ask: Ask,
+    dead: readonly LineTx[],
   ): Promise<TxPlan> {
     const store = state.store!;
     const json = encodePlan(record) as unknown as StoredTxPlanJSON;
@@ -1726,8 +1757,16 @@ export class TxPlan {
         );
       }
     })();
-    if (await ask(saving, "write"))
-      return objectOver(state.builder, record, live, probed ? "done" : "owed");
+    if (await ask(saving, "write")) {
+      const plan = objectOver(
+        state.builder,
+        record,
+        live,
+        probed ? "done" : "owed",
+      );
+      this.#tellNoSharedInput(live.trace, dead);
+      return plan;
+    }
     const stored = await ask(loadRecord(store, id), "read");
     if (stored === undefined)
       throw this.#error(

@@ -425,6 +425,10 @@ describe("a plan in place of another", () => {
         "unconfirmed",
         old.step("a").txHash,
       ]);
+      expect([early.retryable, early.retryAfterMs]).toEqual([
+        true,
+        FAST.pollMs,
+      ]);
       expect(old.replacedBy).toBeUndefined();
 
       advance(emulator, 3);
@@ -1340,5 +1344,39 @@ describe("a plan in place of another", () => {
       ]);
       expect(names(next)).toEqual(["a"]);
     });
+  });
+
+  it("tells NO_SHARED_INPUT only by a call that returns its plan", async () => {
+    const { emulator, builder, wallet, address, store } = await storeSetup({
+      funds: [100n * ADA],
+    });
+    const old = await builder.plan(
+      { main: payTo(alice, 11n * ADA) },
+      { id: "order", payer: wallet },
+    );
+    await old.sign();
+    const mainHash = old.step("main").txHash;
+    emulator.removeUtxos(old.step("main").inputs.map(ref));
+    emulator.fund(address, { lovelace: 50n * ADA });
+    await caught(old.run());
+    advance(emulator, 700);
+    // The first record's save fails: the mark is written, the plan is not
+    store.hooks.save = async (forward, json, rev) => {
+      if (json.id === "order:2") throw new Error("down");
+      return forward(json, rev);
+    };
+    const { events, trace } = tracer();
+    const failed = await caught(old.replan({ id: "order:2", trace }));
+    const told = () =>
+      events.filter(
+        (event) => event.type === "warning" && event.code === "NO_SHARED_INPUT",
+      );
+    expect(failed.code).toBe("STORE_FAILED");
+    expect(told()).toEqual([]);
+    delete store.hooks.save;
+    const next = await old.replan({ id: "order:2", trace });
+    expect(told()).toEqual([noSharedInput("main", mainHash)]);
+    await next.run();
+    expect(times(emulator, alice, 11n * ADA)).toBe(1);
   });
 });
