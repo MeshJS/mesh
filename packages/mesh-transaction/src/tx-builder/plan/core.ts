@@ -28,6 +28,8 @@ export type StepRecord = {
   readonly name: string;
   /** `"consolidation"` for a step the plan put in itself */
   readonly kind?: "consolidation";
+  /** The step was appended to a plan that had steps */
+  readonly added?: true;
   readonly status: TxStepStatus;
   /** The hash of its body; signatures do not change it */
   readonly txHash: string;
@@ -167,7 +169,8 @@ export type NewStep = Pick<
 export type PlanEvent =
   /**
    * Steps appended at the end of the plan, in order. Every step already in the plan stays as it
-   * is. The first record is this event applied to the empty plan
+   * is. The first record is this event applied to the empty plan; a step appended to a plan that
+   * has steps is marked `added`
    */
   | { readonly type: "steps"; readonly steps: readonly NewStep[] }
   /**
@@ -607,6 +610,8 @@ const append = (json: PlanRecord, event: EventOf<"steps">): PlanAdvanced => {
       `the plan is ${json.status}: steps are appended only to a plan that may still complete`,
     );
   const steps = [...json.steps];
+  // The steps of the first record are those the plan was made with; any later one is marked
+  const added = json.steps.length > 0;
   for (const step of given) {
     const problem = newStepProblem(step, steps);
     if (problem !== undefined) return refuse("steps", problem);
@@ -614,6 +619,7 @@ const append = (json: PlanRecord, event: EventOf<"steps">): PlanAdvanced => {
     const record: StepRecord = {
       name: step.name,
       ...(step.kind !== undefined && { kind: step.kind }),
+      ...(added && { added: true as const }),
       status: "built",
       txHash: step.built.txHash,
       standsOn: [...step.standsOn],

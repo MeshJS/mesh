@@ -967,6 +967,27 @@ describe("appending steps", () => {
     expect(json.rev).toBe(first.rev + 1);
   });
 
+  it("marks a step appended to a plan that has steps, and no step of the first record", () => {
+    const first = planOf([chainStep("a", 0), chainStep("b", 1)]);
+    expect(first.steps.map((step) => step.added)).toEqual([
+      undefined,
+      undefined,
+    ]);
+    const json = accept(first, { type: "steps", steps: [chainStep("c", 2)] });
+    expect(stepOf(json, "c").added).toBe(true);
+    expect(json.steps[0]).toBe(first.steps[0]);
+    expect(json.steps[1]).toBe(first.steps[1]);
+    expect("added" in json.steps[0]! || "added" in json.steps[1]!).toBe(false);
+    // The mark is the state machine's: a step given with it, or without, gets it by its place
+    const marked = accept(json, {
+      type: "steps",
+      steps: [{ ...chainStep("d", 3), added: true } as NewStep],
+    });
+    expect(stepOf(marked, "d").added).toBe(true);
+    const unmarked = planOf([{ ...chainStep("a", 0), added: true } as NewStep]);
+    expect(unmarked.steps[0]!.added).toBeUndefined();
+  });
+
   it("changes nothing when the same steps are given again, and refuses a part of them", () => {
     const steps = [chainStep("a", 0), chainStep("b", 1)];
     const json = planOf(steps);

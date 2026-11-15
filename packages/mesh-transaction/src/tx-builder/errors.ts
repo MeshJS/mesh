@@ -419,13 +419,14 @@ export type TxPlanErrorDetails = {
   };
   /**
    * `stopped`: the plan was stopped, or a step of it will not land, so it signs and sends
-   * nothing more; `pastHorizon`: a step that runs a Plutus script would end past the network's
-   * forecast horizon; `recordVersion`: the record is of another format or kind, or holds content
-   * this library does not know: a plan's record, or the JSON of a `BuiltTx` given to `restore`,
-   * whose error quotes none of its values
+   * nothing more; `final`: every step of the plan is final, so it takes no more steps;
+   * `pastHorizon`: a step that runs a Plutus script would end past the network's forecast
+   * horizon; `recordVersion`: the record is of another format or kind, or holds content this
+   * library does not know: a plan's record, or the JSON of a `BuiltTx` given to `restore`, whose
+   * error quotes none of its values
    */
   INVALID_STATE: {
-    reason: "stopped" | "pastHorizon" | "recordVersion";
+    reason: "stopped" | "final" | "pastHorizon" | "recordVersion";
   };
   /**
    * `txHashes`: the transactions that may still land; `safeAfter`: POSIX ms, their end of

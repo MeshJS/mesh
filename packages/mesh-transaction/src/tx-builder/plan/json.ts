@@ -1265,6 +1265,7 @@ export const encodeGiven = (given: StepGiven) => ({
 const encodeStep = (step: StepRecord): TxStepJSON => ({
   name: step.name,
   ...(step.kind !== undefined && { kind: step.kind }),
+  ...(step.added === true && { added: true as const }),
   status: step.status,
   txHash: step.txHash,
   ...(step.seen !== undefined && {
@@ -1505,6 +1506,7 @@ const decodeGiven = (value: unknown, path: string): StepGiven => {
 const STEP_MEMBERS = [
   "name",
   "kind",
+  "added",
   "status",
   "txHash",
   "seen",
@@ -1530,6 +1532,8 @@ const decodeStep = (
     unread(`${path}.name: the plan has a step ${show(name)} before it`);
   if (json.kind !== undefined && json.kind !== "consolidation")
     unread(`${path}.kind: the step kind ${show(json.kind)}`);
+  if (json.added !== undefined && json.added !== true)
+    unread(`${path}.added is ${show(json.added)}, not true`);
   const status = json.status;
   if (typeof status !== "string" || !STEP_STATUSES.has(status))
     unread(`${path}.status: the step status ${show(status)}`);
@@ -1560,6 +1564,7 @@ const decodeStep = (
   const step: StepRecord = {
     name,
     ...(json.kind !== undefined && { kind: "consolidation" as const }),
+    ...(json.added === true && { added: true as const }),
     status: status as TxStepStatus,
     txHash,
     ...(seen !== undefined && { seen }),
@@ -1687,6 +1692,13 @@ const decodeRecord = (json: Obj, id?: string): PlanRecord => {
     steps.push(decodeStep(item, steps, `steps[${i}]`));
   });
   if (steps.length === 0) unread("steps is empty: a plan has a step at least");
+  // The steps the plan was made with come first; every step added after them is marked
+  if (steps[0]!.added === true)
+    unread("steps[0].added is on a step of the first record");
+  steps.forEach((step, i) => {
+    if (i > 0 && step.added !== true && steps[i - 1]!.added === true)
+      unread(`steps[${i}].added is missing on a step after an added step`);
+  });
   const record: PlanRecord = {
     kind: "TxPlan",
     version: PLAN_RECORD_VERSION,

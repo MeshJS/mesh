@@ -3,6 +3,7 @@ import { Crypto } from "@meshsdk/core-cst";
 
 import type { BuildEvent, TxBuilder } from "../builder";
 import type { TxPlanErrorCode, TxPlanErrorDetails } from "../errors";
+import type { Payer } from "../payer";
 import type { KeyWitness, Signer } from "../sign";
 import type { RequiredKey } from "../witnesses";
 import type {
@@ -10,11 +11,12 @@ import type {
   PlanRecord,
   PlanRefusal,
   PlanTip,
+  StepGiven,
   StepRecord,
   TxSighting,
 } from "./core";
 import type { EffectiveWait } from "./deadlines";
-import type { MadePlan, MakePlanOptions, PlanOrder } from "./make";
+import type { GivenStep, MadePlan, MakePlanOptions, PlanOrder } from "./make";
 import type { ChainObserver, ObservedTip, TxSearch } from "./observer";
 import type {
   PlanOptions,
@@ -81,7 +83,19 @@ import {
   readPlan,
   sameJson,
 } from "./json";
-import { givenParts, makePlan, orderOf } from "./make";
+import {
+  addressBook,
+  asAfter,
+  buildAddedSteps,
+  checkAddedSteps,
+  givenOfSteps,
+  givenParts,
+  invalidAddedSteps,
+  makePlan,
+  orderOf,
+  payerOfAdded,
+  readAddedSteps,
+} from "./make";
 import {
   chainObserver,
   isRefusal,
@@ -119,6 +133,11 @@ type PlanState = {
   record: PlanRecord;
   /** The payer as the signer of a call that names none, when it can sign */
   readonly signer?: Signer;
+  /**
+   * The payer given to `builder.plan` or `builder.resume`: it pays the steps `add` builds that
+   * name none, while its change address is the plan's. Never written
+   */
+  readonly payer?: Payer;
   readonly trace?: (event: BuildEvent) => void;
   readonly observer: ChainObserver;
   /** `owed` until a probe of the provider answered: made before the first delivery */
@@ -164,6 +183,10 @@ const isAbortSignal = (value: unknown): value is AbortSignal =>
 const SIGN_MEMBERS: readonly string[] = ["signers", "signal"];
 const SIGN_ALLOWED = "an object { signers?, signal? }";
 
+/** The members of the options of `add()`, and what the call takes */
+const ADD_MEMBERS: readonly string[] = ["signal"];
+const ADD_ALLOWED = "an object { signal? }";
+
 /** The members of the options of `builder.resume`, and what the call takes */
 const RESUME_MEMBERS: readonly string[] = ["payer", "trace"];
 const RESUME_ALLOWED = "an object { payer?, trace? }";
@@ -196,8 +219,13 @@ const checkCallOptions = (options: {
     throw invalidOption("signal", signal, "an AbortSignal");
 };
 
-/** Sets the record an object holds, and wakes the waits of its other calls */
+/**
+ * Sets the record an object holds, and wakes the waits of its other calls. A record with more
+ * steps makes the object owe the provider's probe again: an added step may be the first that
+ * runs a Plutus script
+ */
 const commit = (state: PlanState, record: PlanRecord) => {
+  if (record.steps.length > state.record.steps.length) state.probe = "owed";
   state.record = record;
   for (const wake of [...state.watchers]) wake();
 };
@@ -276,6 +304,56 @@ const isTerminal = (record: PlanRecord) =>
 /** The step of a record with this name */
 const stepIn = (record: PlanRecord, name: string) =>
   record.steps.find((step) => step.name === name);
+
+/** Whether two records have the same steps: the same count, and the same hash at each place */
+const sameSteps = (a: PlanRecord, b: PlanRecord) =>
+  a.steps.length === b.steps.length &&
+  a.steps.every((step, i) => step.txHash === b.steps[i]!.txHash);
+
+/** A value as plain JSON data */
+const plainOf = (value: unknown): unknown => JSON.parse(JSON.stringify(value));
+
+/**
+ * Whether a step was given the same parts and options as recorded; parts that hold a redeemer
+ * function are never the same
+ */
+const sameGiven = (recorded: StepGiven | undefined, given: StepGiven) => {
+  if (recorded === undefined) return false;
+  try {
+    return sameJson(
+      plainOf(encodeGiven(recorded)),
+      plainOf(encodeGiven(given)),
+    );
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * What a record makes of steps given to `add`: `same` when it has every one of them with the
+ * same parts and options, `new` when it has none of their names, else why they are refused
+ */
+const heldOf = (
+  record: PlanRecord,
+  given: readonly GivenStep[],
+): "same" | "new" | { readonly refused: string } => {
+  const held = given.filter((step) => stepIn(record, step.name) !== undefined);
+  if (held.length === 0) return "new";
+  const names = (steps: readonly GivenStep[]) =>
+    steps.map((step) => JSON.stringify(step.name)).join(", ");
+  const other = held.filter(
+    (step) => !sameGiven(stepIn(record, step.name)!.given, step.given),
+  );
+  if (other.length > 0)
+    return {
+      refused: `the plan has the step(s) ${names(other)} with other parts or options: a step of a plan never changes, and a name names one step`,
+    };
+  if (held.length < given.length)
+    return {
+      refused: `the plan has the step(s) ${names(held)} and not ${names(given.filter((step) => !held.includes(step)))}: the steps of one call are added together, so a call made again gives the same steps`,
+    };
+  return "same";
+};
 
 /** A search that found the transaction in a block: found, with the slot of its block */
 const isInBlock = (search: TxSearch) =>
@@ -722,6 +800,121 @@ export class TxPlan {
   }
 
   /**
+   * Adds steps at the end of the plan while it is `pending`: named steps, as `builder.plan`
+   * takes them. The call looks at the chain, then builds every step given, in order, each on
+   * its payer's UTxOs as the steps before it leave them. No step the plan has changes, and
+   * nothing is signed or sent: `run()` takes the added steps in their turn, also a call that is
+   * going.
+   *
+   * ```ts
+   * await plan.add({ refund: output({ address: buyer, value: { lovelace: 2_000_000n } }) });
+   * await plan.run();
+   * ```
+   *
+   * - A step is paid by its own payer (`{ parts, payer }`), else by the plan's payer, as it was
+   *   given to `builder.plan` or `builder.resume`. The data options the plan records apply,
+   *   unless the step has its own; `canSelect` and `coinSelection` are given in the step.
+   * - A step may link to any step before it. It stands on the last step of its payer, as in
+   *   `builder.plan`, unless that step is final. It spends no output a step of the plan spends,
+   *   and of a final step it takes what the payer's read shows.
+   * - A step whose parts give no end of validity ends at the tip of this call plus the plan's
+   *   `ttlMs`; `until` follows.
+   * - The same call again builds nothing and returns the plan, whatever its status: the steps
+   *   are in it. A call whose answer was lost is made again as it is.
+   * @throws TxPlanError INVALID_STATE (`final`) for a final plan, (`stopped`) for a plan that
+   *   is stopping or stopped; VERSION_CONFLICT when another writer added steps meanwhile: none
+   *   of this call's steps is recorded, and the same call builds on the plan as it is;
+   *   CANNOT_OBSERVE (`noTip`); INVALID_STATE (`pastHorizon`)
+   * @throws TxBuildError INVALID_OPTION (`steps`) for steps that are not named steps, for all
+   *   that `builder.plan` refuses of named steps, for more than 32 steps in the plan, for a
+   *   name the plan has with other parts or options, and for steps only some of which the plan
+   *   has; MISSING_PAYER for a step without a payer when the object does not hold the plan's;
+   *   NOT_SERIALIZABLE on a builder with a store; every error of building a step, its name at
+   *   the start of the message; ABORTED; INVALID_OPTION for options that are not an object or
+   *   have a member other than `signal`
+   */
+  add(steps: PlanSteps, options?: Pick<RunOptions, "signal">): Promise<this> {
+    return this.#call(async (state) => {
+      const opts: Pick<RunOptions, "signal"> = optionsObject(
+        options,
+        ADD_MEMBERS,
+        ADD_ALLOWED,
+      );
+      const { signal } = opts;
+      checkCallOptions({ signal });
+      const { builder } = state;
+      // The shapes first, with no request and no read of the store
+      const read = readAddedSteps(builder, steps);
+      if (builder.store !== undefined)
+        for (const step of read) encodeParts(step.parts);
+      throwIfAborted(signal, CALL);
+      const ask = this.#ask(signal);
+      await this.#takeStoredIfNewer(state, ask);
+      // A repeat is told by names and parts, before anything is looked at or built
+      const addressOf = addressBook(builder);
+      const given = await abortable(
+        givenOfSteps(read, addressOf),
+        signal,
+        CALL,
+      );
+      const held = heldOf(state.record, given);
+      if (held === "same") return this;
+      if (held !== "new") throw invalidAddedSteps(held.refused);
+      checkAddedSteps(
+        read,
+        state.record.steps.map((step) => step.name),
+      );
+      const payer = await abortable(
+        payerOfAdded(state.record, state.payer, read, addressOf),
+        signal,
+        CALL,
+      );
+      // The statuses are what the chain shows before anything is built on them
+      const seen = await this.#look(state, ask);
+      this.#refuseClosed(state.record);
+      const { tip } = seen;
+      if (tip === undefined)
+        throw this.#error(
+          "CANNOT_OBSERVE",
+          "the provider did not give the chain's tip (fetchLatestBlock), which the end of validity of an added step is counted from: nothing was built or added",
+          { details: { reason: "noTip" } },
+        );
+      const base = state.record;
+      const newSteps = await buildAddedSteps(builder, base, read, {
+        ...(payer !== undefined && { payer }),
+        tip,
+        ...(signal !== undefined && { signal }),
+        ...(state.trace !== undefined && { trace: state.trace }),
+      });
+      // The event goes only to a record with the steps the build started from
+      let shown = base;
+      await this.#write(
+        state,
+        (record) => {
+          shown = record;
+          if (!sameSteps(record, base))
+            return heldOf(record, given) === "same"
+              ? { skip: true }
+              : {
+                  stop: this.#error(
+                    "VERSION_CONFLICT",
+                    "another writer added steps to the plan while these were built: none of them is recorded, and the same call builds on the plan as it is",
+                    {},
+                  ),
+                };
+          return {
+            event: { type: "steps", steps: newSteps },
+            refused: (refusal) => this.#addRefused(shown, refusal),
+          };
+        },
+        undefined,
+        ask,
+      );
+      return this;
+    });
+  }
+
+  /**
    * Drives the plan. It looks at the chain first. Then the first step that is not in a block is
    * signed if it still needs signatures, sent, and waited for; then the next one. A step is sent
    * only when every step before it is in a block. A step that was sent is sent again, the same
@@ -954,6 +1147,53 @@ export class TxPlan {
     return this.#error("INVALID_STATE", refusal.message, {
       details: { reason: "stopped" },
     });
+  }
+
+  /**
+   * INVALID_STATE for a plan that takes no more steps: (`final`) when every step is final,
+   * (`stopped`) when it is stopping or stopped
+   */
+  #refuseClosed(record: PlanRecord) {
+    if (record.status === "final")
+      throw this.#error(
+        "INVALID_STATE",
+        "the plan is final: every step of it is final, and it takes no more steps; new content is a new plan",
+        { details: { reason: "final" } },
+      );
+    if (record.status !== "pending")
+      throw this.#error(
+        "INVALID_STATE",
+        `the plan is ${record.status}: it does not go on, and takes no more steps; new content is a new plan`,
+        { details: { reason: "stopped" } },
+      );
+  }
+
+  /**
+   * The error of `add` for a refusal of its steps by the state machine, on the record it was
+   * shown: the plan came to `final` or does not go on; a refusal of the steps themselves is a
+   * fault of this code, which built them
+   */
+  #addRefused(
+    record: PlanRecord,
+    refusal: { reason: PlanRefusal; message: string },
+  ): unknown {
+    if (refusal.reason === "terminal" && record.status === "final")
+      return this.#error(
+        "INVALID_STATE",
+        `${refusal.message}: every step of it is final; new content is a new plan`,
+        { details: { reason: "final" } },
+      );
+    if (
+      refusal.reason === "terminal" ||
+      refusal.reason === "stopped" ||
+      refusal.reason === "status"
+    )
+      return this.#error(
+        "INVALID_STATE",
+        `${refusal.message}; nothing was added, and new content is a new plan`,
+        { details: { reason: "stopped" } },
+      );
+    return new Error(`the steps built were refused: ${refusal.message}`);
   }
 
   /** INVALID_STATE (`stopped`) for a plan that was stopped or replaced */
@@ -2114,6 +2354,7 @@ const objectOver = (
     builder,
     record,
     ...(signer !== undefined && { signer }),
+    ...(live.payer !== undefined && { payer: live.payer }),
     ...(live.trace !== undefined && { trace: live.trace }),
     observer: chainObserver(builder.provider, {
       timeAt: (slot) => builder.timeAt(slot),
@@ -2142,18 +2383,23 @@ const sameRecord = (a: PlanRecord, b: PlanRecord) =>
     JSON.parse(JSON.stringify(encodePlan(b))),
   );
 
-/** What makes two records of one id the same plan: its network, deadlines, options and steps */
+/**
+ * What makes two records of one id the same plan: its network, deadlines, options and the steps
+ * it was made with; steps added later are not of it
+ */
 const shapeOf = (record: PlanRecord) => {
   const json = encodePlan(record);
   return {
     network: json.network,
     deadlines: json.deadlines,
     options: json.options,
-    steps: json.steps.map((step) => ({
-      name: step.name,
-      kind: step.kind,
-      given: step.given,
-    })),
+    steps: json.steps
+      .filter((step) => step.added !== true)
+      .map((step) => ({
+        name: step.name,
+        kind: step.kind,
+        given: step.given,
+      })),
   };
 };
 
@@ -2351,12 +2597,15 @@ export const resumePlan = async (
 export const recordOf = (plan: TxPlan): PlanRecord => stateOf(plan).record;
 
 /**
- * The steps a plan given in `after` stands for: those in a block and not final, and those that
- * may still land. A final step's outputs are on chain, and a step that will not land spends and
- * makes nothing
+ * The steps a plan given in `after` stands for: those in a block and those that may still land,
+ * whole; a final step with its inputs alone, so that what it spent is never selected again, also
+ * from a read that still lists it, and what it left is taken from the payer's read, since it may
+ * be spent by now. A step that will not land spends and makes nothing
  */
 export const standingSteps = (plan: TxPlan): readonly TxStep[] =>
-  plan.steps.filter((step) => step.status !== "final" && !isDeadStep(step));
+  plan.steps
+    .filter((step) => !isDeadStep(step))
+    .map((step) => asAfter(step, step.status === "final"));
 
 /** The transactions of `after`, each plan given as the steps it stands for */
 const afterOf = (after: PlanOptions["after"]): MakePlanOptions["after"] => {

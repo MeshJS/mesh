@@ -361,10 +361,12 @@ export type BuildOptions = {
    * names an output they spend is refused with UTXO_NOT_FOUND. Their collateral inputs stay
    * selectable, since a valid transaction does not spend them. The build keeps nothing of them:
    * a transaction not given here is not known to it. A plan given here stands for its steps that
-   * are in a block and not final, or may still land: the inputs they spend are not selected, their
-   * change at this build's change address is selectable, and their outputs can be named by out
-   * ref; a plan with no such step stands for nothing. Their outputs and `knownUtxos`,
-   * not the payer's UTxOs, are what an evaluator without `acceptsKnownUtxos` is handed.
+   * are in a block, or may still land: the inputs they spend are not selected, their change at
+   * this build's change address is selectable, and their outputs can be named by out ref. A
+   * final step stands for its inputs alone: what it spent is never selected, also from a read
+   * that still lists it, and what it left is taken from the payer's read. A step that will not
+   * land stands for nothing. Their outputs and `knownUtxos`, not the payer's UTxOs, are what an
+   * evaluator without `acceptsKnownUtxos` is handed.
    */
   after?: BuiltTxData | TxPlan | readonly (BuiltTxData | TxPlan)[];
   /**
@@ -2308,8 +2310,8 @@ export class TxBuilder {
    *   leaves, unless it already spends an output of that step.
    * - Selection takes, of the outputs of earlier steps, their change only; any other output of
    *   an earlier step is spent by the part that names it.
-   * - A plan given in `after` stands for its steps that are in a block and not final, or may
-   *   still land.
+   * - A plan given in `after` stands for its steps that are in a block, or may still land; a
+   *   final step for what it spent alone.
    *
    * The plan's deadlines are its own options, else this builder's `planDefaults`, else the
    * built-in values, written into it now and never read from the builder again. On a builder with

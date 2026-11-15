@@ -247,6 +247,7 @@ describe("public entrypoint", () => {
     for (const method of [
       "sign",
       "addWitnesses",
+      "add",
       "run",
       "refresh",
       "stop",

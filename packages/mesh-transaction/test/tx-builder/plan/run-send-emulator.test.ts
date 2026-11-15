@@ -808,7 +808,7 @@ describe("a plan given in after of builder.build", () => {
     );
   });
 
-  it("stands for a step in a block and not final, and for nothing once every step is final", async () => {
+  it("stands for a step in a block and not final, and for what a final step spent alone: a read that still lists it does not get it selected", async () => {
     const { emulator, provider, builder, wallet } = await setup({
       funds: [100_000_000n],
       builder: { planDefaults: { ...FAST, confirmations: 3 } },
@@ -834,12 +834,18 @@ describe("a plan given in after of builder.build", () => {
     advance(emulator, 3);
     await plan.refresh();
     expect(plan.status).toBe("final");
-    const final = await next();
+    // The read still lists what the final step spent: without the plan it is selected, and the
+    // ledger would refuse that transaction; with the plan it is not
     const alone = await builder.build(pay(10_000_000n, baseAddress(3)), {
       payer: wallet,
     });
-    expect(final.inputs.map(ref)).toEqual(alone.inputs.map(ref));
-    expect(final.inputs.map(ref)).toEqual(step.inputs.map(ref));
+    expect(alone.inputs.map(ref)).toEqual(step.inputs.map(ref));
+    const lagging = await caught(next());
+    expect(TxBuildError.is(lagging, "INSUFFICIENT_FUNDS")).toBe(true);
+    // What the final step left is taken from the read once it shows it
+    delete provider.control.hooks.fetchAddressUTxOs;
+    const final = await next();
+    expect(final.inputs.map(ref)).toEqual(step.change.map(ref));
   });
 
   it("stands for nothing once its steps will not land", async () => {

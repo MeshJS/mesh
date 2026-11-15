@@ -199,6 +199,69 @@ describe("the record of a plan", () => {
     expect(encodePlan(throughText(replaced))).toEqual(replaced);
   });
 
+  it("writes the mark of an added step and reads it back", () => {
+    const added = accept(firstRecord(), {
+      type: "steps",
+      steps: [fixture.extra],
+    });
+    const json = encodePlan(added);
+    const e = json.steps[4]!;
+    expect(Object.keys(e).slice(0, 3)).toEqual(["name", "added", "status"]);
+    expect(e.added).toBe(true);
+    expect(json.steps.slice(0, 4).map((step) => "added" in step)).toEqual([
+      false,
+      false,
+      false,
+      false,
+    ]);
+    const read = throughText(json);
+    expect(read.steps[4]!.added).toBe(true);
+    expect(encodePlan(read)).toEqual(json);
+    // The kind comes before the mark
+    const consolidation = encodePlan(
+      accept(firstRecord(), {
+        type: "steps",
+        steps: [{ ...fixture.extra, kind: "consolidation" }],
+      }),
+    ).steps[4]!;
+    expect(Object.keys(consolidation).slice(0, 3)).toEqual([
+      "name",
+      "kind",
+      "added",
+    ]);
+
+    const refused = (change: (j: Record<string, any>) => void) => {
+      const copy = JSON.parse(JSON.stringify(json));
+      change(copy);
+      const error = (() => {
+        try {
+          readPlan(copy);
+        } catch (thrown) {
+          return thrown;
+        }
+        throw new Error("the record was read");
+      })();
+      expect(TxPlanError.is(error, "INVALID_STATE")).toBe(true);
+      expect((error as TxPlanError<"INVALID_STATE">).details.reason).toBe(
+        "recordVersion",
+      );
+      return (error as Error).message;
+    };
+    expect(refused((j) => (j.steps[4].added = "yes"))).toMatch(
+      /steps\[4\]\.added is "yes", not true/,
+    );
+    expect(refused((j) => (j.steps[4].added = false))).toMatch(/added/);
+    expect(refused((j) => (j.steps[0].added = true))).toMatch(
+      /steps\[0\]\.added is on a step of the first record/,
+    );
+    expect(
+      refused((j) => {
+        j.steps[3].added = true;
+        delete j.steps[4].added;
+      }),
+    ).toMatch(/steps\[4\]\.added is missing on a step after an added step/);
+  });
+
   it("is read only with the id it has, when an id is asked for", () => {
     const json = encodePlan(firstRecord());
     expect(readPlan(json, "order-7").id).toBe("order-7");

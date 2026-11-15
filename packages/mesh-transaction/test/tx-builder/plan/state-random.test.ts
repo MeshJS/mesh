@@ -172,6 +172,7 @@ const randomEvent = (
 const reached = new Set<string>();
 let changes = 0;
 let returns = 0;
+let appends = 0;
 
 const run = (seed: number) => {
   // The seed spread over the 32 bits, so that the first draws of small seeds differ
@@ -242,6 +243,25 @@ const run = (seed: number) => {
     check(
       after.steps.length >= before.steps.length,
       `${at}: a step was removed`,
+    );
+    // The steps the plan was made with come first, unmarked; every step appended after is marked
+    if (after.steps.length > before.steps.length) appends++;
+    after.steps.forEach((step, k) => {
+      const appended = k >= before.steps.length;
+      if (appended)
+        check(
+          step.added === true,
+          `${at}: the added step ${step.name} is not marked`,
+        );
+      if (k > 0 && after.steps[k - 1]!.added === true)
+        check(
+          step.added === true,
+          `${at}: ${step.name} has no mark and follows an added step`,
+        );
+    });
+    check(
+      after.steps[0]!.added === undefined,
+      `${at}: the first step is marked as added`,
     );
     before.steps.forEach((step, k) => {
       const now = after.steps[k]!;
@@ -345,6 +365,7 @@ describe("a plan under random events", () => {
     if (ONLY_SEED === undefined) {
       expect(changes).toBeGreaterThan(SEEDS * 5);
       expect(returns).toBeGreaterThan(0);
+      expect(appends).toBeGreaterThan(0);
       for (const status of [
         "built",
         "signed",

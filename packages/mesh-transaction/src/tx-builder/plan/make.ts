@@ -109,10 +109,25 @@ const internals = (builder: TxBuilder) =>
 const STEPS_ALLOWED =
   "one list of parts, or an object of named steps, each parts or { parts, ...options }";
 
-const invalidSteps = (reason: string, value?: unknown) =>
+/** The steps `plan.add` takes */
+const ADDED_ALLOWED =
+  "an object of named steps, each parts or { parts, ...options }";
+
+const invalidSteps = (
+  reason: string,
+  value?: unknown,
+  allowed = STEPS_ALLOWED,
+) =>
   new TxBuildError("INVALID_OPTION", `invalid steps: ${reason}`, {
-    details: { option: "steps", value, allowed: STEPS_ALLOWED },
+    details: { option: "steps", value, allowed },
   });
+
+/**
+ * INVALID_OPTION (`steps`) for steps given to `plan.add`
+ * @param value The JavaScript type of what was given, never the value
+ */
+export const invalidAddedSteps = (reason: string, value?: string) =>
+  invalidSteps(reason, value, ADDED_ALLOWED);
 
 /** The members a step given with options may have */
 const STEP_MEMBERS = new Set([
@@ -139,7 +154,7 @@ const DATA_OPTIONS = [
 ] as const;
 
 /** A step read from its given form */
-type StepInput = {
+export type StepInput = {
   readonly name: string;
   readonly parts: readonly (TxPart | LinkedPart)[];
   readonly options: StepOptions;
@@ -180,11 +195,21 @@ const readSteps = (
   options: MakePlanOptions,
 ): StepInput[] => {
   const read = readStepForms(builder, steps, options);
-  // A link names a step before it: refused here, before any request
+  checkLinks(read, []);
+  return read;
+};
+
+/**
+ * Refuses a part linked to a step that is neither one of `before` (the names of the steps the
+ * plan has) nor a step given before its own: refused before any request
+ * @throws TxBuildError INVALID_OPTION (`steps`)
+ */
+const checkLinks = (read: readonly StepInput[], before: readonly string[]) => {
   read.forEach((step, index) => {
     for (const part of step.parts) {
       if (!isLinkedPart(part)) continue;
       const named = part.link.step;
+      if (before.includes(named)) continue;
       if (read.slice(0, index).some((each) => each.name === named)) continue;
       throw withStep(
         invalidSteps(
@@ -196,7 +221,6 @@ const readSteps = (
       );
     }
   });
-  return read;
 };
 
 /** The steps as given, in their forms, read in order; their links are not read here */
@@ -424,7 +448,7 @@ const fillOne = (part: LinkedPart, output: BuiltOutput): TxPart => {
 const fillLinks = (
   parts: readonly (TxPart | LinkedPart)[],
   name: string,
-  earlier: readonly MadeStep[],
+  earlier: readonly Pick<MadeStep, "name" | "built">[],
   later: readonly string[],
 ): TxPart[] =>
   parts.flatMap((part) => {
@@ -476,9 +500,9 @@ const standsOnTx = (part: TxPart, txHash: string) =>
  */
 const changeToSpend = (
   parts: readonly TxPart[],
-  previous: MadeStep | undefined,
+  previous: Pick<MadeStep, "name" | "built"> | undefined,
   changeAddress: string,
-  earlier: readonly MadeStep[],
+  earlier: readonly Pick<MadeStep, "name" | "built">[],
   canSelect: ((utxo: Utxo) => boolean) | undefined,
 ): Utxo | { readonly none: string } | undefined => {
   if (previous === undefined) return undefined;
@@ -629,13 +653,64 @@ const planOptionsOf = (
   }),
 });
 
-/** The step as its record holds it given: its parts, links kept, and its data options */
-const givenOf = (step: StepInput, changeAddress: string): StepGiven => {
+/**
+ * The step as its record holds it given: its parts, links kept, and its data options, with the
+ * change address of its own payer when it has one
+ */
+const givenOf = (step: StepInput, changeAddress?: string): StepGiven => {
   const data = dataOptions(
     step.options,
     step.options.payer === undefined ? undefined : changeAddress,
   );
   return { parts: step.parts, ...(data !== undefined && { options: data }) };
+};
+
+/** The change address of a payer, asked once for each payer, its form and network checked */
+export type AddressOf = (payer: Payer) => Promise<string>;
+
+/**
+ * A book of change addresses: each payer is asked once, an address or a snapshot without a
+ * request, a wallet by `getChangeAddress`; no UTxO is read
+ * @throws TxBuildError INVALID_OPTION for a payer of no known form; NETWORK_MISMATCH for a payer
+ *   given with another network's address; WALLET_FAILED
+ */
+export const addressBook = (builder: TxBuilder): AddressOf => {
+  const addresses = new Map<Payer, string>();
+  return async (payer) => {
+    let address = addresses.get(payer);
+    if (address === undefined) {
+      const source = toPayerSource(payer);
+      checkNetworks(builder.network, givenPayerEntries(source));
+      address = await changeAddressOf(source);
+      addresses.set(payer, address);
+    }
+    return address;
+  };
+};
+
+/** A step's name and how its record holds it given */
+export type GivenStep = { readonly name: string; readonly given: StepGiven };
+
+/**
+ * Each step's name and how its record holds it given, worked out without building: a step with
+ * a payer of its own has that payer asked for its change address, and no other payer is asked
+ */
+const givenSteps = async (
+  read: readonly StepInput[],
+  addressOf: AddressOf,
+): Promise<GivenStep[]> => {
+  const out: GivenStep[] = [];
+  for (const step of read) {
+    const own = step.options.payer;
+    out.push({
+      name: step.name,
+      given: givenOf(
+        step,
+        own === undefined ? undefined : await addressOf(own),
+      ),
+    });
+  }
+  return out;
 };
 
 /**
@@ -680,33 +755,20 @@ export const orderOf = async (
   options: MakePlanOptions = {},
 ): Promise<PlanOrder> => {
   const given = readSteps(builder, steps, options);
-  const addresses = new Map<Payer, string>();
-  const addressOf = async (payer: Payer | undefined, name?: string) => {
+  const addressOf = addressBook(builder);
+  // The deadlines are checked as `makePlan` checks them
+  effectiveDeadlines(options, builder.planDefaults);
+  // Every step has a payer, the payers asked in the order of the steps
+  for (const step of given) {
+    const payer = step.options.payer ?? options.payer;
     if (payer === undefined)
       throw new TxBuildError(
         "MISSING_PAYER",
-        `step ${JSON.stringify(name)}: no payer: give the plan a payer, or the step its own`,
+        `step ${JSON.stringify(step.name)}: no payer: give the plan a payer, or the step its own`,
       );
-    let address = addresses.get(payer);
-    if (address === undefined) {
-      const source = toPayerSource(payer);
-      checkNetworks(builder.network, givenPayerEntries(source));
-      address = await changeAddressOf(source);
-      addresses.set(payer, address);
-    }
-    return address;
-  };
-  // The deadlines are checked as `makePlan` checks them
-  effectiveDeadlines(options, builder.planDefaults);
-  const out: { name: string; given: StepGiven }[] = [];
-  for (const step of given)
-    out.push({
-      name: step.name,
-      given: givenOf(
-        step,
-        await addressOf(step.options.payer ?? options.payer, step.name),
-      ),
-    });
+    await addressOf(payer);
+  }
+  const out = await givenSteps(given, addressOf);
   return {
     network: recordNetwork(builder),
     deadlines: {
@@ -734,7 +796,7 @@ export const orderOf = async (
 const sourceBefore = (
   before: readonly BuiltTxData[],
   after: readonly string[],
-  made: readonly MadeStep[],
+  made: readonly Pick<MadeStep, "built">[],
 ): string | undefined => {
   const byHash = new Map(before.map((tx) => [tx.txHash.toLowerCase(), tx]));
   const steps = new Set(made.map((each) => each.built.txHash.toLowerCase()));
@@ -751,6 +813,167 @@ const sourceBefore = (
     }
   }
   return undefined;
+};
+
+/**
+ * The steps given to `plan.add`, read as `builder.plan` reads named steps: names, members,
+ * flattening, a builder that holds parts. Their links are not read here
+ * @throws TxBuildError INVALID_OPTION (`steps`) for one list of parts, one part, a text, a
+ *   transaction built before, or anything but an object of named steps, with the JavaScript type
+ *   in `details.value`; for all that `builder.plan` refuses of named steps
+ */
+export const readAddedSteps = (
+  builder: TxBuilder,
+  steps: unknown,
+): StepInput[] => {
+  if (!isObject(steps) || isOnePart(steps) || isBuiltTransaction(steps))
+    throw invalidAddedSteps(
+      Array.isArray(steps) || isOnePart(steps)
+        ? "one list of parts is the step main of a new plan; steps are added by name, { name: parts }"
+        : `expected ${ADDED_ALLOWED}`,
+      typeof steps,
+    );
+  if (Object.keys(steps).length === 0)
+    throw invalidAddedSteps("no step is given", typeof steps);
+  return readStepForms(builder, steps, {});
+};
+
+/**
+ * Each step's name and how a record holds it given, as `orderOf` works it out: a step with a
+ * payer of its own has that payer asked for its change address, once for each payer; no other
+ * payer is asked, and no UTxO is read
+ */
+export const givenOfSteps = (
+  read: readonly StepInput[],
+  addressOf: AddressOf,
+): Promise<GivenStep[]> => givenSteps(read, addressOf);
+
+/**
+ * Checks steps to append to a plan that has the steps of `recorded`: each link names a step of
+ * the plan or a step given before its own, and the plan has at most `MAX_STEPS` steps after
+ * them. No request is made
+ * @throws TxBuildError INVALID_OPTION (`steps`)
+ */
+export const checkAddedSteps = (
+  read: readonly StepInput[],
+  recorded: readonly string[],
+) => {
+  checkLinks(read, recorded);
+  if (recorded.length + read.length > MAX_STEPS)
+    throw invalidAddedSteps(
+      `a plan has at most ${MAX_STEPS} steps: it has ${recorded.length}, and ${read.length} are given`,
+    );
+};
+
+/**
+ * The payer of the steps given to `plan.add` that name none: the payer the object holds, only
+ * while its change address is the one the plan records; undefined when every step has its own.
+ * It is asked for its change address alone
+ * @throws TxBuildError MISSING_PAYER when a step names no payer and the object holds none, the
+ *   plan records no change address, or the payer held has another change address; what
+ *   `addressBook` throws
+ */
+export const payerOfAdded = async (
+  record: PlanRecord,
+  held: Payer | undefined,
+  read: readonly StepInput[],
+  addressOf: AddressOf,
+): Promise<Payer | undefined> => {
+  const without = read.find((step) => step.options.payer === undefined);
+  if (without === undefined) return undefined;
+  const recorded = record.options.changeAddress;
+  const missing = (why: string) =>
+    new TxBuildError(
+      "MISSING_PAYER",
+      `step ${JSON.stringify(without.name)}: no payer: ${why}; give the step its own payer, { parts, payer }, or resume the plan with its payer`,
+    );
+  if (held === undefined)
+    throw missing("the step names none, and this object holds no payer");
+  if (typeof recorded !== "string")
+    throw missing(
+      "the step names none, and the plan records no payer of its own",
+    );
+  if ((await addressOf(held)) !== recorded)
+    throw missing(
+      "the step names none, and the payer this object holds has another change address than the plan's",
+    );
+  return held;
+};
+
+/**
+ * Builds the steps given to `plan.add` on the plan as `base` records it: each payer is read
+ * once; each step is built after every step of the plan and the steps of the call before it, in
+ * the one loop of `makePlan`. The data options the plan records apply, unless the step has its
+ * own; `canSelect` and `coinSelection` only as a step gives them. A step whose parts give no end
+ * ends at the tip plus the plan's `ttlMs`
+ * @throws as the build of a step throws, with the step's name at the start of its message
+ */
+export const buildAddedSteps = async (
+  builder: TxBuilder,
+  base: PlanRecord,
+  read: readonly StepInput[],
+  context: {
+    readonly payer?: Payer;
+    readonly tip: PlanTip;
+    readonly signal?: AbortSignal;
+    readonly trace?: MakePlanOptions["trace"];
+  },
+): Promise<NewStep[]> => {
+  const { signal, trace } = context;
+  const payerOf = (step: StepInput) => step.options.payer ?? context.payer;
+  const payers: Payer[] = [];
+  for (const step of read) {
+    const payer = payerOf(step);
+    // The payer of every step was worked out before: a fault of this code otherwise
+    if (payer === undefined)
+      throw new Error(`step ${JSON.stringify(step.name)} has no payer`);
+    if (!payers.includes(payer)) payers.push(payer);
+  }
+  const reads = await Promise.all(
+    payers.map((payer) => internals(builder).readGivenPayer(payer, signal)),
+  );
+  const recorded = base.options;
+  const planAddress =
+    typeof recorded.changeAddress === "string"
+      ? recorded.changeAddress
+      : undefined;
+  const made = await buildSteps(builder, read, {
+    before: base.steps.map((step) => {
+      const own = step.given?.options?.changeAddress;
+      const changeAddress = typeof own === "string" ? own : planAddress;
+      return {
+        name: step.name,
+        built: step.built,
+        ...(changeAddress !== undefined && { changeAddress }),
+        final: step.status === "final",
+      };
+    }),
+    after: [],
+    tip: context.tip,
+    ttlMs: base.deadlines.ttlMs,
+    ...(base.id !== undefined && { planId: base.id }),
+    options: {
+      ...(recorded.knownUtxos !== undefined && {
+        knownUtxos: recorded.knownUtxos as Utxo[],
+      }),
+      ...(recorded.registeredPools !== undefined && {
+        registeredPools: recorded.registeredPools as string[],
+      }),
+      ...(recorded.extraKeyWitnesses !== undefined && {
+        extraKeyWitnesses: recorded.extraKeyWitnesses as number,
+      }),
+      ...(recorded.topUpCollateral !== undefined && {
+        topUpCollateral: recorded.topUpCollateral as boolean,
+      }),
+      ...(recorded.collateralReturn !== undefined && {
+        collateralReturn: recorded.collateralReturn as boolean,
+      }),
+      ...(signal !== undefined && { signal }),
+      ...(trace !== undefined && { trace }),
+    },
+    readOf: (step) => reads[payers.indexOf(payerOf(step)!)]!,
+  });
+  return made.map(newStepOf);
 };
 
 /**
@@ -783,7 +1006,7 @@ export const makePlan = async (
 ): Promise<MadePlan> => {
   const given = readSteps(builder, steps, options);
   const deadlines = effectiveDeadlines(options, builder.planDefaults);
-  const { id, signal, trace } = options;
+  const { id, signal } = options;
 
   const observed = await chainObserver(builder.provider).tip();
   if (observed === undefined)
@@ -816,17 +1039,109 @@ export const makePlan = async (
   const reads = await Promise.all(
     payers.map((payer) => internals(builder).readGivenPayer(payer, signal)),
   );
-  const readOf = (step: StepInput) => reads[payers.indexOf(payerOf(step)!)]!;
 
-  const before: readonly BuiltTxData[] =
-    options.after === undefined
-      ? []
-      : Array.isArray(options.after)
-        ? (options.after as readonly BuiltTxData[])
-        : [options.after as BuiltTxData];
+  const made = await buildSteps(builder, given, {
+    before: [],
+    after:
+      options.after === undefined
+        ? []
+        : Array.isArray(options.after)
+          ? (options.after as readonly BuiltTxData[])
+          : [options.after as BuiltTxData],
+    tip,
+    ttlMs: deadlines.ttlMs,
+    ...(id !== undefined && { planId: id }),
+    options,
+    readOf: (step) => reads[payers.indexOf(payerOf(step)!)]!,
+  });
+
+  const planPayer =
+    options.payer === undefined
+      ? undefined
+      : reads[payers.indexOf(options.payer)];
+  const planOptions = planOptionsOf(options, planPayer?.snapshot.changeAddress);
+  const first = advancePlan(
+    emptyPlan({
+      ...(id !== undefined && { id }),
+      network: recordNetwork(builder),
+      deadlines,
+      options: planOptions,
+    }),
+    { type: "steps", steps: made.map(newStepOf) },
+  );
+  // The steps are built here, so the state machine refusing them is a fault of this code
+  if (!first.ok)
+    throw new Error(`the plan's first record was refused: ${first.message}`);
+  return {
+    steps: made,
+    record: first.json,
+    tip,
+    ...(planUntil(first.json) !== undefined && {
+      until: planUntil(first.json),
+    }),
+  };
+};
+
+/** A step built before those a loop builds: a step of the plan, or one the loop built */
+type StepBefore = {
+  readonly name: string;
+  readonly built: BuiltTxData;
+  /** The change address of its payer; undefined when the record holds none */
+  readonly changeAddress?: string;
+  /** It is final: its outputs may be spent by now */
+  readonly final: boolean;
+};
+
+/**
+ * A transaction of `after` of a build: a step as it is, and a final step with its inputs alone,
+ * so that what it spent is never selected, named or put up, and what it left is taken from the
+ * payer's read, since it may be spent by now
+ */
+export const asAfter = <T extends BuiltTxData>(built: T, final: boolean): T =>
+  final ? { ...built, outputs: [], change: [] } : built;
+
+/** The options of a plan a loop builds every step with, unless the step has its own */
+type LoopOptions = Pick<
+  MakePlanOptions,
+  | "canSelect"
+  | "coinSelection"
+  | "registeredPools"
+  | "extraKeyWitnesses"
+  | "topUpCollateral"
+  | "collateralReturn"
+  | "knownUtxos"
+  | "signal"
+  | "trace"
+>;
+
+/**
+ * Builds steps in order, each on its payer's UTxOs as the steps before it leave them: the
+ * steps of the plan (`before`), then those this loop built. A part linked to a step before it is
+ * filled in from that step's transaction; a step spends the change of the nearest step before it
+ * of its payer, told by the change address, unless that step is final or the parts spend an
+ * output of it already; a step whose parts give no end of validity ends at the tip's time plus
+ * `ttlMs`. Each build is given `after` (the transactions of `after`, then every step before it,
+ * a final one with its inputs alone), so that nothing a step before it spends is selected again
+ * @throws as `makePlan` throws of building its steps, each error with the step's name at the
+ *   start of its message
+ */
+const buildSteps = async (
+  builder: TxBuilder,
+  given: readonly StepInput[],
+  context: {
+    readonly before: readonly StepBefore[];
+    readonly after: readonly BuiltTxData[];
+    readonly tip: PlanTip;
+    readonly ttlMs: number;
+    readonly planId?: string;
+    readonly options: LoopOptions;
+    readonly readOf: (step: StepInput) => PayerRead;
+  },
+): Promise<MadeStep[]> => {
+  const { after: before, tip, ttlMs, planId, options, readOf } = context;
+  const { signal, trace } = options;
   const made: MadeStep[] = [];
-  /** The change address each step was built for */
-  const owner = new Map<string, string>();
+  const all: StepBefore[] = [...context.before];
   for (const [index, step] of given.entries()) {
     const { name } = step;
     const own = step.options;
@@ -836,18 +1151,20 @@ export const makePlan = async (
       const filled = fillLinks(
         step.parts,
         name,
-        made,
+        all,
         given.slice(index + 1).map((each) => each.name),
       );
-      // The step before it of the same payer, told by the change address
-      const previous = [...made]
+      // The step before it of the same payer, told by the change address; a final one is on
+      // chain, and the ledger keeps nothing in order after it
+      const nearest = [...all]
         .reverse()
-        .find((each) => owner.get(each.name) === changeAddress);
+        .find((each) => each.changeAddress === changeAddress);
+      const previous = nearest?.final === true ? undefined : nearest;
       const found = changeToSpend(
         filled,
         previous,
         changeAddress,
-        made,
+        all,
         own.canSelect ?? options.canSelect,
       );
       // The steps of one payer form a chain the ledger keeps in order: a step stands on the
@@ -867,9 +1184,9 @@ export const makePlan = async (
           ? filled
           : [...filled, spend.pubKey({ utxo: change })],
         tip,
-        deadlines.ttlMs,
+        ttlMs,
         name,
-        id,
+        planId,
       );
       const built = await internals(builder).buildList(
         {
@@ -892,18 +1209,20 @@ export const makePlan = async (
           }),
           ...(signal !== undefined && { signal }),
           ...(trace !== undefined && { trace }),
-          after: [...before, ...made.map((each) => each.built)],
+          after: [
+            ...before,
+            ...all.map((each) => asAfter(each.built, each.final)),
+          ],
         },
       );
       const extraKeyWitnesses =
         own.extraKeyWitnesses ?? options.extraKeyWitnesses ?? 0;
-      owner.set(name, changeAddress);
       const sources = new Set(sourcesOf(built));
       const after = before
         .map((tx) => tx.txHash)
         .filter(
-          (txHash, i, all) =>
-            sources.has(txHash.toLowerCase()) && all.indexOf(txHash) === i,
+          (txHash, i, list) =>
+            sources.has(txHash.toLowerCase()) && list.indexOf(txHash) === i,
         );
       // A step every input of which comes from a transaction of `after` is shown expired by a
       // search that finds a transaction before them: an input's source that is none of them
@@ -915,64 +1234,43 @@ export const makePlan = async (
             (txHash) => txHash.toLowerCase() === input.txHash.toLowerCase(),
           ),
         )
-          ? sourceBefore(before, after, made)
+          ? sourceBefore(before, after, all)
           : undefined;
-      made.push({
+      const next: MadeStep = {
         name,
         built,
         standsOn: standsOnOf(
           built,
-          made.map((each) => ({ name: each.name, txHash: each.built.txHash })),
+          all.map((each) => ({ name: each.name, txHash: each.built.txHash })),
         ),
         ...(after.length > 0 && { after }),
         ...(expirySource !== undefined && { expirySource }),
         given: givenOf(step, changeAddress),
         ...(extraKeyWitnesses > 0 && { extraKeyWitnesses }),
-      });
+      };
+      made.push(next);
+      all.push({ name, built, changeAddress, final: false });
     } catch (error) {
       throw withStep(error, name);
     }
   }
-
-  const planPayer =
-    options.payer === undefined
-      ? undefined
-      : reads[payers.indexOf(options.payer)];
-  const planOptions = planOptionsOf(options, planPayer?.snapshot.changeAddress);
-  const newSteps: NewStep[] = made.map((step) => ({
-    name: step.name,
-    built: step.built,
-    standsOn: step.standsOn,
-    ...(step.after !== undefined && { after: step.after }),
-    ...(step.expirySource !== undefined && {
-      expirySource: step.expirySource,
-    }),
-    given: step.given,
-    ...(step.extraKeyWitnesses !== undefined && {
-      extraKeyWitnesses: step.extraKeyWitnesses,
-    }),
-  }));
-  const first = advancePlan(
-    emptyPlan({
-      ...(id !== undefined && { id }),
-      network: recordNetwork(builder),
-      deadlines,
-      options: planOptions,
-    }),
-    { type: "steps", steps: newSteps },
-  );
-  // The steps are built here, so the state machine refusing them is a fault of this code
-  if (!first.ok)
-    throw new Error(`the plan's first record was refused: ${first.message}`);
-  return {
-    steps: made,
-    record: first.json,
-    tip,
-    ...(planUntil(first.json) !== undefined && {
-      until: planUntil(first.json),
-    }),
-  };
+  return made;
 };
+
+/** A step built, as the event that appends it takes it: the first record's and `add`'s */
+const newStepOf = (step: MadeStep): NewStep => ({
+  name: step.name,
+  built: step.built,
+  standsOn: step.standsOn,
+  ...(step.after !== undefined && { after: step.after }),
+  ...(step.expirySource !== undefined && {
+    expirySource: step.expirySource,
+  }),
+  given: step.given,
+  ...(step.extraKeyWitnesses !== undefined && {
+    extraKeyWitnesses: step.extraKeyWitnesses,
+  }),
+});
 
 /** The option of the step when it has one, else the plan's, as a member to spread */
 const pick = <K extends keyof StepOptions>(

@@ -14,8 +14,8 @@ import type { RequiredKey } from "../witnesses";
 export type PlanDeadlines = {
   /**
    * The validity of a step whose parts set no `until`, in ms: it ends at
-   * `max(tip time, from) + ttlMs`, the tip read once when the plan is made, which is also the
-   * time left to sign it. Above 0; 600 000 when neither the plan nor the builder gives one. A
+   * `max(tip time, from) + ttlMs`, the tip read once when the plan is made (for a step `add`
+   * adds, once by that call), which is also the time left to sign it. Above 0; 600 000 when neither the plan nor the builder gives one. A
    * step that runs a Plutus script may not end past the network's forecast horizon
    * (`INVALID_STATE`, `pastHorizon`).
    */
@@ -96,7 +96,8 @@ export type PlanOptions = Omit<BuildOptions, "after"> &
     id?: string;
     /**
      * Transactions built before this plan and not yet seen by the provider, as for `build`. A
-     * plan given here stands for its steps that are in a block and not final, or may still land
+     * plan given here stands for its steps that may still land or are in a block; a final step
+     * stands for what it spent alone, and what it left is taken from the payer's read
      */
     after?: BuildOptions["after"];
   };
@@ -106,7 +107,10 @@ export type PlanOptions = Omit<BuildOptions, "after"> &
  * none of them is written into the record
  */
 export type ResumeOptions = {
-  /** Signs when a call names no signer, when it can sign; it is kept for nothing else */
+  /**
+   * Signs when a call names no signer, when it can sign. Pays the steps `add` builds that name
+   * no payer, when its change address is the plan's
+   */
   payer?: Payer;
   /** Gets the warnings of the plan; never recorded */
   trace?: (event: BuildEvent) => void;
@@ -229,6 +233,8 @@ export type TxStep = Readonly<BuiltTxData> & {
 export type TxStepJSON = {
   readonly name: string;
   readonly kind?: "consolidation";
+  /** The library's: the step was added to the plan after it was made; absent otherwise */
+  readonly added?: true;
   readonly status: TxStepStatus;
   readonly txHash: string;
   /** The block it was last found in; kept when a rollback takes it out of the block */
