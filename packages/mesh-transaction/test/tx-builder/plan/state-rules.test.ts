@@ -8,6 +8,7 @@ import {
   advancePlan,
   landedSteps,
   liveSteps,
+  MAX_STEPS,
   missingKeys,
   planUntil,
   TIP_AHEAD_TOLERANCE_MS,
@@ -994,6 +995,28 @@ describe("appending steps", () => {
     expect(accept(json, { type: "steps", steps })).toBe(json);
     expect(
       refusal(json, { type: "steps", steps: [steps[1]!, chainStep("c", 2)] }),
+    ).toBe("steps");
+  });
+
+  it("refuses steps that would give the plan more than the steps a plan may have", () => {
+    const named = (i: number): NewStep => ({
+      ...chainStep(`s${i}`, i),
+      standsOn: i === 0 ? [] : [`s${i - 1}`],
+    });
+    const steps = Array.from({ length: MAX_STEPS }, (_, i) => named(i));
+    const full = planOf(steps);
+    expect(full.steps).toHaveLength(MAX_STEPS);
+    const one = named(MAX_STEPS);
+    expect(refusal(full, { type: "steps", steps: [one] })).toBe("steps");
+    const json = planOf(steps.slice(0, MAX_STEPS - 1));
+    expect(
+      refusal(json, { type: "steps", steps: [steps[MAX_STEPS - 1]!, one] }),
+    ).toBe("steps");
+    expect(
+      accept(json, { type: "steps", steps: [steps[MAX_STEPS - 1]!] }).steps,
+    ).toHaveLength(MAX_STEPS);
+    expect(
+      refusal(emptyPlan(), { type: "steps", steps: [...steps, one] }),
     ).toBe("steps");
   });
 

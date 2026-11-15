@@ -1,14 +1,24 @@
+import { mConStr0 } from "@meshsdk/core";
+
 import type {
   StoredTxPlanJSON,
   TxBuilderOptions,
   TxPlan,
 } from "../../../src/tx-builder";
 import type { WatchedStore } from "./store-util";
-import { TxError } from "../../../src/tx-builder";
+import {
+  spend,
+  TxBuildError,
+  TxError,
+  TxPlanError,
+} from "../../../src/tx-builder";
+import { MAX_STEPS } from "../../../src/tx-builder/plan/make";
+import { alwaysSucceedCbor } from "../../test-util";
 import {
   builderOf,
   caught,
   FAST,
+  forwarding,
   hashOf,
   pay,
   reasonOf,
@@ -18,11 +28,13 @@ import {
   swallowing,
   wrap,
 } from "./plan-emulator-util";
-import { ADA, alice, bob, paidTo, payTo } from "./run-util";
+import { ADA, alice, bob, paidTo, payTo, stepSetup } from "./run-util";
 import { stored, watchStore } from "./store-util";
 
 // Steps added to a plan kept in a store: two objects that add at once, a stop written during the
 // build, a write whose answer was lost, and the id of a plan that took steps.
+
+const plutus = { code: alwaysSucceedCbor, version: "V3" as const };
 
 const expectCode = (error: unknown, code: string) => {
   expect(TxError.is(error)).toBe(true);
@@ -98,6 +110,34 @@ const names = (plan: TxPlan | StoredTxPlanJSON) =>
 
 /** A save that holds two steps or more: the write of an add */
 const adding = (json: StoredTxPlanJSON) => json.steps.length > 1;
+
+/** Holds up the first read of the tip through a provider, inside the look of a call */
+const holdTip = (provider: ReturnType<typeof wrap>) => {
+  const held = gate();
+  provider.control.hooks.fetchLatestBlock = async (
+    forward,
+    ...args: unknown[]
+  ) => {
+    delete provider.control.hooks.fetchLatestBlock;
+    await held.pass();
+    return forward(...args);
+  };
+  return held;
+};
+
+/** Holds up the first read of the UTxOs through a provider: the payer's read of a build */
+const holdRead = (provider: ReturnType<typeof wrap>) => {
+  const held = gate();
+  provider.control.hooks.fetchAddressUTxOs = async (
+    forward,
+    ...args: unknown[]
+  ) => {
+    delete provider.control.hooks.fetchAddressUTxOs;
+    await held.pass();
+    return forward(...args);
+  };
+  return held;
+};
 
 describe("two objects that add steps to one plan", () => {
   it("records exactly one of two objects adding different steps at once; the other is VERSION_CONFLICT, and its steps are in no record", async () => {
@@ -210,6 +250,132 @@ describe("two objects that add steps to one plan", () => {
     expect(names(await stored(store, "pay"))).toEqual(["main"]);
     expect(names(a)).toEqual(["main"]);
     expect(a.toJSON().stopped).toBe(true);
+  });
+});
+
+describe("a record another writer changed during the look", () => {
+  it("returns the plan when another object added the same steps while this one looked", async () => {
+    const { builder, wallet, instance, store, emulator } = await storeSetup({
+      planDefaults: { ...FAST, confirmations: 3 },
+    });
+    const first = await builder.plan(pay(), { id: "pay", payer: wallet });
+    // main lands: the look of each object writes what it shows
+    await first.run({ waitFor: "sent", submitter: forwarding(emulator) });
+    const one = instance();
+    const two = instance();
+    const a = await one.builder.resume("pay", { payer: wallet });
+    const b = await two.builder.resume("pay", { payer: wallet });
+    const held = holdTip(one.provider);
+    const late = a.add({ x: payTo(alice, 5n * ADA) });
+    await held.reached;
+    await b.add({ x: payTo(alice, 5n * ADA) });
+    held.open();
+    expect(await late).toBe(a);
+    // Nothing was built on the record the look took
+    expect(one.provider.control.count("fetchAddressUTxOs")).toBe(0);
+    const record = await stored(store, "pay");
+    expect(names(record)).toEqual(["main", "x"]);
+    expect(a.step("x").txHash).toBe(record.steps[1]!.txHash);
+    expect(a.toJSON()).toStrictEqual(record);
+  });
+
+  it("refuses steps that would pass the limit of a plan with the steps another object added while this one looked", async () => {
+    const { builder, wallet, instance, store, emulator } = await storeSetup({
+      planDefaults: { ...FAST, confirmations: 3 },
+    });
+    const first = await builder.plan(pay(), { id: "pay", payer: wallet });
+    await first.run({ waitFor: "sent", submitter: forwarding(emulator) });
+    const one = instance();
+    const two = instance();
+    const a = await one.builder.resume("pay", { payer: wallet });
+    const b = await two.builder.resume("pay", { payer: wallet });
+    const many = Object.fromEntries(
+      Array.from({ length: MAX_STEPS - 1 }, (_, i) => [
+        `s${i}`,
+        payTo(alice, 2n * ADA),
+      ]),
+    );
+    const held = holdTip(one.provider);
+    const late = caught(a.add(many));
+    await held.reached;
+    await b.add({ y: payTo(bob, 3n * ADA) });
+    held.open();
+    const error = await late;
+    expect(TxBuildError.is(error, "INVALID_OPTION")).toBe(true);
+    expect(error.details).toMatchObject({ option: "steps" });
+    expect(error.message).toMatch(/at most 32 steps: it has 2, and 31/);
+    expect(one.provider.control.count("fetchAddressUTxOs")).toBe(0);
+    const record = await stored(store, "pay");
+    expect(names(record)).toEqual(["main", "y"]);
+    expect(names(a)).toEqual(["main", "y"]);
+  });
+
+  it("is INVALID_STATE (final) for a plan another object saw come to final during the build", async () => {
+    const { builder, wallet, instance, store, emulator } = await storeSetup();
+    const plan = await builder.plan(pay(), { id: "pay", payer: wallet });
+    const sink = swallowing();
+    await plan.run({ submitter: sink, waitFor: "sent" });
+    const one = instance();
+    const a = await one.builder.resume("pay", { payer: wallet });
+    const read = holdRead(one.provider);
+    const adding = caught(a.add({ x: payTo(alice, 5n * ADA) }));
+    await read.reached;
+    await emulator.submitTx(sink.calls[0]!);
+    await plan.refresh();
+    expect(plan.status).toBe("final");
+    read.open();
+    const error = await adding;
+    expectCode(error, "INVALID_STATE");
+    expect(reasonOf(error)).toBe("final");
+    expect(error.message).toMatch(/every step of it is final/);
+    expect(names(await stored(store, "pay"))).toEqual(["main"]);
+    expect(names(a)).toEqual(["main"]);
+  });
+
+  it("owes the probe for a plan whose first record lost to the same id, extended meanwhile", async () => {
+    const store = watchStore();
+    const { emulator, provider, builder, wallet } = await stepSetup("scalus", {
+      builder: { store, planDefaults: { ...FAST, confirmations: 3 } },
+      hooks: {
+        fetchTxInfo: async (forward, hash: string) => {
+          const { validContract: _valid, ...info } = await forward(hash);
+          return info;
+        },
+      },
+    });
+    const plan = await builder.plan(
+      { a: payTo(alice, 5n * ADA) },
+      { id: "pay", payer: wallet },
+    );
+    const locked = emulator.fund(builder.scriptAddress(plutus), {
+      lovelace: 10n * ADA,
+    });
+    await plan.add({
+      b: [
+        spend.plutus({
+          utxo: locked,
+          script: plutus,
+          redeemer: { data: mConStr0([]) },
+        }),
+        payTo(bob, 4n * ADA),
+      ],
+    });
+    // The same id made again, by a process whose read of the store came before the record: its
+    // first write is refused, and the stored plan, with its Plutus step, is the one returned
+    store.hooks.load = async () => {
+      delete store.hooks.load;
+      return undefined;
+    };
+    const again = await builder.plan(
+      { a: payTo(alice, 5n * ADA) },
+      { id: "pay", payer: wallet },
+    );
+    expect(names(again)).toEqual(["a", "b"]);
+    const sent = provider.control.count("submitTx");
+    const error = await caught(again.run());
+    expect(TxPlanError.is(error, "CANNOT_OBSERVE")).toBe(true);
+    expect(reasonOf(error)).toBe("noValidity");
+    expect(provider.control.count("submitTx")).toBe(sent);
   });
 });
 

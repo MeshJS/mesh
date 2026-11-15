@@ -44,6 +44,7 @@ import { buildConsolidation, isConsolidable } from "./consolidate";
 import {
   advancePlan,
   emptyPlan,
+  MAX_STEPS,
   planUntil,
   sourcesOf,
   standsOnOf,
@@ -94,8 +95,8 @@ export type MadePlan = {
 /** The name of the step of a plan given as one list of parts */
 export const MAIN_STEP = "main";
 
-/** The most steps a plan may have */
-export const MAX_STEPS = 32;
+/** The most steps a plan may have, as the state machine counts them */
+export { MAX_STEPS };
 
 /** The start of the names the plan gives the steps it puts in itself */
 const RESERVED_PREFIX = "consolidate-";

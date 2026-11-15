@@ -16,6 +16,9 @@ import type { TxPlanStatus, TxStepStatus } from "./types";
 /** The record format this library writes */
 export const PLAN_RECORD_VERSION = 2;
 
+/** The most steps a plan may have */
+export const MAX_STEPS = 32;
+
 /** The step as the application gave it: its parts, links kept as links, and its data options */
 export type StepGiven = {
   readonly parts: readonly (TxPart | LinkedPart)[];
@@ -608,6 +611,11 @@ const append = (json: PlanRecord, event: EventOf<"steps">): PlanAdvanced => {
     return refuse(
       "status",
       `the plan is ${json.status}: steps are appended only to a plan that may still complete`,
+    );
+  if (json.steps.length + given.length > MAX_STEPS)
+    return refuse(
+      "steps",
+      `a plan has at most ${MAX_STEPS} steps: it has ${json.steps.length}, and ${given.length} are given`,
     );
   const steps = [...json.steps];
   // The steps of the first record are those the plan was made with; any later one is marked

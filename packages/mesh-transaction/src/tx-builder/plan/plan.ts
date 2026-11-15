@@ -860,21 +860,35 @@ export class TxPlan {
         signal,
         CALL,
       );
-      const held = heldOf(state.record, given);
-      if (held === "same") return this;
-      if (held !== "new") throw invalidAddedSteps(held.refused);
-      checkAddedSteps(
-        read,
-        state.record.steps.map((step) => step.name),
-      );
-      const payer = await abortable(
-        payerOfAdded(state.record, state.payer, read, addressOf),
-        signal,
-        CALL,
-      );
+      /**
+       * The steps judged against a record: undefined when it has them all, else their links, the
+       * limit of steps, and the payer of the steps that name none
+       */
+      const judge = async (record: PlanRecord) => {
+        const held = heldOf(record, given);
+        if (held === "same") return undefined;
+        if (held !== "new") throw invalidAddedSteps(held.refused);
+        checkAddedSteps(
+          read,
+          record.steps.map((step) => step.name),
+        );
+        const payer = await abortable(
+          payerOfAdded(record, state.payer, read, addressOf),
+          signal,
+          CALL,
+        );
+        return { payer };
+      };
+      if ((await judge(state.record)) === undefined) return this;
       // The statuses are what the chain shows before anything is built on them
       const seen = await this.#look(state, ask);
-      this.#refuseClosed(state.record);
+      // The look may have taken a record another writer extended: the build starts from it, so
+      // the steps are judged on it again
+      const base = state.record;
+      const judged = await judge(base);
+      if (judged === undefined) return this;
+      const { payer } = judged;
+      this.#refuseClosed(base);
       const { tip } = seen;
       if (tip === undefined)
         throw this.#error(
@@ -882,7 +896,6 @@ export class TxPlan {
           "the provider did not give the chain's tip (fetchLatestBlock), which the end of validity of an added step is counted from: nothing was built or added",
           { details: { reason: "noTip" } },
         );
-      const base = state.record;
       const newSteps = await buildAddedSteps(builder, base, read, {
         ...(payer !== undefined && { payer }),
         tip,
@@ -2509,7 +2522,8 @@ export const createPlan = async (
       `the store holds the plan ${id} with other steps or options: an id names one plan, whose steps never change; nothing was written. Give a new plan a new id`,
       { planId: id! },
     );
-  return objectOver(builder, stored, live, probe);
+  // The stored plan may hold steps the plan just built does not: the probe is made again
+  return objectOver(builder, stored, live, "owed");
 };
 
 /**
