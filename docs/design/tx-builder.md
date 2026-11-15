@@ -413,22 +413,26 @@ made and never read from the builder again. `build` stays one transaction or an 
   terminal. A payment is paid when its step is `final`, which never changes. `stopped` means that
   nothing more of the plan is expected to land, by what the chain shows: a step called `expired`
   or `orphaned` is still looked for, and found in a block it counts as landed and the plan's
-  status follows (`DEAD_STEP_FOUND`).
+  status follows (`DEAD_STEP_FOUND`). A step is `orphaned` only while a step it stands on is
+  called dead; then it is what its own record says again. A plan that came to `stopped` by its
+  steps records it (`halted`): a later find takes it to `stopping`, never back to `pending`.
 - **Time is the chain's.** A step whose parts set no `until` gets
   `until = max(tip time, from) + ttlMs`, the tip read once for the plan; it is `expired` once the
   provider's tip and the local clock are both past `until` plus `expiryMarginMs` (a tip more than
-  two minutes ahead of the clock is not believed: `TIP_AHEAD_OF_CLOCK`), and `final` once
-  `confirmations` blocks lie on top of its block. The provider must give the tip and the search
-  with block heights, and `validContract` for a Plutus step; otherwise `CANNOT_OBSERVE`, before
-  anything is signed or sent. Other timers only set the pace of waiting (`pollMs`, `resendMs`).
+  two minutes ahead of the clock is neither taken nor remembered: `TIP_AHEAD_OF_CLOCK`), and
+  `final` once `confirmations` blocks lie on top of its block. The provider must give the tip and
+  the search with block heights, and `validContract` for a Plutus step; otherwise
+  `CANNOT_OBSERVE`, before anything is signed or sent. Other timers only set the pace of waiting
+  (`pollMs`, `resendMs`).
 - **Calls.** `sign()` and `run()` sign with the call's `signers`, else the payer, checking every
   witness against the body; the payer gives only the keys it is asked for, and is not asked when
   none is left. `run()` looks at the chain, then signs, submits and waits for `waitFor` (`"sent"`,
   `"included"` by default, `"final"`); `refresh()` looks once; `stop()` records that the plan
-  signs and sends nothing more. A plan with a step that will not land sends no step for the first
-  time. `landed`, `live` and `rest` say what landed, what may still land and what is left, as
-  steps `builder.plan` takes; a new plan for what is left is made only once the plan is
-  `stopped`.
+  signs and sends nothing more. A plan with a step that will not land, or that was `halted`, sends
+  no step for the first time. `timeoutMs` bounds every request of `run()` (a search, the tip, the
+  store, a submit) by the time left; a signer is bounded by the step's end of validity.
+  `landed`, `live` and `rest` say what landed, what may still land and what is left, as steps
+  `builder.plan` takes; a new plan for what is left is made only once the plan is `stopped`.
 - **The store.** `TxPlanStore` is `load(id)` and a compare-and-set `save(json, expectedRev)`. Every
   change is saved before the method returns; the record holds data only, never a wallet, signer,
   submitter or function (its UTxOs stand in the builder's form), and `resume(id, options)`
