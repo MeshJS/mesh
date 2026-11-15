@@ -898,6 +898,7 @@ export class TxPlan {
         );
       const newSteps = await buildAddedSteps(builder, base, read, {
         ...(payer !== undefined && { payer }),
+        asked: addressOf,
         tip,
         ...(signal !== undefined && { signal }),
         ...(state.trace !== undefined && { trace: state.trace }),

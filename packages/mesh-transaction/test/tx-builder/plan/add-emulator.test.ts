@@ -374,6 +374,66 @@ describe("an added step", () => {
     expect(plan.toJSON().steps[1]!.tx.extraKeyWitnesses).toBe(1);
   });
 
+  it("refuses a payer that answers two change addresses in one call, and builds nothing", async () => {
+    for (const step of ["sent", "included"] as const) {
+      const { emulator, builder, wallet, address } = await stepSetup("scalus", {
+        builder: { planDefaults: { ...FAST, confirmations: 3 } },
+      });
+      const plan = await builder.plan(
+        { a: payTo(alice, 5n * ADA) },
+        { payer: wallet },
+      );
+      if (step === "sent")
+        await plan.run({ submitter: swallowing(), waitFor: "sent" });
+      else await plan.run({ submitter: forwarding(emulator) });
+      expect(plan.step("a").status).toBe(step);
+      // A wallet whose answers alternate: the plan's address, then another one
+      let calls = 0;
+      const answers = (addresses: readonly string[]) => ({
+        getChangeAddress: async () => addresses[calls++ % addresses.length]!,
+        getUtxos: () => emulator.fetchAddressUTxOs(address),
+        getNetworkId: () => wallet.getNetworkId(),
+        signTx: (tx: string, partial?: boolean) => wallet.signTx(tx, partial),
+      });
+      const rotating = await builder.resume(plan.toJSON(), {
+        payer: answers([address, carol]) as never,
+      });
+      const error = await caught(rotating.add({ b: payTo(bob, 3n * ADA) }));
+      expect(TxBuildError.is(error, "INVALID_OPTION")).toBe(true);
+      expect(error.details).toEqual({
+        option: "payer",
+        value: "object",
+        allowed: expect.stringMatching(/one change address/),
+      });
+      expect(error.message).toMatch(/two change addresses within one call/);
+      expect(error.message).toMatch(/snapshot \{ changeAddress, utxos \}/);
+      expect(error.message).not.toContain(address);
+      expect(error.message).not.toContain(carol);
+      expect(names(rotating)).toEqual(["a"]);
+      expect(rotating.toJSON().steps).toHaveLength(1);
+      // A step's own payer is held to the same
+      calls = 0;
+      const own = await caught(
+        plan.add({
+          b: {
+            parts: payTo(bob, 3n * ADA),
+            payer: answers([address, carol]) as never,
+          },
+        }),
+      );
+      expect(TxBuildError.is(own, "INVALID_OPTION")).toBe(true);
+      expect(own.details.option).toBe("payer");
+      expect(names(plan)).toEqual(["a"]);
+      // A wallet that always answers one address is not affected
+      calls = 0;
+      const steady = await builder.resume(plan.toJSON(), {
+        payer: answers([address]) as never,
+      });
+      await steady.add({ b: payTo(bob, 3n * ADA) });
+      expect(steady.step("b").standsOn).toEqual(["a"]);
+    }
+  });
+
   it("looks first, and is refused on a plan that does not go on", async () => {
     // A step past its end and the margin, which the look of add shows expired
     {

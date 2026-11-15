@@ -1,6 +1,7 @@
 import { mConStr0 } from "@meshsdk/core";
 
 import type {
+  PlanSteps,
   StoredTxPlanJSON,
   TxBuilderOptions,
   TxPlan,
@@ -471,14 +472,15 @@ describe("the id of a plan that took steps", () => {
     expect(
       names(await builder.plan({ a, b, c }, { id: "pay", payer: wallet })),
     ).toEqual(["a", "b", "c"]);
-    for (const steps of [
+    const others: PlanSteps[] = [
       { a },
       { a, c },
       { b, a },
       { a, c, b },
       { a, b, c: payTo(recipient, 3n * ADA) },
       { a, b, c, d: payTo(bob, 1n * ADA) },
-    ]) {
+    ];
+    for (const steps of others) {
       const error = await caught(
         builder.plan(steps, { id: "pay", payer: wallet }),
       );

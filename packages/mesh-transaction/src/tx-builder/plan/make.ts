@@ -728,8 +728,13 @@ const givenOf = (step: StepInput, changeAddress?: string): StepGiven => {
   return { parts: step.parts, ...(data !== undefined && { options: data }) };
 };
 
-/** The change address of a payer, asked once for each payer, its form and network checked */
-export type AddressOf = (payer: Payer) => Promise<string>;
+/**
+ * The change address of a payer, asked once for each payer, its form and network checked; and
+ * the address a payer answered, when it was asked
+ */
+export type AddressOf = ((payer: Payer) => Promise<string>) & {
+  readonly asked: (payer: Payer) => string | undefined;
+};
 
 /**
  * A book of change addresses: each payer is asked once, an address or a snapshot without a
@@ -739,7 +744,7 @@ export type AddressOf = (payer: Payer) => Promise<string>;
  */
 export const addressBook = (builder: TxBuilder): AddressOf => {
   const addresses = new Map<Payer, string>();
-  return async (payer) => {
+  const addressOf = async (payer: Payer) => {
     let address = addresses.get(payer);
     if (address === undefined) {
       const source = toPayerSource(payer);
@@ -748,6 +753,71 @@ export const addressBook = (builder: TxBuilder): AddressOf => {
       addresses.set(payer, address);
     }
     return address;
+  };
+  return Object.assign(addressOf, {
+    asked: (payer: Payer) => addresses.get(payer),
+  });
+};
+
+/** What a payer that answered two change addresses in one call may be instead */
+const ONE_ADDRESS_ALLOWED =
+  "a payer that answers one change address within a call, such as a snapshot { changeAddress, utxos }";
+
+/**
+ * Reads the payer of each step once, for the builds of one call: the payers in the order of the
+ * steps, read at once. Each payer has one change address in a call: the one its read gives. A
+ * payer asked for its change address before in this call (`asked`) that reads another is
+ * refused, and nothing is built
+ * @param missing The error of a step without a payer
+ * @returns the read of a step's payer
+ * @throws what `missing` gives; TxBuildError INVALID_OPTION (`payer`) for a payer that answered
+ *   two change addresses, with its JavaScript type only; every error of reading a payer
+ */
+const readStepPayers = async (
+  builder: TxBuilder,
+  steps: readonly StepInput[],
+  payerOf: (step: StepInput) => Payer | undefined,
+  context: {
+    readonly missing: (step: StepInput) => unknown;
+    readonly signal?: AbortSignal;
+    readonly asked?: AddressOf;
+  },
+): Promise<{
+  readonly readOf: (step: StepInput) => PayerRead;
+  readonly readOfPayer: (payer: Payer) => PayerRead | undefined;
+}> => {
+  const payers: Payer[] = [];
+  for (const step of steps) {
+    const payer = payerOf(step);
+    if (payer === undefined) throw context.missing(step);
+    if (!payers.includes(payer)) payers.push(payer);
+  }
+  const reads = await Promise.all(
+    payers.map((payer) =>
+      internals(builder).readGivenPayer(payer, context.signal),
+    ),
+  );
+  payers.forEach((payer, i) => {
+    const before = context.asked?.asked(payer);
+    if (before !== undefined && before !== reads[i]!.snapshot.changeAddress)
+      throw new TxBuildError(
+        "INVALID_OPTION",
+        "invalid payer: it answered two change addresses within one call, and a plan needs one for the order of its steps; a payer with a fixed change address, a snapshot { changeAddress, utxos }, is the way: nothing was built or recorded",
+        {
+          details: {
+            option: "payer",
+            value: typeOf(payer),
+            allowed: ONE_ADDRESS_ALLOWED,
+          },
+        },
+      );
+  });
+  return {
+    readOf: (step) => reads[payers.indexOf(payerOf(step)!)]!,
+    readOfPayer: (payer) => {
+      const at = payers.indexOf(payer);
+      return at < 0 ? undefined : reads[at];
+    },
   };
 };
 
@@ -980,21 +1050,19 @@ export const buildAddedSteps = async (
     readonly tip: PlanTip;
     readonly signal?: AbortSignal;
     readonly trace?: MakePlanOptions["trace"];
+    /** The change addresses asked before in the call, which the reads must give again */
+    readonly asked?: AddressOf;
   },
 ): Promise<NewStep[]> => {
   const { signal, trace } = context;
   const payerOf = (step: StepInput) => step.options.payer ?? context.payer;
-  const payers: Payer[] = [];
-  for (const step of read) {
-    const payer = payerOf(step);
+  const { readOf } = await readStepPayers(builder, read, payerOf, {
     // The payer of every step was worked out before: a fault of this code otherwise
-    if (payer === undefined)
-      throw new Error(`step ${JSON.stringify(step.name)} has no payer`);
-    if (!payers.includes(payer)) payers.push(payer);
-  }
-  const reads = await Promise.all(
-    payers.map((payer) => internals(builder).readGivenPayer(payer, signal)),
-  );
+    missing: (step) =>
+      new Error(`step ${JSON.stringify(step.name)} has no payer`),
+    ...(signal !== undefined && { signal }),
+    ...(context.asked !== undefined && { asked: context.asked }),
+  });
   const recorded = base.options;
   const planAddress =
     typeof recorded.changeAddress === "string"
@@ -1044,7 +1112,7 @@ export const buildAddedSteps = async (
       ...(signal !== undefined && { signal }),
       ...(trace !== undefined && { trace }),
     },
-    readOf: (step) => reads[payers.indexOf(payerOf(step)!)]!,
+    readOf,
   });
   return made.map(newStepOf);
 };
@@ -1100,18 +1168,18 @@ export const makePlan = async (
 
   // Each payer is read once, before any step is built
   const payerOf = (step: StepInput) => step.options.payer ?? options.payer;
-  const payers: Payer[] = [];
-  for (const step of given) {
-    const payer = payerOf(step);
-    if (payer === undefined)
-      throw new TxBuildError(
-        "MISSING_PAYER",
-        `step ${JSON.stringify(step.name)}: no payer: give the plan a payer, or the step its own`,
-      );
-    if (!payers.includes(payer)) payers.push(payer);
-  }
-  const reads = await Promise.all(
-    payers.map((payer) => internals(builder).readGivenPayer(payer, signal)),
+  const { readOf, readOfPayer } = await readStepPayers(
+    builder,
+    given,
+    payerOf,
+    {
+      missing: (step) =>
+        new TxBuildError(
+          "MISSING_PAYER",
+          `step ${JSON.stringify(step.name)}: no payer: give the plan a payer, or the step its own`,
+        ),
+      ...(signal !== undefined && { signal }),
+    },
   );
 
   const made = await buildSteps(builder, given, {
@@ -1126,13 +1194,11 @@ export const makePlan = async (
     ttlMs: deadlines.ttlMs,
     ...(id !== undefined && { planId: id }),
     options,
-    readOf: (step) => reads[payers.indexOf(payerOf(step)!)]!,
+    readOf,
   });
 
   const planPayer =
-    options.payer === undefined
-      ? undefined
-      : reads[payers.indexOf(options.payer)];
+    options.payer === undefined ? undefined : readOfPayer(options.payer);
   const planOptions = planOptionsOf(options, planPayer?.snapshot.changeAddress);
   const first = advancePlan(
     emptyPlan({
