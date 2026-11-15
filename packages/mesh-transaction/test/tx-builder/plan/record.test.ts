@@ -360,7 +360,7 @@ describe("the record of a plan", () => {
     const consolidation = encodePlan(
       accept(firstRecord(), {
         type: "steps",
-        steps: [{ ...fixture.extra, kind: "consolidation" }],
+        steps: [{ ...fixture.extra, kind: "consolidation", given: undefined }],
       }),
     ).steps[4]!;
     expect(Object.keys(consolidation).slice(0, 3)).toEqual([
@@ -681,6 +681,27 @@ describe("the record of a plan", () => {
         "a delivery mark that does not fit",
         (j) => delete j.steps[0].tx.delivered,
         /delivered/,
+      ],
+      [
+        "a step with neither kind nor given",
+        (j) => delete j.steps[0].given,
+        /steps\[0\] has neither kind nor given/,
+      ],
+      [
+        "a consolidation step whose outputs are at two addresses",
+        (j) => {
+          j.steps[0].kind = "consolidation";
+          delete j.steps[0].given;
+        },
+        /steps\[0\]: a consolidation step whose outputs are not all at one address/,
+      ],
+      [
+        "a consolidation step that pays no payer of the plan",
+        (j) => {
+          j.options.changeAddress = fixture.second.address;
+          j.steps[1].given.options.changeAddress = fixture.second.address;
+        },
+        /steps\[2\]: a consolidation step that pays an address that is not the change address of a payer of the plan/,
       ],
       [
         "given on a consolidation step",

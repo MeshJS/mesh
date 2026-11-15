@@ -1659,9 +1659,22 @@ const decodeStep = (
     refused,
   };
 
-  // What the state machine relies on
+  // What the state machine relies on. A step the plan built from parts always has given; one
+  // with neither would be signed as the plan's own
+  if (step.kind === undefined && step.given === undefined)
+    unread(
+      `${path} has neither kind nor given: a step the plan built from parts has given`,
+    );
   if (step.kind === "consolidation" && step.given !== undefined)
     unread(`${path}.given is on a consolidation step`);
+  // A consolidation step pays its payer's change address alone
+  if (
+    step.kind === "consolidation" &&
+    new Set(step.built.outputs.map((output) => output.address)).size > 1
+  )
+    unread(
+      `${path}: a consolidation step whose outputs are not all at one address`,
+    );
   if (step.kind === "prebuilt" && step.given !== undefined)
     unread(`${path}.given is on a prebuilt step`);
   const spender = spentBefore(step.built, earlier);
@@ -1869,6 +1882,26 @@ const decodeRecord = (json: Obj, id?: string): PlanRecord => {
     steps,
     options: decodeOptions(json.options, PLAN_OPTIONS, "options"),
   };
+  // A consolidation step pays a payer of the plan alone: the change address it pays is the
+  // plan's payer's, or that of a step's own payer, whenever the record holds one
+  const changeAddresses = new Set(
+    [
+      record.options.changeAddress,
+      ...steps.map((step) => step.given?.options?.changeAddress),
+    ].filter((address): address is string => typeof address === "string"),
+  );
+  if (changeAddresses.size > 0)
+    steps.forEach((step, i) => {
+      if (
+        step.kind === "consolidation" &&
+        step.built.outputs.some(
+          (output) => !changeAddresses.has(output.address),
+        )
+      )
+        unread(
+          `steps[${i}]: a consolidation step that pays an address that is not the change address of a payer of the plan`,
+        );
+    });
   if (planStatus(record) !== record.status)
     unread(
       `status: the plan status ${show(status)}, which its steps and mark do not give`,

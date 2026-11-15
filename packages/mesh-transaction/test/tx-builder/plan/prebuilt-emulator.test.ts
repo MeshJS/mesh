@@ -752,6 +752,128 @@ describe("a transaction built before as a step of a plan", () => {
   );
 
   it(
+    "holds the type alone of steps of no known form",
+    async () => {
+      const ctx = await setup();
+      const fund = await deposit(ctx);
+      const plan = await ctx.builder.plan(
+        { pay: payTo(alice, 2n * ADA) },
+        { payer: ctx.wallet },
+      );
+      for (const [call, type] of [
+        [() => ctx.builder.plan(fund.partialTx as never), "string"],
+        [() => ctx.builder.plan(null as never), "null"],
+        [() => ctx.builder.plan({ swap: fund.toJSON() } as never), "object"],
+        [
+          () => ctx.builder.plan({ swap: fund.partialTx.length } as never),
+          "number",
+        ],
+        [() => plan.add(fund.partialTx as never), "string"],
+        [() => plan.add({ swap: { ...fund } } as never), "object"],
+      ] as const) {
+        const error = await caught(call());
+        expectSteps(error);
+        expect(error.details.value).toBe(type);
+      }
+    },
+    LONG,
+  );
+
+  it(
+    "refuses a record whose prebuilt step lost its kind or is called a consolidation, and asks no signer",
+    async () => {
+      const ctx = await setup();
+      const cbor = await takesFromWallet(ctx, ctx.funded[1]!);
+      const { payer, seen } = recording(ctx.wallet);
+      const plan = await ctx.builder.plan(
+        { swap: cbor, pay: payTo(alice, 5n * ADA) },
+        { payer },
+      );
+      const edits: [(step: Record<string, unknown>) => void, RegExp][] = [
+        [(step) => delete step.kind, /has neither kind nor given/],
+        [
+          (step) => (step.kind = "consolidation"),
+          /a consolidation step that pays an address that is not the change address of a payer of the plan/,
+        ],
+      ];
+      for (const [edit, message] of edits) {
+        const json = JSON.parse(JSON.stringify(plan.toJSON()));
+        edit(json.steps.find((step: { name: string }) => step.name === "swap"));
+        const error = await caught(ctx.builder.resume(json, { payer }));
+        expect(TxPlanError.is(error, "INVALID_STATE")).toBe(true);
+        expect(error.details).toEqual({ reason: "recordVersion" });
+        expect(error.message).toMatch(message);
+      }
+      expect(seen).toEqual([]);
+    },
+    LONG,
+  );
+
+  it(
+    "tells an object given as a step by the hash of its bytes",
+    async () => {
+      const ctx = await setup();
+      const a = await partnerPays(ctx, alice, 5n * ADA);
+      const b = await partnerPays(ctx, bob, 6n * ADA);
+      /** An object with the bytes of b that states the hash of a */
+      const forged = () => {
+        const object = Object.create(Object.getPrototypeOf(b));
+        Object.defineProperty(object, "txHash", { value: a.txHash });
+        Object.defineProperty(object, "partialTx", { value: b.partialTx });
+        Object.defineProperty(object, "outputs", { value: b.outputs });
+        return object as BuiltTx;
+      };
+      const plan = await ctx.builder.plan(
+        { pay: payTo(carol, 2n * ADA) },
+        { payer: ctx.wallet },
+      );
+      await plan.add({ swap: a });
+      const record = plan.toJSON();
+      // Another transaction under the name, never the same step
+      expectSteps(await caught(plan.add({ swap: forged() })));
+      expect(plan.step("swap").txHash).toBe(a.txHash);
+      expect(plan.toJSON()).toEqual(record);
+      // Under another name it is read from its bytes: b, which spends what a spends
+      expectSteps(
+        await caught(plan.add({ other: forged() })),
+        /step "other" spends .*, which step "swap" spends/,
+      );
+    },
+    LONG,
+  );
+
+  it(
+    "a repeated id tells an object by the hash of its bytes",
+    async () => {
+      const ctx = await storeSetup();
+      const partner = await walletOf(1);
+      const partnerAddress = (await partner.getChangeAddress())!;
+      ctx.emulator.fund(partnerAddress, { lovelace: 100n * ADA });
+      const partnerBuilder = builderOf(wrap(ctx.emulator));
+      const payOf = async (to: string, lovelace: bigint) => {
+        const built = await partnerBuilder.build(
+          output({ address: to, value: { lovelace } }),
+          { payer: partner },
+        );
+        await built.sign();
+        return built;
+      };
+      const a = await payOf(alice, 5n * ADA);
+      const b = await payOf(bob, 6n * ADA);
+      const forged = Object.create(Object.getPrototypeOf(b));
+      Object.defineProperty(forged, "txHash", { value: a.txHash });
+      Object.defineProperty(forged, "partialTx", { value: b.partialTx });
+      Object.defineProperty(forged, "outputs", { value: b.outputs });
+      const options = { payer: ctx.wallet, id: "forged" };
+      const steps = (swap: BuiltTx) => ({ swap, pay: payTo(carol, 2n * ADA) });
+      await ctx.builder.plan(steps(a), options);
+      const error = await caught(ctx.builder.plan(steps(forged), options));
+      expect(TxPlanError.is(error, "PLAN_EXISTS")).toBe(true);
+    },
+    LONG,
+  );
+
+  it(
     "knows the outputs of earlier steps without a lookup",
     async () => {
       const ctx = await setup();

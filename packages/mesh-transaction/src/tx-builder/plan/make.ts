@@ -204,21 +204,32 @@ const ADDED_ALLOWED =
 const ADDED_HELD_ALLOWED =
   "an object of named steps, on a builder that holds no parts from add";
 
+/**
+ * INVALID_OPTION (`steps`)
+ * @param given What was given, when the refusal is about it: `details.value` holds its
+ *   JavaScript type alone, never the value, which may be or hold a key or a transaction
+ */
 const invalidSteps = (
   reason: string,
-  value?: unknown,
+  given?: { readonly value: unknown },
   allowed = STEPS_ALLOWED,
 ) =>
   new TxBuildError("INVALID_OPTION", `invalid steps: ${reason}`, {
-    details: { option: "steps", value, allowed },
+    details: {
+      option: "steps",
+      value: given === undefined ? undefined : typeOf(given.value),
+      allowed,
+    },
   });
 
 /**
  * INVALID_OPTION (`steps`) for steps given to `plan.add`
- * @param value The JavaScript type of what was given, never the value
+ * @param given What was given, when the refusal is about it: its JavaScript type alone is held
  */
-export const invalidAddedSteps = (reason: string, value?: string) =>
-  invalidSteps(reason, value, ADDED_ALLOWED);
+export const invalidAddedSteps = (
+  reason: string,
+  given?: { readonly value: unknown },
+) => invalidSteps(reason, given, ADDED_ALLOWED);
 
 /**
  * A refusal of steps as `plan.add` tells it: the forms `add` takes in `details.allowed` of the
@@ -269,11 +280,13 @@ export type StepInput = {
   readonly parts: readonly (TxPart | LinkedPart)[];
   readonly options: StepOptions;
   /**
-   * A transaction given built, as it was given, with the hash of its body when one is read
-   * from it without a request; such a step has no parts and no options
+   * A transaction given built, as it was given; its bytes, read once: the text given, or the
+   * object's `partialTx`; and the hash of its body when one is read from those bytes without a
+   * request. Such a step has no parts and no options
    */
   readonly prebuilt?: {
     readonly tx: BuiltTx | string;
+    readonly text: string;
     readonly txHash?: string;
   };
 };
@@ -297,17 +310,16 @@ const isBuiltTransaction = (value: unknown) =>
   value instanceof BuiltTx || isTransactionData(value);
 
 /**
- * The hash of the body of a transaction given built, in lower case, read without a request: of
- * the object its `txHash`; of CBOR the hash its body's bytes give, read as `fromCbor` reads them
- * after the same walk. Undefined for a text no transaction is read from
+ * The hash of the body of a transaction given built, in lower case, read without a request from
+ * its bytes (the CBOR given, or an object's `partialTx`; an object's `txHash` is not believed),
+ * as `fromCbor` reads them after the same walk. Undefined for a text no transaction is read from
  */
 const prebuiltHash = (
   builder: TxBuilder,
-  tx: BuiltTx | string,
+  bytes: string,
 ): string | undefined => {
-  if (tx instanceof BuiltTx) return tx.txHash.toLowerCase();
   try {
-    const text = tx.toLowerCase();
+    const text = bytes.toLowerCase();
     scanTransaction(text, builder.params?.maxTxSize);
     return readTransactionItems(text).txId.toLowerCase();
   } catch {
@@ -385,7 +397,7 @@ const readStepForms = (
       },
     ];
   if (!isObject(steps) || isBuiltTransaction(steps))
-    throw invalidSteps(`expected ${STEPS_ALLOWED}`, typeof steps);
+    throw invalidSteps(`expected ${STEPS_ALLOWED}`, { value: steps });
   if (held.length > 0)
     throw invalidSteps(
       `the builder holds ${held.length} part(s) from add, which would go into every step: give them in the steps, or give one list of parts`,
@@ -414,26 +426,35 @@ const readStepForms = (
     const step = steps[name];
     // A transaction built before is taken as it is, read later from its own bytes
     if (step instanceof BuiltTx || typeof step === "string") {
-      const txHash = prebuiltHash(builder, step);
+      let text: string;
+      try {
+        text = step instanceof BuiltTx ? step.partialTx : step;
+      } catch {
+        throw invalidSteps(
+          `step ${JSON.stringify(name)} is an object whose transaction is not read: give the object build, finalize, fromCbor or restore returns, or the transaction's CBOR hex`,
+          { value: step },
+        );
+      }
+      const txHash = prebuiltHash(builder, text);
       return {
         name,
         parts: [],
         options: {},
-        prebuilt: { tx: step, ...(txHash !== undefined && { txHash }) },
+        prebuilt: { tx: step, text, ...(txHash !== undefined && { txHash }) },
       };
     }
     // Its data or its JSON states what its bytes may not hold: only the object or the bytes
     if (isTransactionData(step))
       throw invalidSteps(
         `step ${JSON.stringify(name)} is the data or the JSON of a transaction built before, which a plan does not read: give the object build, finalize, fromCbor or restore returns, or the transaction's CBOR hex`,
-        typeof step,
+        { value: step },
       );
     if (Array.isArray(step) || isOnePart(step))
       return { name, parts: flatten(step, name), options: {} };
     if (!isObject(step) || !("parts" in step))
       throw invalidSteps(
         `step ${JSON.stringify(name)} is neither parts nor { parts, ...options }`,
-        typeof step,
+        { value: step },
       );
     for (const member of Object.keys(step))
       if (!STEP_MEMBERS.has(member))
@@ -1144,10 +1165,10 @@ export const readAddedSteps = (
       Array.isArray(steps) || isOnePart(steps)
         ? "one list of parts is the step main of a new plan; steps are added by name, { name: parts }"
         : `expected ${ADDED_ALLOWED}`,
-      typeof steps,
+      { value: steps },
     );
   if (Object.keys(steps).length === 0)
-    throw invalidAddedSteps("no step is given", typeof steps);
+    throw invalidAddedSteps("no step is given", { value: steps });
   const held = internals(builder).added.length;
   if (held > 0)
     throw invalidSteps(
@@ -1565,7 +1586,7 @@ const readPrebuilt = async (
   for (const step of given) {
     if (step.prebuilt === undefined) continue;
     const { name } = step;
-    const { tx } = step.prebuilt;
+    const { tx, text } = step.prebuilt;
     try {
       // The plan's own transactions first: an entry of knownUtxos never replaces one of them
       const knownUtxos = new Map<string, Utxo>();
@@ -1578,7 +1599,7 @@ const readPrebuilt = async (
       ofAfter.forEach(put);
       known.forEach(put);
       const object = await abortable(
-        builder.fromCbor(tx instanceof BuiltTx ? tx.partialTx : tx, {
+        builder.fromCbor(text, {
           knownUtxos: Array.from(knownUtxos.values()),
         }),
         context.signal,

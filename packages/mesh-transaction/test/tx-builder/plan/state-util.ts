@@ -177,7 +177,8 @@ export const signedBy = (key: TestKey, txHash: string): KeyWitness => ({
 
 /**
  * Real transactions of a plan, built offline: `a` pays from the first payer's only UTxO; `b`
- * spends the change of `a`; `c` pays from a second payer and has no end of validity; `d` spends
+ * spends the change of `a`; `c`, a consolidation step, pays the first payer's change address
+ * alone from a UTxO of a second payer and has no end of validity; `d` spends
  * the change of `b` and reads the output `c` makes; `e`, for appending, spends the change of `d`
  */
 export const realSteps = async () => {
@@ -206,9 +207,15 @@ export const realSteps = async () => {
     [spend.pubKey({ utxo: a.change[0]! }), pay(3_000_000n), until],
     { payer, after: a },
   );
-  const c = await builder.build(pay(4_000_000n, "read"), {
-    payer: { changeAddress: second.address, utxos: [fund(second, 2)] },
-  });
+  // A consolidation step pays its payer's change address alone
+  const c = await builder.build(
+    output({
+      address: first.address,
+      value: { lovelace: 4_000_000n },
+      label: "read",
+    }),
+    { payer: { changeAddress: first.address, utxos: [fund(second, 2)] } },
+  );
   const d = await builder.build(
     [
       spend.pubKey({ utxo: b.change[0]! }),
@@ -255,7 +262,17 @@ export const realSteps = async () => {
       },
     },
   ];
-  const extra: NewStep = { name: "e", built: e, standsOn: ["d"] };
+  const extra: NewStep = {
+    name: "e",
+    built: e,
+    standsOn: ["d"],
+    given: {
+      parts: [
+        spend.pubKey({ utxo: { step: "d", change: true } }),
+        pay(1_000_000n),
+      ],
+    },
+  };
   const keys: Record<string, TestKey> = {
     a: first,
     b: first,
