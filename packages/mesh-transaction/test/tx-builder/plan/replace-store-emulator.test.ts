@@ -94,6 +94,59 @@ const paidOnce = (emulator: TxEmulator) => {
 };
 
 describe("a plan in place of another, on a store", () => {
+  it("a repeat with other steps is PLAN_EXISTS", async () => {
+    const { old } = await stuck();
+    await old.replan({ id: "i1" });
+    const error = await caught(
+      old.replan({ id: "i1", steps: { b: payTo(bob, 99n * ADA) } }),
+    );
+    expect(error.code).toBe("PLAN_EXISTS");
+  });
+
+  it("a first record refused because another plan took the id: PLAN_EXISTS, not that plan", async () => {
+    const { store, builder, wallet, old } = await stuck();
+    store.hooks.save = async (forward, json, rev) => {
+      if (json.id === "i1" && rev === 0 && json.replaces === "order") {
+        delete store.hooks.save;
+        await builder.plan(payTo(dave, 2n * ADA), { id: "i1", payer: wallet });
+      }
+      return forward(json, rev);
+    };
+    const error = await caught(old.replan({ id: "i1" }));
+    expect(error.code).toBe("PLAN_EXISTS");
+    expect((await store.inner.load("i1"))!.replaces).toBeUndefined();
+  });
+
+  it("a transaction of the plans before found in a block between the payer's read and the mark: CANNOT_OBSERVE, no mark", async () => {
+    const { emulator, provider, store, wallet, instance, old, held } =
+      await stuck();
+    const next = await old.replan({ id: "i1" });
+    const other = await instance().builder.resume("i1", { payer: wallet });
+    // After the payer's read and before the mark: at the probe of the provider
+    let read = false;
+    provider.control.hooks.fetchAddressUTxOs = (forward, address: string) => {
+      read = true;
+      return forward(address);
+    };
+    provider.control.hooks.fetchLatestBlock = async (forward) => {
+      if (read) {
+        read = false;
+        await emulator.submitTx(held);
+        await other.refresh();
+      }
+      return forward();
+    };
+    const error = await caught(
+      next.replan({ id: "i2", steps: { x: payTo(dave, 2n * ADA) } }),
+    );
+    expect([error.code, reasonOf(error)]).toEqual([
+      "CANNOT_OBSERVE",
+      "unconfirmed",
+    ]);
+    expect((await store.inner.load("i1"))!.replacedBy).toBeUndefined();
+    expect(await store.inner.load("i2")).toBeUndefined();
+  });
+
   it("two processes replace one plan at once, with two ids: one is recorded, the other call is refused and its id has no record", async () => {
     const { emulator, store, wallet, instance, held } = await stuck();
     const one = instance();

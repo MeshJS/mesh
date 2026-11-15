@@ -945,8 +945,14 @@ describe("a plan in place of another", () => {
     const LONG = 120_000;
 
     /** A plan stuck at its second consolidation step, held by a relay; the plan in its place */
-    const stuckAtConsolidation = async () => {
-      const ctx = await fragmented(coins(250, 2n * ADA), { maxTxSize: 4096 });
+    /**
+     * @param keepOff A wallet of more coins, and a plan in place whose selection keeps off the
+     *   inputs of the old consolidation step
+     */
+    const stuckAtConsolidation = async (keepOff = false) => {
+      const ctx = await fragmented(coins(keepOff ? 500 : 250, 2n * ADA), {
+        maxTxSize: 4096,
+      });
       const old = await ctx.builder.plan(payValue({ lovelace: 480n * ADA }), {
         id: "order",
         payer: ctx.wallet,
@@ -962,10 +968,16 @@ describe("a plan in place of another", () => {
         main: "signed",
       });
       advance(ctx.emulator, 1);
-      const next = await old.replan({ id: "order:2" });
+      const ofSecond = new Set(old.step("consolidate-2").inputs.map(key));
+      const next = await old.replan({
+        id: "order:2",
+        ...(keepOff && {
+          canSelect: (utxo: { txHash: string; outputIndex: number }) =>
+            !ofSecond.has(key(utxo)),
+        }),
+      });
       // The new main spends an input of the old consolidation step; its own consolidation
       // steps come before it
-      const ofSecond = new Set(old.step("consolidate-2").inputs.map(key));
       expect(
         next.step("main").inputs.some((input) => ofSecond.has(key(input))),
       ).toBe(true);
@@ -997,6 +1009,36 @@ describe("a plan in place of another", () => {
         expect(submitter.calls).toEqual([]);
         await emulator.submitTx(oldMain);
         expect(times(emulator, recipient, 480n * ADA)).toBe(1);
+      },
+      LONG,
+    );
+
+    it(
+      "released after the new consolidation steps landed, before its main step is sent: the new plan stops, and only its consolidation steps landed",
+      async () => {
+        const { emulator, old, next, own, held, oldMain } =
+          await stuckAtConsolidation(true);
+        const ofSecond = new Set(old.step("consolidate-2").inputs.map(key));
+        expect(
+          own.some((step) => step.inputs.some((i) => ofSecond.has(key(i)))),
+        ).toBe(false);
+        for (const _ of own) await next.run({ waitFor: "sent" });
+        await next.refresh();
+        for (const step of own)
+          expect(next.step(step.name).status).toBe("final");
+        await emulator.submitTx(held);
+        const submitter = forwarding(emulator);
+        const error = await caught(next.run({ submitter }));
+        expect([error.code, error.txHash]).toEqual([
+          "INVALID_STATE",
+          old.step("consolidate-2").txHash,
+        ]);
+        expect(submitter.calls).toEqual([]);
+        expect(await onChain(emulator, next.step("main").txHash)).toBe(false);
+        // The old main may have lost other inputs to the new consolidation steps: it pays once
+        // when it lands, and nothing else pays
+        const landed = !(await refused(emulator, oldMain));
+        expect(times(emulator, recipient, 480n * ADA)).toBe(landed ? 1 : 0);
       },
       LONG,
     );
@@ -1378,5 +1420,88 @@ describe("a plan in place of another", () => {
     expect(told()).toEqual([noSharedInput("main", mainHash)]);
     await next.run();
     expect(times(emulator, alice, 11n * ADA)).toBe(1);
+  });
+
+  describe("rules each of which a test holds", () => {
+    it("refuses a step given that spends an output of an open transaction of the plan", async () => {
+      const { old } = await stuck();
+      const change = old.step("b").change[0]!;
+      const error = await caught(
+        old.replan({
+          id: "order:2",
+          steps: {
+            b: payTo(bob, 12n * ADA),
+            c: [spend.pubKey({ utxo: change }), payTo(carol, 13n * ADA)],
+          },
+        }),
+      );
+      expect([error.code, reasonOf(error), error.txHash]).toEqual([
+        "CANNOT_OBSERVE",
+        "unconfirmed",
+        old.step("b").txHash,
+      ]);
+      expect(old.replacedBy).toBeUndefined();
+    });
+
+    it("refuses to replace a final plan, and an empty id", async () => {
+      const { builder, wallet } = await stepSetup("scalus", {
+        funds: [100n * ADA],
+      });
+      const plan = await builder.plan(
+        { a: payTo(alice, 11n * ADA) },
+        { id: "order", payer: wallet },
+      );
+      const empty = await caught(plan.replan({ id: "" }));
+      expect(empty.code).toBe("MISSING_ID");
+      await plan.run();
+      expect(plan.status).toBe("final");
+      const final = await caught(plan.replan({ id: "order:2" }));
+      expect([final.code, reasonOf(final)]).toEqual(["INVALID_STATE", "final"]);
+    });
+
+    it("searches every transaction of the plans before, also one found in a block: kept, the new plan stands on it", async () => {
+      const { emulator, builder, wallet } = await stepSetup("scalus", {
+        funds: [100n * ADA, 50n * ADA],
+      });
+      const old = await builder.plan(
+        { a: payTo(alice, 11n * ADA), b: payTo(bob, 12n * ADA) },
+        { id: "order", payer: wallet },
+      );
+      await old.sign();
+      const bHash = old.step("b").txHash;
+      const relay = relayOf(emulator, (txHash) => txHash === bHash);
+      await caught(old.run({ submitter: relay, timeoutMs: 300 }));
+      advance(emulator, 1);
+      const next = await old.replan({ id: "order:2" });
+      await emulator.submitTx(relay.kept[0]!);
+      await caught(next.run());
+      expect(next.toJSON().before!.open[0]!.seen).toBeDefined();
+      // The old b is searched again, found final, and kept: the new b is settled by it
+      const last = await next.replan({
+        id: "order:3",
+        steps: { x: payTo(dave, 14n * ADA) },
+      });
+      expect(names(last)).toEqual(["x"]);
+      expect(last.toJSON().before).toEqual({ final: ["a", "b"], open: [] });
+      await last.run();
+      expect(times(emulator, bob, 12n * ADA)).toBe(1);
+    });
+
+    it("add on a plan made in place of another: what is final of it settles a transaction it excludes", async () => {
+      const { emulator, wallet, old } = await stuck();
+      const treasury = await treasuryOf(emulator);
+      const next = await old.replan({ id: "order:2" });
+      // The new b lands: the old b and c can never land
+      await next.run({ waitFor: "sent" });
+      await next.refresh();
+      expect(statuses(next)).toEqual({ b: "final", c: "built" });
+      await next.add({
+        x: { parts: payTo(dave, 14n * ADA), payer: treasury.other },
+      });
+      expect(names(next)).toEqual(["b", "c", "x"]);
+      await next.run({ signers: [wallet, treasury.other] });
+      expect(next.status).toBe("final");
+      paidOnce(emulator);
+    });
   });
 });
