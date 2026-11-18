@@ -594,9 +594,13 @@ step is built on the change of the last. They are signed, sent and recorded as a
 
 - **Parked tokens.** A later step that needs one of those tokens may spend its output. With
   `plan.add`, the parked outputs of a consolidation step that is in a block are the payer's UTxOs
-  like any other, which an added step may select.
-- **A sweep.** A later step of the payer with `sendAllTo` takes every parked output, without
-  asking `canSelect`: they hold only what it let through. A step with `sendAllTo` is never
+  like any other, which an added step may select. Once the consolidation step is final, they are
+  the payer's UTxOs for every step, a sweep among them, and `canSelect` is asked about them.
+- **A sweep.** A later step of the payer with `sendAllTo` takes, without asking `canSelect`,
+  every output that the payer's consolidation steps not final yet parked: they hold only what it
+  let through. What a final consolidation step parked, or the steps of another payer, it takes
+  only as any UTxO of its payer, where `canSelect` allows it: an added sweep whose `canSelect`
+  does not hold those outputs leaves them with the payer. A step with `sendAllTo` is never
   consolidated itself.
 - **`consolidate`.** At most 4 in the plan as a whole, those of `plan.add` counted;
   `consolidate: { maxSteps }` (1 to 31) sets the limit, and `consolidate: false` leaves the step's
