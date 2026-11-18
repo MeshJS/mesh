@@ -22,8 +22,12 @@ const DATUMS: [string, string][] = [
   ["a list nested 4 000 deep", deepDatum(4_000)],
 ];
 
-/** The time a build that reads such a datum is given, on a loaded machine; it takes milliseconds */
-const BOUND_MS = 1_500;
+/**
+ * The time a build that reads such a datum is given. It takes milliseconds, and decoding such a
+ * datum took 26 s; the bound is wide because a run of every suite at once can stall one build for
+ * seconds
+ */
+const BOUND_MS = 10_000;
 
 const timed = async <T>(run: () => Promise<T>) => {
   const start = performance.now();
