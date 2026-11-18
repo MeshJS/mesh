@@ -792,8 +792,10 @@ are the old plan's unless given; deadlines given are the new plan's and carry on
 - The old plan is marked first, by compare-and-set: `replacedBy` names the new plan, and the old
   one signs and sends nothing more. The id is the new plan's alone. The same call again returns
   the same plan, also after a crash that followed the mark; with other options, the plan recorded
-  with the first; calls on one object never overlap, a second waits for the first. Without a
-  store only the object that made it does so, another object refuses (`INVALID_STATE`), and a
+  with the first; calls on one object never overlap, a second waits for the first, so a call is
+  never awaited from inside a callback the plan calls (a store's `load` or `save`, a provider, a
+  signer): it would wait for the call that called it. Without a store only the object that made
+  it does so, an object resumed from a JSON saved after the mark refuses (`INVALID_STATE`), and a
   copy of the old plan's JSON saved before the call can be replaced again, which pays again: save
   both JSONs, the old plan's with its mark and the new plan's, after `replan` and before `run()`,
   or use a store.
@@ -801,7 +803,8 @@ are the old plan's unless given; deadlines given are the new plan's and carry on
   scripts passed, is `CANNOT_OBSERVE` (`noValidity`); a plain payment counts as passed.
 - A new plan that finds an old transaction in a block stops (`INVALID_STATE`, its hash in
   `error.txHash`): `replan` it; when that finds nothing left to build and no plan of it names one
-  in its place, the old plan made the payment.
+  in its place, the old plan made the payment, unless a step of it `failed`: nobody made that
+  one.
 
 ### Refusal to sign; edits on a preview
 
@@ -1075,10 +1078,15 @@ for (const id of await db.openPlanIds()) {
   try {
     let plan = await builder.resume(id, { payer: await payerFor(id) });
     await plan.refresh();
-    // A plan made in its place is named in `replacedBy`; a stopped one gets one. The same call
-    // again returns that plan, so each pass follows the line to its last plan
-    while (plan.replacedBy !== undefined || plan.status === "stopped")
+    // A final plan has paid: the line ends there. Else a plan made in its place is named in
+    // `replacedBy`, and a stopped one gets one; the same call again returns that plan
+    while (
+      plan.status !== "final" &&
+      (plan.replacedBy !== undefined || plan.status === "stopped")
+    ) {
       plan = await plan.replan({ id: plan.replacedBy ?? `${plan.id}:next` });
+      await plan.refresh();
+    }
     await plan.run({ waitFor: "sent" }).catch(report); // a look, then what can be done at once
     if (plan.status === "final") await db.close(id, plan.status); // release the goods
   } catch (error) {
@@ -1092,11 +1100,15 @@ provider is probed before the first delivery. Errors with `retryable: true` are 
 failure. With `waitFor: "sent"` each pass moves a plan one step on. A plan with a step that will
 not land is `stopping` until nothing more of it can land, which may take until its steps' end of
 validity and the margin; the loop keeps it until it is `stopped`, then pays what is left by
-`replan` ([A step that does not go through](#a-step-that-does-not-go-through)). A `stopped` plan
-that a later look finds a step of is `stopping` or `final` again: the loop follows it as it is, and
-a plan already made in its place stops by itself once it finds that step. A line that ends where
-nothing is left to build (a `failed` step, whose parts need fixing) stays in the list, and the
-loop reports its `INVALID_OPTION` on every pass until the application decides. A plan the
+`replan` ([A step that does not go through](#a-step-that-does-not-go-through)). The loop looks at
+each plan of a line before it goes on: a line ends at its first `final` plan, which has paid,
+also an old plan whose step landed late after it was replaced; only a plan that is not final is
+followed to the plan in its place. A `stopped` plan that a later look finds a step of is
+`stopping` or `final` again: the loop follows it as it is, and a plan already made in its place
+stops by itself once it finds that step. Steps given to `replan` that are not the old plan's are
+the application's own to follow: a line that ends at an old plan does not run them. A line that
+ends where nothing is left to build (a `failed` step, whose parts need fixing) stays in the list,
+and the loop reports its `INVALID_OPTION` on every pass until the application decides. A plan the
 application stops on purpose leaves this list: the loop would pay what is left of it. A payer is
 needed only to sign: a plan whose record holds every signature needs none, and a separate signer
 or sender is given to `run({ signers, submitter })`.
