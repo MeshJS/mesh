@@ -329,4 +329,65 @@ describe("the record's reader and the outputs of a step", () => {
     },
     LONG,
   );
+
+  it(
+    "refuses an edited reference script or out ref of an output",
+    async () => {
+      const ctx = await stepSetup("scalus", { funds: [1000n * ADA] });
+      const plan = await ctx.builder.plan(
+        {
+          hold: [
+            output({
+              address: alice,
+              value: { lovelace: 20n * ADA },
+              scriptRef: script,
+              label: "ref",
+            }),
+            payTo(bob, 3n * ADA),
+          ],
+        },
+        { payer: ctx.wallet },
+      );
+      const json = JSON.parse(JSON.stringify(plan.toJSON()));
+      const hold = (j: any) => j.steps[0].tx.built;
+      expect(hold(json).outputs[0].script).toBeDefined();
+      readPlan(json);
+      const first = /steps\[0\]\.tx\.built\.outputs\[0\] is not output 0/;
+      const second = /steps\[0\]\.tx\.built\.outputs\[1\] is not output 1/;
+      expectRefused(
+        refusal(json, (j) => delete hold(j).outputs[0].script),
+        first,
+      );
+      expectRefused(
+        refusal(json, (j) => {
+          const each = hold(j).outputs[0].script;
+          each.code = `${each.code.slice(0, -2)}00`;
+        }),
+        first,
+      );
+      expectRefused(
+        refusal(
+          json,
+          (j) => (hold(j).outputs[0].script.hash = "33".repeat(28)),
+        ),
+        first,
+      );
+      expectRefused(
+        refusal(
+          json,
+          (j) => (hold(j).outputs[1].script = { ...hold(j).outputs[0].script }),
+        ),
+        second,
+      );
+      expectRefused(
+        refusal(json, (j) => (hold(j).outputs[1].outputIndex = 9)),
+        second,
+      );
+      expectRefused(
+        refusal(json, (j) => (hold(j).outputs[1].txHash = "44".repeat(32))),
+        second,
+      );
+    },
+    LONG,
+  );
 });
