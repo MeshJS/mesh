@@ -641,3 +641,127 @@ describe("a crash at every request of replan", () => {
     for (const fault of cases) await crashCase(fault, random.int(2));
   }, 600_000);
 });
+
+describe("the reconciliation loop of the README", () => {
+  /**
+   * Passes of the README's reconciliation loop over the ids the application keeps, the body as
+   * the README has it; time moves on between passes. Gives the ids closed and what was reported
+   */
+  const reconcile = async (
+    ctx: Awaited<ReturnType<typeof storeSetup>>,
+    passes: number,
+  ) => {
+    const { builder, wallet, emulator } = ctx;
+    const open = ["order"];
+    const closed: string[] = [];
+    const reported: string[] = [];
+    const db = {
+      openPlanIds: async () => [...open],
+      close: async (id: string, _status: string) => {
+        open.splice(open.indexOf(id), 1);
+        closed.push(id);
+      },
+    };
+    const payerFor = async (_id: string) => wallet;
+    const report = (error: unknown) =>
+      void reported.push(`${codeOf(error)}/${reasonOf(error) ?? ""}`);
+    for (let n = 0; n < passes; n++) {
+      for (const id of await db.openPlanIds()) {
+        try {
+          let plan = await builder.resume(id, { payer: await payerFor(id) });
+          await plan.refresh();
+          while (
+            plan.status !== "final" &&
+            (plan.replacedBy !== undefined || plan.status === "stopped")
+          ) {
+            plan = await plan.replan({
+              id: plan.replacedBy ?? `${plan.id}:next`,
+            });
+            await plan.refresh();
+          }
+          await plan.run({ waitFor: "sent" }).catch(report);
+          if (plan.status === "final") await db.close(id, plan.status);
+        } catch (error) {
+          report(error);
+        }
+      }
+      advance(emulator, 700);
+    }
+    return { closed, reported };
+  };
+
+  /** A plan of two payments on a store: `a` final, `b` sent and held by a relay; a slot on */
+  const heldB = async () => {
+    const ctx = await storeSetup({ funds: [100n * ADA, 50n * ADA] });
+    const { emulator, builder, wallet } = ctx;
+    const old = await builder.plan(
+      { a: payTo(alice, 11n * ADA), b: payTo(bob, 12n * ADA) },
+      { id: "order", payer: wallet },
+    );
+    await old.sign();
+    const bHash = old.step("b").txHash;
+    const relay = relayOf(emulator, (txHash) => txHash === bHash);
+    await caught(old.run({ submitter: relay, timeoutMs: 300 }));
+    expect(old.steps.map((step) => step.status)).toEqual(["final", "sent"]);
+    advance(emulator, 1);
+    return { ...ctx, old, held: relay.kept[0]! };
+  };
+
+  const paidOnceEach = (emulator: TxEmulator) => {
+    expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    expect(times(emulator, bob, 12n * ADA)).toBe(1);
+  };
+
+  it("the old step lands after the replan: the line closes at the old plan, everyone paid once", async () => {
+    const ctx = await heldB();
+    const { emulator, old, held } = ctx;
+    await old.replan({ id: "order:2" });
+    await emulator.submitTx(held);
+    advance(emulator, 50);
+    const { closed, reported } = await reconcile(ctx, 4);
+    expect({ closed, reported }).toEqual({ closed: ["order"], reported });
+    paidOnceEach(emulator);
+  });
+
+  it("a crash after the mark, then the old step lands: the line closes at the old plan, everyone paid once", async () => {
+    const ctx = await heldB();
+    const { emulator, store, old, held } = ctx;
+    store.hooks.save = async (forward, json, rev) => {
+      if (json.id === "order:2") throw new Error("down");
+      return forward(json, rev);
+    };
+    expect((await caught(old.replan({ id: "order:2" }))).code).toBe(
+      "STORE_FAILED",
+    );
+    delete store.hooks.save;
+    expect(old.replacedBy).toBe("order:2");
+    await emulator.submitTx(held);
+    advance(emulator, 50);
+    const { closed, reported } = await reconcile(ctx, 4);
+    expect({ closed, reported }).toEqual({ closed: ["order"], reported });
+    paidOnceEach(emulator);
+  });
+
+  it("a line of three plans whose middle plan's step lands late: the line closes at the middle plan, everyone paid once", async () => {
+    const ctx = await heldB();
+    const { emulator, builder, old } = ctx;
+    // The middle plan's b is held by a relay too
+    const middle = await old.replan({ id: "order:2" });
+    const relay = relayOf(emulator, () => true);
+    await caught(middle.run({ submitter: relay, timeoutMs: 300 }));
+    expect(middle.step("b").status).toBe("sent");
+    advance(emulator, 1);
+    await middle.replan({ id: "order:3" });
+    // The middle plan's b lands
+    await emulator.submitTx(relay.kept[0]!);
+    advance(emulator, 50);
+    const { closed, reported } = await reconcile(ctx, 4);
+    expect({ closed, reported }).toEqual({ closed: ["order"], reported });
+    await middle.refresh();
+    expect(middle.status).toBe("final");
+    // The last plan sent nothing
+    const last = await builder.resume("order:3");
+    expect(last.steps.map((step) => step.status)).not.toContain("sent");
+    paidOnceEach(emulator);
+  });
+});
