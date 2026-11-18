@@ -1067,9 +1067,9 @@ The application keeps the ids of its plans that are not `final`. It writes an id
 with the order or payout it pays, before the plan's first `await`: a crash inside `run()` may come
 after the delivery is recorded and the bytes have left, and an id written only after `run()`
 returns would then be missing from the list, with nobody to learn whether it paid. It removes the
-id only once its last plan is `final`. A retried job uses the same id, never a fresh one: under a
-fresh id it may pay a second time. Once a minute and after a restart it calls `resume(id)` and
-`run()` for each.
+id only once a plan of its line, the plan itself or one made in its place, is `final`. A retried
+job uses the same id, never a fresh one: under a fresh id it may pay a second time. Once a minute
+and after a restart it calls `resume(id)` and `run()` for each.
 
 ```ts
 // Once a minute and after a restart (a builder with a store)
