@@ -997,7 +997,8 @@ const ONE_ADDRESS_ALLOWED =
  * @param missing The error of a step without a payer
  * @returns the read of a step's payer
  * @throws what `missing` gives; TxBuildError INVALID_OPTION (`payer`) for a payer that answered
- *   two change addresses, with its JavaScript type only; every error of reading a payer
+ *   two change addresses, with its JavaScript type only; every error of reading a payer; ABORTED
+ *   at once when the signal aborts while a read hangs
  */
 const readStepPayers = async (
   builder: TxBuilder,
@@ -1020,10 +1021,15 @@ const readStepPayers = async (
     if (payer === undefined) throw context.missing(step);
     if (!payers.includes(payer)) payers.push(payer);
   }
-  const reads = await Promise.all(
-    payers.map((payer) =>
-      internals(builder).readGivenPayer(payer, context.signal),
+  // The call's signal ends the wait for a read that hangs: what it answers later is dropped
+  const reads = await abortable(
+    Promise.all(
+      payers.map((payer) =>
+        internals(builder).readGivenPayer(payer, context.signal),
+      ),
     ),
+    context.signal,
+    CALL,
   );
   payers.forEach((payer, i) => {
     const before = context.asked?.asked(payer);

@@ -1259,6 +1259,125 @@ describe("a plan in place of another", () => {
       expect(times(emulator, alice, 11n * ADA)).toBe(1);
     });
 
+    /**
+     * Holds the first read of the payer's address until `release`, then answers it, or throws
+     * `fails` when given
+     */
+    const holdFirstRead = (
+      provider: Awaited<ReturnType<typeof stepSetup>>["provider"],
+      address: string,
+      fails?: () => Error,
+    ) => {
+      let reads = 0;
+      let release!: () => void;
+      const released = new Promise<void>((resolve) => (release = resolve));
+      let reach!: () => void;
+      const reached = new Promise<void>((resolve) => (reach = resolve));
+      provider.control.hooks.fetchAddressUTxOs = async (
+        forward,
+        at: string,
+      ) => {
+        if (at === address && ++reads === 1) {
+          reach();
+          await released;
+          if (fails !== undefined) throw fails();
+        }
+        return forward(at);
+      };
+      return { release, reached };
+    };
+
+    /** What a promise gives within `ms`, or "waiting" */
+    const within = <T>(promise: Promise<T>, ms: number) =>
+      Promise.race([
+        promise,
+        new Promise<"waiting">((resolve) =>
+          setTimeout(() => resolve("waiting"), ms),
+        ),
+      ]);
+
+    /** Runs `body` and gives the rejections no handler took meanwhile */
+    const unhandledIn = async (body: () => Promise<void>) => {
+      const unhandled: unknown[] = [];
+      const onUnhandled = (reason: unknown) => void unhandled.push(reason);
+      process.on("unhandledRejection", onUnhandled);
+      try {
+        await body();
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      } finally {
+        process.off("unhandledRejection", onUnhandled);
+      }
+      return unhandled;
+    };
+
+    it("two calls at once: the first aborted while its payer read hangs ends ABORTED at once, and the second goes on as a first call", async () => {
+      const unhandled = await unhandledIn(async () => {
+        const { emulator, provider, address, old } = await deadMain();
+        advance(emulator, 700);
+        await old.refresh();
+        const held = holdFirstRead(provider, address);
+        const controller = new AbortController();
+        const a = caught(
+          old.replan({ id: "order:2", signal: controller.signal }),
+        );
+        await held.reached;
+        const b = old.replan({ id: "order:2" });
+        controller.abort();
+        const first = await within(a, 2_000);
+        expect(first === "waiting" ? first : first.code).toBe("ABORTED");
+        // The second, with its own read, makes the plan while the first read still hangs
+        const second = await within(b, 10_000);
+        expect(second).not.toBe("waiting");
+        expect(old.replacedBy).toBe("order:2");
+        await (second as TxPlan).run();
+        // What the hung read answers now is dropped
+        held.release();
+        expect(times(emulator, alice, 11n * ADA)).toBe(1);
+      });
+      expect(unhandled).toEqual([]);
+    });
+
+    it("two calls at once: when the first fails at its payer read, the second looks for itself and returns its plan", async () => {
+      const unhandled = await unhandledIn(async () => {
+        const { emulator, provider, address, old } = await deadMain();
+        advance(emulator, 700);
+        await old.refresh();
+        const held = holdFirstRead(provider, address, tooMany);
+        const a = caught(old.replan({ id: "order:2" }));
+        await held.reached;
+        const b = old.replan({ id: "order:2" });
+        held.release();
+        expect((await a).code).toBe("PROVIDER_FAILED");
+        const second = await b;
+        expect(old.replacedBy).toBe("order:2");
+        await second.run();
+        expect(times(emulator, alice, 11n * ADA)).toBe(1);
+      });
+      expect(unhandled).toEqual([]);
+    });
+
+    it("two calls at once: the second's own signal ends its wait, ABORTED at once, while the first goes on", async () => {
+      const { emulator, provider, address, old } = await deadMain();
+      advance(emulator, 700);
+      await old.refresh();
+      const held = holdFirstRead(provider, address);
+      const a = old.replan({ id: "order:2" });
+      await held.reached;
+      const controller = new AbortController();
+      const b = caught(
+        old.replan({ id: "order:2", signal: controller.signal }),
+      );
+      controller.abort();
+      const second = await within(b, 2_000);
+      expect(second === "waiting" ? second : second.code).toBe("ABORTED");
+      held.release();
+      const first = await a;
+      expect(old.replacedBy).toBe("order:2");
+      expect(await old.replan({ id: "order:2" })).toBe(first);
+      await first.run();
+      expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    });
+
     it("without a store, a step added to the same object while replan reads its payer: CANNOT_OBSERVE, no mark", async () => {
       const { emulator, provider, address, old } = await stuck();
       let once = true;
