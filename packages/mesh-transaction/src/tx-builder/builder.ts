@@ -2578,10 +2578,13 @@ export class TxBuilder {
    * A recorded plan, with the live objects given again: by its id from the builder's store, or
    * from its JSON. It makes no request to the chain and does not call the payer; the provider is
    * probed before the first delivery. The transactions are those of the record, each read again
-   * and its witnesses verified against its body; what each spends, reads, puts up and makes is
-   * checked against its bytes, and a record that states other inputs or outputs is
-   * INVALID_STATE (`recordVersion`). The rest of the record is the store's word, which is
-   * trusted: a step's kind and `given`, its labels and change marks, its statuses. A record is
+   * and its witnesses verified against its body; the out refs of what each spends, reads and
+   * puts up, its outputs, its collateral return and its total collateral are checked against its
+   * bytes, and a record that states others is INVALID_STATE (`recordVersion`). Not checked: the
+   * UTxOs the record states for the inputs (the bytes hold their out refs alone) and the members
+   * of `prototype` the record writes (the transaction read as a value). The rest of the record is
+   * the store's word, which is trusted: a step's kind and `given`, its labels and change marks,
+   * its statuses. A record is
    * the application's own data: never resume a JSON another party wrote. The reconcile step
    * after a restart is `resume(id, { payer })`, then `run()`.
    *

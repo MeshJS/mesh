@@ -1,11 +1,18 @@
 import type { MeshWallet } from "@meshsdk/wallet";
 import { mConStr0 } from "@meshsdk/core";
 
-import { output, spend, TxPlanError } from "../../../src/tx-builder";
+import {
+  collateral,
+  collateralReturn,
+  output,
+  spend,
+  TxBuilder,
+  TxPlanError,
+} from "../../../src/tx-builder";
 import { readPlan } from "../../../src/tx-builder/plan/json";
 import { alwaysSucceedCbor } from "../../test-util";
 import { builderOf, hashOf, walletOf, wrap } from "./plan-emulator-util";
-import { ADA, alice, payTo, stepSetup } from "./run-util";
+import { ADA, alice, bob, payTo, stepSetup } from "./run-util";
 
 // The record's reader believes a step's bytes for its outputs: a record that states another
 // address, value, datum or change output than the bytes make is refused, and only what bytes
@@ -169,6 +176,156 @@ describe("the record's reader and the outputs of a step", () => {
       delete lock(moved).outputs[0].label;
       lock(moved).outputs[1].label = "vault";
       expect(readPlan(moved).steps[0]!.built.outputs[1]!.label).toBe("vault");
+    },
+    LONG,
+  );
+
+  it(
+    "refuses an edited collateral return or total, and reads every Plutus record as written",
+    async () => {
+      const ctx = await stepSetup("scalus", {
+        funds: [1000n * ADA, 20n * ADA],
+      });
+      const vault = ctx.builder.scriptAddress(script);
+      const steps = {
+        lock: output({
+          address: vault,
+          value: { lovelace: 10n * ADA },
+          datum: { type: "inline", data: mConStr0([]) },
+          label: "vault",
+        }),
+        unlock: [
+          spend.plutus({
+            utxo: { step: "lock", output: "vault" },
+            script,
+            redeemer: { data: mConStr0([]) },
+          }),
+          payTo(alice, 4n * ADA),
+        ],
+      };
+      const plan = await ctx.builder.plan(steps, { payer: ctx.wallet });
+      const json = JSON.parse(JSON.stringify(plan.toJSON()));
+      const unlock = (j: any) => j.steps[1].tx.built;
+      expect(unlock(json).collateral.return).toBeDefined();
+      expect(readPlan(json).steps[1]!.built.collateral!.return).toBeDefined();
+      await ctx.builder.resume(json, { payer: ctx.wallet });
+      const returned = (j: any) => {
+        const built = unlock(j);
+        const place = built.collateral.return;
+        // Written whole, or by its place among the outputs
+        if (typeof place === "number")
+          built.collateral.return = { ...built.outputs[place] };
+        return built.collateral.return;
+      };
+      const notReturn =
+        /steps\[1\]\.tx\.built\.collateral\.return is not the collateral return of the transaction/;
+      expectRefused(
+        refusal(json, (j) => (returned(j).address = bob)),
+        notReturn,
+      );
+      expectRefused(
+        refusal(json, (j) => {
+          const value = returned(j).value;
+          value.lovelace = String(BigInt(value.lovelace) + 900n * ADA);
+        }),
+        notReturn,
+      );
+      expectRefused(
+        refusal(
+          json,
+          (j) => (returned(j).datum = { type: "hash", hash: "00".repeat(32) }),
+        ),
+        notReturn,
+      );
+      expectRefused(
+        refusal(json, (j) => delete unlock(j).collateral.return),
+        /collateral\.return is not recorded, and the transaction has a collateral return/,
+      );
+      expectRefused(
+        refusal(json, (j) => (unlock(j).collateral.total = "1")),
+        /collateral\.total is not the total collateral of the transaction/,
+      );
+
+      // No collateral return: the total is the lovelace of the collateral inputs
+      const bare = await ctx.builder.plan(
+        { ...steps },
+        { payer: ctx.wallet, collateralReturn: false },
+      );
+      const bareJson = JSON.parse(JSON.stringify(bare.toJSON()));
+      expect(unlock(bareJson).collateral.return).toBeUndefined();
+      readPlan(bareJson);
+      await ctx.builder.resume(bareJson, { payer: ctx.wallet });
+      expectRefused(
+        refusal(bareJson, (j) => {
+          const built = unlock(j);
+          built.collateral.return = {
+            ...built.collateral.inputs[0],
+            txHash: j.steps[1].txHash,
+            outputIndex: built.outputs.length,
+          };
+        }),
+        /collateral\.return is recorded, and the transaction has no collateral return/,
+      );
+      expectRefused(
+        refusal(bareJson, (j) => {
+          const built = unlock(j);
+          built.collateral.total = String(BigInt(built.collateral.total) - 1n);
+        }),
+        /collateral\.total is not the total collateral of the transaction/,
+      );
+
+      // A step given built by another party, with a collateral return of its own
+      const partner = await walletOf(1);
+      const partnerAddress = (await partner.getChangeAddress())!;
+      ctx.emulator.fund(partnerAddress, { lovelace: 100n * ADA });
+      const locked = { txHash: "ab".repeat(32), outputIndex: 0 };
+      ctx.emulator.addUtxos([
+        {
+          input: locked,
+          output: {
+            address: vault,
+            amount: [{ unit: "lovelace", quantity: "20000000" }],
+            plutusData: "d87980",
+          },
+        },
+      ]);
+      const swap = await new TxBuilder({
+        network: "preprod",
+        provider: ctx.emulator,
+        evaluator: ctx.emulator,
+      }).build(
+        [
+          spend.plutus({
+            utxo: locked,
+            script,
+            redeemer: { data: mConStr0([]) },
+          }),
+          collateral({ utxo: ctx.funded[1]!.input }),
+          collateralReturn({ address: partnerAddress }),
+        ],
+        { payer: partnerAddress },
+      );
+      const withSwap = await ctx.builder.plan(
+        { swap: swap.tx, pay: payTo(alice, 5n * ADA) },
+        { payer: ctx.wallet },
+      );
+      const swapJson = JSON.parse(JSON.stringify(withSwap.toJSON()));
+      const swapBuilt = swapJson.steps[0].tx.built;
+      expect(swapBuilt.collateral.return).toBeDefined();
+      readPlan(swapJson);
+      await ctx.builder.resume(swapJson, { payer: ctx.wallet });
+      expectRefused(
+        refusal(swapJson, (j) => {
+          const built = j.steps[0].tx.built;
+          const place = built.collateral.return;
+          const whole =
+            typeof place === "number" ? { ...built.outputs[place] } : place;
+          built.collateral.return = { ...whole, address: partnerAddress };
+          if (whole.address === partnerAddress)
+            built.collateral.return.address = alice;
+        }),
+        /steps\[0\]\.tx\.built\.collateral\.return is not the collateral return of the transaction/,
+      );
     },
     LONG,
   );

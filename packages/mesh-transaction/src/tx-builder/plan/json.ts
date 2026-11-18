@@ -1870,9 +1870,44 @@ const outputsProblem = (
 };
 
 /**
+ * Whether the collateral a build records is what its bytes make: its return the same out ref,
+ * address, value, datum and reference script as the body's collateral return (one recorded where
+ * the body has none, or none where it has one, is refused), and its total the body's
+ * `total_collateral`, else the lovelace of the collateral inputs the record states less that of
+ * the body's return, as a build counts it. A transaction with no collateral inputs has nothing
+ * to compare
+ */
+const collateralProblem = (
+  built: Omit<BuiltTxData, "prototype">,
+  fromBytes: ReturnType<typeof readTxValue>,
+): string | undefined => {
+  const { collateral } = built;
+  const bodyReturn = fromBytes.collateralReturn;
+  const stated = fromBytes.prototype.body.total_collateral;
+  // No collateral inputs (the inputs are compared on their own): nothing can be forfeited
+  if (collateral === undefined) return undefined;
+  if (collateral.return === undefined) {
+    if (bodyReturn !== undefined)
+      return "collateral.return is not recorded, and the transaction has a collateral return";
+  } else if (bodyReturn === undefined)
+    return "collateral.return is recorded, and the transaction has no collateral return";
+  else if (!sameOutput(collateral.return, bodyReturn))
+    return "collateral.return is not the collateral return of the transaction";
+  const total =
+    stated !== undefined && stated !== null
+      ? BigInt(stated)
+      : collateral.inputs.reduce((sum, utxo) => sum + utxo.value.lovelace, 0n) -
+        (bodyReturn?.value.lovelace ?? 0n);
+  if (collateral.total !== total)
+    return "collateral.total is not the total collateral of the transaction";
+  return undefined;
+};
+
+/**
  * A step's transaction: its JSON read, its bytes read again and found unsigned, its hash
  * compared, its recorded inputs found to be those of its body, its recorded outputs those its
- * bytes make (a record that states another address, value, datum or script is refused), and every witness verified
+ * bytes make (a record that states another address, value, datum or script is refused), its
+ * recorded collateral return and total those of its bytes, and every witness verified
  * against its body; its prototype read from its bytes with what the record wrote of it; with the
  * set tag of each of the two entries of its witnesses, else as its body writes its input set. It
  * takes the transaction as a plan's record writes it, and the JSON of a `BuiltTx` written whole,
@@ -1955,6 +1990,8 @@ export const decodeTx = (
   }
   const outputs = outputsProblem(read, fromBytes.outputs);
   if (outputs !== undefined) unread(`${path}.built.${outputs}`);
+  const collateral = collateralProblem(read, fromBytes);
+  if (collateral !== undefined) unread(`${path}.built.${collateral}`);
   const built: BuiltTxData = {
     ...read,
     prototype: prototypeOfStep(fromBytes.prototype, kept, `${at}.prototype`),
