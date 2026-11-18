@@ -85,6 +85,8 @@ export type LineTx = {
   readonly plutus?: true;
   /** The addresses it pays, each once, in the order of its outputs, at most 16 */
   readonly pays?: readonly string[];
+  /** How many addresses it pays past the 16 of `pays`; absent when `pays` holds them all */
+  readonly paysMore?: number;
   /** In a block for good with failed scripts: it paid nobody and cannot land again */
   readonly usedUp?: true;
   /** It cannot land, by the plan's own rules, and no look ever found it in a block */
@@ -107,6 +109,10 @@ const paysOf = (outputs: readonly { readonly address: string }[]) =>
     0,
     MAX_PAYS,
   );
+
+/** How many addresses outputs pay past the first `MAX_PAYS`; 0 when none */
+const paysMoreOf = (outputs: readonly { readonly address: string }[]) =>
+  Math.max(0, new Set(outputs.map((output) => output.address)).size - MAX_PAYS);
 
 const indexOfOutRef = (outRef: string) =>
   Number(outRef.slice(outRef.indexOf("#") + 1));
@@ -169,6 +175,9 @@ export const lineTxOf = (tx: LineInput): LineTx => {
       ...(paysOf(tx.built.outputs ?? []).length > 0 && {
         pays: paysOf(tx.built.outputs ?? []),
       }),
+      ...(paysMoreOf(tx.built.outputs ?? []) > 0 && {
+        paysMore: paysMoreOf(tx.built.outputs ?? []),
+      }),
     };
   }
   if ("sources" in tx) return tx;
@@ -186,6 +195,7 @@ export const lineTxOf = (tx: LineInput): LineTx => {
     }),
     ...(tx.plutus === true && { plutus: true as const }),
     ...(tx.pays !== undefined && { pays: tx.pays }),
+    ...(tx.paysMore !== undefined && { paysMore: tx.paysMore }),
   };
 };
 
@@ -687,6 +697,10 @@ export const beforeOf = (
       ...(tx.plutus === true && { plutus: true as const }),
       ...(tx.pays !== undefined &&
         tx.pays.length > 0 && { pays: [...tx.pays] }),
+      // The addresses `pays` could not keep, told by their number
+      ...(tx.pays !== undefined &&
+        tx.pays.length > 0 &&
+        tx.paysMore !== undefined && { paysMore: tx.paysMore }),
     }));
   return { final, open };
 };

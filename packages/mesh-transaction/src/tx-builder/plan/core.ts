@@ -119,6 +119,11 @@ export type BeforeEntry = {
    * absent when it makes no output. Read when it passes by time
    */
   readonly pays?: readonly string[];
+  /**
+   * How many addresses its transaction pays past the 16 of `pays`, which are never read; absent
+   * when `pays` holds every address it pays
+   */
+  readonly paysMore?: number;
   /** The block a look of this plan found it in; set once, with the mark */
   readonly seen?: { readonly slot: number; readonly block?: string };
   /** It runs a Plutus script: a find of it counts only when it says whether its scripts passed */

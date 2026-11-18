@@ -1842,9 +1842,11 @@ export class TxPlan {
    * transaction, whose collateral return is on chain for good, only its regular outputs count. A
    * read of an address that fails, or answers no list, refuses the call with its own error. The
    * addresses read are those a step that is dead or used up pays, and those an entry of the
-   * plans before that is dead pays, at most 16 in a call
+   * plans before that is dead pays, at most 16 in a call. An entry keeps the first 16 addresses
+   * its transaction pays; those it could not keep are counted as unread, though a payer's read
+   * may have covered one: the count may be high, never low
    * @param open The open transactions of the line to match
-   * @returns how many addresses were left unread past the 16
+   * @returns how many addresses were left unread past the 16, with those entries could not keep
    * @throws TxBuildError PROVIDER_FAILED, MISSING_FETCHER
    */
   async #refuseOpenOutputs(
@@ -1861,6 +1863,8 @@ export class TxPlan {
     const outputs = new Map<string, LineTx>();
     /** The addresses the transactions that pass by time pay, in their order */
     const paid: string[] = [];
+    /** The addresses the dead entries pay that they could not keep */
+    let notKept = 0;
     for (const tx of open) {
       const step = stepOf.get(tx.txHash);
       if (tx.usedUp !== true) byHash.set(tx.txHash, tx);
@@ -1869,8 +1873,10 @@ export class TxPlan {
           outputs.set(outRefKey(output.txHash, output.outputIndex), tx);
       if (step !== undefined && (tx.dead === true || tx.usedUp === true))
         paid.push(...step.built.outputs.map((output) => output.address));
-      else if (step === undefined && tx.dead === true)
+      else if (step === undefined && tx.dead === true) {
         paid.push(...(tx.pays ?? []));
+        notKept += tx.paysMore ?? 0;
+      }
     }
     const check = (utxo: { txHash: string; outputIndex: number }) => {
       const outRef = outRefKey(utxo.txHash, utxo.outputIndex);
@@ -1894,14 +1900,14 @@ export class TxPlan {
       (address) => !covered.has(address),
     );
     const addresses = unread.splice(0, MAX_PAID_ADDRESSES);
-    if (addresses.length === 0) return unread.length;
+    if (addresses.length === 0) return unread.length + notKept;
     const fetcher = internals(state.builder).cache?.fetcher;
     const lists = await ask(
       Promise.all(addresses.map((address) => readAddress(fetcher, address))),
       "read",
     );
     for (const list of lists) for (const ref of list) check(ref);
-    return unread.length;
+    return unread.length + notKept;
   }
 
   /**

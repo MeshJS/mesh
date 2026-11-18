@@ -7,6 +7,7 @@ import type {
   TxPlan,
 } from "../../../src/tx-builder";
 import type { Fault, StoreFault } from "./fault-util";
+import { baseAddress } from "../../test-util";
 import { ref } from "../utxo-util";
 import { codeOf, Process, runStep, World } from "./fault-util";
 import {
@@ -155,6 +156,74 @@ describe("a plan in place of another, on a store", () => {
     expect(names(resumed)).toEqual(["a", "x"]);
     expect(told()).toEqual([]);
     void address;
+  });
+
+  it("an old transaction that pays 17 addresses: its entry keeps 16 and counts one more, the record reads back, and add tells it as unread", async () => {
+    const { emulator, wallet, builder } = await storeSetup({
+      funds: [100n * ADA, 50n * ADA],
+    });
+    const other = await walletOfIndex(1);
+    emulator.fund((await other.getChangeAddress())!, { lovelace: 50n * ADA });
+    // 15 other addresses, alice, and the change: 17
+    const others = Array.from({ length: 15 }, (_, i) => baseAddress(30 + i));
+    const old = await builder.plan(
+      {
+        a: [
+          ...others.map((at) => payTo(at, 2n * ADA)),
+          payTo(alice, 11n * ADA),
+        ],
+      },
+      { id: "order", payer: wallet },
+    );
+    await old.sign();
+    const aHash = old.step("a").txHash;
+    await old.run({
+      waitFor: "sent",
+      submitter: submitterOf(async (tx) => hashOf(tx)),
+    });
+    advance(emulator, 1);
+    await old.replan({ id: "i1", ttlMs: 3_600_000 });
+    // The record of the new plan reads back from the store
+    const events: BuildEvent[] = [];
+    const resumed = await builder.resume("i1", {
+      payer: wallet,
+      trace: (event) => void events.push(event),
+    });
+    const entry = resumed.toJSON().before!.open[0]!;
+    expect(entry.pays).toEqual([...others, alice]);
+    expect(entry.paysMore).toBe(1);
+    // A record written before entries counted what they could not keep still reads
+    const { paysMore: _, ...older } = entry;
+    const json = resumed.toJSON();
+    expect(
+      (
+        await builder.resume(
+          {
+            ...json,
+            id: "i1-copy",
+            before: { ...json.before!, open: [older] },
+          },
+          { payer: wallet },
+        )
+      ).toJSON().before!.open[0]!.paysMore,
+    ).toBeUndefined();
+    // The old a was never on chain: past its end it is dead
+    advance(emulator, 700);
+    await resumed.refresh();
+    await resumed.add({ x: { parts: payTo(dave, 2n * ADA), payer: other } });
+    expect(
+      events.filter(
+        (event) => event.type === "warning" && event.code === "NO_SHARED_INPUT",
+      ),
+    ).toEqual([
+      {
+        type: "warning",
+        code: "NO_SHARED_INPUT",
+        step: "a",
+        txHash: aHash,
+        unread: 1,
+      },
+    ]);
   });
 
   it("a repeat with other steps is PLAN_EXISTS", async () => {

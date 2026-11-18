@@ -1660,6 +1660,7 @@ const encodeBefore = (
     }),
     ...(entry.plutus === true && { plutus: true as const }),
     ...(entry.pays !== undefined && { pays: [...entry.pays] }),
+    ...(entry.paysMore !== undefined && { paysMore: entry.paysMore }),
     ...(entry.seen !== undefined && {
       seen: {
         slot: entry.seen.slot,
@@ -2292,6 +2293,7 @@ const decodeBefore = (
         "seenBefore",
         "plutus",
         "pays",
+        "paysMore",
         "seen",
       ],
       at,
@@ -2316,6 +2318,22 @@ const decodeBefore = (
     // A record written before entries held the addresses they pay is not read
     if (count(entry.outputs, `${at}.outputs`) > 0 !== (pays !== undefined))
       unread(`${at}.pays is there exactly when the transaction makes outputs`);
+    // How many addresses past the 16 of `pays`: only beside a full `pays`, and with it no more
+    // addresses than the transaction makes outputs
+    const paysMore =
+      entry.paysMore === undefined
+        ? undefined
+        : count(entry.paysMore, `${at}.paysMore`);
+    if (paysMore !== undefined) {
+      if (paysMore === 0)
+        unread(`${at}.paysMore is 0, not a whole number above 0`);
+      if (pays?.length !== MAX_PAYS)
+        unread(
+          `${at}.paysMore is there only beside ${MAX_PAYS} addresses in pays`,
+        );
+      if (MAX_PAYS + paysMore > count(entry.outputs, `${at}.outputs`))
+        unread(`${at}.pays and paysMore count more addresses than outputs`);
+    }
     const step = nonEmpty(entry.step, `${at}.step`);
     const txHash = text(entry.txHash, `${at}.txHash`);
     if (!TX_HASH.test(txHash))
@@ -2346,6 +2364,7 @@ const decodeBefore = (
       }),
       ...(entry.plutus === true && { plutus: true as const }),
       ...(pays !== undefined && { pays }),
+      ...(paysMore !== undefined && { paysMore }),
       ...(entry.seen !== undefined && {
         seen: decodeSeen(entry.seen, `${at}.seen`),
       }),

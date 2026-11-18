@@ -1494,6 +1494,59 @@ describe("a plan in place of another", () => {
       ).toEqual([{ ...noSharedInput("a", aHash), unread: 1 }]);
     });
 
+    it("two plans on, an old transaction that pays more than 16 addresses: its entry keeps 16, and NO_SHARED_INPUT counts the rest as unread", async () => {
+      const hidden = new Set<string>();
+      const { emulator, builder, wallet, funded } = await stepSetup("scalus", {
+        hooks: hiding(hidden),
+        funds: [100n * ADA, 50n * ADA, 40n * ADA],
+      });
+      // 16 other addresses first, alice 17th, the change 18th
+      const others = Array.from({ length: 16 }, (_, i) => baseAddress(30 + i));
+      const parts = [
+        ...others.map((address) => payTo(address, 2n * ADA)),
+        payTo(alice, 11n * ADA),
+      ];
+      const old = await builder.plan(
+        { a: parts },
+        { id: "order", payer: wallet },
+      );
+      await old.sign();
+      const aHash = old.step("a").txHash;
+      const ofA = new Set(old.step("a").inputs.map(key));
+      const extra = funded.find((u) => !ofA.has(key(u.input)))!;
+      const relay = relayOf(emulator, (txHash) => txHash === aHash);
+      await caught(old.run({ submitter: relay, timeoutMs: 300 }));
+      advance(emulator, 1);
+      const next = await old.replan({
+        id: "order:2",
+        ttlMs: 3_600_000,
+        steps: { a: [...parts, spend.pubKey({ utxo: extra })] },
+      });
+      const entry = next.toJSON().before!.open[0]!;
+      expect(entry.pays).toEqual(others);
+      expect(entry.paysMore).toBe(2);
+      // The old a lands, hidden by the search; all but alice's payment is spent
+      hidden.add(aHash);
+      await emulator.submitTx(relay.kept[0]!);
+      emulator.removeUtxos(
+        old
+          .step("a")
+          .outputs.filter((output) => output.address !== alice)
+          .map(ref),
+      );
+      advance(emulator, 700);
+      await next.refresh();
+      expect(statuses(next)).toEqual({ a: "built" });
+      const { events, trace } = tracer();
+      await next.replan({ id: "order:3", trace });
+      expect(
+        events.filter(
+          (event) =>
+            event.type === "warning" && event.code === "NO_SHARED_INPUT",
+        ),
+      ).toEqual([{ ...noSharedInput("a", aHash), unread: 2 }]);
+    });
+
     it("a provider that does not say whether scripts passed: a plain old step found is kept, and the plan in place of the one it stopped is made", async () => {
       const { emulator, provider, old, bytes } = await stuck();
       provider.control.hooks.fetchTxInfo = async (forward, hash: string) => {

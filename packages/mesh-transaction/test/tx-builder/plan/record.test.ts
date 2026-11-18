@@ -363,6 +363,49 @@ describe("the record of a plan", () => {
     more.before.open[1].plutus = true;
     more.before.open[1].seenBefore = { slot: 3, block: "b1" };
     expect(encodePlan(throughText(more))).toEqual(more);
+    // How many addresses an entry could not keep past the 16 of pays: read back beside 16, and
+    // refused beside fewer, at 0, or with more addresses than outputs
+    const sixteen = Array.from({ length: 16 }, (_, i) => `${PAYS}${i}`);
+    const full = (j: Record<string, any>) => {
+      j.before.open[0].pays = sixteen;
+      j.before.open[0].outputs = 18;
+      j.before.open[0].paysMore = 2;
+    };
+    const cut = JSON.parse(JSON.stringify(json));
+    full(cut);
+    expect(throughText(cut).before!.open[0]!.paysMore).toBe(2);
+    expect(encodePlan(throughText(cut))).toEqual(cut);
+    expect(
+      refused(json, (j) => {
+        full(j);
+        j.before.open[0].paysMore = 0;
+      }),
+    ).toMatch(/paysMore is 0/);
+    expect(
+      refused(json, (j) => {
+        full(j);
+        j.before.open[0].paysMore = 1.5;
+      }),
+    ).toMatch(/paysMore/);
+    expect(
+      refused(json, (j) => {
+        full(j);
+        j.before.open[0].pays = [PAYS];
+      }),
+    ).toMatch(/paysMore is there only beside 16 addresses/);
+    expect(
+      refused(json, (j) => {
+        full(j);
+        j.before.open[0].paysMore = 3;
+      }),
+    ).toMatch(/more addresses than outputs/);
+    expect(
+      refused(json, (j) => {
+        full(j);
+        j.before.open[0].outputs = 0;
+        delete j.before.open[0].pays;
+      }),
+    ).toMatch(/paysMore is there only beside 16 addresses/);
     expect(
       refused(json, (j) => (j.before.open[0].spends = [hash(0xe0)])),
     ).toMatch(/not an out ref/);

@@ -781,8 +781,9 @@ are the old plan's unless given; deadlines given are the new plan's and carry on
 - The one case that goes by time: an old transaction this call's look answered "not found", past
   its end and the margin, that shares no input with the new plan. `trace` gets `NO_SHARED_INPUT`
   once the new plan is recorded. A provider that hides a landed transaction from that look, and
-  shows none of its outputs in the payers' reads or at the addresses it paid (at most 16 a call;
-  the warning's `unread` counts those left), makes the new plan pay twice.
+  shows none of its outputs in the payers' reads or at the addresses it paid (at most 16 a call,
+  and of an old transaction two plans on the first 16 it pays, which is all its entry keeps; the
+  warning's `unread` counts the rest), makes the new plan pay twice.
 - Dead ends, where no plan is made: nothing left to build (every step is final, failed or a
   consolidation step: `INVALID_OPTION`, `steps`), unless `steps` are given; an old transaction
   found in a block once and gone, its inputs spent by others; a step given built that never
@@ -2168,7 +2169,8 @@ provider's tip is more than two minutes ahead of the local clock (the look goes 
 `{ code: "CONSOLIDATION_STEPS", steps, fee }` when it puts consolidation steps in, and
 `{ code: "NO_SHARED_INPUT", step, txHash, unread? }` when a step `replan` or `add` built shares
 no input with an old transaction called dead, which rests on its end of validity and the
-provider's search (`unread`: the addresses past the 16 a call reads). A step that comes back
+provider's search (`unread`: the addresses past the 16 a call reads, and those an old transaction
+pays past the first 16 its entry keeps). A step that comes back
 because the step below it was found warns of nothing.
 
 The lists the library gives out are open: part kinds, `SignerRole`, redeemer tags,
