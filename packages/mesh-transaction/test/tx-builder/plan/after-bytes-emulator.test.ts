@@ -1,5 +1,5 @@
 import { mConStr0 } from "@meshsdk/core";
-import { Crypto } from "@meshsdk/core-cst";
+import { Address, Crypto } from "@meshsdk/core-cst";
 
 import type { BuiltTx } from "../../../src/tx-builder";
 import {
@@ -14,6 +14,7 @@ import {
 } from "../../../src/tx-builder";
 import { recordOf } from "../../../src/tx-builder/plan/plan";
 import { alwaysSucceedCbor } from "../../test-util";
+import { arr, bytes, head, map, tx as txOf, uint } from "../cbor-util";
 import { builderOf, caught, walletOf, wrap } from "./plan-emulator-util";
 import { ADA, alice, bob, payTo, stepSetup } from "./run-util";
 
@@ -22,6 +23,17 @@ import { ADA, alice, bob, payTo, stepSetup } from "./run-util";
 // party wrote can make up. Only the change marks of the object are taken.
 
 const LONG = 120_000;
+
+/** A transaction of `n` plain outputs to alice, spending one made-up input */
+const manyOutputs = (n: number, aux = "f6") => {
+  const one = arr(bytes(Address.fromBech32(alice).toBytes()), uint(2_000_000));
+  const body = map(
+    [uint(0), arr(arr(bytes("77".repeat(32)), uint(0)))],
+    [uint(1), head(4, n) + one.repeat(n)],
+    [uint(2), uint(200_000)],
+  );
+  return txOf(body, map(), { aux });
+};
 
 const script = { code: alwaysSucceedCbor, version: "V3" as const };
 
@@ -310,6 +322,151 @@ describe("a transaction of after is read from its bytes", () => {
         { payer: ctx.wallet, after: fund },
       );
       expect(plan.step("next").inputs.map(ref)).toContain(ref(fund.change[0]!));
+    },
+    LONG,
+  );
+
+  it(
+    "reads a transaction of after up to 65 536 bytes on a builder without parameters, and up to their maxTxSize on one with them",
+    async () => {
+      const ctx = await stepSetup("scalus", { funds: [1000n * ADA] });
+      const params = await ctx.emulator.fetchProtocolParameters();
+      const big = builderOf(wrap(ctx.emulator), {
+        params: { ...params, maxTxSize: 65_536 },
+      });
+      const entries = Object.fromEntries(
+        Array.from({ length: 300 }, (_, i) => [String(i), "x".repeat(64)]),
+      );
+      const fund = await big.build(
+        [
+          payTo(ctx.address, 10n * ADA),
+          metadata({ metadataLabel: 674, value: entries }),
+        ],
+        { payer: ctx.wallet },
+      );
+      expect(fund.tx.length / 2).toBeGreaterThan(20_000);
+      // No parameters given: read up to 65 536 bytes
+      const next = await ctx.builder.build(payTo(bob, 1n * ADA), {
+        payer: ctx.wallet,
+        after: fund,
+      });
+      expect(next.inputs.map(ref)).toContain(ref(fund.change[0]!));
+      // Parameters given: read up to their maxTxSize, here 16 384
+      const small = builderOf(wrap(ctx.emulator), {
+        params: { ...params, maxTxSize: 16_384 },
+      });
+      const plan = await small.plan(
+        { first: payTo(bob, 1n * ADA) },
+        { payer: ctx.wallet },
+      );
+      for (const call of [
+        () =>
+          small.build(payTo(bob, 1n * ADA), {
+            payer: ctx.wallet,
+            after: fund,
+          }),
+        () =>
+          small.plan(
+            { next: payTo(bob, 1n * ADA) },
+            { payer: ctx.wallet, after: [fund] },
+          ),
+        () =>
+          plan.replan({
+            id: "again",
+            steps: { next: payTo(bob, 1n * ADA) },
+            payer: ctx.wallet,
+            after: fund,
+          }),
+      ]) {
+        const error = await caught(call());
+        expectAfter(error, /more than the 16384 bytes .*maxTxSize/);
+        expect(error.details.value).toBe("object");
+        expect(JSON.stringify(error.details)).not.toContain(fund.tx);
+        expect(error.message).not.toContain(fund.tx.slice(0, 64));
+      }
+    },
+    LONG,
+  );
+
+  it(
+    "refuses a larger transaction of after at once, before any of it is read",
+    async () => {
+      const ctx = await stepSetup("scalus", { funds: [1000n * ADA] });
+      const plan = await ctx.builder.plan(
+        { first: payTo(bob, 1n * ADA) },
+        { payer: ctx.wallet },
+      );
+      // 20 000 outputs, 1.3 MB: read, it would take seconds
+      const huge = manyOutputs(20_000);
+      expect(huge.length / 2).toBeGreaterThan(1_000_000);
+      const given = { tx: huge, outputs: [] };
+      for (const call of [
+        () =>
+          ctx.builder.build(payTo(bob, 1n * ADA), {
+            payer: ctx.wallet,
+            after: given as never,
+          }),
+        () =>
+          ctx.builder.plan(
+            { next: payTo(bob, 1n * ADA) },
+            { payer: ctx.wallet, after: given as never },
+          ),
+        () =>
+          plan.replan({
+            id: "again",
+            steps: { next: payTo(bob, 1n * ADA) },
+            payer: ctx.wallet,
+            after: [given] as never,
+          }),
+      ]) {
+        const calls = () =>
+          Object.values(ctx.provider.control.calls).reduce((a, b) => a + b, 0);
+        const asked = calls();
+        const start = performance.now();
+        const error = await caught(call());
+        expect(performance.now() - start).toBeLessThan(500);
+        // Refused before any request
+        expect(calls()).toBe(asked);
+        expectAfter(error, /more than the 65536 bytes .*maxTxSize/);
+        expect(error.details.value).toBe("object");
+      }
+      // Just above the bound
+      const above = manyOutputs(1_010);
+      expect(above.length / 2).toBeGreaterThan(65_536);
+      expectAfter(
+        await caught(
+          ctx.builder.build(payTo(bob, 1n * ADA), {
+            payer: ctx.wallet,
+            after: { tx: above, outputs: [] } as never,
+          }),
+        ),
+        /more than the 65536 bytes/,
+      );
+    },
+    LONG,
+  );
+
+  it(
+    "refuses a transaction of after nested deeper than the walk reads",
+    async () => {
+      const ctx = await stepSetup("scalus", { funds: [1000n * ADA] });
+      // The same transaction with metadata nested 10 and 100 levels
+      const shallow = manyOutputs(1, map([uint(674), "81".repeat(10) + "00"]));
+      const deep = manyOutputs(1, map([uint(674), "81".repeat(100) + "00"]));
+      const built = await ctx.builder.build(payTo(bob, 1n * ADA), {
+        payer: ctx.wallet,
+        after: { tx: shallow, outputs: [{}] } as never,
+      });
+      expect(built.txHash).toMatch(/^[0-9a-f]{64}$/);
+      expectAfter(
+        await caught(
+          ctx.builder.build(payTo(bob, 1n * ADA), {
+            payer: ctx.wallet,
+            after: { tx: deep, outputs: [{}] } as never,
+          }),
+        ),
+        /holds no transaction this library reads/,
+      );
     },
     LONG,
   );

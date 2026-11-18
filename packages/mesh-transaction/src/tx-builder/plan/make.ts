@@ -37,7 +37,7 @@ import type {
 } from "./types";
 import { abortable } from "../abort";
 import { isKeyLocked } from "../balance";
-import { flattenParts, ownAfterEntry, readAfter } from "../builder";
+import { afterBound, flattenParts, ownAfterEntry, readAfter } from "../builder";
 import { BuiltTx, isBuiltHere } from "../built-tx";
 import { toKnownUtxos } from "../chain";
 import { NOT_UNPAID, TxBuildError, TxError, TxPlanError } from "../errors";
@@ -1533,7 +1533,7 @@ export const buildReplan = async (
     standsOn: step.standsOn,
   }));
   // Read from the transactions' own bytes, as `makePlan` reads them
-  const after = readAfter(options.after);
+  const after = readAfter(options.after, afterBound(builder.params));
   // The steps given built, read once by the one reader: the guards keep off what they name
   const prebuilt = await readPrebuilt(builder, read, {
     before,
@@ -1673,7 +1673,7 @@ export const makePlan = async (
   const made = await buildSteps(builder, given, {
     before: [],
     // Read from their bytes at the door; an entry read already is taken as it is
-    after: readAfter(options.after),
+    after: readAfter(options.after, afterBound(builder.params)),
     tip,
     ttlMs: deadlines.ttlMs,
     ...(id !== undefined && { planId: id }),

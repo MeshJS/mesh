@@ -387,8 +387,10 @@ export type BuildOptions = {
    * out ref without a lookup. Each is read from its own bytes, its `tx`: what it spends and the
    * outputs it makes are those of the bytes, never those the object states (an object restored
    * from a JSON another party wrote can state anything); of the object only the change marks are
-   * taken, by position. An object whose bytes are not read, or that lists another number of
-   * outputs than they hold, is INVALID_OPTION (`after`). Only change becomes selectable, never
+   * taken, by position. A transaction is read up to the `maxTxSize` of the `params` the builder
+   * was given, else up to 65 536 bytes; a larger one is INVALID_OPTION (`after`) before any is
+   * read. An object whose bytes are not read, or that lists another number of outputs than they
+   * hold, is INVALID_OPTION (`after`). Only change becomes selectable, never
    * an output paid to another: of their change, only the outputs at this build's change address
    * are selected. A part that names an output they spend is refused with UTXO_NOT_FOUND. Their
    * collateral inputs stay selectable, since a valid transaction does not spend them. The build
@@ -728,15 +730,29 @@ export const ownAfterEntry = <T extends object>(entry: T): T => {
 };
 
 /**
+ * The largest transaction of `after` read when the builder was not given protocol parameters, in
+ * bytes: 65 536, four times the maximum transaction size of mainnet, preprod and preview. A
+ * builder given parameters reads up to their `maxTxSize`. The time of reading a transaction's
+ * outputs grows faster than its size: one of this size is read in about a fifth of a second, one
+ * of a megabyte in seconds, all in one synchronous run
+ */
+export const MAX_AFTER_BYTES = 65_536;
+
+/** The largest transaction of `after` a builder with these parameters reads, in bytes */
+export const afterBound = (params?: { maxTxSize?: unknown }): number =>
+  typeof params?.maxTxSize === "number" ? params.maxTxSize : MAX_AFTER_BYTES;
+
+/**
  * What a transaction's own bytes say of what it spends and makes: the hash of its body, the out
  * refs of its inputs in body order, and its outputs as the UTxOs they become, read as
  * `fromCbor` reads the outputs of a body after the same walk, with its bounds on nesting and
- * work but none on size: a transaction of `after` is the application's own, and may be larger
- * than the default maximum where the network allows it. Undefined for a value no transaction is
- * read from. It makes no request
+ * work, and on size up to `maxBytes`: a transaction of `after` is the application's own, and may
+ * be larger than the default maximum where the network allows it. Undefined for a value no
+ * transaction is read from. It makes no request
  */
 export const readTxBytes = (
   tx: unknown,
+  maxBytes: number,
 ):
   | {
       readonly txHash: string;
@@ -747,7 +763,7 @@ export const readTxBytes = (
   if (typeof tx !== "string") return undefined;
   try {
     const text = tx.toLowerCase();
-    scanTransaction(text, Number.POSITIVE_INFINITY);
+    scanTransaction(text, maxBytes);
     const { txId, body } = readTransaction(text);
     return {
       txHash: txId.toLowerCase(),
@@ -766,6 +782,29 @@ export const readTxBytes = (
 };
 
 /**
+ * Refuses a transaction of `after` larger than `maxBytes`, before any of them is read. The
+ * library's own entries are not read again, and not bound
+ * @throws TxBuildError INVALID_OPTION (`after`) for a transaction larger than `maxBytes`
+ */
+export const checkAfterSize = (after: unknown, maxBytes: number): void => {
+  if (typeof after !== "object" || after === null) return;
+  const given: unknown[] = Array.isArray(after) ? after : [after];
+  given.forEach((entry, i) => {
+    if (typeof entry !== "object" || entry === null) return;
+    if (entry instanceof TxPlan || OWN_ENTRIES.has(entry)) return;
+    const tx = (entry as { tx?: unknown }).tx;
+    if (typeof tx !== "string" || tx.length <= 2 * maxBytes) return;
+    const where = Array.isArray(after) ? `entry ${i}` : "the transaction";
+    throw invalidEntry(
+      "after",
+      kindOf(entry),
+      AFTER_ALLOWED,
+      `${where} is more than the ${maxBytes} bytes this library reads of a transaction of after: a builder given params reads up to their maxTxSize, else ${MAX_AFTER_BYTES}`,
+    );
+  });
+};
+
+/**
  * The transactions of `after` at the door, before anything is built on them. A plan stands for
  * its steps that are in a block and not final, or may still land. An entry that is the
  * library's own data is taken as it is. Any other is read from its own bytes, its `tx`: the out
@@ -773,13 +812,14 @@ export const readTxBytes = (
  * which may come from a JSON another party wrote; of the object only the change marks are taken,
  * by position, since bytes cannot say them (selection takes only such an output at the payer's
  * own change address). Its labels are not taken: no build reads a label of `after`. The entry
- * read is marked as the library's own. An error names the type of what was given, never its
- * value
+ * read is marked as the library's own. A transaction larger than `maxBytes` (`afterBound` of the
+ * builder's parameters) is refused before any entry is read. An error names the type of what was
+ * given, never its value
  * @throws TxBuildError INVALID_OPTION (`after`) for a value that is no transaction, no plan and
- *   no list of them, a transaction whose bytes this library does not read, and an object that
- *   lists another number of outputs than its bytes hold
+ *   no list of them, a transaction larger than `maxBytes`, a transaction whose bytes this library
+ *   does not read, and an object that lists another number of outputs than its bytes hold
  */
-export const readAfter = (after: unknown): BuiltTxData[] => {
+export const readAfter = (after: unknown, maxBytes: number): BuiltTxData[] => {
   if (after === undefined) return [];
   if (typeof after !== "object" || after === null)
     throw invalidEntry(
@@ -795,6 +835,8 @@ export const readAfter = (after: unknown): BuiltTxData[] => {
       ? standingSteps(entry).map((step) => ({ entry: step as unknown, i }))
       : [{ entry, i }],
   );
+  // The size first, for every entry: the time of reading a transaction grows faster than its size
+  checkAfterSize(after, maxBytes);
   return entries.map(({ entry, i }) => {
     const where = Array.isArray(after) ? `entry ${i}` : "the transaction";
     const tx = entry as Record<string, unknown> | null;
@@ -817,7 +859,7 @@ export const readAfter = (after: unknown): BuiltTxData[] => {
       return tx as unknown as BuiltTxData;
     }
     if (!Array.isArray(tx.outputs)) throw notBuilt();
-    const read = readTxBytes(tx.tx);
+    const read = readTxBytes(tx.tx, maxBytes);
     if (read === undefined)
       throw invalidEntry(
         "after",
@@ -857,8 +899,8 @@ export const readAfter = (after: unknown): BuiltTxData[] => {
  * @throws TxBuildError INVALID_OPTION (`after`) as `readAfter`, and for an entry that holds an
  *   output that is not a UTxO
  */
-const toAfter = (after: unknown): AfterTx[] =>
-  readAfter(after).map((tx, i) => {
+const toAfter = (after: unknown, maxBytes: number): AfterTx[] =>
+  readAfter(after, maxBytes).map((tx, i) => {
     try {
       return {
         txHash: tx.txHash.toLowerCase(),
@@ -936,6 +978,7 @@ const coinCbor = (lovelace: bigint) => {
  */
 const checkBuildOptions = (
   options: BuildOptions,
+  maxAfterBytes: number,
 ): { sendAllTo?: string; after: AfterTx[]; knownUtxos: Utxo[] } => {
   const { canSelect, coinSelection, sendAllTo, signal, trace } = options;
   const { fee, registeredPools, extraKeyWitnesses } = options;
@@ -996,7 +1039,7 @@ const checkBuildOptions = (
       options.collateralReturn,
       "a boolean",
     );
-  const after = toAfter(options.after);
+  const after = toAfter(options.after, maxAfterBytes);
   const knownUtxos = toKnownUtxos(options.knownUtxos);
   if (sendAllTo === undefined) return { after, knownUtxos };
   if (typeof sendAllTo !== "string")
@@ -2612,7 +2655,10 @@ export class TxBuilder {
     flat: readonly TxPart[],
     options: BuildOptions | undefined,
   ): Promise<BuiltTxData> {
-    const { sendAllTo, after, knownUtxos } = checkBuildOptions(options ?? {});
+    const { sendAllTo, after, knownUtxos } = checkBuildOptions(
+      options ?? {},
+      afterBound(this.params),
+    );
     const declared = (
       options as { [DECLARED_OUTPUTS]?: DeclaredOutputs } | undefined
     )?.[DECLARED_OUTPUTS];

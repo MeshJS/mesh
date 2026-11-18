@@ -48,7 +48,7 @@ import {
   TIMED_OUT,
   within,
 } from "../abort";
-import { readAfter } from "../builder";
+import { afterBound, checkAfterSize, readAfter } from "../builder";
 import { BuiltTx, makeBuiltTx } from "../built-tx";
 import { NOT_UNPAID, TxBuildError, TxPlanError } from "../errors";
 import {
@@ -1393,6 +1393,8 @@ export class TxPlan {
       ...rest,
       ...(after !== undefined && { after: afterOf(after) }),
     };
+    // A transaction of after too large to read is refused before any request
+    checkAfterSize(callOptions.after, afterBound(builder.params));
     const own =
       steps === undefined
         ? undefined
@@ -1484,7 +1486,12 @@ export class TxPlan {
     }
     const keptSteps = base.steps.filter((step) => step.status === "final");
     read = fillKeptLinks(read, keptSteps);
-    if (openAmong(readAfter(callOptions.after), classes.open) !== undefined)
+    if (
+      openAmong(
+        readAfter(callOptions.after, afterBound(builder.params)),
+        classes.open,
+      ) !== undefined
+    )
       throw invalidOption(
         "after",
         after,
@@ -3785,7 +3792,9 @@ export const planFor = async (
   const given: MakePlanOptions = {
     ...rest,
     // The transactions of `after` are read from their own bytes at the door
-    ...(after !== undefined && { after: readAfter(afterOf(after)) }),
+    ...(after !== undefined && {
+      after: readAfter(afterOf(after), afterBound(builder.params)),
+    }),
   };
   // The shapes first, with no request: a step given as text no transaction is read from is
   // refused before the store, the tip or a payer is read
