@@ -244,7 +244,7 @@ const readDatum = (at: string, datum: unknown): OutputDatum => {
   }
   return problem(
     "datum",
-    `${at}: a datum of the type ${String(datum.type)}: expected inline or hash`,
+    `${at}: a datum of the type ${shownValue(datum.type)}: expected inline or hash`,
   );
 };
 
@@ -388,7 +388,7 @@ const readScript = (at: string, script: unknown): OutputScript => {
     )
       return problem(
         "script",
-        `${at}: unknown Plutus version ${String(script.version)}`,
+        `${at}: unknown Plutus version ${shownValue(script.version)}: expected V1, V2 or V3`,
       );
     described = describeScriptRef(
       `82${LANGUAGE_TAG[version]}${plutusCode(at, script.code)}`,
@@ -401,7 +401,7 @@ const readScript = (at: string, script: unknown): OutputScript => {
   } else
     return problem(
       "script",
-      `${at}: a script of the type ${String(script.type)}: expected plutus, native or unknown`,
+      `${at}: a script of the type ${shownValue(script.type)}: expected plutus, native or unknown`,
     );
   if (described.type === "unknown")
     return problem("script", `${at}: the ${script.type} script cannot be read`);

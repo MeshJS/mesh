@@ -1985,7 +1985,7 @@ export const decodeTx = (
     fromBytes = readTxValue(raw);
   } catch {
     return unread(
-      `${at}.prototype: the transaction holds what this library does not read as a fromBytes`,
+      `${at}.prototype: the transaction holds what this library does not read as a value`,
     );
   }
   const outputs = outputsProblem(read, fromBytes.outputs);

@@ -305,8 +305,8 @@ export type TxStepJSON = {
  * A plan as data: what `plan.toJSON()` returns and a store holds. Plain JSON data: every
  * `bigint` of the parts and of the transactions stands as its decimal string, POSIX times as
  * numbers, so `JSON.parse(JSON.stringify(json))` gives it back unchanged. Applications read
- * `id`, `rev`, `status`, `stopped`, `replaces`, `replacedBy`, `deadlines` and, of each step,
- * `name`, `kind`, `status` and `txHash`; the rest is the library's.
+ * `id`, `rev`, `status`, `stopped`, `halted`, `replaces`, `replacedBy`, `deadlines` and, of each
+ * step, `name`, `kind`, `status` and `txHash`; the rest is the library's.
  */
 export type TxPlanJSON = {
   /** Always `"TxPlan"`: what kind of record this is */

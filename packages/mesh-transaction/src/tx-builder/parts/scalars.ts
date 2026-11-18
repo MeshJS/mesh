@@ -10,6 +10,7 @@ import {
   errorText,
   fail,
   freeze,
+  invalidPlutusScript,
   isHash28,
   labelOf,
   parseAddress,
@@ -366,14 +367,14 @@ export const message = (params: {
     fail(
       ctx,
       "INVALID_DATA",
-      `invalid message text ${String(text)}: expected a string or a list of strings`,
+      `invalid message text ${shownValue(text)}: expected a string or a list of strings`,
     );
   const lines = texts.flatMap((entry, i) => {
     if (typeof entry !== "string")
       return fail(
         ctx,
         "INVALID_DATA",
-        `invalid message text at ${i}: ${String(entry)} is not a string`,
+        `invalid message text at ${i}: ${shownValue(entry)} is not a string`,
       );
     return messageLines(entry);
   });
@@ -403,21 +404,13 @@ export const auxiliaryScript = (params: {
       `invalid script ${shownValue(script)}: expected a native script or { code, version }`,
     );
   if ("code" in script) {
-    const code = toPlutusScriptCode(
-      ctx,
-      script.code,
-      `invalid Plutus ${script.version} script`,
-    );
+    const what = invalidPlutusScript(script.version);
+    const code = toPlutusScriptCode(ctx, script.code, what);
     let cbor = "";
     try {
       cbor = deserializePlutusScript(code, script.version).toCbor().toString();
     } catch (error) {
-      fail(
-        ctx,
-        "INVALID_SCRIPT",
-        `invalid Plutus ${script.version} script: ${errorText(error)}`,
-        error,
-      );
+      fail(ctx, "INVALID_SCRIPT", `${what}: ${errorText(error)}`, error);
     }
     return freeze({
       kind: "auxiliaryScript",
@@ -492,7 +485,11 @@ export const networkId = (params: {
 }): NetworkIdPart => {
   const ctx = partContext("networkId", params);
   if (params.network !== "mainnet" && params.network !== "testnet")
-    fail(ctx, "INVALID_DATA", `invalid network ${params.network}`);
+    fail(
+      ctx,
+      "INVALID_DATA",
+      `invalid network: expected "mainnet" or "testnet"; got ${shownValue(params.network)}`,
+    );
   return freeze({
     kind: "networkId",
     networkId: { type: params.network === "mainnet" ? "MAINNET" : "TESTNET" },

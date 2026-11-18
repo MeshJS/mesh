@@ -112,7 +112,7 @@ export const partContext = (
     fail(
       { part },
       "INVALID_DATA",
-      `invalid label ${String(label)}: expected a string`,
+      `invalid label ${shownValue(label)}: expected a string`,
     );
   return { part, label: label as string | undefined };
 };
@@ -473,18 +473,40 @@ const readScriptReference = (
   return { script, scriptSize: scriptSize(script) };
 };
 
-/** Checks a value given for a script in a reference output against the output itself */
+/** The Plutus versions a script is given in */
+const PLUTUS_VERSIONS: readonly unknown[] = ["V1", "V2", "V3"];
+
+/**
+ * A Plutus version given, as an error names it: one of the versions as it is, anything else by
+ * its shape, never the text
+ */
+const shownVersion = (version: unknown): string =>
+  PLUTUS_VERSIONS.includes(version)
+    ? String(version)
+    : `${shownValue(version)}, not V1, V2 or V3`;
+
+/** The start of an error about a Plutus script given in this version, the version shown */
+export const invalidPlutusScript = (version: unknown): string =>
+  PLUTUS_VERSIONS.includes(version)
+    ? `invalid Plutus ${String(version)} script`
+    : `invalid Plutus script of the version ${shownVersion(version)}`;
+
+/**
+ * Checks a value given for a script in a reference output against the output itself
+ * @param shown How the error names the value given
+ */
 const agree = <T>(
   ctx: PartContext,
   name: string,
   given: T | undefined,
   actual: T,
+  shown: (value: T) => string = String,
 ) => {
   if (given !== undefined && given !== actual)
     fail(
       ctx,
       "INVALID_SCRIPT",
-      `${name} ${given} does not match the reference script's ${actual}`,
+      `${name} ${shown(given)} does not match the reference script's ${actual}`,
     );
 };
 
@@ -545,11 +567,8 @@ export const toPlutusScriptSource = (
       `invalid Plutus script ${shownValue(script)}: expected { code, version } or { reference }`,
     );
   if ("code" in script) {
-    const code = toPlutusScriptCode(
-      ctx,
-      script.code,
-      `invalid Plutus ${script.version} script`,
-    );
+    const what = invalidPlutusScript(script.version);
+    const code = toPlutusScriptCode(ctx, script.code, what);
     try {
       const cbor = deserializePlutusScript(code, script.version)
         .toCbor()
@@ -559,12 +578,7 @@ export const toPlutusScriptSource = (
         .toString();
       return { type: "attached", version: script.version, cbor, scriptHash };
     } catch (error) {
-      return fail(
-        ctx,
-        "INVALID_SCRIPT",
-        `invalid Plutus ${script.version} script: ${errorText(error)}`,
-        error,
-      );
+      return fail(ctx, "INVALID_SCRIPT", `${what}: ${errorText(error)}`, error);
     }
   }
 
@@ -588,7 +602,7 @@ export const toPlutusScriptSource = (
       "INVALID_SCRIPT",
       `${outRefString(resolvable.input)} holds a native script, not a Plutus one`,
     );
-  agree(ctx, "version", version, held.script.version);
+  agree(ctx, "version", version, held.script.version, shownVersion);
   agree(ctx, "script hash", scriptHash, held.script.hash);
   agree(ctx, "script size", scriptSize, held.scriptSize);
   return {
@@ -620,7 +634,7 @@ export const toNativeScriptSource = (
       // A script of no known type converts to nothing
       if (!nativeScript)
         throw new Error(
-          `unknown script type ${String((script as { type?: unknown }).type)}`,
+          `unknown script type ${shownValue((script as { type?: unknown }).type)}`,
         );
     } catch (error) {
       return fail(

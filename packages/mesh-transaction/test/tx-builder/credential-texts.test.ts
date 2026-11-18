@@ -13,9 +13,11 @@ import {
   certificate,
   donation,
   guard,
+  message,
   metadata,
   minFee,
   mint,
+  networkId,
   output,
   outputOf,
   proposal,
@@ -33,6 +35,7 @@ import {
 } from "../../src/tx-builder";
 import {
   alwaysSucceedCbor,
+  alwaysSucceedHash,
   baseAddress,
   keyHashHex,
   rewardAddress,
@@ -46,6 +49,7 @@ import {
   KEY_FILE_CBOR,
   leakOf,
   MARKERS,
+  PHRASE,
 } from "./secret-text-util";
 
 // A text given where a credential, a key hash, a script hash, a pool id, a DRep id or a
@@ -72,6 +76,17 @@ const funds: Utxo = {
   outputIndex: 0,
   address: wallet,
   value: { lovelace: 100_000_000n },
+};
+/** A UTxO given whole that holds a Plutus V3 reference script */
+const scriptHolder: Utxo = {
+  ...funds,
+  outputIndex: 1,
+  script: {
+    type: "plutus",
+    version: "V3",
+    code: alwaysSucceedCbor,
+    hash: alwaysSucceedHash,
+  },
 };
 const payment = output({ address: recipient, value: { lovelace: 2_000_000n } });
 const poolParams = {
@@ -638,6 +653,135 @@ const PLACES: readonly {
       } as never),
     code: "INVALID_DATA",
   },
+  // Texts given where one of a few names is taken, or as what is not a text
+  {
+    name: "the network of networkId",
+    run: (text) => networkId({ network: text as never }),
+    code: "INVALID_DATA",
+  },
+  {
+    name: "a pool metadata URL too long",
+    run: (text) =>
+      certificate.poolRegistration({
+        params: {
+          ...poolParams,
+          metadata: { URL: text + text, hash: "cd".repeat(32) },
+        },
+      } as never),
+    code: "INVALID_DATA",
+  },
+  {
+    name: "the Plutus version of a spend script",
+    run: (text) =>
+      spend.plutus({
+        utxo: { txHash, outputIndex: 0 },
+        script: { code: alwaysSucceedCbor, version: text },
+        redeemer,
+        datum: "inline",
+      } as never),
+    code: "INVALID_SCRIPT",
+  },
+  {
+    name: "the Plutus version of a mint script",
+    run: (text) =>
+      mint.plutus({
+        script: { code: alwaysSucceedCbor, version: text },
+        assets: { "": 1n },
+        redeemer,
+      } as never),
+    code: "INVALID_SCRIPT",
+  },
+  {
+    name: "the Plutus version of an auxiliary script",
+    run: (text) =>
+      auxiliaryScript({
+        script: { code: alwaysSucceedCbor, version: text } as never,
+      }),
+    code: "INVALID_SCRIPT",
+  },
+  {
+    name: "the Plutus version of scriptAddress",
+    run: (text) =>
+      offline().scriptAddress({
+        code: alwaysSucceedCbor,
+        version: text,
+      } as never),
+    code: "INVALID_OPTION",
+  },
+  {
+    name: "the Plutus version of a script in a reference UTxO given whole",
+    run: (text) =>
+      spend.plutus({
+        utxo: { txHash, outputIndex: 0 },
+        script: { reference: scriptHolder, version: text },
+        redeemer,
+        datum: "inline",
+      } as never),
+    code: "INVALID_SCRIPT",
+  },
+  {
+    name: "a label given as a list",
+    run: (text) =>
+      output({
+        address: recipient,
+        value: { lovelace: 2_000_000n },
+        label: [text] as never,
+      }),
+    code: "INVALID_DATA",
+  },
+  {
+    name: "a label given as a String object",
+    run: (text) =>
+      output({
+        address: recipient,
+        value: { lovelace: 2_000_000n },
+        label: new String(text) as never,
+      }),
+    code: "INVALID_DATA",
+  },
+  {
+    name: "a message entry given as a list",
+    run: (text) => message({ text: [[text]] as never }),
+    code: "INVALID_DATA",
+  },
+  {
+    name: "a message text given as a String object",
+    run: (text) => message({ text: new String(text) as never }),
+    code: "INVALID_DATA",
+  },
+  {
+    name: "the datum type of a spent UTxO",
+    run: (text) =>
+      spend.pubKey({ utxo: { ...funds, datum: { type: text } } as never }),
+    code: "INVALID_DATA",
+  },
+  {
+    name: "the script type of a spent UTxO",
+    run: (text) =>
+      spend.pubKey({ utxo: { ...funds, script: { type: text } } as never }),
+    code: "INVALID_SCRIPT",
+  },
+  {
+    name: "the script version of a spent UTxO",
+    run: (text) =>
+      spend.pubKey({
+        utxo: {
+          ...funds,
+          script: {
+            type: "plutus",
+            version: text,
+            code: alwaysSucceedCbor,
+            hash: "00".repeat(28),
+          },
+        } as never,
+      }),
+    code: "INVALID_SCRIPT",
+  },
+  {
+    name: "the type of a native script",
+    run: (text) => auxiliaryScript({ script: { type: text } as never }),
+    code: "INVALID_SCRIPT",
+  },
 ];
 
 describe("a text given as a credential, a hash, an id or a number that is none", () => {
@@ -698,6 +842,44 @@ describe("a text given as a credential, a hash, an id or a number that is none",
       value: "string",
       allowed: "a bigint of lovelace, 0 or more",
     });
+  });
+
+  it("names the few values a place takes, and the shape of what was given", async () => {
+    const network = await caught(() =>
+      networkId({ network: HEX_KEY as never }),
+    );
+    expect((network as Error).message).toBe(
+      'networkId: invalid network: expected "mainnet" or "testnet"; got 64 hex digits',
+    );
+    const version = await caught(() =>
+      auxiliaryScript({
+        script: { code: alwaysSucceedCbor, version: HEX_KEY } as never,
+      }),
+    );
+    expect((version as Error).message).toMatch(
+      /^auxiliaryScript: invalid Plutus script of the version 64 hex digits, not V1, V2 or V3: /,
+    );
+    const reference = await caught(() =>
+      spend.plutus({
+        utxo: { txHash, outputIndex: 0 },
+        script: { reference: scriptHolder, version: "V2" },
+        redeemer,
+        datum: "inline",
+      } as never),
+    );
+    expect((reference as Error).message).toBe(
+      "spend: version V2 does not match the reference script's V3",
+    );
+    const label = await caught(() =>
+      output({
+        address: recipient,
+        value: { lovelace: 2_000_000n },
+        label: [PHRASE] as never,
+      }),
+    );
+    expect((label as Error).message).toBe(
+      "output: invalid label a value of type object: expected a string",
+    );
   });
 
   it("names a number given by mistake as it is", async () => {

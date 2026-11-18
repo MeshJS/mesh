@@ -232,7 +232,7 @@ const toPoolParams = (
       fail(
         ctx,
         "INVALID_DATA",
-        `invalid pool metadata url ${params.metadata.URL}`,
+        `invalid pool metadata url: expected a text of at most ${MAX_POOL_METADATA_URL_BYTES} bytes; got ${shownValue(params.metadata.URL)}`,
       );
     poolMetadata = { url: params.metadata.URL, pool_metadata_hash: hash };
   }
