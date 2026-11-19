@@ -2259,13 +2259,14 @@ export class TxPlan {
     const named = txs
       .map((tx) => `step ${JSON.stringify(tx.step)} (${tx.txHash})`)
       .join(", ");
-    // Each was in a block, and only a chain that goes back to that block lands it: the
-    // application decides how to pay what is left
+    // Each was in a block, and only a chain that goes back to that block lands it. A step of one
+    // payer holds no input of another payer's old step, so the steps built by default are not
+    // kept apart from them; steps that spend an input of each are, signed by their payers
     if (txs.every((tx) => tx.gone === true)) {
       const one = txs.length === 1;
       throw this.#error(
         "STILL_LIVE",
-        `${named} of this plan or a plan before it ${one ? "was" : "were"} in a block, a rollback took ${one ? "it" : "them"} out, and ${one ? "its end" : "their ends"} of validity ${one ? "has" : "have"} passed: ${one ? "it lands" : "they land"} again only if the chain goes back to the blocks that held ${one ? "it" : "them"}. ${notMade}, as no step built can be kept apart from ${one ? "it" : "them"}; the application decides how to pay what is left`,
+        `${named} of this plan or a plan before it ${one ? "was" : "were"} in a block, a rollback took ${one ? "it" : "them"} out, and ${one ? "its end" : "their ends"} of validity ${one ? "has" : "have"} passed: ${one ? "it lands" : "they land"} again only if the chain goes back to the blocks that held ${one ? "it" : "them"}. ${notMade}, as no step built by default can be kept apart from ${one ? "it" : "them"}: steps that spend an input of each such transaction can (their payers sign them together); else the application decides how to pay what is left`,
         { details: { txHashes: [...live.keys()] } },
       );
     }

@@ -3757,7 +3757,7 @@ describe("two payers beside a step in a block", () => {
       const later = await caught(next.replan({ id: "order:3" }));
       takenOut(later, [a]);
       expect(later.message).toBe(
-        `step "a" (${a}) of this plan or a plan before it was in a block, a rollback took it out, and its end of validity has passed: it lands again only if the chain goes back to the blocks that held it. No plan is made in its place, as no step built can be kept apart from it; the application decides how to pay what is left. ${NOT_UNPAID}`,
+        `step "a" (${a}) of this plan or a plan before it was in a block, a rollback took it out, and its end of validity has passed: it lands again only if the chain goes back to the blocks that held it. No plan is made in its place, as no step built by default can be kept apart from it: steps that spend an input of each such transaction can (their payers sign them together); else the application decides how to pay what is left. ${NOT_UNPAID}`,
       );
       before.advanceTo({ slot: before.slot + 1000 });
     }
@@ -3793,13 +3793,66 @@ describe("two payers beside a step in a block", () => {
       const error = await caught(next.replan({ id: "order:3" }));
       takenOut(error, [t, a]);
       expect(error.message).toBe(
-        `step "t" (${t}), step "a" (${a}) of this plan or a plan before it were in a block, a rollback took them out, and their ends of validity have passed: they land again only if the chain goes back to the blocks that held them. No plan is made in its place, as no step built can be kept apart from them; the application decides how to pay what is left. ${NOT_UNPAID}`,
+        `step "t" (${t}), step "a" (${a}) of this plan or a plan before it were in a block, a rollback took them out, and their ends of validity have passed: they land again only if the chain goes back to the blocks that held them. No plan is made in its place, as no step built by default can be kept apart from them: steps that spend an input of each such transaction can (their payers sign them together); else the application decides how to pay what is left. ${NOT_UNPAID}`,
       );
       before.advanceTo({ slot: before.slot + 1000 });
     }
     expect(next.replacedBy).toBeUndefined();
     expect(times(before, alice, 11n * ADA)).toBe(0);
     expect(times(before, dave, 14n * ADA)).toBe(0);
+  });
+
+  it("after that refusal, one step that spends an input of each old transaction, signed by both payers: the call passes, each recipient is paid once, and its bytes cannot land on the chain that held the old ones", async () => {
+    const ctx = await order();
+    const { emulator, wallet, treasury, before, old } = ctx;
+    const next = await old.replan({ id: "order:2" });
+    await next.run({ signers: [treasury.other], waitFor: "included" });
+    rollBack(ctx, before);
+    await next.refresh();
+    await next.refresh();
+    before.advanceTo({ slot: before.slot + 700 });
+    await next.refresh();
+    await next.refresh();
+    expect(statuses(next)).toEqual({ a: "expired", t: "expired" });
+    const a = old.step("a");
+    const t = next.step("t");
+    const refusal = await caught(next.replan({ id: "order:3" }));
+    takenOut(refusal, [t.txHash, a.txHash]);
+    expect(refusal.message).toContain(
+      "No plan is made in its place, as no step built by default can be kept apart from them: steps that spend an input of each such transaction can (their payers sign them together); else the application decides how to pay what is left",
+    );
+    // One step of the wallet pays both and spends the treasury's input of t; the first step
+    // built for the wallet gets an input of a
+    const made = await next.replan({
+      id: "order:3",
+      steps: {
+        both: {
+          parts: [
+            payTo(alice, 11n * ADA),
+            payTo(dave, 14n * ADA),
+            spend.pubKey({ utxo: t.inputs[0]! }),
+          ],
+        },
+      },
+    });
+    expect(names(made)).toEqual(["both"]);
+    const spent = made.step("both").inputs.map(key);
+    expect(spent.some((each) => a.inputs.map(key).includes(each))).toBe(true);
+    expect(spent).toContain(key(t.inputs[0]!));
+    expect(next.replacedBy).toBe("order:3");
+    await made.run({
+      signers: [wallet, treasury.other],
+      waitFor: "included",
+    });
+    before.advanceTo({ slot: before.slot + 1001 });
+    await made.refresh();
+    expect(made.status).toBe("final");
+    expect(times(before, alice, 11n * ADA)).toBe(1);
+    expect(times(before, dave, 14n * ADA)).toBe(1);
+    // The chain goes back to the blocks that held a and t: the step's inputs are spent there
+    expect(await refused(emulator, made.step("both").signedTx!)).toBe(true);
+    expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    expect(times(emulator, dave, 14n * ADA)).toBe(1);
   });
 });
 
