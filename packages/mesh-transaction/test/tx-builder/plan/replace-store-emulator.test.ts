@@ -9,6 +9,7 @@ import type {
 } from "../../../src/tx-builder";
 import type { Fault, StoreFault } from "./fault-util";
 import { output, spend, validity } from "../../../src/tx-builder";
+import { NOT_UNPAID } from "../../../src/tx-builder/errors";
 import { recordOf } from "../../../src/tx-builder/plan/plan";
 import { alwaysSucceedCbor, baseAddress } from "../../test-util";
 import { ref } from "../utxo-util";
@@ -1728,6 +1729,76 @@ describe("a step left whose end of validity has passed", () => {
     expect(times(emulator, carol, 13n * ADA)).toBe(1);
   });
 
+  it("a partner's transaction found in a block, then lost by the search while it stays there, both its outputs spent by their owners: the refusal says the search does not find it now, and that a rollback took it out or the provider lost it, not which", async () => {
+    const ctx = await storeSetup({
+      funds: [100n * ADA, 50n * ADA],
+      planDefaults: { ...FAST, confirmations: 1000 },
+    });
+    const { emulator, provider, builder, wallet, store } = ctx;
+    const partner = await walletOfIndex(1);
+    const partnerAddress = (await partner.getChangeAddress())!;
+    const own = emulator.fund(partnerAddress, { lovelace: 100n * ADA });
+    const recipient = await walletOfIndex(2);
+    const to = (await recipient.getChangeAddress())!;
+    const built = await builder.build(
+      [
+        spend.pubKey({ utxo: own }),
+        output({ address: to, value: { lovelace: 13n * ADA } }),
+        validity({ until: builder.timeAt(emulator.slot) + 300_000 }),
+      ],
+      { payer: partner },
+    );
+    await built.sign();
+    const old = await builder.plan(
+      { p: built },
+      { id: "order", payer: wallet },
+    );
+    const p = old.step("p").txHash;
+    await old.run({ waitFor: "included" });
+    expect(old.step("p").seen).toBeDefined();
+    provider.control.hooks.fetchTxInfo = (forward, hash: string) => {
+      if (hash.toLowerCase() === p)
+        throw Object.assign(new Error("not found"), {
+          kind: "notFound",
+          status: 404,
+        });
+      return forward(hash);
+    };
+    for (const [owner, address] of [
+      [recipient, to],
+      [partner, partnerAddress],
+    ] as const) {
+      const [mine] = emulator
+        .utxos({ address })
+        .filter((utxo) => utxo.input.txHash === p);
+      const move = await builder.build(
+        [spend.pubKey({ utxo: mine!.input }), payTo(bob, 2n * ADA)],
+        { payer: owner },
+      );
+      await move.sign();
+      await emulator.submitTx(move.signedTx!);
+    }
+    advance(emulator, 400);
+    await old.refresh();
+    await old.refresh();
+    expect(statuses(old)).toEqual({ p: "expired" });
+    const error = await caught(
+      old.replan({ id: "i1", steps: { c: payTo(to, 13n * ADA) } }),
+    );
+    expect([error.code, error.retryable, error.details]).toEqual([
+      "STILL_LIVE",
+      false,
+      { txHashes: [p] },
+    ]);
+    expect(error.message).toBe(
+      `step "p" (${p}) of this plan or a plan before it was found in a block, the search does not find it now, and its end of validity has passed: a rollback took it out, and it lands again only if the chain goes back to the blocks that held it, or the provider lost it while it stayed in its block. No plan is made in its place: no step this call builds by default is kept apart from it; the application decides how to pay what is left. ${NOT_UNPAID}`,
+    );
+    // No rollback happened: it is in its block
+    expect(await emulator.fetchTxInfo(p)).toBeDefined();
+    expect(old.replacedBy).toBeUndefined();
+    expect(await store.inner.load("i1")).toBeUndefined();
+  });
+
   it("a step given built whose own end has passed, held by a relay, whose input a rollback took out for good: the look never calls it expired; the call waits inside the margin and is refused (INVALID_OPTION) once its end and the margin have passed", async () => {
     const ctx = await storeSetup({
       funds: [100n * ADA, 50n * ADA],
@@ -2752,7 +2823,7 @@ describe("the reconciliation loop of the README", () => {
       ]);
       expect(error.message).toMatch(
         new RegExp(
-          `^step "a" \\(${a}\\) of this plan or a plan before it was in a block, a rollback took it out, and its end of validity has passed: it lands again only if the chain goes back to the blocks that held it\\. No plan is made in its place`,
+          `^step "a" \\(${a}\\) of this plan or a plan before it was found in a block, the search does not find it now, and its end of validity has passed: a rollback took it out, and it lands again only if the chain goes back to the blocks that held it, or the provider lost it while it stayed in its block\\. No plan is made in its place`,
         ),
       );
     }
@@ -2850,7 +2921,7 @@ describe("the reconciliation loop of the README", () => {
       ]);
       expect(error.message).toMatch(
         new RegExp(
-          `^step "a" \\(${a}\\) of this plan or a plan before it was in a block, a rollback took it out, and its end of validity has passed: it lands again only if the chain goes back to the blocks that held it\\. No plan is made in its place, as no step built by default can be kept apart from it: steps that spend an input of each such transaction can \\(their payers sign them together\\)`,
+          `^step "a" \\(${a}\\) of this plan or a plan before it was found in a block, the search does not find it now, and its end of validity has passed: a rollback took it out, and it lands again only if the chain goes back to the blocks that held it, or the provider lost it while it stayed in its block\\. No plan is made in its place: no step this call builds by default is kept apart from it; the application decides how to pay what is left\\.`,
         ),
       );
     }
