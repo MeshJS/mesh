@@ -3,7 +3,7 @@ import { CachedFetcher, ProviderError } from "@meshsdk/common";
 import { deserializeAddress, mConStr0 } from "@meshsdk/core";
 
 import type { BuildEvent, TxPlan } from "../../../src/tx-builder";
-import { guard, spend, validity } from "../../../src/tx-builder";
+import { guard, output, spend, validity } from "../../../src/tx-builder";
 import { encodePlan, readPlan } from "../../../src/tx-builder/plan/json";
 import { recordOf } from "../../../src/tx-builder/plan/plan";
 import { alwaysSucceedCbor, baseAddress } from "../../test-util";
@@ -11,6 +11,7 @@ import { asMesh, ref } from "../utxo-util";
 import { coins, fragmented, pay as payValue } from "./consolidate-util";
 import {
   advance,
+  builderOf,
   caught,
   FAST,
   forwarding,
@@ -20,6 +21,7 @@ import {
   submitterOf,
   swallowing,
   walletOf,
+  wrap,
 } from "./plan-emulator-util";
 import {
   ADA,
@@ -1931,6 +1933,178 @@ describe("a plan in place of another", () => {
       // What is left is an object without a prototype: each name is a member of its own
       expect(Object.getPrototypeOf(plan.rest)).toBeNull();
       expect(Object.keys(plan.rest)).toEqual(["a"]);
+    });
+
+    /** Steps built by assignment into a plain object, as from the lines of an order */
+    const assigned = (entries: [string, unknown][]) => {
+      const steps: Record<string, unknown> = {};
+      for (const [name, step] of entries) steps[name] = step;
+      return steps as never;
+    };
+
+    /** INVALID_OPTION (`steps`) for an object of steps with a prototype of its own */
+    const ownPrototype = (error: any) => {
+      expect([error.code, error.details.option, error.details.value]).toEqual([
+        "INVALID_OPTION",
+        "steps",
+        "object",
+      ]);
+      expect(error.message).toContain(
+        "the object of steps has a prototype of its own",
+      );
+    };
+
+    it("a list of parts set as the prototype of the steps, by a member __proto__ of a literal or by assignment: builder.plan refuses the steps, and nothing is recorded", async () => {
+      const { builder, wallet, store } = await storeSetup({
+        funds: [100n * ADA, 50n * ADA],
+      });
+      const literal = {
+        a: payTo(alice, 11n * ADA),
+        __proto__: [payTo(bob, 12n * ADA)],
+      } as never;
+      const byAssignment = assigned([
+        ["a", payTo(alice, 11n * ADA)],
+        ["__proto__", [payTo(bob, 12n * ADA)]],
+      ]);
+      for (const steps of [literal, byAssignment]) {
+        // No name lists the step of bob
+        expect(Object.keys(steps)).toEqual(["a"]);
+        ownPrototype(
+          await caught(builder.plan(steps, { id: "order", payer: wallet })),
+        );
+        expect(await store.inner.load("order")).toBeUndefined();
+      }
+      // An object of another class is refused the same way; one without a prototype is taken
+      class Steps {
+        a = payTo(alice, 11n * ADA);
+      }
+      ownPrototype(
+        await caught(
+          builder.plan(new Steps() as never, { id: "order", payer: wallet }),
+        ),
+      );
+      const bare = Object.assign(Object.create(null), {
+        a: payTo(alice, 11n * ADA),
+      });
+      const plan = await builder.plan(bare, { id: "order", payer: wallet });
+      expect(names(plan)).toEqual(["a"]);
+    });
+
+    it("one part set as the prototype of the steps, by a member __proto__ of a literal or by assignment: builder.plan refuses the steps and makes no step main, and nothing is recorded", async () => {
+      const { builder, wallet, store } = await storeSetup({
+        funds: [100n * ADA, 50n * ADA],
+      });
+      const literal = {
+        __proto__: payTo(alice, 11n * ADA),
+        b: payTo(bob, 12n * ADA),
+      } as never;
+      const byAssignment = assigned([
+        ["__proto__", payTo(alice, 11n * ADA)],
+        ["b", payTo(bob, 12n * ADA)],
+      ]);
+      for (const steps of [literal, byAssignment]) {
+        // The kind of the part is inherited, not the object's own
+        expect((steps as { kind?: string }).kind).toBe("output");
+        ownPrototype(
+          await caught(builder.plan(steps, { id: "order", payer: wallet })),
+        );
+        expect(await store.inner.load("order")).toBeUndefined();
+      }
+    });
+
+    it("add and replan of steps that set their own prototype: refused, nothing added and nothing written; rest of the plan replaced has no prototype", async () => {
+      const { emulator, builder, wallet, store } = await storeSetup({
+        funds: [100n * ADA, 50n * ADA],
+      });
+      const old = await builder.plan(
+        { a: payTo(alice, 11n * ADA), b: payTo(bob, 12n * ADA) },
+        { id: "order", payer: wallet },
+      );
+      ownPrototype(
+        await caught(
+          old.add(
+            assigned([
+              ["c", payTo(carol, 13n * ADA)],
+              ["__proto__", [payTo(carol, 13n * ADA)]],
+            ]),
+          ),
+        ),
+      );
+      expect(names(old)).toEqual(["a", "b"]);
+      expect(
+        (await store.inner.load("order"))!.steps.map(
+          (step: { name: string }) => step.name,
+        ),
+      ).toEqual(["a", "b"]);
+      await old.sign();
+      const held = old.step("b").txHash;
+      const relay = relayOf(emulator, (txHash) => txHash === held);
+      await caught(old.run({ submitter: relay, timeoutMs: 300 }));
+      advance(emulator, 700);
+      await old.refresh();
+      expect(statuses(old)).toEqual({ a: "final", b: "expired" });
+      for (const steps of [
+        assigned([
+          ["__proto__", payTo(bob, 12n * ADA)],
+          ["d", payTo(dave, 14n * ADA)],
+        ]),
+        assigned([["__proto__", [payTo(bob, 12n * ADA)]]]),
+      ]) {
+        ownPrototype(await caught(old.replan({ id: "order:2", steps })));
+        expect(await store.inner.load("order:2")).toBeUndefined();
+        expect(old.replacedBy).toBeUndefined();
+      }
+      const next = await old.replan({ id: "order:2" });
+      expect(names(next)).toEqual(["b"]);
+      expect(Object.getPrototypeOf(old.rest)).toBeNull();
+      expect(Object.keys(old.rest)).toEqual([]);
+      await next.run();
+      expect(next.status).toBe("final");
+      expect(times(emulator, alice, 11n * ADA)).toBe(1);
+      expect(times(emulator, bob, 12n * ADA)).toBe(1);
+    });
+
+    it("a step named kind, given as CBOR hex: builder.plan makes it a step of that name, alone or beside another, and add adds it", async () => {
+      const ctx = await storeSetup({ funds: [100n * ADA, 50n * ADA] });
+      const { emulator, builder, wallet } = ctx;
+      // A partner's transaction, built and signed on its own UTxO
+      const partner = await walletOf(1);
+      const partnerAddress = (await partner.getChangeAddress())!;
+      const own = emulator.fund(partnerAddress, { lovelace: 100n * ADA });
+      const built = await builderOf(wrap(emulator)).build(
+        [
+          spend.pubKey({ utxo: own }),
+          output({ address: carol, value: { lovelace: 13n * ADA } }),
+        ],
+        { payer: partner },
+      );
+      await built.sign();
+      const hex = built.partialTx;
+      const alone = await builder.plan({ kind: hex } as never, {
+        id: "alone",
+        payer: wallet,
+      });
+      expect(names(alone)).toEqual(["kind"]);
+      expect(alone.step("kind").txHash).toBe(built.txHash);
+      const beside = await builder.plan(
+        { a: payTo(alice, 11n * ADA), kind: hex } as never,
+        { id: "beside", payer: wallet },
+      );
+      expect(names(beside)).toEqual(["a", "kind"]);
+      expect(beside.step("kind").txHash).toBe(built.txHash);
+      const plan = await builder.plan(
+        { a: payTo(alice, 11n * ADA) },
+        { id: "base", payer: wallet },
+      );
+      await plan.add({ kind: hex } as never);
+      expect(names(plan)).toEqual(["a", "kind"]);
+      expect(plan.step("kind").txHash).toBe(built.txHash);
+      // A step of parts whose own kind names a part is still one part: the step main
+      const one = await builder.plan(payTo(alice, 11n * ADA), {
+        id: "one",
+        payer: wallet,
+      });
+      expect(names(one)).toEqual(["main"]);
     });
 
     it("refuses to replace a final plan, and an empty id", async () => {

@@ -808,10 +808,10 @@ export class TxPlan {
    */
   get rest(): PlanSteps {
     const { builder, record } = stateOf(this);
-    // What was left of a plan made in place of another is that plan's
-    if (record.replacedBy !== undefined) return Object.freeze({});
     // No prototype: a name is a member, never an inherited one
     const rest: Record<string, PlanStep> = Object.create(null);
+    // What was left of a plan made in place of another is that plan's
+    if (record.replacedBy !== undefined) return Object.freeze(rest);
     // A step whose name a transaction of the plans before has, found in a block: paid there
     const paid = new Set(
       (record.before?.open ?? []).flatMap((entry) =>

@@ -77,8 +77,10 @@ export type PlanStep =
   StepParts | ({ readonly parts: StepParts } & StepOptions) | BuiltTx | string;
 
 /**
- * The steps of a plan by name, in the order they are sent. A name is a non-empty text that is
- * not a whole number, does not start with `consolidate-` and is not `__proto__`
+ * The steps of a plan by name, in the order they are sent: a plain object, or one without a
+ * prototype; one whose prototype is another, as `steps["__proto__"] = step` makes it, is refused.
+ * A name is a non-empty text that is not a whole number, does not start with `consolidate-` and
+ * is not `__proto__`; a step may be named `kind`
  */
 export type PlanSteps = Readonly<Record<string, PlanStep>>;
 

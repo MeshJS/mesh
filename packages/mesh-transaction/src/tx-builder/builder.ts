@@ -462,6 +462,10 @@ const PART_KINDS: ReadonlySet<string> = new Set(
   } satisfies Record<TxPart["kind"], true>),
 );
 
+/** Whether a value is the name of a part kind */
+export const isPartKind = (value: unknown): boolean =>
+  typeof value === "string" && PART_KINDS.has(value);
+
 const isPart = (value: unknown): value is TxPart =>
   typeof value === "object" &&
   value !== null &&

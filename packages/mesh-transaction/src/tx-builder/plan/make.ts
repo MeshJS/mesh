@@ -37,7 +37,13 @@ import type {
 } from "./types";
 import { abortable } from "../abort";
 import { isKeyLocked } from "../balance";
-import { afterBound, flattenParts, ownAfterEntry, readAfter } from "../builder";
+import {
+  afterBound,
+  flattenParts,
+  isPartKind,
+  ownAfterEntry,
+  readAfter,
+} from "../builder";
 import { BuiltTx, isBuiltHere } from "../built-tx";
 import { toKnownUtxos } from "../chain";
 import { NOT_UNPAID, TxBuildError, TxError, TxPlanError } from "../errors";
@@ -307,6 +313,33 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 const isOnePart = (value: unknown) =>
   isObject(value) && typeof value.kind === "string";
 
+/**
+ * Whether the steps given are one part: an object whose own `kind` names a part kind. Any other
+ * object is named steps, one of which may be named `kind`
+ */
+const stepsAreOnePart = (steps: unknown) =>
+  isObject(steps) &&
+  Object.prototype.hasOwnProperty.call(steps, "kind") &&
+  isPartKind(steps.kind);
+
+/**
+ * Refuses an object of steps whose prototype is neither `Object.prototype` nor `null`, before
+ * anything is read of it: a member `__proto__` of a literal, or `steps["__proto__"] = step` on a
+ * plain object, sets the prototype in place of a step, which no name then lists. A list, a
+ * transaction built before and what is no object are left to the reading
+ * @throws TxBuildError INVALID_OPTION (`steps`)
+ */
+const refusePrototype = (steps: unknown, allowed: string) => {
+  if (!isObject(steps) || steps instanceof BuiltTx) return;
+  const prototype: unknown = Object.getPrototypeOf(steps);
+  if (prototype === Object.prototype || prototype === null) return;
+  throw invalidSteps(
+    `the object of steps has a prototype of its own, which a member "__proto__" of a literal, or steps["__proto__"] = step on a plain object, sets in place of a step: give the steps as a plain object, and that step another name`,
+    { value: steps },
+    allowed,
+  );
+};
+
 /** Whether a value is the data or the JSON of a transaction, and not the object */
 const isTransactionData = (value: unknown) =>
   isObject(value) &&
@@ -396,7 +429,11 @@ const readStepForms = (
   options: MakePlanOptions,
   held: readonly TxPart[] = internals(builder).added,
 ): StepInput[] => {
-  if (!isBuiltTransaction(steps) && (Array.isArray(steps) || isOnePart(steps)))
+  refusePrototype(steps, STEPS_ALLOWED);
+  if (
+    !isBuiltTransaction(steps) &&
+    (Array.isArray(steps) || stepsAreOnePart(steps))
+  )
     return [
       {
         name: MAIN_STEP,
@@ -1218,9 +1255,10 @@ export const readAddedSteps = (
   builder: TxBuilder,
   steps: unknown,
 ): StepInput[] => {
-  if (!isObject(steps) || isOnePart(steps) || isBuiltTransaction(steps))
+  refusePrototype(steps, ADDED_ALLOWED);
+  if (!isObject(steps) || stepsAreOnePart(steps) || isBuiltTransaction(steps))
     throw invalidAddedSteps(
-      Array.isArray(steps) || isOnePart(steps)
+      Array.isArray(steps) || stepsAreOnePart(steps)
         ? "one list of parts is the step main of a new plan; steps are added by name, { name: parts }"
         : `expected ${ADDED_ALLOWED}`,
       { value: steps },
