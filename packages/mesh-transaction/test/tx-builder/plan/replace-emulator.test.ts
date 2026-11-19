@@ -4,6 +4,7 @@ import { deserializeAddress, mConStr0 } from "@meshsdk/core";
 
 import type { BuildEvent, TxPlan } from "../../../src/tx-builder";
 import { guard, output, spend, validity } from "../../../src/tx-builder";
+import { NOT_UNPAID } from "../../../src/tx-builder/errors";
 import { encodePlan, readPlan } from "../../../src/tx-builder/plan/json";
 import { recordOf } from "../../../src/tx-builder/plan/plan";
 import { alwaysSucceedCbor, baseAddress } from "../../test-util";
@@ -3417,6 +3418,16 @@ describe("two payers beside a step in a block", () => {
     };
   };
 
+  /** STILL_LIVE with these hashes alone, no `safeAfter`, not retryable */
+  const takenOut = (error: any, txHashes: string[]) => {
+    expect([error.code, error.retryable, error.retryAfterMs]).toEqual([
+      "STILL_LIVE",
+      false,
+      undefined,
+    ]);
+    expect(error.details).toEqual({ txHashes });
+  };
+
   it("the call passes at once and the treasury's step is sent; no rollback: final, each recipient paid once", async () => {
     const { emulator, treasury, old, bytes } = await order();
     const a = old.step("a");
@@ -3563,12 +3574,70 @@ describe("two payers beside a step in a block", () => {
     expect(times(before, alice, 11n * ADA)).toBe(0);
     expect(times(before, dave, 14n * ADA)).toBe(0);
     // The step of the treasury beside a step of the wallet that was found in a block once: no
-    // time settles the pair, as it would not for the old plan itself
+    // time settles the pair, as it would not for the old plan itself. The treasury's step may
+    // still land: the message is the one of any pair
     const refusal = await caught(next.replan({ id: "order:3" }));
     expect(refusal.code).toBe("STILL_LIVE");
     expect(refusal.details.safeAfter).toBeUndefined();
-    expect(refusal.details.txHashes).toContain(old.step("a").txHash);
+    expect(refusal.details.txHashes).toEqual([
+      next.step("t").txHash,
+      old.step("a").txHash,
+    ]);
+    expect(refusal.message).toMatch(/^a step built could land beside /);
+    expect(refusal.message).toContain("no time settles it");
     expect(next.replacedBy).toBeUndefined();
+    // Once the treasury's step is past its end, only a is left: the message says what happened
+    before.advanceTo({ slot: before.slot + 700 });
+    await next.refresh();
+    expect(statuses(next)).toEqual({ a: "expired", t: "expired" });
+    const a = old.step("a").txHash;
+    for (let i = 0; i < 2; i++) {
+      const later = await caught(next.replan({ id: "order:3" }));
+      takenOut(later, [a]);
+      expect(later.message).toBe(
+        `step "a" (${a}) of this plan or a plan before it was in a block, a rollback took it out, and its end of validity has passed: it lands again only if the chain goes back to the blocks that held it. No plan is made in its place, as no step built can be kept apart from it; the application decides how to pay what is left. ${NOT_UNPAID}`,
+      );
+      before.advanceTo({ slot: before.slot + 1000 });
+    }
+    expect(next.replacedBy).toBeUndefined();
+    expect(times(before, alice, 11n * ADA)).toBe(0);
+    expect(times(before, dave, 14n * ADA)).toBe(0);
+  });
+
+  it("a rollback takes a and the treasury's step out of their blocks: replan answers as for any pair while they are valid, and once both ends have passed says that a rollback took them out; nobody is paid", async () => {
+    const ctx = await order();
+    const { treasury, before, old } = ctx;
+    const next = await old.replan({ id: "order:2" });
+    await next.run({ signers: [treasury.other], waitFor: "included" });
+    expect(statuses(next)).toEqual({ a: "included", t: "included" });
+    const a = old.step("a").txHash;
+    const t = next.step("t").txHash;
+    // The chain everyone reads is a fork where neither is in a block; the end of a has passed
+    rollBack(ctx, before);
+    await next.refresh();
+    await next.refresh();
+    expect(statuses(next)).toEqual({ a: "expired", t: "sent" });
+    const valid = await caught(next.replan({ id: "order:3" }));
+    expect([valid.code, valid.retryable]).toEqual(["STILL_LIVE", false]);
+    expect(valid.details).toEqual({ txHashes: [t, a] });
+    expect(valid.message).toMatch(/^a step built could land beside /);
+    // Nobody sends them again before the end of the treasury's step passes too
+    before.advanceTo({ slot: before.slot + 700 });
+    await next.refresh();
+    await next.refresh();
+    expect(statuses(next)).toEqual({ a: "expired", t: "expired" });
+    expect([next.status, next.live, next.landed]).toEqual(["stopped", [], []]);
+    for (let i = 0; i < 3; i++) {
+      const error = await caught(next.replan({ id: "order:3" }));
+      takenOut(error, [t, a]);
+      expect(error.message).toBe(
+        `step "t" (${t}), step "a" (${a}) of this plan or a plan before it were in a block, a rollback took them out, and their ends of validity have passed: they land again only if the chain goes back to the blocks that held them. No plan is made in its place, as no step built can be kept apart from them; the application decides how to pay what is left. ${NOT_UNPAID}`,
+      );
+      before.advanceTo({ slot: before.slot + 1000 });
+    }
+    expect(next.replacedBy).toBeUndefined();
+    expect(times(before, alice, 11n * ADA)).toBe(0);
+    expect(times(before, dave, 14n * ADA)).toBe(0);
   });
 });
 

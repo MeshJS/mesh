@@ -1147,6 +1147,7 @@ export class TxPlan {
           base,
           tip,
           "nothing was added",
+          "No step is added to the plan",
         );
         this.#refuseStandingOnOpen(newSteps, line);
         this.#refuseHeld(apart.held, base);
@@ -1720,6 +1721,7 @@ export class TxPlan {
       base,
       tip,
       "nothing was written",
+      "No plan is made in its place",
     );
     this.#refuseStandingOnOpen(made.steps, classes.open);
     this.#refuseHeld(apart.held);
@@ -2197,7 +2199,11 @@ export class TxPlan {
   /**
    * The pairs `landsBeside` gives, judged: a transaction that is dead passes; any other refuses
    * the call, STILL_LIVE, with every such hash and, when time settles them all, `safeAfter`,
-   * never in the past: past it, CANNOT_OBSERVE (`unconfirmed`), the look did not settle them
+   * never in the past: past it, CANNOT_OBSERVE (`unconfirmed`), the look did not settle them.
+   * When every such transaction is gone (a rollback took it out of its block, past its end of
+   * validity and the margin), the message says so, and that the application decides
+   * @param done What the call did not do, in the usual message
+   * @param notMade What the call does not make, in the message of the gone ones
    * @returns the dead transactions a step passed beside
    * @throws TxPlanError STILL_LIVE
    */
@@ -2206,6 +2212,7 @@ export class TxPlan {
     base: PlanRecord,
     tip: PlanTip,
     done: string,
+    notMade: string,
   ): LineTx[] {
     const live = new Map<string, LineTx>();
     const dead = new Map<string, LineTx>();
@@ -2228,9 +2235,22 @@ export class TxPlan {
         `${txs.map((tx) => `step ${JSON.stringify(tx.step)} (${tx.txHash})`).join(", ")} of this plan or a plan before it ${txs.length === 1 ? "is" : "are"} past the end of validity and the margin, and the search did not answer that it is not found (or the local clock is behind the tip): ${done}`,
         txs[0]!.txHash,
       );
+    const named = txs
+      .map((tx) => `step ${JSON.stringify(tx.step)} (${tx.txHash})`)
+      .join(", ");
+    // Each was in a block, and only a chain that goes back to that block lands it: the
+    // application decides how to pay what is left
+    if (txs.every((tx) => tx.gone === true)) {
+      const one = txs.length === 1;
+      throw this.#error(
+        "STILL_LIVE",
+        `${named} of this plan or a plan before it ${one ? "was" : "were"} in a block, a rollback took ${one ? "it" : "them"} out, and ${one ? "its end" : "their ends"} of validity ${one ? "has" : "have"} passed: ${one ? "it lands" : "they land"} again only if the chain goes back to the blocks that held ${one ? "it" : "them"}. ${notMade}, as no step built can be kept apart from ${one ? "it" : "them"}; the application decides how to pay what is left`,
+        { details: { txHashes: [...live.keys()] } },
+      );
+    }
     throw this.#error(
       "STILL_LIVE",
-      `a step built could land beside ${txs.map((tx) => `step ${JSON.stringify(tx.step)} (${tx.txHash})`).join(", ")} of this plan or a plan before it, which may still land and share no input with it: ${done}; ${
+      `a step built could land beside ${named} of this plan or a plan before it, which may still land and share no input with it: ${done}; ${
         safeAfter === undefined
           ? "no time settles it, as one of them has no end of validity or was found in a block once: steps that hold that transaction or spend an input of it are the way"
           : "the same call passes once its end of validity and the margin have passed (safeAfter)"

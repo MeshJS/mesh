@@ -93,6 +93,11 @@ export type LineTx = {
   readonly usedUp?: true;
   /** It cannot land, by the plan's own rules, and no look ever found it in a block */
   readonly dead?: true;
+  /**
+   * Found in a block once, and out of it by a look that would call it dead had it never been
+   * found: it lands again only if the chain goes back to the blocks that held it
+   */
+  readonly gone?: true;
 };
 
 /** What the rule takes for a transaction: a step, an entry of `before.open`, or a `LineTx` */
@@ -399,6 +404,13 @@ const byFind = (
 };
 
 /**
+ * An open transaction this look calls expired: dead when no look ever found it in a block, else
+ * gone, out of the blocks that held it
+ */
+const expiredOf = (tx: LineTx): LineTx =>
+  tx.seen === undefined ? { ...tx, dead: true } : { ...tx, gone: true };
+
+/**
  * The classes of a plan's line after a look: its steps and the entries of its `before.open`.
  *
  * - A `final` step is kept. An `included` one is taken when this look found it with a slot and
@@ -414,7 +426,8 @@ const byFind = (
  *   did not find (no answer, as from a search that failed, is no such answer); an entry whose `until` plus
  *   the margin the tip and the clock have both passed (as a step expires), that the look did not
  *   find, while it found the transaction of one of its spent inputs in a block; and one that
- *   stands on a dead one.
+ *   stands on a dead one. Gone: one of those two with `seen`, which a rollback took out of its
+ *   block; never dead, as the chain may go back to that block.
  *
  * `base` is the record after the look; `answers` what its searches said; `tip` its tip, with the
  * local clock it was read by. A final plan is the caller's to refuse.
@@ -461,11 +474,11 @@ export const lineClasses = (
     } else {
       // Dead only by what this look answered: a search that failed or is not supported says
       // nothing, whatever the record says
-      const dead =
-        step.status === "expired" &&
-        tx.seen === undefined &&
-        answer?.found === false;
-      open.push(dead ? { ...tx, dead: true } : tx);
+      open.push(
+        step.status === "expired" && answer?.found === false
+          ? expiredOf(tx)
+          : tx,
+      );
     }
   }
   const margin = base.deadlines.expiryMarginMs;
@@ -478,12 +491,11 @@ export const lineClasses = (
     }
     // Dead by time, as a step expires: past its end and the margin, not found, and the search
     // knows the chain before it
-    const dead =
-      tx.seen === undefined &&
+    const expired =
       answer?.found === false &&
       tx.sources.some((source) => answerOf.get(source)?.found === true) &&
       pastMarginAt(tx.until, margin, tip);
-    open.push(dead ? { ...tx, dead: true } : tx);
+    open.push(expired ? expiredOf(tx) : tx);
   }
   // And one with no `seen` that stands on a dead one
   const marked = [...open];
