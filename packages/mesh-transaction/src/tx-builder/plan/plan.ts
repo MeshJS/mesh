@@ -1701,16 +1701,15 @@ export class TxPlan {
           reads,
           ask,
         ));
-        // One that was delivered or found, and that this look does not call expired (its end
-        // and the margin passed, and the search answered "not found"), may be in a block the
-        // search does not show: waited for until its end and the margin have passed by the tip
-        // and the clock, so that no wait lasts for ever. One the plan never delivered nor found
-        // is refused at once. An orphaned one stands on a step that will not land, and lands
-        // with it or never
+        // One that this look does not call expired (its end and the margin passed, and the
+        // search answered "not found") may be in a block the search does not show, whatever the
+        // plan holds of its witnesses: another party may hold a copy it signed, and have sent
+        // it. Waited for until its end and the margin have passed by the tip and the clock, so
+        // that no wait lasts for ever. An orphaned one stands on a step that will not land, and
+        // lands with it or never
         const hidden = late.find(
           (step) =>
             step.status !== "orphaned" &&
-            (step.sends > 0 || step.seen !== undefined) &&
             !pastMarginAt(
               stepUntil(step),
               base.deadlines.expiryMarginMs,
@@ -1720,7 +1719,7 @@ export class TxPlan {
         );
         if (hidden !== undefined)
           throw this.#unconfirmed(
-            `step ${JSON.stringify(hidden.name)} is past its end of validity and may be in a block the search does not show`,
+            `step ${JSON.stringify(hidden.name)} is past its end of validity and may be in a block the search does not show, or be sent by another party before its margin passes`,
             hidden.txHash,
           );
         const first = late[0];

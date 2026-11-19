@@ -1574,7 +1574,7 @@ describe("a step left whose end of validity has passed", () => {
       error.retryable,
     ]).toEqual(["CANNOT_OBSERVE", "unconfirmed", aHash, true]);
     expect(error.message).toMatch(
-      /^step "a" is past its end of validity and may be in a block the search does not show; nothing was written, and the same call later tells/,
+      /^step "a" is past its end of validity and may be in a block the search does not show, or be sent by another party before its margin passes; nothing was written, and the same call later tells/,
     );
     expect(old.replacedBy).toBeUndefined();
     expect((await store.inner.load("order"))!.replacedBy).toBeUndefined();
@@ -1845,7 +1845,7 @@ describe("a step left whose end of validity has passed", () => {
       waited.retryable,
     ]).toEqual(["CANNOT_OBSERVE", "unconfirmed", p, true]);
     expect(waited.message).toMatch(
-      /^step "p" is past its end of validity and may be in a block the search does not show/,
+      /^step "p" is past its end of validity and may be in a block the search does not show, or be sent by another party before its margin passes; nothing was written/,
     );
     // Past the margin it is refused, also long after; its bytes cannot land
     for (const slots of [40, 10_000, 100_000]) {
@@ -1872,7 +1872,7 @@ describe("a step left whose end of validity has passed", () => {
     expect(times(fork, carol, 13n * ADA)).toBe(0);
   });
 
-  it("a step from parts whose own end has passed and that was never signed: refused (INVALID_OPTION) at once, inside the margin as past it", async () => {
+  it("a step from parts whose own end has passed and that the plan never signed: inside the margin the call waits (CANNOT_OBSERVE), as another party may hold a copy it signed; once its end and the margin have passed it is refused (INVALID_OPTION)", async () => {
     const ctx = await storeSetup({
       funds: [100n * ADA, 50n * ADA],
       planDefaults: { ...FAST, expiryMarginMs: 600_000 },
@@ -1884,21 +1884,147 @@ describe("a step left whose end of validity has passed", () => {
       { id: "order", payer: wallet },
     );
     expect(statuses(old)).toEqual({ a: "built" });
-    for (const slots of [400, 600]) {
-      advance(emulator, slots);
-      await old.refresh();
-      const error = await caught(old.replan({ id: "i1" }));
-      expect([error.code, error.details.option, error.retryable]).toEqual([
-        "INVALID_OPTION",
-        "steps",
-        false,
-      ]);
-      expect(error.message).toContain(
-        'step "a" cannot be built again as it was given',
-      );
-      expect(await store.inner.load("i1")).toBeUndefined();
-    }
+    advance(emulator, 400);
+    await old.refresh();
+    const waited = await caught(old.replan({ id: "i1" }));
+    expect([
+      waited.code,
+      reasonOf(waited),
+      waited.txHash,
+      waited.retryable,
+    ]).toEqual(["CANNOT_OBSERVE", "unconfirmed", old.step("a").txHash, true]);
+    expect(waited.message).toMatch(
+      /^step "a" is past its end of validity and may be in a block the search does not show, or be sent by another party before its margin passes/,
+    );
+    advance(emulator, 600);
+    await old.refresh();
+    const error = await caught(old.replan({ id: "i1" }));
+    expect([error.code, error.details.option, error.retryable]).toEqual([
+      "INVALID_OPTION",
+      "steps",
+      false,
+    ]);
+    expect(error.message).toContain(
+      'step "a" cannot be built again as it was given',
+    );
+    expect(await store.inner.load("i1")).toBeUndefined();
     expect(times(emulator, alice, 11n * ADA)).toBe(0);
+  });
+
+  /**
+   * A plan on a store whose margin is 600 s: `p`, a partner's transaction given built that ends
+   * 300 s on and pays carol, and `b`, the wallet pays alice. The search does not find p while
+   * `hide.on`. With `unsigned` the plan is given p before the partner signs it
+   */
+  const partnerCopy = async (unsigned = false) => {
+    const ctx = await storeSetup({
+      funds: [100n * ADA, 50n * ADA],
+      planDefaults: { ...FAST, confirmations: 1000, expiryMarginMs: 600_000 },
+    });
+    const { emulator, provider, builder, wallet } = ctx;
+    const partner = await walletOfIndex(1);
+    const own = emulator.fund((await partner.getChangeAddress())!, {
+      lovelace: 100n * ADA,
+    });
+    const built = await builder.build(
+      [
+        spend.pubKey({ utxo: own }),
+        output({ address: carol, value: { lovelace: 13n * ADA } }),
+        validity({ until: builder.timeAt(emulator.slot) + 300_000 }),
+      ],
+      { payer: partner },
+    );
+    if (!unsigned) await built.sign();
+    const old = await builder.plan(
+      { p: built, b: payTo(alice, 11n * ADA) },
+      { id: "order", payer: wallet },
+    );
+    const p = old.step("p").txHash;
+    const hide = { on: true };
+    provider.control.hooks.fetchTxInfo = (forward, hash: string) => {
+      if (hide.on && hash.toLowerCase() === p)
+        throw Object.assign(new Error("not found"), {
+          kind: "notFound",
+          status: 404,
+        });
+      return forward(hash);
+    };
+    return { ...ctx, built, old, p, hide };
+  };
+
+  /**
+   * Past the end of p, inside the margin, while p is in a block the search hides: `plan.replan`
+   * waits (CANNOT_OBSERVE) and writes nothing; once the search finds p, the plan sends b, and
+   * carol and alice are each paid once
+   */
+  const waitsForCopy = async (
+    ctx: Awaited<ReturnType<typeof partnerCopy>>,
+    plan: TxPlan,
+    id: string,
+  ) => {
+    const { emulator, store, wallet, p, hide } = ctx;
+    advance(emulator, 400);
+    await plan.refresh();
+    expect(await emulator.fetchTxInfo(p)).toBeDefined();
+    for (let i = 0; i < 2; i++) {
+      const error = await caught(plan.replan({ id }));
+      expect([
+        error.code,
+        reasonOf(error),
+        error.txHash,
+        error.retryable,
+      ]).toEqual(["CANNOT_OBSERVE", "unconfirmed", p, true]);
+      expect(error.message).toMatch(
+        /^step "p" is past its end of validity and may be in a block the search does not show, or be sent by another party before its margin passes; nothing was written/,
+      );
+      expect(plan.replacedBy).toBeUndefined();
+      expect(await store.inner.load(id)).toBeUndefined();
+      advance(emulator, 1);
+    }
+    expect(times(emulator, carol, 13n * ADA)).toBe(1);
+    hide.on = false;
+    await plan.refresh();
+    expect(plan.step("p").status).toBe("included");
+    await plan.run({ signers: [wallet], waitFor: "included" });
+    expect(times(emulator, carol, 13n * ADA)).toBe(1);
+    expect(times(emulator, alice, 11n * ADA)).toBe(1);
+  };
+
+  it("a step given built that the old plan sent, held as the same transaction by the plan in its place, which never sent it: past its end and inside the margin, in a block the search hides, the call waits (CANNOT_OBSERVE); once the search finds it, carol is paid once", async () => {
+    const ctx = await partnerCopy();
+    const { emulator, old, p } = ctx;
+    const b = old.step("b").txHash;
+    await caught(
+      old.run({
+        submitter: relayOf(emulator, (txHash) => txHash === b),
+        timeoutMs: 300,
+      }),
+    );
+    advance(emulator, 1);
+    expect(await emulator.fetchTxInfo(p)).toBeDefined();
+    expect(recordOf(old).steps[0]!.sends).toBeGreaterThan(0);
+    const next = await old.replan({ id: "order:2" });
+    expect(next.step("p").txHash).toBe(p);
+    expect(recordOf(next).steps[0]!.sends).toBe(0);
+    await waitsForCopy(ctx, next, "order:3");
+  });
+
+  it("a step given built that its partner sent and the plan never did: the same wait", async () => {
+    const ctx = await partnerCopy();
+    const { emulator, built, old } = ctx;
+    await emulator.submitTx(built.signedTx!);
+    expect(recordOf(old).steps[0]!.sends).toBe(0);
+    await waitsForCopy(ctx, old, "order:2");
+  });
+
+  it("a step given built before its partner signed it, whose copy the partner signed and sent: the plan lacks a witness of it, and the call waits in the same way", async () => {
+    const ctx = await partnerCopy(true);
+    const { emulator, built, old, p } = ctx;
+    expect(old.step("p").missing.length).toBeGreaterThan(0);
+    await built.sign();
+    expect(await hashOf(built.signedTx!)).toBe(p);
+    await emulator.submitTx(built.signedTx!);
+    await waitsForCopy(ctx, old, "order:2");
   });
 
   it("steps from parts whose own end has passed, taken out of their blocks by a rollback, the second on the first: the look calls them expired and orphaned, and the call is refused (INVALID_OPTION), not waited for", async () => {
