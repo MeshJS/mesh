@@ -669,6 +669,53 @@ const inBlock = async () => {
 };
 
 describe("a plan in place of one whose step is in a block, on a store", () => {
+  it("a crash after the mark, then a rollback: the same call builds the step again on an input it shares", async () => {
+    const { store, wallet, instance, before, emulator, old } = await inBlock();
+    const a = old.step("a");
+    const one = instance();
+    const x = await one.builder.resume("order", { payer: wallet });
+    one.store.hooks.save = (forward, json, rev) => {
+      if (json.id === "i1") throw new Error("the process dies here");
+      return forward(json, rev);
+    };
+    const failed = await caught(x.replan({ id: "i1" }));
+    expect(failed.code).toBe("STORE_FAILED");
+    expect((await store.inner.load("order"))!.replacedBy).toBe("i1");
+    expect(await store.inner.load("i1")).toBeUndefined();
+    // A rollback: a is in no block of the chain the next process reads
+    before.advanceTo({ slot: emulator.slot + 1 });
+    const two = instance();
+    two.provider.control.target = before;
+    const y = await two.builder.resume("order", { payer: wallet });
+    const made = await y.replan({ id: "i1" });
+    expect(names(made)).toEqual(["a", "b", "c"]);
+    expect(made.toJSON().steps.every((step) => step.taken === undefined)).toBe(
+      true,
+    );
+    expect(
+      made
+        .step("a")
+        .inputs.some((input) =>
+          a.inputs.some(
+            (each) =>
+              each.txHash === input.txHash &&
+              each.outputIndex === input.outputIndex,
+          ),
+        ),
+    ).toBe(true);
+    await made.run({ waitFor: "included" });
+    before.advanceTo({ slot: before.slot + 3 });
+    await made.refresh();
+    expect(made.status).toBe("final");
+    expect(
+      await before.submitTx(old.step("a").signedTx!).then(
+        () => false,
+        () => true,
+      ),
+    ).toBe(true);
+    paidOnce(before);
+  });
+
   it("a step in a block rolled back between the payer's read and the mark: CANNOT_OBSERVE, no mark", async () => {
     const { emulator, provider, store, wallet, instance, before, old } =
       await inBlock();
@@ -797,6 +844,128 @@ describe("a plan in place of one whose step is in a block, on a store", () => {
   });
 });
 
+/**
+ * The old plan of a second world, whose depth of final is three blocks: a in a block and not
+ * final, b sent and held, c signed; and a fork taken before it, the chain of a rollback
+ */
+const inBlockPlanOf = async (world: World) => {
+  const before = world.emulator.fork();
+  const maker = new Process();
+  const builder = world.builder(maker);
+  const old = await builder.plan(
+    {
+      a: payTo(alice, 11n * ADA),
+      b: payTo(bob, 12n * ADA),
+      c: payTo(carol, 13n * ADA),
+    },
+    { id: "order", payer: world.wallet },
+  );
+  await old.sign();
+  await old.run({ waitFor: "sent" });
+  await old.refresh();
+  world.submitMode = "hold";
+  await old.run({ waitFor: "sent" });
+  world.submitMode = "forward";
+  expect(old.steps.map((step) => step.status)).toEqual([
+    "included",
+    "sent",
+    "signed",
+  ]);
+  advance(world.emulator, 1);
+  return { old, before };
+};
+
+/** The calls of one process that replaces the plan of the second world, without a fault */
+const countInBlockCalls = async () => {
+  const world = await World.create(undefined, 3);
+  await inBlockPlanOf(world);
+  const proc = new Process();
+  const plan = await world
+    .builder(proc)
+    .resume("order", { payer: world.wallet });
+  const next = await plan.replan({ id: "order:2" });
+  expect(next.toJSON().steps[0]!.taken).toBe(true);
+  return { store: proc.storeCalls, io: proc.ioCalls };
+};
+
+/**
+ * One case of the second world: a process with this fault; a rollback of the block of a, or
+ * none, by `rollback`; then a new process makes the same call and carries the line to its end
+ */
+const crashInBlockCase = async (
+  fault: Fault,
+  rollback: boolean,
+  release: number,
+) => {
+  const world = await World.create(undefined, 3);
+  const { before } = await inBlockPlanOf(world);
+  const proc = new Process(fault);
+  const end = await runStep(proc, async () => {
+    const plan = await world
+      .builder(proc)
+      .resume("order", { payer: world.wallet });
+    return plan.replan({ id: "order:2" });
+  });
+  expect({ fault, fired: proc.fired, hung: end.hung === true }).toEqual({
+    fault,
+    fired: true,
+    hung: true,
+  });
+  const log = [
+    `fault ${JSON.stringify(fault)}, rollback ${rollback}`,
+    ...proc.log,
+  ];
+  if (rollback) {
+    before.advanceTo({ slot: world.emulator.slot + 1 });
+    world.rollTo(before);
+  }
+  /** Three blocks on, and a look */
+  const deepen = async (plan: TxPlan) => {
+    advance(world.emulator, 3);
+    await plan.refresh();
+  };
+  const fresh = new Process();
+  const resumed = await world
+    .builder(fresh)
+    .resume("order", { payer: world.wallet });
+  let next: TxPlan = await resumed.replan({ id: "order:2" });
+  if (release === 0) await world.flush();
+  try {
+    await next.run({ waitFor: "included" });
+    await deepen(next);
+  } catch (error) {
+    log.push(`order:2 run: ${codeOf(error)}`);
+    // The old b landed first: once it is final the plan in place of this one pays what is left
+    await deepen(next);
+    next = await next.replan({ id: "order:3" });
+    await next.run({ waitFor: "included" });
+    await deepen(next);
+  }
+  if (release === 1) await world.flush();
+  expect({ log, status: next.status }).toEqual({ log, status: "final" });
+  await world.checkObject(next, next.id!, "at the end");
+  const named = [];
+  for (const id of ["order:2", "order:3"]) {
+    const json = await world.inner.load(id);
+    if (json?.replaces === "order") named.push(id);
+  }
+  expect({ log, named }).toEqual({ log, named: ["order:2"] });
+  expect({ log, violations: world.violations }).toEqual({
+    log,
+    violations: [],
+  });
+  for (const [address, lovelace] of [
+    [alice, 11n],
+    [bob, 12n],
+    [carol, 13n],
+  ] as const)
+    expect({
+      log,
+      address,
+      paid: times(world.emulator, address, lovelace * ADA),
+    }).toEqual({ log, address, paid: 1 });
+};
+
 describe("a crash at every request of replan", () => {
   const STORE_KINDS: readonly StoreFault[] = ["hangBefore", "hangAfter"];
 
@@ -813,6 +982,26 @@ describe("a crash at every request of replan", () => {
     }
     const random = seeded(FAULT_SEED);
     for (const fault of cases) await crashCase(fault, random.int(2));
+  }, 600_000);
+
+  it("a second world, a in a block and not final, rolled back at a drawn moment before the new process runs: one record names the old plan, one payment each", async () => {
+    const counted = await countInBlockCalls();
+    const cases: Fault[] = [];
+    for (let k = 1; k <= counted.store; k++)
+      for (const kind of STORE_KINDS) cases.push({ where: "store", k, kind });
+    for (let k = 1; k <= counted.io; k++) {
+      cases.push({ where: "io", k });
+      cases.push({ where: "io", k, after: true });
+    }
+    const random = seeded(FAULT_SEED + 1);
+    let rolledBack = 0;
+    for (const fault of cases) {
+      const rollback = random.chance(0.5);
+      if (rollback) rolledBack++;
+      await crashInBlockCase(fault, rollback, random.int(2));
+    }
+    expect(rolledBack).toBeGreaterThan(0);
+    expect(rolledBack).toBeLessThan(cases.length);
   }, 600_000);
 });
 

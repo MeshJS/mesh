@@ -13,6 +13,7 @@ import { memoryPlanStore, TxError } from "../../../src/tx-builder";
 import {
   builderOf,
   emulatorOf,
+  FAST,
   hashOf,
   walletOf,
   wrap,
@@ -216,6 +217,10 @@ export class World {
   readonly #reader: TxBuilder;
   /** The store every process writes through: it keeps each revision it wrote */
   readonly #recording: TxPlanStore;
+  /** The depth of final for every process, when not the fast default */
+  readonly #confirmations: number | undefined;
+  /** The providers of the processes, switched together to a fork by a rollback */
+  readonly #controls: { target: TxEmulator }[] = [];
   /** What the checks saw last, of the store's record and of each object */
   readonly #seen = new Map<
     string | TxPlan,
@@ -223,13 +228,17 @@ export class World {
   >();
 
   private constructor(
-    readonly emulator: TxEmulator,
+    public emulator: TxEmulator,
     wallet: MeshWallet,
     other: MeshWallet,
     readonly address: string,
     readonly otherAddress: string,
+    confirmations?: number,
   ) {
-    this.#reader = builderOf(wrap(emulator));
+    this.#confirmations = confirmations;
+    const reader = wrap(emulator);
+    this.#controls.push(reader.control);
+    this.#reader = builderOf(reader);
     this.wallet = this.#checkedSigner(wallet, "the payer");
     this.other = this.#checkedSigner(other, "the second key");
     this.#recording = {
@@ -242,8 +251,14 @@ export class World {
     };
   }
 
-  /** A world with a funded payer and a second key holder */
-  static async create(funds: bigint[] = [100_000_000n, 20_000_000n]) {
+  /**
+   * A world with a funded payer and a second key holder; with `confirmations`, every process's
+   * builder has that depth of final
+   */
+  static async create(
+    funds: bigint[] = [100_000_000n, 20_000_000n],
+    confirmations?: number,
+  ) {
     // A slot whose time is behind the clock: a step expires only when the tip and the clock
     // have both passed its deadline, and the tip is not far ahead of the clock
     const emulator = await emulatorOf(100_000_000);
@@ -252,7 +267,20 @@ export class World {
     const address = (await wallet.getChangeAddress())!;
     const otherAddress = (await other.getChangeAddress())!;
     for (const lovelace of funds) emulator.fund(address, { lovelace });
-    return new World(emulator, wallet, other, address, otherAddress);
+    return new World(
+      emulator,
+      wallet,
+      other,
+      address,
+      otherAddress,
+      confirmations,
+    );
+  }
+
+  /** A rollback: every process reads and submits to this fork from now on */
+  rollTo(fork: TxEmulator) {
+    this.emulator = fork;
+    for (const control of this.#controls) control.target = fork;
   }
 
   /** Keeps a written revision, and checks that the bodies of the steps never change */
@@ -398,7 +426,9 @@ export class World {
       this.violation("the provider was asked to submit");
       return HANG;
     };
-    return wrap(this.emulator, hooks);
+    const provider = wrap(this.emulator, hooks);
+    this.#controls.push(provider.control);
+    return provider;
   }
 
   /** The builder of a process: its store, provider and submitter play its fault */
@@ -406,6 +436,9 @@ export class World {
     return builderOf(this.#provider(proc), {
       store: faultyStore(this.#recording, proc),
       submitter: this.submitter(proc),
+      ...(this.#confirmations !== undefined && {
+        planDefaults: { ...FAST, confirmations: this.#confirmations },
+      }),
     });
   }
 

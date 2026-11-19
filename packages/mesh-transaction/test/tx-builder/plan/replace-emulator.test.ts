@@ -2591,3 +2591,271 @@ describe("a plan in place of one whose step is in a block and not final", () => 
 /** The JSON of a plan, read back and written again */
 const encodeRead = (json: ReturnType<TxPlan["toJSON"]>) =>
   encodePlan(readPlan(JSON.parse(JSON.stringify(json))));
+
+describe("rollbacks under a plan that took a step", () => {
+  it("a rollback that is undone: the new plan sends the step again, the old plan nothing", async () => {
+    const ctx = await inBlock();
+    const { old, before, bytes } = ctx;
+    const a = old.step("a");
+    const next = await old.replan({ id: "order:2" });
+    rollBack(ctx, before);
+    await next.refresh();
+    expect(next.step("a").status).toBe("sent");
+    expect(next.step("a").seen).toEqual(a.seen);
+    expect(next.landed).toEqual([]);
+    expect(next.rest).not.toHaveProperty("a");
+    const quiet = forwarding(before);
+    const stopped = await caught(old.run({ submitter: quiet }));
+    expect([stopped.code, reasonOf(stopped)]).toEqual([
+      "INVALID_STATE",
+      "stopped",
+    ]);
+    expect(quiet.calls).toEqual([]);
+    const submitter = forwarding(before);
+    await next.run({ submitter, waitFor: "included" });
+    expect(submitter.calls[0]).toBe(bytes.a);
+    expect(await Promise.all(submitter.calls.map(hashOf))).toEqual([
+      a.txHash,
+      next.step("b").txHash,
+      next.step("c").txHash,
+    ]);
+    before.advanceTo({ slot: before.slot + 3 });
+    await next.refresh();
+    expect(next.status).toBe("final");
+    expect(await refused(before, bytes.b)).toBe(true);
+    paidOnce(before);
+  });
+
+  it("a rollback that is not undone: the new plan stops and is never final; the plan in its place pays everything once", async () => {
+    const ctx = await inBlock();
+    const { old, before, bytes } = ctx;
+    const a = old.step("a");
+    const next = await old.replan({ id: "order:2" });
+    rollBack(ctx, before, 700);
+    await next.refresh();
+    await next.refresh();
+    expect(statuses(next)).toEqual({
+      a: "expired",
+      b: "orphaned",
+      c: "orphaned",
+    });
+    expect(next.status).toBe("stopped");
+    expect(next.rest).not.toHaveProperty("a");
+    const submitter = forwarding(before);
+    const error = await caught(next.run({ submitter }));
+    expect([error.code, error.step]).toEqual(["EXPIRED", "a"]);
+    expect(submitter.calls).toEqual([]);
+    const last = await next.replan({ id: "order:3" });
+    expect(names(last)).toEqual(["a", "b", "c"]);
+    expect(last.toJSON().steps.every((step) => step.taken === undefined)).toBe(
+      true,
+    );
+    expect(
+      last
+        .step("a")
+        .inputs.some((input) =>
+          a.inputs.some((each) => key(each) === key(input)),
+        ),
+    ).toBe(true);
+    expect(last.toJSON().before!.open).toContainEqual(
+      expect.objectContaining({
+        step: "a",
+        txHash: a.txHash,
+        seenBefore: a.seen,
+      }),
+    );
+    await last.run({ waitFor: "included" });
+    before.advanceTo({ slot: before.slot + 3 });
+    await last.refresh();
+    expect(last.status).toBe("final");
+    expect(await refused(before, bytes.a)).toBe(true);
+    paidOnce(before);
+  });
+
+  it("a rollback that is not undone, the input of a taken by another transaction: STILL_LIVE with no safeAfter, no mark", async () => {
+    const ctx = await inBlock();
+    const { old, before } = ctx;
+    const next = await old.replan({ id: "order:2" });
+    before.removeUtxos(old.step("a").inputs.map(ref));
+    rollBack(ctx, before, 700);
+    await next.refresh();
+    await next.refresh();
+    expect(next.status).toBe("stopped");
+    const error = await caught(next.replan({ id: "order:3" }));
+    expect(error.code).toBe("STILL_LIVE");
+    expect(error.details.safeAfter).toBeUndefined();
+    expect(error.details.txHashes).toContain(old.step("a").txHash);
+    expect(error.retryable).toBe(false);
+    expect(next.replacedBy).toBeUndefined();
+    neverTwice(before);
+  });
+
+  it("a rollback after a step built on the taken step was sent, and after it landed", async () => {
+    // Sent and held by a relay, then a rollback: a, then the same bytes of b, then c
+    {
+      const ctx = await inBlock();
+      const next = await ctx.old.replan({ id: "order:2" });
+      const bHash = next.step("b").txHash;
+      const relay = relayOf(ctx.emulator, (txHash) => txHash === bHash);
+      await caught(next.run({ submitter: relay, timeoutMs: 300 }));
+      expect(statuses(next)).toMatchObject({ a: "included", b: "sent" });
+      rollBack(ctx, ctx.before);
+      await next.refresh();
+      expect(statuses(next)).toMatchObject({ a: "sent", b: "sent" });
+      const submitter = forwarding(ctx.before);
+      await next.run({ submitter, waitFor: "included" });
+      expect(submitter.calls.slice(0, 2)).toEqual([ctx.bytes.a, relay.kept[0]]);
+      ctx.before.advanceTo({ slot: ctx.before.slot + 3 });
+      await next.refresh();
+      expect(next.status).toBe("final");
+      paidOnce(ctx.before);
+    }
+    // All landed, then a rollback: all three sent with their blocks; run submits them in order
+    {
+      const ctx = await inBlock();
+      const next = await ctx.old.replan({ id: "order:2" });
+      await next.run({ waitFor: "included" });
+      rollBack(ctx, ctx.before);
+      await next.refresh();
+      expect(statuses(next)).toEqual({ a: "sent", b: "sent", c: "sent" });
+      for (const step of next.steps) expect(step.seen).toBeDefined();
+      const submitter = forwarding(ctx.before);
+      await next.run({ submitter, waitFor: "included" });
+      expect(await Promise.all(submitter.calls.map(hashOf))).toEqual(
+        next.steps.map((step) => step.txHash),
+      );
+      ctx.before.advanceTo({ slot: ctx.before.slot + 3 });
+      await next.refresh();
+      expect(next.status).toBe("final");
+      paidOnce(ctx.before);
+    }
+    // All landed, a rollback, the fork past the end of a: stopped; the plan in its place pays
+    {
+      const ctx = await inBlock();
+      const next = await ctx.old.replan({ id: "order:2" });
+      await next.run({ waitFor: "included" });
+      const second = next.step("b").signedTx!;
+      rollBack(ctx, ctx.before, 700);
+      await next.refresh();
+      await next.refresh();
+      expect(next.status).toBe("stopped");
+      const last = await next.replan({ id: "order:3" });
+      expect(names(last)).toEqual(["a", "b", "c"]);
+      await last.run({ waitFor: "included" });
+      ctx.before.advanceTo({ slot: ctx.before.slot + 3 });
+      await last.refresh();
+      expect(last.status).toBe("final");
+      expect(await refused(ctx.before, second)).toBe(true);
+      paidOnce(ctx.before);
+    }
+  });
+
+  it("replan of the new plan takes the step again while it is in a block, and keeps it once it is final", async () => {
+    {
+      const ctx = await inBlock();
+      const next = await ctx.old.replan({ id: "order:2" });
+      const bHash = next.step("b").txHash;
+      const relay = relayOf(ctx.emulator, (txHash) => txHash === bHash);
+      await caught(next.run({ submitter: relay, timeoutMs: 300 }));
+      advance(ctx.emulator, 1);
+      const last = await next.replan({ id: "order:3" });
+      expect(names(last)).toEqual(["a", "b", "c"]);
+      expect(last.toJSON().steps[0]).toMatchObject({ name: "a", taken: true });
+      expect(last.step("a").txHash).toBe(ctx.old.step("a").txHash);
+      await last.run({ waitFor: "included" });
+      advance(ctx.emulator, 3);
+      await last.refresh();
+      expect(last.status).toBe("final");
+      expect(await refused(ctx.emulator, relay.kept[0]!)).toBe(true);
+      paidOnce(ctx.emulator);
+    }
+    {
+      const ctx = await inBlock();
+      const next = await ctx.old.replan({ id: "order:2" });
+      const bHash = next.step("b").txHash;
+      const relay = relayOf(ctx.emulator, (txHash) => txHash === bHash);
+      await caught(next.run({ submitter: relay, timeoutMs: 300 }));
+      advance(ctx.emulator, 3);
+      const last = await next.replan({ id: "order:3" });
+      expect(names(last)).toEqual(["b", "c"]);
+      expect(last.toJSON().before!.final).toEqual(["a"]);
+      await last.run({ waitFor: "included" });
+      advance(ctx.emulator, 3);
+      await last.refresh();
+      expect(last.status).toBe("final");
+      paidOnce(ctx.emulator);
+    }
+  });
+
+  it("a line of three plans: a transaction a taken step excludes is watched, and stops the new plan when it lands after a rollback", async () => {
+    const ctx = await stepSetup("scalus", {
+      funds: [100n * ADA, 50n * ADA, 7n * ADA],
+      builder: { planDefaults: DEEP },
+    });
+    const { emulator, builder, wallet } = ctx;
+    const voucher = ctx.funded[2]!;
+    const isVoucher = (utxo: { txHash: string; outputIndex: number }) =>
+      key(utxo) === key(voucher.input);
+    const before = emulator.fork();
+    // O0: one step a, sent and held (a0)
+    const o0 = await builder.plan(
+      { a: payTo(alice, 11n * ADA) },
+      { id: "order", payer: wallet, canSelect: (utxo) => !isVoucher(utxo) },
+    );
+    await o0.sign();
+    const a0Hash = o0.step("a").txHash;
+    const hold0 = relayOf(emulator, (txHash) => txHash === a0Hash);
+    await caught(o0.run({ submitter: hold0, timeoutMs: 300 }));
+    advance(emulator, 1);
+    // O: a1 shares the input X with a0 and spends the voucher V; b1 is stuck
+    const o = await o0.replan({
+      id: "order:2",
+      steps: {
+        a: [payTo(alice, 11n * ADA), spend.pubKey({ utxo: voucher })],
+        b: payTo(bob, 12n * ADA),
+      },
+    });
+    const x = o0.step("a").inputs.map(key);
+    expect(o.step("a").inputs.some((input) => x.includes(key(input)))).toBe(
+      true,
+    );
+    const b1Hash = o.step("b").txHash;
+    const hold1 = relayOf(emulator, (txHash) => txHash === b1Hash);
+    await caught(o.run({ submitter: hold1, timeoutMs: 300 }));
+    expect(statuses(o)).toEqual({ a: "included", b: "sent" });
+    advance(emulator, 1);
+    // N in place of O at once: a1 taken, b2 on it; a0 is watched, not settled
+    const n = await o.replan({ id: "order:3" });
+    expect(n.toJSON().steps[0]).toMatchObject({ name: "a", taken: true });
+    expect(n.toJSON().before!.open.map((entry) => entry.txHash)).toEqual(
+      expect.arrayContaining([a0Hash, b1Hash]),
+    );
+    // B1 rolled back, and a0 lands
+    rollBack(ctx, before);
+    await before.submitTx(hold0.kept[0]!);
+    await n.refresh();
+    expect(n.step("a").status).toBe("sent");
+    const entry = n
+      .toJSON()
+      .before!.open.find((each) => each.txHash === a0Hash)!;
+    expect(entry.seen).toBeDefined();
+    const stopped = await caught(n.run({ submitter: forwarding(before) }));
+    expect([stopped.code, reasonOf(stopped), stopped.txHash]).toEqual([
+      "INVALID_STATE",
+      "stopped",
+      a0Hash,
+    ]);
+    // replan of it waits until a0 is final, then builds b alone
+    waits(await caught(n.replan({ id: "order:4" })), a0Hash, n);
+    before.advanceTo({ slot: before.slot + 3 });
+    const last = await n.replan({ id: "order:4" });
+    expect(names(last)).toEqual(["b"]);
+    await last.run({ waitFor: "included" });
+    before.advanceTo({ slot: before.slot + 3 });
+    await last.refresh();
+    expect(last.status).toBe("final");
+    expect(times(before, alice, 11n * ADA)).toBe(1);
+    expect(times(before, bob, 12n * ADA)).toBe(1);
+    neverTwice(before);
+  });
+});

@@ -47,6 +47,9 @@ import { alice, payTo } from "./run-util";
 //    names none; a record that names the plan it replaces exists only when that plan names it;
 //  - a revision with that name, or with a transaction of the plans before found in a block, is
 //    followed by no delivery, signature or step;
+//  - a plan made in place of another holds as taken only steps that a revision of that plan
+//    held in a block or final, by name and hash, and before every other step; and no step it
+//    built that is no consolidation step is in a block of the chain while a taken step is not;
 //  - a terminal status (final, stopped), once an object or the store shows it, stays; so does
 //    the stop mark;
 //  - a final plan has every step in a block of the chain;
@@ -160,6 +163,9 @@ const reached = {
   forkReads: 0,
   staleReads: 0,
   plans: 0,
+  /** Plans made with a step taken from the plan before, and those whose taken step a look found out of its block */
+  takenPlans: 0,
+  takenRolledBack: 0,
 };
 
 /** One plan of a run: its id, its order, its two objects, and what the checks saw of it */
@@ -763,7 +769,72 @@ const run = async (seed: number) => {
         (await inner.load(replaces))?.replacedBy !== id
       )
         findings.push(`${id} replaces ${replaces}, which does not name it`);
+      if (replaces !== undefined) await checkTaken(id, kept, replaces);
     }
+  };
+
+  /** Plans seen with a taken step, and with one found out of its block */
+  const takenSeen = new Set<string>();
+  const takenOut = new Set<string>();
+  /**
+   * A plan made in place of `replaces` takes only steps that a revision of that plan held in a
+   * block or final, under the same name and hash, and they come first; a step of its first record
+   * that it built, no consolidation step, is in a block of the chain only if every taken step is
+   */
+  const checkTaken = async (
+    id: string,
+    kept: readonly StoredTxPlanJSON[],
+    replaces: string,
+  ) => {
+    const first = kept[0]!;
+    const taken = first.steps.filter((step) => step.taken === true);
+    if (taken.length === 0) return;
+    if (!takenSeen.has(id)) {
+      takenSeen.add(id);
+      reached.takenPlans += 1;
+    }
+    const count = first.steps.findIndex((step) => step.taken !== true);
+    if (count >= 0 && count < taken.length)
+      findings.push(`${id}: a taken step comes after a step that is not taken`);
+    const was = revisions.get(replaces) ?? [];
+    for (const step of taken)
+      if (
+        !was.some((json) =>
+          json.steps.some(
+            (each) =>
+              each.name === step.name &&
+              each.txHash === step.txHash &&
+              LANDED.has(each.status),
+          ),
+        )
+      )
+        findings.push(
+          `${id}: took ${step.name} ${short(step.txHash)}, which no revision of ${replaces} held in a block`,
+        );
+    if (
+      !takenOut.has(id) &&
+      kept.some((json) =>
+        json.steps.some(
+          (step) => step.taken === true && step.status === "sent",
+        ),
+      )
+    ) {
+      takenOut.add(id);
+      reached.takenRolledBack += 1;
+    }
+    const onChain = await Promise.all(
+      taken.map((step) => inBlock(main, step.txHash)),
+    );
+    if (onChain.every(Boolean)) return;
+    for (const step of first.steps)
+      if (
+        step.taken !== true &&
+        step.kind !== "consolidation" &&
+        (await inBlock(main, step.txHash))
+      )
+        findings.push(
+          `${id}: ${step.name} is in a block while a taken step is in none`,
+        );
   };
 
   for (let round = 0; round < ROUNDS; round++) {
@@ -850,6 +921,28 @@ const run = async (seed: number) => {
     }
     life = await begin(stepsOfOrder(orders), orders++);
   }
+  // Then a plan of a new order whose first step lands is replaced while that step is in a block
+  // and not final, and the chain rolls back under it; both plans go on, a replayer at work, and
+  // the checks of every round apply to them
+  {
+    const owner = await begin(stepsOfOrder(orders), orders++);
+    await forkPoint();
+    await call(owner, owner.X, "sign", "forward", 0);
+    await call(owner, owner.X, "sent", "forward", 0);
+    await call(owner, owner.X, "refresh", "forward", 0);
+    await call(owner, owner.X, "replan", "forward", random.next());
+    const id = successors.get(owner.id);
+    const next = lives.find((each) => each.id === id);
+    await rollback({ kind: "rollback", fork: 0.999 });
+    if (next !== undefined)
+      for (const name of ["refresh", "included", "included"] as const) {
+        await call(next, next.X, name, "forward", 0);
+        await advanceSlots(1 + random.int(5));
+      }
+    for (const each of lives) await check(each);
+    await checkLines();
+    checkPayments();
+  }
   // Last, every body and every held byte string once more, on the chain as it is
   for (const txHash of bodies.keys()) await replay(main, txHash);
   for (const tx of held) await main.submitTx(tx).catch(() => undefined);
@@ -899,6 +992,8 @@ describe("Two objects on one record, with a moving chain and a replayer", () => 
       expect(reached.replaced).toBeGreaterThan(0);
       expect(reached.hiddenLooks).toBeGreaterThan(0);
       expect(reached.plans).toBeGreaterThan(0);
+      expect(reached.takenPlans).toBeGreaterThan(0);
+      expect(reached.takenRolledBack).toBeGreaterThan(0);
       console.log(`reached: ${JSON.stringify(reached)}`);
     },
   );
