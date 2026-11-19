@@ -1565,6 +1565,94 @@ describe("edges of the refusals of replan", () => {
     expect((await store.inner.load("i1"))!.replaces).toBe("order");
     paidOnce(mid, true);
   });
+
+  it("a final step beside a step in a block: nothing is left, the call waits, with steps and without", async () => {
+    const ctx = await storeSetup({
+      funds: [100n * ADA, 50n * ADA],
+      planDefaults: { ...FAST, confirmations: 3 },
+    });
+    const { emulator, builder, wallet, store } = ctx;
+    const old = await builder.plan(
+      { a: payTo(alice, 11n * ADA), b: payTo(bob, 12n * ADA) },
+      { id: "order", payer: wallet },
+    );
+    await old.sign();
+    await old.run({ waitFor: "sent" });
+    advance(emulator, 3);
+    await old.refresh();
+    await old.run({ waitFor: "sent" });
+    await old.refresh();
+    expect(old.steps.map((step) => step.status)).toEqual(["final", "included"]);
+    for (const steps of [undefined, { x: payTo(dave, 14n * ADA) }]) {
+      const error = await caught(
+        old.replan({ id: "i1", ...(steps !== undefined && { steps }) }),
+      );
+      expect([error.code, reasonOf(error), error.txHash]).toEqual([
+        "CANNOT_OBSERVE",
+        "unconfirmed",
+        old.step("b").txHash,
+      ]);
+      expect(error.message).toContain(
+        "every step of the plan is in a block, and none is left",
+      );
+      expect(old.replacedBy).toBeUndefined();
+      expect(await store.inner.load("i1")).toBeUndefined();
+    }
+    expect(times(emulator, dave, 14n * ADA)).toBe(0);
+    paidOnce(emulator, true);
+  });
+
+  /**
+   * A plan of a, final, and b with an end of its own, sent and held by a relay; then the chain
+   * moved to the slot of that end
+   */
+  const endAt = async (form: "until" | "invalidHereafter") => {
+    const ctx = await storeSetup({ funds: [100n * ADA, 50n * ADA] });
+    const { emulator, builder, wallet } = ctx;
+    const slot = emulator.slot + 40;
+    const end =
+      form === "until"
+        ? validity({ until: builder.timeAt(slot) })
+        : validity({ invalidHereafter: slot });
+    const old = await builder.plan(
+      { a: payTo(alice, 11n * ADA), b: [payTo(bob, 12n * ADA), end] },
+      { id: "order", payer: wallet },
+    );
+    await old.sign();
+    const bHash = old.step("b").txHash;
+    const relay = relayOf(emulator, (txHash) => txHash === bHash);
+    await caught(old.run({ submitter: relay, timeoutMs: 300 }));
+    expect(old.steps.map((step) => step.status)).toEqual(["final", "sent"]);
+    emulator.advanceTo({ slot });
+    return { ...ctx, old };
+  };
+
+  it("a step whose own end is exactly the tip's time: refused", async () => {
+    const { emulator, store, builder, old } = await endAt("until");
+    expect(old.step("b").validity!.until).toBe(builder.timeAt(emulator.slot));
+    const error = await caught(old.replan({ id: "i1" }));
+    expect([error.code, error.details.option]).toEqual([
+      "INVALID_OPTION",
+      "steps",
+    ]);
+    expect(error.message).toContain(
+      `step "b" cannot be built again as it was given`,
+    );
+    expect(await store.inner.load("i1")).toBeUndefined();
+  });
+
+  it("a step whose parts give invalidHereafter that the tip has reached: refused as one that gives until", async () => {
+    const { store, old } = await endAt("invalidHereafter");
+    const error = await caught(old.replan({ id: "i1" }));
+    expect([error.code, error.details.option]).toEqual([
+      "INVALID_OPTION",
+      "steps",
+    ]);
+    expect(error.message).toContain(
+      `step "b" cannot be built again as it was given`,
+    );
+    expect(await store.inner.load("i1")).toBeUndefined();
+  });
 });
 
 describe("a crash at every request of replan", () => {
