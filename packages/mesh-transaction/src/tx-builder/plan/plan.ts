@@ -1311,14 +1311,17 @@ export class TxPlan {
   }
 
   /**
-   * A new plan in place of this one, for what is left of it. Without `steps` it builds the
-   * steps its look shows open, as `rest` gives a step, and refuses a plan with a failed step;
-   * with `steps`, those: one list of parts or named steps, as `builder.plan` takes them. The
-   * other options are those of `builder.plan`; where the call gives none, the payer this object
-   * holds and the deadlines and data options this plan records apply. `id` is the new plan's
-   * id. A plan made with `steps` that pay what this plan was not to pay is followed by its own
-   * id: when this plan becomes final after all, that payment was not made, unless a step of it
-   * passed by time (`NO_SHARED_INPUT`).
+   * A new plan in place of this one, for what is left of it. Without `steps` it builds the steps
+   * its look shows open, as `rest` gives a step, and refuses a plan with a failed step; with
+   * `steps`, those: one list of parts or named steps, as `builder.plan` takes them. The other
+   * options are those of `builder.plan`; where the call gives none, the payer this object holds and
+   * the deadlines and data options this plan records apply. `id` is the new plan's id. A plan made
+   * with `steps` that pay what this plan was not to pay is followed by its own id: when this plan
+   * becomes final after all, that payment was not made, unless a step of it passed by time
+   * (`NO_SHARED_INPUT`). A step given that pays what a step of this plan or a plan before it was to
+   * pay keeps that step's name: once that step is final after all, the name is kept and nothing is
+   * built again under it; under a new name a later `replan` without `steps` builds it again, and
+   * pays twice.
    *
    * ```ts
    * const next = await plan.replan({ id: "order-7:2" });
@@ -1341,19 +1344,18 @@ export class TxPlan {
    *   The new plan then stops and is never final, and `replan` of it builds what is left again:
    *   a step that landed is never built again, and a step whose end of validity came from `ttlMs`
    *   gets a new end. To wait as before, call once every step in `landed` is final.
-   * - Without `steps`, a plan with a step that failed its script is refused: its parts need
-   *   fixing, and the steps left without it would end the order with that payment not made. A
-   *   step left whose own end of validity has passed (its parts give one, or it was given built)
-   *   is refused: built again it could not land. So is a step given built that spends, reads
-   *   or puts up an output of a step the new plan does not hold as the same transaction (one
-   *   built again from its parts, a consolidation step): that output never exists in the new
-   *   plan. Both are told once the payers' reads are checked: a read that lists an output of a
-   *   step the search does not find (the step left, or the step below it) is waited for first.
-   *   A step past its own end that the plan sent or found in a block may be in a block the
-   *   search does not show: the call waits (CANNOT_OBSERVE, `unconfirmed`) until its end and the
-   *   margin have passed by the tip and the clock, or the look calls it expired, and then refuses
-   *   it; one the plan never sent nor found is refused at once. The application gives the steps
-   *   of the new plan.
+   * - Without `steps`, a plan with a step that failed its script is refused: its parts need fixing,
+   *   and the steps left without it would end the order with that payment not made. A step left
+   *   whose own end of validity has passed (its parts give one, or it was given built) is refused:
+   *   built again it could not land. So is a step given built that spends, reads or puts up an
+   *   output of a step the new plan does not hold as the same transaction (one built again from its
+   *   parts, a consolidation step): that output never exists in the new plan. Both are told once
+   *   the payers' reads are checked: a read that lists an output of a step the search does not find
+   *   (the step left, or the step below it) is waited for first. A step past its own end may be in
+   *   a block the search does not show, or be sent by another party, whatever this plan holds of
+   *   its witnesses: another party may hold a copy it signed. The call waits (CANNOT_OBSERVE,
+   *   `unconfirmed`) until its end and the margin have passed by the tip and the clock, or the look
+   *   calls it expired, and then refuses it. The application gives the steps of the new plan.
    * - What the new plan cannot hold is waited for, CANNOT_OBSERVE (`unconfirmed`): a
    *   transaction in a block with a failed script, and a transaction of a plan before this one
    *   that a look found in a block, each until it is final; a step in a block this call's
@@ -1373,12 +1375,16 @@ export class TxPlan {
    *   step built for a payer spends an input of each that may still land and stands on no other,
    *   also of one called dead, that the payer still holds: the ledger then takes one of the two and
    *   never both, whatever a provider shows. Where no input is shared, a transaction that may still
-   *   land refuses the call (STILL_LIVE): when each such one was in a block and a rollback took it
-   *   out past its end of validity (a step on it too, `orphaned`), the message says so: no step
-   *   built by default is kept apart from it, steps that spend an input of each such transaction
-   *   are (their payers sign them together), and else the application decides how to pay what is
-   *   left; a plan of its own under a new id is kept apart from nothing. One kept without its end
-   *   (`seenBefore`) gets the message of any pair. One this call's look answered it did not find,
+   *   land refuses the call (STILL_LIVE): when time does not settle it, the message names steps
+   *   that hold that transaction or spend an input of it, under the names of the steps they pay
+   *   for. When each such one was found in a block once, the search does not find it now, and its
+   *   end of validity has passed (a step on it too, `orphaned`), the message says what is known: a
+   *   rollback took it out, or the provider lost it while it stayed in its block; no step this call
+   *   builds by default is kept apart from it, and the application decides how to pay what is left.
+   *   A plan of its own is kept apart from nothing the library knows: it is safe once more than `k`
+   *   blocks (the security parameter) are on the chain after those ends, unless the provider lost
+   *   them. One kept without its end (`seenBefore`), or one an address of which the cap of reads
+   *   left unread, gets the message of any pair. One this call's look answered it did not find,
    *   past its end of validity, which no look ever found, is left to its end and the provider's
    *   search, and `trace` is told (`NO_SHARED_INPUT`) once the new plan is recorded: a search that
    *   hid it, or a switch of the network to a fork deeper than the margin and less deep than final
@@ -1403,14 +1409,14 @@ export class TxPlan {
    *   to a plan made in its place. The new plan stops when a look of it finds one of those
    *   transactions in a block.
    * - The addresses a transaction called dead pays, or one found in a block once that the look
-   *   calls expired, at most 16 in a call, are read past the builder's cache; a provider's own
-   *   cache of address reads is not under the library's control, and a list it gives counts as
-   *   its answer.
-   * @throws TxPlanError STILL_LIVE (retryable with `details.safeAfter`; without it, after a
-   *   rollback that took the old steps out past their ends, its message says so and names steps
-   *   that spend an input of each); CANNOT_OBSERVE
-   *   (`unconfirmed`, retryable after the builder's `pollMs`; `noTip`; `noValidity`, not
-   *   retryable, for a transaction that runs a Plutus script found by a provider that does not
+   *   calls expired, at most 16 in a call, are read past the builder's cache: first those of one
+   *   that may pass by time beside a step built, then those of one found in a block once, then the
+   *   rest. A provider's own cache of address reads is not under the library's control, and a list
+   *   it gives counts as its answer.
+   * @throws TxPlanError STILL_LIVE (retryable with `details.safeAfter`; without it, of old steps
+   *   found in a block once that the search does not find past their ends, its message says so);
+   *   CANNOT_OBSERVE (`unconfirmed`, retryable after the builder's `pollMs`; `noTip`; `noValidity`,
+   *   not retryable, for a transaction that runs a Plutus script found by a provider that does not
    *   say whether its scripts passed; `noSearch`, `noDepth` from probing the provider);
    *   INVALID_STATE (`final`) for a final plan, also one that came to final while the new plan
    *   was built, (`stopped`) for a plan replaced by a plan of another id, or by one this object
@@ -1418,18 +1424,17 @@ export class TxPlan {
    *   record this library does not read; MISSING_ID; PLAN_EXISTS for an id the store holds
    *   otherwise; PLAN_NOT_FOUND when the record is gone from the store; VERSION_CONFLICT;
    *   STORE_FAILED
-   * @throws TxBuildError INVALID_OPTION for options that are not an object or have a member
-   *   other than those of `builder.plan` and `steps`, (`id`) for an id that is not a string or
-   *   is this plan's, (`payer`) for a payer of no known form or one that answered two change
-   *   addresses, (`trace`) for a trace that is not a function, (`signal`), (`steps`) when
-   *   nothing is left and no step is given, for a step that failed its script when no step is
-   *   given, for a step left whose own end of validity has passed (one the plan sent or found
-   *   once its end and the margin have passed too), or that was given built and stands on a step
-   *   the new plan does not hold, when no step is given, for a name that is final in this plan or
-   *   a plan before it or in a block in this plan, for more than 32 steps with those in a block,
-   *   for a link to a step that is neither given, in a block nor final, and for all that
-   *   `builder.plan` refuses, (`after`) for a transaction of these plans that is not final;
-   *   MISSING_PAYER; NETWORK_MISMATCH for a payer of another network or a recorded plan of
+   * @throws TxBuildError INVALID_OPTION for options that are not an object or have a member other
+   *   than those of `builder.plan` and `steps`, (`id`) for an id that is not a string or is this
+   *   plan's, (`payer`) for a payer of no known form or one that answered two change addresses,
+   *   (`trace`) for a trace that is not a function, (`signal`), (`steps`) when nothing is left and
+   *   no step is given, for a step that failed its script when no step is given, for a step left
+   *   whose own end of validity has passed, once the margin has passed too, or that was given built
+   *   and stands on a step the new plan does not hold, when no step is given, for a name that is
+   *   final in this plan or a plan before it or in a block in this plan, for more than 32 steps
+   *   with those in a block, for a link to a step that is neither given, in a block nor final, and
+   *   for all that `builder.plan` refuses, (`after`) for a transaction of these plans that is not
+   *   final; MISSING_PAYER; NETWORK_MISMATCH for a payer of another network or a recorded plan of
    *   another; WALLET_FAILED; MISSING_FETCHER and PROVIDER_FAILED for a read of a payer or of an
    *   address that fails; NOT_SERIALIZABLE; every error of building a step; ABORTED
    */

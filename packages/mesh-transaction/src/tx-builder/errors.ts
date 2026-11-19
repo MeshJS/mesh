@@ -411,18 +411,17 @@ export type TxPlanErrorDetails = {
   /** A transaction's `awaitInclusion()` waits for `included` */
   CONFIRM_TIMEOUT: { waitedFor: "included" | "final"; timeoutMs: number };
   /**
-   * `unconfirmed`: this answer confirms nothing now (retryable). Of `replan`: a transaction of
-   * the plan or the plans before it is in a block, not final, and the new plan cannot hold it
-   * (a failed script, a plan before the one replaced, a search that gave no answer), a step
-   * built cannot stand on the step before it of its payer, which is in a block, every step of
-   * the plan is in a block and nothing is left to pay, a step left that the plan sent or found
-   * is past its own end, not yet past the margin, and the look does not call it expired, or the
-   * record moved under the build. Of `replan` and `add`: an old transaction only a step in a
-   * block keeps from landing beside a step built, a step stands on an output of an old
-   * transaction the search does not find, an address shows such an output, or an old
-   * transaction past its end and the margin got no answer from the search. The other reasons
-   * are about the provider itself; `noDepth`: no block heights, for any plan. A transaction's
-   * `awaitInclusion()` raises `noSearch` and `noValidity`
+   * `unconfirmed`: this answer confirms nothing now (retryable). Of `replan`: a transaction of the
+   * plan or the plans before it is in a block, not final, and the new plan cannot hold it (a failed
+   * script, a plan before the one replaced, a search that gave no answer), a step built cannot
+   * stand on the step before it of its payer, which is in a block, every step of the plan is in a
+   * block and nothing is left to pay, a step left is past its own end, not yet past the margin, and
+   * the look does not call it expired, or the record moved under the build. Of `replan` and `add`:
+   * an old transaction only a step in a block keeps from landing beside a step built, a step stands
+   * on an output of an old transaction the search does not find, an address shows such an output,
+   * or an old transaction past its end and the margin got no answer from the search. The other
+   * reasons are about the provider itself; `noDepth`: no block heights, for any plan. A
+   * transaction's `awaitInclusion()` raises `noSearch` and `noValidity`
    */
   CANNOT_OBSERVE: {
     reason: "noTip" | "noValidity" | "noDepth" | "noSearch" | "unconfirmed";
@@ -441,11 +440,12 @@ export type TxPlanErrorDetails = {
     reason: "stopped" | "final" | "pastHorizon" | "recordVersion";
   };
   /**
-   * `txHashes`: the transactions of the plans before that may still land beside a step `replan`
-   * or `add` built; `safeAfter`: POSIX ms, their latest end of validity plus the margin, absent
-   * when one of them has none or was found in a block once, which time does not settle. Of
-   * `replan`, when a rollback took each of them out of its block and its end has passed, the
-   * message says so, and that steps which spend an input of each are kept apart from them
+   * `txHashes`: the transactions of the plans before that may still land beside a step `replan` or
+   * `add` built; `safeAfter`: POSIX ms, their latest end of validity plus the margin, absent when
+   * one of them has none or was found in a block once, which time does not settle. Of `replan`,
+   * when each of them was found in a block once, the search does not find it now and its end has
+   * passed, and every address it pays was read, the message says so, and that the application
+   * decides how to pay what is left
    */
   STILL_LIVE: { txHashes: string[]; safeAfter?: number };
 };
