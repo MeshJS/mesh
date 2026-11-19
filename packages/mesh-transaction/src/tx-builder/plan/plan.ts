@@ -2144,14 +2144,14 @@ export class TxPlan {
   /**
    * CANNOT_OBSERVE (`unconfirmed`) when a list of UTxOs the call reads holds an output of an
    * open transaction of the line, told by its hash: each payer's read, and the read of each
-   * address a step of the line that is dead or used up pays, where no payer's read covered it
-   * (at most 16): the search says it is in no block, and the address says it is. Of a used-up
+   * address a step of the line that is dead, gone or used up pays, where no payer's read covered
+   * it (at most 16): the search says it is in no block, and the address says it is. Of a used-up
    * transaction, whose collateral return is on chain for good, only its regular outputs count. A
    * read of an address that fails, or answers no list, refuses the call with its own error. The
-   * addresses read are those a step that is dead or used up pays, and those an entry of the
-   * plans before that is dead pays, at most 16 in a call. An entry keeps the first 16 addresses
-   * its transaction pays; those it could not keep are counted as unread, though a payer's read
-   * may have covered one: the count may be high, never low
+   * addresses read are those a step that is dead, gone or used up pays, and those an entry of the
+   * plans before that is dead or gone pays, at most 16 in a call. An entry keeps the first 16
+   * addresses its transaction pays; those it could not keep are counted as unread, though a
+   * payer's read may have covered one: the count may be high, never low
    * @param open The open transactions of the line to match
    * @returns how many addresses were left unread past the 16, with those entries could not keep
    * @throws TxBuildError PROVIDER_FAILED, MISSING_FETCHER
@@ -2174,13 +2174,15 @@ export class TxPlan {
     let notKept = 0;
     for (const tx of open) {
       const step = stepOf.get(tx.txHash);
+      // A gone one is read as a dead one: a search that lost it may say it is in no block
+      const expired = tx.dead === true || tx.gone === true;
       if (tx.usedUp !== true) byHash.set(tx.txHash, tx);
       else
         for (const output of step?.built.outputs ?? [])
           outputs.set(outRefKey(output.txHash, output.outputIndex), tx);
-      if (step !== undefined && (tx.dead === true || tx.usedUp === true))
+      if (step !== undefined && (expired || tx.usedUp === true))
         paid.push(...step.built.outputs.map((output) => output.address));
-      else if (step === undefined && tx.dead === true) {
+      else if (step === undefined && expired) {
         paid.push(...(tx.pays ?? []));
         notKept += tx.paysMore ?? 0;
       }

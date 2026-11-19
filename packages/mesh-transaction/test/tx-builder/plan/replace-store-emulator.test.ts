@@ -1628,6 +1628,106 @@ describe("a step left whose end of validity has passed", () => {
     expect(times(emulator, carol, 13n * ADA)).toBe(0);
   });
 
+  /**
+   * A plan on a store whose depth of final is 1000 blocks, of one step `p`: a partner's
+   * transaction given built that ends 300 s on and pays carol. It lands; the search finds it in
+   * a block first (`foundFirst`) and then answers "not found" while `hide.on`, or never finds it.
+   * Then 400 slots on, past its end: the look calls it expired
+   */
+  const lostPartner = async (foundFirst: boolean) => {
+    const ctx = await storeSetup({
+      funds: [100n * ADA, 50n * ADA],
+      planDefaults: { ...FAST, confirmations: 1000 },
+    });
+    const { emulator, provider, builder, wallet } = ctx;
+    const partner = await walletOfIndex(1);
+    const own = emulator.fund((await partner.getChangeAddress())!, {
+      lovelace: 100n * ADA,
+    });
+    const built = await builder.build(
+      [
+        spend.pubKey({ utxo: own }),
+        output({ address: carol, value: { lovelace: 13n * ADA } }),
+        validity({ until: builder.timeAt(emulator.slot) + 300_000 }),
+      ],
+      { payer: partner },
+    );
+    await built.sign();
+    const old = await builder.plan(
+      { p: built },
+      { id: "order", payer: wallet },
+    );
+    const p = old.step("p").txHash;
+    const hide = { on: !foundFirst };
+    provider.control.hooks.fetchTxInfo = (forward, hash: string) => {
+      if (hide.on && hash.toLowerCase() === p)
+        throw Object.assign(new Error("not found"), {
+          kind: "notFound",
+          status: 404,
+        });
+      return forward(hash);
+    };
+    if (foundFirst) {
+      await old.run({ waitFor: "included" });
+      expect(statuses(old)).toEqual({ p: "included" });
+      hide.on = true;
+    } else await caught(old.run({ timeoutMs: 300 }));
+    advance(emulator, 400);
+    await old.refresh();
+    await old.refresh();
+    expect(statuses(old)).toEqual({ p: "expired" });
+    expect(old.step("p").seen !== undefined).toBe(foundFirst);
+    expect(times(emulator, carol, 13n * ADA)).toBe(1);
+    return { ...ctx, old, p, hide };
+  };
+
+  /** CANNOT_OBSERVE (`unconfirmed`): carol's address lists the output of p; nothing written */
+  const carolListsP = async (
+    ctx: Awaited<ReturnType<typeof lostPartner>>,
+    steps?: Record<string, unknown>,
+  ) => {
+    const { old, store, p } = ctx;
+    const error = await caught(
+      old.replan({ id: "i1", ...(steps !== undefined && { steps }) } as never),
+    );
+    expect([
+      error.code,
+      reasonOf(error),
+      error.txHash,
+      error.retryable,
+    ]).toEqual(["CANNOT_OBSERVE", "unconfirmed", p, true]);
+    expect(error.message).toContain(`, an output of step "p" (${p})`);
+    expect(old.replacedBy).toBeUndefined();
+    expect(await store.inner.load("i1")).toBeUndefined();
+  };
+
+  it("a partner's transaction given built, found in a block, then lost by the search past its end: the look calls it expired, and the address it pays answers (CANNOT_OBSERVE) before the refusal of a step past its end, and before the pair rule with steps given; once the search finds it again it is final, carol paid once", async () => {
+    const ctx = await lostPartner(true);
+    const { emulator, old, hide } = ctx;
+    for (let i = 0; i < 2; i++) {
+      await carolListsP(ctx);
+      await carolListsP(ctx, { c: payTo(carol, 13n * ADA) });
+      advance(emulator, 1);
+    }
+    hide.on = false;
+    advance(emulator, 1000);
+    await old.refresh();
+    expect(old.step("p").status).toBe("final");
+    expect(times(emulator, carol, 13n * ADA)).toBe(1);
+  });
+
+  it("the same transaction never found by the search: called dead, the address it pays answers (CANNOT_OBSERVE) in the same way", async () => {
+    const ctx = await lostPartner(false);
+    const { emulator, old, hide } = ctx;
+    await carolListsP(ctx);
+    await carolListsP(ctx, { c: payTo(carol, 13n * ADA) });
+    hide.on = false;
+    advance(emulator, 1000);
+    await old.refresh();
+    expect(old.step("p").status).toBe("final");
+    expect(times(emulator, carol, 13n * ADA)).toBe(1);
+  });
+
   it("steps from parts whose own end has passed, taken out of their blocks by a rollback, the second on the first: the look calls them expired and orphaned, and the call is refused (INVALID_OPTION), not waited for", async () => {
     const ctx = await storeSetup({
       funds: [100n * ADA, 50n * ADA],
