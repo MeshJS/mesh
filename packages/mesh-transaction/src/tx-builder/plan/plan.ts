@@ -983,7 +983,9 @@ export class TxPlan {
    *   until that transaction is dead. One that only a step of the plan in a block and not final
    *   keeps from landing (it spends an input that step spends) is waited for, CANNOT_OBSERVE
    *   (`unconfirmed`), until that step is final: after a rollback it could land beside the step
-   *   added. STILL_LIVE is told first.
+   *   added. STILL_LIVE is told first. A step added to such a plan is the application's to
+   *   follow, by this plan's id, as steps given to `replan` are: when the plan it was made in
+   *   place of becomes final after all, the added step was not paid.
    * @throws TxPlanError INVALID_STATE (`final`) for a final plan, (`stopped`) for a plan that
    *   is stopping or stopped; STILL_LIVE on a plan made by `replan`, as above, nothing added;
    *   CANNOT_OBSERVE (`unconfirmed`, retryable after the builder's `pollMs`) on such a plan for
@@ -1357,7 +1359,9 @@ export class TxPlan {
    *   transaction that may still land refuses the call (STILL_LIVE); one this call's look
    *   answered it did not find, past its end of validity, which no look ever found, is left to
    *   its end and the provider's search, and `trace` is told (`NO_SHARED_INPUT`) once the new
-   *   plan is recorded. A search that fails is no answer: the transaction may still land.
+   *   plan is recorded: a search that hid it, or a switch of the network to a fork deeper than
+   *   the margin and less deep than final where it landed in time, makes the new plan pay twice.
+   *   A search that fails is no answer: the transaction may still land.
    * - This plan is marked before the new one is recorded: `replacedBy` names it, and this plan
    *   signs and sends nothing more. A plan is replaced once. The same call again, with the id
    *   `replacedBy` names, returns the plan made in its place and makes nothing: with a store the

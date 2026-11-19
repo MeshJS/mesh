@@ -1945,6 +1945,24 @@ describe("the reconciliation loop of the README", () => {
     paidOnceEach(emulator);
   });
 
+  it("a step added to the plan made in place of another, then the old step lands: the line closes at the old plan, and the added step is not paid", async () => {
+    const ctx = await heldB();
+    const { emulator, store, old, held } = ctx;
+    const next = await old.replan({ id: "order:2" });
+    // The application adds a payment to the new plan: it is the application's to follow
+    await next.add({ e: payTo(carol, 13n * ADA) });
+    expect(names(next)).toEqual(["b", "e"]);
+    await emulator.submitTx(held);
+    advance(emulator, 50);
+    const { closed, reported } = await reconcile(ctx, 2);
+    expect({ closed, reported }).toEqual({ closed: ["order"], reported });
+    expect((await store.inner.load("order"))!.status).toBe("final");
+    await next.refresh();
+    expect(next.status).not.toBe("final");
+    paidOnceEach(emulator);
+    expect(times(emulator, carol, 13n * ADA)).toBe(0);
+  });
+
   it("a crash after the mark, then the old step lands: the line closes at the old plan, everyone paid once", async () => {
     const ctx = await heldB();
     const { emulator, store, old, held } = ctx;

@@ -571,11 +571,13 @@ if (order.status === "pending") await order.run(); // a repeat returns the plan 
   recorded, and the same call tells. A repeated id: [One id, one plan](#one-id-one-plan).
 - **Two writers.** The one that lost gets `VERSION_CONFLICT`: none of its steps is recorded, and
   the same call builds on the plan as it is.
-- **On a plan `replan` made**, no added step may land beside an old transaction that may still
-  land: one that shares no input with it is `STILL_LIVE` until that transaction is dead. One that
-  only a step of the plan in a block keeps from landing (it spends an input that step spends) is
-  waited for (`CANNOT_OBSERVE`, `unconfirmed`) until that step is `final`: after a rollback it
-  could land beside the added step. `STILL_LIVE` is told first.
+- **On a plan `replan` made**, no added step may land beside an old transaction that may still land:
+  one that shares no input with it is `STILL_LIVE` until that transaction is dead. One that only a
+  step of the plan in a block keeps from landing (it spends an input that step spends) is waited for
+  (`CANNOT_OBSERVE`, `unconfirmed`) until that step is `final`: after a rollback it could land
+  beside the added step. `STILL_LIVE` is told first. An added step is the application's to follow,
+  by this plan's id, as steps given to `replan` are: when the old plan becomes `final` after all,
+  the added step was not paid, and the reconciliation loop ends the line at the old plan.
 
 Limits: a plan has at most 32 steps, consolidation steps counted. Without a store, a copy of the
 JSON saved before an `add` does not hold the added steps, and the same `add` on it builds and pays
@@ -819,12 +821,16 @@ are the new plan's, also for the steps it holds of the old plan, and carry on. N
   `CANNOT_OBSERVE` (`unconfirmed`), not `STILL_LIVE`. A read of an address that fails or gives no
   list throws its error (`PROVIDER_FAILED`); an empty list is an answer, and so is a list the
   provider's own cache gives, which the library does not control.
-- The one case that goes by time: an old transaction this call's look answered "not found", past
-  its end and the margin, that shares no input with the new plan. `trace` gets `NO_SHARED_INPUT`
-  once the new plan is recorded. A provider that hides a landed transaction from that look, and
-  shows none of its outputs in the payers' reads or at the addresses it paid (at most 16 a call,
-  and of an old transaction two plans on the first 16 it pays, which is all its entry keeps; the
-  warning's `unread` counts the rest), makes the new plan pay twice.
+- The one case that goes by time: an old transaction this call's look answered "not found", past its
+  end and the margin, that shares no input with the new plan. `trace` gets `NO_SHARED_INPUT` once
+  the new plan is recorded. Two things then make the new plan pay twice: a provider that hides a
+  landed transaction from that look, and shows none of its outputs in the payers' reads or at the
+  addresses it paid (at most 16 a call, and of an old transaction two plans on the first 16 it pays,
+  which is all its entry keeps; the warning's `unread` counts the rest); and a switch of the network
+  to a fork deeper than the margin and less deep than `final`, where the old transaction landed
+  before its end. So the margin of a plan whose steps may pass by time should cover the depth of the
+  rollbacks it defends against: about the time its `confirmations` take, as in the scenario of a
+  large sum.
 - Dead ends, where no plan is made: nothing left to build (every step is final, in a block or a
   consolidation step: `INVALID_OPTION`, `steps`), a step that `failed` its script (`INVALID_OPTION`,
   `steps`: its parts need fixing), a step left whose own end of validity has passed
@@ -1021,11 +1027,11 @@ export async function submitPayment(orderId: string, witnessSet: string) {
 The store's compare-and-set makes several instances safe: two of them never record two plans
 under one `id`, and an instance that lost a race reads the record again.
 
-The store does not keep plans with different ids apart. Payouts from one paying wallet on
-several instances collide on its UTxOs: when two select the same one, one lands, and the other is
-refused until its end of validity and the margin pass. Give each instance or queue its own UTxOs
-with `canSelect`, or run one payer's payouts one after another with `after`; see
-[Chains](#chains).
+The store does not keep plans with different ids apart. Payouts from one paying wallet on several
+instances collide on its UTxOs: when two select the same one, one lands, and the other is refused
+until its end of validity and the margin pass, or for good when it was found in a block once and a
+rollback took it out: no time settles that one. Give each instance or queue its own UTxOs with
+`canSelect`, or run one payer's payouts one after another with `after`; see [Chains](#chains).
 
 ### One id, one plan
 
@@ -1176,13 +1182,17 @@ ends at its first `final` plan, which has paid, also an old plan whose step land
 was replaced; only a plan that is not final is followed to the plan in its place. A `stopped`
 plan that a later look finds a step of is `stopping` or `final` again: the loop follows it as it
 is, and a plan already made in its place stops by itself once it finds that step. Steps given to
-`replan` that are not the old plan's are the application's own to follow, by that plan's id: a
-line that ends at an old plan does not run them. A line with a `failed` step (whose parts need
+`replan` that are not the old plan's, and steps added to a plan `replan` made, are the
+application's own to follow, by that plan's id: a line that ends at an old plan does not run
+them. A line with a `failed` step (whose parts need
 fixing) stays in the list, also when other steps are left to build, and the loop reports its
 `INVALID_OPTION` on every pass until the application decides. A plan the application stops on
 purpose leaves this list: the loop would pay what is left of it. A payer is needed only to sign:
 a plan whose record holds every signature needs none, and a separate signer or sender is given
-to `run({ signers, submitter })`.
+to `run({ signers, submitter })`. A plan with a step of another payer needs that payer's signer
+in this `run()`, as `run({ waitFor: "sent", signers: [wallet, treasury] })`: without it that step
+is never signed, and with a short `ttlMs` the loop makes a plan in its place on every pass, one
+record each.
 
 ### Storage
 
