@@ -1,5 +1,6 @@
 import type { TxEmulator } from "@meshsdk/tx-emulator";
 import type { MeshWallet } from "@meshsdk/wallet";
+import { mConStr0 } from "@meshsdk/core";
 
 import type {
   BuildEvent,
@@ -9,7 +10,7 @@ import type {
 import type { Fault, StoreFault } from "./fault-util";
 import { output, spend, validity } from "../../../src/tx-builder";
 import { recordOf } from "../../../src/tx-builder/plan/plan";
-import { baseAddress } from "../../test-util";
+import { alwaysSucceedCbor, baseAddress } from "../../test-util";
 import { ref } from "../utxo-util";
 import { codeOf, Process, runStep, World } from "./fault-util";
 import {
@@ -23,8 +24,17 @@ import {
   walletOf as walletOfIndex,
 } from "./plan-emulator-util";
 import { seeded } from "./plan-util";
-import { ADA, alice, bob, carol, dave, paidTo, payTo } from "./run-util";
-import { holdSave, storeSetup } from "./store-util";
+import {
+  ADA,
+  alice,
+  bob,
+  carol,
+  dave,
+  paidTo,
+  payTo,
+  stepSetup,
+} from "./run-util";
+import { holdSave, storeSetup, watchStore } from "./store-util";
 
 // A plan made in place of another on a builder with a store: two processes that replace one
 // plan at once, a crash after the mark and after the first record, a store that answers with
@@ -48,6 +58,9 @@ const relayOf = (emulator: TxEmulator, hold: (txHash: string) => boolean) => {
 };
 
 const names = (plan: TxPlan) => plan.steps.map((step) => step.name);
+
+const statuses = (plan: TxPlan) =>
+  Object.fromEntries(plan.steps.map((step) => [step.name, step.status]));
 
 /** A wallet that counts the bodies it is handed */
 const counting = (wallet: MeshWallet) => {
@@ -1701,7 +1714,10 @@ describe("the reconciliation loop of the README", () => {
    * `chain` gives (the emulator by default). Gives the ids closed and what was reported
    */
   const reconcile = async (
-    ctx: Awaited<ReturnType<typeof storeSetup>>,
+    ctx: Pick<
+      Awaited<ReturnType<typeof storeSetup>>,
+      "builder" | "wallet" | "emulator"
+    >,
     passes: number,
     slots: number | ((pass: number) => number) = 700,
     chain: () => TxEmulator = () => ctx.emulator,
@@ -1946,6 +1962,97 @@ describe("the reconciliation loop of the README", () => {
     expect(third.steps.some((step) => step.taken === true)).toBe(false);
     expect(third.status).toBe("final");
     paidThrice(before);
+  });
+
+  /**
+   * A plan on a store whose depth of final is 3 blocks, with the steps given, `s` among them,
+   * which spends a script UTxO and pays bob. A relay holds it, so that it never reaches the
+   * chain, and the provider shows it in a block with a failed script; `run` lands the steps
+   * before it
+   */
+  const failedStep = async (
+    steps: (s: readonly unknown[]) => Record<string, unknown>,
+  ) => {
+    const ctx = await stepSetup("scalus", {
+      builder: {
+        store: watchStore(),
+        planDefaults: { ...FAST, confirmations: 3 },
+      },
+      funds: [100n * ADA, 50n * ADA],
+    });
+    const { emulator, provider, builder, wallet } = ctx;
+    const plutus = { code: alwaysSucceedCbor, version: "V3" as const };
+    const locked = emulator.fund(builder.scriptAddress(plutus), {
+      lovelace: 10n * ADA,
+    });
+    const s = [
+      spend.plutus({
+        utxo: locked,
+        script: plutus,
+        redeemer: { data: mConStr0([]) },
+      }),
+      payTo(bob, 12n * ADA),
+    ];
+    const old = await builder.plan(steps(s) as never, {
+      id: "order",
+      payer: wallet,
+    });
+    const sHash = old.step("s").txHash;
+    const relay = relayOf(emulator, (txHash) => txHash === sHash);
+    await caught(old.run({ submitter: relay, timeoutMs: 300 }));
+    const at = emulator.slot;
+    provider.control.hooks.fetchTxInfo = async (forward, hash: string) =>
+      hash === sHash
+        ? {
+            hash: sHash,
+            slot: at,
+            block: "b".repeat(64),
+            blockHeight: at,
+            validContract: false,
+          }
+        : forward(hash);
+    await old.refresh();
+    return { ...ctx, old };
+  };
+
+  it("a step that failed its script beside a step left: every pass reports INVALID_OPTION, no plan is made, and the order stays open", async () => {
+    const ctx = await failedStep((s) => ({
+      a: payTo(alice, 11n * ADA),
+      s,
+      c: payTo(carol, 13n * ADA),
+    }));
+    const { emulator, builder, old } = ctx;
+    expect(statuses(old)).toMatchObject({ s: "failed", c: "orphaned" });
+    advance(emulator, 5);
+    const { closed, reported } = await reconcile(ctx, 3, 5);
+    expect(closed).toEqual([]);
+    expect(reported).toEqual([
+      "INVALID_OPTION/",
+      "INVALID_OPTION/",
+      "INVALID_OPTION/",
+    ]);
+    expect(await builder.store!.load("order:next")).toBeUndefined();
+    expect((await builder.store!.load("order"))!.replacedBy).toBeUndefined();
+    expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    expect(times(emulator, bob, 12n * ADA)).toBe(0);
+    expect(times(emulator, carol, 13n * ADA)).toBe(0);
+  });
+
+  it("a step that failed its script, the step on it orphaned: the loop waits while it is not final, then reports INVALID_OPTION on every pass, and the order stays open", async () => {
+    const ctx = await failedStep((s) => ({ s, t: payTo(carol, 13n * ADA) }));
+    const { emulator, builder, old } = ctx;
+    expect(statuses(old)).toEqual({ s: "failed", t: "orphaned" });
+    const { closed, reported } = await reconcile(ctx, 4, 5);
+    expect(closed).toEqual([]);
+    expect(reported).toEqual([
+      "CANNOT_OBSERVE/unconfirmed",
+      "INVALID_OPTION/",
+      "INVALID_OPTION/",
+      "INVALID_OPTION/",
+    ]);
+    expect(await builder.store!.load("order:next")).toBeUndefined();
+    expect(times(emulator, bob, 12n * ADA)).toBe(0);
+    expect(times(emulator, carol, 13n * ADA)).toBe(0);
   });
 
   it("a plan that came back from stopped with every step in a block is left to become final", async () => {

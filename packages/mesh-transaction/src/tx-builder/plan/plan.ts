@@ -1298,8 +1298,8 @@ export class TxPlan {
 
   /**
    * A new plan in place of this one, for what is left of it. Without `steps` it builds the
-   * steps its look shows open, as `rest` gives a step, less a failed one; with `steps`, those:
-   * one list of parts or named steps, as `builder.plan` takes them. The other options are
+   * steps its look shows open, as `rest` gives a step, and refuses a plan with a failed step;
+   * with `steps`, those: one list of parts or named steps, as `builder.plan` takes them. The other options are
    * those of `builder.plan`; where the call gives none, the payer this object holds and the
    * deadlines and data options this plan records apply. `id` is the new plan's id. A plan made
    * with `steps` that pay what this plan was not to pay is followed by its own id: when this
@@ -1326,8 +1326,10 @@ export class TxPlan {
    *   The new plan then stops and is never final, and `replan` of it builds what is left again:
    *   a step that landed is never built again, and a step whose end of validity came from `ttlMs`
    *   gets a new end. To wait as before, call once every step in `landed` is final.
-   * - Without `steps`, a step left whose own end of validity has passed (its parts give one, or
-   *   it was given built) is refused: built again it could not land. So is a step given built
+   * - Without `steps`, a plan with a step that failed its script is refused: its parts need
+   *   fixing, and the steps left without it would end the order with that payment not made. A
+   *   step left whose own end of validity has passed (its parts give one, or it was given built)
+   *   is refused: built again it could not land. So is a step given built
    *   that spends, reads or puts up an output of a step the new plan does not hold as the same
    *   transaction (one built again from its parts, a consolidation step, a failed one): that
    *   output never exists. The application gives the steps of the new plan.
@@ -1387,12 +1389,13 @@ export class TxPlan {
    *   other than those of `builder.plan` and `steps`, (`id`) for an id that is not a string or
    *   is this plan's, (`payer`) for a payer of no known form or one that answered two change
    *   addresses, (`trace`) for a trace that is not a function, (`signal`), (`steps`) when
-   *   nothing is left and no step is given, for a step left whose own end of validity has
-   *   passed or that was given built and stands on a step the new plan does not hold, when no
-   *   step is given, for a name that is final in this plan or a plan
-   *   before it or in a block in this plan, for more than 32 steps with those in a block, for a
-   *   link to a step that is neither given, in a block nor final, and for all that
-   *   `builder.plan` refuses, (`after`) for a transaction of these plans that is not final;
+   *   nothing is left and no step is given, for a step that failed its script when no step is
+   *   given, for a step left whose own end of validity has passed or that was given built and
+   *   stands on a step the new plan does not hold, when no step is given, for a name that is
+   *   final in this plan or a plan before it or in a block in this plan, for more than 32 steps
+   *   with those in a block, for a link to a step that is neither given, in a block nor final,
+   *   and for all that `builder.plan` refuses, (`after`) for a transaction of these plans that
+   *   is not final;
    *   MISSING_PAYER; NETWORK_MISMATCH for a payer of another network or a recorded plan of
    *   another; WALLET_FAILED; MISSING_FETCHER and PROVIDER_FAILED for a read of a payer or of an
    *   address that fails; NOT_SERIALIZABLE; every error of building a step; ABORTED
@@ -1561,6 +1564,15 @@ export class TxPlan {
     const keptNames = keptNamesOf(base, classes);
     let read: StepInput[];
     if (own === undefined) {
+      // A step that failed its script paid nobody, and built again from the same parts it fails
+      // again: the steps left without it would close the order with that payment not made
+      const failed = base.steps.find(
+        (step) => step.status === "failed" && !keptNames.has(step.name),
+      );
+      if (failed !== undefined)
+        throw stepsRefused(
+          `step ${JSON.stringify(failed.name)} failed its script: its parts need fixing; give the steps of the new plan`,
+        );
       const left: Record<string, PlanStep> = {};
       for (const step of leftOf(base, classes)) {
         const given = stepAsGiven(builder, step);
@@ -1568,7 +1580,7 @@ export class TxPlan {
       }
       if (Object.keys(left).length === 0)
         throw stepsRefused(
-          "nothing of the plan is left to build: every step is final, in a block, failed or a consolidation step; give the steps of the new plan",
+          "nothing of the plan is left to build: every step is final, in a block or a consolidation step; give the steps of the new plan",
         );
       // A step whose own end of validity the tip has reached could only be built dead: built
       // now, its transaction lands in a block after the tip or in none

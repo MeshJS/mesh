@@ -768,11 +768,12 @@ change address as its payer (give the payer itself in its place to sign with it)
 is left; once the plan is replaced it is empty.
 
 What is left is paid by a plan in its place: `plan.replan({ id })` builds what its look shows
-open, less a `failed` step, or the application's `steps`. A plan made with `steps` that pay what
-the old plan was not to pay is followed by its own id: when the old plan becomes `final` after all,
-that payment was not made. The payer, deadlines and data options
-are the old plan's unless given; deadlines given are the new plan's, also for the steps it holds
-of the old plan, and carry on. Never
+open, or the application's `steps`. Without `steps` a plan with a `failed` step is refused
+(`INVALID_OPTION`, `steps`): its parts need fixing, and the steps left without it would end the
+order with that payment never made. A plan made with `steps` that pay what the old plan was not
+to pay is followed by its own id: when the old plan becomes `final` after all, that payment was
+not made. The payer, deadlines and data options are the old plan's unless given; deadlines given
+are the new plan's, also for the steps it holds of the old plan, and carry on. Never
 `builder.plan(plan.rest)`: nothing keeps that plan apart from the old one.
 
 - A final step is never built again; a link to one is filled in with its output. A step that is in a
@@ -823,15 +824,16 @@ of the old plan, and carry on. Never
   shows none of its outputs in the payers' reads or at the addresses it paid (at most 16 a call,
   and of an old transaction two plans on the first 16 it pays, which is all its entry keeps; the
   warning's `unread` counts the rest), makes the new plan pay twice.
-- Dead ends, where no plan is made: nothing left to build (every step is final, in a block, failed
-  or a consolidation step: `INVALID_OPTION`, `steps`), or a step left whose own end of validity
-  has passed (`INVALID_OPTION`, `steps`: built again it could not land), or a step given built
-  that spends, reads or puts up an output of a step the new plan does not hold as the same
-  transaction (`INVALID_OPTION`, `steps`: that output never exists), unless `steps` are given; a
-  plan whose every step is in a block, which is waited for and then `final`; an old transaction
-  found in a block once and gone, its inputs spent by others; a step given built that never
-  expires, which the new plan neither holds nor shares an input with; an id another plan took
-  after a crash that followed the mark.
+- Dead ends, where no plan is made: nothing left to build (every step is final, in a block or a
+  consolidation step: `INVALID_OPTION`, `steps`), a step that `failed` its script (`INVALID_OPTION`,
+  `steps`: its parts need fixing), a step left whose own end of validity has passed
+  (`INVALID_OPTION`, `steps`: built again it could not land), or a step given built that spends,
+  reads or puts up an output of a step the new plan does not hold as the same transaction
+  (`INVALID_OPTION`, `steps`: that output never exists), unless `steps` are given; a plan whose
+  every step is in a block, which is waited for and then `final`; an old transaction found in a
+  block once and gone, its inputs spent by others; a step given built that never expires, which the
+  new plan neither holds nor shares an input with; an id another plan took after a crash that
+  followed the mark.
 - The old plan is marked first, by compare-and-set: `replacedBy` names the new plan, and the old
   one signs and sends nothing more. The id is the new plan's alone. The same call again returns
   the same plan, also after a crash that followed the mark; with other options, the plan recorded
@@ -846,11 +848,11 @@ of the old plan, and carry on. Never
   scripts passed, is `CANNOT_OBSERVE` (`noValidity`); a plain payment counts as passed.
 - A new plan that finds an old transaction in a block stops (`INVALID_STATE`, its hash in
   `error.txHash`): `replan` it, which waits until that transaction is `final` (`CANNOT_OBSERVE`,
-  `unconfirmed`); when that finds nothing left to build and no plan of it names one
-  in its place, the old plan made the payment, unless a step of it `failed`: nobody made that
-  one. A stopped plan sends nothing more, also not a step it holds of the old plan that a rollback
-  took out of its block: such a step comes back only if the network lands it again, and otherwise
-  `replan` of the stopped plan builds it again.
+  `unconfirmed`); when that finds nothing left to build and no plan of it names one in its place,
+  the old plan made the payment; when it refuses a `failed` step, nobody made that one. A stopped
+  plan sends nothing more, also not a step it holds of the old plan that a rollback took out of its
+  block: such a step comes back only if the network lands it again, and otherwise `replan` of the
+  stopped plan builds it again.
 
 ### Refusal to sign; edits on a preview
 
@@ -1174,8 +1176,8 @@ was replaced; only a plan that is not final is followed to the plan in its place
 plan that a later look finds a step of is `stopping` or `final` again: the loop follows it as it
 is, and a plan already made in its place stops by itself once it finds that step. Steps given to
 `replan` that are not the old plan's are the application's own to follow, by that plan's id: a
-line that ends at an old plan does not run them. A line that ends where nothing is left to build
-(a `failed` step, whose parts need fixing) stays in the list, and the loop reports its
+line that ends at an old plan does not run them. A line with a `failed` step (whose parts need
+fixing) stays in the list, also when other steps are left to build, and the loop reports its
 `INVALID_OPTION` on every pass until the application decides. A plan the application stops on
 purpose leaves this list: the loop would pay what is left of it. A payer is needed only to sign:
 a plan whose record holds every signature needs none, and a separate signer or sender is given

@@ -895,7 +895,7 @@ describe("a plan in place of another", () => {
       return { ...ctx, locked, s, old, sHash };
     };
 
-    it("less deep than final: CANNOT_OBSERVE; at that depth replan() leaves it out", async () => {
+    it("less deep than final: CANNOT_OBSERVE; at that depth replan() without steps refuses the plan and marks nothing; given steps, it builds them", async () => {
       const { emulator, old, sHash } = await failing();
       const early = await caught(old.replan({ id: "order:2" }));
       expect([early.code, reasonOf(early), early.txHash]).toEqual([
@@ -904,7 +904,21 @@ describe("a plan in place of another", () => {
         sHash,
       ]);
       advance(emulator, 3);
-      const next = await old.replan({ id: "order:2" });
+      // The steps left would pay carol and close the order with bob never paid
+      const failed = await caught(old.replan({ id: "order:2" }));
+      expect([failed.code, failed.details.option]).toEqual([
+        "INVALID_OPTION",
+        "steps",
+      ]);
+      expect(failed.message).toContain(
+        'step "s" failed its script: its parts need fixing; give the steps of the new plan',
+      );
+      expect(old.replacedBy).toBeUndefined();
+      // The application decides what the new plan pays
+      const next = await old.replan({
+        id: "order:2",
+        steps: { t: payTo(carol, 13n * ADA) },
+      });
       expect(names(next)).toEqual(["t"]);
       expect(next.toJSON().before!.open).toEqual([]);
       await next.run();
