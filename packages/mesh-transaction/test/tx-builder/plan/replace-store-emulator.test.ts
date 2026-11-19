@@ -7,7 +7,8 @@ import type {
   TxPlan,
 } from "../../../src/tx-builder";
 import type { Fault, StoreFault } from "./fault-util";
-import { spend, validity } from "../../../src/tx-builder";
+import { output, spend, validity } from "../../../src/tx-builder";
+import { recordOf } from "../../../src/tx-builder/plan/plan";
 import { baseAddress } from "../../test-util";
 import { ref } from "../utxo-util";
 import { codeOf, Process, runStep, World } from "./fault-util";
@@ -1087,6 +1088,135 @@ describe("the same call again, compared by the recorded plan", () => {
     expect(error.code).toBe("PLAN_EXISTS");
     expect(error.message).toContain("nothing was looked at, built or written");
     expect(times(emulator, bob, 12n * ADA)).toBe(0);
+  });
+});
+
+describe("rules of a taken step", () => {
+  it("the mark written already, and another object saw a rollback of a step this call found in a block: CANNOT_OBSERVE, no first record", async () => {
+    const { emulator, store, wallet, instance, before } = await inBlock();
+    // A call that dies at the first record: the mark is written
+    const one = instance();
+    one.store.hooks.save = (forward, json, rev) => {
+      if (json.id === "i1") throw new Error("the process dies here");
+      return forward(json, rev);
+    };
+    const x = await one.builder.resume("order", { payer: wallet });
+    expect((await caught(x.replan({ id: "i1" }))).code).toBe("STORE_FAILED");
+    expect((await store.inner.load("order"))!.replacedBy).toBe("i1");
+    // The same call from another process; during its payer read a third sees the rollback
+    const two = instance();
+    const three = instance();
+    const y = await two.builder.resume("order", { payer: wallet });
+    const z = await three.builder.resume("order", { payer: wallet });
+    let once = true;
+    two.provider.control.hooks.fetchAddressUTxOs = async (
+      forward,
+      address: string,
+    ) => {
+      if (once) {
+        once = false;
+        before.advanceTo({ slot: emulator.slot + 1 });
+        three.provider.control.target = before;
+        await z.refresh();
+        expect(z.step("a").status).toBe("sent");
+      }
+      return forward(address);
+    };
+    const error = await caught(y.replan({ id: "i1" }));
+    expect([error.code, reasonOf(error)]).toEqual([
+      "CANNOT_OBSERVE",
+      "unconfirmed",
+    ]);
+    expect(await store.inner.load("i1")).toBeUndefined();
+    paidOnce(emulator, true);
+  });
+
+  it("two taken steps, the second on the first: the new plan's record holds what each stands on, and reads back through resume", async () => {
+    const ctx = await storeSetup({
+      funds: [100n * ADA, 50n * ADA],
+      planDefaults: { ...FAST, confirmations: 3 },
+    });
+    const { emulator, builder, wallet } = ctx;
+    const old = await builder.plan(
+      {
+        a: payTo(alice, 11n * ADA),
+        b: payTo(bob, 12n * ADA),
+        c: payTo(carol, 13n * ADA),
+      },
+      { id: "order", payer: wallet },
+    );
+    await old.sign();
+    await old.run({ waitFor: "sent" });
+    await old.refresh();
+    await old.run({ waitFor: "sent" });
+    await old.refresh();
+    expect(old.steps.map((step) => step.status)).toEqual([
+      "included",
+      "included",
+      "signed",
+    ]);
+    advance(emulator, 1);
+    const next = await old.replan({ id: "i1" });
+    expect(next.toJSON().steps.map((step) => step.taken)).toEqual([
+      true,
+      true,
+      undefined,
+    ]);
+    expect(next.step("b").standsOn).toEqual(["a"]);
+    const read = await builder.resume("i1", { payer: wallet });
+    expect(read.steps.map((step) => [step.name, step.standsOn])).toEqual([
+      ["a", []],
+      ["b", ["a"]],
+      ["c", ["b"]],
+    ]);
+    await read.run({ waitFor: "included" });
+    advance(emulator, 3);
+    await read.refresh();
+    expect(read.status).toBe("final");
+    paidOnce(emulator);
+  });
+
+  it("a taken step keeps its extra key witnesses and the transactions of after it stands on", async () => {
+    const ctx = await storeSetup({
+      funds: [100n * ADA, 50n * ADA],
+      planDefaults: { ...FAST, confirmations: 3 },
+    });
+    const { emulator, builder, wallet, address } = ctx;
+    // A transaction on chain, given in after: a spends its output
+    const fund = await builder.build(
+      output({ address, value: { lovelace: 30n * ADA } }),
+      { payer: wallet },
+    );
+    await (await fund.sign({ signers: [wallet] })).submit();
+    advance(emulator, 1);
+    const old = await builder.plan(
+      {
+        a: [
+          spend.pubKey({ utxo: { txHash: fund.txHash, outputIndex: 0 } }),
+          payTo(alice, 11n * ADA),
+        ],
+        b: payTo(bob, 12n * ADA),
+      },
+      { id: "order", payer: wallet, after: fund, extraKeyWitnesses: 1 },
+    );
+    await old.sign();
+    const bHash = old.step("b").txHash;
+    const relay = relayOf(emulator, (txHash) => txHash === bHash);
+    await caught(old.run({ submitter: relay, timeoutMs: 300 }));
+    expect(old.steps.map((step) => step.status)).toEqual(["included", "sent"]);
+    const before = recordOf(old).steps[0]!;
+    expect(before.after).toEqual([fund.txHash]);
+    expect(before.extraKeyWitnesses).toBe(1);
+    advance(emulator, 1);
+    await old.replan({ id: "i1" });
+    const taken = recordOf(await builder.resume("i1")).steps[0]!;
+    expect(taken).toMatchObject({
+      name: "a",
+      taken: true,
+      after: [fund.txHash],
+      extraKeyWitnesses: 1,
+    });
+    expect(times(emulator, alice, 11n * ADA)).toBe(1);
   });
 });
 

@@ -928,6 +928,55 @@ describe("lineClasses and beforeOf", () => {
         unconfirmed: ["b"],
         open: ["c"],
       });
+    // An included step that runs a Plutus script, found with no word on its scripts: not taken
+    const script = accept(
+      emptyRecord({
+        id: "s",
+        network: "preprod",
+        deadlines: DEADLINES,
+        options: {},
+      }),
+      {
+        type: "steps",
+        steps: [
+          {
+            name: "s",
+            built: withOutputs(
+              stepTx({
+                txHash: hash(0xc3),
+                inputs: [utxo(SOURCE)],
+                plutus: true,
+              }),
+            ),
+            standsOn: [],
+          },
+        ],
+      },
+    );
+    const inBlockScript = accept(script, {
+      type: "observation",
+      tip: tip(0, 100),
+      sightings: [
+        found(hash(0xc3), { blockHeight: 99, valid: true }),
+      ] as TxSighting[],
+    });
+    expect(stepOf(inBlockScript, "s").status).toBe("included");
+    const noWord = lineClasses(
+      inBlockScript,
+      [found(hash(0xc3), { blockHeight: 99 })],
+      tip(0),
+    );
+    expect([noWord.taken, noWord.unconfirmed.map((tx) => tx.step)]).toEqual([
+      [],
+      ["s"],
+    ]);
+    expect(
+      lineClasses(
+        inBlockScript,
+        [found(hash(0xc3), { blockHeight: 99, valid: true })],
+        tip(0),
+      ).taken.map((tx) => tx.step),
+    ).toEqual(["s"]);
     // An entry found less deep than final: unconfirmed, as before
     const entered = record({
       final: [],
