@@ -57,6 +57,8 @@ import {
   SIGNERS_IN_PLACE,
   SUBMITTER_IN_PLACE,
 } from "../options";
+import { TxPartError } from "../parts/errors";
+import { isLinkedPart } from "../parts/unresolved";
 import { toPayerSource } from "../payer";
 import {
   countedWitnesses,
@@ -1662,7 +1664,7 @@ export class TxPlan {
       state,
       made.record,
       id,
-      own === undefined ? undefined : read,
+      own,
       addressOf,
       live,
       probed,
@@ -1772,7 +1774,13 @@ export class TxPlan {
   /**
    * The plan recorded under `id` when it is the plan made in place of this one by the same call:
    * it names this plan in `replaces`, this plan names it, and the steps given, when given, are
-   * those it was made with
+   * those it was made with. The steps are compared as the call that made the stored plan filled
+   * them, by that plan's own record: a link to a name it keeps in `before.final` is filled with
+   * that step's output, a link to a step it holds as taken or to a step given before stays a
+   * link; a link to any other name is none that call could have recorded
+   * @param own The steps as this call gave them, their links as given
+   * @param path Where the call is: at its start, before anything was looked at, or after the
+   *   store refused the first record this call built
    * @throws TxPlanError PLAN_EXISTS for any other record; TxBuildError NETWORK_MISMATCH
    */
   async #sameReplan(
@@ -1782,11 +1790,16 @@ export class TxPlan {
     own: readonly StepInput[] | undefined,
     addressOf: AddressOf,
     signal: AbortSignal | undefined,
+    path: "start" | "refused" = "start",
   ): Promise<PlanRecord> {
     const exists = () =>
       this.#error(
         "PLAN_EXISTS",
-        `the store holds the plan ${id}, and not as the plan made in place of this one with the steps given: nothing was looked at, built or written`,
+        `the store holds the plan ${id}, and not as the plan made in place of this one with the steps given: ${
+          path === "start"
+            ? "nothing was looked at, built or written"
+            : "the steps this call built were not recorded, and none was signed or sent"
+        }`,
         {},
       );
     if (
@@ -1797,18 +1810,48 @@ export class TxPlan {
       throw exists();
     checkRecordNetwork(state.builder, stored);
     if (own !== undefined) {
-      // A link to a step the stored plan holds as taken stays a link, also once that step is
-      // final in this plan
+      const kept = stored.before?.final ?? [];
       const held = stored.steps.flatMap((step) =>
         step.taken === true ? [step.name] : [],
       );
-      const filled = fillKeptLinks(
-        own,
-        state.record.steps.filter(
-          (step) => step.status === "final" && !held.includes(step.name),
-        ),
-        held,
-      );
+      // Each link names a step given before its own, a step the stored plan holds as taken, or a
+      // step of this plan whose name it keeps as final; any other it could not have recorded
+      own.forEach((step, index) => {
+        for (const part of step.parts) {
+          if (!isLinkedPart(part)) continue;
+          const named = part.link.step;
+          if (
+            own.slice(0, index).some((each) => each.name === named) ||
+            held.includes(named)
+          )
+            continue;
+          if (
+            kept.includes(named) &&
+            state.record.steps.some((each) => each.name === named)
+          )
+            continue;
+          throw exists();
+        }
+      });
+      let filled: StepInput[];
+      try {
+        filled = fillKeptLinks(
+          own,
+          state.record.steps.filter(
+            (step) => kept.includes(step.name) && !held.includes(step.name),
+          ),
+          held,
+        );
+      } catch (error) {
+        // A link the stored plan's call could not have filled: not that call
+        if (
+          TxBuildError.is(error, "INVALID_OPTION") ||
+          TxBuildError.is(error, "UNKNOWN_LABEL") ||
+          error instanceof TxPartError
+        )
+          throw exists();
+        throw error;
+      }
       const given = await abortable(
         givenSteps(filled, addressOf),
         signal,
@@ -1872,6 +1915,7 @@ export class TxPlan {
       own,
       addressOf,
       undefined,
+      "refused",
     );
     return objectOver(state.builder, repeat, live, "owed");
   }

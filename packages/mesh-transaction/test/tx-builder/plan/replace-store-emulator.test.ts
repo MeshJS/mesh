@@ -253,6 +253,10 @@ describe("a plan in place of another, on a store", () => {
     };
     const error = await caught(old.replan({ id: "i1" }));
     expect(error.code).toBe("PLAN_EXISTS");
+    // The call looked and built: what it built was not recorded, signed or sent
+    expect(error.message).toContain(
+      "the steps this call built were not recorded, and none was signed or sent",
+    );
     expect((await store.inner.load("i1"))!.replaces).toBeUndefined();
   });
 
@@ -965,6 +969,126 @@ const crashInBlockCase = async (
       paid: times(world.emulator, address, lovelace * ADA),
     }).toEqual({ log, address, paid: 1 });
 };
+
+describe("the same call again, compared by the recorded plan", () => {
+  /** Steps that link to the change of a */
+  const linked = () => ({
+    b: [
+      spend.pubKey({ utxo: { step: "a", change: true } }),
+      payTo(bob, 12n * ADA),
+    ],
+    c: payTo(carol, 13n * ADA),
+  });
+  const settle = (promise: Promise<TxPlan>): Promise<any> =>
+    promise.then(
+      (plan) => plan,
+      (error) => error,
+    );
+
+  it("two processes, one id, with steps that link to a: the one that took a writes first, the one that saw a final second; both return the one record", async () => {
+    const { emulator, store, wallet, instance } = await inBlock();
+    const one = instance();
+    const two = instance();
+    const taker = await one.builder.resume("order", { payer: wallet });
+    const late = await two.builder.resume("order", { payer: wallet });
+    const takerGate = holdSave(one.store, (json) => json.id === "i1");
+    const takerCall = settle(taker.replan({ id: "i1", steps: linked() }));
+    await takerGate.reached;
+    advance(emulator, 3);
+    const lateGate = holdSave(two.store, (json) => json.id === "i1");
+    const lateCall = settle(late.replan({ id: "i1", steps: linked() }));
+    await lateGate.reached;
+    takerGate.open();
+    const first = await takerCall;
+    lateGate.open();
+    const second = await lateCall;
+    const recorded = (await store.inner.load("i1"))!;
+    expect(recorded.steps[0]).toMatchObject({ name: "a", taken: true });
+    for (const plan of [first, second])
+      expect(plan.steps.map((step: { txHash: string }) => step.txHash)).toEqual(
+        recorded.steps.map((step) => step.txHash),
+      );
+    await first.run({ waitFor: "included" });
+    advance(emulator, 3);
+    await first.refresh();
+    expect(first.status).toBe("final");
+    paidOnce(emulator);
+  });
+
+  it("two processes, one id, with steps that link to a: the one that saw a final writes first, the one that took a second; both return the one record", async () => {
+    const { emulator, store, wallet, instance } = await inBlock();
+    const one = instance();
+    const two = instance();
+    const taker = await one.builder.resume("order", { payer: wallet });
+    const late = await two.builder.resume("order", { payer: wallet });
+    const takerGate = holdSave(one.store, (json) => json.id === "i1");
+    const takerCall = settle(taker.replan({ id: "i1", steps: linked() }));
+    await takerGate.reached;
+    advance(emulator, 3);
+    const first = await settle(late.replan({ id: "i1", steps: linked() }));
+    takerGate.open();
+    const second = await takerCall;
+    const recorded = (await store.inner.load("i1"))!;
+    expect(recorded.steps.some((step) => step.taken === true)).toBe(false);
+    expect(recorded.before!.final).toEqual(["a"]);
+    for (const plan of [first, second])
+      expect(plan.steps.map((step: { txHash: string }) => step.txHash)).toEqual(
+        recorded.steps.map((step) => step.txHash),
+      );
+    await first.run({ waitFor: "included" });
+    advance(emulator, 3);
+    await first.refresh();
+    expect(first.status).toBe("final");
+    paidOnce(emulator);
+  });
+
+  it("a repeat after the old step given again under its name landed late and is final in the old plan: the recorded plan", async () => {
+    const { emulator, wallet, instance, old, held } = await stuck();
+    const steps = () => ({
+      b: payTo(bob, 12n * ADA),
+      c: [
+        spend.pubKey({ utxo: { step: "b", change: true } }),
+        payTo(carol, 13n * ADA),
+      ],
+    });
+    const made = await old.replan({ id: "i1", steps: steps() });
+    await emulator.submitTx(held);
+    await old.refresh();
+    expect(old.step("b").status).toBe("final");
+    const one = instance();
+    const again = await (
+      await one.builder.resume("order", { payer: wallet })
+    ).replan({ id: "i1", steps: steps() });
+    expect(again.steps.map((step) => step.txHash)).toEqual(
+      made.steps.map((step) => step.txHash),
+    );
+    expect(times(emulator, bob, 12n * ADA)).toBe(1);
+    expect(times(emulator, alice, 11n * ADA)).toBe(1);
+  });
+
+  it("a repeat with a link to a name the recorded plan neither keeps, holds nor was given: PLAN_EXISTS", async () => {
+    const { emulator, old } = await stuck();
+    await old.replan({
+      id: "i1",
+      steps: { b: payTo(bob, 12n * ADA), c: payTo(carol, 13n * ADA) },
+    });
+    const error = await caught(
+      old.replan({
+        id: "i1",
+        steps: {
+          b: payTo(bob, 12n * ADA),
+          c: [
+            spend.pubKey({ utxo: { step: "z", output: 0 } }),
+            payTo(carol, 13n * ADA),
+          ],
+        },
+      }),
+    );
+    expect(error.code).toBe("PLAN_EXISTS");
+    expect(error.message).toContain("nothing was looked at, built or written");
+    expect(times(emulator, bob, 12n * ADA)).toBe(0);
+  });
+});
 
 describe("a step left whose end of validity has passed", () => {
   /**
