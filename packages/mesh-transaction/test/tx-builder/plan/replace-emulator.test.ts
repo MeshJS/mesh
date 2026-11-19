@@ -2108,6 +2108,79 @@ describe("a plan in place of another", () => {
       expect(names(one)).toEqual(["main"]);
     });
 
+    it("a step given as CBOR hex under the name __proto__: by assignment or in a literal the name sets nothing and no check can see the step; through Object.fromEntries, a spread or Object.create(null) the name is kept and refused", async () => {
+      const ctx = await storeSetup({ funds: [100n * ADA, 50n * ADA] });
+      const { emulator, builder, wallet, store } = ctx;
+      // A partner's transaction, built and signed on its own UTxO
+      const partner = await walletOf(1);
+      const partnerAddress = (await partner.getChangeAddress())!;
+      const own = emulator.fund(partnerAddress, { lovelace: 100n * ADA });
+      const built = await builderOf(wrap(emulator)).build(
+        [
+          spend.pubKey({ utxo: own }),
+          output({ address: carol, value: { lovelace: 13n * ADA } }),
+        ],
+        { payer: partner },
+      );
+      await built.sign();
+      const hex = built.partialTx;
+      // The language sets no prototype that is not an object, and makes no member: the object
+      // is a plain one with a alone, and the partner's transaction is not in it
+      const literal = { a: payTo(alice, 11n * ADA), __proto__: hex } as never;
+      const byAssignment = assigned([
+        ["a", payTo(alice, 11n * ADA)],
+        ["__proto__", hex],
+      ]);
+      for (const [i, steps] of [literal, byAssignment].entries()) {
+        expect(Object.keys(steps)).toEqual(["a"]);
+        expect(Object.getPrototypeOf(steps)).toBe(Object.prototype);
+        const plan = await builder.plan(steps, {
+          id: `lost-${i}`,
+          payer: wallet,
+        });
+        expect(names(plan)).toEqual(["a"]);
+      }
+      const plan = await builder.plan(
+        { a: payTo(alice, 11n * ADA) },
+        { id: "order", payer: wallet },
+      );
+      await plan.add(
+        assigned([
+          ["b", payTo(bob, 12n * ADA)],
+          ["__proto__", hex],
+        ]),
+      );
+      expect(names(plan)).toEqual(["a", "b"]);
+      // Built so that every name is kept, the step is refused by its name
+      const entries: [string, unknown][] = [
+        ["c", payTo(carol, 13n * ADA)],
+        ["__proto__", hex],
+      ];
+      const bare: Record<string, unknown> = Object.create(null);
+      for (const [name, step] of entries) bare[name] = step;
+      for (const steps of [
+        Object.fromEntries(entries),
+        { ...Object.fromEntries(entries) },
+        bare,
+      ]) {
+        expect(Object.keys(steps)).toEqual(["c", "__proto__"]);
+        for (const error of [
+          await caught(
+            builder.plan(steps as never, { id: "kept", payer: wallet }),
+          ),
+          await caught(plan.add(steps as never)),
+        ]) {
+          expect([error.code, error.details.option]).toEqual([
+            "INVALID_OPTION",
+            "steps",
+          ]);
+          expect(error.message).toContain('the step name "__proto__"');
+        }
+      }
+      expect(await store.inner.load("kept")).toBeUndefined();
+      expect(names(plan)).toEqual(["a", "b"]);
+    });
+
     it("refuses to replace a final plan, and an empty id", async () => {
       const { builder, wallet } = await stepSetup("scalus", {
         funds: [100n * ADA],
