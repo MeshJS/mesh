@@ -1344,11 +1344,12 @@ export class TxPlan {
    *   `canSelect` refuses it), and an old transaction that only a step in a block keeps from
    *   landing beside a step built that does not stand on that step, each until that step is
    *   final; a plan whose every step is final or in a block, which has nothing left to pay,
-   *   until it is final (then INVALID_STATE, `final`): to pay more, `add` steps to it, unless it
-   *   is stopped (by `stop()`, a mark, or a look that found a transaction of the plans before
-   *   it), which sends nothing more: once a rollback leaves a step of it open the same call
-   *   makes the plan in its place. An address that lists an output of a transaction of those
-   *   plans the search does not find refuses the call the same way.
+   *   until it is final (then INVALID_STATE, `final`): to pay more, `add` steps to it while it
+   *   is pending. One that is not takes no step: a stopped one (by `stop()`, a mark, or a look
+   *   that found a transaction of the plans before it) sends nothing more, and one that came to
+   *   stopped by its steps once sends no step it never sent; once a rollback leaves a step of it
+   *   open the same call makes the plan in its place. An address that lists an output of a
+   *   transaction of those plans the search does not find refuses the call the same way.
    * - Every other transaction of those plans is one the new plan must not land beside. The
    *   first step built for a payer spends an input of each that may still land and stands on
    *   no other, also of one called dead, that the payer still holds: the ledger then takes one
@@ -1557,9 +1558,10 @@ export class TxPlan {
       )
     )
       throw this.#unconfirmed(
-        base.stopped === true
-          ? "every step of the plan is in a block, and none is left for a plan in its place: the plan is stopped and sends nothing more; once its steps are final it is final, and after a rollback that leaves a step open the same call makes the plan in its place"
-          : "every step of the plan is in a block, and none is left for a plan in its place: the plan becomes final by itself, and sends its steps again after a rollback; to pay more, add steps to it",
+        // `add` takes steps only on a pending plan that is not marked
+        base.status === "pending" && base.replacedBy === undefined
+          ? "every step of the plan is in a block, and none is left for a plan in its place: the plan becomes final by itself, and sends its steps again after a rollback; to pay more, add steps to it"
+          : "every step of the plan is in a block, and none is left for a plan in its place: the plan does not go on, takes no more steps and sends no step it never sent; once its steps are final it is final, and after a rollback that leaves a step open the same call makes the plan in its place",
         taken[0]!.txHash,
       );
 

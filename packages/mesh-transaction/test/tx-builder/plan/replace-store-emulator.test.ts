@@ -1624,7 +1624,7 @@ describe("edges of the refusals of replan", () => {
       true,
     ]);
     expect(error.message).toContain(
-      "the plan is stopped and sends nothing more; once its steps are final it is final, and after a rollback that leaves a step open the same call makes the plan in its place",
+      "the plan does not go on, takes no more steps and sends no step it never sent; once its steps are final it is final, and after a rollback that leaves a step open the same call makes the plan in its place",
     );
     expect(error.message).not.toContain("add steps");
     expect(await store.inner.load("i1")).toBeUndefined();
@@ -1635,6 +1635,57 @@ describe("edges of the refusals of replan", () => {
     expect(made.toJSON().steps[0]).toMatchObject({ name: "a", taken: true });
     expect((await store.inner.load("i1"))!.replaces).toBe("order");
     paidOnce(mid, true);
+  });
+
+  it("a plan that came to stopped by its steps once, whose every step is found in a block again: the call waits and does not speak of add, which refuses the plan", async () => {
+    const ctx = await storeSetup({
+      funds: [100n * ADA, 50n * ADA],
+      planDefaults: { ...FAST, confirmations: 1_000 },
+    });
+    const { emulator, provider, builder, wallet, store } = ctx;
+    const old = await builder.plan(
+      { a: payTo(alice, 11n * ADA) },
+      { id: "order", payer: wallet },
+    );
+    const aHash = old.step("a").txHash;
+    // A search that hides a until it is past its end: expired, and the plan came to stopped
+    provider.control.hooks.fetchTxInfo = (forward, hash: string) => {
+      if (hash.toLowerCase() === aHash)
+        throw Object.assign(new Error("not found"), {
+          kind: "notFound",
+          status: 404,
+        });
+      return forward(hash);
+    };
+    await caught(old.run({ timeoutMs: 300 }));
+    advance(emulator, 700);
+    await old.refresh();
+    expect(old.status).toBe("stopped");
+    expect(old.toJSON().halted).toBe(true);
+    expect(old.toJSON().stopped).toBeUndefined();
+    // The search finds a again: in a block, not final
+    delete provider.control.hooks.fetchTxInfo;
+    advance(emulator, 10);
+    await old.refresh();
+    expect([old.step("a").status, old.status]).toEqual([
+      "included",
+      "stopping",
+    ]);
+    const error = await caught(old.replan({ id: "i1" }));
+    expect([error.code, reasonOf(error), error.txHash]).toEqual([
+      "CANNOT_OBSERVE",
+      "unconfirmed",
+      aHash,
+    ]);
+    expect(error.message).toContain(
+      "the plan does not go on, takes no more steps and sends no step it never sent",
+    );
+    expect(error.message).not.toContain("add steps");
+    expect(await store.inner.load("i1")).toBeUndefined();
+    const added = await caught(old.add({ x: payTo(dave, 14n * ADA) }));
+    expect([added.code, reasonOf(added)]).toEqual(["INVALID_STATE", "stopped"]);
+    expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    expect(times(emulator, dave, 14n * ADA)).toBe(0);
   });
 
   it("a final step beside a step in a block: nothing is left, the call waits, with steps and without", async () => {
@@ -1666,6 +1717,8 @@ describe("edges of the refusals of replan", () => {
       expect(error.message).toContain(
         "every step of the plan is in a block, and none is left",
       );
+      // A pending plan takes steps
+      expect(error.message).toContain("to pay more, add steps to it");
       expect(old.replacedBy).toBeUndefined();
       expect(await store.inner.load("i1")).toBeUndefined();
     }

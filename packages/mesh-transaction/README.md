@@ -788,9 +788,10 @@ are the new plan's, also for the steps it holds of the old plan, and carry on. N
   fee is in both plans' `fee`. The call does not wait for `final`: to have it wait, call once every
   step in `landed` is `final`. A plan whose every step is final or in a block has nothing left to
   pay: `replan` of it waits (`CANNOT_OBSERVE`, `unconfirmed`) and is `INVALID_STATE` (`final`) once
-  it is final; to pay more, `plan.add` steps to it. A stopped one (by `stop()`, a mark, or a look
-  that found an old transaction) sends nothing more and takes no step: once a rollback leaves a step
-  of it open, the same call makes the plan in its place.
+  it is final; to pay more, `plan.add` steps to it while it is `pending`. One that is not takes no
+  step: a stopped one (by `stop()`, a mark, or a look that found an old transaction) sends nothing
+  more, and one that came to `stopped` by its steps once sends no step it never sent; once a
+  rollback leaves a step of it open, the same call makes the plan in its place.
 - After a rollback that is not undone (the step's end of validity passed, or another transaction
   took its input) a step built that stands on it cannot land, and one that does not may have
   landed. The new plan shows it: that step `expired`, the steps on it `orphaned`, the others as
