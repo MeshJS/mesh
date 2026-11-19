@@ -1,3 +1,5 @@
+import * as vm from "node:vm";
+
 import type { TxEmulator } from "@meshsdk/tx-emulator";
 import { CachedFetcher, ProviderError } from "@meshsdk/common";
 import { deserializeAddress, mConStr0 } from "@meshsdk/core";
@@ -1943,15 +1945,15 @@ describe("a plan in place of another", () => {
       return steps as never;
     };
 
-    /** INVALID_OPTION (`steps`) for an object of steps with a prototype of its own */
+    /** INVALID_OPTION (`steps`) for an object of steps whose prototype is another */
     const ownPrototype = (error: any) => {
       expect([error.code, error.details.option, error.details.value]).toEqual([
         "INVALID_OPTION",
         "steps",
         "object",
       ]);
-      expect(error.message).toContain(
-        "the object of steps has a prototype of its own",
+      expect(error.message).toMatch(
+        /^invalid steps: the steps are not a plain object \(their prototype is another\): give them as a plain object, or built with Object\.fromEntries/,
       );
     };
 
@@ -2010,6 +2012,48 @@ describe("a plan in place of another", () => {
           await caught(builder.plan(steps, { id: "order", payer: wallet })),
         );
         expect(await store.inner.load("order")).toBeUndefined();
+      }
+    });
+
+    it("steps that are not a plain object, a Map, an object of a class or of another realm, one part whose kind is inherited: refused, and the message says what is wrong; a frozen object, a Proxy of one and one without a prototype are taken", async () => {
+      const { builder, wallet, store } = await storeSetup({
+        funds: [100n * ADA, 50n * ADA],
+      });
+      const part = payTo(alice, 11n * ADA);
+      class Steps {
+        a = part;
+      }
+      for (const steps of [
+        new Map([["a", part]]),
+        new Steps(),
+        vm.runInNewContext("({ a: part })", { part }),
+        vm.runInNewContext("({ ...part })", { part }),
+        Object.create(part),
+      ]) {
+        ownPrototype(
+          await caught(
+            builder.plan(steps as never, { id: "order", payer: wallet }),
+          ),
+        );
+        expect(await store.inner.load("order")).toBeUndefined();
+      }
+      // The same part inherited by a step, or in a list, is a part
+      const inherited = await builder.plan(
+        { a: Object.create(part) as never },
+        { id: "named", payer: wallet },
+      );
+      expect(names(inherited)).toEqual(["a"]);
+      const bare = Object.assign(Object.create(null), { a: part });
+      for (const [i, steps] of [
+        Object.freeze({ a: part }),
+        new Proxy({ a: part }, {}),
+        bare,
+      ].entries()) {
+        const plan = await builder.plan(steps, {
+          id: `taken-${i}`,
+          payer: wallet,
+        });
+        expect(names(plan)).toEqual(["a"]);
       }
     });
 

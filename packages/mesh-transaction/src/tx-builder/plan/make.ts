@@ -324,9 +324,10 @@ const stepsAreOnePart = (steps: unknown) =>
 
 /**
  * Refuses an object of steps whose prototype is neither `Object.prototype` nor `null`, before
- * anything is read of it: a member `__proto__` of a literal, or `steps["__proto__"] = step` on a
- * plain object, sets the prototype in place of a step, which no name then lists. A list, a
- * transaction built before and what is no object are left to the reading
+ * anything is read of it: a `Map`, an object of a class or of another realm, and a plain object
+ * whose prototype a member `__proto__` of a literal, or `steps["__proto__"] = step`, set to an
+ * object in place of a step, which no name then lists. A list, a transaction built before and
+ * what is no object are left to the reading
  * @throws TxBuildError INVALID_OPTION (`steps`)
  */
 const refusePrototype = (steps: unknown, allowed: string) => {
@@ -334,7 +335,7 @@ const refusePrototype = (steps: unknown, allowed: string) => {
   const prototype: unknown = Object.getPrototypeOf(steps);
   if (prototype === Object.prototype || prototype === null) return;
   throw invalidSteps(
-    `the object of steps has a prototype of its own, which a member "__proto__" of a literal, or steps["__proto__"] = step on a plain object, sets in place of a step: give the steps as a plain object, and that step another name`,
+    "the steps are not a plain object (their prototype is another): give them as a plain object, or built with Object.fromEntries",
     { value: steps },
     allowed,
   );
