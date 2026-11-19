@@ -1581,8 +1581,8 @@ export class TxPlan {
     // The steps: those given, else what the look shows open; none of a kept or a taken name
     const keptNames = keptNamesOf(base, classes);
     let read: StepInput[];
-    /** A step left whose own end of validity has passed, told late */
-    let late: StepRecord | undefined;
+    /** The steps left whose own end of validity has passed, told late */
+    let late: StepRecord[] = [];
     /** A step given built left on a step the new plan does not hold as it is, told late */
     let unheld: { readonly step: string; readonly below: string } | undefined;
     if (own === undefined) {
@@ -1607,9 +1607,10 @@ export class TxPlan {
         );
       // A step whose own end of validity the tip has reached could only be built dead: built
       // now, its transaction lands in a block after the tip or in none. Refused once the payers'
-      // reads are checked: a read that lists an output of a step the search does not find
-      // tells that the step may have landed
-      late = leftOf(base, classes).find(
+      // reads are checked, and once this look calls it expired: a read that lists an output of
+      // a step the search does not find tells that the step may have landed, and so may one
+      // that is not past the margin
+      late = leftOf(base, classes).filter(
         (step) =>
           step.name in left &&
           ownEndOf(step) &&
@@ -1680,11 +1681,24 @@ export class TxPlan {
           reads,
           ask,
         );
-        if (late !== undefined)
+        // One that this look does not call expired (its end and the margin passed, and the
+        // search answered "not found") may be in a block the search does not show: waited for.
+        // An orphaned one stands on a step that will not land, and lands with it or never
+        const hidden = late.find(
+          (step) =>
+            step.status !== "orphaned" && !expiredByLook(classes, step.txHash),
+        );
+        if (hidden !== undefined)
+          throw this.#unconfirmed(
+            `step ${JSON.stringify(hidden.name)} is past its end of validity and may be in a block the search does not show`,
+            hidden.txHash,
+          );
+        const first = late[0];
+        if (first !== undefined)
           throw stepsRefused(
-            late.kind === "prebuilt"
-              ? `step ${JSON.stringify(late.name)} was given built and its end of validity has passed: the same transaction cannot land; give the steps of the new plan`
-              : `step ${JSON.stringify(late.name)} cannot be built again as it was given: its parts give an end of validity, and the chain's tip has passed it, so the transaction could not land; give the steps of the new plan`,
+            first.kind === "prebuilt"
+              ? `step ${JSON.stringify(first.name)} was given built and its end of validity has passed: the same transaction cannot land; give the steps of the new plan`
+              : `step ${JSON.stringify(first.name)} cannot be built again as it was given: its parts give an end of validity, and the chain's tip has passed it, so the transaction could not land; give the steps of the new plan`,
           );
         if (unheld !== undefined)
           throw stepsRefused(
@@ -3544,6 +3558,16 @@ const readAddress = async (
       throw failed(new Error("an entry of the answer has no out ref"));
     return { txHash: input.txHash, outputIndex: input.outputIndex };
   });
+};
+
+/**
+ * Whether this look calls the open transaction of this hash expired: dead, or, found in a block
+ * once, gone from it
+ */
+const expiredByLook = (classes: Pick<LineClasses, "open">, txHash: string) => {
+  const hash = txHash.toLowerCase();
+  const tx = classes.open.find((each) => each.txHash === hash);
+  return tx !== undefined && (tx.dead === true || tx.gone === true);
 };
 
 /**
