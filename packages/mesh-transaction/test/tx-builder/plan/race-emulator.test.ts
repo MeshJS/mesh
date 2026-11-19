@@ -33,7 +33,9 @@ import { alice, payTo } from "./run-util";
 // that one. Between and during the calls time passes, someone else spends an input of a step that
 // is not in a block, the plan is sometimes stopped, the chain rolls back to a fork no deeper than
 // the margin and the depth, a search hides a hash for some looks, an address is read from a fork,
-// and the store answers a read with an earlier revision. A replayer holds every body the store
+// and the store answers a read with an earlier revision; now and then the first step of the plan
+// not in a block lands, and one of the objects makes a plan in place of it while that step is in
+// a block. A replayer holds every body the store
 // ever recorded and every byte string a submitter held back, signs the bodies with the payer's
 // key and submits them at random moments, to the chain and to its forks.
 //
@@ -54,7 +56,9 @@ import { alice, payTo } from "./run-util";
 //    the stop mark;
 //  - a final plan has every step in a block of the chain;
 //  - a stopped plan has every step final or dead, no dead step in a block, and no body of a dead
-//    step, replayed then or later, lands;
+//    step, replayed then or later, lands, unless a search hid a step of it that landed: a look then
+//    calls that step expired by the provider's word, and the next look that finds it makes the
+//    plan what the chain shows;
 //  - every body a signer is handed is in a record the store wrote first, and every byte string a
 //    submitter gets is the stored signed bytes of a step whose delivery the store recorded first.
 //
@@ -66,6 +70,9 @@ import { alice, payTo } from "./run-util";
 const SEEDS = Number(process.env.PLAN_RACE_SEEDS ?? 2);
 const ROUNDS = Number(process.env.PLAN_RACE_ROUNDS ?? 8);
 const ONLY_SEED = process.env.PLAN_RACE_SEED;
+
+/** How often a round lands the first step of its plan not in a block */
+const LAND = Number(process.env.PLAN_RACE_LAND ?? 0.55);
 
 /** The margin, and the depth of final */
 const MARGIN = 1_000;
@@ -144,7 +151,17 @@ type Move =
   /** The next address read of a provider answers from a fork */
   | { readonly kind: "forkRead"; readonly fork: number }
   /** The next read of the store answers with an earlier revision */
-  | { readonly kind: "staleRead"; readonly back: number };
+  | { readonly kind: "staleRead"; readonly back: number }
+  /**
+   * The first step of the plan not in a block that the ledger takes lands: the replayer's bytes
+   * of it reach a block.
+   * With `replan`, one of the objects then makes a plan in place of it, under the id that
+   * number picks, while the step is in a block
+   */
+  | {
+      readonly kind: "land";
+      readonly replan?: { readonly u: number; readonly y: boolean };
+    };
 
 /** What the runs of the seeds reached, so that the coverage of the default run is checked */
 const reached = {
@@ -166,6 +183,11 @@ const reached = {
   /** Plans made with a step taken from the plan before, and those whose taken step a look found out of its block */
   takenPlans: 0,
   takenRolledBack: 0,
+  /** Of those, the ones the random rounds made, apart from the closing phase */
+  takenPlansInRounds: 0,
+  takenRolledBackInRounds: 0,
+  /** Steps that landed by the move that lands the first step not in a block */
+  landed: 0,
 };
 
 /** One plan of a run: its id, its order, its two objects, and what the checks saw of it */
@@ -532,6 +554,33 @@ const run = async (seed: number) => {
       case "staleRead":
         staleNext = move.back;
         return;
+      case "land": {
+        const stored = await inner.load(life.id);
+        // The first step, in order, that is not in a block and that the ledger takes now
+        let step: { name: string; txHash: string } | undefined;
+        for (const each of stored?.steps ?? []) {
+          if (LANDED.has(each.status) || DEAD.has(each.status)) continue;
+          if (await inBlock(main, each.txHash)) continue;
+          await replay(main, each.txHash);
+          if (await inBlock(main, each.txHash)) {
+            step = each;
+            break;
+          }
+        }
+        if (step === undefined) return;
+        reached.landed += 1;
+        log(`${life.id} ${step.name} ${short(step.txHash)} landed`);
+        if (
+          move.replan !== undefined &&
+          successors.get(life.id) === undefined
+        ) {
+          const owner = life;
+          const who =
+            move.replan.y && owner.Y !== undefined ? owner.Y : owner.X;
+          await call(owner, who, "replan", "forward", move.replan.u);
+        }
+        return;
+      }
     }
   };
   /** A random move: mostly a little time, sometimes much, a rollback or a replay */
@@ -549,6 +598,8 @@ const run = async (seed: number) => {
     if (move < 0.95) return { kind: "forkRead", fork: random.next() };
     return { kind: "staleRead", back: 1 + random.int(3) };
   };
+  /** The plans the closing phase made: the random rounds are counted apart from them */
+  const closing = new Set<string>();
   const rollbackMove = (): Move => ({
     kind: "rollback",
     fork: random.next(),
@@ -635,6 +686,16 @@ const run = async (seed: number) => {
     }
   };
 
+  /**
+   * Whether a search hid a step of the record that landed: past its end and the margin a look
+   * then calls it expired, and what stands on it orphaned, as the provider's word is all a look
+   * has; the next look that finds it makes it what the chain shows. Payments are checked all
+   * the same
+   */
+  const liedTo = (stored: {
+    readonly steps: readonly { readonly txHash: string }[];
+  }) => stored.steps.some((step) => everHidden.has(step.txHash));
+
   /** The checks of one plan after a round */
   const check = async (self: Life) => {
     const { id, X, Y, terminal, stopMark } = self;
@@ -659,8 +720,15 @@ const run = async (seed: number) => {
     ];
     for (const [name, status, marked] of sources) {
       const was = terminal.get(name);
-      if (was !== undefined && status !== was)
+      // A stopped plan a search lied to comes to final once a look finds the step it hid
+      const cameBack =
+        was === "stopped" &&
+        status === "final" &&
+        stored !== undefined &&
+        liedTo(stored);
+      if (was !== undefined && status !== was && !cameBack)
         findings.push(`${id}: ${name} was ${was}, then ${status}`);
+      if (cameBack) terminal.set(name, "final");
       if (was === undefined && status !== undefined && TERMINAL.has(status))
         terminal.set(name, status);
       if (stopMark.has(name) && !marked)
@@ -672,7 +740,7 @@ const run = async (seed: number) => {
       const on = await inBlock(main, step.txHash);
       if (stored.status === "final" && !on)
         findings.push(`${id}: final, and ${step.name} is in no block`);
-      if (DEAD.has(step.status) && on)
+      if (DEAD.has(step.status) && on && !liedTo(stored))
         findings.push(`${id}: ${step.name} is ${step.status}, and in a block`);
       if (
         stored.status === "stopped" &&
@@ -688,7 +756,11 @@ const run = async (seed: number) => {
         if (DEAD.has(step.status)) await replay(main, step.txHash);
       for (const tx of held) await main.submitTx(tx).catch(() => undefined);
       for (const step of stored.steps)
-        if (DEAD.has(step.status) && (await inBlock(main, step.txHash)))
+        if (
+          DEAD.has(step.status) &&
+          !liedTo(stored) &&
+          (await inBlock(main, step.txHash))
+        )
           findings.push(
             `${id}: stopped, then ${step.name} ${short(step.txHash)} landed`,
           );
@@ -792,6 +864,7 @@ const run = async (seed: number) => {
     if (!takenSeen.has(id)) {
       takenSeen.add(id);
       reached.takenPlans += 1;
+      if (!closing.has(id)) reached.takenPlansInRounds += 1;
     }
     const count = first.steps.findIndex((step) => step.taken !== true);
     if (count >= 0 && count < taken.length)
@@ -821,6 +894,7 @@ const run = async (seed: number) => {
     ) {
       takenOut.add(id);
       reached.takenRolledBack += 1;
+      if (!closing.has(id)) reached.takenRolledBackInRounds += 1;
     }
     const onChain = await Promise.all(
       taken.map((step) => inBlock(main, step.txHash)),
@@ -875,6 +949,14 @@ const run = async (seed: number) => {
       );
     }
     const moves: Move[] = Array.from({ length: random.int(3) }, randomMove);
+    // The first step of the plan not in a block lands now and then while the calls go on
+    if (chance(LAND))
+      moves.push({
+        kind: "land",
+        ...(chance(0.7) && {
+          replan: { u: random.next(), y: chance(0.5) },
+        }),
+      });
     if (round % 3 === 1) moves.push({ kind: "foreignSpend" });
     if (round % 3 === 2) moves.push(rollbackMove());
     for (const move of moves) {
@@ -925,13 +1007,21 @@ const run = async (seed: number) => {
   // and not final, and the chain rolls back under it; both plans go on, a replayer at work, and
   // the checks of every round apply to them
   {
-    const owner = await begin(stepsOfOrder(orders), orders++);
+    // Two payments, so that one is left beside the step in a block
+    const pair = Object.fromEntries(
+      NAMES.slice(0, 2).map((name, i) => [
+        name,
+        payTo(alice, amountOf(orders, i)),
+      ]),
+    );
+    const owner = await begin(pair, orders++);
     await forkPoint();
     await call(owner, owner.X, "sign", "forward", 0);
     await call(owner, owner.X, "sent", "forward", 0);
     await call(owner, owner.X, "refresh", "forward", 0);
     await call(owner, owner.X, "replan", "forward", random.next());
     const id = successors.get(owner.id);
+    if (id !== undefined) closing.add(id);
     const next = lives.find((each) => each.id === id);
     await rollback({ kind: "rollback", fork: 0.999 });
     if (next !== undefined)
@@ -942,6 +1032,11 @@ const run = async (seed: number) => {
     for (const each of lives) await check(each);
     await checkLines();
     checkPayments();
+    // Each seed reaches the case: a plan with a taken step, and that step out of its block
+    if (id === undefined || !takenSeen.has(id))
+      findings.push("the closing phase made no plan with a taken step");
+    else if (!takenOut.has(id))
+      findings.push("the closing phase saw no rollback of its taken step");
   }
   // Last, every body and every held byte string once more, on the chain as it is
   for (const txHash of bodies.keys()) await replay(main, txHash);
@@ -955,7 +1050,11 @@ const run = async (seed: number) => {
   for (const each of lives) {
     const stored = await inner.load(each.id);
     for (const step of stored?.steps ?? [])
-      if (DEAD.has(step.status) && (await inBlock(main, step.txHash)))
+      if (
+        DEAD.has(step.status) &&
+        !liedTo(stored!) &&
+        (await inBlock(main, step.txHash))
+      )
         findings.push(
           `${each.id}: ${step.name} is ${step.status}, and landed at the end`,
         );
@@ -994,6 +1093,7 @@ describe("Two objects on one record, with a moving chain and a replayer", () => 
       expect(reached.plans).toBeGreaterThan(0);
       expect(reached.takenPlans).toBeGreaterThan(0);
       expect(reached.takenRolledBack).toBeGreaterThan(0);
+      expect(reached.takenPlansInRounds).toBeGreaterThan(0);
       console.log(`reached: ${JSON.stringify(reached)}`);
     },
   );
