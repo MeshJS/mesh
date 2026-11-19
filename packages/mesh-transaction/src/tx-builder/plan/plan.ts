@@ -983,9 +983,12 @@ export class TxPlan {
    *   until that transaction is dead. One that only a step of the plan in a block and not final
    *   keeps from landing (it spends an input that step spends) is waited for, CANNOT_OBSERVE
    *   (`unconfirmed`), until that step is final: after a rollback it could land beside the step
-   *   added. STILL_LIVE is told first. A step added to such a plan is the application's to
-   *   follow, by this plan's id, as steps given to `replan` are: when the plan it was made in
-   *   place of becomes final after all, the added step was not paid.
+   *   added. When every other step of the plan is final, or in a block no later than that one,
+   *   the plan is final with it and the same call is then INVALID_STATE (`final`): the message
+   *   says so, and such a step is paid by a plan after this one (`after`). STILL_LIVE is told
+   *   first. A step added to such a plan is the application's to follow, by this plan's id, as
+   *   steps given to `replan` are: when the plan it was made in place of becomes final after
+   *   all, the added step was not paid.
    * @throws TxPlanError INVALID_STATE (`final`) for a final plan, (`stopped`) for a plan that
    *   is stopping or stopped; STILL_LIVE on a plan made by `replan`, as above, nothing added;
    *   CANNOT_OBSERVE (`unconfirmed`, retryable after the builder's `pollMs`) on such a plan for
@@ -1143,7 +1146,7 @@ export class TxPlan {
           "nothing was added",
         );
         this.#refuseStandingOnOpen(newSteps, line);
-        this.#refuseHeld(apart.held);
+        this.#refuseHeld(apart.held, base);
         told = dead;
       }
       // The event goes only to a record with the steps the build started from
@@ -1347,11 +1350,12 @@ export class TxPlan {
    *   landing beside a step built that does not stand on that step, each until that step is
    *   final; a plan whose every step is final or in a block, which has nothing left to pay,
    *   until it is final (then INVALID_STATE, `final`): to pay more, `add` steps to it while it
-   *   is pending. One that is not takes no step: a stopped one (by `stop()`, a mark, or a look
-   *   that found a transaction of the plans before it) sends nothing more, and one that came to
-   *   stopped by its steps once sends no step it never sent; once a rollback leaves a step of it
-   *   open the same call makes the plan in its place. An address that lists an output of a
-   *   transaction of those plans the search does not find refuses the call the same way.
+   *   is pending, or make a plan after it (`after`). One that is not takes no step: a stopped
+   *   one (by `stop()`, a mark, or a look that found a transaction of the plans before it)
+   *   sends nothing more, and one that came to stopped by its steps once sends no step it never
+   *   sent; once a rollback leaves a step of it open the same call makes the plan in its place.
+   *   An address that lists an output of a transaction of those plans the search does not find
+   *   refuses the call the same way.
    * - Every other transaction of those plans is one the new plan must not land beside. The
    *   first step built for a payer spends an input of each that may still land and stands on
    *   no other, also of one called dead, that the payer still holds: the ledger then takes one
@@ -1564,7 +1568,7 @@ export class TxPlan {
       throw this.#unconfirmed(
         // `add` takes steps only on a pending plan that is not marked
         base.status === "pending" && base.replacedBy === undefined
-          ? "every step of the plan is in a block, and none is left for a plan in its place: the plan becomes final by itself, and sends its steps again after a rollback; to pay more, add steps to it"
+          ? "every step of the plan is in a block, and none is left for a plan in its place: the plan becomes final by itself, and sends its steps again after a rollback; to pay more, add steps to it while it is pending, or make a plan after it"
           : "every step of the plan is in a block, and none is left for a plan in its place: the plan does not go on, takes no more steps and sends no step it never sent; once its steps are final it is final, and after a rollback that leaves a step open the same call makes the plan in its place",
         taken[0]!.txHash,
       );
@@ -1801,7 +1805,9 @@ export class TxPlan {
   /**
    * CANNOT_OBSERVE (`unconfirmed`) for an old transaction that only a step in a block and not
    * final keeps from landing beside a step built, with that step's hash: once it is final the
-   * old transaction is settled, and the same call passes
+   * old transaction is settled, and the same call passes. Of `add` (`plan`, the plan the steps
+   * are added to), when every other step of the plan is final, or in a block no later than that
+   * step's, the plan is final with that step and takes no step: the message says so
    */
   #refuseHeld(
     held:
@@ -1811,12 +1817,29 @@ export class TxPlan {
           readonly taken: LineTx;
         }
       | undefined,
+    plan?: PlanRecord,
   ) {
-    if (held !== undefined)
-      throw this.#unconfirmed(
-        `step ${JSON.stringify(held.step.name)} could land beside step ${JSON.stringify(held.open.step)} (${held.open.txHash}) of the plans before, which only step ${JSON.stringify(held.taken.step)} (${held.taken.txHash}), in a block and not final, keeps from landing: the call passes once that step is final`,
-        held.taken.txHash,
+    if (held === undefined) return;
+    const { slot } = held.taken.seen ?? {};
+    const last =
+      plan !== undefined &&
+      slot !== undefined &&
+      plan.steps.every(
+        (step) =>
+          step.status === "final" ||
+          step.txHash.toLowerCase() === held.taken.txHash ||
+          (step.status === "included" &&
+            step.seen !== undefined &&
+            step.seen.slot <= slot),
       );
+    throw this.#unconfirmed(
+      `step ${JSON.stringify(held.step.name)} could land beside step ${JSON.stringify(held.open.step)} (${held.open.txHash}) of the plans before, which only step ${JSON.stringify(held.taken.step)} (${held.taken.txHash}), in a block and not final, keeps from landing: ${
+        last
+          ? "once that step is final the plan is final and takes no step: pay it by a plan after this one (after)"
+          : "the call passes once that step is final"
+      }`,
+      held.taken.txHash,
+    );
   }
 
   /** INVALID_STATE (`stopped`) for a plan replaced by a plan of another id */

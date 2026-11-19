@@ -578,9 +578,12 @@ if (order.status === "pending") await order.run(); // a repeat returns the plan 
   one that shares no input with it is `STILL_LIVE` until that transaction is dead. One that only a
   step of the plan in a block keeps from landing (it spends an input that step spends) is waited for
   (`CANNOT_OBSERVE`, `unconfirmed`) until that step is `final`: after a rollback it could land
-  beside the added step. `STILL_LIVE` is told first. An added step is the application's to follow,
-  by this plan's id, as steps given to `replan` are: when the old plan becomes `final` after all,
-  the added step was not paid, and the reconciliation loop ends the line at the old plan.
+  beside the added step. When every other step of the plan is `final`, or in a block no later than
+  that one, the plan is `final` with it and the same call is then `INVALID_STATE` (`final`): the
+  message says so, and the step is paid by a plan after this one (`after`). `STILL_LIVE` is told
+  first. An added step is the application's to follow, by this plan's id, as steps given to
+  `replan` are: when the old plan becomes `final` after all, the added step was not paid, and the
+  reconciliation loop ends the line at the old plan.
 
 Limits: a plan has at most 32 steps, consolidation steps counted. Without a store, a copy of the
 JSON saved before an `add` does not hold the added steps, and the same `add` on it builds and pays
@@ -793,10 +796,11 @@ are the new plan's, also for the steps it holds of the old plan, and carry on. N
   fee is in both plans' `fee`. The call does not wait for `final`: to have it wait, call once every
   step in `landed` is `final`. A plan whose every step is final or in a block has nothing left to
   pay: `replan` of it waits (`CANNOT_OBSERVE`, `unconfirmed`) and is `INVALID_STATE` (`final`) once
-  it is final; to pay more, `plan.add` steps to it while it is `pending`. One that is not takes no
-  step: a stopped one (by `stop()`, a mark, or a look that found an old transaction) sends nothing
-  more, and one that came to `stopped` by its steps once sends no step it never sent; once a
-  rollback leaves a step of it open, the same call makes the plan in its place.
+  it is final; to pay more, `plan.add` steps to it while it is `pending`, or make a plan after it
+  (`after`). One that is not takes no step: a stopped one (by `stop()`, a mark, or a look that
+  found an old transaction) sends nothing more, and one that came to `stopped` by its steps once
+  sends no step it never sent; once a rollback leaves a step of it open, the same call makes the
+  plan in its place.
 - After a rollback that is not undone (the step's end of validity passed, or another transaction
   took its input) a step built that stands on it cannot land, and one that does not may have
   landed. The new plan shows it: that step `expired`, the steps on it `orphaned`, the others as

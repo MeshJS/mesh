@@ -1717,8 +1717,10 @@ describe("edges of the refusals of replan", () => {
       expect(error.message).toContain(
         "every step of the plan is in a block, and none is left",
       );
-      // A pending plan takes steps
-      expect(error.message).toContain("to pay more, add steps to it");
+      // A pending plan takes steps, and a plan after it pays more too
+      expect(error.message).toContain(
+        "to pay more, add steps to it while it is pending, or make a plan after it",
+      );
       expect(old.replacedBy).toBeUndefined();
       expect(await store.inner.load("i1")).toBeUndefined();
     }
