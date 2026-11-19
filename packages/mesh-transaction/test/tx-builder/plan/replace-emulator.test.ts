@@ -3547,9 +3547,10 @@ describe("two payers beside a step in a block", () => {
    * The order: the shop's wallet pays the supplier in `a`, the treasury pays a partner in `t`.
    * `a` is in a block with few confirmations; `t` was held back and is past its end. A fork
    * taken before `a` landed is the chain a rollback goes back to. One ada of the supplier's
-   * payment is 11, of the partner's 14
+   * payment is 11, of the partner's 14. With `withB`, the wallet pays bob 12 in `b`, on the
+   * change of `a`, which lands too
    */
-  const order = async () => {
+  const order = async (withB = false) => {
     const ctx = await stepSetup("scalus", {
       funds: [100n * ADA, 50n * ADA],
       builder: { planDefaults: { ...FAST, confirmations: 1000 } },
@@ -3559,6 +3560,7 @@ describe("two payers beside a step in a block", () => {
     const old = await ctx.builder.plan(
       {
         a: payTo(alice, 11n * ADA),
+        ...(withB && { b: payTo(bob, 12n * ADA) }),
         t: { parts: payTo(dave, 14n * ADA), payer: treasury.other },
       },
       { id: "order", payer: ctx.wallet },
@@ -3567,10 +3569,11 @@ describe("two payers beside a step in a block", () => {
     const tHash = old.step("t").txHash;
     const relay = relayOf(ctx.emulator, (txHash) => txHash === tHash);
     await caught(old.run({ submitter: relay, timeoutMs: 300 }));
-    expect(statuses(old)).toEqual({ a: "included", t: "sent" });
+    const b = withB ? { b: "included" } : {};
+    expect(statuses(old)).toEqual({ a: "included", ...b, t: "sent" });
     advance(ctx.emulator, 700);
     await old.refresh();
-    expect(statuses(old)).toEqual({ a: "included", t: "expired" });
+    expect(statuses(old)).toEqual({ a: "included", ...b, t: "expired" });
     return {
       ...ctx,
       treasury,
@@ -3853,6 +3856,91 @@ describe("two payers beside a step in a block", () => {
     expect(await refused(emulator, made.step("both").signedTx!)).toBe(true);
     expect(times(emulator, alice, 11n * ADA)).toBe(1);
     expect(times(emulator, dave, 14n * ADA)).toBe(1);
+  });
+
+  it("the same rollback with a second step of the wallet on a: the look calls it orphaned, and past its end the refusal names it among those a rollback took out", async () => {
+    const ctx = await order(true);
+    const { treasury, before, old } = ctx;
+    const next = await old.replan({ id: "order:2" });
+    expect(names(next)).toEqual(["a", "b", "t"]);
+    expect(next.step("b").standsOn).toEqual(["a"]);
+    await next.run({ signers: [treasury.other], waitFor: "included" });
+    expect(statuses(next)).toEqual({
+      a: "included",
+      b: "included",
+      t: "included",
+    });
+    rollBack(ctx, before);
+    await next.refresh();
+    await next.refresh();
+    before.advanceTo({ slot: before.slot + 700 });
+    await next.refresh();
+    await next.refresh();
+    expect(statuses(next)).toEqual({
+      a: "expired",
+      b: "orphaned",
+      t: "expired",
+    });
+    expect(next.step("b").seen).toBeDefined();
+    const a = next.step("a").txHash;
+    const b = next.step("b").txHash;
+    const t = next.step("t").txHash;
+    for (let i = 0; i < 2; i++) {
+      const error = await caught(next.replan({ id: "order:3" }));
+      takenOut(error, [t, a, b]);
+      expect(error.message).toBe(
+        `step "t" (${t}), step "a" (${a}), step "b" (${b}) of this plan or a plan before it were in a block, a rollback took them out, and their ends of validity have passed: they land again only if the chain goes back to the blocks that held them. No plan is made in its place, as no step built by default can be kept apart from them: steps that spend an input of each such transaction can (their payers sign them together); else the application decides how to pay what is left. ${NOT_UNPAID}`,
+      );
+      before.advanceTo({ slot: before.slot + 1000 });
+    }
+    expect(next.replacedBy).toBeUndefined();
+    expect(times(before, alice, 11n * ADA)).toBe(0);
+    expect(times(before, bob, 12n * ADA)).toBe(0);
+    expect(times(before, dave, 14n * ADA)).toBe(0);
+  });
+
+  it("an old step found in a block before the plan in its place was made, then out of it past its end: its entry keeps no end, and add and replan of a step of another payer give the message of any pair", async () => {
+    const ctx = await stepSetup("scalus", {
+      funds: [100n * ADA, 50n * ADA],
+      builder: { planDefaults: { ...FAST, confirmations: 1000 } },
+    });
+    const { emulator, builder, wallet } = ctx;
+    const treasury = await treasuryOf(emulator);
+    const before = emulator.fork();
+    const old = await builder.plan(
+      { x: payTo(alice, 11n * ADA) },
+      { id: "order", payer: wallet },
+    );
+    await old.run({ waitFor: "included" });
+    const x = old.step("x").txHash;
+    // A rollback inside the end of x: out of its block, it may land again
+    rollBack(ctx, before);
+    await old.refresh();
+    await old.refresh();
+    expect(old.step("x").status).toBe("sent");
+    expect(old.step("x").seen).toBeDefined();
+    const next = await old.replan({ id: "order:2", ttlMs: 3_600_000 });
+    const entry = next.toJSON().before!.open.find((each) => each.txHash === x)!;
+    expect(entry.seenBefore).toBeDefined();
+    expect(entry.until).toBeUndefined();
+    // Past the end of x and any margin
+    before.advanceTo({ slot: before.slot + 2000 });
+    const d = { d: { parts: payTo(dave, 14n * ADA), payer: treasury.other } };
+    const added = await caught(next.add(d));
+    expect([added.code, added.retryable]).toEqual(["STILL_LIVE", false]);
+    expect(added.details).toEqual({ txHashes: [x] });
+    expect(added.message).toMatch(
+      new RegExp(`^a step built could land beside step "x" \\(${x}\\) `),
+    );
+    const replanned = await caught(next.replan({ id: "order:3", steps: d }));
+    expect([replanned.code, replanned.retryable]).toEqual([
+      "STILL_LIVE",
+      false,
+    ]);
+    expect(replanned.details.txHashes).toContain(x);
+    expect(replanned.message).toMatch(/^a step built could land beside /);
+    expect(names(next)).toEqual(["x"]);
+    expect(times(before, dave, 14n * ADA)).toBe(0);
   });
 });
 

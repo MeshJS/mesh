@@ -1017,6 +1017,53 @@ describe("lineClasses and beforeOf", () => {
     ]);
   });
 
+  it("calls gone an expired step and an orphaned one that were found in a block once, past their own ends and the margin, never dead", () => {
+    // b and c in a block, then out of it past their end: b expired, c on it orphaned
+    const inBlock = accept(record(), {
+      type: "observation",
+      tip: tip(0, 100),
+      sightings: [
+        found(hash(0xa1), { blockHeight: 99 }),
+        found(hash(0xa2), { blockHeight: 99 }),
+      ] as TxSighting[],
+    });
+    expect([stepOf(inBlock, "b").status, stepOf(inBlock, "c").status]).toEqual([
+      "included",
+      "included",
+    ]);
+    const out = accept(inBlock, {
+      type: "observation",
+      tip: tip(UNTIL + MARGIN),
+      sightings: [
+        missing(hash(0xa1)),
+        missing(hash(0xa2)),
+        found(SOURCE),
+      ] as TxSighting[],
+    });
+    expect([stepOf(out, "b").status, stepOf(out, "c").status]).toEqual([
+      "expired",
+      "orphaned",
+    ]);
+    expect(stepOf(out, "c").seen).toBeDefined();
+    const marks = (answers: LookAnswer[], at: PlanTip) =>
+      lineClasses(out, answers, at).open.map(
+        (tx) => `${tx.step}${tx.dead ? ":dead" : ""}${tx.gone ? ":gone" : ""}`,
+      );
+    const notFound = [missing(hash(0xa1)), missing(hash(0xa2))];
+    expect(marks(notFound, tip(UNTIL + MARGIN))).toEqual(["b:gone", "c:gone"]);
+    // The orphaned one before its own end and the margin have passed, by the tip or the clock
+    expect(marks(notFound, tip(UNTIL + MARGIN - 1))).toEqual(["b:gone", "c"]);
+    expect(
+      marks(notFound, { ...tip(UNTIL + MARGIN), clockMs: UNTIL + MARGIN - 1 }),
+    ).toEqual(["b:gone", "c"]);
+    // Without the answer "not found" of this look
+    expect(marks([missing(hash(0xa1))], tip(UNTIL + MARGIN))).toEqual([
+      "b:gone",
+      "c",
+    ]);
+    expect(marks([], tip(UNTIL + MARGIN))).toEqual(["b", "c"]);
+  });
+
   it("lets the look decide for an entry, and for a failed step", () => {
     const entries = [
       {

@@ -1148,7 +1148,6 @@ export class TxPlan {
           base,
           tip,
           "nothing was added",
-          "No step is added to the plan",
         );
         this.#refuseStandingOnOpen(newSteps, line);
         this.#refuseHeld(apart.held, base);
@@ -1737,12 +1736,12 @@ export class TxPlan {
       taken,
       made.steps.map((step) => step.built.txHash),
     );
+    this.#refuseGone(apart.pairs);
     const dead = this.#judgePairs(
       apart.pairs,
       base,
       tip,
       "nothing was written",
-      "No plan is made in its place",
     );
     this.#refuseStandingOnOpen(made.steps, classes.open);
     this.#refuseHeld(apart.held);
@@ -2220,13 +2219,38 @@ export class TxPlan {
   }
 
   /**
+   * STILL_LIVE of `replan` when every transaction that is not dead in the pairs `landsBeside`
+   * gives is gone (found in a block once, out of it now past its end of validity and the
+   * margin): the message says so, names the steps that are kept apart from them, and that else
+   * the application decides. `add` judges no gone transaction: an entry it reads was never found
+   * in a block, or has no end in the record
+   * @throws TxPlanError STILL_LIVE
+   */
+  #refuseGone(pairs: readonly { readonly open: readonly LineTx[] }[]) {
+    const live = new Map<string, LineTx>();
+    for (const pair of pairs)
+      for (const tx of pair.open) if (tx.dead !== true) live.set(tx.txHash, tx);
+    const txs = [...live.values()];
+    if (txs.length === 0 || !txs.every((tx) => tx.gone === true)) return;
+    const named = txs
+      .map((tx) => `step ${JSON.stringify(tx.step)} (${tx.txHash})`)
+      .join(", ");
+    const one = txs.length === 1;
+    // Each was in a block, and only a chain that goes back to that block lands it. A step of one
+    // payer holds no input of another payer's old step, so the steps built by default are not
+    // kept apart from them; steps that spend an input of each are, signed by their payers
+    throw this.#error(
+      "STILL_LIVE",
+      `${named} of this plan or a plan before it ${one ? "was" : "were"} in a block, a rollback took ${one ? "it" : "them"} out, and ${one ? "its end" : "their ends"} of validity ${one ? "has" : "have"} passed: ${one ? "it lands" : "they land"} again only if the chain goes back to the blocks that held ${one ? "it" : "them"}. No plan is made in its place, as no step built by default can be kept apart from ${one ? "it" : "them"}: steps that spend an input of each such transaction can (their payers sign them together); else the application decides how to pay what is left`,
+      { details: { txHashes: [...live.keys()] } },
+    );
+  }
+
+  /**
    * The pairs `landsBeside` gives, judged: a transaction that is dead passes; any other refuses
    * the call, STILL_LIVE, with every such hash and, when time settles them all, `safeAfter`,
-   * never in the past: past it, CANNOT_OBSERVE (`unconfirmed`), the look did not settle them.
-   * When every such transaction is gone (a rollback took it out of its block, past its end of
-   * validity and the margin), the message says so, and that the application decides
-   * @param done What the call did not do, in the usual message
-   * @param notMade What the call does not make, in the message of the gone ones
+   * never in the past: past it, CANNOT_OBSERVE (`unconfirmed`), the look did not settle them
+   * @param done What the call did not do
    * @returns the dead transactions a step passed beside
    * @throws TxPlanError STILL_LIVE
    */
@@ -2235,7 +2259,6 @@ export class TxPlan {
     base: PlanRecord,
     tip: PlanTip,
     done: string,
-    notMade: string,
   ): LineTx[] {
     const live = new Map<string, LineTx>();
     const dead = new Map<string, LineTx>();
@@ -2261,17 +2284,6 @@ export class TxPlan {
     const named = txs
       .map((tx) => `step ${JSON.stringify(tx.step)} (${tx.txHash})`)
       .join(", ");
-    // Each was in a block, and only a chain that goes back to that block lands it. A step of one
-    // payer holds no input of another payer's old step, so the steps built by default are not
-    // kept apart from them; steps that spend an input of each are, signed by their payers
-    if (txs.every((tx) => tx.gone === true)) {
-      const one = txs.length === 1;
-      throw this.#error(
-        "STILL_LIVE",
-        `${named} of this plan or a plan before it ${one ? "was" : "were"} in a block, a rollback took ${one ? "it" : "them"} out, and ${one ? "its end" : "their ends"} of validity ${one ? "has" : "have"} passed: ${one ? "it lands" : "they land"} again only if the chain goes back to the blocks that held ${one ? "it" : "them"}. ${notMade}, as no step built by default can be kept apart from ${one ? "it" : "them"}: steps that spend an input of each such transaction can (their payers sign them together); else the application decides how to pay what is left`,
-        { details: { txHashes: [...live.keys()] } },
-      );
-    }
     throw this.#error(
       "STILL_LIVE",
       `a step built could land beside ${named} of this plan or a plan before it, which may still land and share no input with it: ${done}; ${

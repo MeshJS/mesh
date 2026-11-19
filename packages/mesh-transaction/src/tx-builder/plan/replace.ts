@@ -95,7 +95,8 @@ export type LineTx = {
   readonly dead?: true;
   /**
    * Found in a block once, and out of it by a look that would call it dead had it never been
-   * found: it lands again only if the chain goes back to the blocks that held it
+   * found, or an orphaned step past its own end and the margin: it lands again only if the
+   * chain goes back to the blocks that held it
    */
   readonly gone?: true;
 };
@@ -427,7 +428,9 @@ const expiredOf = (tx: LineTx): LineTx =>
  *   the margin the tip and the clock have both passed (as a step expires), that the look did not
  *   find, while it found the transaction of one of its spent inputs in a block; and one that
  *   stands on a dead one. Gone: one of those two with `seen`, which a rollback took out of its
- *   block; never dead, as the chain may go back to that block.
+ *   block, and an `orphaned` step with `seen` that the look answered it did not find, past its
+ *   own end and the margin by the tip and the clock; never dead, as the chain may go back to that
+ *   block.
  *
  * `base` is the record after the look; `answers` what its searches said; `tip` its tip, with the
  * local clock it was read by. A final plan is the caller's to refuse.
@@ -445,6 +448,7 @@ export const lineClasses = (
   const unconfirmed: LineTx[] = [];
   const noValidity: LineTx[] = [];
   const taken: LineTx[] = [];
+  const margin = base.deadlines.expiryMarginMs;
   const byAnswer = (tx: LineTx, answer: LookAnswer | undefined) => {
     if (answer?.found !== true) return open.push(tx);
     const outcome = byFind(base, tx, answer, tip);
@@ -473,15 +477,17 @@ export const lineClasses = (
       unconfirmed.push(tx);
     } else {
       // Dead only by what this look answered: a search that failed or is not supported says
-      // nothing, whatever the record says
-      open.push(
-        step.status === "expired" && answer?.found === false
-          ? expiredOf(tx)
-          : tx,
-      );
+      // nothing, whatever the record says. An orphaned step found in a block once, past its own
+      // end and the margin, is gone as an expired one is: it lands again only with the step it
+      // stands on, if the chain goes back to the blocks that held them
+      const expired =
+        step.status === "expired" ||
+        (step.status === "orphaned" &&
+          tx.seen !== undefined &&
+          pastMarginAt(tx.until, margin, tip));
+      open.push(expired && answer?.found === false ? expiredOf(tx) : tx);
     }
   }
-  const margin = base.deadlines.expiryMarginMs;
   for (const entry of base.before?.open ?? []) {
     const tx = lineTxOf(entry);
     const answer = answerOf.get(tx.txHash);
