@@ -737,12 +737,20 @@ export class TxPlan {
     return viewOf(step);
   }
 
-  /** The steps found in a block: `included` and `final` */
+  /**
+   * The steps found in a block: `included` and `final`. A step a plan made by `replan` holds of
+   * the plan before it is here at once, and out of it after a rollback until a look finds it
+   * again
+   */
   get landed(): readonly TxStep[] {
     return landedSteps(stateOf(this).record).map(viewOf);
   }
 
-  /** The steps that are not in a block and may still land: neither expired, failed nor orphaned */
+  /**
+   * The steps that are not in a block and may still land: neither expired, failed nor orphaned.
+   * A step a plan made by `replan` holds of the plan before it is here while a rollback has it
+   * out of its block
+   */
   get live(): readonly TxStep[] {
     return liveSteps(stateOf(this).record).map(viewOf);
   }
@@ -760,7 +768,8 @@ export class TxPlan {
 
   /**
    * The time after which no step that is not in a block can land: the latest end of validity
-   * among its transactions, POSIX ms. Undefined when a transaction of it has none
+   * among its transactions, POSIX ms, those it holds of the plan before it among them. Undefined
+   * when a transaction of it has none
    */
   get until(): number | undefined {
     return planUntil(stateOf(this).record);
@@ -774,7 +783,8 @@ export class TxPlan {
   /**
    * The steps that were never found in a block, as `builder.plan` takes them: the parts a step
    * was given, links kept, with its own options. A step that is in a block, or was found in one
-   * and rolled back, is not among them, nor is a consolidation step. A step that had a payer of
+   * and rolled back, is not among them, nor is a consolidation step, nor a step a plan made by
+   * `replan` holds of the plan before it. A step that had a payer of
    * its own comes back with that payer's change address as its payer, so that it is built on
    * that payer's UTxOs and never on another's; the application may give the payer itself in its
    * place.
@@ -1279,7 +1289,9 @@ export class TxPlan {
    * steps its look shows open, as `rest` gives a step, less a failed one; with `steps`, those:
    * one list of parts or named steps, as `builder.plan` takes them. The other options are
    * those of `builder.plan`; where the call gives none, the payer this object holds and the
-   * deadlines and data options this plan records apply. `id` is the new plan's id.
+   * deadlines and data options this plan records apply. `id` is the new plan's id. A plan made
+   * with `steps` that pay what this plan was not to pay is followed by its own id: when this
+   * plan becomes final after all, that payment was not made.
    *
    * ```ts
    * const next = await plan.replan({ id: "order-7:2" });
@@ -1292,7 +1304,10 @@ export class TxPlan {
    *   the new plan: the same transaction under its name, with the witnesses and the block this
    *   plan records, marked `taken` in the record. The new plan looks for it, sends its bytes
    *   again after a rollback, and is final only once it is; every step built that pays anyone
-   *   stands on it, a link may name it, and its name is not given again. The call does not
+   *   stands on it, a link may name it, and its name is not given again. A new plan stopped by a
+   *   look that found a transaction of the plans before it sends nothing more, also not such a
+   *   step that a rollback took out of its block: it comes back only if the network lands it
+   *   again, and otherwise `replan` of the stopped plan builds it again. The call does not
    *   wait for final:
    *   after a rollback that is not undone the steps built cannot land, the new plan stops, and
    *   `replan` of it builds what is left again, a step whose end of validity came from `ttlMs`

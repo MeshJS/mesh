@@ -37,7 +37,8 @@ export type StepRecord = {
   readonly name: string;
   /**
    * `"consolidation"` for a step the plan put in itself; `"prebuilt"` for a transaction given
-   * built, which no call of the plan hands to a signer
+   * built, which the call's signers, else the plan's payer, sign as any step; a witness from a
+   * party that is no signer of the call comes through `addWitnesses`
    */
   readonly kind?: "consolidation" | "prebuilt";
   /** The step was appended to a plan that had steps */
