@@ -508,26 +508,63 @@ export const lineClasses = (
 };
 
 /**
- * The first step built that does not stand on every taken step, through the steps of the new
- * plan, with the first taken step it does not stand on; undefined when each stands on all. A
- * step stands on another by a regular output of it, never by its collateral return. A
- * consolidation step, which pays its payer alone, is not judged. After a rollback a step that
- * does not stand on a taken one could land without a step its plan counts as made
+ * The pairs `landsBeside` gives, less the open transactions that only a taken step keeps from
+ * landing beside a step built, and the first of those with the first taken step that keeps it.
+ *
+ * An open transaction is held by a taken step when the kept steps and the taken steps together
+ * settle it (it, or one it stands on, spends an out ref one of them spends) and it is not dead:
+ * once that taken step is final it is settled, and the pair is gone. Until then it may land
+ * beside the step built after a rollback that is not undone, so no judgement of time or of a
+ * shared input passes it, and none refuses it for good. An open transaction that is dead passes
+ * as `landsBeside`'s caller judges it; one that the kept steps settle is in no pair.
+ *
+ * @param pairs What `landsBeside` gave for these arguments
+ * @param open The open transactions of the line, as `landsBeside` was given them
+ * @param kept The kept transactions of the line, as `landsBeside` was given them
+ * @param taken The taken steps, in the order of their plan
+ * @param made The hashes of the steps judged, as `landsBeside` reads them
+ * @returns the pairs without the held transactions, a pair with none left dropped; and the first
+ *   held one, with the step built it is a pair of and the taken step, if any is held
  */
-export const notOnTaken = <T extends LineInput>(
-  built: readonly T[],
+export const heldByTaken = <T extends LineInput>(
+  pairs: readonly { readonly step: T; readonly open: readonly LineTx[] }[],
+  open: readonly LineTx[],
+  kept: readonly LineInput[],
   taken: readonly LineInput[],
-): { readonly step: T; readonly taken: LineTx } | undefined => {
-  const takenLines = taken.map(lineTxOf);
-  const lines = built.map(lineTxOf);
-  const pool = byHash([...lines, ...takenLines]);
-  for (const [i, line] of lines.entries()) {
-    if (line.consolidation === true) continue;
-    const below = new Set(closureOf(line, pool).map((tx) => tx.txHash));
-    const missed = takenLines.find((tx) => !below.has(tx.txHash));
-    if (missed !== undefined) return { step: built[i]!, taken: missed };
+  made: readonly string[],
+): {
+  readonly pairs: { readonly step: T; readonly open: LineTx[] }[];
+  readonly held?: {
+    readonly step: T;
+    readonly open: LineTx;
+    readonly taken: LineTx;
+  };
+} => {
+  const byTaken = new Set(
+    settled(open, [...kept, ...taken], made).map((tx) => tx.txHash),
+  );
+  const rest: { step: T; open: LineTx[] }[] = [];
+  let held:
+    | { readonly step: T; readonly open: LineTx; readonly taken: LineTx }
+    | undefined;
+  for (const pair of pairs) {
+    const left: LineTx[] = [];
+    for (const tx of pair.open) {
+      // The first taken step that settles it with the kept steps alone; none: it stays judged
+      const by =
+        byTaken.has(tx.txHash) && tx.dead !== true
+          ? taken.find((one) =>
+              settled(open, [...kept, one], made).some(
+                (each) => each.txHash === tx.txHash,
+              ),
+            )
+          : undefined;
+      if (by === undefined) left.push(tx);
+      else held ??= { step: pair.step, open: tx, taken: lineTxOf(by) };
+    }
+    if (left.length > 0) rest.push({ step: pair.step, open: left });
   }
-  return undefined;
+  return { pairs: rest, ...(held !== undefined && { held }) };
 };
 
 /* ---------------------------------------------------------------------------------------------

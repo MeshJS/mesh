@@ -52,7 +52,10 @@ import { alice, payTo } from "./run-util";
 //    followed by no delivery, signature or step;
 //  - a plan made in place of another holds as taken only steps that a revision of that plan
 //    held in a block or final, by name and hash, and before every other step; and no step it
-//    built that is no consolidation step is in a block of the chain while a taken step is not;
+//    built that is no consolidation step is in a block of the chain while a taken step is not.
+//    The run has one payer, so each step a plan builds stands on the taken step before it by the
+//    order rule, or the call waits for the payer's read to list that change: a step of another
+//    payer, which a plan may build beside a taken step, is not drawn here;
 //  - a terminal status (final, stopped), once an object or the store shows it, stays; so does
 //    the stop mark;
 //  - a final plan has every step in a block of the chain;
@@ -920,7 +923,9 @@ const run = async (seed: number) => {
   /**
    * A plan made in place of `replaces` takes only steps that a revision of that plan held in a
    * block or final, under the same name and hash, and they come first; a step of its first record
-   * that it built, no consolidation step, is in a block of the chain only if every taken step is
+   * that it built, no consolidation step, is in a block of the chain only if every taken step is.
+   * That holds here because the run has one payer, whose steps stand on each other: it is no
+   * property of a plan with steps of several payers
    */
   const checkTaken = async (
     id: string,

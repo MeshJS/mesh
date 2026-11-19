@@ -22,7 +22,6 @@ import {
   landsBeside,
   lineClasses,
   lineTxOf,
-  notOnTaken,
   outRefsOfParts,
   rootGuards,
   settled,
@@ -1289,61 +1288,5 @@ describe("the steps in a block", () => {
     expect(
       choice(rootGuards([r], new Map([["wallet", [owned(Y, 0)]]]), [pay("m")])),
     ).toEqual({ roots: { r: null }, added: [] });
-  });
-
-  it("tells a step built that does not stand on every taken step", () => {
-    const S = hash(0x41);
-    const s = step("s", body(S, [[X, 0]]));
-    const told = (built: readonly StepTx[], taken: readonly StepTx[]) => {
-      const found = notOnTaken(built, taken);
-      return found === undefined
-        ? undefined
-        : [found.step.name, found.taken.step];
-    };
-    // Directly
-    const t = step("t", body(hash(0x43), [[S, 1]]));
-    expect(told([t], [s])).toBeUndefined();
-    // Through two built steps
-    const t2 = step("t2", body(hash(0x46), [[hash(0x43), 0]]));
-    const t3 = step("t3", body(hash(0x47), [[hash(0x46), 1]]));
-    expect(told([t, t2, t3], [s])).toBeUndefined();
-    // Through a taken step that stands on a taken step
-    const s2 = step("s2", body(hash(0x48), [[S, 0]]));
-    const on2 = step("v", body(hash(0x49), [[hash(0x48), 1]]));
-    expect(told([on2], [s, s2])).toBeUndefined();
-    // A step of a second chain is told, with the first taken step it misses
-    const other = step("w", body(hash(0x4a), [[Y, 0]]));
-    expect(told([t, other], [s])).toEqual(["w", "s"]);
-    const onS = step("y", body(hash(0x4c), [[S, 1]]));
-    expect(told([onS], [s, s2])).toEqual(["y", "s2"]);
-    // So is a step that spends only the collateral return of a taken step
-    const onReturn = step("z", body(hash(0x4d), [[S, OUTPUTS]]));
-    expect(told([onReturn], [s])).toEqual(["z", "s"]);
-    // A step that reads an output of it, or puts one up, stands on it
-    const reads = step("rd", body(hash(0x4e), [[Y, 1]], { reads: [[S, 0]] }));
-    const putUp = step(
-      "pu",
-      body(hash(0x4f), [[Y, 2]], { collateral: [[S, 0]] }),
-    );
-    expect(told([reads, putUp], [s])).toBeUndefined();
-    // A consolidation step is not told; a step on its change is, when the consolidation step
-    // stands on no taken step
-    const lone = step(
-      "consolidate-1",
-      body(hash(0x50), [[Y, 3]]),
-      "consolidation",
-    );
-    const onLone = step("m", body(hash(0x51), [[hash(0x50), 0]]));
-    expect(told([lone], [s])).toBeUndefined();
-    expect(told([lone, onLone], [s])).toEqual(["m", "s"]);
-    const joined = step(
-      "consolidate-2",
-      body(hash(0x52), [[S, 1]]),
-      "consolidation",
-    );
-    const onJoined = step("n", body(hash(0x53), [[hash(0x52), 0]]));
-    expect(told([joined, onJoined], [s])).toBeUndefined();
-    // Undefined when none is taken
-    expect(told([other, onReturn], [])).toBeUndefined();
   });
 });

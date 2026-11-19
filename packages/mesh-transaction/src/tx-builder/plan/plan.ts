@@ -127,11 +127,11 @@ import {
 } from "./observer";
 import {
   beforeOf,
+  heldByTaken,
   keptNamesOf,
   landsBeside,
   leftOf,
   lineClasses,
-  notOnTaken,
   openAmong,
   outRefKey,
   settled,
@@ -1303,15 +1303,17 @@ export class TxPlan {
    *   output. A step of this plan that the look finds in a block, not final, becomes a step of
    *   the new plan: the same transaction under its name, with the witnesses and the block this
    *   plan records, marked `taken` in the record. The new plan looks for it, sends its bytes
-   *   again after a rollback, and is final only once it is; every step built that pays anyone
-   *   stands on it, a link may name it, and its name is not given again. A new plan stopped by a
-   *   look that found a transaction of the plans before it sends nothing more, also not such a
-   *   step that a rollback took out of its block: it comes back only if the network lands it
-   *   again, and otherwise `replan` of the stopped plan builds it again. The call does not
-   *   wait for final:
-   *   after a rollback that is not undone the steps built cannot land, the new plan stops, and
-   *   `replan` of it builds what is left again, a step whose end of validity came from `ttlMs`
-   *   with a new end. To wait as before, call once every step in `landed` is final.
+   *   again after a rollback, and is final only once it is; a link may name it, and its name is
+   *   not given again. A step built need not stand on it: one of its payer spends its change,
+   *   while one of another payer, or one given built that spends no output of it, is built and
+   *   recorded at once. A new plan stopped by a look that found a transaction of the plans
+   *   before it sends nothing more, also not such a step that a rollback took out of its block:
+   *   it comes back only if the network lands it again, and otherwise `replan` of the stopped
+   *   plan builds it again. The call does not wait for final: after a rollback that is not
+   *   undone a step built that stands on it cannot land, and one that does not may have landed.
+   *   The new plan then stops and is never final, and `replan` of it builds what is left again:
+   *   a step that landed is never built again, and a step whose end of validity came from `ttlMs`
+   *   gets a new end. To wait as before, call once every step in `landed` is final.
    * - Without `steps`, a step left whose own end of validity has passed (its parts give one, or
    *   it was given built) is refused: built again it could not land. So is a step given built
    *   that spends, reads or puts up an output of a step the new plan does not hold as the same
@@ -1320,16 +1322,16 @@ export class TxPlan {
    * - What the new plan cannot hold is waited for, CANNOT_OBSERVE (`unconfirmed`): a
    *   transaction in a block with a failed script, and a transaction of a plan before this one
    *   that a look found in a block, each until it is final; a step in a block this call's
-   *   search gave no answer for; a step built that cannot stand on every step in a block (a
-   *   step of another payer, a step given built that spends no output of it, a change the
-   *   payer's read does not list or `canSelect` refuses), until that step is final; a plan
-   *   whose every step is final or in a block, which has nothing left to pay, until it is final
-   *   (then INVALID_STATE, `final`): to pay more, `add` steps to it, unless it is stopped (by
-   *   `stop()`, a mark, or a look that found a transaction of the plans before it), which sends
-   *   nothing more: once a rollback leaves a step of it open the same call makes the plan in
-   *   its place. An address
-   *   that lists an output of a transaction of those plans the search does not find refuses
-   *   the call the same way.
+   *   search gave no answer for; a step built that cannot stand on the step before it of its
+   *   payer when that step is in a block (the payer's read does not list its change, or
+   *   `canSelect` refuses it), and an old transaction that only a step in a block keeps from
+   *   landing beside a step built that does not stand on that step, each until that step is
+   *   final; a plan whose every step is final or in a block, which has nothing left to pay,
+   *   until it is final (then INVALID_STATE, `final`): to pay more, `add` steps to it, unless it
+   *   is stopped (by `stop()`, a mark, or a look that found a transaction of the plans before
+   *   it), which sends nothing more: once a rollback leaves a step of it open the same call
+   *   makes the plan in its place. An address that lists an output of a transaction of those
+   *   plans the search does not find refuses the call the same way.
    * - Every other transaction of those plans is one the new plan must not land beside. The
    *   first step built for a payer spends an input of each that may still land and stands on
    *   no other, also of one called dead, that the payer still holds: the ledger then takes one
@@ -1651,22 +1653,31 @@ export class TxPlan {
         ),
     });
 
-    // Every step built that pays anyone stands on every taken step: none lands without them
-    const off = notOnTaken(made.steps, taken);
-    if (off !== undefined)
-      throw this.#unconfirmed(
-        `step ${JSON.stringify(off.step.name)} does not stand on step ${JSON.stringify(off.taken.step)} (${off.taken.txHash}), which is in a block and not final: after a rollback it could land without it; the call passes once that step is final`,
-        off.taken.txHash,
-      );
     // Every pair of a step built and an open transaction, judged on the bodies; the taken steps
     // are steps of the new plan the steps built may stand on
+    const pairs = landsBeside(made.steps, classes.open, classes.kept, taken);
+    // A transaction that only a taken step keeps from landing beside a step built is no case of
+    // time or of a shared input: the pair is gone once that step is final. The others first
+    const apart = heldByTaken(
+      pairs,
+      classes.open,
+      classes.kept,
+      taken,
+      made.steps.map((step) => step.built.txHash),
+    );
     const dead = this.#judgePairs(
-      landsBeside(made.steps, classes.open, classes.kept, taken),
+      apart.pairs,
       base,
       tip,
       "nothing was written",
     );
     this.#refuseStandingOnOpen(made.steps, classes.open);
+    const { held } = apart;
+    if (held !== undefined)
+      throw this.#unconfirmed(
+        `step ${JSON.stringify(held.step.name)} could land beside step ${JSON.stringify(held.open.step)} (${held.open.txHash}) of the plans before, which only step ${JSON.stringify(held.taken.step)} (${held.taken.txHash}), in a block and not final, keeps from landing: the call passes once that step is final`,
+        held.taken.txHash,
+      );
 
     // The provider, as for any new plan; then the mark; then the new record
     const probed = await probeProvider(
