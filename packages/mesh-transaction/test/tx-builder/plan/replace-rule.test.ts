@@ -1378,7 +1378,7 @@ describe("the steps in a block", () => {
       held: undefined,
     });
     // A transaction that no taken step keeps from landing stays in its pair, judged as before;
-    // so does one that is dead, which passes there by time
+    // one that is dead is held all the same: a rollback deeper than the margin brings it back
     const free = step("free", body(hash(0x4d), [[hash(0x4e), 0]]));
     const dead = { ...lineTxOf(r), dead: true as const };
     expect(told([u], [lineTxOf(free), lineTxOf(r)], [k], [s])).toEqual({
@@ -1386,8 +1386,13 @@ describe("the steps in a block", () => {
       held: ["u", "r", "s"],
     });
     expect(told([u], [dead], [k], [s])).toEqual({
-      pairs: { u: ["r"] },
-      held: undefined,
+      pairs: {},
+      held: ["u", "r", "s"],
+    });
+    const deadFree = { ...lineTxOf(free), dead: true as const };
+    expect(told([u], [deadFree, dead], [k], [s])).toEqual({
+      pairs: { u: ["free"] },
+      held: ["u", "r", "s"],
     });
     // The first step built that has one held, in the order of the steps built
     const v = step("v", body(hash(0x4f), [[hash(0x50), 0]]));

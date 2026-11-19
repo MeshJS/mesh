@@ -512,11 +512,11 @@ export const lineClasses = (
  * landing beside a step built, and the first of those with the first taken step that keeps it.
  *
  * An open transaction is held by a taken step when the kept steps and the taken steps together
- * settle it (it, or one it stands on, spends an out ref one of them spends) and it is not dead:
- * once that taken step is final it is settled, and the pair is gone. Until then it may land
- * beside the step built after a rollback that is not undone, so no judgement of time or of a
- * shared input passes it, and none refuses it for good. An open transaction that is dead passes
- * as `landsBeside`'s caller judges it; one that the kept steps settle is in no pair.
+ * settle it (it, or one it stands on, spends an out ref one of them spends), dead or not: once
+ * that taken step is final it is settled, and the pair is gone. Until then it may land beside
+ * the step built after a rollback that is not undone, also one called dead, which a rollback
+ * deeper than the margin brings back: no judgement of time or of a shared input passes it, and
+ * none refuses it for good. One that the kept steps settle is in no pair.
  *
  * @param pairs What `landsBeside` gave for these arguments
  * @param open The open transactions of the line, as `landsBeside` was given them
@@ -551,14 +551,13 @@ export const heldByTaken = <T extends LineInput>(
     const left: LineTx[] = [];
     for (const tx of pair.open) {
       // The first taken step that settles it with the kept steps alone; none: it stays judged
-      const by =
-        byTaken.has(tx.txHash) && tx.dead !== true
-          ? taken.find((one) =>
-              settled(open, [...kept, one], made).some(
-                (each) => each.txHash === tx.txHash,
-              ),
-            )
-          : undefined;
+      const by = byTaken.has(tx.txHash)
+        ? taken.find((one) =>
+            settled(open, [...kept, one], made).some(
+              (each) => each.txHash === tx.txHash,
+            ),
+          )
+        : undefined;
       if (by === undefined) left.push(tx);
       else held ??= { step: pair.step, open: tx, taken: lineTxOf(by) };
     }
