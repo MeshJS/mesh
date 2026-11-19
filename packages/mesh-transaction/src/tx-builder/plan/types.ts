@@ -69,7 +69,9 @@ export type StepOptions = Pick<
  * into a transaction; its parts with options of their own, `{ parts, payer?, ... }`; or a
  * transaction built before, as the object `build`, `finalize`, `fromCbor` or `restore` returns
  * or as CBOR hex. Such a transaction is taken as it is, with the witnesses it holds, and read
- * from its own bytes as `fromCbor` reads them. No call of the plan asks a signer for it
+ * from its own bytes as `fromCbor` reads them. `sign()` and `run()` hand it to signers as a step
+ * the plan built, for the keys that have not signed it yet: read a transaction of another party
+ * (`builder.fromCbor`) before it is given
  */
 export type PlanStep =
   StepParts | ({ readonly parts: StepParts } & StepOptions) | BuiltTx | string;
@@ -141,8 +143,8 @@ export type SignOptions = {
   /**
    * Who signs; else the plan's payer, when it can sign. Each is asked once for each step, in
    * order; a signer that takes a list of keys is handed those that have not signed yet, and a
-   * signer of transaction hashes is not asked when none is left. A step given built is never
-   * handed to a signer
+   * signer of transaction hashes is not asked when none is left. A step given built is signed
+   * as a step the plan built
    */
   signers?: Signer | readonly Signer[];
   /** Aborts the call with ABORTED; signatures already recorded stay */
@@ -156,7 +158,7 @@ export type SignOptions = {
 export type RunOptions = {
   /**
    * Who signs a step that still needs signatures when its turn comes; else the plan's payer. A
-   * step given built is never handed to a signer
+   * step given built is signed as a step the plan built
    */
   signers?: Signer | readonly Signer[];
   /**
@@ -240,7 +242,7 @@ export type TxStep = Readonly<BuiltTxData> & {
   readonly name: string;
   /**
    * `"consolidation"`: the plan put the step in itself. `"prebuilt"`: a transaction given built;
-   * `sign()` and `run()` ask no signer for it. Absent: built by the plan from the parts given
+   * `sign()` and `run()` sign it as a step the plan built. Absent: built by the plan from the parts given
    */
   readonly kind?: "consolidation" | "prebuilt";
   readonly status: TxStepStatus;

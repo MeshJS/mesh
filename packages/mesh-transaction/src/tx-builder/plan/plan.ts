@@ -824,12 +824,11 @@ export class TxPlan {
    * when its turn comes. A signer is waited for no longer than the step's end of validity, by
    * the tip read once before asking.
    *
-   * A step given as a transaction built before (`kind: "prebuilt"`) is left out: no signer,
-   * named or the payer, is handed its body. It is signed on its `BuiltTx` before it is given,
-   * after reading its `missing`, `collateral` and `warnings`, or takes witnesses through
-   * `addWitnesses`.
-   * @throws TxPlanError MISSING_SIGNATURES when a step the plan built needs keys and nobody can
-   *   sign;
+   * A step given as a transaction built before (`kind: "prebuilt"`) is signed as a step the
+   * plan built: the signers are handed its body, for the keys that have not signed it yet. A
+   * transaction of another party is read before it is given (its `missing`, `collateral` and
+   * `warnings`); a key the application does not want to sign it with is not among the signers.
+   * @throws TxPlanError MISSING_SIGNATURES when a step needs keys and nobody can sign;
    *   SIGN_DECLINED, SIGNER_FAILED, with the step in `error.step`: the witnesses already
    *   recorded stay; INVALID_STATE (`stopped`) for a plan that was stopped, a step of which
    *   will not land, or that came to `stopped` once
@@ -850,10 +849,7 @@ export class TxPlan {
       if (state.record.status === "final") return this;
       this.#refuseStopped(state);
       throwIfAborted(signal, CALL);
-      // A step given built is never handed to a signer
-      const needing = state.record.steps.filter(
-        (step) => step.kind !== "prebuilt" && needsWitnesses(step),
-      );
+      const needing = state.record.steps.filter(needsWitnesses);
       if (needing.length === 0) return this;
       const signers = given ?? (state.signer && [state.signer]);
       if (signers === undefined) throw this.#missingSignatures(needing[0]!);
@@ -1169,9 +1165,9 @@ export class TxPlan {
    * block after all, does the same: it waits for the steps it sent, and throws INVALID_STATE
    * (`stopped`) when the next step is one it never sent.
    *
-   * A step given as a transaction built before is never handed to a signer, the call's or the
-   * payer: one that lacks a key at its turn is MISSING_SIGNATURES, and nothing is sent; one sent
-   * by another party without every witness is waited for. A plan signs only what it built.
+   * A step given as a transaction built before is signed as a step the plan built, by the
+   * call's signers or the payer, and one sent by another party without every witness is offered
+   * to the call's signers as any step.
    * @throws TxPlanError with the step in `error.step`. REJECTED when the refusal counts: the step
    *   is `rejected`, and the same call sends the same bytes again. EXPIRED (`unsent` when the plan
    *   never sent it), SCRIPT_FAILED, ORPHANED when a step will not land: the plan does not go on.
@@ -2040,9 +2036,7 @@ export class TxPlan {
     const missing = missingOf(step);
     return this.#error(
       "MISSING_SIGNATURES",
-      step.kind === "prebuilt"
-        ? `${missing.length} key(s) the step needs have not signed it, and a plan signs only the transactions it built: sign the transaction before it is given, or give its witnesses to addWitnesses; nothing was sent`
-        : `${missing.length} key(s) the step needs have not signed it, and nobody in this call can sign: give signers, a payer that signs, or addWitnesses; nothing was sent`,
+      `${missing.length} key(s) the step needs have not signed it, and nobody in this call can sign: give signers, a payer that signs, or addWitnesses; nothing was sent`,
       { details: { missing }, step },
     );
   }
@@ -2657,8 +2651,6 @@ export class TxPlan {
   ) {
     const since = state.storeReads;
     const first = stepIn(state.record, name)!;
-    // The one place a plan asks a signer: never for a transaction given built
-    if (first.kind === "prebuilt") return;
     const keys = askedKeys(first.built.signers);
     const raw = readTransaction(first.built.tx);
     const until = stepUntil(first);
@@ -2817,8 +2809,6 @@ export class TxPlan {
             waited = true;
             continue;
           }
-          // A step given built is signed before it is given, or through addWitnesses
-          if (step.kind === "prebuilt") throw this.#missingSignatures(step);
           if (signedHere.has(step.name)) throw this.#missingSignatures(step);
           if (signers === undefined) throw this.#missingSignatures(step);
           await this.#signStep(
@@ -2861,13 +2851,8 @@ export class TxPlan {
         case "sent": {
           if (signedTxOf(step) === undefined) {
             // Sent by another party, and the plan does not hold every witness of it: the call's
-            // signers are asked once, but never for a step given built, and the step is waited
-            // for like any step sent
-            if (
-              signers !== undefined &&
-              step.kind !== "prebuilt" &&
-              !signedHere.has(step.name)
-            ) {
+            // signers are asked once, and the step is waited for like any step sent
+            if (signers !== undefined && !signedHere.has(step.name)) {
               await this.#signStep(
                 state,
                 step.name,

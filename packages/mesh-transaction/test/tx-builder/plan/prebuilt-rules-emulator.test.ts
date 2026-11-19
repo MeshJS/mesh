@@ -1,4 +1,5 @@
 import type { MeshWallet } from "@meshsdk/wallet";
+import { Crypto } from "@meshsdk/core-cst";
 
 import type { BuiltTx } from "../../../src/tx-builder";
 import {
@@ -9,6 +10,7 @@ import {
 } from "../../../src/tx-builder";
 import { recordOf } from "../../../src/tx-builder/plan/plan";
 import { arr, map, mapPairs, topItems, uint, witnessEntry } from "../cbor-util";
+import { hashSigner, testKey } from "../hash-signer-util";
 import {
   builderOf,
   caught,
@@ -22,7 +24,7 @@ import { gate, storeSetup } from "./store-util";
 // Rules of steps given built, and of the steps beside them, that hold apart from the rest: the
 // order through other steps, who is asked to sign, what is known first, the count of an object's
 // outputs, recorded steps in add, the call's signal, the plan payer's change address, the witness
-// set `rest` gives back, and `sign()` with no signer.
+// set `rest` gives back, `sign()` with no signer, and a witness that does not verify.
 
 const LONG = 120_000;
 
@@ -116,7 +118,7 @@ describe("rules of steps given built", () => {
   );
 
   it(
-    "asks no signer for a step given built that another party sent without every witness",
+    "asks the call's signers once for a step given built that another party sent without every witness",
     async () => {
       const ctx = await setup();
       const cbor = await takesFromWallet(ctx);
@@ -139,7 +141,8 @@ describe("rules of steps given built", () => {
       expect(resumed.step("swap").status).toBe("sent");
       expect(resumed.step("swap").signedTx).toBeUndefined();
       await resumed.run({ signers: payer, waitFor: "sent" });
-      expect(seen).not.toContain(swapHash);
+      expect(seen).toEqual([swapHash]);
+      expect(resumed.step("swap").missing).toEqual([]);
     },
     LONG,
   );
@@ -313,7 +316,7 @@ describe("rules of steps given built", () => {
   );
 
   it(
-    "sign() with no signer passes over a step given built",
+    "sign() with no signer is MISSING_SIGNATURES for a step given built, as for any step",
     async () => {
       const ctx = await setup();
       const cbor = await takesFromWallet(ctx);
@@ -323,7 +326,43 @@ describe("rules of steps given built", () => {
         { payer: ctx.address },
       );
       expect(plan.step("swap").status).toBe("built");
-      await plan.sign();
+      const error = await caught(plan.sign());
+      expect(TxPlanError.is(error, "MISSING_SIGNATURES")).toBe(true);
+      expect(error.step).toBe("swap");
+      expect(error.message).toMatch(
+        /nobody in this call can sign: give signers, a payer that signs, or addWitnesses/,
+      );
+      expect(plan.step("swap").status).toBe("built");
+    },
+    LONG,
+  );
+
+  it(
+    "refuses a witness for a step given built that does not verify, and keeps none of a key it does not need",
+    async () => {
+      await Crypto.ready();
+      const ctx = await setup();
+      const cbor = await takesFromWallet(ctx);
+      const plan = await ctx.builder.plan(
+        { swap: cbor },
+        { payer: ctx.address },
+      );
+      const record = plan.toJSON();
+      const key = testKey();
+      // A signature of another body
+      const forged = hashSigner("object", () => [
+        { vkey: key.vkey, signature: key.sign("cd".repeat(32)) },
+      ]);
+      const error = await caught(plan.sign({ signers: forged.signer }));
+      expect(TxPlanError.is(error, "SIGNER_FAILED")).toBe(true);
+      expect(error.step).toBe("swap");
+      expect(forged.requests).toHaveLength(1);
+      expect(plan.toJSON()).toEqual(record);
+      // A signature of the body by a key the step does not need
+      const other = hashSigner("object", ({ txHash }) => [key.answer(txHash)]);
+      await plan.sign({ signers: other.signer });
+      expect(other.requests).toHaveLength(1);
+      expect(plan.toJSON()).toEqual(record);
       expect(plan.step("swap").status).toBe("built");
     },
     LONG,

@@ -31,7 +31,7 @@ import {
   vkeyWitness,
   witnessEntry,
 } from "../cbor-util";
-import { testKey } from "../hash-signer-util";
+import { keysSigner, testKey } from "../hash-signer-util";
 import {
   advance,
   builderOf,
@@ -46,8 +46,8 @@ import { ADA, alice, bob, carol, paidTo, payTo, stepSetup } from "./run-util";
 import { storeSetup } from "./store-util";
 
 // A step of a plan given as a transaction built before: an object of `build`, `fromCbor` or
-// `restore`, or its CBOR. It is read from its own bytes, no call of the plan hands it to a
-// signer, and no other step spends or selects what it spends.
+// `restore`, or its CBOR. It is read from its own bytes, signed as a step the plan built, and no
+// other step spends or selects what it spends.
 
 const LONG = 120_000;
 
@@ -246,8 +246,9 @@ describe("a transaction built before as a step of a plan", () => {
   );
 
   it(
-    "takes the partner's transaction as CBOR",
+    "takes the partner's transaction as CBOR; a signer with no key it needs gives nothing, and addWitnesses signs it",
     async () => {
+      await Crypto.ready();
       const ctx = await setup();
       const fund = await deposit(ctx);
       const partnerCbor = await partnerSwap(ctx, fund);
@@ -264,13 +265,25 @@ describe("a transaction built before as a step of a plan", () => {
       );
       expect(plan.step("swap").kind).toBe("prebuilt");
       const submitter = forwarding(ctx.emulator);
-      const error = await caught(plan.run({ submitter }));
+      // A signer that holds none of the keys the step needs: asked once, for the wallet's key
+      const stranger = keysSigner("object", testKey());
+      const error = await caught(
+        plan.run({ submitter, signers: stranger.signer }),
+      );
       expect(TxPlanError.is(error, "MISSING_SIGNATURES")).toBe(true);
       expect(error.step).toBe("swap");
       expect(
         error.details.missing.map((k: { keyHash: string }) => k.keyHash),
       ).toEqual([ctx.walletKey]);
-      expect(error.message).toMatch(/signs only the transactions it built/);
+      expect(error.message).toMatch(
+        /nobody in this call can sign: give signers, a payer that signs, or addWitnesses/,
+      );
+      expect(stranger.requests.map((r) => r.txHash)).toEqual([
+        plan.step("swap").txHash,
+      ]);
+      expect(stranger.requests[0]!.keys!.map((k) => k.keyHash)).toEqual([
+        ctx.walletKey,
+      ]);
       expect(statuses(plan)).toMatchObject({ fund: "final", swap: "built" });
       const sent = await Promise.all(submitter.calls.map(hashOf));
       expect(sent).not.toContain(plan.step("swap").txHash);
@@ -287,73 +300,90 @@ describe("a transaction built before as a step of a plan", () => {
   );
 
   it(
-    "asks no signer for a prebuilt step",
+    "signs a prebuilt step as a step the plan built: the payer by sign() and by run(), signers named by sign({ signers })",
     async () => {
       const ctx = await setup();
       const small = ctx.funded[1]!;
       const cbor = await takesFromWallet(ctx, small);
-      const hashOfSwap = await hashOf(cbor);
+      const swapHash = await hashOf(cbor);
       const submitter = forwarding(ctx.emulator);
 
-      // The plan's payer signs: by sign() and by run()
-      const byPayer = recording(ctx.wallet);
-      const first = await ctx.builder.plan(
-        { swap: cbor, pay: payTo(alice, 5n * ADA) },
-        { payer: byPayer.payer },
+      // The swap of the README: the partner's transaction read, then given with the wallet payer
+      const byRun = recording(ctx.wallet);
+      const swap = await ctx.builder.fromCbor(cbor);
+      expect(swap.missing.map((k) => k.keyHash)).toEqual([ctx.walletKey]);
+      const swapPlan = await ctx.builder.plan(
+        { swap, pay: payTo(alice, 5n * ADA) },
+        { payer: byRun.payer },
       );
-      await first.sign();
-      expect(byPayer.seen).toEqual([first.step("pay").txHash]);
-      expect(first.step("swap").status).toBe("built");
-      const byRun = await caught(first.run({ submitter }));
-      expect(TxPlanError.is(byRun, "MISSING_SIGNATURES")).toBe(true);
-      expect(byRun.step).toBe("swap");
-      expect(byPayer.seen).toEqual([first.step("pay").txHash]);
-      // The same after a restart: the record keeps the mark
-      const resumed = await ctx.builder.resume(first.toJSON(), {
-        payer: byPayer.payer,
+      // The payer by sign(), and again after a restart: the record keeps the mark
+      const bySign = recording(ctx.wallet);
+      const signing = await ctx.builder.plan(
+        { swap: cbor, pay: payTo(alice, 6n * ADA) },
+        { payer: bySign.payer },
+      );
+      const json = signing.toJSON();
+      await signing.sign();
+      expect(bySign.seen).toEqual([swapHash, signing.step("pay").txHash]);
+      expect(statuses(signing)).toEqual({ swap: "signed", pay: "signed" });
+      expect(signing.step("swap").missing).toEqual([]);
+      const byResume = recording(ctx.wallet);
+      const resumed = await ctx.builder.resume(json, {
+        payer: byResume.payer,
       });
       expect(resumed.step("swap").kind).toBe("prebuilt");
-      await resumed.sign();
-      const afterResume = await caught(resumed.run({ submitter }));
-      expect(TxPlanError.is(afterResume, "MISSING_SIGNATURES")).toBe(true);
-      expect(byPayer.seen).toEqual([first.step("pay").txHash]);
       expect(resumed.step("swap").status).toBe("built");
-
-      // Signers named in the call: by sign({ signers }) and by run({ signers })
+      await resumed.sign();
+      expect(byResume.seen).toEqual([swapHash, resumed.step("pay").txHash]);
+      expect(resumed.step("swap").status).toBe("signed");
+      // Signers named in the call, for a plan whose payer is an address
       const named = recording(ctx.wallet);
-      const second = await ctx.builder.plan(
-        { swap: cbor, pay: payTo(alice, 6n * ADA) },
-        { payer: ctx.address },
-      );
-      await second.sign({ signers: named.payer });
-      expect(named.seen).toEqual([second.step("pay").txHash]);
-      const third = await ctx.builder.plan(
+      const keyless = await ctx.builder.plan(
         { pay: payTo(alice, 7n * ADA), swap: cbor },
         { payer: ctx.address },
       );
-      const named3 = recording(ctx.wallet);
-      const error = await caught(
-        third.run({ signers: named3.payer, submitter }),
-      );
-      expect(TxPlanError.is(error, "MISSING_SIGNATURES")).toBe(true);
-      expect(error.step).toBe("swap");
-      expect(named3.seen).toEqual([third.step("pay").txHash]);
-      await second.sign({ signers: [named.payer] });
-      expect(named.seen).toEqual([second.step("pay").txHash]);
+      await keyless.sign({ signers: named.payer });
+      expect(named.seen).toEqual([keyless.step("pay").txHash, swapHash]);
+      expect(statuses(keyless)).toEqual({ pay: "signed", swap: "signed" });
+      // Signed already: a second call asks nobody
+      await keyless.sign({ signers: [named.payer] });
+      expect(named.seen).toHaveLength(2);
 
-      // Nothing of the partner's went out, and the wallet's UTxO is where it was
+      // run() alone signs and sends the swap
+      await swapPlan.run({ submitter });
+      expect(swapPlan.status).toBe("final");
+      expect(byRun.seen).toEqual([swapHash, swapPlan.step("pay").txHash]);
       const sent = await Promise.all(submitter.calls.map(hashOf));
-      expect(sent).not.toContain(hashOfSwap);
-      expect(sent).toEqual([third.step("pay").txHash]);
+      expect(sent).toEqual([swapHash, swapPlan.step("pay").txHash]);
+      expect(paidTo(ctx.emulator, alice)).toEqual([5n * ADA]);
       expect(
         ctx.emulator.utxos({ address: ctx.address }).map((u) => ref(u.input)),
-      ).toContain(ref(small.input));
+      ).not.toContain(ref(small.input));
     },
     LONG,
   );
 
   it(
-    "shows the collateral a prebuilt step puts up, and does not sign for it",
+    "run({ signers }) signs a prebuilt step that lacks a key of a signer it names",
+    async () => {
+      const ctx = await setup();
+      const cbor = await takesFromWallet(ctx, ctx.funded[1]!);
+      const swapHash = await hashOf(cbor);
+      const named = recording(ctx.wallet);
+      const plan = await ctx.builder.plan(
+        { pay: payTo(alice, 7n * ADA), swap: cbor },
+        { payer: ctx.address },
+      );
+      await plan.run({ signers: named.payer });
+      expect(plan.status).toBe("final");
+      expect(named.seen).toEqual([plan.step("pay").txHash, swapHash]);
+      expect(paidTo(ctx.emulator, alice)).toEqual([7n * ADA]);
+    },
+    LONG,
+  );
+
+  it(
+    "shows the collateral a prebuilt step puts up, and signs for it as for any step",
     async () => {
       await Crypto.ready();
       const ctx = await setup();
@@ -401,10 +431,13 @@ describe("a transaction built before as a step of a plan", () => {
       });
       expect(swap.collateral!.inputs.map(ref)).toEqual([ref(small.input)]);
       await plan.sign();
-      expect(seen).toEqual([plan.step("pay").txHash]);
-      const error = await caught(plan.run());
-      expect(TxPlanError.is(error, "MISSING_SIGNATURES")).toBe(true);
-      expect(seen).toEqual([plan.step("pay").txHash]);
+      expect(seen).toEqual([swap.txHash, plan.step("pay").txHash]);
+      expect(plan.step("swap").missing).toEqual([]);
+      expect(plan.step("swap").status).toBe("signed");
+      await plan.run();
+      expect(plan.status).toBe("final");
+      // Signed already: run() asks nobody
+      expect(seen).toHaveLength(2);
     },
     LONG,
   );
@@ -954,7 +987,8 @@ describe("a transaction built before as a step of a plan", () => {
         expect(swap.inputs.map((u) => u.address)).toContain(ctx.address);
         expect(swap.status).toBe("built");
         await plan.sign();
-        expect(seen).not.toContain(swap.txHash);
+        expect(seen).toEqual([swap.txHash, plan.step("pay").txHash]);
+        expect(plan.step("swap").status).toBe("signed");
       }
     },
     LONG,
@@ -1435,9 +1469,10 @@ describe("a transaction built before as a step of a plan", () => {
       const ctx = await setup();
       const fund = await deposit(ctx);
       const partnerCbor = await partnerSwap(ctx, fund);
+      // A payer that is an address: nobody signs the swap
       const plan = await ctx.builder.plan(
         { fund, swap: partnerCbor },
-        { payer: ctx.wallet },
+        { payer: ctx.address },
       );
       const error = await caught(plan.run());
       expect(TxPlanError.is(error, "MISSING_SIGNATURES")).toBe(true);
