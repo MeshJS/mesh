@@ -521,7 +521,8 @@ export const lineClasses = (
  * @param pairs What `landsBeside` gave for these arguments
  * @param open The open transactions of the line, as `landsBeside` was given them
  * @param kept The kept transactions of the line, as `landsBeside` was given them
- * @param taken The taken steps, in the order of their plan
+ * @param taken The steps of the plan in a block and not final, in its order: of `replan` the
+ *   taken steps, of `add` the plan's `included` steps, taken or not
  * @param made The hashes of the steps judged, as `landsBeside` reads them
  * @returns the pairs without the held transactions, a pair with none left dropped; and the first
  *   held one, with the step built it is a pair of and the taken step, if any is held

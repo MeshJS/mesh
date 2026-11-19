@@ -979,9 +979,14 @@ export class TxPlan {
    *   may take an input that transaction spends, so that one of the two is refused.
    * - On a plan made by `replan`, no step added may land beside a transaction of the plans before
    *   it that may still land: one of another payer, which shares no input with it, is STILL_LIVE
-   *   until that transaction is dead.
+   *   until that transaction is dead. One that only a step of the plan in a block and not final
+   *   keeps from landing (it spends an input that step spends) is waited for, CANNOT_OBSERVE
+   *   (`unconfirmed`), until that step is final: after a rollback it could land beside the step
+   *   added. STILL_LIVE is told first.
    * @throws TxPlanError INVALID_STATE (`final`) for a final plan, (`stopped`) for a plan that
    *   is stopping or stopped; STILL_LIVE on a plan made by `replan`, as above, nothing added;
+   *   CANNOT_OBSERVE (`unconfirmed`, retryable after the builder's `pollMs`) on such a plan for
+   *   an old transaction only a step in a block keeps from landing, nothing added;
    *   VERSION_CONFLICT when another writer added other steps meanwhile,
    *   or the store refused four writes of the record (this call's, or that of its look at the
    *   chain): none of this call's steps is recorded, and the same call builds on the plan as it
@@ -1117,18 +1122,25 @@ export class TxPlan {
         }),
       });
       if (line !== undefined) {
+        const final = base.steps.filter((step) => step.status === "final");
+        // An old transaction that only a step of the plan in a block keeps from landing is
+        // waited for, as `replan` waits for it: the pair is gone once that step is final. The
+        // others first
+        const apart = heldByTaken(
+          landsBeside(newSteps, line, final, base.steps),
+          line,
+          final,
+          base.steps.filter((step) => step.status === "included"),
+          newSteps.map((step) => step.built.txHash),
+        );
         const dead = this.#judgePairs(
-          landsBeside(
-            newSteps,
-            line,
-            base.steps.filter((step) => step.status === "final"),
-            base.steps,
-          ),
+          apart.pairs,
           base,
           tip,
           "nothing was added",
         );
         this.#refuseStandingOnOpen(newSteps, line);
+        this.#refuseHeld(apart.held);
         told = dead;
       }
       // The event goes only to a record with the steps the build started from
@@ -1672,12 +1684,7 @@ export class TxPlan {
       "nothing was written",
     );
     this.#refuseStandingOnOpen(made.steps, classes.open);
-    const { held } = apart;
-    if (held !== undefined)
-      throw this.#unconfirmed(
-        `step ${JSON.stringify(held.step.name)} could land beside step ${JSON.stringify(held.open.step)} (${held.open.txHash}) of the plans before, which only step ${JSON.stringify(held.taken.step)} (${held.taken.txHash}), in a block and not final, keeps from landing: the call passes once that step is final`,
-        held.taken.txHash,
-      );
+    this.#refuseHeld(apart.held);
 
     // The provider, as for any new plan; then the mark; then the new record
     const probed = await probeProvider(
@@ -1762,6 +1769,27 @@ export class TxPlan {
       throw this.#unconfirmed(
         `step ${JSON.stringify(found.step.name)} spends, reads or puts up an output of step ${JSON.stringify(found.below.step)} (${found.below.txHash}) of the plans before, which the search does not find in a block: a plan stands on nothing the search does not find in a block`,
         found.below.txHash,
+      );
+  }
+
+  /**
+   * CANNOT_OBSERVE (`unconfirmed`) for an old transaction that only a step in a block and not
+   * final keeps from landing beside a step built, with that step's hash: once it is final the
+   * old transaction is settled, and the same call passes
+   */
+  #refuseHeld(
+    held:
+      | {
+          readonly step: { readonly name: string };
+          readonly open: LineTx;
+          readonly taken: LineTx;
+        }
+      | undefined,
+  ) {
+    if (held !== undefined)
+      throw this.#unconfirmed(
+        `step ${JSON.stringify(held.step.name)} could land beside step ${JSON.stringify(held.open.step)} (${held.open.txHash}) of the plans before, which only step ${JSON.stringify(held.taken.step)} (${held.taken.txHash}), in a block and not final, keeps from landing: the call passes once that step is final`,
+        held.taken.txHash,
       );
   }
 

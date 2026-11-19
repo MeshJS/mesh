@@ -3346,7 +3346,8 @@ describe("an old transaction that only a step in a block keeps from landing", ()
    * held by a relay (a0). O replaces it with a1, which shares the input X with a0 and spends the
    * voucher V besides, and a step `s` after it, sent and held; a1 lands, in a block and not final
    * (1000 confirmations). a0 is in `before.open` of O and not settled: only a1 keeps it from
-   * landing, and a step of N that does not stand on a1 could land beside it after a rollback
+   * landing, and a step of N that does not stand on a1 could land beside it after a rollback.
+   * `before`: the chain taken before a1 landed, where a0 can land
    */
   const line = async (options: { ends?: true } = {}) => {
     const ctx = await storeSetup({
@@ -3385,6 +3386,7 @@ describe("an old transaction that only a step in a block keeps from landing", ()
       true,
     );
     const sHash = o.step("s").txHash;
+    const before = emulator.fork();
     await caught(
       o.run({
         submitter: relayOf(emulator, (txHash) => txHash === sHash),
@@ -3396,6 +3398,7 @@ describe("an old transaction that only a step in a block keeps from landing", ()
     return {
       ...ctx,
       treasury,
+      before,
       o0,
       o,
       a0,
@@ -3628,5 +3631,109 @@ describe("an old transaction that only a step in a block keeps from landing", ()
     expect(times(fork, dave, 14n * ADA)).toBe(1);
     expect(times(fork, alice, 11n * ADA)).toBe(1);
     neverTwice(fork);
+  });
+
+  /**
+   * N in place of O: a1 taken, s built again on its change and given a long end, so that it
+   * waits for a1 to be final unsent
+   */
+  const replaced = async () => {
+    const ctx = await line();
+    const { emulator, o, a0 } = ctx;
+    advance(emulator, 700);
+    await o.refresh();
+    const n = await o.replan({ id: "order:3", ttlMs: 3_600_000 });
+    expect(names(n)).toEqual(["a", "s"]);
+    expect(n.toJSON().steps[0]!.taken).toBe(true);
+    expect(n.toJSON().before!.open.map((entry) => entry.txHash)).toContain(a0);
+    return { ...ctx, n };
+  };
+
+  /** The record of N holds the steps it was made with, and no other */
+  const nothingAdded = async (store: { inner: any }) => {
+    const record = (await store.inner.load("order:3"))!;
+    expect(record.steps.map((step: { name: string }) => step.name)).toEqual([
+      "a",
+      "s",
+    ]);
+  };
+
+  it("add of a step of another payer to a plan that holds the step in a block: the call waits for it and adds nothing; once it is final the same add passes, each recipient paid once", async () => {
+    const { emulator, store, wallet, treasury, n, a0, a1, hold0 } =
+      await replaced();
+    const call = () => n.add({ t: treasuryStep(treasury) });
+    const error = await caught(call());
+    expect([error.code, reasonOf(error), error.txHash]).toEqual([
+      "CANNOT_OBSERVE",
+      "unconfirmed",
+      a1,
+    ]);
+    expect([error.retryable, error.retryAfterMs]).toEqual([true, FAST.pollMs]);
+    expect(error.message).toContain(
+      `step "t" could land beside step "a" (${a0}) of the plans before, which only step "a" (${a1}), in a block and not final, keeps from landing`,
+    );
+    expect(names(n)).toEqual(["a", "s"]);
+    await nothingAdded(store);
+    advance(emulator, 1);
+    expect((await caught(call())).txHash).toBe(a1);
+    // Once a1 is final, a0 is settled, and the same add passes
+    advance(emulator, 1000);
+    await call();
+    expect(names(n)).toEqual(["a", "s", "t"]);
+    await n.run({ signers: [wallet, treasury.other], waitFor: "included" });
+    advance(emulator, 1000);
+    await n.refresh();
+    expect(n.status).toBe("final");
+    expect(await refused(emulator, hold0.kept[0]!)).toBe(true);
+    expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    expect(times(emulator, bob, 12n * ADA)).toBe(1);
+    expect(times(emulator, dave, 14n * ADA)).toBe(1);
+    neverTwice(emulator);
+  });
+
+  it("add beside a pair that nothing keeps apart and a pair held by the step in a block: STILL_LIVE comes first", async () => {
+    // s is not past its end: N builds it again on the change of a1, and the old s may still land
+    const { store, treasury, o, sHash } = await line();
+    const n = await o.replan({ id: "order:3" });
+    expect(names(n)).toEqual(["a", "s"]);
+    const error = await caught(n.add({ t: treasuryStep(treasury) }));
+    expect(error.code).toBe("STILL_LIVE");
+    expect(error.details.txHashes).toEqual([sHash]);
+    await nothingAdded(store);
+  });
+
+  it("add of a step of another payer to a plan that holds the step in a block: while it waits, the step in a block is rolled back for good and the old transaction lands; the plan stops and takes no step, nobody paid twice", async () => {
+    const ctx = await replaced();
+    const { emulator, provider, store, before, treasury, n, a0, a1, hold0 } =
+      ctx;
+    const call = () => n.add({ t: treasuryStep(treasury) });
+    expect((await caught(call())).txHash).toBe(a1);
+    // The chain everyone reads is the fork where a1 never landed; a0 lands there
+    before.advanceTo({ slot: emulator.slot + 1 });
+    provider.control.target = before;
+    expect(await refused(before, hold0.kept[0]!)).toBe(false);
+    advance(before, 1);
+    await n.refresh();
+    expect(n.toJSON().stopped).toBe(true);
+    const stopped = await caught(call());
+    expect([stopped.code, reasonOf(stopped)]).toEqual([
+      "INVALID_STATE",
+      "stopped",
+    ]);
+    await nothingAdded(store);
+    // Once a0 is final, a plan in place of N pays bob alone: a0 paid alice
+    advance(before, 1001);
+    const next = await n.replan({ id: "order:4" });
+    expect(names(next)).toEqual(["s"]);
+    expect(next.toJSON().before!.final).toEqual(["a"]);
+    await next.run({ waitFor: "included" });
+    advance(before, 1001);
+    await next.refresh();
+    expect(next.status).toBe("final");
+    expect(await refused(before, ctx.o.step("a").signedTx!)).toBe(true);
+    expect(times(before, alice, 11n * ADA)).toBe(1);
+    expect(times(before, bob, 12n * ADA)).toBe(1);
+    expect(times(before, dave, 14n * ADA)).toBe(0);
+    neverTwice(before);
   });
 });
