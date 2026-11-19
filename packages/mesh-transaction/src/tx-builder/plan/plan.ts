@@ -23,10 +23,11 @@ import type {
   MadePlan,
   MakePlanOptions,
   PlanOrder,
+  StandIns,
   StepInput,
 } from "./make";
 import type { ChainObserver, ObservedTip, TxSearch } from "./observer";
-import type { LineClasses, LineTx, LookAnswer } from "./replace";
+import type { LineClasses, LineInput, LineTx, LookAnswer } from "./replace";
 import type {
   PlanOptions,
   PlanStep,
@@ -1121,14 +1122,16 @@ export class TxPlan {
         ...(signal !== undefined && { signal }),
         ...(state.trace !== undefined && { trace: state.trace }),
         ...(line !== undefined && {
-          withReads: async (reads) => {
-            unread = await this.#refuseOpenOutputs(
+          withReads: async (reads, standIns) => {
+            ({ unread } = await this.#refuseOpenOutputs(
               state,
               base,
               line,
+              base.steps.filter((step) => step.status === "final"),
+              standIns,
               reads,
               ask,
-            );
+            ));
           },
         }),
       });
@@ -1679,6 +1682,8 @@ export class TxPlan {
     this.#clearVolatile(state);
     /** The addresses the cap left unread */
     let unread = 0;
+    /** An address a gone transaction pays went unread */
+    let goneUnread = false;
     const made = await buildReplan(builder, base, read, {
       id,
       options: callOptions,
@@ -1686,14 +1691,16 @@ export class TxPlan {
       asked: addressOf,
       tip,
       open: classes.open.filter((tx) => !settledOnes.has(tx)),
-      withReads: async (reads) => {
-        unread = await this.#refuseOpenOutputs(
+      withReads: async (reads, standIns) => {
+        ({ unread, goneUnread } = await this.#refuseOpenOutputs(
           state,
           base,
           classes.open,
+          classes.kept,
+          standIns,
           reads,
           ask,
-        );
+        ));
         // One that was delivered or found, and that this look does not call expired (its end
         // and the margin passed, and the search answered "not found"), may be in a block the
         // search does not show: waited for until its end and the margin have passed by the tip
@@ -1753,7 +1760,7 @@ export class TxPlan {
       taken,
       made.steps.map((step) => step.built.txHash),
     );
-    this.#refuseGone(apart.pairs);
+    this.#refuseGone(apart.pairs, goneUnread);
     const dead = this.#judgePairs(
       apart.pairs,
       base,
@@ -2165,29 +2172,45 @@ export class TxPlan {
    * transaction, whose collateral return is on chain for good, only its regular outputs count. A
    * read of an address that fails, or answers no list, refuses the call with its own error. The
    * addresses read are those a step that is dead, gone or used up pays, and those an entry of the
-   * plans before that is dead or gone pays, at most 16 in a call. An entry keeps the first 16
-   * addresses its transaction pays; those it could not keep are counted as unread, though a
-   * payer's read may have covered one: the count may be high, never low
+   * plans before that is dead or gone pays, at most 16 in a call: first those of a dead one the
+   * steps about to be built may land beside (one that may pass by time), then those of a gone
+   * one, then the rest. An entry keeps the first 16 addresses its transaction pays; those it
+   * could not keep are counted as unread, though a payer's read may have covered one: the count
+   * may be high, never low
    * @param open The open transactions of the line to match
-   * @returns how many addresses were left unread past the 16, with those entries could not keep
+   * @param kept The kept transactions of the line, as the pair rule is given them
+   * @param standIns What is sure of the steps about to be built
+   * @returns how many addresses were left unread past the 16, with those entries could not keep;
+   *   and whether an address of a gone transaction is among them
    * @throws TxBuildError PROVIDER_FAILED, MISSING_FETCHER
    */
   async #refuseOpenOutputs(
     state: PlanState,
     base: PlanRecord,
     open: readonly LineTx[],
+    kept: readonly LineInput[],
+    standIns: StandIns,
     reads: readonly { readonly read: PayerRead }[],
     ask: Ask,
-  ): Promise<number> {
+  ): Promise<{ readonly unread: number; readonly goneUnread: boolean }> {
     const stepOf = new Map(
       base.steps.map((step) => [step.txHash.toLowerCase(), step]),
     );
+    // The dead ones that may pass by time: the stand-ins may land beside them
+    const beside = new Set(
+      landsBeside(standIns.steps, open, kept, standIns.earlier).flatMap(
+        (pair) => pair.open.map((tx) => tx.txHash),
+      ),
+    );
     const byHash = new Map<string, LineTx>();
     const outputs = new Map<string, LineTx>();
-    /** The addresses the transactions that pass by time pay, in their order */
-    const paid: string[] = [];
-    /** The addresses the dead entries pay that they could not keep */
+    /** The addresses the transactions pay, by need: those that may pass by time first */
+    const passing: string[] = [];
+    const gone: string[] = [];
+    const rest: string[] = [];
+    /** The addresses the expired entries pay that they could not keep */
     let notKept = 0;
+    let goneNotKept = false;
     for (const tx of open) {
       const step = stepOf.get(tx.txHash);
       // A gone one is read as a dead one: a search that lost it may say it is in no block
@@ -2196,11 +2219,18 @@ export class TxPlan {
       else
         for (const output of step?.built.outputs ?? [])
           outputs.set(outRefKey(output.txHash, output.outputIndex), tx);
+      const into =
+        tx.dead === true && beside.has(tx.txHash)
+          ? passing
+          : tx.gone === true
+            ? gone
+            : rest;
       if (step !== undefined && (expired || tx.usedUp === true))
-        paid.push(...step.built.outputs.map((output) => output.address));
+        into.push(...step.built.outputs.map((output) => output.address));
       else if (step === undefined && expired) {
-        paid.push(...(tx.pays ?? []));
+        into.push(...(tx.pays ?? []));
         notKept += tx.paysMore ?? 0;
+        if (tx.gone === true && (tx.paysMore ?? 0) > 0) goneNotKept = true;
       }
     }
     const check = (utxo: { txHash: string; outputIndex: number }) => {
@@ -2220,30 +2250,39 @@ export class TxPlan {
         check(utxo);
       }
     }
-    // Those no read covered, at most 16
-    const unread = Array.from(new Set(paid)).filter(
+    // Those no read covered, at most 16, by need
+    const unread = Array.from(new Set([...passing, ...gone, ...rest])).filter(
       (address) => !covered.has(address),
     );
     const addresses = unread.splice(0, MAX_PAID_ADDRESSES);
-    if (addresses.length === 0) return unread.length + notKept;
+    const goneUnread =
+      goneNotKept || unread.some((address) => gone.includes(address));
+    const answer = { unread: unread.length + notKept, goneUnread };
+    if (addresses.length === 0) return answer;
     const fetcher = internals(state.builder).cache?.fetcher;
     const lists = await ask(
       Promise.all(addresses.map((address) => readAddress(fetcher, address))),
       "read",
     );
     for (const list of lists) for (const ref of list) check(ref);
-    return unread.length + notKept;
+    return answer;
   }
 
   /**
    * STILL_LIVE of `replan` when every transaction that is not dead in the pairs `landsBeside`
    * gives is gone (found in a block once, out of it now past its end of validity and the
    * margin): the message says what the look knows of them, and that the application decides how
-   * to pay what is left. `add` judges no gone transaction: an entry it reads was never found in
-   * a block, or has no end in the record
+   * to pay what is left. Not while an address a gone transaction pays went unread: what it would
+   * show is not known. `add` judges no gone transaction: an entry it reads was never found in a
+   * block, or has no end in the record
+   * @param goneUnread An address a gone transaction pays went unread
    * @throws TxPlanError STILL_LIVE
    */
-  #refuseGone(pairs: readonly { readonly open: readonly LineTx[] }[]) {
+  #refuseGone(
+    pairs: readonly { readonly open: readonly LineTx[] }[],
+    goneUnread: boolean,
+  ) {
+    if (goneUnread) return;
     const live = new Map<string, LineTx>();
     for (const pair of pairs)
       for (const tx of pair.open) if (tx.dead !== true) live.set(tx.txHash, tx);

@@ -1758,6 +1758,74 @@ describe("a plan in place of another", () => {
       ]);
       expect(names(next)).toEqual(["a"]);
     });
+
+    it("the addresses of an old transaction that may pass by time beside the step added are read before those of one the plan's steps keep apart", async () => {
+      const { emulator, provider, builder, wallet } = await stepSetup(
+        "scalus",
+        { funds: [100n * ADA, 50n * ADA] },
+      );
+      const partner = await walletOf(1);
+      const own = emulator.fund((await partner.getChangeAddress())!, {
+        lovelace: 100n * ADA,
+      });
+      const d = await builder.build(
+        [
+          spend.pubKey({ utxo: own }),
+          payTo(carol, 13n * ADA),
+          validity({ until: builder.timeAt(emulator.slot) + 300_000 }),
+        ],
+        { payer: partner },
+      );
+      await d.sign();
+      // g pays 17 addresses of its own: its entry keeps 16 of them
+      const many = Array.from({ length: 17 }, (_, i) =>
+        payTo(baseAddress(40 + i), 1_500_000n),
+      );
+      const old = await builder.plan(
+        { g: many, d },
+        { id: "order", payer: wallet },
+      );
+      await old.sign({ signers: [wallet] });
+      const held = new Set([old.step("g").txHash, d.txHash]);
+      await caught(
+        old.run({
+          submitter: relayOf(emulator, (txHash) => held.has(txHash)),
+          timeoutMs: 300,
+        }),
+      );
+      advance(emulator, 700);
+      await old.refresh();
+      expect(statuses(old)).toEqual({ g: "expired", d: "expired" });
+      // The wallet's h spends an input of g; d passes by time
+      const { events, trace } = tracer();
+      const next = await old.replan({
+        id: "order:2",
+        steps: { h: payTo(bob, 12n * ADA) },
+        trace,
+      });
+      expect(next.toJSON().before!.open.map((entry) => entry.step)).toEqual([
+        "g",
+        "d",
+      ]);
+      // The step added stands on h: g is kept apart from it, d is not
+      const read: string[] = [];
+      provider.control.hooks.fetchAddressUTxOs = (forward, address: string) => {
+        read.push(address);
+        return forward(address);
+      };
+      const told = events.length;
+      await next.add({ e: payTo(alice, 11n * ADA) });
+      expect(read).toContain(carol);
+      expect(
+        events
+          .slice(told)
+          .filter(
+            (event) =>
+              event.type === "warning" && event.code === "NO_SHARED_INPUT",
+          ),
+      ).toEqual([{ ...noSharedInput("d", d.txHash.toLowerCase()), unread: 4 }]);
+      expect(names(next)).toEqual(["h", "e"]);
+    });
   });
 
   it("tells NO_SHARED_INPUT only by a call that returns its plan", async () => {
@@ -3639,18 +3707,24 @@ describe("two payers beside a step in a block", () => {
    * `a` is in a block with few confirmations; `t` was held back and is past its end. A fork
    * taken before `a` landed is the chain a rollback goes back to. One ada of the supplier's
    * payment is 11, of the partner's 14. With `withB`, the wallet pays bob 12 in `b`, on the
-   * change of `a`, which lands too
+   * change of `a`, which lands too. With `more`, `a` pays that many addresses besides, 1.5 each
    */
-  const order = async (withB = false) => {
+  const order = async (withB = false, more = 0) => {
     const ctx = await stepSetup("scalus", {
       funds: [100n * ADA, 50n * ADA],
       builder: { planDefaults: { ...FAST, confirmations: 1000 } },
     });
     const treasury = await treasuryOf(ctx.emulator);
     const before = ctx.emulator.fork();
+    const besides = Array.from({ length: more }, (_, i) =>
+      payTo(baseAddress(60 + i), 1_500_000n),
+    );
     const old = await ctx.builder.plan(
       {
-        a: payTo(alice, 11n * ADA),
+        a:
+          more === 0
+            ? payTo(alice, 11n * ADA)
+            : [payTo(alice, 11n * ADA), ...besides],
         ...(withB && { b: payTo(bob, 12n * ADA) }),
         t: { parts: payTo(dave, 14n * ADA), payer: treasury.other },
       },
@@ -3860,6 +3934,42 @@ describe("two payers beside a step in a block", () => {
     expect(next.replacedBy).toBeUndefined();
     expect(times(before, alice, 11n * ADA)).toBe(0);
     expect(times(before, dave, 14n * ADA)).toBe(0);
+  });
+
+  it("the same rollback when a pays 16 addresses besides alice's: the cap leaves addresses of a unread, so the refusal is the one of any pair, which names steps under the names they pay for; with 14 every address is read and the refusal says what happened", async () => {
+    for (const [more, plain] of [
+      [16, false],
+      [14, true],
+    ] as const) {
+      const ctx = await order(false, more);
+      const { before, old } = ctx;
+      const next = await old.replan({ id: "order:2" });
+      rollBack(ctx, before);
+      await next.refresh();
+      await next.refresh();
+      before.advanceTo({ slot: before.slot + 700 });
+      await next.refresh();
+      expect(statuses(next)).toEqual({ a: "expired", t: "expired" });
+      const a = old.step("a").txHash;
+      const error = await caught(next.replan({ id: "order:3" }));
+      takenOut(error, [a]);
+      if (plain)
+        expect(error.message).toMatch(
+          new RegExp(
+            `^step "a" \\(${a}\\) of this plan or a plan before it was found in a block, the search does not find it now`,
+          ),
+        );
+      else {
+        expect(error.message).toMatch(
+          new RegExp(`^a step built could land beside step "a" \\(${a}\\) `),
+        );
+        expect(error.message).toContain(
+          "under the names of the steps they pay for, are the way",
+        );
+      }
+      expect(next.replacedBy).toBeUndefined();
+      expect(times(before, alice, 11n * ADA)).toBe(0);
+    }
   });
 
   it("a rollback takes a and the treasury's step out of their blocks: replan answers as for any pair while they are valid, and once both ends have passed says that a rollback took them out; nobody is paid", async () => {

@@ -2006,6 +2006,124 @@ describe("a step left whose end of validity has passed", () => {
   });
 });
 
+describe("the order of the address reads within their cap", () => {
+  /**
+   * A plan on a store of two steps past their ends: `g`, the wallet pays `count` addresses of
+   * its own 1.5 ada each; `d`, a partner's transaction given built that pays carol 13 ada,
+   * which lands while the search never finds it (dead, and on chain). With `found`, `g` lands,
+   * is found, and the chain everyone reads then is a fork that holds `d` and not `g` (gone);
+   * else a relay keeps `g` (dead). The step `c` the application then gives spends an input of
+   * `g`, its guard
+   */
+  const crowd = async (count: number, found: boolean) => {
+    const ctx = await storeSetup({
+      funds: [100n * ADA, 50n * ADA],
+      planDefaults: { ...FAST, confirmations: 1000 },
+    });
+    const { emulator, provider, builder, wallet } = ctx;
+    const partner = await walletOfIndex(1);
+    const own = emulator.fund((await partner.getChangeAddress())!, {
+      lovelace: 100n * ADA,
+    });
+    const built = await builder.build(
+      [
+        spend.pubKey({ utxo: own }),
+        output({ address: carol, value: { lovelace: 13n * ADA } }),
+        validity({ until: builder.timeAt(emulator.slot) + 300_000 }),
+      ],
+      { payer: partner },
+    );
+    await built.sign();
+    const many = Array.from({ length: count }, (_, i) =>
+      payTo(baseAddress(40 + i), 1_500_000n),
+    );
+    const old = await builder.plan(
+      { g: many, d: built },
+      { id: "order", payer: wallet },
+    );
+    const d = old.step("d").txHash;
+    const g = old.step("g").txHash;
+    provider.control.hooks.fetchTxInfo = (forward, hash: string) => {
+      if (hash.toLowerCase() === d)
+        throw Object.assign(new Error("not found"), {
+          kind: "notFound",
+          status: 404,
+        });
+      return forward(hash);
+    };
+    await old.sign({ signers: [wallet] });
+    await emulator.submitTx(old.step("d").signedTx!);
+    advance(emulator, 1);
+    let chain = emulator;
+    if (found) {
+      // A fork with d and without g
+      chain = emulator.fork();
+      await emulator.submitTx(old.step("g").signedTx!);
+      advance(emulator, 1);
+      await old.refresh();
+      expect(old.step("g").status).toBe("included");
+      chain.advanceTo({ slot: emulator.slot + 1 });
+      provider.control.target = chain;
+    } else
+      await caught(
+        old.run({
+          submitter: relayOf(emulator, (txHash) => txHash === g),
+          timeoutMs: 300,
+        }),
+      );
+    chain.advanceTo({ slot: chain.slot + 700 });
+    await old.refresh();
+    await old.refresh();
+    expect(statuses(old)).toEqual({ g: "expired", d: "expired" });
+    expect(old.step("g").seen !== undefined).toBe(found);
+    expect(old.step("d").seen).toBeUndefined();
+    expect(await chain.fetchTxInfo(d)).toBeDefined();
+    expect(times(chain, carol, 13n * ADA)).toBe(1);
+    return { ...ctx, chain, old, d };
+  };
+
+  /**
+   * CANNOT_OBSERVE (`unconfirmed`): carol's address lists the output of d; nothing written. The
+   * steps given: `c`, which pays carol, and those of `more`
+   */
+  const carolListsD = async (
+    ctx: Awaited<ReturnType<typeof crowd>>,
+    more: Record<string, unknown> = {},
+  ) => {
+    const { chain, old, store, d } = ctx;
+    const error = await caught(
+      old.replan({
+        id: "i1",
+        steps: { c: payTo(carol, 13n * ADA), ...more },
+      } as never),
+    );
+    expect([
+      error.code,
+      reasonOf(error),
+      error.txHash,
+      error.retryable,
+    ]).toEqual(["CANNOT_OBSERVE", "unconfirmed", d, true]);
+    expect(error.message).toContain(`, an output of step "d" (${d})`);
+    expect(old.replacedBy).toBeUndefined();
+    expect(await store.inner.load("i1")).toBeUndefined();
+    expect(times(chain, carol, 13n * ADA)).toBe(1);
+  };
+
+  it("a gone step that pays 16 addresses of its own, kept apart by the guard, beside a dead partner's transaction the search hides: the address of the dead one is read first and answers (CANNOT_OBSERVE)", async () => {
+    await carolListsD(await crowd(16, true));
+  });
+
+  it("the same gone step with 15 addresses: every address fits in the cap, and the call waits in the same way", async () => {
+    await carolListsD(await crowd(15, true));
+  });
+
+  it("a dead step that pays 16 addresses of its own, kept apart by the guard, beside the dead partner's transaction: the address of the one that may pass by time is read first and answers (CANNOT_OBSERVE); so with a second step of the wallet, which stands on the first", async () => {
+    const ctx = await crowd(16, false);
+    await carolListsD(ctx);
+    await carolListsD(ctx, { e: payTo(alice, 11n * ADA) });
+  });
+});
+
 describe("a plan with nothing left to pay", () => {
   /** A plan of one payment on a store, `a` in a block and three blocks short of final */
   const oneInBlock = async () => {
