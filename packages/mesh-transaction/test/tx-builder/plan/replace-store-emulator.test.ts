@@ -1528,6 +1528,45 @@ describe("a plan with nothing left to pay", () => {
   });
 });
 
+describe("edges of the refusals of replan", () => {
+  it("a stopped plan whose every step landed: the call waits with the stopped form of its message; after a rollback that leaves a step open the same call makes the plan", async () => {
+    const { emulator, store, wallet, instance, old, held } = await inBlock();
+    // A fork with a in its block and b, c in none
+    const mid = emulator.fork();
+    // A call that dies at its first record: the mark is written
+    const one = instance();
+    one.store.hooks.save = (forward, json, rev) => {
+      if (json.id === "i1") throw new Error("the process dies here");
+      return forward(json, rev);
+    };
+    const x = await one.builder.resume("order", { payer: wallet });
+    expect((await caught(x.replan({ id: "i1" }))).code).toBe("STORE_FAILED");
+    // Every step lands
+    await emulator.submitTx(held);
+    await emulator.submitTx(old.step("c").signedTx!);
+    const two = instance();
+    const y = await two.builder.resume("order", { payer: wallet });
+    const error = await caught(y.replan({ id: "i1" }));
+    expect([error.code, reasonOf(error), error.retryable]).toEqual([
+      "CANNOT_OBSERVE",
+      "unconfirmed",
+      true,
+    ]);
+    expect(error.message).toContain(
+      "the plan is stopped and sends nothing more; once its steps are final it is final, and after a rollback that leaves a step open the same call makes the plan in its place",
+    );
+    expect(error.message).not.toContain("add steps");
+    expect(await store.inner.load("i1")).toBeUndefined();
+    // A rollback takes b and c out of their blocks
+    mid.advanceTo({ slot: emulator.slot + 1 });
+    two.provider.control.target = mid;
+    const made = await y.replan({ id: "i1" });
+    expect(made.toJSON().steps[0]).toMatchObject({ name: "a", taken: true });
+    expect((await store.inner.load("i1"))!.replaces).toBe("order");
+    paidOnce(mid, true);
+  });
+});
+
 describe("a crash at every request of replan", () => {
   const STORE_KINDS: readonly StoreFault[] = ["hangBefore", "hangAfter"];
 

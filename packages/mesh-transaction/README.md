@@ -778,12 +778,14 @@ of the old plan, and carry on. Never
   plan looks for it, sends its bytes again after a rollback, and is `final` only once it is. Every
   step it builds stands on that step, but a consolidation step, which pays the payer alone; a link
   may name it, and its name is not given again. It is in the new plan's `landed` at once, and out
-  of it after a rollback until a look finds it again; in `live` while it is out of its block; never
+  of it after a rollback until a look finds it again; in `live` while it is out of its block and may still land; never
   in `rest`; `until` counts its end of validity. Its fee is in both plans' `fee`. The call does not
   wait for `final`: to have it wait, call once every step in `landed` is `final`. A plan whose
   every step is final or in a block has nothing left to pay: `replan` of it waits
   (`CANNOT_OBSERVE`, `unconfirmed`) and is `INVALID_STATE` (`final`) once it is final; to pay
-  more, `plan.add` steps to it.
+  more, `plan.add` steps to it. A stopped one (by `stop()`, a mark, or a look that found an old
+  transaction) sends nothing more and takes no step: once a rollback leaves a step of it open,
+  the same call makes the plan in its place.
 - After a rollback that is not undone (the step's end of validity passed, or another transaction
   took its input) the steps built cannot land. The new plan shows it: that step `expired`, the
   steps on it `orphaned`, the plan `stopped` and never `final`. `replan` of it builds what is left

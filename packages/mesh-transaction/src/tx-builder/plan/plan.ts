@@ -1324,7 +1324,10 @@ export class TxPlan {
    *   step of another payer, a step given built that spends no output of it, a change the
    *   payer's read does not list or `canSelect` refuses), until that step is final; a plan
    *   whose every step is final or in a block, which has nothing left to pay, until it is final
-   *   (then INVALID_STATE, `final`): to pay more, `add` steps to it. An address
+   *   (then INVALID_STATE, `final`): to pay more, `add` steps to it, unless it is stopped (by
+   *   `stop()`, a mark, or a look that found a transaction of the plans before it), which sends
+   *   nothing more: once a rollback leaves a step of it open the same call makes the plan in
+   *   its place. An address
    *   that lists an output of a transaction of those plans the search does not find refuses
    *   the call the same way.
    * - Every other transaction of those plans is one the new plan must not land beside. The
@@ -1534,7 +1537,9 @@ export class TxPlan {
       )
     )
       throw this.#unconfirmed(
-        "every step of the plan is in a block, and none is left for a plan in its place: the plan becomes final by itself, and sends its steps again after a rollback; to pay more, add steps to it",
+        base.stopped === true
+          ? "every step of the plan is in a block, and none is left for a plan in its place: the plan is stopped and sends nothing more; once its steps are final it is final, and after a rollback that leaves a step open the same call makes the plan in its place"
+          : "every step of the plan is in a block, and none is left for a plan in its place: the plan becomes final by itself, and sends its steps again after a rollback; to pay more, add steps to it",
         taken[0]!.txHash,
       );
 
