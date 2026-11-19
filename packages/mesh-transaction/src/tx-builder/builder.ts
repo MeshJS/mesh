@@ -318,8 +318,9 @@ export type BuildEvent =
   /**
    * A step of a plan made by `replan`, or added to one, shares no input with this transaction of
    * the plans before it, which is called dead and no look ever found in a block: that it never
-   * lands rests on its end of validity and on the provider's search; sent by a plan, never by a
-   * build
+   * lands rests on its end of validity and on the provider's search. A search that hid it, or a
+   * switch of the network to a fork deeper than the margin and less deep than final where it
+   * landed in time, makes the plan pay twice; sent by a plan, never by a build
    */
   | {
       type: "warning";

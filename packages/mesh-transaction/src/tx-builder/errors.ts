@@ -411,15 +411,17 @@ export type TxPlanErrorDetails = {
   /** A transaction's `awaitInclusion()` waits for `included` */
   CONFIRM_TIMEOUT: { waitedFor: "included" | "final"; timeoutMs: number };
   /**
-   * `unconfirmed`: this answer confirms nothing now (retryable); of `replan`, a transaction of
+   * `unconfirmed`: this answer confirms nothing now (retryable). Of `replan`: a transaction of
    * the plan or the plans before it is in a block, not final, and the new plan cannot hold it
    * (a failed script, a plan before the one replaced, a search that gave no answer), a step
-   * built cannot stand on the step before it of its payer, which is in a block, an old
-   * transaction only a step in a block keeps from landing beside a step built (also of `add`),
-   * every step of the plan is in a block and nothing is left to pay, an address shows an output
-   * of one the search does not find, or the record moved under the build. The other reasons are
-   * about the provider itself; `noDepth`: no block heights, for any plan. A transaction's
-   * `awaitInclusion()` raises `noSearch` and `noValidity`
+   * built cannot stand on the step before it of its payer, which is in a block, every step of
+   * the plan is in a block and nothing is left to pay, or the record moved under the build. Of
+   * `replan` and `add`: an old transaction only a step in a block keeps from landing beside a
+   * step built, a step stands on an output of an old transaction the search does not find, an
+   * address shows such an output, or an old transaction past its end and the margin got no
+   * answer from the search. The other reasons are about the provider itself; `noDepth`: no
+   * block heights, for any plan. A transaction's `awaitInclusion()` raises `noSearch` and
+   * `noValidity`
    */
   CANNOT_OBSERVE: {
     reason: "noTip" | "noValidity" | "noDepth" | "noSearch" | "unconfirmed";

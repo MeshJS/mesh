@@ -1387,7 +1387,7 @@ describe("a step left whose end of validity has passed", () => {
         false,
       ]);
       expect(error.message).toContain(
-        `step "p" was given built and spends, reads or puts up an output of step "a", which the new plan builds again as another transaction: the transaction given built could not land in the new plan; give the steps of the new plan`,
+        `step "p" was given built and spends, reads or puts up an output of step "a", which the new plan does not hold as the same transaction: the transaction given built could not land in the new plan; give the steps of the new plan`,
       );
       expect(old.replacedBy).toBeUndefined();
       expect((await store.inner.load("order"))!.replacedBy).toBeUndefined();

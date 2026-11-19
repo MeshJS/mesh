@@ -988,11 +988,14 @@ export class TxPlan {
    *   says so, and such a step is paid by a plan after this one (`after`). STILL_LIVE is told
    *   first. A step added to such a plan is the application's to follow, by this plan's id, as
    *   steps given to `replan` are: when the plan it was made in place of becomes final after
-   *   all, the added step was not paid.
+   *   all, the added step was not paid, unless it passed by time (`NO_SHARED_INPUT`).
    * @throws TxPlanError INVALID_STATE (`final`) for a final plan, (`stopped`) for a plan that
    *   is stopping or stopped; STILL_LIVE on a plan made by `replan`, as above, nothing added;
    *   CANNOT_OBSERVE (`unconfirmed`, retryable after the builder's `pollMs`) on such a plan for
-   *   an old transaction only a step in a block keeps from landing, nothing added;
+   *   an old transaction only a step in a block keeps from landing, for a step on an output of
+   *   an old transaction the search does not find, for an address that lists such an output,
+   *   and for an old transaction past its end and the margin the search gave no answer for,
+   *   nothing added;
    *   VERSION_CONFLICT when another writer added other steps meanwhile,
    *   or the store refused four writes of the record (this call's, or that of its look at the
    *   chain): none of this call's steps is recorded, and the same call builds on the plan as it
@@ -1305,11 +1308,12 @@ export class TxPlan {
   /**
    * A new plan in place of this one, for what is left of it. Without `steps` it builds the
    * steps its look shows open, as `rest` gives a step, and refuses a plan with a failed step;
-   * with `steps`, those: one list of parts or named steps, as `builder.plan` takes them. The other options are
-   * those of `builder.plan`; where the call gives none, the payer this object holds and the
-   * deadlines and data options this plan records apply. `id` is the new plan's id. A plan made
-   * with `steps` that pay what this plan was not to pay is followed by its own id: when this
-   * plan becomes final after all, that payment was not made.
+   * with `steps`, those: one list of parts or named steps, as `builder.plan` takes them. The
+   * other options are those of `builder.plan`; where the call gives none, the payer this object
+   * holds and the deadlines and data options this plan records apply. `id` is the new plan's
+   * id. A plan made with `steps` that pay what this plan was not to pay is followed by its own
+   * id: when this plan becomes final after all, that payment was not made, unless a step of it
+   * passed by time (`NO_SHARED_INPUT`).
    *
    * ```ts
    * const next = await plan.replan({ id: "order-7:2" });
@@ -1578,7 +1582,7 @@ export class TxPlan {
     let read: StepInput[];
     /** A step left whose own end of validity has passed, told late */
     let late: StepRecord | undefined;
-    /** A step given built left that stands on a step the new plan builds again, told late */
+    /** A step given built left on a step the new plan does not hold as it is, told late */
     let unheld: { readonly step: string; readonly below: string } | undefined;
     if (own === undefined) {
       // A step that failed its script paid nobody, and built again from the same parts it fails
@@ -1683,7 +1687,7 @@ export class TxPlan {
           );
         if (unheld !== undefined)
           throw stepsRefused(
-            `step ${JSON.stringify(unheld.step)} was given built and spends, reads or puts up an output of step ${JSON.stringify(unheld.below)}, which the new plan builds again as another transaction: the transaction given built could not land in the new plan; give the steps of the new plan`,
+            `step ${JSON.stringify(unheld.step)} was given built and spends, reads or puts up an output of step ${JSON.stringify(unheld.below)}, which the new plan does not hold as the same transaction: the transaction given built could not land in the new plan; give the steps of the new plan`,
           );
       },
       keep: (steps) =>
