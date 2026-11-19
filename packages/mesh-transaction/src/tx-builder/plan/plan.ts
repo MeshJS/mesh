@@ -1454,10 +1454,22 @@ export class TxPlan {
     this.#refuseReplaced(base, id);
     const classes = lineClasses(base, seen.answers, tip);
     this.#refuseNoValidity(classes);
-    if (classes.unconfirmed.length > 0)
+    // A step in a block and not final is waited for, as any other transaction of the line so
+    // found, in the order of the line
+    const order = (tx: LineTx) => {
+      const at = base.steps.findIndex(
+        (step) => step.txHash.toLowerCase() === tx.txHash,
+      );
+      return at < 0 ? base.steps.length : at;
+    };
+    const waited = [...classes.taken, ...classes.unconfirmed]
+      .map((tx, i) => ({ tx, i }))
+      .sort((x, y) => order(x.tx) - order(y.tx) || x.i - y.i)
+      .map(({ tx }) => tx);
+    if (waited.length > 0)
       throw this.#unconfirmed(
-        `${classes.unconfirmed.map((tx) => `step ${JSON.stringify(tx.step)} (${tx.txHash})`).join(", ")} ${classes.unconfirmed.length === 1 ? "is" : "are"} in a block and not final, or found where the depth or the outcome of the scripts is not known: a new plan stands only on what is final`,
-        classes.unconfirmed[0]!.txHash,
+        `${waited.map((tx) => `step ${JSON.stringify(tx.step)} (${tx.txHash})`).join(", ")} ${waited.length === 1 ? "is" : "are"} in a block and not final, or found where the depth or the outcome of the scripts is not known: a new plan stands only on what is final`,
+        waited[0]!.txHash,
       );
 
     // The steps: those given, else what the look shows open; none of a kept name

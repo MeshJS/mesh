@@ -22,6 +22,7 @@ import {
   landsBeside,
   lineClasses,
   lineTxOf,
+  notOnTaken,
   outRefsOfParts,
   rootGuards,
   settled,
@@ -266,7 +267,9 @@ const judge = (genesis: readonly string[], world: readonly WorldTx[]) => {
   );
   const unsound: string[] = [];
   let returnedLanding = 0;
-  if (chains.length === 0) return { worlds: 0, unsound, returnedLanding };
+  let throughEarlier = 0;
+  if (chains.length === 0)
+    return { worlds: 0, unsound, returnedLanding, throughEarlier };
   const answer = landsBeside(
     made.map(asStep),
     open.map(asOpen),
@@ -298,7 +301,38 @@ const judge = (genesis: readonly string[], world: readonly WorldTx[]) => {
     if (chains.some((chain) => valid(chain, o)))
       unsound.push(`${name} called settled`);
   }
-  return { worlds: 1, unsound, returnedLanding };
+  // A pair that passes only through a step of the same plan before it (as a taken step of a new
+  // plan): that step excludes the open transaction, which is not settled for it: some chain
+  // without that step lands the open transaction
+  const earlier = of("earlier");
+  for (const e of earlier) {
+    const without = new Set(
+      landsBeside(
+        made.map(asStep),
+        open.map(asOpen),
+        kept.map(asStep),
+        earlier.filter((each) => each !== e).map(asStep),
+      ).flatMap(({ step: t, open: rs }) =>
+        rs.map((each) => `${lineTxOf(t).step}|${lineTxOf(each).step}`),
+      ),
+    );
+    for (const pair of without) {
+      if (returned.has(pair)) continue;
+      const [tName, oName] = pair.split("|");
+      const t = made.find((tx) => tx.name === tName)!;
+      const o = open.find((tx) => tx.name === oName)!;
+      // Of a pair one of which no chain lands, nothing is claimed
+      if (
+        !chains.some((chain) => valid(chain, t)) ||
+        !chains.some((chain) => valid(chain, o))
+      )
+        continue;
+      if (chains.some((chain) => valid(chain, o) && !valid(chain, e)))
+        throughEarlier++;
+      else unsound.push(`${pair} passes through ${e.name}, which it needs not`);
+    }
+  }
+  return { worlds: 1, unsound, returnedLanding, throughEarlier };
 };
 
 /* ---------------------------------------------------------------------------------------------
@@ -310,6 +344,7 @@ describe("landsBeside", () => {
     const SEEDS = 20_000;
     let worlds = 0;
     let returnedLanding = 0;
+    let throughEarlier = 0;
     for (let seed = 1; seed <= SEEDS; seed++) {
       const r = seeded(Math.imul(seed, 0x9e3779b1) >>> 0);
       const { genesis, world } = randomWorld(r);
@@ -320,9 +355,12 @@ describe("landsBeside", () => {
         );
       worlds += found.worlds;
       returnedLanding += found.returnedLanding;
+      throughEarlier += found.throughEarlier;
     }
     expect(worlds).toBeGreaterThan(10_000);
     expect(returnedLanding).toBeGreaterThan(3_000);
+    // Pairs kept apart only through a step before, whose open transaction lands without it
+    expect(throughEarlier).toBeGreaterThan(5);
   });
 
   it("calls able to land what stands on a collateral return, which exists only when scripts failed", () => {
@@ -833,7 +871,7 @@ describe("lineClasses and beforeOf", () => {
     });
   };
 
-  it("keeps the final, waits on what is in a block, and calls dead only what time and the search settle", () => {
+  it("keeps the final, takes what this look found in a block, and waits on the rest", () => {
     const base = record();
     expect(stepOf(base, "a").status).toBe("final");
     const classes = lineClasses(base, [missing(hash(0xa1))], tip(0));
@@ -843,12 +881,69 @@ describe("lineClasses and beforeOf", () => {
       ["c", false],
     ]);
     expect(classes.unconfirmed).toEqual([]);
-    // A step a look found, whatever its status says
-    expect(
-      lineClasses(base, [found(hash(0xa1))], tip(0)).unconfirmed.map(
-        (tx) => tx.step,
-      ),
-    ).toEqual(["b"]);
+    expect(classes.taken).toEqual([]);
+    // A step a look found, whatever its status says, when it is not included
+    const sentFound = lineClasses(base, [found(hash(0xa1))], tip(0));
+    expect(sentFound.unconfirmed.map((tx) => tx.step)).toEqual(["b"]);
+    expect(sentFound.taken).toEqual([]);
+    // An included step: taken when this look found it with a slot and scripts that passed, or
+    // with no word on them and no Plutus script; unconfirmed otherwise
+    const included = accept(base, {
+      type: "observation",
+      tip: tip(0, 100),
+      sightings: [found(hash(0xa1), { blockHeight: 99 })] as TxSighting[],
+    });
+    expect(stepOf(included, "b").status).toBe("included");
+    const classOf = (answers: LookAnswer[]) => {
+      const each = lineClasses(included, answers, tip(0));
+      return {
+        taken: each.taken.map((tx) => tx.step),
+        unconfirmed: each.unconfirmed.map((tx) => tx.step),
+        open: each.open.map((tx) => tx.step),
+      };
+    };
+    for (const answer of [
+      found(hash(0xa1), { blockHeight: 99, valid: true }),
+      found(hash(0xa1), { blockHeight: 99 }),
+      // The depth is not asked: the step is not final by the record after the look
+      found(hash(0xa1), { blockHeight: undefined, valid: true }),
+    ])
+      expect(classOf([answer])).toEqual({
+        taken: ["b"],
+        unconfirmed: [],
+        open: ["c"],
+      });
+    expect(lineClasses(included, [found(hash(0xa1))], tip(0)).taken[0]).toEqual(
+      lineTxOf(stepOf(included, "b")),
+    );
+    for (const answers of [
+      // No answer, a find without a slot, failed scripts, "not found"
+      [],
+      [{ txHash: hash(0xa1), found: true, valid: true }],
+      [found(hash(0xa1), { valid: false })],
+      [missing(hash(0xa1))],
+    ] as LookAnswer[][])
+      expect(classOf(answers)).toEqual({
+        taken: [],
+        unconfirmed: ["b"],
+        open: ["c"],
+      });
+    // An entry found less deep than final: unconfirmed, as before
+    const entered = record({
+      final: [],
+      open: [
+        { step: "p", txHash: hash(0xb1), spends: [`${SOURCE}#2`], outputs: 2 },
+      ],
+    });
+    const entry = lineClasses(
+      entered,
+      [found(hash(0xb1), { blockHeight: 99, valid: true })],
+      tip(0),
+    );
+    expect([entry.taken, entry.unconfirmed.map((tx) => tx.step)]).toEqual([
+      [],
+      ["p"],
+    ]);
     // Expired, and what stands on it, after a look past the end and the margin
     const past = accept(base, {
       type: "observation",
@@ -1083,5 +1178,123 @@ describe("lineClasses and beforeOf", () => {
     const inM = lineClasses(m, answers, late).open;
     expect(inM.find((tx) => tx.step === "d")?.dead).toBe(true);
     expect(inM.find((tx) => tx.step === "e")?.dead).toBeUndefined();
+  });
+});
+
+/* ---------------------------------------------------------------------------------------------
+ * The steps a new plan takes of the plan it replaces
+ * ------------------------------------------------------------------------------------------- */
+
+describe("the steps in a block", () => {
+  it("a taken step settles nothing; a step that stands on it is apart from what it excludes", () => {
+    // Kept: K; taken: S on X; open: R on X too; built: T on an output of S, U on nothing of S
+    const k = step("k", body(hash(0x31), [[Z, 0]]));
+    const s = step("s", body(hash(0x41), [[X, 0]]));
+    const r = step("r", body(hash(0x42), [[X, 0]]));
+    const t = step("t", body(hash(0x43), [[hash(0x41), 1]]));
+    const u = step("u", body(hash(0x44), [[Y, 0]]));
+    expect(settled([r], [k])).toEqual([]);
+    expect(pairs([t, u], [r], [k], [s])).toEqual({ u: ["r"] });
+    // Without the taken step as one of its plan, t is not kept apart from r either
+    expect(pairs([t, u], [r], [k])).toEqual({ t: ["r"], u: ["r"] });
+    // What the new record keeps: r stays open, and no name of s is final
+    const base = emptyRecord({
+      id: "old",
+      network: "preprod",
+      deadlines: DEADLINES,
+      options: {},
+    });
+    const before = beforeOf(
+      base,
+      { kept: [lineTxOf(k)], open: [lineTxOf(r)] },
+      [hash(0x41), hash(0x43), hash(0x44)],
+    );
+    expect(before.final).toEqual(["k"]);
+    expect(before.open.map((entry) => entry.step)).toEqual(["r"]);
+  });
+
+  it("the guard of a root that stands on a taken step is the output of it that a read holds", () => {
+    // Taken: S; open: R on the output 1 of S, then Q on R. S is no open transaction: R is a root
+    const S = hash(0x41);
+    const r = step("r", body(hash(0x42), [[S, 1]]));
+    const q = step("q", body(hash(0x45), [[hash(0x42), 0]]));
+    const reads = new Map([["wallet", [owned(S, 1), owned(Y, 0)]]]);
+    const pay = (name: string, parts: Parts = []): GuardStep => ({
+      name,
+      payer: "wallet",
+      parts,
+    });
+    expect(choice(rootGuards([r, q], reads, [pay("main")]))).toEqual({
+      roots: { r: `main:${S}#1` },
+      added: [`main:${S}#1`],
+    });
+    // A part that spends it already: no part added
+    expect(
+      choice(
+        rootGuards([r, q], reads, [
+          pay("main", [spend.pubKey({ utxo: owned(S, 1) })] as Parts),
+        ]),
+      ),
+    ).toEqual({ roots: { r: `main:${S}#1` }, added: [] });
+    // No read holds it: no guard
+    expect(
+      choice(rootGuards([r], new Map([["wallet", [owned(Y, 0)]]]), [pay("m")])),
+    ).toEqual({ roots: { r: null }, added: [] });
+  });
+
+  it("tells a step built that does not stand on every taken step", () => {
+    const S = hash(0x41);
+    const s = step("s", body(S, [[X, 0]]));
+    const told = (built: readonly StepTx[], taken: readonly StepTx[]) => {
+      const found = notOnTaken(built, taken);
+      return found === undefined
+        ? undefined
+        : [found.step.name, found.taken.step];
+    };
+    // Directly
+    const t = step("t", body(hash(0x43), [[S, 1]]));
+    expect(told([t], [s])).toBeUndefined();
+    // Through two built steps
+    const t2 = step("t2", body(hash(0x46), [[hash(0x43), 0]]));
+    const t3 = step("t3", body(hash(0x47), [[hash(0x46), 1]]));
+    expect(told([t, t2, t3], [s])).toBeUndefined();
+    // Through a taken step that stands on a taken step
+    const s2 = step("s2", body(hash(0x48), [[S, 0]]));
+    const on2 = step("v", body(hash(0x49), [[hash(0x48), 1]]));
+    expect(told([on2], [s, s2])).toBeUndefined();
+    // A step of a second chain is told, with the first taken step it misses
+    const other = step("w", body(hash(0x4a), [[Y, 0]]));
+    expect(told([t, other], [s])).toEqual(["w", "s"]);
+    const onS = step("y", body(hash(0x4c), [[S, 1]]));
+    expect(told([onS], [s, s2])).toEqual(["y", "s2"]);
+    // So is a step that spends only the collateral return of a taken step
+    const onReturn = step("z", body(hash(0x4d), [[S, OUTPUTS]]));
+    expect(told([onReturn], [s])).toEqual(["z", "s"]);
+    // A step that reads an output of it, or puts one up, stands on it
+    const reads = step("rd", body(hash(0x4e), [[Y, 1]], { reads: [[S, 0]] }));
+    const putUp = step(
+      "pu",
+      body(hash(0x4f), [[Y, 2]], { collateral: [[S, 0]] }),
+    );
+    expect(told([reads, putUp], [s])).toBeUndefined();
+    // A consolidation step is not told; a step on its change is, when the consolidation step
+    // stands on no taken step
+    const lone = step(
+      "consolidate-1",
+      body(hash(0x50), [[Y, 3]]),
+      "consolidation",
+    );
+    const onLone = step("m", body(hash(0x51), [[hash(0x50), 0]]));
+    expect(told([lone], [s])).toBeUndefined();
+    expect(told([lone, onLone], [s])).toEqual(["m", "s"]);
+    const joined = step(
+      "consolidate-2",
+      body(hash(0x52), [[S, 1]]),
+      "consolidation",
+    );
+    const onJoined = step("n", body(hash(0x53), [[hash(0x52), 0]]));
+    expect(told([joined, onJoined], [s])).toBeUndefined();
+    // Undefined when none is taken
+    expect(told([other, onReturn], [])).toBeUndefined();
   });
 });

@@ -24,7 +24,9 @@ import {
 // Nothing here is exported from the package.
 //
 // Words. The line of a plan is the plan and the plans it was made in place of. A transaction of
-// the line is kept when it is final, open when it is not. A transaction stands on another when
+// the line is kept when it is final; taken when it is a step of the plan replaced that the look
+// found in a block, not final, which the new plan holds as a step of its own; open when it is
+// neither. A transaction stands on another when
 // it spends, reads or puts up one of its regular outputs. Two transactions are kept apart when
 // one of them, or a transaction it stands on, spends an out ref that the other, or a transaction
 // that one stands on, spends too: no chain holds both. The collateral return of a transaction,
@@ -349,8 +351,14 @@ export type LineClasses = {
    */
   readonly open: readonly LineTx[];
   /**
-   * In a block and not final, or found in one where the depth is not known: nothing may stand on
-   * the line or judge it until a later look
+   * Taken: the steps of the plan that are `included` and that this look found in a block with
+   * scripts that passed. A plan made in its place holds each as a step of its own
+   */
+  readonly taken: readonly LineTx[];
+  /**
+   * In a block and not final, where a new plan cannot hold it (a failed step, an entry), an
+   * `included` step this look did not find so, or a find whose slot or depth is not known:
+   * nothing is made until a later look
    */
   readonly unconfirmed: readonly LineTx[];
   /**
@@ -393,8 +401,9 @@ const byFind = (
 /**
  * The classes of a plan's line after a look: its steps and the entries of its `before.open`.
  *
- * - A `final` step is kept; an `included` one is unconfirmed, and so is any other step a look
- *   answered was found.
+ * - A `final` step is kept. An `included` one is taken when this look found it with a slot and
+ *   scripts that passed (no word on them, for a step that runs no Plutus script), else
+ *   unconfirmed; so is any other step a look answered was found.
  * - For a `failed` step and for an entry the look's answer decides: found at the depth of
  *   `final`, kept when its scripts passed and used up when they failed; found less deep, or with
  *   no depth: unconfirmed; not found: open. A find with no word on its scripts is one where they
@@ -422,6 +431,7 @@ export const lineClasses = (
   const open: LineTx[] = [];
   const unconfirmed: LineTx[] = [];
   const noValidity: LineTx[] = [];
+  const taken: LineTx[] = [];
   const byAnswer = (tx: LineTx, answer: LookAnswer | undefined) => {
     if (answer?.found !== true) return open.push(tx);
     const outcome = byFind(base, tx, answer, tip);
@@ -438,7 +448,15 @@ export const lineClasses = (
     } else if (step.status === "failed") {
       if (answer === undefined) unconfirmed.push(tx);
       else byAnswer(tx, answer);
-    } else if (step.status === "included" || answer?.found === true) {
+    } else if (step.status === "included") {
+      // In a block by this look's own find: a step the new plan holds as it is
+      const find = placed(answer);
+      const valid =
+        find === undefined
+          ? false
+          : (find.valid ?? (tx.plutus === true ? undefined : true));
+      (valid === true ? taken : unconfirmed).push(tx);
+    } else if (answer?.found === true) {
       unconfirmed.push(tx);
     } else {
       // Dead only by what this look answered: a search that failed or is not supported says
@@ -486,7 +504,30 @@ export const lineClasses = (
       changed = true;
     });
   }
-  return { kept, open: marked, unconfirmed, noValidity };
+  return { kept, open: marked, taken, unconfirmed, noValidity };
+};
+
+/**
+ * The first step built that does not stand on every taken step, through the steps of the new
+ * plan, with the first taken step it does not stand on; undefined when each stands on all. A
+ * step stands on another by a regular output of it, never by its collateral return. A
+ * consolidation step, which pays its payer alone, is not judged. After a rollback a step that
+ * does not stand on a taken one could land without a step its plan counts as made
+ */
+export const notOnTaken = <T extends LineInput>(
+  built: readonly T[],
+  taken: readonly LineInput[],
+): { readonly step: T; readonly taken: LineTx } | undefined => {
+  const takenLines = taken.map(lineTxOf);
+  const lines = built.map(lineTxOf);
+  const pool = byHash([...lines, ...takenLines]);
+  for (const [i, line] of lines.entries()) {
+    if (line.consolidation === true) continue;
+    const below = new Set(closureOf(line, pool).map((tx) => tx.txHash));
+    const missed = takenLines.find((tx) => !below.has(tx.txHash));
+    if (missed !== undefined) return { step: built[i]!, taken: missed };
+  }
+  return undefined;
 };
 
 /* ---------------------------------------------------------------------------------------------
