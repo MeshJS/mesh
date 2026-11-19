@@ -814,8 +814,9 @@ of the old plan, and carry on. Never
   warning's `unread` counts the rest), makes the new plan pay twice.
 - Dead ends, where no plan is made: nothing left to build (every step is final, in a block, failed
   or a consolidation step: `INVALID_OPTION`, `steps`), or a step left whose own end of validity
-  has passed (`INVALID_OPTION`, `steps`: built again it could not land), unless `steps` are
-  given; a plan whose every step is in a block, which is waited for and then `final`; an old
+  has passed (`INVALID_OPTION`, `steps`: built again it could not land), or a step given built
+  that spends, reads or puts up an output of a step the new plan does not hold as the same
+  transaction (`INVALID_OPTION`, `steps`: that output never exists), unless `steps` are given; a plan whose every step is in a block, which is waited for and then `final`; an old
   transaction
   found in a block once and gone, its inputs spent by others; a step given built that never
   expires, which the new plan neither holds nor shares an input with; an id another plan took

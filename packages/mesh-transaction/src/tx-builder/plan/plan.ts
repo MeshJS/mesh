@@ -1313,8 +1313,10 @@ export class TxPlan {
    *   `replan` of it builds what is left again, a step whose end of validity came from `ttlMs`
    *   with a new end. To wait as before, call once every step in `landed` is final.
    * - Without `steps`, a step left whose own end of validity has passed (its parts give one, or
-   *   it was given built) is refused: built again it could not land. The application gives the
-   *   steps of the new plan.
+   *   it was given built) is refused: built again it could not land. So is a step given built
+   *   that spends, reads or puts up an output of a step the new plan does not hold as the same
+   *   transaction (one built again from its parts, a consolidation step, a failed one): that
+   *   output never exists. The application gives the steps of the new plan.
    * - What the new plan cannot hold is waited for, CANNOT_OBSERVE (`unconfirmed`): a
    *   transaction in a block with a failed script, and a transaction of a plan before this one
    *   that a look found in a block, each until it is final; a step in a block this call's
@@ -1369,7 +1371,8 @@ export class TxPlan {
    *   is this plan's, (`payer`) for a payer of no known form or one that answered two change
    *   addresses, (`trace`) for a trace that is not a function, (`signal`), (`steps`) when
    *   nothing is left and no step is given, for a step left whose own end of validity has
-   *   passed when no step is given, for a name that is final in this plan or a plan
+   *   passed or that was given built and stands on a step the new plan does not hold, when no
+   *   step is given, for a name that is final in this plan or a plan
    *   before it or in a block in this plan, for more than 32 steps with those in a block, for a
    *   link to a step that is neither given, in a block nor final, and for all that
    *   `builder.plan` refuses, (`after`) for a transaction of these plans that is not final;
@@ -1561,6 +1564,13 @@ export class TxPlan {
           late.kind === "prebuilt"
             ? `step ${JSON.stringify(late.name)} was given built and its end of validity has passed: the same transaction cannot land; give the steps of the new plan`
             : `step ${JSON.stringify(late.name)} cannot be built again as it was given: its parts give an end of validity, and the chain's tip has passed it, so the transaction could not land; give the steps of the new plan`,
+        );
+      // A step given built that stands on a step the new plan does not hold as the same
+      // transaction could only be held dead: the output it spends, reads or puts up never exists
+      const unheld = blockedPrebuilt(base, left, takenNames);
+      if (unheld !== undefined)
+        throw stepsRefused(
+          `step ${JSON.stringify(unheld.step)} was given built and spends, reads or puts up an output of step ${JSON.stringify(unheld.below)}, which the new plan does not hold as the same transaction: the transaction given built could not land; give the steps of the new plan`,
         );
       read = readReplanSteps(builder, left, callOptions, false);
     } else {
@@ -3431,6 +3441,44 @@ const ownEndOf = (step: StepRecord) =>
             (part as { invalidHereafter?: unknown }).invalidHereafter !==
               undefined),
       );
+
+/**
+ * The first step given built among those left that spends, reads or puts up a regular output of
+ * a step of `base` the new plan does not hold as the same transaction (one built again from its
+ * parts, a consolidation step, a failed one), with that step's name; undefined when none does. A
+ * step given built that is left is held as it is; a final or a taken step is no open step
+ */
+const blockedPrebuilt = (
+  base: PlanRecord,
+  left: Readonly<Record<string, unknown>>,
+  taken: readonly string[],
+): { readonly step: string; readonly below: string } | undefined => {
+  const notHeld = base.steps.filter(
+    (step) =>
+      step.status !== "final" &&
+      !taken.includes(step.name) &&
+      !(step.kind === "prebuilt" && step.name in left),
+  );
+  for (const step of base.steps) {
+    if (step.kind !== "prebuilt" || !(step.name in left)) continue;
+    const refs = [
+      ...step.built.inputs,
+      ...(step.built.referenceInputs ?? []),
+      ...(step.built.collateral?.inputs ?? []),
+    ];
+    const below = notHeld.find(
+      (each) =>
+        each !== step &&
+        refs.some(
+          (ref) =>
+            ref.txHash.toLowerCase() === each.txHash.toLowerCase() &&
+            ref.outputIndex < each.built.outputs.length,
+        ),
+    );
+    if (below !== undefined) return { step: step.name, below: below.name };
+  }
+  return undefined;
+};
 
 /** INVALID_OPTION (`steps`) of `replan` */
 const stepsRefused = (reason: string) =>

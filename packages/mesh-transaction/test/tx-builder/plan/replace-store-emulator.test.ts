@@ -1338,7 +1338,7 @@ describe("a step left whose end of validity has passed", () => {
     expect(times(ctx.emulator, carol, 13n * ADA)).toBe(0);
   });
 
-  it("a step given built that is orphaned because the step whose output it spends is dead: replan without steps answers UTXO_NOT_FOUND, not retryable, and writes nothing", async () => {
+  it("a step given built that stands on a step built again from its parts: refused, naming both; with steps that leave it out, the call passes", async () => {
     const ctx = await storeSetup({ funds: [100n * ADA, 50n * ADA] });
     const { emulator, builder, wallet, store } = ctx;
     const old = await builder.plan(
@@ -1365,23 +1365,93 @@ describe("a step left whose end of validity has passed", () => {
       ["a", "expired"],
       ["p", "orphaned"],
     ]);
-    const answers = [];
+    // a is built again as another transaction: the output p spends will never exist
     for (let i = 0; i < 2; i++) {
       const error = await caught(old.replan({ id: "i1" }));
-      answers.push([error.code, error.retryable, error.message]);
+      expect([error.code, error.details.option, error.retryable]).toEqual([
+        "INVALID_OPTION",
+        "steps",
+        false,
+      ]);
+      expect(error.message).toContain(
+        `step "p" was given built and spends, reads or puts up an output of step "a", which the new plan does not hold as the same transaction`,
+      );
+      expect(old.replacedBy).toBeUndefined();
+      expect((await store.inner.load("order"))!.replacedBy).toBeUndefined();
+      expect(await store.inner.load("i1")).toBeUndefined();
       advance(emulator, 1);
     }
-    // Every call answers UTXO_NOT_FOUND, not retryable, for the output of a that p spends and
-    // that will never exist: the reader of a step given built cannot find it
-    const missing = `${old.step("a").txHash}#${old.step("a").change[0]!.outputIndex}`;
-    for (const [code, retryable, message] of answers) {
-      expect([code, retryable]).toEqual(["UTXO_NOT_FOUND", false]);
-      expect(message).toContain(`step "p"`);
-      expect(message).toContain(missing);
-    }
-    expect(await store.inner.load("i1")).toBeUndefined();
-    expect(times(emulator, alice, 11n * ADA)).toBe(0);
+    // The application's steps leave p out
+    const next = await old.replan({
+      id: "i1",
+      steps: { a: payTo(alice, 11n * ADA) },
+    });
+    await next.run();
+    expect(next.status).toBe("final");
+    expect(times(emulator, alice, 11n * ADA)).toBe(1);
     expect(times(emulator, bob, 12n * ADA)).toBe(0);
+  });
+
+  it("a step given built that stands on a step in a block: not refused by this rule, held as it is", async () => {
+    const ctx = await storeSetup({
+      funds: [100n * ADA, 50n * ADA],
+      planDefaults: { ...FAST, confirmations: 3 },
+    });
+    const { emulator, builder, wallet } = ctx;
+    const old = await builder.plan(
+      { a: payTo(alice, 11n * ADA) },
+      { id: "order", payer: wallet },
+    );
+    const p = await builder.build(
+      [
+        spend.pubKey({ utxo: old.step("a").change[0]! }),
+        payTo(bob, 12n * ADA),
+        validity({ until: builder.timeAt(emulator.slot) + 600_000 }),
+      ],
+      { payer: wallet, after: old.step("a") },
+    );
+    await old.add({ p });
+    await old.sign();
+    const pHash = old.step("p").txHash;
+    const relay = relayOf(emulator, (txHash) => txHash === pHash);
+    await caught(old.run({ submitter: relay, timeoutMs: 300 }));
+    expect(old.steps.map((step) => step.status)).toEqual(["included", "sent"]);
+    advance(emulator, 1);
+    const next = await old.replan({ id: "i1" });
+    expect(next.steps.map((step) => [step.name, step.txHash])).toEqual([
+      ["a", old.step("a").txHash],
+      ["p", pHash],
+    ]);
+    await next.run({ waitFor: "included" });
+    advance(emulator, 3);
+    await next.refresh();
+    expect(next.status).toBe("final");
+    expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    expect(times(emulator, bob, 12n * ADA)).toBe(1);
+  });
+
+  it("a step given built that stands on another step given built that is left: not refused by this rule, both held as they are", async () => {
+    const ctx = await storeSetup({ funds: [100n * ADA, 50n * ADA] });
+    const { emulator, builder, wallet } = ctx;
+    const until = validity({ until: builder.timeAt(emulator.slot) + 600_000 });
+    const q = await builder.build([payTo(alice, 11n * ADA), until], {
+      payer: wallet,
+    });
+    const p = await builder.build(
+      [spend.pubKey({ utxo: q.change[0]! }), payTo(bob, 12n * ADA), until],
+      { payer: wallet, after: q },
+    );
+    const old = await builder.plan({ q, p }, { id: "order", payer: wallet });
+    await old.stop();
+    const next = await old.replan({ id: "i1" });
+    expect(next.steps.map((step) => [step.name, step.txHash])).toEqual([
+      ["q", q.txHash],
+      ["p", p.txHash],
+    ]);
+    await next.run();
+    expect(next.status).toBe("final");
+    expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    expect(times(emulator, bob, 12n * ADA)).toBe(1);
   });
 });
 
