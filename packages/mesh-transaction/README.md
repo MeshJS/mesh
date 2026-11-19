@@ -400,7 +400,7 @@ step, `main`. `builder.build(parts)` stays one transaction or an error, with no 
 
 | `TxPlan`                                 |                                                                                                    |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `sign({ signers? })`                     | signs each step it built that still needs keys, in order, with the call's signers, else the payer  |
+| `sign({ signers? })`                     | signs each step that still needs keys, in order, with the call's signers, else the payer           |
 | `addWitnesses(...witnessSets)`           | signatures made elsewhere, as witness sets or full transactions; each goes to the step it verifies |
 | `run(options?)`                          | looks at the chain, then signs, sends and waits for each step in order, until `waitFor`            |
 | `add(steps)`                             | named steps at the end of a `pending` plan, built at once; signs and sends nothing                 |
@@ -1221,9 +1221,10 @@ naming the check that failed.
 Applications read `id`, `rev`, `status`, `stopped` (the plan signs and sends nothing more: set by
 `stop()`, by `replan`, or when a plan `replan` made finds an old transaction in a block),
 `halted` (the plan came to `stopped` by its steps), `replaces`, `replacedBy`, `deadlines` and, of
-each step, `name`, `kind`, `status` and `txHash`; the rest is the library's. `stopped` and
-`halted` are `true` when present and never removed. `replacedBy` names the plan `replan` made in
-place of this one; that plan holds `replaces`, this plan's id. A step's `tx` is its transaction
+each step, `name`, `kind`, `taken` (the step is a transaction of the plan this one was made in
+place of, held as it was), `status` and `txHash`; the rest is the library's. `stopped`, `halted`
+and `taken` are `true` when present and never removed. `replacedBy` names the plan `replan` made
+in place of this one; that plan holds `replaces`, this plan's id. A step's `tx` is its transaction
 with the witnesses the plan holds, written shorter than `toJSON()` of a `BuiltTx`, which
 `restore` takes and a step's `tx` is not; the reader reads its bytes again, compares the hash and
 verifies every witness. `seen` stays when a rollback takes a step out of its block. This release
