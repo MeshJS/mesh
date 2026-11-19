@@ -4026,6 +4026,49 @@ describe("an old transaction that only a step in a block keeps from landing", ()
     };
   };
 
+  it("add of a step of another payer beside a dead old payment that only the step in a block keeps from landing: the call waits; a rollback deeper than the margin and less deep than final lands the old payment, the plan stops and takes no step, and each recipient is paid once", async () => {
+    const { provider, store, treasury, fork, n, t0, a1, hold0 } =
+      await addLine();
+    const call = () => n.add({ d: treasuryStep(treasury) });
+    const error = await caught(call());
+    expect([error.code, reasonOf(error), error.txHash]).toEqual([
+      "CANNOT_OBSERVE",
+      "unconfirmed",
+      a1,
+    ]);
+    expect([error.retryable, error.retryAfterMs]).toEqual([true, FAST.pollMs]);
+    expect(error.message).toContain(
+      `step "d" could land beside step "t" (${t0}) of the plans before, which only step "a" (${a1}), in a block and not final, keeps from landing`,
+    );
+    expect(names(n)).toEqual(["a", "s"]);
+    await nothingAdded(store);
+    // A switch to the fork before a1, 702 blocks deep, less than the 1000 of final: t0 lands
+    fork.advanceTo({ slot: fork.slot + 1 });
+    provider.control.target = fork;
+    expect(await refused(fork, hold0.kept[0]!)).toBe(false);
+    advance(fork, 1);
+    await n.refresh();
+    await n.refresh();
+    expect(n.toJSON().stopped).toBe(true);
+    const stopped = await caught(call());
+    expect([stopped.code, reasonOf(stopped)]).toEqual([
+      "INVALID_STATE",
+      "stopped",
+    ]);
+    await nothingAdded(store);
+    // Once t0 is final, a plan in place of N pays alice and bob
+    advance(fork, 1001);
+    const next = await n.replan({ id: "order:4" });
+    await next.run({ waitFor: "included" });
+    advance(fork, 1001);
+    await next.refresh();
+    expect(next.status).toBe("final");
+    expect(times(fork, alice, 11n * ADA)).toBe(1);
+    expect(times(fork, bob, 12n * ADA)).toBe(1);
+    expect(times(fork, dave, 14n * ADA)).toBe(1);
+    neverTwice(fork);
+  });
+
   it("add held by the plan's step that becomes final last: the wait says the plan is final with it and takes no step; once it is final the add is INVALID_STATE (final), and a plan after this one pays the step once", async () => {
     const { emulator, builder, store, wallet, treasury, n, a1, s1 } =
       await addLine();
