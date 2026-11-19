@@ -966,6 +966,171 @@ const crashInBlockCase = async (
     }).toEqual({ log, address, paid: 1 });
 };
 
+describe("a step left whose end of validity has passed", () => {
+  /**
+   * A plan of `a`, final, and `b`, sent and held by a relay: `b` from parts with an end of its own
+   * 30 s on (`own`), given built with that end (`built`), or with its end from the plan's
+   * `ttlMs` of 30 s (`ttl`); with `more`, a third step `c` from `ttlMs`, signed. Then `slots`
+   * slots on
+   */
+  const late = async (
+    kind: "own" | "built" | "ttl",
+    slots: number,
+    more = false,
+  ) => {
+    const ctx = await storeSetup({ funds: [100n * ADA, 50n * ADA] });
+    const { emulator, builder, wallet } = ctx;
+    const until = validity({ until: builder.timeAt(emulator.slot) + 30_000 });
+    const b =
+      kind === "built"
+        ? await builder.build([payTo(bob, 12n * ADA), until], {
+            payer: wallet,
+          })
+        : kind === "own"
+          ? [payTo(bob, 12n * ADA), until]
+          : payTo(bob, 12n * ADA);
+    const old = await builder.plan(
+      {
+        a: payTo(alice, 11n * ADA),
+        b,
+        ...(more && { c: payTo(carol, 13n * ADA) }),
+      },
+      { id: "order", payer: wallet, ttlMs: 30_000 },
+    );
+    await old.sign();
+    const bHash = old.step("b").txHash;
+    const relay = relayOf(emulator, (txHash) => txHash === bHash);
+    await caught(old.run({ submitter: relay, timeoutMs: 300 }));
+    expect(old.step("a").status).toBe("final");
+    expect(old.step("b").status).toBe("sent");
+    advance(emulator, slots);
+    return { ...ctx, old };
+  };
+
+  /** INVALID_OPTION (`steps`) naming step b, no mark and no record; the same again */
+  const refusedForB = async (
+    ctx: Awaited<ReturnType<typeof late>>,
+    built: boolean,
+  ) => {
+    const { old, store } = ctx;
+    for (let i = 0; i < 2; i++) {
+      const error = await caught(old.replan({ id: "i1" }));
+      expect([error.code, error.details.option, error.retryable]).toEqual([
+        "INVALID_OPTION",
+        "steps",
+        false,
+      ]);
+      expect(error.message).toContain(
+        built
+          ? `step "b" was given built and its end of validity has passed`
+          : `step "b" cannot be built again as it was given`,
+      );
+      expect(old.replacedBy).toBeUndefined();
+      expect((await store.inner.load("order"))!.replacedBy).toBeUndefined();
+      expect(await store.inner.load("i1")).toBeUndefined();
+    }
+  };
+
+  it("a step from parts whose own end has passed: refused; with steps given, the call passes", async () => {
+    const ctx = await late("own", 40);
+    await refusedForB(ctx, false);
+    const next = await ctx.old.replan({
+      id: "i1",
+      steps: { b: payTo(bob, 12n * ADA) },
+    });
+    await next.run();
+    expect(next.status).toBe("final");
+    expect(times(ctx.emulator, bob, 12n * ADA)).toBe(1);
+    expect(times(ctx.emulator, alice, 11n * ADA)).toBe(1);
+  });
+
+  it("a step given built whose end has passed: refused; with steps given, the call passes", async () => {
+    const ctx = await late("built", 40);
+    await refusedForB(ctx, true);
+    const next = await ctx.old.replan({
+      id: "i1",
+      steps: { b: payTo(bob, 12n * ADA) },
+    });
+    await next.run();
+    expect(next.status).toBe("final");
+    expect(times(ctx.emulator, bob, 12n * ADA)).toBe(1);
+  });
+
+  it("a step from parts whose own end has not passed: built again as it was given, with that end", async () => {
+    const ctx = await late("own", 1);
+    const next = await ctx.old.replan({ id: "i1" });
+    expect(next.step("b").validity!.until).toBe(
+      ctx.old.step("b").validity!.until,
+    );
+    await next.run();
+    expect(next.status).toBe("final");
+    expect(times(ctx.emulator, bob, 12n * ADA)).toBe(1);
+  });
+
+  it("a step whose end came from ttlMs and has passed: built again with a new end", async () => {
+    const ctx = await late("ttl", 40);
+    const next = await ctx.old.replan({ id: "i1" });
+    expect(next.step("b").validity!.until!).toBeGreaterThan(
+      ctx.old.step("b").validity!.until!,
+    );
+    await next.run();
+    expect(next.status).toBe("final");
+    expect(times(ctx.emulator, bob, 12n * ADA)).toBe(1);
+  });
+
+  it("one such step beside a step from ttlMs: the call is refused whole", async () => {
+    const ctx = await late("own", 40, true);
+    await refusedForB(ctx, false);
+    expect(times(ctx.emulator, carol, 13n * ADA)).toBe(0);
+  });
+
+  it("a step given built that is orphaned because the step whose output it spends is dead: replan without steps answers UTXO_NOT_FOUND, not retryable, and writes nothing", async () => {
+    const ctx = await storeSetup({ funds: [100n * ADA, 50n * ADA] });
+    const { emulator, builder, wallet, store } = ctx;
+    const old = await builder.plan(
+      { a: payTo(alice, 11n * ADA) },
+      { id: "order", payer: wallet, ttlMs: 30_000 },
+    );
+    // p, given built with an end of 600 s, spends the change of a
+    const p = await builder.build(
+      [
+        spend.pubKey({ utxo: old.step("a").change[0]! }),
+        payTo(bob, 12n * ADA),
+        validity({ until: builder.timeAt(emulator.slot) + 600_000 }),
+      ],
+      { payer: wallet, after: old.step("a") },
+    );
+    await old.add({ p });
+    await old.sign();
+    const aHash = old.step("a").txHash;
+    const relay = relayOf(emulator, (txHash) => txHash === aHash);
+    await caught(old.run({ submitter: relay, timeoutMs: 300 }));
+    advance(emulator, 40);
+    await old.refresh();
+    expect(old.steps.map((step) => [step.name, step.status])).toEqual([
+      ["a", "expired"],
+      ["p", "orphaned"],
+    ]);
+    const answers = [];
+    for (let i = 0; i < 2; i++) {
+      const error = await caught(old.replan({ id: "i1" }));
+      answers.push([error.code, error.retryable, error.message]);
+      advance(emulator, 1);
+    }
+    // Every call answers UTXO_NOT_FOUND, not retryable, for the output of a that p spends and
+    // that will never exist: the reader of a step given built cannot find it
+    const missing = `${old.step("a").txHash}#${old.step("a").change[0]!.outputIndex}`;
+    for (const [code, retryable, message] of answers) {
+      expect([code, retryable]).toEqual(["UTXO_NOT_FOUND", false]);
+      expect(message).toContain(`step "p"`);
+      expect(message).toContain(missing);
+    }
+    expect(await store.inner.load("i1")).toBeUndefined();
+    expect(times(emulator, alice, 11n * ADA)).toBe(0);
+    expect(times(emulator, bob, 12n * ADA)).toBe(0);
+  });
+});
+
 describe("a crash at every request of replan", () => {
   const STORE_KINDS: readonly StoreFault[] = ["hangBefore", "hangAfter"];
 
@@ -1040,7 +1205,7 @@ describe("the reconciliation loop of the README", () => {
           // `replacedBy`; and a plan gets one once no step of it may still land outside a block
           // (`live` is empty) while a step of it is in none. Its steps that are in a block go on as
           // steps of the new plan. The same call again returns that plan. A pass makes one plan
-          // at most: a step whose own parts give an end that has passed is dead in it at once
+          // at most: a plan given less time than a pass takes is dead as soon as it is made
           let made = false;
           while (
             plan.status !== "final" &&
@@ -1192,19 +1357,19 @@ describe("the reconciliation loop of the README", () => {
     paidOnceEach(emulator);
   });
 
-  it("a step whose own parts give an end that has passed: a pass makes one plan at most", async () => {
+  it("a step whose own parts give an end that has passed: every pass reports INVALID_OPTION, no plan is made, and the order stays open", async () => {
     const ctx = await deadBesideInBlock(true);
     const { store } = ctx;
-    const { closed } = await reconcile(ctx, 2, 1);
+    const { closed, reported } = await reconcile(ctx, 3, 1);
     expect(closed).toEqual([]);
-    // The step built again keeps the end its parts give, which has passed: dead at once
-    const next = (await store.inner.load("order:next"))!;
-    expect(next.steps.map((step) => step.status)).toEqual([
-      "included",
-      "expired",
+    expect(reported).toEqual([
+      "INVALID_OPTION/",
+      "INVALID_OPTION/",
+      "INVALID_OPTION/",
     ]);
-    expect(await store.inner.load("order:next:next:next")).toBeUndefined();
-    expect(times(ctx.emulator, bob, 12n * ADA)).toBeLessThanOrEqual(1);
+    expect(await store.inner.load("order:next")).toBeUndefined();
+    expect((await store.inner.load("order"))!.replacedBy).toBeUndefined();
+    expect(times(ctx.emulator, bob, 12n * ADA)).toBe(0);
     expect(times(ctx.emulator, alice, 11n * ADA)).toBe(1);
   });
 

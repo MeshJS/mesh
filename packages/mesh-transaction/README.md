@@ -780,8 +780,10 @@ of the old plan, and carry on. Never
 - After a rollback that is not undone (the step's end of validity passed, or another transaction
   took its input) the steps built cannot land. The new plan shows it: that step `expired`, the
   steps on it `orphaned`, the plan `stopped` and never `final`. `replan` of it builds what is left
-  again, that step among it, on an input that step spends; where others took every input of it,
-  see the dead ends below.
+  again, that step among it, on an input that step spends, when its end of validity came from
+  `ttlMs`; a step whose own parts, or whose transaction given built, set an end that has passed is
+  refused, and the application gives `steps`. Where others took every input of it, see the dead
+  ends below.
 - What a new plan cannot hold is waited for, with `CANNOT_OBSERVE` (`unconfirmed`, again after
   `retryAfterMs`): a transaction in a block with a failed script, and one of a plan before the one
   replaced that a look found in a block, each until it is `final`; a step in a block the search
@@ -804,7 +806,9 @@ of the old plan, and carry on. Never
   and of an old transaction two plans on the first 16 it pays, which is all its entry keeps; the
   warning's `unread` counts the rest), makes the new plan pay twice.
 - Dead ends, where no plan is made: nothing left to build (every step is final, in a block, failed
-  or a consolidation step: `INVALID_OPTION`, `steps`), unless `steps` are given; an old transaction
+  or a consolidation step: `INVALID_OPTION`, `steps`), or a step left whose own end of validity
+  has passed (`INVALID_OPTION`, `steps`: built again it could not land), unless `steps` are
+  given; an old transaction
   found in a block once and gone, its inputs spent by others; a step given built that never
   expires, which the new plan neither holds nor shares an input with; an id another plan took
   after a crash that followed the mark.
@@ -1102,7 +1106,7 @@ for (const id of await db.openPlanIds()) {
     // `replacedBy`; and a plan gets one once no step of it may still land outside a block
     // (`live` is empty) while a step of it is in none. Its steps that are in a block go on as
     // steps of the new plan. The same call again returns that plan. A pass makes one plan
-    // at most: a step whose own parts give an end that has passed is dead in it at once
+    // at most: a plan given less time than a pass takes is dead as soon as it is made
     let made = false;
     while (
       plan.status !== "final" &&
@@ -1133,10 +1137,12 @@ steps that are in a block to be `final`: the new plan holds them, and is `final`
 are. A plan whose steps are all in a block is left to become `final`. After a rollback the loop
 needs nothing more: `run()` of the new plan sends such a step again, and when it can no longer land
 the new plan stops in its turn and gets a plan in its place. Where `replan` still waits
-(`CANNOT_OBSERVE`, `unconfirmed`), the next pass asks again. A pass makes one plan in place of
-another at most: a step built again keeps the end of validity its own parts give, and when that
-has passed the plan made is dead at once and gets a plan in its place on every pass, never more
-than one, until the application gives `steps` of its own. The loop looks at
+(`CANNOT_OBSERVE`, `unconfirmed`), the next pass asks again. A step left whose own end of validity
+has passed is not built again: the pass reports `INVALID_OPTION` (`steps`), writes nothing, and
+the order stays in the list until the application gives `steps` of its own. A pass makes one plan
+in place of another at most, as a second bound: a plan given too little time (a `ttlMs` and margin
+shorter than a pass takes) is dead as soon as it is made, and gets a plan in its place on every
+pass, one record each; the errors of each pass (`EXPIRED`, `unsent`) show it. The loop looks at
 each plan of a line before it goes on: a line ends at its first `final` plan, which has paid,
 also an old plan whose step landed late after it was replaced; only a plan that is not final is
 followed to the plan in its place. A `stopped` plan that a later look finds a step of is

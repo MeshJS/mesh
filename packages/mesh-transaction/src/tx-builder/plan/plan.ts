@@ -1293,8 +1293,11 @@ export class TxPlan {
    *   stands on it, a link may name it, and its name is not given again. The call does not
    *   wait for final:
    *   after a rollback that is not undone the steps built cannot land, the new plan stops, and
-   *   `replan` of it builds what is left again. To wait as before, call once every step in
-   *   `landed` is final.
+   *   `replan` of it builds what is left again, a step whose end of validity came from `ttlMs`
+   *   with a new end. To wait as before, call once every step in `landed` is final.
+   * - Without `steps`, a step left whose own end of validity has passed (its parts give one, or
+   *   it was given built) is refused: built again it could not land. The application gives the
+   *   steps of the new plan.
    * - What the new plan cannot hold is waited for, CANNOT_OBSERVE (`unconfirmed`): a
    *   transaction in a block with a failed script, and a transaction of a plan before this one
    *   that a look found in a block, each until it is final; a step in a block this call's
@@ -1346,7 +1349,8 @@ export class TxPlan {
    *   other than those of `builder.plan` and `steps`, (`id`) for an id that is not a string or
    *   is this plan's, (`payer`) for a payer of no known form or one that answered two change
    *   addresses, (`trace`) for a trace that is not a function, (`signal`), (`steps`) when
-   *   nothing is left and no step is given, for a name that is final in this plan or a plan
+   *   nothing is left and no step is given, for a step left whose own end of validity has
+   *   passed when no step is given, for a name that is final in this plan or a plan
    *   before it or in a block in this plan, for more than 32 steps with those in a block, for a
    *   link to a step that is neither given, in a block nor final, and for all that
    *   `builder.plan` refuses, (`after`) for a transaction of these plans that is not final;
@@ -1511,6 +1515,20 @@ export class TxPlan {
       if (Object.keys(left).length === 0)
         throw stepsRefused(
           "nothing of the plan is left to build: every step is final, in a block, failed or a consolidation step; give the steps of the new plan",
+        );
+      // A step whose own end of validity the tip has reached could only be built dead: built
+      // now, its transaction lands in a block after the tip or in none
+      const late = leftOf(base, classes).find(
+        (step) =>
+          step.name in left &&
+          ownEndOf(step) &&
+          (stepUntil(step) ?? Infinity) <= tip.timeMs,
+      );
+      if (late !== undefined)
+        throw stepsRefused(
+          late.kind === "prebuilt"
+            ? `step ${JSON.stringify(late.name)} was given built and its end of validity has passed: the same transaction cannot land; give the steps of the new plan`
+            : `step ${JSON.stringify(late.name)} cannot be built again as it was given: its parts give an end of validity, and the chain's tip has passed it, so the transaction could not land; give the steps of the new plan`,
         );
       read = readReplanSteps(builder, left, callOptions, false);
     } else {
@@ -3318,6 +3336,23 @@ const readAddress = async (
     return { txHash: input.txHash, outputIndex: input.outputIndex };
   });
 };
+
+/**
+ * Whether a recorded step has an end of validity of its own, which building it again keeps: a
+ * step given built whose transaction has one, or a step whose parts give `until` or
+ * `invalidHereafter`. An end the plan's `ttlMs` gave is not its own
+ */
+const ownEndOf = (step: StepRecord) =>
+  step.kind === "prebuilt"
+    ? stepUntil(step) !== undefined
+    : (step.given?.parts ?? []).some(
+        (part) =>
+          part.kind === "validity" &&
+          ("until" in part || "invalidHereafter" in part) &&
+          ((part as { until?: unknown }).until !== undefined ||
+            (part as { invalidHereafter?: unknown }).invalidHereafter !==
+              undefined),
+      );
 
 /** INVALID_OPTION (`steps`) of `replan` */
 const stepsRefused = (reason: string) =>
