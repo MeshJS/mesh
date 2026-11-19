@@ -2152,6 +2152,51 @@ describe("a plan in place of another", () => {
       expect(names(one)).toEqual(["main"]);
     });
 
+    it("steps named tx and txHash, both given as CBOR hex: builder.plan makes them steps of those names, and add adds them; the data of a transaction is still refused", async () => {
+      const ctx = await storeSetup({ funds: [100n * ADA, 50n * ADA] });
+      const { emulator, builder, wallet } = ctx;
+      /** A partner's transaction that pays an address, built and signed on its own UTxO */
+      const partnerTx = async (index: number, address: string) => {
+        const partner = await walletOf(index);
+        const own = emulator.fund((await partner.getChangeAddress())!, {
+          lovelace: 100n * ADA,
+        });
+        const built = await builderOf(wrap(emulator)).build(
+          [
+            spend.pubKey({ utxo: own }),
+            output({ address, value: { lovelace: 13n * ADA } }),
+          ],
+          { payer: partner },
+        );
+        await built.sign();
+        return built;
+      };
+      const one = await partnerTx(1, carol);
+      const other = await partnerTx(2, dave);
+      const plan = await builder.plan(
+        { tx: one.partialTx, txHash: other.partialTx } as never,
+        { id: "order", payer: wallet },
+      );
+      expect(names(plan)).toEqual(["tx", "txHash"]);
+      expect(plan.step("tx").txHash).toBe(one.txHash);
+      expect(plan.step("txHash").txHash).toBe(other.txHash);
+      const base = await builder.plan(
+        { a: payTo(alice, 11n * ADA) },
+        { id: "base", payer: wallet },
+      );
+      await base.add({ tx: one.partialTx, txHash: other.partialTx } as never);
+      expect(names(base)).toEqual(["a", "tx", "txHash"]);
+      // The data of a transaction, as a spread of the object gives it, is no steps
+      const data = await caught(
+        builder.plan({ ...one } as never, { id: "data", payer: wallet }),
+      );
+      expect([data.code, data.details.option]).toEqual([
+        "INVALID_OPTION",
+        "steps",
+      ]);
+      expect(data.message).toContain("expected one list of parts");
+    });
+
     it("a step given as CBOR hex under the name __proto__: by assignment or in a literal the name sets nothing and no check can see the step; through Object.fromEntries, a spread or Object.create(null) the name is kept and refused", async () => {
       const ctx = await storeSetup({ funds: [100n * ADA, 50n * ADA] });
       const { emulator, builder, wallet, store } = ctx;

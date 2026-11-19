@@ -341,11 +341,19 @@ const refusePrototype = (steps: unknown, allowed: string) => {
   );
 };
 
-/** Whether a value is the data or the JSON of a transaction, and not the object */
+/**
+ * Whether a value is the data or the JSON of a transaction, and not the object. The data is told
+ * by what no step is, a `fee` that is a bigint, beside the texts `tx` and `txHash` and the lists
+ * `inputs` and `outputs`: steps named `tx` and `txHash` are steps
+ */
 const isTransactionData = (value: unknown) =>
   isObject(value) &&
   !(value instanceof BuiltTx) &&
-  ((typeof value.tx === "string" && typeof value.txHash === "string") ||
+  ((typeof value.tx === "string" &&
+    typeof value.txHash === "string" &&
+    typeof value.fee === "bigint" &&
+    Array.isArray(value.inputs) &&
+    Array.isArray(value.outputs)) ||
     value.kind === "BuiltTx");
 
 /** Whether a value is a transaction built before: a `BuiltTx`, its data or its JSON */
