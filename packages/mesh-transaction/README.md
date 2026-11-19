@@ -829,11 +829,11 @@ are the new plan's, also for the steps it holds of the old plan, and carry on. N
   `steps`: its parts need fixing), a step left whose own end of validity has passed
   (`INVALID_OPTION`, `steps`: built again it could not land), or a step given built that spends,
   reads or puts up an output of a step the new plan does not hold as the same transaction
-  (`INVALID_OPTION`, `steps`: that output never exists), unless `steps` are given; a plan whose
-  every step is in a block, which is waited for and then `final`; an old transaction found in a
-  block once and gone, its inputs spent by others; a step given built that never expires, which the
-  new plan neither holds nor shares an input with; an id another plan took after a crash that
-  followed the mark.
+  (`INVALID_OPTION`, `steps`: that output never exists in the new plan), unless `steps` are given; a
+  plan whose every step is in a block, which is waited for and then `final`; an old transaction
+  found in a block once and gone, its inputs spent by others; a step given built that never expires,
+  which the new plan neither holds nor shares an input with; an id another plan took after a crash
+  that followed the mark.
 - The old plan is marked first, by compare-and-set: `replacedBy` names the new plan, and the old
   one signs and sends nothing more. The id is the new plan's alone. The same call again returns
   the same plan, also after a crash that followed the mark; with other options, the plan recorded

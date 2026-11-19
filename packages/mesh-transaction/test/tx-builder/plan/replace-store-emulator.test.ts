@@ -1387,7 +1387,7 @@ describe("a step left whose end of validity has passed", () => {
         false,
       ]);
       expect(error.message).toContain(
-        `step "p" was given built and spends, reads or puts up an output of step "a", which the new plan does not hold as the same transaction`,
+        `step "p" was given built and spends, reads or puts up an output of step "a", which the new plan builds again as another transaction: the transaction given built could not land in the new plan; give the steps of the new plan`,
       );
       expect(old.replacedBy).toBeUndefined();
       expect((await store.inner.load("order"))!.replacedBy).toBeUndefined();
@@ -1403,6 +1403,64 @@ describe("a step left whose end of validity has passed", () => {
     expect(next.status).toBe("final");
     expect(times(emulator, alice, 11n * ADA)).toBe(1);
     expect(times(emulator, bob, 12n * ADA)).toBe(0);
+  });
+
+  it("a step given built on the change of a step the search hides, whose change a payer's read lists: the read answers first (CANNOT_OBSERVE); the step lands, and the plan is final", async () => {
+    const ctx = await storeSetup({ funds: [100n * ADA, 50n * ADA] });
+    const { emulator, provider, builder, wallet, store } = ctx;
+    const old = await builder.plan(
+      { a: payTo(alice, 11n * ADA) },
+      { id: "order", payer: wallet },
+    );
+    // p, given built with an end an hour on, spends the change of a
+    const p = await builder.build(
+      [
+        spend.pubKey({ utxo: old.step("a").change[0]! }),
+        payTo(bob, 12n * ADA),
+        validity({ until: builder.timeAt(emulator.slot) + 3_600_000 }),
+      ],
+      { payer: wallet, after: old.step("a") },
+    );
+    await old.add({ p });
+    await old.sign();
+    const aHash = old.step("a").txHash;
+    const pHash = old.step("p").txHash;
+    // a lands, and the search does not find it; p is never sent
+    const hide = { on: true };
+    provider.control.hooks.fetchTxInfo = (forward, hash: string) => {
+      if (hide.on && hash.toLowerCase() === aHash)
+        throw Object.assign(new Error("not found"), {
+          kind: "notFound",
+          status: 404,
+        });
+      return forward(hash);
+    };
+    const relay = relayOf(emulator, (txHash) => txHash === pHash);
+    await caught(old.run({ submitter: relay, timeoutMs: 300 }));
+    advance(emulator, 700);
+    await old.refresh();
+    expect(old.steps.map((step) => [step.name, step.status])).toEqual([
+      ["a", "expired"],
+      ["p", "orphaned"],
+    ]);
+    // The wallet's read lists the change of a: the call waits, and p may still land
+    const error = await caught(old.replan({ id: "i1" }));
+    expect([
+      error.code,
+      reasonOf(error),
+      error.txHash,
+      error.retryable,
+    ]).toEqual(["CANNOT_OBSERVE", "unconfirmed", aHash, true]);
+    expect(old.replacedBy).toBeUndefined();
+    expect(await store.inner.load("i1")).toBeUndefined();
+    expect(relay.kept).toEqual([]);
+    await emulator.submitTx(old.step("p").signedTx!);
+    advance(emulator, 1);
+    hide.on = false;
+    await old.refresh();
+    expect(old.status).toBe("final");
+    expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    expect(times(emulator, bob, 12n * ADA)).toBe(1);
   });
 
   it("a step given built that stands on a step in a block: not refused by this rule, held as it is", async () => {
