@@ -11,6 +11,7 @@ import type {
 import type {
   GuardStep,
   LineInput,
+  LineTx,
   LookAnswer,
   RuleBody,
   StepTx,
@@ -19,6 +20,7 @@ import { collateral, referenceInput, spend } from "../../../src/tx-builder";
 import { emptyPlan as emptyRecord } from "../../../src/tx-builder/plan/core";
 import {
   beforeOf,
+  heldByTaken,
   landsBeside,
   lineClasses,
   lineTxOf,
@@ -1288,5 +1290,112 @@ describe("the steps in a block", () => {
     expect(
       choice(rootGuards([r], new Map([["wallet", [owned(Y, 0)]]]), [pay("m")])),
     ).toEqual({ roots: { r: null }, added: [] });
+  });
+
+  it("tells an open transaction that only a taken step keeps from landing beside a step built", () => {
+    // Kept: K; taken: S on X and S2 on Y; open: R on X, so only S excludes it
+    const S = hash(0x41);
+    const k = step("k", body(hash(0x31), [[Z, 0]]));
+    const s = step("s", body(S, [[X, 0]]));
+    const s2 = step("s2", body(hash(0x48), [[Y, 0]]));
+    const r = step("r", body(hash(0x42), [[X, 0]]));
+    const told = (
+      built: readonly StepTx[],
+      open: readonly LineTx[],
+      kept: readonly StepTx[],
+      taken: readonly StepTx[],
+    ) => {
+      const found = landsBeside(built, open, kept, taken);
+      const apart = heldByTaken(
+        found,
+        open,
+        kept,
+        taken,
+        built.map((each) => each.built.txHash),
+      );
+      return {
+        pairs: Object.fromEntries(
+          apart.pairs.map((pair) => [
+            pair.step.name,
+            pair.open.map((tx) => tx.step),
+          ]),
+        ),
+        held:
+          apart.held === undefined
+            ? undefined
+            : [
+                apart.held.step.name,
+                apart.held.open.step,
+                apart.held.taken.step,
+              ],
+      };
+    };
+    const open = [lineTxOf(r)];
+    // A step that does not stand on S: the pair is held by S
+    const u = step("u", body(hash(0x44), [[Z, 1]]));
+    expect(told([u], open, [k], [s, s2])).toEqual({
+      pairs: {},
+      held: ["u", "r", "s"],
+    });
+    // A step that stands on S is apart from R, as before: no pair, nothing held
+    const t = step("t", body(hash(0x43), [[S, 1]]));
+    expect(told([t], open, [k], [s, s2])).toEqual({
+      pairs: {},
+      held: undefined,
+    });
+    // One that stands on S2 alone is not apart from R: held by S
+    const t2 = step("t2", body(hash(0x45), [[hash(0x48), 1]]));
+    expect(told([t2], open, [k], [s, s2])).toEqual({
+      pairs: {},
+      held: ["t2", "r", "s"],
+    });
+    // A step that spends what R spends is apart from it
+    const spendsX = step("x", body(hash(0x46), [[X, 0]]));
+    expect(told([spendsX], open, [k], [s])).toEqual({
+      pairs: {},
+      held: undefined,
+    });
+    // The first taken step that keeps it, in the order of the taken steps, with the kept steps
+    // alone
+    const alsoX = step("s3", body(hash(0x49), [[X, 0]]));
+    expect(told([u], open, [k], [s2, alsoX, s]).held).toEqual(["u", "r", "s3"]);
+    // What a taken step keeps from landing through another open transaction it stands on
+    const q = step("q", body(hash(0x4a), [[hash(0x42), 1]]));
+    expect(told([u], [lineTxOf(r), lineTxOf(q)], [k], [s]).held).toEqual([
+      "u",
+      "r",
+      "s",
+    ]);
+    expect(told([u], [lineTxOf(q), lineTxOf(r)], [k], [s])).toEqual({
+      pairs: {},
+      held: ["u", "q", "s"],
+    });
+    // R settled by the kept steps is in no pair
+    const kx = step("kx", body(hash(0x4b), [[X, 2]]));
+    const r2 = step("r2", body(hash(0x4c), [[X, 2]]));
+    expect(told([u], [lineTxOf(r2)], [kx], [s])).toEqual({
+      pairs: {},
+      held: undefined,
+    });
+    // A transaction that no taken step keeps from landing stays in its pair, judged as before;
+    // so does one that is dead, which passes there by time
+    const free = step("free", body(hash(0x4d), [[hash(0x4e), 0]]));
+    const dead = { ...lineTxOf(r), dead: true as const };
+    expect(told([u], [lineTxOf(free), lineTxOf(r)], [k], [s])).toEqual({
+      pairs: { u: ["free"] },
+      held: ["u", "r", "s"],
+    });
+    expect(told([u], [dead], [k], [s])).toEqual({
+      pairs: { u: ["r"] },
+      held: undefined,
+    });
+    // The first step built that has one held, in the order of the steps built
+    const v = step("v", body(hash(0x4f), [[hash(0x50), 0]]));
+    expect(told([v, u], open, [k], [s]).held).toEqual(["v", "r", "s"]);
+    // None taken: nothing is held
+    expect(told([u], open, [k], [])).toEqual({
+      pairs: { u: ["r"] },
+      held: undefined,
+    });
   });
 });
