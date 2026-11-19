@@ -431,7 +431,7 @@ error.
   `CANNOT_OBSERVE`, before anything is signed or sent. Other timers only set the pace of waiting
   (`pollMs`, `resendMs`).
 - **Calls.** `sign()` and `run()` sign with the call's `signers`, else the payer, checking every
-  witness against the body, and never hand a transaction given built to a signer; the payer gives
+  witness against the body, and sign a step given built as any step; the payer gives
   only the keys it is asked for, and is not asked when none is left. `run()` looks at the chain,
   then signs, submits and waits for `waitFor` (`"sent"`, `"included"` by default, `"final"`);
   `refresh()` looks once; `stop()` records that the plan signs and sends nothing more. A plan with a
