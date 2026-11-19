@@ -187,6 +187,9 @@ let namedOpen = 0;
 let entriesSeen = 0;
 let refusedClosed = 0;
 let finals = 0;
+/** Plans made with taken steps, and those of them that came to final */
+let takenPlans = 0;
+let takenFinals = 0;
 
 /** Entries of the plans before a plan made in place of another */
 const ENTRIES = [
@@ -225,6 +228,9 @@ const run = (seed: number) => {
   });
   // Half the plans are made in place of another, and watch its open transactions
   const replacing = r.chance(0.5);
+  // Half of those hold the first steps as taken: found in a block by the call that made them
+  const taken = replacing && r.chance(0.5) ? 1 + r.int(count) : 0;
+  if (taken > 0) takenPlans++;
   let json = deepFreeze(
     advancePlan(
       replacing
@@ -234,11 +240,30 @@ const run = (seed: number) => {
             before: { final: ["pay"], open: ENTRIES },
           }
         : empty,
-      { type: "steps", steps: fixture.steps.slice(0, count) },
+      {
+        type: "steps",
+        steps: fixture.steps.slice(0, count).map((step, k) =>
+          k < taken
+            ? {
+                ...step,
+                taken: true as const,
+                seen: { slot: 90 - k, block: `t${k}` },
+              }
+            : step,
+        ),
+      },
     ),
   );
   if (!json.ok) throw new Error(json.message);
   let record = json.json;
+  check(
+    record.steps.every((step, k) =>
+      k < taken
+        ? step.taken === true && step.status === "included" && step.sends === 0
+        : step.taken === undefined,
+    ),
+    "the taken steps were not appended included, first, with no delivery",
+  );
   const clock = {
     timeMs: late ? UNTIL + 1_000 : UNTIL - 3_000,
     height: 10,
@@ -457,6 +482,18 @@ const run = (seed: number) => {
       sameJson(encodePlan(read), encoded),
       `${at}: the record does not come back from its JSON`,
     );
+    // A plan is final only when its taken steps are; the mark of a taken step stays
+    check(
+      after.status !== "final" ||
+        after.steps.every(
+          (step) => step.taken !== true || step.status === "final",
+        ),
+      `${at}: the plan is final while a taken step is not`,
+    );
+    check(
+      after.steps.every((step, k) => (step.taken === true) === k < taken),
+      `${at}: the mark of a taken step changed`,
+    );
     record = deepFreeze(after);
     changes++;
     reached.add(after.status);
@@ -465,6 +502,7 @@ const run = (seed: number) => {
   // Nothing is made in place of a final plan
   if (record.status === "final") {
     finals++;
+    if (taken > 0) takenFinals++;
     const named = advancePlan(record, { type: "stop", replacedBy: "late" });
     check(!named.ok, "a final plan took the name of a plan made in its place");
   }
@@ -490,6 +528,8 @@ describe("a plan under random events", () => {
       expect(entriesSeen).toBeGreaterThan(0);
       expect(refusedClosed).toBeGreaterThan(0);
       expect(finals).toBeGreaterThan(0);
+      expect(takenPlans).toBeGreaterThan(0);
+      expect(takenFinals).toBeGreaterThan(0);
       for (const status of [
         "built",
         "signed",

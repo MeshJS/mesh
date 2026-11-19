@@ -1607,6 +1607,7 @@ const encodeStep = (step: StepRecord): TxStepJSON => ({
   name: step.name,
   ...(step.kind !== undefined && { kind: step.kind }),
   ...(step.added === true && { added: true as const }),
+  ...(step.taken === true && { taken: true as const }),
   status: step.status,
   txHash: step.txHash,
   ...(step.seen !== undefined && {
@@ -2080,6 +2081,7 @@ const STEP_MEMBERS = [
   "name",
   "kind",
   "added",
+  "taken",
   "status",
   "txHash",
   "seen",
@@ -2111,6 +2113,13 @@ const decodeStep = (
     unread(`${path}.kind: the step kind ${show(json.kind)}`);
   if (json.added !== undefined && json.added !== true)
     unread(`${path}.added is ${show(json.added)}, not true`);
+  if (json.taken !== undefined && json.taken !== true)
+    unread(`${path}.taken is ${show(json.taken)}, not true`);
+  // A taken step was found in a block by the call that made the plan: one of its first record
+  if (json.taken === true && json.seen === undefined)
+    unread(`${path}.seen is missing on a taken step`);
+  if (json.taken === true && json.added !== undefined)
+    unread(`${path}.taken is on an added step`);
   const status = json.status;
   if (typeof status !== "string" || !STEP_STATUSES.has(status))
     unread(`${path}.status: the step status ${show(status)}`);
@@ -2134,6 +2143,7 @@ const decodeStep = (
       kind: json.kind as "consolidation" | "prebuilt",
     }),
     ...(json.added === true && { added: true as const }),
+    ...(json.taken === true && { taken: true as const }),
     status: status as TxStepStatus,
     txHash,
     ...(seen !== undefined && { seen }),
@@ -2402,6 +2412,13 @@ const decodeRecord = (json: Obj, id?: string): PlanRecord => {
     steps.push(decodeStep(item, steps, `steps[${i}]`));
   });
   if (steps.length === 0) unread("steps is empty: a plan has a step at least");
+  // The taken steps come first, on a plan made in place of another
+  steps.forEach((step, i) => {
+    if (step.taken === true && i > 0 && steps[i - 1]!.taken !== true)
+      unread(`steps[${i}].taken is on a step after a step that is not taken`);
+  });
+  if (json.before === undefined && steps.some((step) => step.taken === true))
+    unread("a step is taken on a plan made in place of no other");
   // The steps the plan was made with come first; every step added after them is marked
   if (steps[0]!.added === true)
     unread("steps[0].added is on a step of the first record");
@@ -2439,7 +2456,8 @@ const decodeRecord = (json: Obj, id?: string): PlanRecord => {
     options: decodeOptions(json.options, PLAN_OPTIONS, "options"),
   };
   // A consolidation step pays a payer of the plan alone: the change address it pays is the
-  // plan's payer's, or that of a step's own payer, whenever the record holds one
+  // plan's payer's, or that of a step's own payer, whenever the record holds one. A taken step
+  // was read under this rule in the plan it was taken from
   const changeAddresses = new Set(
     [
       record.options.changeAddress,
@@ -2450,6 +2468,7 @@ const decodeRecord = (json: Obj, id?: string): PlanRecord => {
     steps.forEach((step, i) => {
       if (
         step.kind === "consolidation" &&
+        step.taken !== true &&
         step.built.outputs.some(
           (output) => !changeAddresses.has(output.address),
         )

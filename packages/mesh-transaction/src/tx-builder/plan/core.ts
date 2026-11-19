@@ -42,6 +42,12 @@ export type StepRecord = {
   readonly kind?: "consolidation" | "prebuilt";
   /** The step was appended to a plan that had steps */
   readonly added?: true;
+  /**
+   * The step is a transaction of the plan this one was made in place of, held as it was: the
+   * call that made this plan found it in a block, not final. Only on steps of the first record
+   * of such a plan, before every step that is not taken; never removed
+   */
+  readonly taken?: true;
   readonly status: TxStepStatus;
   /** The hash of its body; signatures do not change it */
   readonly txHash: string;
@@ -92,8 +98,8 @@ export type StepRecord = {
 };
 
 /**
- * A transaction of the plans a plan was made in place of that was not final then, as the plan
- * keeps it: one it must not land beside
+ * A transaction of the plans a plan was made in place of that was not final then, and that the
+ * plan does not hold as a step, as the plan keeps it: one it must not land beside
  */
 export type BeforeEntry = {
   /** The name of its step in the plan it belongs to */
@@ -223,6 +229,7 @@ export type NewStep = Pick<
   StepRecord,
   | "name"
   | "kind"
+  | "taken"
   | "standsOn"
   | "after"
   | "expirySource"
@@ -233,6 +240,11 @@ export type NewStep = Pick<
 > & {
   /** Witnesses it holds already, verified against its body */
   readonly witnesses?: readonly KeyWitness[];
+  /**
+   * Of a taken step: the block the look of the call found it in. The step is appended
+   * `included`, with this block and no delivery
+   */
+  readonly seen?: { readonly slot: number; readonly block?: string };
 };
 
 /** A fact the state machine applies to a record */
@@ -240,7 +252,9 @@ export type PlanEvent =
   /**
    * Steps appended at the end of the plan, in order. Every step already in the plan stays as it
    * is. The first record is this event applied to the empty plan; a step appended to a plan that
-   * has steps is marked `added`
+   * has steps is marked `added`. A taken step is appended `included`, with the block it comes
+   * with: only by the first record of a plan made in place of another, and before every step that
+   * is not taken
    */
   | { readonly type: "steps"; readonly steps: readonly NewStep[] }
   /**
@@ -695,6 +709,33 @@ export const afterProblem = (
   return undefined;
 };
 
+/**
+ * Why the step at `index` of a `steps` event cannot be a taken step, or a step after one;
+ * undefined when it can. A taken step comes with the block it was found in, only in the first
+ * record of a plan made in place of another, and before every step of the event that is not
+ * taken; a block comes with a taken step alone
+ */
+const takenProblem = (
+  json: PlanRecord,
+  given: readonly NewStep[],
+  index: number,
+): string | undefined => {
+  const step = given[index]!;
+  const quoted = JSON.stringify(step.name);
+  if (step.taken === undefined && step.seen === undefined) return undefined;
+  if (step.taken !== true)
+    return `step ${quoted} comes with a block and is not taken: only a taken step is appended in a block`;
+  if (step.seen === undefined)
+    return `the taken step ${quoted} comes without the block it was found in`;
+  if (json.before === undefined)
+    return `the taken step ${quoted} is on a plan made in place of no other`;
+  if (json.steps.length > 0)
+    return `the taken step ${quoted} is appended to a plan that has steps: only the first record holds one`;
+  if (given.slice(0, index).some((each) => each.taken !== true))
+    return `the taken step ${quoted} comes after a step that is not taken`;
+  return undefined;
+};
+
 const append = (json: PlanRecord, event: EventOf<"steps">): PlanAdvanced => {
   const given = event.steps;
   if (given.length === 0) return refuse("steps", "no step is given to append");
@@ -725,10 +766,43 @@ const append = (json: PlanRecord, event: EventOf<"steps">): PlanAdvanced => {
   const steps = [...json.steps];
   // The steps of the first record are those the plan was made with; any later one is marked
   const added = json.steps.length > 0;
-  for (const step of given) {
-    const problem = newStepProblem(step, steps);
+  for (const [index, step] of given.entries()) {
+    const problem =
+      takenProblem(json, given, index) ?? newStepProblem(step, steps);
     if (problem !== undefined) return refuse("steps", problem);
     const witnesses = mergeWitnesses([], step.witnesses ?? []);
+    // A taken step is in a block already: no delivery of it is this plan's yet
+    if (step.taken === true) {
+      steps.push({
+        name: step.name,
+        ...(step.kind !== undefined && { kind: step.kind }),
+        taken: true,
+        status: "included",
+        txHash: step.built.txHash,
+        seen: {
+          slot: step.seen!.slot,
+          ...(step.seen!.block !== undefined && { block: step.seen!.block }),
+        },
+        standsOn: [...step.standsOn],
+        ...(step.after !== undefined &&
+          step.after.length > 0 && { after: [...step.after] }),
+        ...(step.expirySource !== undefined && {
+          expirySource: step.expirySource.toLowerCase(),
+        }),
+        built: step.built,
+        witnesses,
+        ...(step.extraKeyWitnesses !== undefined &&
+          step.extraKeyWitnesses > 0 && {
+            extraKeyWitnesses: step.extraKeyWitnesses,
+          }),
+        ...(step.given !== undefined && { given: step.given }),
+        ...(step.kind === "prebuilt" &&
+          step.tags !== undefined && { tags: { ...step.tags } }),
+        sends: 0,
+        refused: 0,
+      });
+      continue;
+    }
     const record: StepRecord = {
       name: step.name,
       ...(step.kind !== undefined && { kind: step.kind }),

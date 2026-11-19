@@ -199,7 +199,10 @@ export type TxStepStatus =
   | "sent"
   /** The ledger refused it, and every earlier delivery of it; the same bytes may still be sent */
   | "rejected"
-  /** Found by a fresh search in a block, with `is_valid = true`; a rollback can undo it */
+  /**
+   * Found by a fresh search in a block, with `is_valid = true`; a rollback can undo it. A step
+   * a plan holds of the plan it was made in place of starts here
+   */
   | "included"
   /** In a block with at least `confirmations` blocks on top of it */
   | "final"
@@ -257,8 +260,8 @@ export type TxStep = Readonly<BuiltTxData> & {
 };
 
 /**
- * One step of a plan as its record holds it. Applications read `name`, `kind`, `status` and
- * `txHash`; the rest is the library's.
+ * One step of a plan as its record holds it. Applications read `name`, `kind`, `taken`,
+ * `status` and `txHash`; the rest is the library's.
  */
 export type TxStepJSON = {
   readonly name: string;
@@ -266,6 +269,12 @@ export type TxStepJSON = {
   readonly kind?: "consolidation" | "prebuilt";
   /** The library's: the step was added to the plan after it was made; absent otherwise */
   readonly added?: true;
+  /**
+   * The step is a transaction of the plan this one was made in place of, in a block and not
+   * final when this plan was made, held with the witnesses and the block that plan recorded;
+   * absent otherwise
+   */
+  readonly taken?: true;
   readonly status: TxStepStatus;
   readonly txHash: string;
   /** The block it was last found in; kept when a rollback takes it out of the block */
@@ -308,7 +317,7 @@ export type TxStepJSON = {
  * `bigint` of the parts and of the transactions stands as its decimal string, POSIX times as
  * numbers, so `JSON.parse(JSON.stringify(json))` gives it back unchanged. Applications read
  * `id`, `rev`, `status`, `stopped`, `halted`, `replaces`, `replacedBy`, `deadlines` and, of each
- * step, `name`, `kind`, `status` and `txHash`; the rest is the library's.
+ * step, `name`, `kind`, `taken`, `status` and `txHash`; the rest is the library's.
  */
 export type TxPlanJSON = {
   /** Always `"TxPlan"`: what kind of record this is */

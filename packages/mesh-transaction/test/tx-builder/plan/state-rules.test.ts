@@ -959,6 +959,183 @@ describe("the transactions of the plans before", () => {
   });
 });
 
+describe("a taken step", () => {
+  const SEEN = { slot: 400, block: "b4" };
+  /** The step `name` of the chain, taken: in a block, with the witnesses given */
+  const takenStep = (
+    name: string,
+    index: number,
+    keys: string[] = [K1],
+    witnesses = [witnessOf(K1)],
+  ): NewStep => ({
+    ...chainStep(name, index, { keys }),
+    taken: true,
+    seen: SEEN,
+    witnesses,
+  });
+  /** The first record of a plan made in place of another, of these steps */
+  const firstOf = (
+    steps: readonly NewStep[],
+    deadlines: Partial<PlanRecord["deadlines"]> = {},
+  ) =>
+    advancePlan(
+      emptyRecord({
+        id: "plan-2",
+        network: "preprod",
+        deadlines: { ...DEADLINES, ...deadlines },
+        options: {},
+        replaces: "plan-1",
+        before: { final: [], open: [] },
+      }),
+      { type: "steps", steps },
+    );
+  const made = (
+    steps: readonly NewStep[],
+    deadlines: Partial<PlanRecord["deadlines"]> = {},
+  ) => {
+    const result = firstOf(steps, deadlines);
+    if (!result.ok) throw new Error(result.message);
+    return result.json;
+  };
+
+  it("appends a taken step as included, with its block and its witnesses, and no delivery", () => {
+    const json = made([
+      takenStep("a", 0, [K1, K2], [witnessOf(K1), witnessOf(K2, "bootstrap")]),
+      chainStep("b", 1, { keys: [K1] }),
+    ]);
+    expect(json).toMatchObject({ rev: 1, status: "pending" });
+    expect(stepOf(json, "a")).toMatchObject({
+      taken: true,
+      status: "included",
+      seen: SEEN,
+      sends: 0,
+      refused: 0,
+    });
+    // Merged as for any new step: vkey witnesses first, each counted for its own key
+    expect(stepOf(json, "a").witnesses.map((each) => each.kind)).toEqual([
+      "vkey",
+      "bootstrap",
+    ]);
+    expect(missingKeys(stepOf(json, "a"))).toEqual([K2]);
+    expect(stepOf(json, "b")).toMatchObject({ status: "built" });
+    expect(stepOf(json, "b").taken).toBeUndefined();
+    expect(landedSteps(json).map((step) => step.name)).toEqual(["a"]);
+    expect(liveSteps(json).map((step) => step.name)).toEqual(["b"]);
+    // The block is copied: the record holds no object of the event
+    expect(stepOf(json, "a").seen).not.toBe(SEEN);
+  });
+
+  it("refuses a taken step out of place", () => {
+    const why = (steps: readonly NewStep[]) => {
+      const result = firstOf(steps);
+      if (result.ok) throw new Error("accepted");
+      expect(result.reason).toBe("steps");
+      return result.message;
+    };
+    const { seen: _seen, ...noBlock } = takenStep("a", 0);
+    expect(why([noBlock])).toMatch(/without the block it was found in/);
+    const { taken: _taken, ...notTaken } = takenStep("a", 0);
+    expect(why([notTaken])).toMatch(/comes with a block and is not taken/);
+    expect(why([chainStep("a", 0), takenStep("b", 1)])).toMatch(
+      /after a step that is not taken/,
+    );
+    // On a plan made in place of no other
+    expect(
+      refusal(emptyPlan(), { type: "steps", steps: [takenStep("a", 0)] }),
+    ).toBe("steps");
+    // On a plan that has steps
+    const first = made([takenStep("a", 0)]);
+    expect(refusal(first, { type: "steps", steps: [takenStep("b", 1)] })).toBe(
+      "steps",
+    );
+    // Every other check of a new step applies to it
+    expect(
+      why([takenStep("a", 0), { ...takenStep("b", 1), standsOn: [] }]),
+    ).toMatch(/stands on \[\]/);
+  });
+
+  it("a taken step is a step of its plan", () => {
+    const json = made([
+      takenStep("a", 0, [K1, K2], [witnessOf(K1)]),
+      chainStep("b", 1, { keys: [K1] }),
+    ]);
+    const a = txOf(json, "a");
+    // A look that does not find it: sent, its block kept
+    const back = accept(json, look([missing(a)]));
+    expect(stepOf(back, "a")).toMatchObject({ status: "sent", seen: SEEN });
+    expect(back.status).toBe("pending");
+    // A signature is taken while it is sent with no delivery; then a delivery
+    const signed = accept(back, {
+      type: "signature",
+      step: "a",
+      witnesses: [witnessOf(K2)],
+    });
+    expect(missingKeys(stepOf(signed, "a"))).toEqual([]);
+    const sent = accept(signed, deliver("a"));
+    expect(stepOf(sent, "a")).toMatchObject({ status: "sent", sends: 1 });
+    // A delivery is taken also on a plan that is stopping
+    const z: NewStep = {
+      name: "z",
+      built: stepTx({
+        txHash: hash(0xb9),
+        inputs: [utxo(hash(0xf1))],
+        until: UNTIL,
+      }),
+      standsOn: [],
+    };
+    const two = made([takenStep("a", 0), z]);
+    const stopping = accept(
+      accept(two, deliver("z")),
+      look(
+        [missing(txOf(two, "a")), missing(hash(0xb9)), found(hash(0xf1))],
+        tipAt(PAST),
+      ),
+    );
+    expect(stepOf(stopping, "z").status).toBe("expired");
+    expect(stepOf(stopping, "a").status).toBe("sent");
+    expect(stopping.status).toBe("stopping");
+    expect(stepOf(accept(stopping, deliver("a")), "a").sends).toBe(1);
+    // Past its end and the margin, not found, its source found: expired, the step on it
+    // orphaned, the plan stopped and halted
+    const dead = accept(back, look([missing(a), found(SOURCE)], tipAt(PAST)));
+    expect(stepOf(dead, "a").status).toBe("expired");
+    expect(stepOf(dead, "b").status).toBe("orphaned");
+    expect(dead).toMatchObject({ status: "stopped", halted: true });
+    // Found at the depth of final: final, and the plan only once every step is
+    const deep = accept(
+      json,
+      look([found(a, { blockHeight: 1 })], tipAt(0, 9)),
+    );
+    expect(stepOf(deep, "a").status).toBe("final");
+    expect(deep.status).toBe("pending");
+    const signedB = accept(deep, {
+      type: "signature",
+      step: "b",
+      witnesses: [witnessOf(K1)],
+    });
+    const final = accept(
+      accept(signedB, deliver("b")),
+      look([found(txOf(json, "b"), { blockHeight: 1 })], tipAt(0, 9)),
+    );
+    expect(final.status).toBe("final");
+    // The plan is never final while the taken step is not
+    const onlyB = accept(
+      accept(
+        accept(json, {
+          type: "signature",
+          step: "b",
+          witnesses: [witnessOf(K1)],
+        }),
+        deliver("b"),
+      ),
+      look([found(txOf(json, "b"), { blockHeight: 1 })], tipAt(0, 9)),
+    );
+    expect(stepOf(onlyB, "b").status).toBe("final");
+    expect(stepOf(onlyB, "a").status).not.toBe("final");
+    expect(onlyB.status).not.toBe("final");
+  });
+});
+
 describe("the name of the plan made in place of a terminal one", () => {
   it("is recorded once on a stopped plan, with the mark; another name is refused", () => {
     const stopped = accept(

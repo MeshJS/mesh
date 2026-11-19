@@ -493,6 +493,115 @@ describe("the record of a plan", () => {
     ).toMatch(/steps\[4\]\.added is missing on a step after an added step/);
   });
 
+  it("writes the mark of a taken step and reads it back", () => {
+    const [a, b, c, d] = fixture.steps;
+    /** The first record of a plan made in place of another, `taken` the steps it holds */
+    const replacing = (
+      steps: readonly NonNullable<typeof a>[],
+      changeAddress = fixture.first.address,
+    ) =>
+      accept(
+        emptyPlan({
+          id: "order-7:2",
+          network: "preprod",
+          deadlines: { ttlMs: 600_000, expiryMarginMs: 0, confirmations: 2 },
+          options: { changeAddress },
+          replaces: "order-7",
+          before: { final: [], open: [] },
+        }),
+        { type: "steps", steps },
+      );
+    const seen = { slot: 91, block: "e3" };
+    const made = replacing([
+      { ...a!, taken: true, seen },
+      { ...b!, taken: true, seen: { slot: 92 } },
+      c!,
+      d!,
+    ]);
+    const json = encodePlan(made);
+    expect(Object.keys(json.steps[0]!).slice(0, 4)).toEqual([
+      "name",
+      "taken",
+      "status",
+      "txHash",
+    ]);
+    expect(json.steps.map((step) => step.taken)).toEqual([
+      true,
+      true,
+      undefined,
+      undefined,
+    ]);
+    expect(json.steps[0]).toMatchObject({
+      status: "included",
+      seen,
+      sends: 0,
+      refused: 0,
+    });
+    const read = throughText(json);
+    expect(read.steps[0]!.taken).toBe(true);
+    expect(read.steps[2]!.taken).toBeUndefined();
+    expect(encodePlan(read)).toEqual(json);
+    // A record without the member reads as before
+    const plain = encodePlan(firstRecord());
+    expect(plain.steps.some((step) => "taken" in step)).toBe(false);
+    expect(encodePlan(throughText(plain))).toEqual(plain);
+    // A taken consolidation step was read under the rule of its payers in its own plan: one that
+    // pays an address of no payer of this plan reads
+    const consolidation = encodePlan(
+      replacing([{ ...c!, taken: true, seen }, a!], fixture.second.address),
+    );
+    expect(consolidation.steps[0]).toMatchObject({
+      kind: "consolidation",
+      taken: true,
+    });
+    expect(throughText(consolidation).steps[0]!.taken).toBe(true);
+    const untaken = JSON.parse(JSON.stringify(consolidation));
+    delete untaken.steps[0].taken;
+    expect(() => readPlan(untaken)).toThrow(/consolidation step that pays/);
+
+    const refused = (change: (j: Record<string, any>) => void) => {
+      const copy = JSON.parse(JSON.stringify(json));
+      change(copy);
+      const error = (() => {
+        try {
+          readPlan(copy);
+        } catch (thrown) {
+          return thrown;
+        }
+        throw new Error("the record was read");
+      })();
+      expect(TxPlanError.is(error, "INVALID_STATE")).toBe(true);
+      expect((error as TxPlanError<"INVALID_STATE">).details.reason).toBe(
+        "recordVersion",
+      );
+      return (error as Error).message;
+    };
+    expect(refused((j) => (j.steps[0].taken = false))).toMatch(
+      /steps\[0\]\.taken is false, not true/,
+    );
+    expect(refused((j) => (j.steps[0].taken = "yes"))).toMatch(/taken/);
+    expect(refused((j) => delete j.steps[0].seen)).toMatch(
+      /steps\[0\]\.seen is missing on a taken step/,
+    );
+    expect(refused((j) => (j.steps[1].added = true))).toMatch(
+      /steps\[1\]\.taken is on an added step/,
+    );
+    expect(
+      refused((j) => {
+        j.steps[3].taken = true;
+        j.steps[3].seen = { slot: 93 };
+        j.steps[3].status = "included";
+        j.steps[3].tx.delivered = true;
+      }),
+    ).toMatch(/steps\[3\]\.taken is on a step after a step that is not taken/);
+    expect(
+      refused((j) => {
+        delete j.before;
+        delete j.replaces;
+      }),
+    ).toMatch(/a step is taken on a plan made in place of no other/);
+  });
+
   it("keeps the set tags of a prebuilt step's witnesses through JSON text, and writes a step the plan built as before", () => {
     const record = firstRecord();
     const c = record.steps.find((step) => step.name === "c")!;
