@@ -1099,11 +1099,19 @@ for (const id of await db.openPlanIds()) {
     let plan = await builder.resume(id, { payer: await payerFor(id) });
     await plan.refresh();
     // A final plan has paid: the line ends there. Else a plan made in its place is named in
-    // `replacedBy`, and a stopped one gets one; the same call again returns that plan
+    // `replacedBy`; and a plan gets one once no step of it may still land outside a block
+    // (`live` is empty) while a step of it is in none. Its steps that are in a block go on as
+    // steps of the new plan. The same call again returns that plan. A pass makes one plan
+    // at most: a step whose own parts give an end that has passed is dead in it at once
+    let made = false;
     while (
       plan.status !== "final" &&
-      (plan.replacedBy !== undefined || plan.status === "stopped")
+      (plan.replacedBy !== undefined ||
+        (!made &&
+          plan.live.length === 0 &&
+          plan.landed.length < plan.steps.length))
     ) {
+      made ||= plan.replacedBy === undefined;
       plan = await plan.replan({ id: plan.replacedBy ?? `${plan.id}:next` });
       await plan.refresh();
     }
@@ -1118,9 +1126,17 @@ for (const id of await db.openPlanIds()) {
 `resume` reads the store only: it makes no request to the chain and does not call the payer; the
 provider is probed before the first delivery. Errors with `retryable: true` are a wait, not a
 failure. With `waitFor: "sent"` each pass moves a plan one step on. A plan with a step that will
-not land is `stopping` until nothing more of it can land, which may take until its steps' end of
-validity and the margin; the loop keeps it until it is `stopped`, then pays what is left by
-`replan` ([A step that does not go through](#a-step-that-does-not-go-through)). The loop looks at
+not land is kept while another step of it may still land outside a block (`live`), which may take
+until that step's end of validity and the margin; then the loop pays what is left by `replan`
+([A step that does not go through](#a-step-that-does-not-go-through)). It does not wait for the
+steps that are in a block to be `final`: the new plan holds them, and is `final` only when they
+are. A plan whose steps are all in a block is left to become `final`. After a rollback the loop
+needs nothing more: `run()` of the new plan sends such a step again, and when it can no longer land
+the new plan stops in its turn and gets a plan in its place. Where `replan` still waits
+(`CANNOT_OBSERVE`, `unconfirmed`), the next pass asks again. A pass makes one plan in place of
+another at most: a step built again keeps the end of validity its own parts give, and when that
+has passed the plan made is dead at once and gets a plan in its place on every pass, never more
+than one, until the application gives `steps` of its own. The loop looks at
 each plan of a line before it goes on: a line ends at its first `final` plan, which has paid,
 also an old plan whose step landed late after it was replaced; only a plan that is not final is
 followed to the plan in its place. A `stopped` plan that a later look finds a step of is
