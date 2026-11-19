@@ -7,7 +7,7 @@ import type {
   TxPlan,
 } from "../../../src/tx-builder";
 import type { Fault, StoreFault } from "./fault-util";
-import { spend } from "../../../src/tx-builder";
+import { spend, validity } from "../../../src/tx-builder";
 import { baseAddress } from "../../test-util";
 import { ref } from "../utxo-util";
 import { codeOf, Process, runStep, World } from "./fault-util";
@@ -641,10 +641,10 @@ const crashCase = async (fault: Fault, release: number) => {
  * `b` sent and held by a relay, `c` signed; a slot on. `before`: a fork taken first, the chain
  * of a rollback
  */
-const inBlock = async () => {
+const inBlock = async (confirmations = 3) => {
   const ctx = await storeSetup({
     funds: [100n * ADA, 50n * ADA],
-    planDefaults: { ...FAST, confirmations: 3 },
+    planDefaults: { ...FAST, confirmations },
   });
   const before = ctx.emulator.fork();
   const old = await ctx.builder.plan(
@@ -1008,13 +1008,16 @@ describe("a crash at every request of replan", () => {
 describe("the reconciliation loop of the README", () => {
   /**
    * Passes of the README's reconciliation loop over the ids the application keeps, the body as
-   * the README has it; time moves on between passes. Gives the ids closed and what was reported
+   * the README has it; time moves on between passes, by `slots` (700 by default), on the chain
+   * `chain` gives (the emulator by default). Gives the ids closed and what was reported
    */
   const reconcile = async (
     ctx: Awaited<ReturnType<typeof storeSetup>>,
     passes: number,
+    slots: number | ((pass: number) => number) = 700,
+    chain: () => TxEmulator = () => ctx.emulator,
   ) => {
-    const { builder, wallet, emulator } = ctx;
+    const { builder, wallet } = ctx;
     const open = ["order"];
     const closed: string[] = [];
     const reported: string[] = [];
@@ -1033,22 +1036,32 @@ describe("the reconciliation loop of the README", () => {
         try {
           let plan = await builder.resume(id, { payer: await payerFor(id) });
           await plan.refresh();
+          // A final plan has paid: the line ends there. Else a plan made in its place is named in
+          // `replacedBy`; and a plan gets one once no step of it may still land outside a block
+          // (`live` is empty) while a step of it is in none. Its steps that are in a block go on as
+          // steps of the new plan. The same call again returns that plan. A pass makes one plan
+          // at most: a step whose own parts give an end that has passed is dead in it at once
+          let made = false;
           while (
             plan.status !== "final" &&
-            (plan.replacedBy !== undefined || plan.status === "stopped")
+            (plan.replacedBy !== undefined ||
+              (!made &&
+                plan.live.length === 0 &&
+                plan.landed.length < plan.steps.length))
           ) {
+            made ||= plan.replacedBy === undefined;
             plan = await plan.replan({
               id: plan.replacedBy ?? `${plan.id}:next`,
             });
             await plan.refresh();
           }
-          await plan.run({ waitFor: "sent" }).catch(report);
-          if (plan.status === "final") await db.close(id, plan.status);
+          await plan.run({ waitFor: "sent" }).catch(report); // a look, then what can be done at once
+          if (plan.status === "final") await db.close(id, plan.status); // release the goods
         } catch (error) {
-          report(error);
+          report(error); // the pass goes on; the next one repeats the call
         }
       }
-      advance(emulator, 700);
+      advance(chain(), typeof slots === "number" ? slots : slots(n));
     }
     return { closed, reported };
   };
@@ -1073,6 +1086,36 @@ describe("the reconciliation loop of the README", () => {
   const paidOnceEach = (emulator: TxEmulator) => {
     expect(times(emulator, alice, 11n * ADA)).toBe(1);
     expect(times(emulator, bob, 12n * ADA)).toBe(1);
+  };
+
+  /**
+   * A plan of two payments on a store whose depth of final is 100 blocks: `a`, ending 600 s on,
+   * in a block; `b`, ending 30 s on (the plan's `ttlMs`; with `ownEnd`, a validity part of its
+   * own), sent and held by a relay; then 40 slots on, past the end of `b`, with `a` in a block
+   * and not final. `before`: a fork taken first, the chain of a rollback
+   */
+  const deadBesideInBlock = async (ownEnd = false) => {
+    const ctx = await storeSetup({
+      funds: [100n * ADA, 50n * ADA],
+      planDefaults: { ...FAST, confirmations: 100 },
+    });
+    const { emulator, builder, wallet } = ctx;
+    const before = emulator.fork();
+    const now = builder.timeAt(emulator.slot);
+    const old = await builder.plan(
+      {
+        a: [payTo(alice, 11n * ADA), validity({ until: now + 600_000 })],
+        b: [payTo(bob, 12n * ADA), ownEnd && validity({ until: now + 30_000 })],
+      },
+      { id: "order", payer: wallet, ttlMs: 30_000 },
+    );
+    await old.sign();
+    const bHash = old.step("b").txHash;
+    const relay = relayOf(emulator, (txHash) => txHash === bHash);
+    await caught(old.run({ submitter: relay, timeoutMs: 300 }));
+    expect(old.steps.map((step) => step.status)).toEqual(["included", "sent"]);
+    advance(emulator, 40);
+    return { ...ctx, before, old, held: relay.kept[0]! };
   };
 
   it("the old step lands after the replan: the line closes at the old plan, everyone paid once", async () => {
@@ -1126,5 +1169,130 @@ describe("the reconciliation loop of the README", () => {
     const last = await builder.resume("order:3");
     expect(last.steps.map((step) => step.status)).not.toContain("sent");
     paidOnceEach(emulator);
+  });
+
+  it("a plan with a dead step beside one in a block is replaced on the same pass", async () => {
+    const ctx = await deadBesideInBlock();
+    const { emulator, store, builder, held } = ctx;
+    // Time moves 4 slots after the first pass, then 120 after each
+    const first = await reconcile(ctx, 1, 4);
+    expect(first.closed).toEqual([]);
+    const next = (await store.inner.load("order:next"))!;
+    expect(next.replaces).toBe("order");
+    expect(next.steps[0]).toMatchObject({ name: "a", taken: true });
+    const { closed, reported } = await reconcile(ctx, 3, 120);
+    expect({ closed, reported }).toEqual({ closed: ["order"], reported });
+    expect((await builder.resume("order:next")).status).toBe("final");
+    expect(
+      await emulator.submitTx(held).then(
+        () => false,
+        () => true,
+      ),
+    ).toBe(true);
+    paidOnceEach(emulator);
+  });
+
+  it("a step whose own parts give an end that has passed: a pass makes one plan at most", async () => {
+    const ctx = await deadBesideInBlock(true);
+    const { store } = ctx;
+    const { closed } = await reconcile(ctx, 2, 1);
+    expect(closed).toEqual([]);
+    // The step built again keeps the end its parts give, which has passed: dead at once
+    const next = (await store.inner.load("order:next"))!;
+    expect(next.steps.map((step) => step.status)).toEqual([
+      "included",
+      "expired",
+    ]);
+    expect(await store.inner.load("order:next:next:next")).toBeUndefined();
+    expect(times(ctx.emulator, bob, 12n * ADA)).toBeLessThanOrEqual(1);
+    expect(times(ctx.emulator, alice, 11n * ADA)).toBe(1);
+  });
+
+  /** Each payment of the plans of `inBlock` made once */
+  const paidThrice = (chain: TxEmulator) => {
+    paidOnceEach(chain);
+    expect(times(chain, carol, 13n * ADA)).toBe(1);
+  };
+
+  it("after a rollback that is undone the loop goes on with the new plan", async () => {
+    // a in a block, ten blocks short of final; replaced at once, a taken
+    const ctx = await inBlock(10);
+    const { store, provider, before, emulator, old } = ctx;
+    await old.replan({ id: "order:next" });
+    expect((await store.inner.load("order:next"))!.steps[0]!.taken).toBe(true);
+    // The block of a is rolled back; the fork can take it again. Time moves 1 slot between the
+    // first three passes, then 120
+    before.advanceTo({ slot: emulator.slot + 1 });
+    provider.control.target = before;
+    const { closed, reported } = await reconcile(
+      ctx,
+      7,
+      (n) => (n < 3 ? 1 : 120),
+      () => before,
+    );
+    expect({ closed, reported }).toEqual({ closed: ["order"], reported });
+    expect((await store.inner.load("order:next"))!.status).toBe("final");
+    expect(await store.inner.load("order:next:next")).toBeUndefined();
+    paidThrice(before);
+  });
+
+  it("after a rollback that is not undone the loop makes a third plan and closes at it", async () => {
+    const ctx = await inBlock(10);
+    const { store, provider, before, emulator, old } = ctx;
+    await old.replan({ id: "order:next" });
+    expect((await store.inner.load("order:next"))!.steps[0]!.taken).toBe(true);
+    // The fork is moved past the end of a; time moves 1 slot, then 120, between the passes
+    before.advanceTo({ slot: emulator.slot + 700 });
+    provider.control.target = before;
+    const { closed, reported } = await reconcile(
+      ctx,
+      7,
+      (n) => (n < 2 ? 1 : 120),
+      () => before,
+    );
+    expect({ closed, reported }).toEqual({ closed: ["order"], reported });
+    expect((await store.inner.load("order:next"))!.status).toBe("stopped");
+    const third = (await store.inner.load("order:next:next"))!;
+    expect(third.replaces).toBe("order:next");
+    expect(third.steps.some((step) => step.taken === true)).toBe(false);
+    expect(third.status).toBe("final");
+    paidThrice(before);
+  });
+
+  it("a plan that came back from stopped with every step in a block is left to become final", async () => {
+    const ctx = await storeSetup({
+      funds: [100n * ADA, 50n * ADA],
+      planDefaults: { ...FAST, confirmations: 1_000 },
+    });
+    const { emulator, provider, builder, wallet, store } = ctx;
+    const old = await builder.plan(
+      { a: payTo(alice, 11n * ADA) },
+      { id: "order", payer: wallet },
+    );
+    const aHash = old.step("a").txHash;
+    // A search that hides a until it is past its end and the margin: expired, stopped
+    provider.control.hooks.fetchTxInfo = (forward, hash: string) => {
+      if (hash.toLowerCase() === aHash)
+        throw Object.assign(new Error("not found"), {
+          kind: "notFound",
+          status: 404,
+        });
+      return forward(hash);
+    };
+    await caught(old.run({ timeoutMs: 300 }));
+    advance(emulator, 700);
+    await old.refresh();
+    expect(old.status).toBe("stopped");
+    delete provider.control.hooks.fetchTxInfo;
+    // Time moves 10 slots between the passes, then 1000: a is in a block, not final, then final
+    const { closed, reported } = await reconcile(ctx, 3, (n) =>
+      n < 1 ? 10 : 1_000,
+    );
+    expect(closed).toEqual(["order"]);
+    expect(
+      reported.filter((each) => each.startsWith("INVALID_OPTION")),
+    ).toEqual([]);
+    expect(await store.inner.load("order:next")).toBeUndefined();
+    expect(times(emulator, alice, 11n * ADA)).toBe(1);
   });
 });
