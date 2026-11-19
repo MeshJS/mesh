@@ -35,9 +35,10 @@ import { alice, payTo } from "./run-util";
 // the margin and the depth, a search hides a hash for some looks, an address is read from a fork,
 // and the store answers a read with an earlier revision; now and then the first step of the plan
 // not in a block lands while a step after it is open, one of the objects makes a plan in place of
-// it while that step is in a block, and the chain mostly rolls back to before it landed. A replayer holds every body the store
-// ever recorded and every byte string a submitter held back, signs the bodies with the payer's
-// key and submits them at random moments, to the chain and to its forks.
+// it while that step is in a block, and the chain mostly rolls back to before it landed. A
+// replayer holds every body the store ever recorded and every byte string a submitter held back,
+// signs the bodies with the payer's key and submits them at random moments, to the chain and to
+// its forks.
 //
 // After every round, for every plan run so far:
 //  - the bodies of its steps are the ones of its first record, in every revision the store
@@ -190,7 +191,10 @@ const reached = {
   forkReads: 0,
   staleReads: 0,
   plans: 0,
-  /** Plans made with a step taken from the plan before, and those whose taken step a look found out of its block */
+  /**
+   * Plans made with a step taken from the plan before, and those whose taken step a look found
+   * out of its block
+   */
   takenPlans: 0,
   takenRolledBack: 0,
   /** Of those, the ones the random rounds made, apart from the closing phase */

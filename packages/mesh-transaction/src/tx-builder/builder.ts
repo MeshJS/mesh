@@ -2535,10 +2535,10 @@ export class TxBuilder {
    *   is, read from its own bytes by `fromCbor`, with the UTxOs it names from the steps before
    *   it, `after`, `knownUtxos` or the provider; `kind: "prebuilt"`. The call's signers, else
    *   the plan's payer, sign it as any step, for the keys that have not signed it yet; a witness
-   *   it needs from a party that is no signer of the call comes through `plan.addWitnesses`. What it
-   *   spends no other step spends or selects. A link names its outputs by position, and by
-   *   label only on an object `build` or `finalize` made in this process. One without an end of
-   *   validity never expires (`NEVER_EXPIRES` in its `warnings`), so `until` is undefined.
+   *   it needs from a party that is no signer of the call comes through `plan.addWitnesses`.
+   *   What it spends no other step spends or selects. A link names its outputs by position, and
+   *   by label only on an object `build` or `finalize` made in this process. One without an end
+   *   of validity never expires (`NEVER_EXPIRES` in its `warnings`), so `until` is undefined.
    *
    * The plan's deadlines are its own options, else this builder's `planDefaults`, else the
    * built-in values, written into it now and never read from the builder again. On a builder with

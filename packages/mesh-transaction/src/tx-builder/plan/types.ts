@@ -245,7 +245,8 @@ export type TxStep = Readonly<BuiltTxData> & {
   readonly name: string;
   /**
    * `"consolidation"`: the plan put the step in itself. `"prebuilt"`: a transaction given built;
-   * `sign()` and `run()` sign it as a step the plan built. Absent: built by the plan from the parts given
+   * `sign()` and `run()` sign it as a step the plan built. Absent: built by the plan from the
+   * parts given
    */
   readonly kind?: "consolidation" | "prebuilt";
   readonly status: TxStepStatus;

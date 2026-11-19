@@ -778,14 +778,14 @@ of the old plan, and carry on. Never
   plan looks for it, sends its bytes again after a rollback, and is `final` only once it is. Every
   step it builds stands on that step, but a consolidation step, which pays the payer alone; a link
   may name it, and its name is not given again. It is in the new plan's `landed` at once, and out
-  of it after a rollback until a look finds it again; in `live` while it is out of its block and may still land; never
-  in `rest`; `until` counts its end of validity. Its fee is in both plans' `fee`. The call does not
-  wait for `final`: to have it wait, call once every step in `landed` is `final`. A plan whose
-  every step is final or in a block has nothing left to pay: `replan` of it waits
-  (`CANNOT_OBSERVE`, `unconfirmed`) and is `INVALID_STATE` (`final`) once it is final; to pay
-  more, `plan.add` steps to it. A stopped one (by `stop()`, a mark, or a look that found an old
-  transaction) sends nothing more and takes no step: once a rollback leaves a step of it open,
-  the same call makes the plan in its place.
+  of it after a rollback until a look finds it again; in `live` while it is out of its block and
+  may still land; never in `rest`; `until` counts its end of validity. Its fee is in both plans'
+  `fee`. The call does not wait for `final`: to have it wait, call once every step in `landed` is
+  `final`. A plan whose every step is final or in a block has nothing left to pay: `replan` of it
+  waits (`CANNOT_OBSERVE`, `unconfirmed`) and is `INVALID_STATE` (`final`) once it is final; to
+  pay more, `plan.add` steps to it. A stopped one (by `stop()`, a mark, or a look that found an
+  old transaction) sends nothing more and takes no step: once a rollback leaves a step of it
+  open, the same call makes the plan in its place.
 - After a rollback that is not undone (the step's end of validity passed, or another transaction
   took its input) the steps built cannot land. The new plan shows it: that step `expired`, the
   steps on it `orphaned`, the plan `stopped` and never `final`. `replan` of it builds what is left
@@ -818,8 +818,8 @@ of the old plan, and carry on. Never
   or a consolidation step: `INVALID_OPTION`, `steps`), or a step left whose own end of validity
   has passed (`INVALID_OPTION`, `steps`: built again it could not land), or a step given built
   that spends, reads or puts up an output of a step the new plan does not hold as the same
-  transaction (`INVALID_OPTION`, `steps`: that output never exists), unless `steps` are given; a plan whose every step is in a block, which is waited for and then `final`; an old
-  transaction
+  transaction (`INVALID_OPTION`, `steps`: that output never exists), unless `steps` are given; a
+  plan whose every step is in a block, which is waited for and then `final`; an old transaction
   found in a block once and gone, its inputs spent by others; a step given built that never
   expires, which the new plan neither holds nor shares an input with; an id another plan took
   after a crash that followed the mark.
@@ -1151,26 +1151,26 @@ are. A plan whose steps are all in a block is left to become `final`. After a ro
 needs nothing more: `run()` of the new plan sends such a step again, and when it can no longer land
 the new plan stops in its turn and gets a plan in its place. A new plan stopped by an old
 transaction found in a block sends nothing, a step it took that a rollback took out of its block
-among it: the loop then waits for that step's end of validity, and replaces the plan. Where `replan` still waits
-(`CANNOT_OBSERVE`, `unconfirmed`), the next pass asks again. A step left whose own end of validity
-has passed is not built again: the pass reports `INVALID_OPTION` (`steps`), writes nothing, and
-the order stays in the list until the application gives `steps` of its own. A pass makes one plan
-in place of another at most, as a second bound: a plan given too little time (a `ttlMs` and margin
-shorter than a pass takes) is dead as soon as it is made, and gets a plan in its place on every
-pass, one record each; the errors of each pass (`EXPIRED`, `unsent`) show it. The loop looks at
-each plan of a line before it goes on: a line ends at its first `final` plan, which has paid
-what the line was to pay (a payment that only `steps` given to `replan` hold is the application's
-to follow by that plan's id),
-also an old plan whose step landed late after it was replaced; only a plan that is not final is
-followed to the plan in its place. A `stopped` plan that a later look finds a step of is
-`stopping` or `final` again: the loop follows it as it is, and a plan already made in its place
-stops by itself once it finds that step. Steps given to `replan` that are not the old plan's are
-the application's own to follow: a line that ends at an old plan does not run them. A line that
-ends where nothing is left to build (a `failed` step, whose parts need fixing) stays in the list,
-and the loop reports its `INVALID_OPTION` on every pass until the application decides. A plan the
-application stops on purpose leaves this list: the loop would pay what is left of it. A payer is
-needed only to sign: a plan whose record holds every signature needs none, and a separate signer
-or sender is given to `run({ signers, submitter })`.
+among it: the loop then waits for that step's end of validity, and replaces the plan. Where
+`replan` still waits (`CANNOT_OBSERVE`, `unconfirmed`), the next pass asks again. A step left
+that could only be built dead (its own end of validity has passed, or it was given built and
+stands on a step the new plan does not hold) is not built again: the pass reports
+`INVALID_OPTION` (`steps`), writes nothing, and the order stays in the list until the application
+gives `steps` of its own. A pass makes one plan in place of another at most, as a second bound: a
+plan given too little time (a `ttlMs` and margin shorter than a pass takes) is dead as soon as it
+is made, and gets a plan in its place on every pass, one record each; the errors of each pass
+(`EXPIRED`, `unsent`) show it. The loop looks at each plan of a line before it goes on: a line
+ends at its first `final` plan, which has paid, also an old plan whose step landed late after it
+was replaced; only a plan that is not final is followed to the plan in its place. A `stopped`
+plan that a later look finds a step of is `stopping` or `final` again: the loop follows it as it
+is, and a plan already made in its place stops by itself once it finds that step. Steps given to
+`replan` that are not the old plan's are the application's own to follow, by that plan's id: a
+line that ends at an old plan does not run them. A line that ends where nothing is left to build
+(a `failed` step, whose parts need fixing) stays in the list, and the loop reports its
+`INVALID_OPTION` on every pass until the application decides. A plan the application stops on
+purpose leaves this list: the loop would pay what is left of it. A payer is needed only to sign:
+a plan whose record holds every signature needs none, and a separate signer or sender is given
+to `run({ signers, submitter })`.
 
 ### Storage
 
