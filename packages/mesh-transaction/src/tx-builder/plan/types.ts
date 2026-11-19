@@ -84,7 +84,8 @@ export type PlanStep =
  * that come from outside through `Object.fromEntries`, a spread or `Object.create(null)`, which
  * keep every name, and `__proto__` is then refused by name. A name is a non-empty text that is
  * not a whole number, does not start with `consolidate-` and is not `__proto__`; steps may be
- * named `kind`, `tx` and `txHash`
+ * named `kind`, `tx` and `txHash`, but an object with the texts `tx` and `txHash` and the lists
+ * `inputs` and `outputs` is the data of a transaction, which is refused whatever its `fee`
  */
 export type PlanSteps = Readonly<Record<string, PlanStep>>;
 
