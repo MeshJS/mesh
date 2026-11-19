@@ -2658,4 +2658,119 @@ describe("the reconciliation loop of the README", () => {
     expect(times(before, alice, 11n * ADA)).toBe(0);
     expect(times(before, dave, 14n * ADA)).toBe(0);
   });
+
+  /**
+   * The order of two payers on a store whose depth of final is 1000 blocks: the wallet pays
+   * alice in `a`, which lands; the treasury pays dave in `t`, held by a relay and past its end.
+   * The treasury signs through `signer`, which fails while `down.on`. `before`: a fork taken
+   * first, without `a`
+   */
+  const twoPayers = async () => {
+    const ctx = await storeSetup({
+      funds: [100n * ADA, 50n * ADA],
+      planDefaults: { ...FAST, confirmations: 1000 },
+    });
+    const { emulator, builder, wallet } = ctx;
+    const treasury = await walletOfIndex(1);
+    emulator.fund((await treasury.getChangeAddress())!, {
+      lovelace: 50n * ADA,
+    });
+    const down = { on: false };
+    const signer = new Proxy(treasury, {
+      get(target, name, receiver) {
+        if (name === "signTx" || name === "signTxWitnesses")
+          return (...args: unknown[]) =>
+            down.on
+              ? Promise.reject(new Error("the signer is offline"))
+              : (target as any)[name](...args);
+        const value = Reflect.get(target, name, receiver);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as MeshWallet;
+    const before = emulator.fork();
+    const old = await builder.plan(
+      {
+        a: payTo(alice, 11n * ADA),
+        t: { parts: payTo(dave, 14n * ADA), payer: signer },
+      },
+      { id: "order", payer: wallet },
+    );
+    await old.sign({ signers: [wallet, treasury] });
+    const tHash = old.step("t").txHash;
+    await caught(
+      old.run({
+        submitter: relayOf(emulator, (txHash) => txHash === tHash),
+        timeoutMs: 300,
+      }),
+    );
+    advance(emulator, 700);
+    await old.refresh();
+    expect(statuses(old)).toEqual({ a: "included", t: "expired" });
+    return { ...ctx, signer, down, before, old };
+  };
+
+  it("two payers, the loop never down: the treasury's signer fails in the pass that makes the plan in place, and a rollback takes a out before the next pass; every pass once the treasury's step is past its end reports the dead end, and the order stays open", async () => {
+    const ctx = await twoPayers();
+    const { emulator, provider, builder, wallet, store, signer, down } = ctx;
+    const { before, old } = ctx;
+    const signers = [wallet, signer];
+    down.on = true;
+    const first = await reconcile(ctx, 1, 60, () => emulator, { signers });
+    down.on = false;
+    expect(first.reported).toEqual(["SIGNER_FAILED/error"]);
+    const next = await builder.resume("order:next", { payer: wallet });
+    expect(statuses(next)).toEqual({ a: "included", t: "built" });
+    // A rollback of a few blocks: a is out of its block, and past its end
+    before.advanceTo({ slot: emulator.slot + 1 });
+    provider.control.target = before;
+    const errors: any[] = [];
+    const { closed, reported } = await reconcile(ctx, 25, 60, () => before, {
+      signers,
+      errors,
+    });
+    expect(closed).toEqual([]);
+    // The plan in place stops and never sends the treasury's step; once its end has passed,
+    // every pass is refused
+    const stillLive = reported.indexOf("STILL_LIVE/");
+    expect(stillLive).toBeGreaterThan(0);
+    expect(
+      reported.slice(0, stillLive).every((each) => each === "EXPIRED/"),
+    ).toBe(true);
+    expect(
+      reported.slice(stillLive).every((each) => each === "STILL_LIVE/"),
+    ).toBe(true);
+    expect(reported.length - stillLive).toBeGreaterThan(10);
+    const a = old.step("a").txHash;
+    for (const error of errors.slice(stillLive)) {
+      expect([error.details, error.retryable]).toEqual([
+        { txHashes: [a] },
+        false,
+      ]);
+      expect(error.message).toMatch(
+        new RegExp(
+          `^step "a" \\(${a}\\) of this plan or a plan before it was in a block, a rollback took it out, and its end of validity has passed: it lands again only if the chain goes back to the blocks that held it\\. No plan is made in its place, as no step built by default can be kept apart from it: steps that spend an input of each such transaction can \\(their payers sign them together\\)`,
+        ),
+      );
+    }
+    await next.refresh();
+    expect(statuses(next)).toEqual({ a: "expired", t: "expired" });
+    expect(recordOf(next).steps[1]!.sends).toBe(0);
+    expect(await store.inner.load("order:next:next")).toBeUndefined();
+    expect(times(before, alice, 11n * ADA)).toBe(0);
+    expect(times(before, dave, 14n * ADA)).toBe(0);
+  });
+
+  it("two payers, the same loop with a signer that answers: the treasury's step is sent in the pass that makes the plan in place, the plan sends it again after the rollback, and the order closes with each recipient paid once", async () => {
+    const ctx = await twoPayers();
+    const { emulator, provider, wallet, signer, before } = ctx;
+    const signers = [wallet, signer];
+    const first = await reconcile(ctx, 1, 60, () => emulator, { signers });
+    expect(first.closed).toEqual([]);
+    before.advanceTo({ slot: emulator.slot + 1 });
+    provider.control.target = before;
+    const { closed } = await reconcile(ctx, 40, 60, () => before, { signers });
+    expect(closed).toEqual(["order"]);
+    expect(times(before, alice, 11n * ADA)).toBe(1);
+    expect(times(before, dave, 14n * ADA)).toBe(1);
+  });
 });
