@@ -4269,4 +4269,110 @@ describe("an old transaction that only a step in a block keeps from landing", ()
     neverTwice(emulator);
     void a1;
   });
+
+  it("add beside two old transactions, each kept from landing by another step in a block: the wait names the step in a block last and says the plan is final with it; once that step is final the add is INVALID_STATE (final)", async () => {
+    const ctx = await storeSetup({
+      funds: [100n * ADA, 50n * ADA],
+      planDefaults: { ...FAST, confirmations: 1000 },
+    });
+    const { emulator, builder, wallet, store } = ctx;
+    const treasury = await treasuryOf(emulator);
+    const third = await walletOf(2);
+    emulator.fund((await third.getChangeAddress())!, { lovelace: 50n * ADA });
+    // O0: the wallet pays dave (t0), held by a relay until it is dead
+    const o0 = await builder.plan(
+      { t: payTo(dave, 14n * ADA) },
+      { id: "order", payer: wallet },
+    );
+    await o0.sign();
+    const t0 = o0.step("t").txHash;
+    await caught(
+      o0.run({
+        submitter: relayOf(emulator, (txHash) => txHash === t0),
+        timeoutMs: 300,
+      }),
+    );
+    advance(emulator, 700);
+    await o0.refresh();
+    // O in its place: the treasury pays carol (u1), held by a relay until it is dead
+    const o = await o0.replan({
+      id: "order:2",
+      steps: { u: { parts: payTo(carol, 13n * ADA), payer: treasury.other } },
+    });
+    const u1 = o.step("u").txHash;
+    await caught(
+      o.run({
+        signers: [treasury.other],
+        submitter: relayOf(emulator, (txHash) => txHash === u1),
+        timeoutMs: 300,
+      }),
+    );
+    advance(emulator, 700);
+    await o.refresh();
+    // N in place of O: p of the treasury spends an input of u1, q of the wallet one of t0
+    const n = await o.replan({
+      id: "order:3",
+      ttlMs: 3_600_000,
+      steps: {
+        p: { parts: payTo(alice, 11n * ADA), payer: treasury.other },
+        q: payTo(bob, 12n * ADA),
+      },
+    });
+    expect(n.toJSON().before!.open.map((entry) => entry.txHash)).toEqual([
+      u1,
+      t0,
+    ]);
+    // p lands first; q is held once and lands five slots later
+    const q = n.step("q").txHash;
+    await caught(
+      n.run({
+        signers: [wallet, treasury.other],
+        submitter: relayOf(emulator, (txHash) => txHash === q),
+        timeoutMs: 300,
+      }),
+    );
+    advance(emulator, 5);
+    await n.run({ signers: [wallet, treasury.other], waitFor: "included" });
+    expect(statuses(n)).toEqual({ p: "included", q: "included" });
+    const p = n.step("p").txHash;
+    expect(n.step("q").seen!.slot).toBeGreaterThan(n.step("p").seen!.slot);
+    // A step of a third payer stands on neither: q is named, at once and once p is final
+    const call = () =>
+      n.add({ d: { parts: payTo(dave, 15n * ADA), payer: third } });
+    const names3 = async () =>
+      (await store.inner.load("order:3"))!.steps.map(
+        (step: { name: string }) => step.name,
+      );
+    for (const slots of [0, 996]) {
+      advance(emulator, slots);
+      const error = await caught(call());
+      expect([error.code, reasonOf(error), error.txHash]).toEqual([
+        "CANNOT_OBSERVE",
+        "unconfirmed",
+        q,
+      ]);
+      expect([error.retryable, error.retryAfterMs]).toEqual([
+        true,
+        FAST.pollMs,
+      ]);
+      expect(error.message).toContain(
+        `step "d" could land beside step "t" (${t0}) of the plans before, which only step "q" (${q}), in a block and not final, keeps from landing: once that step is final the plan is final and takes no step: pay it by a plan after this one (after)`,
+      );
+      expect(error.message).not.toContain(p);
+      expect(names(n)).toEqual(["p", "q"]);
+      expect(await names3()).toEqual(["p", "q"]);
+    }
+    expect(statuses(n)).toEqual({ p: "final", q: "included" });
+    // q final: N is final, and takes no step
+    advance(emulator, 10);
+    await n.refresh();
+    expect(n.status).toBe("final");
+    const final = await caught(call());
+    expect([final.code, reasonOf(final)]).toEqual(["INVALID_STATE", "final"]);
+    expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    expect(times(emulator, bob, 12n * ADA)).toBe(1);
+    expect(times(emulator, carol, 13n * ADA)).toBe(0);
+    expect(times(emulator, dave, 14n * ADA)).toBe(0);
+    expect(times(emulator, dave, 15n * ADA)).toBe(0);
+  });
 });

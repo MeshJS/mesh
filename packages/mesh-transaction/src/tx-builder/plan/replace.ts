@@ -521,7 +521,10 @@ export const lineClasses = (
 
 /**
  * The pairs `landsBeside` gives, less the open transactions that only a taken step keeps from
- * landing beside a step built, and the first of those with the first taken step that keeps it.
+ * landing beside a step built, and of those the one whose taken step is in a block last, with
+ * that step: the pairs are all gone once it is final. Of the taken steps that keep one open
+ * transaction from landing, the one in a block first is its step: it is settled once that one is
+ * final.
  *
  * An open transaction is held by a taken step when the kept steps and the taken steps together
  * settle it (it, or one it stands on, spends an out ref one of them spends), dead or not: once
@@ -536,8 +539,9 @@ export const lineClasses = (
  * @param taken The steps of the plan in a block and not final, in its order: of `replan` the
  *   taken steps, of `add` the plan's `included` steps, taken or not
  * @param made The hashes of the steps judged, as `landsBeside` reads them
- * @returns the pairs without the held transactions, a pair with none left dropped; and the first
- *   held one, with the step built it is a pair of and the taken step, if any is held
+ * @returns the pairs without the held transactions, a pair with none left dropped; and the held
+ *   one whose taken step is in a block last (the first of those, in the order of the pairs),
+ *   with the step built it is a pair of and that taken step, if any is held
  */
 export const heldByTaken = <T extends LineInput>(
   pairs: readonly { readonly step: T; readonly open: readonly LineTx[] }[],
@@ -556,6 +560,9 @@ export const heldByTaken = <T extends LineInput>(
   const byTaken = new Set(
     settled(open, [...kept, ...taken], made).map((tx) => tx.txHash),
   );
+  /** The slot of the block a taken step was found in; one found in none counts as last */
+  const slotOf = (tx: LineTx) => tx.seen?.slot ?? Infinity;
+  const takenLines = taken.map(lineTxOf);
   const rest: { step: T; open: LineTx[] }[] = [];
   let held:
     | { readonly step: T; readonly open: LineTx; readonly taken: LineTx }
@@ -563,16 +570,23 @@ export const heldByTaken = <T extends LineInput>(
   for (const pair of pairs) {
     const left: LineTx[] = [];
     for (const tx of pair.open) {
-      // The first taken step that settles it with the kept steps alone; none: it stays judged
-      const by = byTaken.has(tx.txHash)
-        ? taken.find((one) =>
-            settled(open, [...kept, one], made).some(
-              (each) => each.txHash === tx.txHash,
-            ),
+      // The taken step in a block first of those that settle it with the kept steps alone;
+      // none: it stays judged
+      let by: LineTx | undefined;
+      for (let i = 0; byTaken.has(tx.txHash) && i < taken.length; i++) {
+        const line = takenLines[i]!;
+        if (by !== undefined && slotOf(line) >= slotOf(by)) continue;
+        if (
+          settled(open, [...kept, taken[i]!], made).some(
+            (each) => each.txHash === tx.txHash,
           )
-        : undefined;
+        )
+          by = line;
+      }
       if (by === undefined) left.push(tx);
-      else held ??= { step: pair.step, open: tx, taken: lineTxOf(by) };
+      // The call passes once the step that holds one last is final
+      else if (held === undefined || slotOf(by) > slotOf(held.taken))
+        held = { step: pair.step, open: tx, taken: by };
     }
     if (left.length > 0) rest.push({ step: pair.step, open: left });
   }

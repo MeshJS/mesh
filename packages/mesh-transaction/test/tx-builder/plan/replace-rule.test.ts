@@ -1403,4 +1403,40 @@ describe("the steps in a block", () => {
       held: undefined,
     });
   });
+
+  it("of the open transactions held, tells the one whose taken step is in a block last; of the taken steps that keep one from landing, the one in a block first is its step", () => {
+    // Kept: K; open: R on X and W on Y; taken: S and S3 on X, S2 on Y; built: U on neither
+    const k = step("k", body(hash(0x31), [[Z, 0]]));
+    const s = step("s", body(hash(0x41), [[X, 0]]));
+    const s2 = step("s2", body(hash(0x48), [[Y, 0]]));
+    const s3 = step("s3", body(hash(0x49), [[X, 0]]));
+    const r = lineTxOf(step("r", body(hash(0x42), [[X, 0]])));
+    const w = lineTxOf(step("w", body(hash(0x47), [[Y, 0]])));
+    const u = step("u", body(hash(0x44), [[Z, 1]]));
+    /** A taken step found in the block of this slot */
+    const at = (one: StepTx, slot: number) => ({ ...one, seen: { slot } });
+    const held = (open: readonly LineTx[], taken: readonly StepTx[]) => {
+      const apart = heldByTaken(
+        landsBeside([u], open, [k], taken),
+        open,
+        [k],
+        taken,
+        [u.built.txHash],
+      );
+      expect(apart.pairs).toEqual([]);
+      return [apart.held?.open.step, apart.held?.taken.step];
+    };
+    // Each held by one step: the step in a block last is told, the first pair of equal slots
+    expect(held([r, w], [at(s, 10), at(s2, 20)])).toEqual(["w", "s2"]);
+    expect(held([r, w], [at(s, 20), at(s2, 10)])).toEqual(["r", "s"]);
+    expect(held([r, w], [at(s, 10), at(s2, 10)])).toEqual(["r", "s"]);
+    // R held by S and by S3: it is settled once the one in a block first is final
+    expect(held([r], [at(s, 20), at(s3, 10)])).toEqual(["r", "s3"]);
+    expect(held([r], [at(s3, 20), at(s, 10)])).toEqual(["r", "s"]);
+    // So W, held by S2 alone, comes last when S2 is in a block after S, whatever S3 is
+    expect(held([r, w], [at(s3, 30), at(s, 10), at(s2, 20)])).toEqual([
+      "w",
+      "s2",
+    ]);
+  });
 });
