@@ -1728,6 +1728,108 @@ describe("a step left whose end of validity has passed", () => {
     expect(times(emulator, carol, 13n * ADA)).toBe(1);
   });
 
+  it("a step given built whose own end has passed, held by a relay, whose input a rollback took out for good: the look never calls it expired; the call waits inside the margin and is refused (INVALID_OPTION) once its end and the margin have passed", async () => {
+    const ctx = await storeSetup({
+      funds: [100n * ADA, 50n * ADA],
+      planDefaults: { ...FAST, expiryMarginMs: 60_000 },
+    });
+    const { emulator, provider, builder, wallet, store } = ctx;
+    // A fork without the transaction that funds the partner
+    const fork = emulator.fork();
+    const partner = await walletOfIndex(1);
+    const own = emulator.fund((await partner.getChangeAddress())!, {
+      lovelace: 100n * ADA,
+    });
+    const built = await builder.build(
+      [
+        spend.pubKey({ utxo: own }),
+        output({ address: carol, value: { lovelace: 13n * ADA } }),
+        validity({ until: builder.timeAt(emulator.slot) + 300_000 }),
+      ],
+      { payer: partner },
+    );
+    await built.sign();
+    const old = await builder.plan(
+      { p: built, b: payTo(bob, 12n * ADA) },
+      { id: "order", payer: wallet },
+    );
+    const p = old.step("p").txHash;
+    await caught(
+      old.run({
+        submitter: relayOf(emulator, (txHash) => txHash === p),
+        timeoutMs: 300,
+      }),
+    );
+    expect(statuses(old)).toEqual({ p: "sent", b: "built" });
+    fork.advanceTo({ slot: emulator.slot + 1 });
+    provider.control.target = fork;
+    // Past its end, inside the margin: it may be in a block the search does not show
+    fork.advanceTo({ slot: fork.slot + 330 });
+    await old.refresh();
+    const waited = await caught(old.replan({ id: "i1" }));
+    expect([
+      waited.code,
+      reasonOf(waited),
+      waited.txHash,
+      waited.retryable,
+    ]).toEqual(["CANNOT_OBSERVE", "unconfirmed", p, true]);
+    expect(waited.message).toMatch(
+      /^step "p" is past its end of validity and may be in a block the search does not show/,
+    );
+    // Past the margin it is refused, also long after; its bytes cannot land
+    for (const slots of [40, 10_000, 100_000]) {
+      fork.advanceTo({ slot: fork.slot + slots });
+      await old.refresh();
+      expect(old.step("p").status).toBe("sent");
+      const error = await caught(old.replan({ id: "i1" }));
+      expect([error.code, error.details.option, error.retryable]).toEqual([
+        "INVALID_OPTION",
+        "steps",
+        false,
+      ]);
+      expect(error.message).toContain(
+        'step "p" was given built and its end of validity has passed: the same transaction cannot land',
+      );
+    }
+    const refused = await fork.submitTx(old.step("p").signedTx!).then(
+      () => false,
+      () => true,
+    );
+    expect(refused).toBe(true);
+    expect(old.replacedBy).toBeUndefined();
+    expect(await store.inner.load("i1")).toBeUndefined();
+    expect(times(fork, carol, 13n * ADA)).toBe(0);
+  });
+
+  it("a step from parts whose own end has passed and that was never signed: refused (INVALID_OPTION) at once, inside the margin as past it", async () => {
+    const ctx = await storeSetup({
+      funds: [100n * ADA, 50n * ADA],
+      planDefaults: { ...FAST, expiryMarginMs: 600_000 },
+    });
+    const { emulator, builder, wallet, store } = ctx;
+    const until = validity({ until: builder.timeAt(emulator.slot) + 300_000 });
+    const old = await builder.plan(
+      { a: [payTo(alice, 11n * ADA), until] },
+      { id: "order", payer: wallet },
+    );
+    expect(statuses(old)).toEqual({ a: "built" });
+    for (const slots of [400, 600]) {
+      advance(emulator, slots);
+      await old.refresh();
+      const error = await caught(old.replan({ id: "i1" }));
+      expect([error.code, error.details.option, error.retryable]).toEqual([
+        "INVALID_OPTION",
+        "steps",
+        false,
+      ]);
+      expect(error.message).toContain(
+        'step "a" cannot be built again as it was given',
+      );
+      expect(await store.inner.load("i1")).toBeUndefined();
+    }
+    expect(times(emulator, alice, 11n * ADA)).toBe(0);
+  });
+
   it("steps from parts whose own end has passed, taken out of their blocks by a rollback, the second on the first: the look calls them expired and orphaned, and the call is refused (INVALID_OPTION), not waited for", async () => {
     const ctx = await storeSetup({
       funds: [100n * ADA, 50n * ADA],

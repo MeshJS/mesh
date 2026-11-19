@@ -84,6 +84,7 @@ import {
   liveSteps,
   MAX_STEPS,
   missingKeys,
+  pastMarginAt,
   planUntil,
   stepUntil,
   tipAheadOfClock,
@@ -1687,12 +1688,22 @@ export class TxPlan {
           reads,
           ask,
         );
-        // One that this look does not call expired (its end and the margin passed, and the
-        // search answered "not found") may be in a block the search does not show: waited for.
-        // An orphaned one stands on a step that will not land, and lands with it or never
+        // One that was delivered or found, and that this look does not call expired (its end
+        // and the margin passed, and the search answered "not found"), may be in a block the
+        // search does not show: waited for until its end and the margin have passed by the tip
+        // and the clock, so that no wait lasts for ever. One the plan never delivered nor found
+        // is refused at once. An orphaned one stands on a step that will not land, and lands
+        // with it or never
         const hidden = late.find(
           (step) =>
-            step.status !== "orphaned" && !expiredByLook(classes, step.txHash),
+            step.status !== "orphaned" &&
+            (step.sends > 0 || step.seen !== undefined) &&
+            !pastMarginAt(
+              stepUntil(step),
+              base.deadlines.expiryMarginMs,
+              tip,
+            ) &&
+            !expiredByLook(classes, step.txHash),
         );
         if (hidden !== undefined)
           throw this.#unconfirmed(
