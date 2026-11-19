@@ -412,10 +412,12 @@ export type TxPlanErrorDetails = {
   CONFIRM_TIMEOUT: { waitedFor: "included" | "final"; timeoutMs: number };
   /**
    * `unconfirmed`: this answer confirms nothing now (retryable); of `replan`, a transaction of
-   * the plan or the plans before it is in a block and not final, an address shows an output of
-   * one the search does not find, or the record moved under the build. The other reasons are
-   * about the provider itself; `noDepth`: no block heights, for any plan. A transaction's
-   * `awaitInclusion()` raises `noSearch` and `noValidity`
+   * the plan or the plans before it is in a block, not final, and the new plan cannot hold it
+   * (a failed script, a plan before the one replaced, a search that gave no answer), a step
+   * built cannot stand on a step in a block, an address shows an output of one the search does
+   * not find, or the record moved under the build. The other reasons are about the provider
+   * itself; `noDepth`: no block heights, for any plan. A transaction's `awaitInclusion()`
+   * raises `noSearch` and `noValidity`
    */
   CANNOT_OBSERVE: {
     reason: "noTip" | "noValidity" | "noDepth" | "noSearch" | "unconfirmed";

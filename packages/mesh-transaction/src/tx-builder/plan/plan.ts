@@ -80,6 +80,7 @@ import {
   keyHashOfVkey,
   landedSteps,
   liveSteps,
+  MAX_STEPS,
   missingKeys,
   planUntil,
   stepUntil,
@@ -128,6 +129,7 @@ import {
   landsBeside,
   leftOf,
   lineClasses,
+  notOnTaken,
   openAmong,
   outRefKey,
   settled,
@@ -707,7 +709,10 @@ export class TxPlan {
     return stateOf(this).record.status;
   }
 
-  /** The steps, in the order they are sent */
+  /**
+   * The steps, in the order they are sent; of a plan made by `replan`, first the steps it holds
+   * of the plan before it
+   */
   get steps(): readonly TxStep[] {
     return stateOf(this).record.steps.map(viewOf);
   }
@@ -740,7 +745,10 @@ export class TxPlan {
     return liveSteps(stateOf(this).record).map(viewOf);
   }
 
-  /** The fees of all its transactions together */
+  /**
+   * The fees of all its transactions together; the fee of a step it holds of the plan before it
+   * is in that plan's `fee` too
+   */
   get fee(): bigint {
     return stateOf(this).record.steps.reduce(
       (sum, step) => sum + step.built.fee,
@@ -1276,11 +1284,25 @@ export class TxPlan {
    * await next.run();
    * ```
    *
-   * - The call looks at the chain first. The new plan stands on the steps that are final, of
-   *   this plan and of the plans before it: none is built again, and a link to one of this
-   *   plan's is filled in with its output. While a step is in a block and not final the call
-   *   is CANNOT_OBSERVE (`unconfirmed`); an address that lists an output of a transaction of
-   *   those plans the search does not find refuses it the same way.
+   * - The call looks at the chain first. A step that is final, of this plan or of the plans
+   *   before it, is never built again, and a link to one of this plan's is filled in with its
+   *   output. A step of this plan that the look finds in a block, not final, becomes a step of
+   *   the new plan: the same transaction under its name, with the witnesses and the block this
+   *   plan records, marked `taken` in the record. The new plan looks for it, sends its bytes
+   *   again after a rollback, and is final only once it is; every step built that pays anyone
+   *   stands on it, a link may name it, and its name is not given again. The call does not
+   *   wait for final:
+   *   after a rollback that is not undone the steps built cannot land, the new plan stops, and
+   *   `replan` of it builds what is left again. To wait as before, call once every step in
+   *   `landed` is final.
+   * - What the new plan cannot hold is waited for, CANNOT_OBSERVE (`unconfirmed`): a
+   *   transaction in a block with a failed script, and a transaction of a plan before this one
+   *   that a look found in a block, each until it is final; a step in a block this call's
+   *   search gave no answer for; a step built that cannot stand on every step in a block (a
+   *   step of another payer, a step given built that spends no output of it, a change the
+   *   payer's read does not list or `canSelect` refuses), until that step is final. An address
+   *   that lists an output of a transaction of those plans the search does not find refuses
+   *   the call the same way.
    * - Every other transaction of those plans is one the new plan must not land beside. The
    *   first step built for a payer spends an input of each that may still land and stands on
    *   no other, also of one called dead, that the payer still holds: the ledger then takes one
@@ -1304,8 +1326,9 @@ export class TxPlan {
    *   or use a store. The id is the new plan's alone: after a crash that followed the mark, a
    *   plan of another order under it ends this line. A repeat compares the steps given, not the
    *   other options: with other options it returns the plan recorded with the first ones. The
-   *   deadlines given are the new plan's, and carry on to a plan made in its place. The new plan
-   *   stops when a look of it finds one of those transactions in a block.
+   *   deadlines given are the new plan's, also for the steps it holds of this plan, and carry on
+   *   to a plan made in its place. The new plan stops when a look of it finds one of those
+   *   transactions in a block.
    * - The addresses a transaction called dead pays, at most 16 in a call, are read past the
    *   builder's cache; a provider's own cache of address reads is not under the library's
    *   control, and a list it gives counts as its answer.
@@ -1324,7 +1347,8 @@ export class TxPlan {
    *   is this plan's, (`payer`) for a payer of no known form or one that answered two change
    *   addresses, (`trace`) for a trace that is not a function, (`signal`), (`steps`) when
    *   nothing is left and no step is given, for a name that is final in this plan or a plan
-   *   before it, for a link to a step that is neither given nor final, and for all that
+   *   before it or in a block in this plan, for more than 32 steps with those in a block, for a
+   *   link to a step that is neither given, in a block nor final, and for all that
    *   `builder.plan` refuses, (`after`) for a transaction of these plans that is not final;
    *   MISSING_PAYER; NETWORK_MISMATCH for a payer of another network or a recorded plan of
    *   another; WALLET_FAILED; MISSING_FETCHER and PROVIDER_FAILED for a read of a payer or of an
@@ -1454,25 +1478,28 @@ export class TxPlan {
     this.#refuseReplaced(base, id);
     const classes = lineClasses(base, seen.answers, tip);
     this.#refuseNoValidity(classes);
-    // A step in a block and not final is waited for, as any other transaction of the line so
-    // found, in the order of the line
-    const order = (tx: LineTx) => {
-      const at = base.steps.findIndex(
-        (step) => step.txHash.toLowerCase() === tx.txHash,
-      );
-      return at < 0 ? base.steps.length : at;
-    };
-    const waited = [...classes.taken, ...classes.unconfirmed]
-      .map((tx, i) => ({ tx, i }))
-      .sort((x, y) => order(x.tx) - order(y.tx) || x.i - y.i)
-      .map(({ tx }) => tx);
-    if (waited.length > 0)
+    // What the new plan cannot hold is waited for
+    const { unconfirmed } = classes;
+    if (unconfirmed.length > 0)
       throw this.#unconfirmed(
-        `${waited.map((tx) => `step ${JSON.stringify(tx.step)} (${tx.txHash})`).join(", ")} ${waited.length === 1 ? "is" : "are"} in a block and not final, or found where the depth or the outcome of the scripts is not known: a new plan stands only on what is final`,
-        waited[0]!.txHash,
+        `${unconfirmed.map((tx) => `step ${JSON.stringify(tx.step)} (${tx.txHash})`).join(", ")} ${unconfirmed.length === 1 ? "is" : "are"} in a block and not final, or found where its block or the outcome of its scripts is not known, and the new plan cannot hold it: a transaction with a failed script, a transaction of a plan before this one, or a step this look did not find in a block`,
+        unconfirmed[0]!.txHash,
+      );
+    // The steps this look found in a block, not final: the new plan holds them as they are
+    const takenHashes = new Set(classes.taken.map((tx) => tx.txHash));
+    const taken = base.steps.filter((step) =>
+      takenHashes.has(step.txHash.toLowerCase()),
+    );
+    const takenNames = taken.map((step) => step.name);
+    // A taken step stands on nothing the search does not find in a block
+    const below = standingOn(taken, classes.open);
+    if (below !== undefined)
+      throw this.#unconfirmed(
+        `step ${JSON.stringify(below.step.name)} (${below.step.txHash}) is in a block and spends, reads or puts up an output of step ${JSON.stringify(below.below.step)} (${below.below.txHash}), which the search does not find in a block`,
+        below.below.txHash,
       );
 
-    // The steps: those given, else what the look shows open; none of a kept name
+    // The steps: those given, else what the look shows open; none of a kept or a taken name
     const keptNames = keptNamesOf(base, classes);
     let read: StepInput[];
     if (own === undefined) {
@@ -1483,7 +1510,7 @@ export class TxPlan {
       }
       if (Object.keys(left).length === 0)
         throw stepsRefused(
-          "nothing of the plan is left to build: every step is final, failed or a consolidation step; give the steps of the new plan",
+          "nothing of the plan is left to build: every step is final, in a block, failed or a consolidation step; give the steps of the new plan",
         );
       read = readReplanSteps(builder, left, callOptions, false);
     } else {
@@ -1492,20 +1519,29 @@ export class TxPlan {
         throw stepsRefused(
           `the step(s) ${final.map((step) => JSON.stringify(step.name)).join(", ")} are final in this plan or a plan before it: a final step is never built again`,
         );
+      const held = own.filter((step) => takenNames.includes(step.name));
+      if (held.length > 0)
+        throw stepsRefused(
+          `the step(s) ${held.map((step) => JSON.stringify(step.name)).join(", ")} are in a block in this plan: the new plan holds them as they are, and a name names one step`,
+        );
       read = own;
     }
+    if (taken.length + read.length > MAX_STEPS)
+      throw stepsRefused(
+        `a plan has at most ${MAX_STEPS} steps: the new plan holds ${taken.length} of this plan that are in a block, and ${read.length} are to be built`,
+      );
     const keptSteps = base.steps.filter((step) => step.status === "final");
-    read = fillKeptLinks(read, keptSteps);
+    read = fillKeptLinks(read, keptSteps, takenNames);
     if (
-      openAmong(
-        readAfter(callOptions.after, afterBound(builder.params)),
-        classes.open,
-      ) !== undefined
+      openAmong(readAfter(callOptions.after, afterBound(builder.params)), [
+        ...classes.open,
+        ...classes.taken,
+      ]) !== undefined
     )
       throw invalidOption(
         "after",
         after,
-        "transactions that are no open transaction of this plan or the plans before it: a new plan stands only on what is final",
+        "transactions that are no transaction of this plan or the plans before it that is not final: the new plan holds those in a block as its own steps, and stands on no other",
       );
     const payer =
       opts.payer ??
@@ -1538,16 +1574,29 @@ export class TxPlan {
         );
       },
       keep: (steps) =>
-        beforeOf(
-          base,
-          classes,
-          steps.map((step) => step.built.txHash),
+        beforeOf(base, classes, [
+          ...taken.map((step) => step.txHash),
+          ...steps.map((step) => step.built.txHash),
+        ]),
+      taken,
+      cannotStand: (step, on, why) =>
+        this.#unconfirmed(
+          `step ${JSON.stringify(step)} cannot stand on step ${JSON.stringify(on.name)} (${on.txHash}), which is in a block and not final: ${why}; the call passes once that step is final, or with steps that spend an output of it`,
+          on.txHash,
         ),
     });
 
-    // Every pair of a step built and an open transaction, judged on the bodies
+    // Every step built that pays anyone stands on every taken step: none lands without them
+    const off = notOnTaken(made.steps, taken);
+    if (off !== undefined)
+      throw this.#unconfirmed(
+        `step ${JSON.stringify(off.step.name)} does not stand on step ${JSON.stringify(off.taken.step)} (${off.taken.txHash}), which is in a block and not final: after a rollback it could land without it; the call passes once that step is final`,
+        off.taken.txHash,
+      );
+    // Every pair of a step built and an open transaction, judged on the bodies; the taken steps
+    // are steps of the new plan the steps built may stand on
     const dead = this.#judgePairs(
-      landsBeside(made.steps, classes.open, classes.kept),
+      landsBeside(made.steps, classes.open, classes.kept, taken),
       base,
       tip,
       "nothing was written",
@@ -1625,7 +1674,8 @@ export class TxPlan {
   /**
    * CANNOT_OBSERVE (`unconfirmed`) for a step built that spends, reads or puts up an output of
    * an open transaction of the line whose hash no step built has: the search does not find it
-   * in a block. A used-up transaction is in a block for good, its collateral return with it
+   * in a block, and a plan stands on nothing it does not find there. A used-up transaction is in
+   * a block for good, its collateral return with it; a taken step is no open transaction
    */
   #refuseStandingOnOpen(
     steps: readonly { readonly name: string; readonly built: BuiltTxData }[],
@@ -1634,7 +1684,7 @@ export class TxPlan {
     const found = standingOn(steps, open);
     if (found !== undefined)
       throw this.#unconfirmed(
-        `step ${JSON.stringify(found.step.name)} spends, reads or puts up an output of step ${JSON.stringify(found.below.step)} (${found.below.txHash}) of the plans before, which the search does not find in a block: a plan stands only on what is final`,
+        `step ${JSON.stringify(found.step.name)} spends, reads or puts up an output of step ${JSON.stringify(found.below.step)} (${found.below.txHash}) of the plans before, which the search does not find in a block: a plan stands on nothing the search does not find in a block`,
         found.below.txHash,
       );
   }
@@ -1714,9 +1764,17 @@ export class TxPlan {
       throw exists();
     checkRecordNetwork(state.builder, stored);
     if (own !== undefined) {
+      // A link to a step the stored plan holds as taken stays a link, also once that step is
+      // final in this plan
+      const held = stored.steps.flatMap((step) =>
+        step.taken === true ? [step.name] : [],
+      );
       const filled = fillKeptLinks(
         own,
-        state.record.steps.filter((step) => step.status === "final"),
+        state.record.steps.filter(
+          (step) => step.status === "final" && !held.includes(step.name),
+        ),
+        held,
       );
       const given = await abortable(
         givenSteps(filled, addressOf),
@@ -1788,7 +1846,8 @@ export class TxPlan {
   /**
    * The mark on this plan: `replacedBy` is `id`, by compare-and-set over the record the build
    * started from. Refused when it names another plan, or when the record moved under the build:
-   * steps added, a step found in a block, a transaction of the plans before found
+   * steps added, a step found in a block, a transaction of the plans before found, or a step that
+   * was in a block in it and is in none now, as another object saw a rollback
    * @throws TxPlanError INVALID_STATE (`stopped`, `final`); CANNOT_OBSERVE (`unconfirmed`);
    *   VERSION_CONFLICT; STORE_FAILED
    */
@@ -1803,7 +1862,7 @@ export class TxPlan {
       );
     const moved = () =>
       this.#unconfirmed(
-        "the plan's record moved while the new plan was built: a step was added, or a look found one of its transactions in a block",
+        "the plan's record moved while the new plan was built: a step was added, a look found one of its transactions in a block, or a step that was in a block is in none now",
       );
     await this.#write(
       state,
@@ -1820,6 +1879,14 @@ export class TxPlan {
         if (
           record.steps.some(
             (step, i) => inBlock(step) && !inBlock(base.steps[i]),
+          )
+        )
+          return { stop: moved() };
+        // A step the new plan may hold as in a block that a look of another object found in
+        // none since
+        if (
+          record.steps.some(
+            (step, i) => !inBlock(step) && inBlock(base.steps[i]),
           )
         )
           return { stop: moved() };
@@ -3259,7 +3326,7 @@ const stepsRefused = (reason: string) =>
       option: "steps",
       value: undefined,
       allowed:
-        "one list of parts, or an object of named steps none of which is final in the plan or a plan before it",
+        "one list of parts, or an object of named steps none of which is final in the plan or a plan before it, or in a block in the plan",
     },
   });
 
@@ -3507,7 +3574,8 @@ const sameRecord = (a: PlanRecord, b: PlanRecord) =>
 /**
  * What makes two records of one id the same plan: its network, deadlines, options and the steps
  * it was made with; steps added later are not of it unless `added` says so, nor ever the
- * consolidation steps the plan put in, which depend on the wallet as it was read
+ * consolidation steps the plan put in, which depend on the wallet as it was read, nor the steps
+ * it took of the plan it was made in place of, which depend on what a look found
  */
 const shapeOf = (record: PlanRecord, added = false) => {
   const json = encodePlan(record);
@@ -3518,7 +3586,9 @@ const shapeOf = (record: PlanRecord, added = false) => {
     steps: json.steps
       .filter(
         (step) =>
-          (added || step.added !== true) && step.kind !== "consolidation",
+          (added || step.added !== true) &&
+          step.kind !== "consolidation" &&
+          step.taken !== true,
       )
       .map((step) => ({
         name: step.name,

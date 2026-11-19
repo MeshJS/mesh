@@ -1294,6 +1294,40 @@ export const payerOfAdded = async (
 };
 
 /**
+ * A step of a record as a step before those a loop builds: final, or in a block, with its kind,
+ * the steps it stands on and its payer's change address: its own, else the plan's; of a
+ * consolidation step the address its outputs pay; of a step given built none, as it is of no
+ * payer by default and its outputs marked change tell
+ * @param options The data options of the plan the step is recorded in
+ */
+const stepBeforeOf = (
+  step: StepRecord,
+  options: PlanRecord["options"],
+): StepBefore => {
+  const own = step.given?.options?.changeAddress;
+  const changeAddress =
+    step.kind === "prebuilt"
+      ? undefined
+      : step.kind === "consolidation"
+        ? (step.built.change[0] ?? step.built.outputs[0])?.address
+        : typeof own === "string"
+          ? own
+          : typeof options.changeAddress === "string"
+            ? options.changeAddress
+            : undefined;
+  return {
+    name: step.name,
+    built: step.built,
+    ...(changeAddress !== undefined && { changeAddress }),
+    final: step.status === "final",
+    ...(step.status === "included" && { included: true as const }),
+    ...(step.kind === "consolidation" && { consolidation: true as const }),
+    ...(step.kind === "prebuilt" && { prebuilt: true as const }),
+    standsOn: step.standsOn,
+  };
+};
+
+/**
  * Builds the steps given to `plan.add` on the plan as `base` records it: each payer is read
  * once; each step is built after every step of the plan and the steps of the call before it, in
  * the one loop of `makePlan`. The data options the plan records apply, unless the step has its
@@ -1333,34 +1367,8 @@ export const buildAddedSteps = async (
       .map((step) => ({ step, read: readOf(step) })),
   );
   const recorded = base.options;
-  const planAddress =
-    typeof recorded.changeAddress === "string"
-      ? recorded.changeAddress
-      : undefined;
   const made = await buildSteps(builder, read, {
-    before: base.steps.map((step): StepBefore => {
-      const own = step.given?.options?.changeAddress;
-      // A consolidation step pays its payer alone: its outputs are at that payer's address. A
-      // prebuilt step is of no payer by default: its outputs marked change tell
-      const changeAddress =
-        step.kind === "prebuilt"
-          ? undefined
-          : step.kind === "consolidation"
-            ? (step.built.change[0] ?? step.built.outputs[0])?.address
-            : typeof own === "string"
-              ? own
-              : planAddress;
-      return {
-        name: step.name,
-        built: step.built,
-        ...(changeAddress !== undefined && { changeAddress }),
-        final: step.status === "final",
-        ...(step.status === "included" && { included: true as const }),
-        ...(step.kind === "consolidation" && { consolidation: true as const }),
-        ...(step.kind === "prebuilt" && { prebuilt: true as const }),
-        standsOn: step.standsOn,
-      };
-    }),
+    before: base.steps.map((step) => stepBeforeOf(step, recorded)),
     after: [],
     tip: context.tip,
     ttlMs: base.deadlines.ttlMs,
@@ -1395,8 +1403,10 @@ export const readReplanSteps = (
 /**
  * Checks the links of the steps of a plan made in place of another, and fills in those to a
  * kept step from that step's own transaction: the filled part stands in the step from here on.
- * A link names a step given before its own, or a kept step
+ * A link names a step given before its own, a kept step, or a taken step; a link to a taken step
+ * stays a link, which the build fills from the step the new plan holds
  * @param kept The final steps of the plan replaced
+ * @param taken The names of the steps the new plan takes of it
  * @throws TxBuildError INVALID_OPTION (`steps`) for a link to any other step, to an output past
  *   the last, or to an output a kept step spends; UNKNOWN_LABEL; TxPartError for an output the
  *   part cannot take
@@ -1404,11 +1414,9 @@ export const readReplanSteps = (
 export const fillKeptLinks = (
   read: readonly StepInput[],
   kept: readonly Pick<StepRecord, "name" | "kind" | "built">[],
+  taken: readonly string[] = [],
 ): StepInput[] => {
-  checkLinks(
-    read,
-    kept.map((step) => step.name),
-  );
+  checkLinks(read, [...kept.map((step) => step.name), ...taken]);
   const earlier = kept.map((step) => ({
     name: step.name,
     built: step.built,
@@ -1442,6 +1450,7 @@ const guardsOf = (
   reads: readonly { readonly step: StepInput; readonly read: PayerRead }[],
   read: readonly StepInput[],
   prebuilt: ReadonlyMap<string, PrebuiltRead>,
+  taken: readonly StepBefore[],
 ): ReadonlyMap<string, readonly TxPart[]> => {
   const byPayer = new Map<string, readonly Utxo[]>();
   for (const each of reads)
@@ -1453,9 +1462,14 @@ const guardsOf = (
     const body = prebuilt.get(step.name);
     if (body !== undefined) return [{ name: step.name, built: body.built }];
     const payer = payerOf.get(step.name);
-    return payer === undefined
-      ? []
-      : [{ name: step.name, payer, parts: step.parts }];
+    // A link to a taken step counts as the out refs it names, so that no guard goes in beside
+    // a link that spends the same output
+    const parts = step.parts.flatMap((part) =>
+      isLinkedPart(part) && taken.some((each) => each.name === part.link.step)
+        ? fillLinks([part], step.name, taken, [])
+        : [part],
+    );
+    return payer === undefined ? [] : [{ name: step.name, payer, parts }];
   });
   const parts = new Map<string, TxPart[]>();
   for (const guard of rootGuards(open, byPayer, steps).added)
@@ -1466,20 +1480,83 @@ const guardsOf = (
   return parts;
 };
 
-/** What a plan made in place of another was built to: its steps and its first record */
+/** What a plan made in place of another was built to */
 export type MadeReplan = {
+  /** The steps the call built, in order: those the pair rule judges */
   readonly steps: readonly MadeStep[];
+  /** The taken steps, as the first record holds them */
+  readonly taken: readonly NewStep[];
   readonly record: PlanRecord;
+};
+
+/**
+ * A taken step as the first record of the plan made in place of `base` holds it: its
+ * transaction, witnesses, kind and block as `base` records them; the taken steps before it that
+ * it stands on; and its parts, each link to a kept step filled with that step's output (a link
+ * to a taken step stays), with the change address of its payer when the new plan's is another
+ */
+const takenStepOf = (
+  step: StepRecord,
+  before: readonly StepRecord[],
+  kept: readonly StepRecord[],
+  base: PlanRecord,
+  planAddress: string | undefined,
+): NewStep => {
+  const earlier = kept.map((each) => ({
+    name: each.name,
+    built: each.built,
+    ...(each.kind === "prebuilt" && { prebuilt: true as const }),
+  }));
+  const given =
+    step.given === undefined
+      ? undefined
+      : (() => {
+          const parts = step.given.parts.flatMap((part) =>
+            isLinkedPart(part) &&
+            kept.some((each) => each.name === part.link.step)
+              ? fillLinks([part], step.name, earlier, [])
+              : [part],
+          );
+          const own = step.given.options?.changeAddress;
+          const recorded = base.options.changeAddress;
+          const options =
+            typeof own !== "string" &&
+            typeof recorded === "string" &&
+            planAddress !== recorded
+              ? { ...step.given.options, changeAddress: recorded }
+              : step.given.options;
+          return { parts, ...(options !== undefined && { options }) };
+        })();
+  return {
+    name: step.name,
+    ...(step.kind !== undefined && { kind: step.kind }),
+    taken: true,
+    seen: step.seen!,
+    built: step.built,
+    witnesses: step.witnesses,
+    ...(step.tags !== undefined && { tags: step.tags }),
+    ...(step.extraKeyWitnesses !== undefined && {
+      extraKeyWitnesses: step.extraKeyWitnesses,
+    }),
+    ...(step.after !== undefined && { after: step.after }),
+    ...(step.expirySource !== undefined && {
+      expirySource: step.expirySource,
+    }),
+    standsOn: standsOnOf(step.built, before),
+    ...(given !== undefined && { given }),
+  };
 };
 
 /**
  * Builds the steps of a plan made in place of `base`, in the one loop of `makePlan`, and its
  * first record in memory. Each payer is read once; `withReads` is told the reads before any
  * step is built and gives the parts a step gets beside its own, which are built with it and are
- * no part of how it was given. The steps before are the final steps of `base`: what they spent
- * is never selected, their outputs are known to a link and to a step given built, and no step
- * stands on them by the order rule. The deadlines and data options are the call's, else those
- * `base` records
+ * no part of how it was given. The steps before are the final and the taken steps of `base`, in
+ * its order: what they spent is never selected, and their outputs are known to a link and to a
+ * step given built. No step stands on a final one by the order rule; a step stands on the taken
+ * step before it of its payer by its change, when the payer's read lists it, else `cannotStand`
+ * refuses it. The first record holds the taken steps first, then the steps built. The deadlines
+ * and data options are the call's, else those `base` records
  * @param keep What the new record keeps of the plans before it, from the steps built
  * @throws as `makePlan` throws of building its steps; MISSING_PAYER; what `withReads` throws
  */
@@ -1504,6 +1581,14 @@ export const buildReplan = async (
       reads: readonly { readonly step: StepInput; readonly read: PayerRead }[],
     ) => Promise<void>;
     readonly keep: (steps: readonly MadeStep[]) => PlanBefore;
+    /** The steps of `base` the new plan takes, in the order of `base` */
+    readonly taken: readonly StepRecord[];
+    /** The error of a step that cannot stand on a taken step: the call waits */
+    readonly cannotStand: (
+      step: string,
+      taken: Pick<StepRecord, "name" | "txHash">,
+      why: string,
+    ) => unknown;
   },
 ): Promise<MadeReplan> => {
   const { id, options, tip, asked } = context;
@@ -1526,18 +1611,29 @@ export const buildReplan = async (
   await context.withReads(reads);
   const kept = base.steps.filter((step) => step.status === "final");
   const keptNames = new Set(kept.map((step) => step.name));
+  const takenNames = new Set(context.taken.map((step) => step.name));
   const merged: MakePlanOptions = { ...recordedOptionsOf(base.options) };
   for (const [key, value] of Object.entries(options))
     if (value !== undefined)
       (merged as Record<string, unknown>)[key] = value as unknown;
-  const before = kept.map((step): StepBefore => ({
-    name: step.name,
-    built: step.built,
-    final: true,
-    ...(step.kind === "consolidation" && { consolidation: true as const }),
-    ...(step.kind === "prebuilt" && { prebuilt: true as const }),
-    standsOn: step.standsOn,
-  }));
+  const before = base.steps.flatMap((step): StepBefore[] =>
+    keptNames.has(step.name)
+      ? [
+          {
+            name: step.name,
+            built: step.built,
+            final: true,
+            ...(step.kind === "consolidation" && {
+              consolidation: true as const,
+            }),
+            ...(step.kind === "prebuilt" && { prebuilt: true as const }),
+            standsOn: step.standsOn,
+          },
+        ]
+      : takenNames.has(step.name)
+        ? [{ ...stepBeforeOf(step, base.options), taken: true as const }]
+        : [],
+  );
   // Read from the transactions' own bytes, as `makePlan` reads them
   const after = readAfter(options.after, afterBound(builder.params));
   // The steps given built, read once by the one reader: the guards keep off what they name
@@ -1547,7 +1643,13 @@ export const buildReplan = async (
     ...(merged.knownUtxos !== undefined && { knownUtxos: merged.knownUtxos }),
     ...(signal !== undefined && { signal }),
   });
-  const extra = guardsOf(context.open, reads, read, prebuilt);
+  const extra = guardsOf(
+    context.open,
+    reads,
+    read,
+    prebuilt,
+    before.filter((step) => step.taken === true),
+  );
   const added = new Set<unknown>();
   const given = read.map((step) => {
     const more = extra.get(step.name);
@@ -1565,9 +1667,15 @@ export const buildReplan = async (
     options: merged,
     readOf,
     formOf: (step) => toPayerSource(payerOf(step)!).form,
+    cannotStand: (step, taken, why) =>
+      context.cannotStand(
+        step,
+        { name: taken.name, txHash: taken.built.txHash },
+        why,
+      ),
   });
-  // The steps of the plan replaced are no steps of this one; the parts given beside a step's
-  // own are no part of how it was given
+  // The kept steps of the plan replaced are no steps of this one; the parts given beside a
+  // step's own are no part of how it was given
   const steps = built.map((step): MadeStep => ({
     ...step,
     standsOn: step.standsOn.filter((name) => !keptNames.has(name)),
@@ -1587,6 +1695,9 @@ export const buildReplan = async (
         ? base.options.changeAddress
         : undefined
       : await abortable(asked(context.payer), signal, CALL));
+  const taken = context.taken.map((step, i) =>
+    takenStepOf(step, context.taken.slice(0, i), kept, base, planAddress),
+  );
   const first = advancePlan(
     emptyPlan({
       id,
@@ -1596,12 +1707,12 @@ export const buildReplan = async (
       deadlines,
       options: planOptionsOf(merged, planAddress),
     }),
-    { type: "steps", steps: steps.map(newStepOf) },
+    { type: "steps", steps: [...taken, ...steps.map(newStepOf)] },
   );
   // The steps are built here, so the state machine refusing them is a fault of this code
   if (!first.ok)
     throw new Error(`the plan's first record was refused: ${first.message}`);
-  return { steps, record: first.json };
+  return { steps, taken, record: first.json };
 };
 
 /**
@@ -1731,6 +1842,8 @@ type StepBefore = {
   readonly final: boolean;
   /** It is in a block and not final: the chain shows whether its change is spent */
   readonly included?: true;
+  /** It is a taken step: a step that cannot stand on it makes the call wait */
+  readonly taken?: true;
   /** It is a consolidation step the plan put in itself */
   readonly consolidation?: true;
   /** The step a consolidation step this loop built serves */
@@ -2179,6 +2292,15 @@ const buildSteps = async (
     readonly formOf: (step: StepInput) => PayerSource["form"];
     /** The steps given built, read already by `readPrebuilt` with this context */
     readonly prebuilt?: ReadonlyMap<string, PrebuiltRead>;
+    /**
+     * The error of a step that cannot stand on the step before it of its payer when that step
+     * is taken. Without it, the order rule's own error
+     */
+    readonly cannotStand?: (
+      step: string,
+      taken: StepBefore,
+      why: string,
+    ) => unknown;
   },
 ): Promise<MadeStep[]> => {
   const { after: before, tip, ttlMs, planId, options, readOf } = context;
@@ -2322,6 +2444,8 @@ const buildSteps = async (
           const refused = invalidSteps(
             `step ${JSON.stringify(name)} cannot stand on step ${JSON.stringify(previous!.name)}, the step before it of the same payer: ${found.none}, so step ${JSON.stringify(name)} could land before it. Link step ${JSON.stringify(name)} to an output of step ${JSON.stringify(previous!.name)}, or make it a plan of its own`,
           );
+          if (previous!.taken === true && context.cannotStand !== undefined)
+            throw context.cannotStand(name, previous!, found.none);
           // A step the application did not give is never one it is told to link to
           if (ownStep && served !== undefined)
             throw tooLargeOf(
@@ -2335,13 +2459,23 @@ const buildSteps = async (
           found === undefined || "none" in found ? undefined : found;
         // The change of a step in a block is what the chain shows of it: a read that does not
         // list it shows it spent, or is behind that block
-        if (
+        const unread =
           change !== undefined &&
           previous?.included === true &&
           !payer.snapshot.utxos.some(
             (utxo) => utxoKey(utxo) === utxoKey(change),
-          )
+          );
+        if (
+          unread &&
+          previous.taken === true &&
+          context.cannotStand !== undefined
         )
+          throw context.cannotStand(
+            name,
+            previous,
+            "its change is not in the payer's read",
+          );
+        if (unread)
           throw invalidSteps(
             `step ${JSON.stringify(name)} cannot stand on step ${JSON.stringify(previous.name)}, the step before it of the same payer: the change of step ${JSON.stringify(previous.name)} is not in the payer's read; ${
               // A snapshot is read as it is given: nothing catches up by itself

@@ -1,9 +1,10 @@
 import type { TxEmulator } from "@meshsdk/tx-emulator";
 import { CachedFetcher, ProviderError } from "@meshsdk/common";
-import { mConStr0 } from "@meshsdk/core";
+import { deserializeAddress, mConStr0 } from "@meshsdk/core";
 
 import type { BuildEvent, TxPlan } from "../../../src/tx-builder";
-import { spend, validity } from "../../../src/tx-builder";
+import { guard, spend, validity } from "../../../src/tx-builder";
+import { encodePlan, readPlan } from "../../../src/tx-builder/plan/json";
 import { alwaysSucceedCbor, baseAddress } from "../../test-util";
 import { asMesh, ref } from "../utxo-util";
 import { coins, fragmented, pay as payValue } from "./consolidate-util";
@@ -402,7 +403,7 @@ describe("a plan in place of another", () => {
   describe("a rollback", () => {
     const deep = { builder: { planDefaults: { ...FAST, confirmations: 3 } } };
 
-    it("waits while a step is in a block and not final; a fork where the old step lands stops the new plan", async () => {
+    it("a fork where the old step lands stops the new plan", async () => {
       const { emulator, provider, builder, wallet } = await stepSetup(
         "scalus",
         {
@@ -419,18 +420,7 @@ describe("a plan in place of another", () => {
       await old.run({ waitFor: "sent" });
       await old.refresh();
       expect(statuses(old)).toEqual({ a: "included", b: "signed" });
-      const early = await caught(old.replan({ id: "order:2" }));
-      expect([early.code, reasonOf(early), early.txHash]).toEqual([
-        "CANNOT_OBSERVE",
-        "unconfirmed",
-        old.step("a").txHash,
-      ]);
-      expect([early.retryable, early.retryAfterMs]).toEqual([
-        true,
-        FAST.pollMs,
-      ]);
-      expect(old.replacedBy).toBeUndefined();
-
+      // Once a is final, the new plan builds b alone
       advance(emulator, 3);
       const next = await old.replan({ id: "order:2" });
       expect(names(next)).toEqual(["b"]);
@@ -1946,3 +1936,658 @@ describe("a plan in place of another", () => {
     });
   });
 });
+
+/* ---------------------------------------------------------------------------------------------
+ * A step in a block and not final: the new plan holds it as a step of its own
+ * ------------------------------------------------------------------------------------------- */
+
+/** The planDefaults of a chain where a step in a block is final three blocks later */
+const DEEP = { ...FAST, confirmations: 3 };
+
+/**
+ * The plan "order" of three payments, `a`, `b`, `c` (11, 12 and 13 ada to three recipients),
+ * signed; `a` sent and in a block, not final; `b` sent to a relay that holds it; `c` signed; a
+ * slot on, so that no step built is an old one byte for byte. `before` is a fork taken first: a
+ * rollback is `provider.control.target = before`
+ */
+const inBlock = async (
+  options: Parameters<typeof stepSetup>[1] = {},
+  more: { confirmations?: number } = {},
+) => {
+  const ctx = await stepSetup("scalus", {
+    funds: [100n * ADA, 50n * ADA],
+    builder: {
+      planDefaults: { ...DEEP, confirmations: more.confirmations ?? 3 },
+    },
+    ...options,
+  });
+  const before = ctx.emulator.fork();
+  const old = await ctx.builder.plan(
+    {
+      a: payTo(alice, 11n * ADA),
+      b: payTo(bob, 12n * ADA),
+      c: payTo(carol, 13n * ADA),
+    },
+    { id: "order", payer: ctx.wallet },
+  );
+  await old.sign();
+  const bHash = old.step("b").txHash;
+  const relay = relayOf(ctx.emulator, (txHash) => txHash === bHash);
+  const error = await caught(old.run({ submitter: relay, timeoutMs: 300 }));
+  expect([error.code, error.step]).toEqual(["CONFIRM_TIMEOUT", "b"]);
+  expect(statuses(old)).toEqual({ a: "included", b: "sent", c: "signed" });
+  advance(ctx.emulator, 1);
+  return {
+    ...ctx,
+    before,
+    old,
+    relay,
+    bytes: {
+      a: old.step("a").signedTx!,
+      b: relay.kept[0]!,
+      c: old.step("c").signedTx!,
+    },
+  };
+};
+
+/** A rollback that is undone: the chain everyone reads and submits to is the fork without `a` */
+const rollBack = (
+  ctx: { emulator: TxEmulator; provider: { control: { target: TxEmulator } } },
+  fork: TxEmulator,
+  slots = 1,
+) => {
+  fork.advanceTo({ slot: ctx.emulator.slot + slots });
+  ctx.provider.control.target = fork;
+};
+
+/** No recipient of these tests holds two payments of one amount */
+const neverTwice = (emulator: TxEmulator) => {
+  for (const [address, lovelace] of [
+    [alice, 11n * ADA],
+    [bob, 12n * ADA],
+    [carol, 13n * ADA],
+    [dave, 14n * ADA],
+  ] as const)
+    expect(times(emulator, address, lovelace)).toBeLessThanOrEqual(1);
+};
+
+/** CANNOT_OBSERVE (`unconfirmed`) with this hash, retryable after `pollMs`, and no mark */
+const waits = (error: any, txHash: string, old: TxPlan) => {
+  expect([error.code, reasonOf(error), error.txHash]).toEqual([
+    "CANNOT_OBSERVE",
+    "unconfirmed",
+    txHash,
+  ]);
+  expect([error.retryable, error.retryAfterMs]).toEqual([true, FAST.pollMs]);
+  expect(old.replacedBy).toBeUndefined();
+};
+
+describe("a plan in place of one whose step is in a block and not final", () => {
+  it("takes a step that is in a block and not final, at once", async () => {
+    const { emulator, old, bytes } = await inBlock();
+    const a = old.step("a");
+    const next = await old.replan({ id: "order:2" });
+    expect(names(next)).toEqual(["a", "b", "c"]);
+    expect(next.step("a")).toMatchObject({
+      txHash: a.txHash,
+      signedTx: a.signedTx,
+      seen: a.seen,
+      status: "included",
+    });
+    const json = next.toJSON();
+    expect(json.steps[0]).toMatchObject({ taken: true, sends: 0 });
+    expect(json.steps.slice(1).map((step) => step.taken)).toEqual([
+      undefined,
+      undefined,
+    ]);
+    expect(next.landed.map((step) => step.name)).toEqual(["a"]);
+    expect(next.step("b").inputs.map(key)).toContain(key(a.change[0]!));
+    expect(next.step("b").standsOn).toEqual(["a"]);
+    expect(json.before).toEqual({
+      final: [],
+      open: [
+        expect.objectContaining({ step: "b", txHash: old.step("b").txHash }),
+        expect.objectContaining({ step: "c", txHash: old.step("c").txHash }),
+      ],
+    });
+    expect(next.fee).toBe(a.fee + next.step("b").fee + next.step("c").fee);
+    expect(old.replacedBy).toBe("order:2");
+    expect(old.status).toBe("stopping");
+    expect(old.rest).toEqual({});
+
+    await next.run({ waitFor: "included" });
+    advance(emulator, 3);
+    await next.refresh();
+    expect(next.status).toBe("final");
+    expect(await refused(emulator, bytes.b)).toBe(true);
+    expect(await refused(emulator, bytes.c)).toBe(true);
+    paidOnce(emulator);
+  });
+
+  describe("a step that cannot stand on the step in a block makes the call wait", () => {
+    it("a stuck step of another payer in the old plan; three blocks later the call passes", async () => {
+      const ctx = await stepSetup("scalus", {
+        funds: [100n * ADA, 50n * ADA],
+        builder: { planDefaults: DEEP },
+      });
+      const treasury = await treasuryOf(ctx.emulator);
+      const old = await ctx.builder.plan(
+        {
+          a: payTo(alice, 11n * ADA),
+          t: { parts: payTo(dave, 14n * ADA), payer: treasury.other },
+        },
+        { id: "order", payer: ctx.wallet },
+      );
+      await old.sign();
+      await old.sign({ signers: [treasury.other] });
+      const tHash = old.step("t").txHash;
+      const relay = relayOf(ctx.emulator, (txHash) => txHash === tHash);
+      await caught(old.run({ submitter: relay, timeoutMs: 300 }));
+      expect(statuses(old)).toEqual({ a: "included", t: "sent" });
+      advance(ctx.emulator, 1);
+      waits(
+        await caught(old.replan({ id: "order:2" })),
+        old.step("a").txHash,
+        old,
+      );
+      advance(ctx.emulator, 3);
+      const next = await old.replan({ id: "order:2" });
+      expect(names(next)).toEqual(["t"]);
+      expect(next.toJSON().before!.final).toEqual(["a"]);
+      await next.run({ signers: [treasury.other], waitFor: "included" });
+      advance(ctx.emulator, 3);
+      await next.refresh();
+      expect(next.status).toBe("final");
+      expect(await refused(ctx.emulator, relay.kept[0]!)).toBe(true);
+      neverTwice(ctx.emulator);
+    });
+
+    it("a step given built that spends no output of it", async () => {
+      const { emulator, builder, old } = await inBlock();
+      const treasury = await treasuryOf(emulator);
+      const built = await builder.build(payTo(dave, 14n * ADA), {
+        payer: treasury.other,
+      });
+      waits(
+        await caught(
+          old.replan({
+            id: "order:2",
+            steps: {
+              b: payTo(bob, 12n * ADA),
+              c: payTo(carol, 13n * ADA),
+              x: built,
+            },
+          }),
+        ),
+        old.step("a").txHash,
+        old,
+      );
+      neverTwice(emulator);
+    });
+
+    it("the payer's address read from the fork before a; read fresh, the call passes", async () => {
+      const { emulator, provider, before, old } = await inBlock();
+      provider.control.hooks.fetchAddressUTxOs = (_forward, address: string) =>
+        before.fetchAddressUTxOs(address);
+      const error = await caught(old.replan({ id: "order:2" }));
+      waits(error, old.step("a").txHash, old);
+      expect(error.message).toContain("its change is not in the payer's read");
+      delete provider.control.hooks.fetchAddressUTxOs;
+      const next = await old.replan({ id: "order:2" });
+      expect(names(next)).toEqual(["a", "b", "c"]);
+      await next.run({ waitFor: "included" });
+      advance(emulator, 3);
+      await next.refresh();
+      expect(next.status).toBe("final");
+      paidOnce(emulator);
+    });
+
+    it("a plan whose only step is in a block, given a new step and a canSelect that refuses its change: waits, and once it is final the plan is final", async () => {
+      const { emulator, builder, wallet } = await stepSetup("scalus", {
+        funds: [100n * ADA, 50n * ADA],
+        builder: { planDefaults: DEEP },
+      });
+      const old = await builder.plan(
+        { a: payTo(alice, 11n * ADA) },
+        { id: "order", payer: wallet },
+      );
+      await old.run({ waitFor: "sent" });
+      await old.refresh();
+      expect(statuses(old)).toEqual({ a: "included" });
+      const changeOfA = key(old.step("a").change[0]!);
+      const call = () =>
+        old.replan({
+          id: "order:2",
+          steps: { x: payTo(dave, 14n * ADA) },
+          canSelect: (utxo) => key(utxo) !== changeOfA,
+        });
+      const error = await caught(call());
+      waits(error, old.step("a").txHash, old);
+      expect(error.message).toContain(
+        "canSelect does not let its change through",
+      );
+      advance(emulator, 3);
+      const final = await caught(call());
+      expect([final.code, reasonOf(final)]).toEqual(["INVALID_STATE", "final"]);
+      expect(old.status).toBe("final");
+      neverTwice(emulator);
+    });
+  });
+
+  describe("what the new plan cannot hold still waits", () => {
+    it("the search of a fails in this call", async () => {
+      const { emulator, provider, old } = await inBlock();
+      const aHash = old.step("a").txHash;
+      provider.control.hooks.fetchTxInfo = (forward, hash: string) => {
+        if (hash.toLowerCase() === aHash) throw tooMany();
+        return forward(hash);
+      };
+      waits(await caught(old.replan({ id: "order:2" })), aHash, old);
+      neverTwice(emulator);
+    });
+
+    it("the old b lands after the new plan was made: it stops; replan of it waits, then builds c alone", async () => {
+      const { emulator, old, bytes } = await inBlock();
+      const next = await old.replan({ id: "order:2" });
+      await emulator.submitTx(bytes.b);
+      const submitter = forwarding(emulator);
+      const stopped = await caught(next.run({ submitter }));
+      expect([stopped.code, reasonOf(stopped), stopped.txHash]).toEqual([
+        "INVALID_STATE",
+        "stopped",
+        old.step("b").txHash,
+      ]);
+      expect(submitter.calls).toEqual([]);
+      waits(
+        await caught(next.replan({ id: "order:3" })),
+        old.step("b").txHash,
+        next,
+      );
+      advance(emulator, 3);
+      const last = await next.replan({ id: "order:3" });
+      expect(names(last)).toEqual(["c"]);
+      expect(last.toJSON().before!.final).toEqual(["a", "b"]);
+      await last.run({ waitFor: "included" });
+      advance(emulator, 3);
+      await last.refresh();
+      expect(last.status).toBe("final");
+      expect(await refused(emulator, bytes.c)).toBe(true);
+      paidOnce(emulator);
+    });
+
+    it("a and b in a block, the search hiding a: b stands on what the search does not find", async () => {
+      const ctx = await stepSetup("scalus", {
+        funds: [100n * ADA, 50n * ADA],
+        builder: { planDefaults: DEEP },
+      });
+      const old = await ctx.builder.plan(
+        {
+          a: payTo(alice, 11n * ADA),
+          b: payTo(bob, 12n * ADA),
+          c: payTo(carol, 13n * ADA),
+        },
+        { id: "order", payer: ctx.wallet },
+      );
+      await old.sign();
+      await old.run({ waitFor: "sent" });
+      await old.refresh();
+      await old.run({ waitFor: "sent" });
+      await old.refresh();
+      expect(statuses(old)).toEqual({
+        a: "included",
+        b: "included",
+        c: "signed",
+      });
+      const aHash = old.step("a").txHash;
+      ctx.provider.control.hooks.fetchTxInfo = hiding(
+        new Set([aHash]),
+      ).fetchTxInfo;
+      const error = await caught(old.replan({ id: "order:2" }));
+      waits(error, aHash, old);
+      expect(error.message).toContain(`step "b"`);
+      neverTwice(ctx.emulator);
+    });
+  });
+
+  describe("names, links, after and the limit", () => {
+    const given = 7_777_777n;
+
+    it("refuses the name of the step in a block, after: old, and 32 steps beside it; no message holds a value given", async () => {
+      const { emulator, provider, old } = await inBlock();
+      const name = await caught(
+        old.replan({ id: "order:2", steps: { a: payTo(dave, given) } }),
+      );
+      const after = await caught(
+        old.replan({
+          id: "order:2",
+          steps: { x: payTo(dave, given) },
+          after: old,
+        }),
+      );
+      const reads = provider.control.count("fetchAddressUTxOs");
+      const many = await caught(
+        old.replan({
+          id: "order:2",
+          steps: Object.fromEntries(
+            Array.from({ length: 32 }, (_, i) => [`s${i}`, payTo(dave, given)]),
+          ),
+        }),
+      );
+      expect(provider.control.count("fetchAddressUTxOs")).toBe(reads);
+      expect(
+        [name, after, many].map((error) => [error.code, error.details?.option]),
+      ).toEqual([
+        ["INVALID_OPTION", "steps"],
+        ["INVALID_OPTION", "after"],
+        ["INVALID_OPTION", "steps"],
+      ]);
+      expect(name.message).toContain("in a block in this plan");
+      expect(many.message).toContain(
+        "holds 1 of this plan that are in a block",
+      );
+      for (const error of [name, after, many]) {
+        expect(error.message).not.toContain(String(given));
+        expect(JSON.stringify(error.details ?? {})).not.toContain(
+          String(given),
+        );
+      }
+      expect(old.replacedBy).toBeUndefined();
+      neverTwice(emulator);
+    });
+
+    it("a given step linked to the change of the step in a block, which the old b spends too: built, the output spent once, the link kept", async () => {
+      const { emulator, old, bytes } = await inBlock();
+      const change = key(old.step("a").change[0]!);
+      const next = await old.replan({
+        id: "order:2",
+        steps: {
+          b: [
+            spend.pubKey({ utxo: { step: "a", change: true } }),
+            payTo(bob, 12n * ADA),
+          ],
+          c: payTo(carol, 13n * ADA),
+        },
+      });
+      expect(
+        next.step("b").inputs.filter((input) => key(input) === change),
+      ).toHaveLength(1);
+      const parts = next.toJSON().steps[1]!.given!.parts as {
+        link?: unknown;
+      }[];
+      expect(parts[0]!.link).toEqual({ step: "a", change: true });
+      await next.run({ waitFor: "included" });
+      advance(emulator, 3);
+      await next.refresh();
+      expect(next.status).toBe("final");
+      expect(await refused(emulator, bytes.b)).toBe(true);
+      paidOnce(emulator);
+    });
+
+    it("a taken step whose own parts link to a final step is recorded with the output", async () => {
+      const { emulator, builder, wallet } = await stepSetup("scalus", {
+        funds: [100n * ADA, 50n * ADA],
+        builder: { planDefaults: DEEP },
+      });
+      const old = await builder.plan(
+        {
+          a: payTo(alice, 11n * ADA),
+          b: [
+            spend.pubKey({ utxo: { step: "a", change: true } }),
+            payTo(bob, 12n * ADA),
+          ],
+          c: payTo(carol, 13n * ADA),
+        },
+        { id: "order", payer: wallet },
+      );
+      await old.sign();
+      await old.run({ waitFor: "sent" });
+      advance(emulator, 3);
+      await old.refresh();
+      await old.run({ waitFor: "sent" });
+      await old.refresh();
+      expect(statuses(old)).toEqual({
+        a: "final",
+        b: "included",
+        c: "signed",
+      });
+      const next = await old.replan({ id: "order:2" });
+      expect(names(next)).toEqual(["b", "c"]);
+      const parts = next.toJSON().steps[0]!.given!.parts as {
+        link?: unknown;
+        input?: { transaction_id: string; index: number };
+      }[];
+      expect(parts[0]!.link).toBeUndefined();
+      const change = old.step("a").change[0]!;
+      expect(parts[0]!.input).toEqual({
+        transaction_id: change.txHash,
+        index: change.outputIndex,
+      });
+      expect(next.toJSON().before!.final).toEqual(["a"]);
+      await next.run({ waitFor: "included" });
+      advance(emulator, 3);
+      await next.refresh();
+      expect(next.status).toBe("final");
+      paidOnce(emulator);
+    });
+  });
+
+  describe("kinds", () => {
+    it("a step given built and in a block: taken with its kind and witnesses; after a rollback the new plan submits it", async () => {
+      const ctx = await stepSetup("scalus", {
+        funds: [100n * ADA, 50n * ADA],
+        builder: { planDefaults: DEEP },
+      });
+      const before = ctx.emulator.fork();
+      const built = await ctx.builder.build(payTo(alice, 11n * ADA), {
+        payer: ctx.wallet,
+      });
+      const signed = await built.sign({ signers: [ctx.wallet] });
+      const old = await ctx.builder.plan(
+        { p: signed, b: payTo(bob, 12n * ADA) },
+        { id: "order", payer: ctx.wallet },
+      );
+      await old.sign();
+      const bHash = old.step("b").txHash;
+      const relay = relayOf(ctx.emulator, (txHash) => txHash === bHash);
+      await caught(old.run({ submitter: relay, timeoutMs: 300 }));
+      expect(statuses(old)).toEqual({ p: "included", b: "sent" });
+      advance(ctx.emulator, 1);
+      const next = await old.replan({ id: "order:2" });
+      expect(next.step("p")).toMatchObject({
+        kind: "prebuilt",
+        status: "included",
+        signedTx: old.step("p").signedTx,
+      });
+      expect(next.toJSON().steps[0]).toMatchObject({
+        kind: "prebuilt",
+        taken: true,
+      });
+      rollBack(ctx, before);
+      await next.refresh();
+      expect(next.step("p").status).toBe("sent");
+      const submitter = forwarding(before);
+      await next.run({ submitter, waitFor: "included" });
+      expect(submitter.calls[0]).toBe(old.step("p").signedTx);
+      before.advanceTo({ slot: before.slot + 3 });
+      await next.refresh();
+      expect(next.status).toBe("final");
+      expect(times(before, alice, 11n * ADA)).toBe(1);
+      expect(times(before, bob, 12n * ADA)).toBe(1);
+      neverTwice(before);
+    });
+
+    it("a step another party sent, one witness not held: taken as it is; after a rollback run asks the co-signer and submits", async () => {
+      const ctx = await stepSetup("scalus", {
+        funds: [100n * ADA, 50n * ADA],
+        builder: { planDefaults: DEEP },
+      });
+      const before = ctx.emulator.fork();
+      const cosigner = await walletOf(1);
+      const keyHash = deserializeAddress(
+        (await cosigner.getChangeAddress())!,
+      ).pubKeyHash;
+      const old = await ctx.builder.plan(
+        {
+          a: [payTo(alice, 11n * ADA), guard.pubKey({ keyHash })],
+          b: payTo(bob, 12n * ADA),
+        },
+        { id: "order", payer: ctx.wallet },
+      );
+      await old.sign();
+      expect(statuses(old)).toEqual({ a: "built", b: "signed" });
+      // The other party signs it whole and sends it
+      const whole = await cosigner.signTx(
+        await ctx.wallet.signTx(old.step("a").tx, true),
+        true,
+      );
+      await ctx.emulator.submitTx(whole);
+      await old.refresh();
+      expect(statuses(old)).toEqual({ a: "included", b: "signed" });
+      advance(ctx.emulator, 1);
+      const next = await old.replan({ id: "order:2" });
+      expect(next.step("a")).toMatchObject({ status: "included" });
+      expect(next.step("a").signedTx).toBeUndefined();
+      expect(next.step("a").missing.map((each) => each.keyHash)).toEqual([
+        keyHash,
+      ]);
+      rollBack(ctx, before);
+      await next.refresh();
+      expect(next.step("a").status).toBe("sent");
+      await next.run({ signers: [ctx.wallet, cosigner], waitFor: "included" });
+      before.advanceTo({ slot: before.slot + 3 });
+      await next.refresh();
+      expect(next.status).toBe("final");
+      expect(times(before, alice, 11n * ADA)).toBe(1);
+      expect(times(before, bob, 12n * ADA)).toBe(1);
+    });
+
+    it("a consolidation step in a block: taken with its kind, the step built stands on it, the record reads back; the step built's own consolidation steps are numbered after it", async () => {
+      const ctx = await fragmented(coins(250, 2n * ADA), {
+        maxTxSize: 4096,
+        confirmations: 3,
+      });
+      const old = await ctx.builder.plan(payValue({ lovelace: 480n * ADA }), {
+        id: "order",
+        payer: ctx.wallet,
+      });
+      expect(names(old)).toEqual(["consolidate-1", "consolidate-2", "main"]);
+      await old.sign();
+      const second = old.step("consolidate-2").txHash;
+      const relay = relayOf(ctx.emulator, (txHash) => txHash === second);
+      await caught(old.run({ submitter: relay, timeoutMs: 300 }));
+      expect(statuses(old)).toEqual({
+        "consolidate-1": "included",
+        "consolidate-2": "sent",
+        main: "signed",
+      });
+      advance(ctx.emulator, 1);
+      const next = await old.replan({ id: "order:2" });
+      expect(next.step("consolidate-1")).toMatchObject({
+        kind: "consolidation",
+        status: "included",
+        txHash: old.step("consolidate-1").txHash,
+      });
+      expect(next.toJSON().steps[0]!.taken).toBe(true);
+      const built = next.steps.slice(1);
+      expect(built.at(-1)!.name).toBe("main");
+      // Its own consolidation steps, if any, come after the taken one by number
+      for (const step of built.slice(0, -1)) {
+        expect(step.kind).toBe("consolidation");
+        expect(Number(step.name.slice("consolidate-".length))).toBeGreaterThan(
+          1,
+        );
+      }
+      expect(built[0]!.standsOn).toContain("consolidate-1");
+      expect(readPlan(JSON.parse(JSON.stringify(next.toJSON())))).toBeDefined();
+      await next.run({ waitFor: "included" });
+      for (const _ of built) {
+        advance(ctx.emulator, 1);
+        await next.run({ waitFor: "included" });
+      }
+      advance(ctx.emulator, 3);
+      await next.refresh();
+      expect(next.status).toBe("final");
+      expect(await refused(ctx.emulator, relay.kept[0]!)).toBe(true);
+      expect(times(ctx.emulator, recipient, 480n * ADA)).toBe(1);
+    }, 120_000);
+  });
+
+  it("another payer for the new plan: the record says whose step the taken one is", async () => {
+    const { emulator, wallet, address, old } = await inBlock();
+    const treasury = await treasuryOf(emulator);
+    const next = await old.replan({
+      id: "order:2",
+      payer: treasury.other,
+      steps: {
+        b: { parts: payTo(bob, 12n * ADA), payer: wallet },
+        c: { parts: payTo(carol, 13n * ADA), payer: wallet },
+      },
+    });
+    const json = next.toJSON();
+    expect(json.options.changeAddress).toBe(treasury.address);
+    expect(json.steps[0]!.given!.options!.changeAddress).toBe(address);
+    expect(encodeRead(json)).toEqual(json);
+    // Once b is final the old b and c cannot land: a step of the new payer is added
+    await next.run({ signers: [wallet], waitFor: "sent" });
+    await next.refresh();
+    advance(emulator, 3);
+    await next.refresh();
+    expect(statuses(next)).toMatchObject({ a: "final", b: "final" });
+    await next.add({ d: payTo(dave, 14n * ADA) });
+    expect(
+      next
+        .step("d")
+        .inputs.every((input) => input.address === treasury.address),
+    ).toBe(true);
+    await next.run({ signers: [wallet, treasury.other], waitFor: "included" });
+    advance(emulator, 3);
+    await next.refresh();
+    expect(next.status).toBe("final");
+    paidOnce(emulator);
+    neverTwice(emulator);
+  });
+
+  it("add on a plan with a taken step: the added step stands on the last step of its payer, also after a rollback", async () => {
+    const ctx = await inBlock();
+    const { emulator, old, before } = ctx;
+    const next = await old.replan({ id: "order:2" });
+    await next.add({ d: payTo(dave, 14n * ADA) });
+    expect(next.step("d").standsOn).toEqual(["c"]);
+    await next.run({ waitFor: "included" });
+    advance(emulator, 3);
+    await next.refresh();
+    expect(next.status).toBe("final");
+    paidOnce(emulator);
+    neverTwice(emulator);
+
+    // The same after a rollback, while the taken step is sent
+    const again = await inBlock();
+    const other = await again.old.replan({ id: "order:2" });
+    rollBack(again, again.before);
+    await other.refresh();
+    expect(other.step("a").status).toBe("sent");
+    await other.add({ d: payTo(dave, 14n * ADA) });
+    expect(other.step("d").standsOn).toEqual(["c"]);
+    await other.run({ waitFor: "included" });
+    again.before.advanceTo({ slot: again.before.slot + 3 });
+    await other.refresh();
+    expect(other.status).toBe("final");
+    paidOnce(again.before);
+    neverTwice(again.before);
+    void before;
+  });
+
+  it("the deadlines given judge the taken step too", async () => {
+    const { emulator, old } = await inBlock();
+    const next = await old.replan({ id: "order:2", confirmations: 0 });
+    await next.refresh();
+    expect(next.step("a").status).toBe("final");
+    await old.refresh();
+    expect(old.step("a").status).toBe("included");
+    neverTwice(emulator);
+  });
+});
+
+/** The JSON of a plan, read back and written again */
+const encodeRead = (json: ReturnType<TxPlan["toJSON"]>) =>
+  encodePlan(readPlan(JSON.parse(JSON.stringify(json))));
