@@ -1501,6 +1501,9 @@ describe("a plan in place of another", () => {
       };
       const error = await caught(old.replan({ id: "order:2" }));
       expect(error.code).toBe("PROVIDER_FAILED");
+      expect(error.message).toContain(
+        `reading the UTxOs at ${alice}, which a transaction the search does not find pays, failed or gave no list`,
+      );
       expect(old.replacedBy).toBeUndefined();
       expect(times(emulator, alice, 11n * ADA)).toBe(1);
     });

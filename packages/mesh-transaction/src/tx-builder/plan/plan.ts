@@ -3596,7 +3596,8 @@ const onStep = (
 
 /**
  * The out refs at an address, read from the provider past its cache, for the check of what a
- * dead step paid: a read that fails is no answer, and refuses the call
+ * transaction the search does not find paid: a read that fails is no answer, and refuses the
+ * call
  * @throws TxBuildError MISSING_FETCHER without a provider; PROVIDER_FAILED when the read fails
  *   or its answer cannot be read
  */
@@ -3607,12 +3608,12 @@ const readAddress = async (
   if (fetcher === undefined)
     throw new TxBuildError(
       "MISSING_FETCHER",
-      `the UTxOs at ${address}, which a step that will not land pays, have to be read through a provider, and the builder has none`,
+      `the UTxOs at ${address}, which a transaction the search does not find pays, have to be read through a provider, and the builder has none`,
     );
   const failed = (cause: unknown) =>
     new TxBuildError(
       "PROVIDER_FAILED",
-      `reading the UTxOs at ${address}, which a transaction that will not land pays, failed or gave no list: nothing was written, and the application may make the same call again`,
+      `reading the UTxOs at ${address}, which a transaction the search does not find pays, failed or gave no list: nothing was written, and the application may make the same call again`,
       { details: { operation: "fetchAddressUTxOs" }, cause },
     );
   let utxos: unknown;
