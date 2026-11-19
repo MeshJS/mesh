@@ -1338,9 +1338,9 @@ export class TxPlan {
    *   is refused: built again it could not land. So is a step given built that spends, reads
    *   or puts up an output of a step the new plan does not hold as the same transaction (one
    *   built again from its parts, a consolidation step): that output never exists in the new
-   *   plan. It is told once the payers' reads are checked: a read that lists an output of that
-   *   step, which the search does not find, is waited for first. The application gives the
-   *   steps of the new plan.
+   *   plan. Both are told once the payers' reads are checked: a read that lists an output of a
+   *   step the search does not find (the step left, or the step below it) is waited for first.
+   *   The application gives the steps of the new plan.
    * - What the new plan cannot hold is waited for, CANNOT_OBSERVE (`unconfirmed`): a
    *   transaction in a block with a failed script, and a transaction of a plan before this one
    *   that a look found in a block, each until it is final; a step in a block this call's
@@ -1576,6 +1576,8 @@ export class TxPlan {
     // The steps: those given, else what the look shows open; none of a kept or a taken name
     const keptNames = keptNamesOf(base, classes);
     let read: StepInput[];
+    /** A step left whose own end of validity has passed, told late */
+    let late: StepRecord | undefined;
     /** A step given built left that stands on a step the new plan builds again, told late */
     let unheld: { readonly step: string; readonly below: string } | undefined;
     if (own === undefined) {
@@ -1599,19 +1601,15 @@ export class TxPlan {
           "nothing of the plan is left to build: every step is final, in a block or a consolidation step; give the steps of the new plan",
         );
       // A step whose own end of validity the tip has reached could only be built dead: built
-      // now, its transaction lands in a block after the tip or in none
-      const late = leftOf(base, classes).find(
+      // now, its transaction lands in a block after the tip or in none. Refused once the payers'
+      // reads are checked: a read that lists an output of a step the search does not find
+      // tells that the step may have landed
+      late = leftOf(base, classes).find(
         (step) =>
           step.name in left &&
           ownEndOf(step) &&
           (stepUntil(step) ?? Infinity) <= tip.timeMs,
       );
-      if (late !== undefined)
-        throw stepsRefused(
-          late.kind === "prebuilt"
-            ? `step ${JSON.stringify(late.name)} was given built and its end of validity has passed: the same transaction cannot land; give the steps of the new plan`
-            : `step ${JSON.stringify(late.name)} cannot be built again as it was given: its parts give an end of validity, and the chain's tip has passed it, so the transaction could not land; give the steps of the new plan`,
-        );
       // A step given built that stands on a step the new plan does not hold as the same
       // transaction could only be held dead: the output it spends, reads or puts up never exists
       // in the new plan. Refused once the payers' reads are checked: a read that lists an output
@@ -1677,6 +1675,12 @@ export class TxPlan {
           reads,
           ask,
         );
+        if (late !== undefined)
+          throw stepsRefused(
+            late.kind === "prebuilt"
+              ? `step ${JSON.stringify(late.name)} was given built and its end of validity has passed: the same transaction cannot land; give the steps of the new plan`
+              : `step ${JSON.stringify(late.name)} cannot be built again as it was given: its parts give an end of validity, and the chain's tip has passed it, so the transaction could not land; give the steps of the new plan`,
+          );
         if (unheld !== undefined)
           throw stepsRefused(
             `step ${JSON.stringify(unheld.step)} was given built and spends, reads or puts up an output of step ${JSON.stringify(unheld.below)}, which the new plan builds again as another transaction: the transaction given built could not land in the new plan; give the steps of the new plan`,

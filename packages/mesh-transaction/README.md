@@ -809,7 +809,9 @@ are the new plan's, also for the steps it holds of the old plan, and carry on. N
   `ttlMs`; a step that landed is held by the new plan while it is in a block and kept once it is
   `final`, never built again, so each payment is made once. A step whose own parts, or whose
   transaction given built, set an end that has passed is refused, and the application gives
-  `steps`. Where others took every input of it, see the dead ends below.
+  `steps`; the refusal comes once the payers' reads are checked, so a read that lists an output of
+  that step while the search does not find it answers first (`CANNOT_OBSERVE`, `unconfirmed`).
+  Where others took every input of it, see the dead ends below.
 - What a new plan cannot hold is waited for, with `CANNOT_OBSERVE` (`unconfirmed`, again after
   `retryAfterMs`): a transaction in a block with a failed script, and one of a plan before the one
   replaced that a look found in a block, each until it is `final`; a step in a block the search

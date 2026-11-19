@@ -1463,6 +1463,51 @@ describe("a step left whose end of validity has passed", () => {
     expect(times(emulator, bob, 12n * ADA)).toBe(1);
   });
 
+  it("a step from parts whose own end has passed, landed while the search hides it, whose change the payer's read lists: the read answers first (CANNOT_OBSERVE); once the search finds it, the plan is final", async () => {
+    const ctx = await storeSetup({ funds: [100n * ADA, 50n * ADA] });
+    const { emulator, provider, builder, wallet, store } = ctx;
+    const until = validity({ until: builder.timeAt(emulator.slot) + 300_000 });
+    const old = await builder.plan(
+      { a: [payTo(alice, 11n * ADA), until] },
+      { id: "order", payer: wallet },
+    );
+    const aHash = old.step("a").txHash;
+    // a lands, and the search does not find it
+    const hide = { on: true };
+    provider.control.hooks.fetchTxInfo = (forward, hash: string) => {
+      if (hide.on && hash.toLowerCase() === aHash)
+        throw Object.assign(new Error("not found"), {
+          kind: "notFound",
+          status: 404,
+        });
+      return forward(hash);
+    };
+    await caught(old.run({ timeoutMs: 300 }));
+    advance(emulator, 700);
+    await old.refresh();
+    expect(old.step("a").status).toBe("expired");
+    expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    // Its own end has passed, and the wallet's read lists its change: the call waits
+    for (let i = 0; i < 2; i++) {
+      const error = await caught(old.replan({ id: "i1" }));
+      expect([
+        error.code,
+        reasonOf(error),
+        error.txHash,
+        error.retryable,
+      ]).toEqual(["CANNOT_OBSERVE", "unconfirmed", aHash, true]);
+      expect(error.message).toContain(`an output of step "a" (${aHash})`);
+      expect(old.replacedBy).toBeUndefined();
+      expect((await store.inner.load("order"))!.replacedBy).toBeUndefined();
+      expect(await store.inner.load("i1")).toBeUndefined();
+      advance(emulator, 1);
+    }
+    hide.on = false;
+    await old.refresh();
+    expect(old.status).toBe("final");
+    expect(times(emulator, alice, 11n * ADA)).toBe(1);
+  });
+
   it("a step given built that stands on a step in a block: not refused by this rule, held as it is", async () => {
     const ctx = await storeSetup({
       funds: [100n * ADA, 50n * ADA],
@@ -2049,6 +2094,37 @@ describe("the reconciliation loop of the README", () => {
     paidOnceEach(chain);
     expect(times(chain, carol, 13n * ADA)).toBe(1);
   };
+
+  it("a step whose own end has passed, landed while the search hides it: every pass reports CANNOT_OBSERVE while the read lists its change, and the order closes once the search finds it", async () => {
+    const ctx = await storeSetup({ funds: [100n * ADA, 50n * ADA] });
+    const { emulator, provider, builder, wallet } = ctx;
+    const until = validity({ until: builder.timeAt(emulator.slot) + 300_000 });
+    const old = await builder.plan(
+      { a: [payTo(alice, 11n * ADA), until] },
+      { id: "order", payer: wallet },
+    );
+    const aHash = old.step("a").txHash;
+    const hide = { on: true };
+    provider.control.hooks.fetchTxInfo = (forward, hash: string) => {
+      if (hide.on && hash.toLowerCase() === aHash)
+        throw Object.assign(new Error("not found"), {
+          kind: "notFound",
+          status: 404,
+        });
+      return forward(hash);
+    };
+    await caught(old.run({ timeoutMs: 300 }));
+    advance(emulator, 700);
+    const hidden = await reconcile(ctx, 2, 5);
+    expect(hidden).toEqual({
+      closed: [],
+      reported: ["CANNOT_OBSERVE/unconfirmed", "CANNOT_OBSERVE/unconfirmed"],
+    });
+    hide.on = false;
+    const found = await reconcile(ctx, 1, 5);
+    expect(found).toEqual({ closed: ["order"], reported: [] });
+    expect(times(emulator, alice, 11n * ADA)).toBe(1);
+  });
 
   it("after a rollback that is undone the loop goes on with the new plan", async () => {
     // a in a block, ten blocks short of final; replaced at once, a taken
