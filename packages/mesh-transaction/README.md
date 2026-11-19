@@ -499,13 +499,17 @@ with build options of its own (`payer`, `canSelect`, `coinSelection`, `sendAllTo
 `registeredPools`, `extraKeyWitnesses`, `topUpCollateral`, `collateralReturn`), or a transaction
 built before ([below](#a-transaction-built-elsewhere-as-a-step)). A name is not empty, not a whole
 number, does not start with `consolidate-` and is not `__proto__`; a plan has at most 32 steps. The
-steps are a plain object, or one without a prototype: an object whose prototype is another, as
-`steps["__proto__"] = step` or a member `__proto__:` of a literal makes it, is `INVALID_OPTION`
-(`steps`). An object is one part only when its own `kind` names a part, so a step may be named
-`kind`. With named steps, `sendAllTo` and `fee` are given in the step, and a builder that holds
-parts from `.add()` is `INVALID_OPTION`. Every error of building a step names the step at the start
-of its message. A payer that answers two change addresses within one call is `INVALID_OPTION`
-(`payer`): a snapshot has one.
+steps are a plain object, or one without a prototype. Any other object is `INVALID_OPTION`
+(`steps`): a `Map`, an object of a class or of another realm, and an object whose prototype
+`steps["__proto__"] = step` or a member `__proto__:` of a literal set to an object, as a list or a
+part. A step given as CBOR hex under that name, by assignment or in a literal, sets nothing and is
+lost without a trace: no check can see it. Give steps whose names come from outside through
+`Object.fromEntries`, a spread or `Object.create(null)`, which keep every name; `__proto__` is then
+refused by name. An object is one part only when its own `kind` names a part, so a step may be named
+`kind`; steps named `tx` and `txHash` are steps too. With named steps, `sendAllTo` and `fee` are
+given in the step, and a builder that holds parts from `.add()` is `INVALID_OPTION`. Every error of
+building a step names the step at the start of its message. A payer that answers two change
+addresses within one call is `INVALID_OPTION` (`payer`): a snapshot has one.
 
 ### Links and order
 
@@ -578,12 +582,14 @@ if (order.status === "pending") await order.run(); // a repeat returns the plan 
   one that shares no input with it is `STILL_LIVE` until that transaction is dead. One that only a
   step of the plan in a block keeps from landing (it spends an input that step spends) is waited for
   (`CANNOT_OBSERVE`, `unconfirmed`) until that step is `final`: after a rollback it could land
-  beside the added step. When every other step of the plan is `final`, or in a block no later than
-  that one, the plan is `final` with it and the same call is then `INVALID_STATE` (`final`): the
-  message says so, and the step is paid by a plan after this one (`after`). `STILL_LIVE` is told
-  first. An added step is the application's to follow, by this plan's id, as steps given to
-  `replan` are: when the old plan becomes `final` after all, the added step was not paid, unless it
-  passed by time (`NO_SHARED_INPUT`), and the reconciliation loop ends the line at the old plan.
+  beside the added step. Where steps in blocks keep several old transactions from landing, the
+  wait names the one in a block last. When every other step of the plan is `final`, or in a block
+  no later than that one, the plan is `final` with it and the same call is then `INVALID_STATE`
+  (`final`): the message says so, and the step is paid by a plan after this one (`after`).
+  `STILL_LIVE` is told first. An added step is the application's to follow, by this plan's id, as
+  steps given to `replan` are: when the old plan becomes `final` after all, the added step was not
+  paid, unless it passed by time (`NO_SHARED_INPUT`), and the reconciliation loop ends the line at
+  the old plan.
 
 Limits: a plan has at most 32 steps, consolidation steps counted. Without a store, a copy of the
 JSON saved before an `add` does not hold the added steps, and the same `add` on it builds and pays
@@ -814,8 +820,10 @@ apart from the old one.
   `final`, never built again, so each payment is made once. A step whose own parts, or whose
   transaction given built, set an end that has passed is refused, and the application gives
   `steps`; the refusal comes once the payers' reads are checked, so a read that lists an output of
-  that step while the search does not find it answers first (`CANNOT_OBSERVE`, `unconfirmed`).
-  Where others took every input of it, see the dead ends below.
+  that step while the search does not find it answers first (`CANNOT_OBSERVE`, `unconfirmed`), and
+  once the look calls it `expired` (its end and the margin passed, and the search answered "not
+  found"): before that it may be in a block the search does not show, and the call waits
+  (`CANNOT_OBSERVE`, `unconfirmed`). Where others took every input of it, see the dead ends below.
 - What a new plan cannot hold is waited for, with `CANNOT_OBSERVE` (`unconfirmed`, again after
   `retryAfterMs`): a transaction in a block with a failed script, and one of a plan before the one
   replaced that a look found in a block, each until it is `final`; a step in a block the search
@@ -846,14 +854,25 @@ apart from the old one.
   large sum.
 - Dead ends, where no plan is made: nothing left to build (every step is final, in a block or a
   consolidation step: `INVALID_OPTION`, `steps`), a step that `failed` its script (`INVALID_OPTION`,
-  `steps`: its parts need fixing), a step left whose own end of validity has passed
-  (`INVALID_OPTION`, `steps`: built again it could not land), or a step given built that spends,
-  reads or puts up an output of a step the new plan does not hold as the same transaction
-  (`INVALID_OPTION`, `steps`: that output never exists in the new plan), unless `steps` are given; a
-  plan whose every step is in a block, which is waited for and then `final`; an old transaction
-  found in a block once and gone, its inputs spent by others; a step given built that never expires,
-  which the new plan neither holds nor shares an input with; an id another plan took after a crash
-  that followed the mark.
+  `steps`: its parts need fixing), a step left whose own end of validity has passed, once the look
+  calls it `expired` (`INVALID_OPTION`, `steps`: built again it could not land), or a step given
+  built that spends, reads or puts up an output of a step the new plan does not hold as the same
+  transaction (`INVALID_OPTION`, `steps`: that output never exists in the new plan), unless `steps`
+  are given; a plan whose every step is in a block, which is waited for and then `final`; an old
+  transaction found in a block once and gone, its inputs spent by others; a step given built that
+  never expires, which the new plan neither holds nor shares an input with; an id another plan took
+  after a crash that followed the mark.
+- A dead end of two payers: their steps were in a block, a rollback took them out, and nobody
+  sent them again before their ends of validity passed. Each lands again only if the chain goes
+  back to the blocks that held it, and a step built for one payer shares no input with the old step
+  of the other, so no time settles the pair: `replan` is `STILL_LIVE` without `safeAfter`, and its
+  message says that a rollback took the step out past its end, that no plan is made in its place,
+  and that the application decides how to pay what is left. It may wait as long as it judges that
+  the chain will not go back to those blocks, then pay what is left by a plan of its own under a
+  new id, knowing that nothing keeps that plan apart from the old transactions. `run()` sends the
+  same bytes again after a rollback while they are valid, so this needs a loop that is down for
+  longer than the steps' `ttlMs` and the margin: a plan with steps of several payers wants a
+  `ttlMs` longer than the longest time its loop may be down.
 - The old plan is marked first, by compare-and-set: `replacedBy` names the new plan, and the old
   one signs and sends nothing more. The id is the new plan's alone. The same call again returns
   the same plan, also after a crash that followed the mark; with other options, the plan recorded
@@ -1174,38 +1193,41 @@ for (const id of await db.openPlanIds()) {
 
 `resume` reads the store only: it makes no request to the chain and does not call the payer; the
 provider is probed before the first delivery. Errors with `retryable: true` are a wait, not a
-failure. With `waitFor: "sent"` each pass moves a plan one step on. A plan with a step that will
-not land is kept while another step of it may still land outside a block (`live`), which may take
-until that step's end of validity and the margin; then the loop pays what is left by `replan`
-([A step that does not go through](#a-step-that-does-not-go-through)). It does not wait for the
-steps that are in a block to be `final`: the new plan holds them, and is `final` only when they
-are. A plan whose steps are all in a block is left to become `final`. After a rollback the loop
-needs nothing more: `run()` of the new plan sends such a step again, and when it can no longer land
-the new plan stops in its turn and gets a plan in its place. A new plan stopped by an old
+failure. With `waitFor: "sent"` each pass moves a plan one step on. A plan with a step that will not
+land is kept while another step of it may still land outside a block (`live`), which may take until
+that step's end of validity and the margin; then the loop pays what is left by `replan` ([A step
+that does not go through](#a-step-that-does-not-go-through)). It does not wait for the steps that
+are in a block to be `final`: the new plan holds them, and is `final` only when they are. A plan
+whose steps are all in a block is left to become `final`. After a rollback the loop needs nothing
+more: `run()` of the new plan sends such a step again, the same bytes while they are valid, and when
+it can no longer land the new plan stops in its turn and gets a plan in its place. So a plan with
+steps of several payers wants a `ttlMs` longer than the longest time the loop may be down: steps of
+two payers that a rollback took out of their blocks, and that nobody sent again before their ends
+passed, get no plan in their place; every pass reports `STILL_LIVE`, and the order stays in the list
+until the application decides, as the dead ends of `replan` say. A new plan stopped by an old
 transaction found in a block sends nothing, a step it took that a rollback took out of its block
-among it: the loop then waits for that step's end of validity, and replaces the plan. Where
-`replan` still waits (`CANNOT_OBSERVE`, `unconfirmed`), the next pass asks again. A step left
-that could only be built dead (its own end of validity has passed, or it was given built and
-stands on a step the new plan does not hold) is not built again: the pass reports
-`INVALID_OPTION` (`steps`), writes nothing, and the order stays in the list until the application
-gives `steps` of its own. A pass makes one plan in place of another at most, as a second bound: a
-plan given too little time (a `ttlMs` and margin shorter than a pass takes) is dead as soon as it
-is made, and gets a plan in its place on every pass, one record each; the errors of each pass
-(`EXPIRED`, `unsent`) show it. The loop looks at each plan of a line before it goes on: a line
-ends at its first `final` plan, which has paid, also an old plan whose step landed late after it
-was replaced; only a plan that is not final is followed to the plan in its place. A `stopped`
-plan that a later look finds a step of is `stopping` or `final` again: the loop follows it as it
-is, and a plan already made in its place stops by itself once it finds that step. Steps given to
-`replan` that are not the old plan's, and steps added to a plan `replan` made, are the
-application's own to follow, by that plan's id: a line that ends at an old plan does not run
-them. A line with a `failed` step (whose parts need fixing) stays in the list, also when other steps
-are left to build, and the loop reports its `INVALID_OPTION` on every pass until the application
-decides. A plan the application stops on purpose leaves this list: the loop would pay what is left
-of it. A payer is needed only to sign: a plan whose record holds every signature needs none, and a
-separate signer or sender is given to `run({ signers, submitter })`. A plan with a step of another
-payer needs that payer's signer in this `run()`, as
-`run({ waitFor: "sent", signers: [wallet, treasury] })`: without it that step is never signed, and
-with a short `ttlMs` the loop makes a plan in its place on every pass, one record each.
+among it: the loop then waits for that step's end of validity, and replaces the plan. Where `replan`
+still waits (`CANNOT_OBSERVE`, `unconfirmed`), the next pass asks again. A step left that could only
+be built dead (its own end of validity has passed, or it was given built and stands on a step the
+new plan does not hold) is not built again: the pass reports `INVALID_OPTION` (`steps`), writes
+nothing, and the order stays in the list until the application gives `steps` of its own. A pass
+makes one plan in place of another at most, as a second bound: a plan given too little time (a
+`ttlMs` and margin shorter than a pass takes) is dead as soon as it is made, and gets a plan in its
+place on every pass, one record each; the errors of each pass (`EXPIRED`, `unsent`) show it. The
+loop looks at each plan of a line before it goes on: a line ends at its first `final` plan, which
+has paid, also an old plan whose step landed late after it was replaced; only a plan that is not
+final is followed to the plan in its place. A `stopped` plan that a later look finds a step of is
+`stopping` or `final` again: the loop follows it as it is, and a plan already made in its place
+stops by itself once it finds that step. Steps given to `replan` that are not the old plan's, and
+steps added to a plan `replan` made, are the application's own to follow, by that plan's id: a line
+that ends at an old plan does not run them. A line with a `failed` step (whose parts need fixing)
+stays in the list, also when other steps are left to build, and the loop reports its
+`INVALID_OPTION` on every pass until the application decides. A plan the application stops on
+purpose leaves this list: the loop would pay what is left of it. A payer is needed only to sign: a
+plan whose record holds every signature needs none, and a separate signer or sender is given to
+`run({ signers, submitter })`. A plan with a step of another payer needs that payer's signer in this
+`run()`, as `run({ waitFor: "sent", signers: [wallet, treasury] })`: without it that step is never
+signed, and with a short `ttlMs` the loop makes a plan in its place on every pass, one record each.
 
 ### Storage
 
@@ -2251,9 +2273,9 @@ message of a plan's `TxPlanError` says.
 | `EXPIRED`                  | `TxPlanError`  | a step's end of validity and the margin passed, by the tip and the local clock, and it is not on chain (`unsent`: the plan never sent it): the plan does not go on, and is `stopping` or `stopped` (`error.status`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | `{ unsent?, tipAgeMs? }`                                                                                      | no                                                                           |
 | `SCRIPT_FAILED`            | `TxPlanError`  | a step landed with a failed script and its collateral was taken: the plan does not go on, and is `stopping` or `stopped` (`error.status`); also from `awaitInclusion()` of a transaction                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | none                                                                                                          | no                                                                           |
 | `ORPHANED`                 | `TxPlanError`  | a step stands on a step that will not land, so it will not land either: the plan does not go on, and is `stopping` or `stopped` (`error.status`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | none                                                                                                          | no                                                                           |
-| `CANNOT_OBSERVE`           | `TxPlanError`  | the provider cannot follow plans (`noTip`, `noSearch`, `noDepth`, `noValidity`, also from `replan` and `add` for a Plutus transaction of an old plan found without its scripts' outcome), or confirmed nothing this time (`unconfirmed`; from `replan`: a transaction in a block and not final that the new plan cannot hold (a failed script, a plan before the one replaced, a search that gave no answer), a step that cannot stand on the step before it of its payer in a block, a plan whose every step is in a block, a record that moved; from `replan` and `add`: an old transaction only a step in a block keeps from landing beside a step built, a step on an output of an old transaction the search does not find, an address that shows such an output, an old transaction past its end and the margin the search gave no answer for); also `noSearch` and `noValidity` from `awaitInclusion()` of a transaction                                                                                                           | `{ reason }`                                                                                                  | only `unconfirmed`, `retryAfterMs` = the builder's `pollMs`                  |
+| `CANNOT_OBSERVE`           | `TxPlanError`  | the provider cannot follow plans (`noTip`, `noSearch`, `noDepth`, `noValidity`, also from `replan` and `add` for a Plutus transaction of an old plan found without its scripts' outcome), or confirmed nothing this time (`unconfirmed`; from `replan`: a transaction in a block and not final that the new plan cannot hold (a failed script, a plan before the one replaced, a search that gave no answer), a step that cannot stand on the step before it of its payer in a block, a plan whose every step is in a block, a step left past its own end that the look does not call `expired`, a record that moved; from `replan` and `add`: an old transaction only a step in a block keeps from landing beside a step built, a step on an output of an old transaction the search does not find, an address that shows such an output, an old transaction past its end and the margin the search gave no answer for); also `noSearch` and `noValidity` from `awaitInclusion()` of a transaction                                       | `{ reason }`                                                                                                  | only `unconfirmed`, `retryAfterMs` = the builder's `pollMs`                  |
 | `INVALID_STATE`            | `TxPlanError`  | the plan was stopped or replaced, a step of it will not land, so it signs and sends nothing more, or it came to `stopped` once (`halted`) and its next step is one it never sent; a plan made by `replan` that found a transaction of the old plan in a block (`error.txHash`); `replan` of a plan replaced by another id, or without a store by an object that did not make the new plan (`stopped`); `replan` or `add` of a final plan (`final`); `add` of a `stopping` or `stopped` plan (`stopped`); a step that runs a Plutus script would end past the horizon (`pastHorizon`); a record this library does not read, also from `restore` of a transaction's JSON (`recordVersion`)                                                                                                                                                                                                                                                                                                                                                  | `{ reason: "stopped" \| "final" \| "pastHorizon" \| "recordVersion" }`                                        | no                                                                           |
-| `STILL_LIVE`               | `TxPlanError`  | a step `replan` or `add` built could land beside a transaction of the old plans that may still land and shares no input with it; nothing was written; without `safeAfter` (no end of validity, or found in a block once) time settles nothing                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `{ txHashes, safeAfter? }`                                                                                    | yes when it carries `safeAfter`, `retryAfterMs` until then by the tip's time |
+| `STILL_LIVE`               | `TxPlanError`  | a step `replan` or `add` built could land beside a transaction of the old plans that may still land and shares no input with it; nothing was written; without `safeAfter` (no end of validity, or found in a block once) time settles nothing; when a rollback took each of them out of its block and its end has passed, the message says so: no plan is made in its place, and the application decides how to pay what is left                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | `{ txHashes, safeAfter? }`                                                                                    | yes when it carries `safeAfter`, `retryAfterMs` until then by the tip's time |
 | `PLAN_EXISTS`              | `TxPlanError`  | an `id` already recorded with other parts or options                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | none                                                                                                          | no                                                                           |
 | `PLAN_NOT_FOUND`           | `TxPlanError`  | no record under the `id` (`error.planId`), or the record is gone                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | none                                                                                                          | no                                                                           |
 | `VERSION_CONFLICT`         | `TxPlanError`  | another writer changed the record and the change could not be applied again: go on through `resume`; also a JSON given to `resume` that is ahead of the stored record; from `add`, another writer added other steps: none is recorded, and the same call builds on the plan as it is                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | none                                                                                                          | no                                                                           |

@@ -983,12 +983,13 @@ export class TxPlan {
    *   until that transaction is dead. One that only a step of the plan in a block and not final
    *   keeps from landing (it spends an input that step spends) is waited for, CANNOT_OBSERVE
    *   (`unconfirmed`), until that step is final: after a rollback it could land beside the step
-   *   added. When every other step of the plan is final, or in a block no later than that one,
-   *   the plan is final with it and the same call is then INVALID_STATE (`final`): the message
-   *   says so, and such a step is paid by a plan after this one (`after`). STILL_LIVE is told
-   *   first. A step added to such a plan is the application's to follow, by this plan's id, as
-   *   steps given to `replan` are: when the plan it was made in place of becomes final after
-   *   all, the added step was not paid, unless it passed by time (`NO_SHARED_INPUT`).
+   *   added. Where steps in blocks keep several old transactions from landing, the wait names the
+   *   one in a block last. When every other step of the plan is final, or in a block no later than
+   *   that one, the plan is final with it and the same call is then INVALID_STATE (`final`): the
+   *   message says so, and such a step is paid by a plan after this one (`after`). STILL_LIVE is
+   *   told first. A step added to such a plan is the application's to follow, by this plan's id, as
+   *   steps given to `replan` are: when the plan it was made in place of becomes final after all,
+   *   the added step was not paid, unless it passed by time (`NO_SHARED_INPUT`).
    * @throws TxPlanError INVALID_STATE (`final`) for a final plan, (`stopped`) for a plan that
    *   is stopping or stopped; STILL_LIVE on a plan made by `replan`, as above, nothing added;
    *   CANNOT_OBSERVE (`unconfirmed`, retryable after the builder's `pollMs`) on such a plan for
@@ -1345,7 +1346,10 @@ export class TxPlan {
    *   built again from its parts, a consolidation step): that output never exists in the new
    *   plan. Both are told once the payers' reads are checked: a read that lists an output of a
    *   step the search does not find (the step left, or the step below it) is waited for first.
-   *   The application gives the steps of the new plan.
+   *   A step past its own end is refused once the look calls it expired (its end and the margin
+   *   passed, and the search answered "not found"); before that it may be in a block the search
+   *   does not show, and the call waits (CANNOT_OBSERVE, `unconfirmed`). The application gives
+   *   the steps of the new plan.
    * - What the new plan cannot hold is waited for, CANNOT_OBSERVE (`unconfirmed`): a
    *   transaction in a block with a failed script, and a transaction of a plan before this one
    *   that a look found in a block, each until it is final; a step in a block this call's
@@ -1365,7 +1369,9 @@ export class TxPlan {
    *   first step built for a payer spends an input of each that may still land and stands on
    *   no other, also of one called dead, that the payer still holds: the ledger then takes one
    *   of the two and never both, whatever a provider shows. Where no input is shared, a
-   *   transaction that may still land refuses the call (STILL_LIVE); one this call's look
+   *   transaction that may still land refuses the call (STILL_LIVE): when each such one was in a
+   *   block and a rollback took it out past its end of validity, the message says so, no plan is
+   *   made in its place, and the application decides how to pay what is left. One this call's look
    *   answered it did not find, past its end of validity, which no look ever found, is left to
    *   its end and the provider's search, and `trace` is told (`NO_SHARED_INPUT`) once the new
    *   plan is recorded: a search that hid it, or a switch of the network to a fork deeper than
@@ -1392,7 +1398,8 @@ export class TxPlan {
    * - The addresses a transaction called dead pays, at most 16 in a call, are read past the
    *   builder's cache; a provider's own cache of address reads is not under the library's
    *   control, and a list it gives counts as its answer.
-   * @throws TxPlanError STILL_LIVE (retryable with `details.safeAfter`); CANNOT_OBSERVE
+   * @throws TxPlanError STILL_LIVE (retryable with `details.safeAfter`; without it, after a
+   *   rollback that took the old steps out past their ends, its message says so); CANNOT_OBSERVE
    *   (`unconfirmed`, retryable after the builder's `pollMs`; `noTip`; `noValidity`, not
    *   retryable, for a transaction that runs a Plutus script found by a provider that does not
    *   say whether its scripts passed; `noSearch`, `noDepth` from probing the provider);
@@ -1407,12 +1414,12 @@ export class TxPlan {
    *   is this plan's, (`payer`) for a payer of no known form or one that answered two change
    *   addresses, (`trace`) for a trace that is not a function, (`signal`), (`steps`) when
    *   nothing is left and no step is given, for a step that failed its script when no step is
-   *   given, for a step left whose own end of validity has passed or that was given built and
-   *   stands on a step the new plan does not hold, when no step is given, for a name that is
-   *   final in this plan or a plan before it or in a block in this plan, for more than 32 steps
-   *   with those in a block, for a link to a step that is neither given, in a block nor final,
-   *   and for all that `builder.plan` refuses, (`after`) for a transaction of these plans that
-   *   is not final;
+   *   given, for a step left whose own end of validity has passed, once the look calls it expired,
+   *   or that was given built and stands on a step the new plan does not hold, when no step is
+   *   given, for a name that is final in this plan or a plan before it or in a block in this plan,
+   *   for more than 32 steps with those in a block, for a link to a step that is neither given, in
+   *   a block nor final, and for all that `builder.plan` refuses, (`after`) for a transaction of
+   *   these plans that is not final;
    *   MISSING_PAYER; NETWORK_MISMATCH for a payer of another network or a recorded plan of
    *   another; WALLET_FAILED; MISSING_FETCHER and PROVIDER_FAILED for a read of a payer or of an
    *   address that fails; NOT_SERIALIZABLE; every error of building a step; ABORTED

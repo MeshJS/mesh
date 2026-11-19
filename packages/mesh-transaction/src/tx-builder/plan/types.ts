@@ -78,9 +78,13 @@ export type PlanStep =
 
 /**
  * The steps of a plan by name, in the order they are sent: a plain object, or one without a
- * prototype; one whose prototype is another, as `steps["__proto__"] = step` makes it, is refused.
- * A name is a non-empty text that is not a whole number, does not start with `consolidate-` and
- * is not `__proto__`; a step may be named `kind`
+ * prototype; any other object is refused (a `Map`, an object of a class or of another realm, one
+ * whose prototype `steps["__proto__"] = step` set to an object). A step given as CBOR hex under
+ * that name, by assignment or in a literal, sets nothing and is lost without a trace: give names
+ * that come from outside through `Object.fromEntries`, a spread or `Object.create(null)`, which
+ * keep every name, and `__proto__` is then refused by name. A name is a non-empty text that is
+ * not a whole number, does not start with `consolidate-` and is not `__proto__`; steps may be
+ * named `kind`, `tx` and `txHash`
  */
 export type PlanSteps = Readonly<Record<string, PlanStep>>;
 
