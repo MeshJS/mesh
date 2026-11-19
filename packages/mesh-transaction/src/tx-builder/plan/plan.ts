@@ -1924,7 +1924,8 @@ export class TxPlan {
    * The mark on this plan: `replacedBy` is `id`, by compare-and-set over the record the build
    * started from. Refused when it names another plan, or when the record moved under the build:
    * steps added, a step found in a block, a transaction of the plans before found, or a step that
-   * was in a block in it and is in none now, as another object saw a rollback
+   * was in a block in it and is in none now, as another object saw a rollback. The record is read
+   * from the store first, so that these are asked also when the mark is written already
    * @throws TxPlanError INVALID_STATE (`stopped`, `final`); CANNOT_OBSERVE (`unconfirmed`);
    *   VERSION_CONFLICT; STORE_FAILED
    */
@@ -1941,6 +1942,9 @@ export class TxPlan {
       this.#unconfirmed(
         "the plan's record moved while the new plan was built: a step was added, a look found one of its transactions in a block, or a step that was in a block is in none now",
       );
+    // The record as the store holds it now: a mark written already is no reason to skip the
+    // checks, and another object may have seen a step leave its block since this call looked
+    await this.#takeStoredIfNewer(state, ask);
     await this.#write(
       state,
       (record) => {
