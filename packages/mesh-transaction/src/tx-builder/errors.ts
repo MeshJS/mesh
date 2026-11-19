@@ -414,8 +414,9 @@ export type TxPlanErrorDetails = {
    * `unconfirmed`: this answer confirms nothing now (retryable); of `replan`, a transaction of
    * the plan or the plans before it is in a block, not final, and the new plan cannot hold it
    * (a failed script, a plan before the one replaced, a search that gave no answer), a step
-   * built cannot stand on a step in a block, an address shows an output of one the search does
-   * not find, or the record moved under the build. The other reasons are about the provider
+   * built cannot stand on a step in a block, every step of the plan is in a block and nothing is
+   * left to pay, an address shows an output of one the search does not find, or the record moved
+   * under the build. The other reasons are about the provider
    * itself; `noDepth`: no block heights, for any plan. A transaction's `awaitInclusion()`
    * raises `noSearch` and `noValidity`
    */

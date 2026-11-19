@@ -2142,23 +2142,35 @@ describe("a plan in place of one whose step is in a block and not final", () => 
       paidOnce(emulator);
     });
 
-    it("a plan whose only step is in a block, given a new step and a canSelect that refuses its change: waits, and once it is final the plan is final", async () => {
-      const { emulator, builder, wallet } = await stepSetup("scalus", {
+    it("a step given beside the stuck step of another payer, and a canSelect that refuses the change of a: waits; once a is final a plan of the step left passes", async () => {
+      const ctx = await stepSetup("scalus", {
         funds: [100n * ADA, 50n * ADA],
         builder: { planDefaults: DEEP },
       });
+      const { emulator, builder, wallet } = ctx;
+      const treasury = await treasuryOf(emulator);
       const old = await builder.plan(
-        { a: payTo(alice, 11n * ADA) },
+        {
+          a: payTo(alice, 11n * ADA),
+          t: { parts: payTo(carol, 13n * ADA), payer: treasury.other },
+        },
         { id: "order", payer: wallet },
       );
-      await old.run({ waitFor: "sent" });
-      await old.refresh();
-      expect(statuses(old)).toEqual({ a: "included" });
+      await old.sign();
+      await old.sign({ signers: [treasury.other] });
+      const tHash = old.step("t").txHash;
+      const relay = relayOf(emulator, (txHash) => txHash === tHash);
+      await caught(old.run({ submitter: relay, timeoutMs: 300 }));
+      expect(statuses(old)).toEqual({ a: "included", t: "sent" });
+      advance(emulator, 1);
       const changeOfA = key(old.step("a").change[0]!);
       const call = () =>
         old.replan({
           id: "order:2",
-          steps: { x: payTo(dave, 14n * ADA) },
+          steps: {
+            x: payTo(dave, 14n * ADA),
+            t: { parts: payTo(carol, 13n * ADA), payer: treasury.other },
+          },
           canSelect: (utxo) => key(utxo) !== changeOfA,
         });
       const error = await caught(call());
@@ -2167,11 +2179,82 @@ describe("a plan in place of one whose step is in a block and not final", () => 
         "canSelect does not let its change through",
       );
       advance(emulator, 3);
-      const final = await caught(call());
-      expect([final.code, reasonOf(final)]).toEqual(["INVALID_STATE", "final"]);
-      expect(old.status).toBe("final");
+      // Once a is final: x of the wallet shares no input with the old t of the treasury, so the
+      // new plan pays t alone
+      const next = await old.replan({
+        id: "order:2",
+        steps: {
+          t: { parts: payTo(carol, 13n * ADA), payer: treasury.other },
+        },
+      });
+      expect(names(next)).toEqual(["t"]);
+      expect(next.toJSON().before!.final).toEqual(["a"]);
+      await next.run({
+        signers: [wallet, treasury.other],
+        waitFor: "included",
+      });
+      advance(emulator, 3);
+      await next.refresh();
+      expect(next.status).toBe("final");
+      expect(await refused(emulator, relay.kept[0]!)).toBe(true);
       neverTwice(emulator);
     });
+  });
+
+  it("a plan with one step in a block and one failed step, given steps: the call passes", async () => {
+    const ctx = await stepSetup("scalus", {
+      funds: [100n * ADA, 50n * ADA],
+      builder: { planDefaults: DEEP },
+    });
+    const { emulator, provider, builder, wallet } = ctx;
+    const locked = emulator.fund(builder.scriptAddress(plutus), {
+      lovelace: 10n * ADA,
+    });
+    const old = await builder.plan(
+      {
+        a: payTo(alice, 11n * ADA),
+        s: [
+          spend.plutus({
+            utxo: locked,
+            script: plutus,
+            redeemer: { data: mConStr0([]) },
+          }),
+          payTo(bob, 12n * ADA),
+        ],
+      },
+      { id: "order", payer: wallet },
+    );
+    await old.run({ waitFor: "sent" });
+    await old.refresh();
+    await old.run({ waitFor: "sent", submitter: swallowing() });
+    // The provider shows s in a block, deep, with is_valid = false; it never reached the chain
+    const sHash = old.step("s").txHash;
+    const at = emulator.slot;
+    provider.control.hooks.fetchTxInfo = async (forward, hash: string) =>
+      hash === sHash
+        ? {
+            hash: sHash,
+            slot: at - 20,
+            block: "b".repeat(64),
+            blockHeight: at - 20,
+            validContract: false,
+          }
+        : forward(hash);
+    advance(emulator, 1);
+    await old.refresh();
+    expect(statuses(old)).toEqual({ a: "included", s: "failed" });
+    const next = await old.replan({
+      id: "order:2",
+      steps: { s: payTo(bob, 12n * ADA) },
+    });
+    expect(names(next)).toEqual(["a", "s"]);
+    expect(next.toJSON().steps[0]!.taken).toBe(true);
+    await next.run({ waitFor: "included" });
+    advance(emulator, 3);
+    await next.refresh();
+    expect(next.status).toBe("final");
+    expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    expect(times(emulator, bob, 12n * ADA)).toBe(1);
   });
 
   describe("what the new plan cannot hold still waits", () => {

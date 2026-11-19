@@ -1303,7 +1303,9 @@ export class TxPlan {
    *   that a look found in a block, each until it is final; a step in a block this call's
    *   search gave no answer for; a step built that cannot stand on every step in a block (a
    *   step of another payer, a step given built that spends no output of it, a change the
-   *   payer's read does not list or `canSelect` refuses), until that step is final. An address
+   *   payer's read does not list or `canSelect` refuses), until that step is final; a plan
+   *   whose every step is final or in a block, which has nothing left to pay, until it is final
+   *   (then INVALID_STATE, `final`): to pay more, `add` steps to it. An address
    *   that lists an output of a transaction of those plans the search does not find refuses
    *   the call the same way.
    * - Every other transaction of those plans is one the new plan must not land beside. The
@@ -1501,6 +1503,19 @@ export class TxPlan {
       throw this.#unconfirmed(
         `step ${JSON.stringify(below.step.name)} (${below.step.txHash}) is in a block and spends, reads or puts up an output of step ${JSON.stringify(below.below.step)} (${below.below.txHash}), which the search does not find in a block`,
         below.below.txHash,
+      );
+
+    // A plan whose every step is final or in a block has nothing left to pay: it is not stuck,
+    // sends its steps again after a rollback, and becomes final by itself
+    if (
+      taken.length > 0 &&
+      base.steps.every(
+        (step) => step.status === "final" || takenNames.includes(step.name),
+      )
+    )
+      throw this.#unconfirmed(
+        "every step of the plan is in a block, and none is left for a plan in its place: the plan becomes final by itself, and sends its steps again after a rollback; to pay more, add steps to it",
+        taken[0]!.txHash,
       );
 
     // The steps: those given, else what the look shows open; none of a kept or a taken name

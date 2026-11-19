@@ -1131,6 +1131,79 @@ describe("a step left whose end of validity has passed", () => {
   });
 });
 
+describe("a plan with nothing left to pay", () => {
+  /** A plan of one payment on a store, `a` in a block and three blocks short of final */
+  const oneInBlock = async () => {
+    const ctx = await storeSetup({
+      funds: [100n * ADA, 50n * ADA],
+      planDefaults: { ...FAST, confirmations: 3 },
+    });
+    const before = ctx.emulator.fork();
+    const old = await ctx.builder.plan(
+      { a: payTo(alice, 11n * ADA) },
+      { id: "order", payer: ctx.wallet },
+    );
+    await old.run({ waitFor: "sent" });
+    await old.refresh();
+    expect(old.step("a").status).toBe("included");
+    advance(ctx.emulator, 1);
+    return { ...ctx, before, old };
+  };
+
+  it("every step in a block: the call waits with steps and without, marks and writes nothing; once final it is INVALID_STATE (final)", async () => {
+    const { emulator, store, old } = await oneInBlock();
+    for (const steps of [{ x: payTo(dave, 14n * ADA) }, undefined]) {
+      const error = await caught(
+        old.replan({ id: "order:2", ...(steps !== undefined && { steps }) }),
+      );
+      expect([error.code, reasonOf(error), error.txHash]).toEqual([
+        "CANNOT_OBSERVE",
+        "unconfirmed",
+        old.step("a").txHash,
+      ]);
+      expect(error.retryable).toBe(true);
+      expect(error.message).toContain(
+        "every step of the plan is in a block, and none is left for a plan in its place",
+      );
+      expect(old.replacedBy).toBeUndefined();
+      expect((await store.inner.load("order"))!.replacedBy).toBeUndefined();
+      expect(await store.inner.load("order:2")).toBeUndefined();
+    }
+    advance(emulator, 3);
+    const final = await caught(
+      old.replan({ id: "order:2", steps: { x: payTo(dave, 14n * ADA) } }),
+    );
+    expect([final.code, reasonOf(final)]).toEqual(["INVALID_STATE", "final"]);
+    expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    expect(times(emulator, dave, 14n * ADA)).toBe(0);
+  });
+
+  it("after a rollback that leaves the step open, the call goes on: the step is built again on an input it shares", async () => {
+    const { emulator, provider, before, old } = await oneInBlock();
+    const a = old.step("a");
+    before.advanceTo({ slot: emulator.slot + 1 });
+    provider.control.target = before;
+    const next = await old.replan({ id: "order:2" });
+    expect(next.toJSON().steps.some((step) => step.taken === true)).toBe(false);
+    expect(
+      next
+        .step("a")
+        .inputs.some((input) =>
+          a.inputs.some(
+            (each) =>
+              each.txHash === input.txHash &&
+              each.outputIndex === input.outputIndex,
+          ),
+        ),
+    ).toBe(true);
+    await next.run({ waitFor: "included" });
+    before.advanceTo({ slot: before.slot + 3 });
+    await next.refresh();
+    expect(next.status).toBe("final");
+    expect(times(before, alice, 11n * ADA)).toBe(1);
+  });
+});
+
 describe("a crash at every request of replan", () => {
   const STORE_KINDS: readonly StoreFault[] = ["hangBefore", "hangAfter"];
 
@@ -1459,5 +1532,32 @@ describe("the reconciliation loop of the README", () => {
     ).toEqual([]);
     expect(await store.inner.load("order:next")).toBeUndefined();
     expect(times(emulator, alice, 11n * ADA)).toBe(1);
+  });
+
+  it("a plan whose every step is in a block: a plan in its place is refused, and the loop closes the order at it with nothing unsent", async () => {
+    const ctx = await storeSetup({
+      funds: [100n * ADA, 50n * ADA],
+      planDefaults: { ...FAST, confirmations: 3 },
+    });
+    const { emulator, builder, wallet, store } = ctx;
+    const old = await builder.plan(
+      { a: payTo(alice, 11n * ADA) },
+      { id: "order", payer: wallet },
+    );
+    await old.run({ waitFor: "sent" });
+    await old.refresh();
+    const refused = await caught(
+      old.replan({ id: "order:2", steps: { x: payTo(dave, 14n * ADA) } }),
+    );
+    expect(reasonOf(refused)).toBe("unconfirmed");
+    // Time moves one slot after the first pass, then three
+    const { closed, reported } = await reconcile(ctx, 3, (n) =>
+      n < 1 ? 1 : 3,
+    );
+    expect({ closed, reported }).toEqual({ closed: ["order"], reported });
+    expect(await store.inner.load("order:2")).toBeUndefined();
+    expect(await store.inner.load("order:next")).toBeUndefined();
+    expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    expect(times(emulator, dave, 14n * ADA)).toBe(0);
   });
 });
