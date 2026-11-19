@@ -810,7 +810,8 @@ export class TxPlan {
     const { builder, record } = stateOf(this);
     // What was left of a plan made in place of another is that plan's
     if (record.replacedBy !== undefined) return Object.freeze({});
-    const rest: Record<string, PlanStep> = {};
+    // No prototype: a name is a member, never an inherited one
+    const rest: Record<string, PlanStep> = Object.create(null);
     // A step whose name a transaction of the plans before has, found in a block: paid there
     const paid = new Set(
       (record.before?.open ?? []).flatMap((entry) =>
@@ -1577,7 +1578,8 @@ export class TxPlan {
         throw stepsRefused(
           `step ${JSON.stringify(failed.name)} failed its script: its parts need fixing; give the steps of the new plan`,
         );
-      const left: Record<string, PlanStep> = {};
+      // No prototype: `in` sees the steps left alone, never an inherited name
+      const left: Record<string, PlanStep> = Object.create(null);
       for (const step of leftOf(base, classes)) {
         const given = stepAsGiven(builder, step);
         if (given !== undefined) left[step.name] = given;

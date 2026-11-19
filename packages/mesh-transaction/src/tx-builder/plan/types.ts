@@ -78,7 +78,7 @@ export type PlanStep =
 
 /**
  * The steps of a plan by name, in the order they are sent. A name is a non-empty text that is
- * not a whole number and does not start with `consolidate-`
+ * not a whole number, does not start with `consolidate-` and is not `__proto__`
  */
 export type PlanSteps = Readonly<Record<string, PlanStep>>;
 

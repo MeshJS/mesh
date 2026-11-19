@@ -1889,6 +1889,50 @@ describe("a plan in place of another", () => {
       expect(old.replacedBy).toBeUndefined();
     });
 
+    it("a step named __proto__, as JSON.parse and Object.fromEntries give one: builder.plan, add and replan refuse it, and nothing is recorded", async () => {
+      const { builder, wallet, store } = await storeSetup({
+        funds: [100n * ADA, 50n * ADA],
+      });
+      const named = (entries: [string, unknown][]) =>
+        Object.fromEntries(entries) as never;
+      const proto = (error: any) => {
+        expect([error.code, error.details.option]).toEqual([
+          "INVALID_OPTION",
+          "steps",
+        ]);
+        expect(error.message).toContain('the step name "__proto__"');
+      };
+      const steps = named([
+        ["a", payTo(alice, 11n * ADA)],
+        ["__proto__", payTo(bob, 12n * ADA)],
+        ["c", payTo(carol, 13n * ADA)],
+      ]);
+      expect(Object.keys(steps)).toEqual(["a", "__proto__", "c"]);
+      proto(await caught(builder.plan(steps, { id: "order", payer: wallet })));
+      expect(await store.inner.load("order")).toBeUndefined();
+      const plan = await builder.plan(
+        { a: payTo(alice, 11n * ADA) },
+        { id: "order", payer: wallet },
+      );
+      proto(
+        await caught(plan.add(named([["__proto__", payTo(bob, 12n * ADA)]]))),
+      );
+      expect(names(plan)).toEqual(["a"]);
+      proto(
+        await caught(
+          plan.replan({
+            id: "order:2",
+            steps: named([["__proto__", payTo(bob, 12n * ADA)]]),
+          }),
+        ),
+      );
+      expect(await store.inner.load("order:2")).toBeUndefined();
+      expect(plan.replacedBy).toBeUndefined();
+      // What is left is an object without a prototype: each name is a member of its own
+      expect(Object.getPrototypeOf(plan.rest)).toBeNull();
+      expect(Object.keys(plan.rest)).toEqual(["a"]);
+    });
+
     it("refuses to replace a final plan, and an empty id", async () => {
       const { builder, wallet } = await stepSetup("scalus", {
         funds: [100n * ADA],

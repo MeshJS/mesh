@@ -436,6 +436,12 @@ const readStepForms = (
       throw invalidSteps(
         `the step name ${JSON.stringify(name)} starts with ${JSON.stringify(RESERVED_PREFIX)}, which names the steps a plan puts in itself`,
       );
+    // An own member of that name, as JSON.parse or Object.fromEntries make one, is set on a
+    // plain object as its prototype: the step would be lost from the steps a plan gives back
+    if (name === "__proto__")
+      throw invalidSteps(
+        `the step name ${JSON.stringify(name)} is the name of an object's prototype, which an object of steps cannot hold as a step: give the step another name`,
+      );
     const step = steps[name];
     // A transaction built before is taken as it is, read later from its own bytes
     if (step instanceof BuiltTx || typeof step === "string") {

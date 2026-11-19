@@ -498,10 +498,10 @@ Named steps are an object, sent in the order of its keys. A step is parts, `{ pa
 with build options of its own (`payer`, `canSelect`, `coinSelection`, `sendAllTo`, `fee`,
 `registeredPools`, `extraKeyWitnesses`, `topUpCollateral`, `collateralReturn`), or a transaction
 built before ([below](#a-transaction-built-elsewhere-as-a-step)). A name is not empty, not a whole
-number and does not start with `consolidate-`; a plan has at most 32 steps. With named steps,
-`sendAllTo` and `fee` are given in the step, and a builder that holds parts from `.add()` is
-`INVALID_OPTION`. Every error of building a step names the step at the start of its message. A
-payer that answers two change addresses within one call is `INVALID_OPTION` (`payer`): a
+number, does not start with `consolidate-` and is not `__proto__`; a plan has at most 32 steps. With
+named steps, `sendAllTo` and `fee` are given in the step, and a builder that holds parts from
+`.add()` is `INVALID_OPTION`. Every error of building a step names the step at the start of its
+message. A payer that answers two change addresses within one call is `INVALID_OPTION` (`payer`): a
 snapshot has one.
 
 ### Links and order
