@@ -20,7 +20,12 @@ import type {
   UtxoInput,
 } from "./types";
 import { TxBuildError } from "../errors";
-import { isOneCborItem, scriptBounds, splitUtxoBytes } from "../tx-scan";
+import {
+  isOneCborItem,
+  MAX_ADDRESS_BYTES,
+  scriptBounds,
+  splitUtxoBytes,
+} from "../tx-scan";
 import { emptyValue, toAssets } from "../value";
 import { givenShape, shownValue } from "./shape";
 
@@ -127,18 +132,29 @@ export const addressOf = (text: unknown): Address | null => {
   return networkId === 0 || networkId === 1 ? parsed! : null;
 };
 
+const tooLong = (at: string) =>
+  problem(
+    "address",
+    `${at}: its address is longer than the ${MAX_ADDRESS_BYTES} bytes this library reads`,
+  );
+
 /**
- * An address in bech32, base58 or hex, as canonical text; a reward address is refused. A key may
- * be given there by mistake, so a text that is no address is told by its shape, never quoted,
- * and the parser's error, which may quote it, is not kept
+ * An address in bech32, base58 or hex, as canonical text; a reward address is refused, and so is
+ * one longer than `MAX_ADDRESS_BYTES`, by the length of its text before it is parsed: base58
+ * takes a time that grows with the square of it. A key may be given there by mistake, so a text
+ * that is no address is told by its shape, never quoted, and the parser's error, which may quote
+ * it, is not kept
  */
 const readAddress = (at: string, text: unknown): string => {
+  if (typeof text === "string" && text.length > 2 * MAX_ADDRESS_BYTES)
+    return tooLong(at);
   const parsed = addressOf(text);
   if (!parsed)
     return problem(
       "address",
       `${at}: invalid address: expected an address in bech32, base58 or hex; got ${givenShape(text)}`,
     );
+  if (parsed.toBytes().length > 2 * MAX_ADDRESS_BYTES) return tooLong(at);
   // A reward address holds no UTxOs
   if (parsed.asReward())
     return problem(
@@ -456,6 +472,9 @@ const fromOutput = (
   held: { readonly datum?: string; readonly script?: string } = {},
 ): Utxo => {
   const at = describe(ref);
+  // Bounded before its text is written: base58 takes a time that grows with the square of it
+  if (output.address().toBytes().length > 2 * MAX_ADDRESS_BYTES)
+    return tooLong(at);
   const amount = output.amount();
   const datum = output.datum();
   const inline = held.datum ?? datum?.asInlineData()?.toCbor().toString();

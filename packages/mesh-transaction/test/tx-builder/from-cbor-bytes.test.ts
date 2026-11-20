@@ -1,11 +1,13 @@
 import { DEFAULT_PROTOCOL_PARAMETERS, IFetcher, Protocol } from "@meshsdk/core";
-import { Crypto, HexBlob, Serialization } from "@meshsdk/core-cst";
+import { Address, Crypto, HexBlob, Serialization } from "@meshsdk/core-cst";
 
 import { TxBuilder, TxBuildError, TxError, Utxo } from "../../src/tx-builder";
+import { readTxBytes } from "../../src/tx-builder/builder";
 import { scanTransaction } from "../../src/tx-builder/tx-scan";
 import {
   arr,
   arrIndef,
+  byronAddress,
   bytes,
   chunkedBytes,
   constr0,
@@ -1365,5 +1367,61 @@ describe("TxBuilder.fromCbor › forms a decoder takes and a ledger does not", (
     const exact = at(`40${key.keyHash}010203`);
     const made = await offline().fromCbor(exact, { knownUtxos: knownUtxos() });
     expect(made.tx).toBe(exact);
+  });
+
+  it("refuses at once a transaction that pays an address longer than 256 bytes, before its base58 is written: a Byron address of 15 KB, and one of 257 bytes in an output of each form, as the collateral return, under a repeated key and in a second output list; reads one of 256 bytes", async () => {
+    const outputTo = (address: string) =>
+      map([uint(0), bytes(address)], [uint(1), uint(3_000_000)]);
+    const paying = (...outputs: string[]) =>
+      tx(
+        map(
+          [uint(0), inputs()],
+          [uint(1), arr(...outputs)],
+          [uint(2), uint(170_000)],
+        ),
+      );
+    const long = byronAddress(206);
+    expect(long.length / 2).toBe(257);
+    const given = [
+      paying(outputTo(byronAddress(15_000))),
+      paying(pay(key), outputTo(long)),
+      paying(arr(bytes(long), uint(3_000_000))),
+      tx(bodyWith([uint(16), outputTo(long)])),
+      paying(
+        map(
+          [uint(0), bytes(long)],
+          [uint(0), bytes(`60${key.keyHash}`)],
+          [uint(1), uint(3_000_000)],
+        ),
+      ),
+      tx(bodyWith([uint(1), arr(outputTo(long))])),
+    ];
+    const reason =
+      "the transaction pays an address longer than the 256 bytes this library reads";
+    for (const each of given) {
+      const started = performance.now();
+      const error = await caught(() =>
+        offline().fromCbor(each, { knownUtxos: knownUtxos() }),
+      );
+      expect(performance.now() - started).toBeLessThan(500);
+      expectRefused(error, each, reason);
+    }
+    // A transaction of `after` and the transaction of a JSON are bounded the same
+    expect(readTxBytes(given[0]!, 65_536)).toBeUndefined();
+    const json = (
+      await offline().fromCbor(paying(pay(key)), { knownUtxos: knownUtxos() })
+    ).toJSON();
+    const refused = await caught(() =>
+      offline().restore({ ...json, built: { ...json.built, tx: given[0]! } }),
+    );
+    expect(TxError.is(refused, "INVALID_OPTION")).toBe(true);
+    expect((refused as Error).message).toContain(reason);
+    const longest = paying(outputTo(byronAddress(205)));
+    const made = await offline().fromCbor(longest, {
+      knownUtxos: knownUtxos(),
+    });
+    expect(made.outputs[0]!.address).toBe(
+      Address.fromBytes(HexBlob(byronAddress(205))).toBase58(),
+    );
   });
 });

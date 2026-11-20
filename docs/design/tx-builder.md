@@ -503,8 +503,9 @@ same object ([The path without a lifecycle][r-no-lifecycle]).
   token reader of `@cardano-sdk/core`, which refuses what the library's process could not read
   safely or in reasonable time: above the size limit (the builder's `maxTxSize`, else 16 384
   bytes), nested deeper than 1 024 levels, more nested data than about a second of decoding, an
-  earlier era's form. A map that repeats a key and a key the decoder does not know are read as the
-  decoder reads them; a node refuses such a transaction. Once decoded it refuses what a ledger
+  output address longer than 256 bytes (base58 is quadratic), an earlier era's form. A map that
+  repeats a key and a key the decoder does not know are read as the decoder reads them; a node
+  refuses such a transaction. Once decoded it refuses what a ledger
   does not take (a negative fee, a zero quantity, an out ref twice, an address with trailing
   bytes), another network, a parameter-change proposal (not read from CBOR) and a signature that
   is not of the body. It judges nothing else: the fee, the balance, the scripts and

@@ -50,6 +50,32 @@ export const map = (...pairs: [string, string][]) =>
 export const mapIndef = (...pairs: [string, string][]) =>
   `bf${pairs.flat().join("")}ff`;
 export const tag258 = (item: string) => `d90102${item}`;
+
+/** The CRC-32 a Byron address writes after its payload */
+const crc32 = (text: string) => {
+  let crc = 0xffffffff;
+  for (const byte of Buffer.from(text, "hex")) {
+    crc ^= byte;
+    for (let k = 0; k < 8; k++)
+      crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1;
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+};
+/**
+ * The bytes of a Byron address of the test networks whose derivation path attribute holds
+ * `pathBytes` bytes: 51 bytes more than that, from 24 to 255
+ */
+export const byronAddress = (pathBytes: number) => {
+  const payload = arr(
+    bytes("ab".repeat(28)),
+    map(
+      [uint(1), bytes(bytes("cd".repeat(pathBytes)))],
+      [uint(2), bytes(uint(1))],
+    ),
+    uint(0),
+  );
+  return arr(`d818${bytes(payload)}`, uint(crc32(payload)));
+};
 /** Constructor 0 of Plutus data around these fields, as a definite list */
 export const constr0 = (...fields: string[]) => `d879${arr(...fields)}`;
 /** Constructor 0 of Plutus data around these fields, as a list of indefinite length */

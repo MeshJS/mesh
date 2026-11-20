@@ -63,6 +63,16 @@ const TAG_ITEM_WORK = 12_500;
  */
 const TAG_WORK = 60_000;
 
+/**
+ * The longest address an output of a transaction, or a UTxO, is read with, in bytes. The value
+ * decoder takes an address of any length, and one of the Byron era is written in base58, whose
+ * time grows with the square of its length. Since Allegra the ledger refuses an output to a Byron
+ * address whose attributes are longer than 64 bytes, so the longest it takes is about 110 bytes,
+ * and no other address is longer than 60. 256: a transaction of 16 384 bytes whose every output
+ * pays an address this long is read in about 0.1 s, one of 65 536 in about 0.25 s
+ */
+export const MAX_ADDRESS_BYTES = 256;
+
 const TOO_MUCH_DATA =
   "the transaction carries more nested data than this library reads";
 
@@ -415,12 +425,75 @@ export const splitUtxoBytes = (bytes: Uint8Array): UtxoBytes | undefined => {
   return { standIn: Buffer.concat(pieces), ...found };
 };
 
+/** The length of the byte string the reader is at, read piece by piece; 0 for anything else */
+const byteStringLength = (reader: CborReader): number => {
+  const state = reader.peekState();
+  if (state === State.ByteString) return reader.readByteString().length;
+  if (state !== State.StartIndefiniteLengthByteString) {
+    reader.skipValue();
+    return 0;
+  }
+  reader.readStartIndefiniteLengthByteString();
+  let length = 0;
+  while (reader.peekState() !== State.EndIndefiniteLengthByteString)
+    length += reader.readByteString().length;
+  reader.readEndIndefiniteLengthByteString();
+  return length;
+};
+
+/**
+ * The longest address the outputs of a transaction pay, its collateral return among them, in
+ * bytes, from a well-formed item: each entry of its body that is outputs or a collateral return
+ * counts, a repeated one too, as the decoder joins two output lists, and so does each address of
+ * an output that repeats its key
+ */
+const longestAddress = (bytes: Uint8Array): number => {
+  const reader = new CborReader(HexBlob(hexOf(bytes)));
+  let longest = 0;
+  const output = () => {
+    if (reader.peekState() === State.StartArray) {
+      reader.readStartArray();
+      if (reader.peekState() !== State.EndArray)
+        longest = Math.max(longest, byteStringLength(reader));
+      while (reader.peekState() !== State.EndArray) reader.skipValue();
+      reader.readEndArray();
+    } else if (reader.peekState() === State.StartMap) {
+      reader.readStartMap();
+      while (reader.peekState() !== State.EndMap) {
+        const key =
+          reader.peekState() === State.UnsignedInteger
+            ? reader.readUInt()
+            : (reader.skipValue(), undefined);
+        if (key === 0n) longest = Math.max(longest, byteStringLength(reader));
+        else reader.skipValue();
+      }
+      reader.readEndMap();
+    } else reader.skipValue();
+  };
+  reader.readStartArray();
+  if (reader.peekState() !== State.StartMap) return 0;
+  reader.readStartMap();
+  while (reader.peekState() !== State.EndMap) {
+    const key =
+      reader.peekState() === State.UnsignedInteger
+        ? reader.readUInt()
+        : (reader.skipValue(), undefined);
+    if (key === 1n && reader.peekState() === State.StartArray) {
+      reader.readStartArray();
+      while (reader.peekState() !== State.EndArray) output();
+      reader.readEndArray();
+    } else if (key === 16n) output();
+    else reader.skipValue();
+  }
+  return longest;
+};
+
 /**
  * Walks a transaction given as CBOR hex and refuses one this library does not read in reasonable
  * time: larger than `maxBytes`, before a byte of it is read; not an array of four items, the form
- * of every era since Alonzo; not one well-formed CBOR item; nested deeper than `MAX_TX_DEPTH`; or
- * more work for the value decoder than `MAX_TX_WORK`. A value that is not hex is left to the
- * reader, which refuses it
+ * of every era since Alonzo; not one well-formed CBOR item; nested deeper than `MAX_TX_DEPTH`;
+ * more work for the value decoder than `MAX_TX_WORK`; or an output that pays an address longer
+ * than `MAX_ADDRESS_BYTES`. A value that is not hex is left to the reader, which refuses it
  * @param maxBytes The largest transaction read: the `maxTxSize` of the protocol parameters the
  *   builder holds, else `MAX_TX_BYTES`
  * @returns the work the walk counted
@@ -450,10 +523,14 @@ export const scanTransaction = (
         "the transaction is not an array of four items (its body, witness set, validity flag and auxiliary data): the forms of earlier eras are not read",
       );
     found = walk(bytes, { depth: MAX_TX_DEPTH, work: MAX_TX_WORK });
+    if (found.end !== bytes.length) throw malformed();
+    if (longestAddress(bytes) > MAX_ADDRESS_BYTES)
+      throw new TxScanError(
+        `the transaction pays an address longer than the ${MAX_ADDRESS_BYTES} bytes this library reads`,
+      );
   } catch (error) {
     if (error instanceof TxScanError) throw error;
     throw malformed();
   }
-  if (found.end !== bytes.length) throw malformed();
   return found.work;
 };

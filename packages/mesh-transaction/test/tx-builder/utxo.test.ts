@@ -1377,6 +1377,45 @@ describe("the data and the reference script of a UTxO, read without being decode
       }
   });
 
+  it("refuses a UTxO whose address is longer than 256 bytes before its base58 is read, its out ref named, in each form: a Byron address of 1 KB, of 257 bytes, and in CBOR of 15 KB; reads one of 256", () => {
+    const inCbor = (raw: string) =>
+      cbor.arr(
+        cbor.arr(cbor.bytes(hash(5)), cbor.uint(1)),
+        cbor.map(
+          [cbor.uint(0), cbor.bytes(raw)],
+          [cbor.uint(1), cbor.uint(5_000_000)],
+        ),
+      );
+    const formsAt = (raw: string): [string, unknown][] => {
+      const text = Address.fromBytes(HexBlob(raw)).toBase58();
+      return [
+        ["a Utxo", ownWith({ address: text })],
+        ["a Mesh UTxO", meshWith({ address: text })],
+        ["its CBOR", inCbor(raw)],
+      ];
+    };
+    for (const [form, given] of [
+      ...formsAt(cbor.byronAddress(980)),
+      ...formsAt(cbor.byronAddress(206)),
+      ["its CBOR", inCbor(cbor.byronAddress(15_000))] as [string, unknown],
+      // Text of base58 too long for any address, never parsed
+      ["a Mesh UTxO", meshWith({ address: `D${"z".repeat(20_000)}` })],
+    ]) {
+      const { thrown, ms } = timed(() => readUtxo(given));
+      expect(ms).toBeLessThan(200);
+      expect([form, (thrown as UtxoError).kind]).toEqual([form, "address"]);
+      expect((thrown as Error).message).toMatch(
+        /^the UTxO [0-9a-f]{64}#[01]: its address is longer than the 256 bytes this library reads$/,
+      );
+    }
+    const raw = cbor.byronAddress(205);
+    for (const [form, given] of formsAt(raw))
+      expect([form, readUtxo(given).address]).toEqual([
+        form,
+        Address.fromBytes(HexBlob(raw)).toBase58(),
+      ]);
+  });
+
   it("reads a UTxO in CBOR that writes its reference script twice as the decoder reads it, the last, and no decoder meets either past the bounds: a script nested 3 000 deep, then a shallow one, and the other way round", () => {
     const shallow = `8200${nested(1)}`;
     const deepOne = `8200${nested(3_000)}`;

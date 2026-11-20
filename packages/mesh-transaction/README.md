@@ -1741,6 +1741,9 @@ type, unless named otherwise:
   and map times the items inside it. One datum of lists nested more than about 730 levels is past
   it, and so are 16 384 bytes of datums nested more than about 54; transactions as wallets and
   contracts make them take at most two thousandths of the bound;
+- an output, or the collateral return, that pays an address longer than 256 bytes, before any of
+  it is read: a Byron address is written in base58, whose time grows with the square of its
+  length, and since Allegra the ledger takes none longer than about 110 bytes;
 - a negative fee, a token quantity of zero, an out ref named twice among the inputs, collateral
   inputs or reference inputs, an output address with bytes after the address;
 - a protocol parameter change proposal, which this library does not read from CBOR (the
@@ -2134,8 +2137,9 @@ added up and the unit `""` is lovelace (an amount without lovelace holds `0n`), 
 an inline datum, `dataHash` without it a datum hash, and `scriptRef` the reference script. What a
 `Utxo` cannot hold is refused:
 
-- an output index above 65535, a reward address, a quantity (or the sum of a repeated unit)
-  above 2^64 − 1;
+- an output index above 65535, a reward address, an address longer than 256 bytes (by the length
+  of its text, before it is parsed: no output since Allegra pays a Byron address that long), a
+  quantity (or the sum of a repeated unit) above 2^64 − 1;
 - a `dataHash` that is not the hash of the `plutusData` beside it (an inline datum is kept as the
   hex given, never decoded, and its form is not judged);
 - a `scriptHash` without a `scriptRef`, a script hash that is not 28 bytes of hex, and a `plutus`
