@@ -66,7 +66,7 @@ import {
   withWitnesses,
 } from "../../src/tx-builder/sign";
 import { alwaysSucceedCbor, baseAddress } from "../test-util";
-import { arr, map, topItems, tx as txOf, uint } from "./cbor-util";
+import { arr, head, map, topItems, tx as txOf, uint } from "./cbor-util";
 import { hashSigner, keysSigner, TestKey, testKey } from "./hash-signer-util";
 import { pay, setup } from "./plan/plan-emulator-util";
 import { ref } from "./utxo-util";
@@ -3554,6 +3554,41 @@ describe("BuiltTx as JSON, and TxBuilder.restore", () => {
           expect((error as Error).message.includes(tx.slice(i, i + 16))).toBe(
             false,
           );
+      }
+    });
+
+    it("refuses, before any of them is decoded, witnesses larger, deeper or more work for the decoder than a transaction is read with, quoting none of them: 512 KB of them at once", async () => {
+      const { built } = await fixture();
+      const json = throughText(built);
+      const nested = (depth: number) => "9f".repeat(depth) + "ff".repeat(depth);
+      for (const [witnesses, reason] of [
+        [
+          map([uint(5), head(4, 512_000) + "00".repeat(512_000)]),
+          "the witness set is more than the 16384 bytes of the protocol's maximum transaction size",
+        ],
+        [
+          map([uint(4), arr(nested(1_100))]),
+          "the witness set nests its items deeper than the 1024 levels this library reads",
+        ],
+        [
+          map([uint(4), arr(...Array<string>(60).fill(nested(128)))]),
+          "the witness set carries more nested data than this library reads",
+        ],
+      ] as const) {
+        const started = performance.now();
+        const error = await refusedRestore(builder(), { ...json, witnesses });
+        expect(performance.now() - started).toBeLessThan(200);
+        expect(TxBuildError.is(error, "INVALID_OPTION")).toBe(true);
+        expect((error as TxBuildError).details).toEqual({
+          option: "json",
+          value: "object",
+          allowed: expect.any(String),
+        });
+        expect((error as Error).message).toBe(
+          `invalid json: its witnesses are not read: ${reason}`,
+        );
+        // No run of its hex
+        expect((error as Error).message).not.toMatch(/[0-9a-f]{16}/);
       }
     });
 

@@ -56,7 +56,7 @@ import {
   witnessesToAdd,
   writeWitnessSet,
 } from "./sign";
-import { scanTransaction, TxScanError } from "./tx-scan";
+import { scanTransaction, scanWitnessSet, TxScanError } from "./tx-scan";
 import { askedKeys } from "./witnesses";
 
 // The object of one built transaction: the data of the build as its own members, and the calls
@@ -1101,6 +1101,13 @@ export const restoreBuiltTx = async (
   } catch (error) {
     if (!(error instanceof TxScanError)) throw error;
     throw invalidJson(json, `its transaction is not read: ${error.message}`);
+  }
+  // So are its witnesses
+  try {
+    scanWitnessSet(record.witnesses, builder.params?.maxTxSize);
+  } catch (error) {
+    if (!(error instanceof TxScanError)) throw error;
+    throw invalidJson(json, `its witnesses are not read: ${error.message}`);
   }
   let raw: RawTx;
   try {

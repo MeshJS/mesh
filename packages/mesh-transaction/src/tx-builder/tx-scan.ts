@@ -73,21 +73,22 @@ const TAG_WORK = 60_000;
  */
 export const MAX_ADDRESS_BYTES = 256;
 
-const TOO_MUCH_DATA =
-  "the transaction carries more nested data than this library reads";
-
-const TOO_DEEP = `the transaction nests its items deeper than the ${MAX_TX_DEPTH} levels this library reads`;
-
 /** The tag of a byte string that holds a CBOR item */
 const ENCODED_CBOR = 24;
 
 /** A transaction that the walk refuses, with the reason in words that quote none of its bytes */
 export class TxScanError extends Error {}
 
-const malformed = () =>
-  new TxScanError(
-    "expected a transaction in CBOR hex: it is not well-formed CBOR",
-  );
+/** The refusal of what is not one well-formed item; `what` names it, as "a transaction" */
+const malformed = (what = "a transaction") =>
+  new TxScanError(`expected ${what} in CBOR hex: it is not well-formed CBOR`);
+
+/** The bounds of a walk; `what` names the item in a refusal, as "the transaction" */
+type Bounds = {
+  readonly depth: number;
+  readonly work: number;
+  readonly what: string;
+};
 
 const hexOf = (bytes: Uint8Array) => Buffer.from(bytes).toString("hex");
 
@@ -139,10 +140,7 @@ type Walked = {
  * work, than they let through; without, such a byte string is one item
  * @throws TxScanError past the bounds; the reader's error for bytes that are not well-formed
  */
-const walk = (
-  bytes: Uint8Array,
-  bounds?: { readonly depth: number; readonly work: number },
-): Walked => {
+const walk = (bytes: Uint8Array, bounds?: Bounds): Walked => {
   const levels: Level[] = [levelOf(bytes, 0)];
   let deepest = 0;
   let work = 0;
@@ -151,7 +149,9 @@ const walk = (
   const count = (more: number) => {
     work += more;
     if (bounds !== undefined && work > bounds.work)
-      throw new TxScanError(TOO_MUCH_DATA);
+      throw new TxScanError(
+        `${bounds.what} carries more nested data than this library reads`,
+      );
   };
   const close = (level: Level, frame: Frame, items: number) =>
     count(
@@ -174,7 +174,9 @@ const walk = (
     if (depth <= deepest) return;
     deepest = depth;
     if (bounds !== undefined && depth > bounds.depth)
-      throw new TxScanError(TOO_DEEP);
+      throw new TxScanError(
+        `${bounds.what} nests its items deeper than the ${bounds.depth} levels this library reads`,
+      );
   };
   /**
    * Reads a string written in pieces, one piece at a time: each piece is an item of the level,
@@ -313,7 +315,11 @@ export const scriptBounds = (
   bytes: Uint8Array,
 ): "within" | "past" | "malformed" => {
   try {
-    const found = walk(bytes, { depth: MAX_TX_DEPTH, work: MAX_SCRIPT_WORK });
+    const found = walk(bytes, {
+      depth: MAX_TX_DEPTH,
+      work: MAX_SCRIPT_WORK,
+      what: "the script",
+    });
     return found.end === bytes.length ? "within" : "malformed";
   } catch (error) {
     return error instanceof TxScanError ? "past" : "malformed";
@@ -489,6 +495,29 @@ const longestAddress = (bytes: Uint8Array): number => {
 };
 
 /**
+ * The bytes of CBOR hex, refused past `maxBytes` before a byte is read; undefined for a value that
+ * is not hex, which is left to the reader. `what` names it in the refusal
+ */
+const bytesWithin = (
+  text: unknown,
+  maxBytes: number,
+  what: string,
+): Uint8Array | undefined => {
+  if (typeof text !== "string") return undefined;
+  if (text.length > 2 * maxBytes)
+    throw new TxScanError(
+      `${what} is more than the ${maxBytes} bytes of the protocol's maximum transaction size`,
+    );
+  if (
+    text.length === 0 ||
+    text.length % 2 !== 0 ||
+    !/^[0-9a-fA-F]*$/.test(text)
+  )
+    return undefined;
+  return Buffer.from(text, "hex");
+};
+
+/**
  * Walks a transaction given as CBOR hex and refuses one this library does not read in reasonable
  * time: larger than `maxBytes`, before a byte of it is read; not an array of four items, the form
  * of every era since Alonzo; not one well-formed CBOR item; nested deeper than `MAX_TX_DEPTH`;
@@ -503,18 +532,8 @@ export const scanTransaction = (
   text: unknown,
   maxBytes = MAX_TX_BYTES,
 ): number | undefined => {
-  if (typeof text !== "string") return undefined;
-  if (text.length > 2 * maxBytes)
-    throw new TxScanError(
-      `the transaction is more than the ${maxBytes} bytes of the protocol's maximum transaction size`,
-    );
-  if (
-    text.length === 0 ||
-    text.length % 2 !== 0 ||
-    !/^[0-9a-fA-F]*$/.test(text)
-  )
-    return undefined;
-  const bytes = Buffer.from(text, "hex");
+  const bytes = bytesWithin(text, maxBytes, "the transaction");
+  if (bytes === undefined) return undefined;
   let found: Walked;
   try {
     const top = new CborReader(HexBlob(hexOf(bytes)));
@@ -522,7 +541,11 @@ export const scanTransaction = (
       throw new TxScanError(
         "the transaction is not an array of four items (its body, witness set, validity flag and auxiliary data): the forms of earlier eras are not read",
       );
-    found = walk(bytes, { depth: MAX_TX_DEPTH, work: MAX_TX_WORK });
+    found = walk(bytes, {
+      depth: MAX_TX_DEPTH,
+      work: MAX_TX_WORK,
+      what: "the transaction",
+    });
     if (found.end !== bytes.length) throw malformed();
     if (longestAddress(bytes) > MAX_ADDRESS_BYTES)
       throw new TxScanError(
@@ -533,4 +556,29 @@ export const scanTransaction = (
     throw malformed();
   }
   return found.work;
+};
+
+/**
+ * Walks the witnesses of the JSON of a `BuiltTx`, a witness set in CBOR hex, within the bounds of
+ * a transaction, before any of it is decoded: larger than `maxBytes`, nested deeper than
+ * `MAX_TX_DEPTH`, or more work for the value decoder than `MAX_TX_WORK`. Text that is not hex, or
+ * not one well-formed item, is left to the reader, which refuses it
+ * @param maxBytes As `scanTransaction`
+ * @throws TxScanError with the reason, which quotes none of the text
+ */
+export const scanWitnessSet = (
+  text: unknown,
+  maxBytes = MAX_TX_BYTES,
+): void => {
+  const bytes = bytesWithin(text, maxBytes, "the witness set");
+  if (bytes === undefined) return;
+  try {
+    walk(bytes, {
+      depth: MAX_TX_DEPTH,
+      work: MAX_TX_WORK,
+      what: "the witness set",
+    });
+  } catch (error) {
+    if (error instanceof TxScanError) throw error;
+  }
 };

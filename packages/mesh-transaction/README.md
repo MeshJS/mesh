@@ -1757,7 +1757,7 @@ them, and the members show that reading: the last value of a repeated key, or bo
 a body joined, and the value of an unknown key read as the next key. A node refuses such a
 transaction since protocol version 9. A validity flag of false is read as the bytes give it, and
 the transaction is shown as one marked valid: a node sets the flag itself. `builder.restore` reads
-the transaction of a JSON within the same bounds, before any of it is decoded.
+the transaction and the witnesses of a JSON within the same bounds, before any of them is decoded.
 
 Reading takes a time that grows with the data the transaction carries, up to about a second on a
 laptop, on the calling thread; the UTxOs add the time of their bytes, since their data is not
