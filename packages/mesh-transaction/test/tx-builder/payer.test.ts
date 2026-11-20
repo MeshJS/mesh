@@ -15,6 +15,8 @@ import {
 } from "@meshsdk/core";
 import {
   Address,
+  Crypto,
+  HexBlob,
   resolvePlutusScriptAddress,
   TransactionInput,
   TransactionOutput,
@@ -661,10 +663,15 @@ describe("TxBuilder: payer forms", () => {
 describe("TxBuilder: the payer read and the other reads", () => {
   const other: Utxo = { ...utxo(ada(5)), txHash: "ee".repeat(32) };
 
-  it("builds a payment at once from a payer whose UTxO from the provider holds a reference script past the bounds of its decoding, selected or not: 15 KB of an all of 10 native scripts nested 500 deep, held as given", async () => {
+  it("builds a payment at once from a payer whose UTxO from the provider holds a reference script of 15 KB, selected or not: an all of 10 native scripts nested 500 deep, read without decoding it, with its hash", async () => {
     const nested = "820181".repeat(500) + `8200581c${"ab".repeat(28)}`;
     const scriptRef = `820082018a${nested.repeat(10)}`;
     const held = utxo(ada(80), { script: { type: "unknown", scriptRef } });
+    const script = {
+      type: "native",
+      cbor: scriptRef.slice(4),
+      hash: Crypto.blake2b.hash(HexBlob(scriptRef.slice(2)), 28).toString(),
+    };
     for (const utxos of [[utxo(ada(100)), held], [held]]) {
       const { provider } = fakeProvider(utxos);
       const started = performance.now();
@@ -674,10 +681,7 @@ describe("TxBuilder: the payer read and the other reads", () => {
       );
       expect(performance.now() - started).toBeLessThan(1_000);
       if (utxos.length === 1)
-        expect(built.inputs).toContainEqual({
-          ...held,
-          script: { type: "unknown", scriptRef },
-        });
+        expect(built.inputs).toContainEqual({ ...held, script });
     }
   });
 

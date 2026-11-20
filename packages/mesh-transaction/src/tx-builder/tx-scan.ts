@@ -314,20 +314,19 @@ export const itemDepth = (bytes: Uint8Array): number | undefined => {
 };
 
 /**
- * The most work the value decoder may have with the reference script of a UTxO, as the walk
- * counts it: a script of this work decodes in about 10 ms. A Plutus script is one byte string and
- * counts far below. A native script is within it up to 33 levels or 189 keys, as measured:
- * `all` around one key nested 33 levels deep is within, 34 past; `all` of 189 signatures within,
- * of 190 past
+ * The most work the value decoder may have with a native script a UTxO holds as its reference
+ * script, decoded for the keys it names, as the walk counts it: a script of this work decodes in
+ * about 10 ms. It is within it up to 33 levels or 189 keys, as measured: `all` around one key
+ * nested 33 levels deep is within, 34 past; `all` of 189 signatures within, of 190 past
  */
 export const MAX_SCRIPT_WORK = 24_000_000;
 
 /**
- * What a walk finds of `bytes`, the CBOR of a reference script `[language, script]`, before any
- * of it is decoded: `within` the bounds the value decoder reads one in, nested no deeper than
+ * What a walk finds of `bytes`, the CBOR of a native reference script `[0, script]`, before it is
+ * decoded for its keys: `within` the bounds the value decoder reads one in, nested no deeper than
  * `MAX_TX_DEPTH` and no more work than `MAX_SCRIPT_WORK`; `past` them; or `malformed`, not one
- * well-formed item. A script of a UTxO is decoded only within them: anyone can send an output
- * that holds one past them
+ * well-formed item. It is decoded only within them: anyone can send an output that holds one past
+ * them
  */
 export const scriptBounds = (
   bytes: Uint8Array,

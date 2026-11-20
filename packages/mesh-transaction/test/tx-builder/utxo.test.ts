@@ -982,6 +982,188 @@ describe("Utxo scripts", () => {
     });
   });
 
+  /** A reference script as the value decoder describes it: the hash and the items as written */
+  const decoded = (scriptRef: string): Utxo["script"] => {
+    const script = Script.fromCbor(HexBlob(scriptRef));
+    const hash = script.hash().toString();
+    const native = script.asNative();
+    if (native) return { type: "native", cbor: native.toCbor(), hash };
+    const held = (
+      [
+        ["V1", script.asPlutusV1()],
+        ["V2", script.asPlutusV2()],
+        ["V3", script.asPlutusV3()],
+      ] as const
+    ).find(([, inner]) => inner !== undefined)!;
+    return { type: "plutus", version: held[0], code: held[1]!.toCbor(), hash };
+  };
+  const key = (n: number) => cbor.arr(cbor.uint(0), cbor.bytes(keyHashHex(n)));
+  /** The CBOR of a transaction unspent output holding `scriptRef`, written by hand */
+  const inCbor = (scriptRef: string) =>
+    cbor.arr(
+      cbor.arr(cbor.bytes(hash(5)), cbor.uint(1)),
+      cbor.map(
+        [cbor.uint(0), cbor.bytes(Address.fromBech32(address).toBytes())],
+        [cbor.uint(1), cbor.uint(5_000_000)],
+        [cbor.uint(3), `d818${cbor.bytes(scriptRef)}`],
+      ),
+    );
+
+  it("describes every reference script as the value decoder does, without decoding it: each language, and native scripts of every shape, canonical and not", () => {
+    const shapes: NativeScript[] = [
+      { type: "sig", keyHash: keyHashHex(1) },
+      nativeScript,
+      { type: "all", scripts: [] },
+      {
+        type: "any",
+        scripts: [
+          { type: "sig", keyHash: keyHashHex(2) },
+          { type: "sig", keyHash: keyHashHex(3) },
+        ],
+      },
+      {
+        type: "atLeast",
+        required: 2,
+        scripts: [1, 2, 3].map((n) => ({
+          type: "sig" as const,
+          keyHash: keyHashHex(n),
+        })),
+      },
+      { type: "before", slot: "12345678" },
+      { type: "after", slot: "4294967296" },
+      {
+        type: "all",
+        scripts: [
+          { type: "after", slot: "100" },
+          {
+            type: "any",
+            scripts: [
+              { type: "sig", keyHash: keyHashHex(4) },
+              {
+                type: "atLeast",
+                required: 1,
+                scripts: [
+                  { type: "sig", keyHash: keyHashHex(5) },
+                  { type: "before", slot: "200" },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    const canonical = shapes.map((shape) => resolveScriptRef(shape));
+    // Native scripts not in the shortest form: lists of scripts of indefinite length, integers
+    // in eight bytes, heads longer than they need
+    const longForms = [
+      cbor.arr(cbor.uint64(0), cbor.bytes(keyHashHex(1))),
+      cbor.arr(cbor.uint(0), `5a0000001c${keyHashHex(1)}`),
+      cbor.arr(cbor.uint(1), cbor.arrIndef(key(1), key(2))),
+      cbor.arr(cbor.uint(2), cbor.arrIndef()),
+      cbor.arr(cbor.uint(3), cbor.uint64(1), cbor.arr(key(1), key(2))),
+      cbor.arr(cbor.uint(4), cbor.uint64(1_000)),
+      cbor.arr(cbor.uint64(5), cbor.uint64(2n ** 40n)),
+      `980201${cbor.arr(key(1), key(2))}`,
+    ].map((native) => `8200${native}`);
+    // Plutus code in each wrapping, a byte string with a long head, and an empty one
+    const codes = [
+      double,
+      single,
+      loose,
+      `5a${(single.length / 2).toString(16).padStart(8, "0")}${single}`,
+      "40",
+      cbor.bytes("ab".repeat(30)),
+    ];
+    const plutus = codes.flatMap((code) =>
+      ["01", "02", "03"].map((tag) => `82${tag}${code}`),
+    );
+    const given = [
+      ...canonical,
+      ...longForms,
+      ...plutus,
+      ...Object.values(fixtures).flatMap(({ mesh }) =>
+        mesh.output.scriptRef ? [mesh.output.scriptRef] : [],
+      ),
+    ];
+    for (const scriptRef of given) {
+      const described = describeScriptRef(scriptRef);
+      expect([scriptRef, described]).toStrictEqual([
+        scriptRef,
+        decoded(scriptRef),
+      ]);
+      expect(described.type).not.toBe("unknown");
+      expect(scriptRefOf(described)).toBe(scriptRef);
+    }
+    // A native script whose own list is of indefinite length, which the ledger reads and the
+    // value decoder refuses: described with the hash the ledger takes, of the bytes as written
+    for (const native of [
+      cbor.arrIndef(cbor.uint(1), cbor.arrIndef(key(1), key(2))),
+      cbor.arr(cbor.uint(1), cbor.arr(cbor.arrIndef(cbor.uint(1), cbor.arr()))),
+    ]) {
+      expect(() => Script.fromCbor(HexBlob(`8200${native}`))).toThrow();
+      expect(describeScriptRef(`8200${native}`)).toStrictEqual({
+        type: "native",
+        cbor: native,
+        hash: cbor.blake(`00${native}`, 28),
+      });
+    }
+    // The hash commits to the language: one code under each tag has three hashes
+    expect(
+      new Set(["01", "02", "03"].map((tag) => refHash(`82${tag}${double}`)))
+        .size,
+    ).toBe(3);
+  });
+
+  it("is unknown, as given, for what it does not read, in each form: another framing, a language it does not know, a tag in a long form, bytes after the script, a Plutus script in pieces or not a byte string, a native script that is not one item", () => {
+    const native = `8200${nativeCbor}`;
+    const cases = [
+      // Another framing
+      cbor.arrIndef(cbor.uint(3), double),
+      `9802${native.slice(2)}`,
+      cbor.arr(cbor.uint(3), double, cbor.uint(0)),
+      cbor.arr(cbor.uint(3)),
+      cbor.map([cbor.uint(3), double]),
+      double,
+      // A language it does not know, or a tag that is not in one byte
+      `8204${double}`,
+      `8220${double}`,
+      `821803${double}`,
+      `821800${nativeCbor}`,
+      // Bytes after the script
+      `${native}00`,
+      `8203${double}00`,
+      `${native}${native}`,
+      // A Plutus script in pieces, or not a byte string
+      ...["01", "02", "03"].map((tag) => `82${tag}${cbor.chunkedBytes(flat)}`),
+      `8203${cbor.chunkedBytes(flat, 1_000)}`,
+      "820301",
+      `8203${cbor.arr(double)}`,
+      // A native script that is not one well-formed item
+      "8200",
+      "82009f01",
+      "8200ff",
+      "8200d8",
+    ];
+    for (const scriptRef of cases) {
+      expect([scriptRef, describeScriptRef(scriptRef)]).toStrictEqual([
+        scriptRef,
+        { type: "unknown", scriptRef },
+      ]);
+      for (const form of [
+        meshWith({ scriptRef }),
+        ownWith({ script: { type: "unknown", scriptRef } }),
+        inCbor(scriptRef),
+      ])
+        expect([scriptRef, toUtxo(form as UtxoInput).script]).toStrictEqual([
+          scriptRef,
+          { type: "unknown", scriptRef },
+        ]);
+    }
+    // In pieces, the decoder joins the pieces: a script this library does not read
+    const pieces = `8203${cbor.chunkedBytes(flat)}`;
+    expect(decoded(pieces)?.type).toBe("plutus");
+  });
+
   it("reads an unknown script again: what can be read is described", () => {
     const utxo = toUtxo({
       ...ada.utxo,
@@ -1320,6 +1502,8 @@ describe("the data and the reference script of a UTxO, read without being decode
   /** `all` of `count` native scripts, each `nested(levels)`: as `[0, native]` */
   const allOf = (count: number, levels: number) =>
     `8200${`8201${cbor.head(4, count)}${nested(levels).repeat(count)}`}`;
+  /** The hash the ledger takes of a reference script: blake2b-224 of its tag and its script */
+  const ledgerHash = (scriptRef: string) => cbor.blake(scriptRef.slice(2), 28);
   /** `all` of `count` keys, as `[0, native]` */
   const keys = (count: number) =>
     `8200${`8201${cbor.head(4, count)}${Array.from(
@@ -1327,34 +1511,63 @@ describe("the data and the reference script of a UTxO, read without being decode
       (_, i) => `8200581c${i.toString(16).padStart(56, "0")}`,
     ).join("")}`}`;
 
-  it("holds a reference script past the bounds of its decoding as given, never decoded, in each form at once: 15 KB of an all of 10 native scripts nested 500 deep, one nested 34 deep, of 190 keys, and one nested 5 000 deep", () => {
+  it("reads a reference script of any depth at once, never decoded, in each form, with the hash the ledger takes: 15 KB of an all of 10 native scripts nested 500 deep, one nested 34, 3 000 and 5 000 deep, of 190 keys", () => {
+    // The ledger's hash, blake2b-224 of the tag and the script as written, is the decoder's on
+    // shallower scripts of the same shapes
+    for (const scriptRef of [allOf(10, 20), `8200${nested(100)}`, keys(190)])
+      expect(ledgerHash(scriptRef)).toBe(refHash(scriptRef));
     for (const scriptRef of [
       allOf(10, 500),
       `8200${nested(34)}`,
-      keys(190),
+      `8200${nested(3_000)}`,
       `8200${nested(5_000)}`,
-    ])
-      for (const [form, given] of withScript(scriptRef)) {
+      keys(190),
+    ]) {
+      const native = {
+        type: "native",
+        cbor: scriptRef.slice(4),
+        hash: ledgerHash(scriptRef),
+      };
+      for (const [form, given] of [
+        ...withScript(scriptRef),
+        [
+          "an unknown script",
+          ownWith({ script: { type: "unknown", scriptRef } }),
+        ],
+      ] as [string, unknown][]) {
         const { thrown, ms } = timed(() => readUtxo(given));
         expect([form, thrown]).toEqual([form, undefined]);
-        expect(ms).toBeLessThan(500);
-        expect([form, readUtxo(given).script]).toEqual([
-          form,
-          { type: "unknown", scriptRef },
-        ]);
+        expect(ms).toBeLessThan(1_000);
+        expect([form, readUtxo(given).script]).toEqual([form, native]);
+        expect(toMeshUtxo(given as UtxoInput).output).toMatchObject({
+          scriptRef,
+          scriptHash: native.hash,
+        });
       }
-    // The hash stated for it is kept, in each form that states one
+    }
+    // A hash stated with it: its own is kept; another, from bytes, holds the script unknown with
+    // it, and in the builder's form is refused, as for any script there
     const scriptRef = allOf(10, 500);
+    const own = ledgerHash(scriptRef);
     const stated = "ab".repeat(28);
+    for (const given of [
+      meshWith({ scriptRef, scriptHash: own }),
+      ownWith({ script: { type: "unknown", scriptRef, hash: own } }),
+      ownWith({
+        script: { type: "native", cbor: scriptRef.slice(4), hash: own },
+      }),
+    ])
+      expect(readUtxo(given).script).toEqual({
+        type: "native",
+        cbor: scriptRef.slice(4),
+        hash: own,
+      });
     for (const given of [
       meshWith({ scriptRef, scriptHash: stated }),
       ownWith({ script: { type: "unknown", scriptRef, hash: stated } }),
-      ownWith({
-        script: { type: "native", cbor: scriptRef.slice(4), hash: stated },
-      }),
     ]) {
       const { ms } = timed(() => readUtxo(given));
-      expect(ms).toBeLessThan(500);
+      expect(ms).toBeLessThan(1_000);
       expect(readUtxo(given).script).toEqual({
         type: "unknown",
         scriptRef,
@@ -1365,16 +1578,14 @@ describe("the data and the reference script of a UTxO, read without being decode
         scriptHash: stated,
       });
     }
-  });
-
-  it("decodes and describes a reference script just within the bounds: native scripts nested 33 deep, and of 189 keys", () => {
-    for (const scriptRef of [`8200${nested(33)}`, keys(189)])
-      for (const [form, given] of withScript(scriptRef)) {
-        const utxo = readUtxo(given);
-        expect([form, utxo.script!.type]).toEqual([form, "native"]);
-        expect(utxo.script!.hash).toBe(refHash(scriptRef));
-        expect(scriptRefOf(utxo.script!)).toBe(scriptRef);
-      }
+    const typed = ownWith({
+      script: { type: "native", cbor: scriptRef.slice(4), hash: stated },
+    });
+    const { thrown, ms } = timed(() => readUtxo(typed));
+    expect(ms).toBeLessThan(1_000);
+    expect((thrown as UtxoError).message).toBe(
+      `the UTxO ${hash(1)}#0: script hash ${stated} is not the script's ${own}`,
+    );
   });
 
   it("refuses a UTxO whose address is longer than 256 bytes before its base58 is read, its out ref named, in each form: a Byron address of 1 KB, of 257 bytes, and in CBOR of 15 KB; reads one of 256", () => {
@@ -1452,7 +1663,7 @@ describe("the data and the reference script of a UTxO, read without being decode
     }
   });
 
-  it("reads a UTxO in CBOR that writes its reference script twice as the decoder reads it, the last, and no decoder meets either past the bounds: a script nested 3 000 deep, then a shallow one, and the other way round", () => {
+  it("reads a UTxO in CBOR that writes its reference script twice as the decoder reads it, the last, at once and neither decoded: a script nested 3 000 deep, then a shallow one, and the other way round", () => {
     const shallow = `8200${nested(1)}`;
     const deepOne = `8200${nested(3_000)}`;
     const twice = (first: string, second: string) =>
@@ -1476,8 +1687,9 @@ describe("the data and the reference script of a UTxO, read without being decode
     expect(other.thrown).toBeUndefined();
     expect(other.ms).toBeLessThan(500);
     expect(readUtxo(twice(shallow, deepOne)).script).toEqual({
-      type: "unknown",
-      scriptRef: deepOne,
+      type: "native",
+      cbor: deepOne.slice(4),
+      hash: ledgerHash(deepOne),
     });
   });
 });

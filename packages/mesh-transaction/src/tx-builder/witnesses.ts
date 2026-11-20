@@ -10,7 +10,6 @@ import {
   CborWriter,
   CredentialType,
   fromNativeScript,
-  HexBlob,
   Serialization,
 } from "@meshsdk/core-cst";
 
@@ -25,6 +24,7 @@ import type {
 } from "./parts/types";
 import type { AskedKey } from "./sign";
 import { nativeScriptToPrototype } from "./parts/normalize";
+import { decodedNativeScript } from "./parts/utxo";
 
 /** Who has to sign a transaction: key hashes, and Byron addresses spent from */
 export type Signers = { keyHashes: Set<string>; byronAddresses: Set<string> };
@@ -167,15 +167,16 @@ export const nativeScriptEntry = (
   hash: native.hash().toString(),
 });
 
-/** The native script a UTxO holds as its reference script, if it holds one */
+/**
+ * The native script a UTxO holds as its reference script, if it holds one that is decoded for its
+ * keys: not one past the bounds of that decoding
+ */
 export const nativeScriptRef = (
   utxo: Readonly<Utxo> | undefined,
-): { script: NativeScriptPrototype; hash: string } | undefined =>
-  utxo?.script?.type === "native"
-    ? nativeScriptEntry(
-        Serialization.NativeScript.fromCbor(HexBlob(utxo.script.cbor)),
-      )
-    : undefined;
+): { script: NativeScriptPrototype; hash: string } | undefined => {
+  const native = decodedNativeScript(utxo?.script);
+  return native && nativeScriptEntry(native);
+};
 
 /**
  * The script of a native witness and its hash, the script read from its reference output when

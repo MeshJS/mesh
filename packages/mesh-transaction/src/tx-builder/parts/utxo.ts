@@ -1,5 +1,4 @@
 import type { LanguageVersion, UTxO } from "@meshsdk/common";
-import type { Serialization } from "@meshsdk/core-cst";
 import {
   Address,
   blake2b,
@@ -7,7 +6,7 @@ import {
   deserializeTxUnspentOutput,
   HexBlob,
   normalizePlutusScript,
-  Script,
+  Serialization,
 } from "@meshsdk/core-cst";
 
 import type { UtxoBytes } from "../tx-scan";
@@ -257,6 +256,16 @@ const LANGUAGE_TAG: Record<LanguageVersion, string> = {
   V3: "03",
 };
 
+/** The Plutus versions by their tag in `[language, script]`; 0 is a native script */
+const VERSION_OF_TAG: readonly (LanguageVersion | undefined)[] = [
+  undefined,
+  "V1",
+  "V2",
+  "V3",
+];
+
+const State = Serialization.CborReaderState;
+
 const readScriptHash = (at: string, hash: unknown): string => {
   if (typeof hash !== "string" || !HASH_28.test(hash))
     return problem(
@@ -274,13 +283,56 @@ const unknownScript = (scriptRef: string, stated?: string): OutputScript => ({
 });
 
 /**
+ * The tag and the script of `[language, script]` in hex, read with the token reader, never with
+ * a value decoder: an array of two items of definite length; a tag of 0 to 3 in one byte; for 0,
+ * one well-formed CBOR item, which the reader passes without a call of itself at any depth; for
+ * 1 to 3, one byte string of definite length; nothing after. `script` is the item as written,
+ * `hashed` the bytes its hash is taken over: the item of a native script, the content of the byte
+ * string of a Plutus one. Undefined for anything else
+ */
+const readScriptRef = (
+  given: string,
+): { tag: number; script: string; hashed: string } | undefined => {
+  try {
+    const reader = new CborReader(HexBlob(given));
+    const offset = () => given.length / 2 - reader.getBytesRemaining();
+    if (
+      reader.peekState() !== State.StartArray ||
+      reader.readStartArray() !== 2
+    )
+      return undefined;
+    if (reader.peekState() !== State.UnsignedInteger) return undefined;
+    const before = offset();
+    const tag = Number(reader.readUInt());
+    if (offset() !== before + 1 || tag > 3) return undefined;
+    const start = offset();
+    let content: Uint8Array | undefined;
+    if (tag === 0) reader.skipValue();
+    else if (reader.peekState() === State.ByteString)
+      content = reader.readByteString();
+    else return undefined;
+    if (reader.getBytesRemaining() !== 0) return undefined;
+    const script = given.slice(2 * start);
+    return {
+      tag,
+      script,
+      hashed:
+        content === undefined ? script : Buffer.from(content).toString("hex"),
+    };
+  } catch {
+    return undefined;
+  }
+};
+
+/**
  * A reference script as a `Utxo` holds it, from the CBOR of `[language, script]` in hex and
- * the hash stated for it, if any. What this library cannot read, and what it reads with a hash
- * other than the stated one, is `unknown`: kept as given, with the stated hash. So is a script
- * whose bytes would not be written back as given (bytes after it, other framing), since the
- * described form must give the same bytes back, and a script that is not one well-formed item
- * within the bounds of `scriptBounds`, which is never decoded: anyone can send an output that
- * holds one.
+ * the hash stated for it, if any. It is never decoded: its language, its hash and its size are
+ * read from its bytes, the hash as the ledger takes it, blake2b-224 of the tag and the bytes as
+ * written, so a script of any depth is read at once. What this library cannot read (another
+ * framing, a language it does not know, bytes after the script, a Plutus script in pieces), and
+ * what it reads with a hash other than the stated one, is `unknown`: kept as given, with the
+ * stated hash. So is a script whose bytes would not be written back as given, since the described
+ * form must give the same bytes back.
  * @throws UtxoError (`script`) when `scriptRef` is not hex
  */
 export const describeScriptRef = (
@@ -290,33 +342,40 @@ export const describeScriptRef = (
   const given = readHex("script", "a reference script", "it", scriptRef);
   const stated = statedHash?.toLowerCase();
   const unknown = unknownScript(given, stated);
-  if (scriptBounds(Buffer.from(given, "hex")) !== "within") return unknown;
-  let described: OutputScript;
-  try {
-    const script = Script.fromCbor(HexBlob(given));
-    const hash = script.hash().toString();
-    const native = script.asNative();
-    const plutus: [LanguageVersion, { toCbor(): string } | undefined][] = [
-      ["V1", script.asPlutusV1()],
-      ["V2", script.asPlutusV2()],
-      ["V3", script.asPlutusV3()],
-    ];
-    const held = plutus.find(([, inner]) => inner !== undefined);
-    if (native) described = { type: "native", cbor: native.toCbor(), hash };
-    else if (held)
-      described = {
-        type: "plutus",
-        version: held[0],
-        code: held[1]!.toCbor(),
-        hash,
-      };
-    else return unknown;
-  } catch {
-    return unknown;
-  }
+  const read = readScriptRef(given);
+  if (read === undefined) return unknown;
+  const hash = blake2b
+    .hash(HexBlob(`0${read.tag}${read.hashed}`), 28)
+    .toString();
+  const version = VERSION_OF_TAG[read.tag];
+  const described: OutputScript =
+    version === undefined
+      ? { type: "native", cbor: read.script, hash }
+      : { type: "plutus", version, code: read.script, hash };
   if (stated !== undefined && stated !== described.hash) return unknown;
   if (scriptRefOf(described) !== given) return unknown;
   return described;
+};
+
+/**
+ * The native script a reference script holds, decoded for the keys it names, which a native
+ * witness that runs it prices and asks for. The value decoder reads one in a time that grows
+ * with the square of its depth, and anyone can send an output that holds one: it is decoded
+ * only once a walk over its bytes finds it within `scriptBounds`. Undefined past them, and for
+ * what is not a native script
+ */
+export const decodedNativeScript = (
+  script: OutputScript | undefined,
+): Serialization.NativeScript | undefined => {
+  if (script?.type !== "native") return undefined;
+  const scriptRef = scriptRefOf(script);
+  if (scriptBounds(Buffer.from(scriptRef, "hex")) !== "within")
+    return undefined;
+  try {
+    return Serialization.NativeScript.fromCbor(HexBlob(script.cbor));
+  } catch {
+    return undefined;
+  }
 };
 
 /** A reference script as the CBOR of `[language, script]` in hex, the form a Mesh `UTxO` holds */
@@ -397,9 +456,6 @@ const readScript = (at: string, script: unknown): OutputScript => {
       "script",
       `${at}: a script of the type ${shownValue(script.type)}: expected plutus, native or unknown`,
     );
-  // Past the bounds, the script is held as given, never decoded, whatever type it is given as
-  if (scriptBounds(Buffer.from(scriptRef, "hex")) === "past")
-    return unknownScript(scriptRef, stated);
   const described = describeScriptRef(scriptRef);
   if (described.type === "unknown")
     return problem("script", `${at}: the ${script.type} script cannot be read`);

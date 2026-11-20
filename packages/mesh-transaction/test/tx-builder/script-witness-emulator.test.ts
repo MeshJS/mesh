@@ -2,10 +2,14 @@ import {
   deserializeAddress,
   mConStr0,
   NativeScript,
+  resolveNativeScriptHash,
   resolveScriptRef,
   UTxO,
 } from "@meshsdk/core";
-import { resolvePlutusScriptAddress } from "@meshsdk/core-cst";
+import {
+  resolvePlutusScriptAddress,
+  scriptHashToBech32,
+} from "@meshsdk/core-cst";
 import { TxEmulator, TxResult } from "@meshsdk/tx-emulator";
 import { MeshWallet } from "@meshsdk/wallet";
 
@@ -148,6 +152,7 @@ const setup = async (
   return {
     emulator,
     address,
+    add,
     holder,
     plain,
     locked,
@@ -350,6 +355,58 @@ describe.each(["scalus", "cquisitor"] as const)(
       s.expectFeeWithoutCopy(built, {
         native_scripts: [minted.witness.script.script],
       });
+      expect(rules(await s.submit(built))).toEqual([]);
+    });
+
+    it("spends and mints through reference scripts, Plutus and native, each read from the output that holds it", async () => {
+      const s = await setup(validator);
+      s.plain(40n);
+      const policy: NativeScript = {
+        type: "sig",
+        keyHash: deserializeAddress(s.address).pubKeyHash,
+      };
+      // The outputs that hold the scripts are not the payer's
+      const holds = (script: Parameters<typeof resolveScriptRef>[0]) =>
+        s.add({
+          address: recipient,
+          amount: lovelace(30n),
+          scriptRef: resolveScriptRef(script),
+        });
+      const plutusAt = holds(plutusScript);
+      const nativeAt = holds(policy);
+      const nativeLocked = s.add({
+        address: scriptHashToBech32(
+          resolveNativeScriptHash(policy),
+          undefined,
+          0,
+        ),
+        amount: lovelace(10n),
+      });
+      const built = await s.build([
+        spend.plutus({
+          utxo: s.locked(),
+          script: { reference: plutusAt },
+          redeemer: unit,
+        }),
+        mint.plutus({
+          script: { reference: plutusAt },
+          redeemer: unit,
+          assets: { "70": 1n },
+        }),
+        spend.native({ utxo: nativeLocked, script: { reference: nativeAt } }),
+        mint.native({ script: { reference: nativeAt }, assets: { "6e": 1n } }),
+      ]);
+
+      expect(built.referenceInputs.map(keyOf).sort()).toEqual(
+        [plutusAt, nativeAt].map(keyOf).sort(),
+      );
+      expect(built.prototype.witness_set.plutus_v3_scripts).toBeUndefined();
+      expect(built.prototype.witness_set.native_scripts).toBeUndefined();
+      // The policy is listed once, and its key is asked for
+      expect(built.signers.nativeScripts).toHaveLength(1);
+      expect(built.signers.keyHashes).toContain(policy.keyHash);
+      s.expectV3ScriptData(built);
+      s.expectFeeCovers(built);
       expect(rules(await s.submit(built))).toEqual([]);
     });
 
