@@ -1975,11 +1975,17 @@ describe("a step left whose end of validity has passed", () => {
     };
   };
 
-  it("a provider that cannot search, the partner's step sent, past its end and the margin: no answer ever comes, and the call says so (CANNOT_OBSERVE, noSearch), with steps too; carol is paid once", async () => {
-    const { emulator, provider, built, old, store } = await partnerPlan();
+  it("a provider that cannot search, the partner's step sent: no answer ever comes, and the call says so (CANNOT_OBSERVE, noSearch) before its end, before the margin and past it, with steps too; carol is paid once", async () => {
+    const { emulator, provider, built, old, store } = await partnerPlan({
+      ...FAST,
+      confirmations: 1000,
+      expiryMarginMs: 600_000,
+    });
     await emulator.submitTx(built.signedTx!);
     provider.control.hooks.fetchTxInfo = null;
-    for (const slots of [1000, 100_000]) {
+    // Its end is 300 s on and the margin 600 s: +100 before its end, +600 before the margin,
+    // +1 000 and +101 000 past it
+    for (const slots of [100, 500, 400, 100_000]) {
       advance(emulator, slots);
       await old.refresh().catch(() => undefined);
       for (const steps of [undefined, { c: payTo(carol, 13n * ADA) }]) {

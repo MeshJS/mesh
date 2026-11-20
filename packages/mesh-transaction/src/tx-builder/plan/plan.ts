@@ -2317,8 +2317,9 @@ export class TxPlan {
   /**
    * The pairs `landsBeside` gives, judged: a transaction that is dead passes; any other refuses
    * the call, STILL_LIVE, with every such hash and, when time settles them all, `safeAfter`,
-   * never in the past: past it, CANNOT_OBSERVE (`unconfirmed`), the look did not settle them,
-   * and `noSearch` when the provider cannot search, which would never settle them
+   * never in the past: past it, CANNOT_OBSERVE (`unconfirmed`), the look did not settle them.
+   * CANNOT_OBSERVE (`noSearch`), before `safeAfter` too, when the provider cannot search, which
+   * would never settle them
    * @param done What the call did not do
    * @param seen The look of the call
    * @returns the dead transactions a step passed beside
@@ -2337,6 +2338,9 @@ export class TxPlan {
       for (const tx of pair.open)
         (tx.dead === true ? dead : live).set(tx.txHash, tx);
     if (live.size === 0) return [...dead.values()];
+    // A provider that cannot search never answers what would settle them, before the margin or
+    // past it
+    if (seen.noSearch) throw this.#noSearch();
     const txs = [...live.values()];
     const timed = txs.every(
       (tx) => tx.until !== undefined && tx.seen === undefined,
@@ -2349,7 +2353,6 @@ export class TxPlan {
     // them (a search that gave no answer, a transaction that funds one that is not found either,
     // or a clock behind the tip). Time has done its part
     if (safeAfter !== undefined && waitMs <= 0) {
-      if (seen.noSearch) throw this.#noSearch();
       const one = txs.length === 1;
       throw this.#unconfirmed(
         `${txs.map((tx) => `step ${JSON.stringify(tx.step)} (${tx.txHash})`).join(", ")} of this plan or a plan before it ${one ? "is" : "are"} past the end of validity and the margin, and ${

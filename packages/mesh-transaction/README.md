@@ -833,8 +833,9 @@ new plan's, also for the steps it holds of the old plan, and carry on. Never
   only on the call's own look: once its end and the margin have passed by the tip and the clock,
   and the search answered that it does not find it. Until then, also while the search fails, the
   call waits (`CANNOT_OBSERVE`, `unconfirmed`); a provider that cannot search at all never answers,
-  and the call says so (`CANNOT_OBSERVE`, `noSearch`), as it does for an old transaction past its
-  end that time does not settle. Where others took every input of it, see the dead ends below.
+  and the call says so (`CANNOT_OBSERVE`, `noSearch`), as it does for any old transaction a step
+  built could land beside, before its end and the margin too. Where others took every input of it,
+  see the dead ends below.
 - What a new plan cannot hold is waited for, with `CANNOT_OBSERVE` (`unconfirmed`, again after
   `retryAfterMs`): a transaction in a block with a failed script, and one of a plan before the one
   replaced that a look found in a block, each until it is `final`; a step in a block the search
