@@ -1692,6 +1692,76 @@ describe("the data and the reference script of a UTxO, read without being decode
       hash: ledgerHash(deepOne),
     });
   });
+
+  it("refuses at once a UTxO in CBOR whose output has a key other than 0, 1, 2 and 3, its out ref named, before the decoder reads what follows the key one place off and decodes a script 3 000 deep standing at a key's place: key 4, key -1, key 4 in a long form, a key of text, in a map of indefinite length, a script at key 3 beside it; a key 3 in a long form is key 3", () => {
+    const shallow = `8200${nested(1)}`;
+    const deepOne = `8200${nested(3_000)}`;
+    const held = (scriptRef: string) => `d818${cbor.bytes(scriptRef)}`;
+    const members = [
+      [cbor.uint(0), cbor.bytes(addressHex)],
+      [cbor.uint(1), cbor.uint(5_000_000)],
+    ] as [string, string][];
+    const inCbor = (input: string, map: string) => cbor.arr(input, map);
+    const input = cbor.arr(cbor.bytes(hash(5)), cbor.uint(1));
+    const withPairs = (...pairs: [string, string][]) =>
+      inCbor(input, cbor.map(...members, ...pairs));
+    const cases: [string, string][] = [
+      ["key 4", withPairs(["04", "03"], [held(deepOne), "05"])],
+      ["key -1", withPairs(["20", "03"], [held(deepOne), "05"])],
+      [
+        "key 4 in a long form",
+        withPairs(["1804", "03"], [held(deepOne), "05"]),
+      ],
+      ["a key of text", withPairs(["6103", "03"], [held(deepOne), "05"])],
+      [
+        "key 4 in a map of indefinite length",
+        inCbor(
+          input,
+          cbor.mapIndef(...members, ["04", "03"], [held(deepOne), "05"]),
+        ),
+      ],
+      // The library would find the script at key 3, the decoder the one behind key 4
+      [
+        "a script at key 3 and another behind key 4",
+        withPairs(
+          [cbor.uint(3), held(shallow)],
+          ["04", "03"],
+          [held(deepOne), "05"],
+        ),
+      ],
+    ];
+    for (const [name, given] of cases) {
+      const { thrown, ms } = timed(() => readUtxo(given));
+      expect(ms).toBeLessThan(200);
+      expect([name, (thrown as UtxoError).kind]).toEqual([name, "outRef"]);
+      expect([name, (thrown as Error).message]).toEqual([
+        name,
+        `the UTxO ${hash(5)}#1 is not the CBOR of a transaction unspent output: its output has a key other than 0, 1, 2 and 3`,
+      ]);
+      expect(() => toUtxo(given)).toThrow(
+        `invalid utxo: the UTxO ${hash(5)}#1 is not the CBOR`,
+      );
+      expect(() => readOutRef(given)).toThrow(UtxoError);
+    }
+    // Without an out ref the reader can tell, the refusal names none and quotes no byte
+    const { thrown } = timed(() =>
+      readUtxo(
+        inCbor(
+          cbor.arr(cbor.bytes("ab"), cbor.uint(1)),
+          cbor.map(...members, ["04", "03"], [held(deepOne), "05"]),
+        ),
+      ),
+    );
+    expect((thrown as Error).message).toBe(
+      "not the CBOR of a transaction unspent output: its output has a key other than 0, 1, 2 and 3",
+    );
+    // Key 3 in a longer form is key 3, as the decoder reads it
+    for (const key of ["1803", "1b0000000000000003"])
+      expect(readUtxo(withPairs([key, held(shallow)])).script).toMatchObject({
+        type: "native",
+        hash: refHash(shallow),
+      });
+  });
 });
 
 describe("value of a Utxo", () => {

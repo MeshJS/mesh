@@ -33,6 +33,7 @@ import {
   Payer,
   PayerSnapshot,
   RequiredKeys,
+  requiredSigners,
   spend,
   TxBuilder,
   TxBuilderOptions,
@@ -683,6 +684,61 @@ describe("TxBuilder: the payer read and the other reads", () => {
       if (utxos.length === 1)
         expect(built.inputs).toContainEqual({ ...held, script });
     }
+  });
+
+  it("fails a payment at once with the error of the read when the wallet or the snapshot holds a UTxO in CBOR whose output has a key other than 0 to 3, a script 3 000 deep behind it; refused at once as well as a part's UTxO, among knownUtxos and the UTxOs requiredSigners is given", async () => {
+    const deep = "8200" + "820181".repeat(3_000) + `8200581c${"ab".repeat(28)}`;
+    const head = (n: number) =>
+      n < 0x100
+        ? `58${n.toString(16).padStart(2, "0")}`
+        : `59${n.toString(16).padStart(4, "0")}`;
+    const txHash = "ef".repeat(32);
+    // { 0: address, 1: coin, 4: 3, 24(h'[0, script]'): 5 }: the decoder reads it as key 3's
+    const trick =
+      `82825820${txHash}00a4` +
+      `00${head(hexOf(wallet).length / 2)}${hexOf(wallet)}011a02faf080` +
+      `0403d818${head(deep.length / 2)}${deep}05`;
+    const named = `the UTxO ${txHash}#0 is not the CBOR of a transaction unspent output: its output has a key other than 0, 1, 2 and 3`;
+    const timed = async (run: () => unknown) => {
+      const started = performance.now();
+      const error = await caught(run);
+      expect(performance.now() - started).toBeLessThan(500);
+      return error as TxBuildError;
+    };
+    const plain = asCbor(funds[0]!);
+
+    const fromWallet = await timed(() =>
+      offline().build([pay()], { payer: cip30([plain, trick]) }),
+    );
+    expect(fromWallet.code).toBe("WALLET_FAILED");
+    expect(fromWallet.message).toContain(named);
+    const fromSnapshot = await timed(() =>
+      offline().build([pay()], {
+        payer: { changeAddress: wallet, utxos: [plain, trick] },
+      }),
+    );
+    expect(fromSnapshot.code).toBe("INVALID_OPTION");
+    expect(fromSnapshot.message).toContain(named);
+
+    const asPart = await timed(() => spend.pubKey({ utxo: trick }));
+    expect(TxError.is(asPart, "INVALID_OUT_REF")).toBe(true);
+    expect(asPart.message).toContain(named);
+    const built = await offline().build([pay()], {
+      payer: { changeAddress: wallet, utxos: [plain] },
+    });
+    const known = await timed(() =>
+      offline().fromCbor(built.tx, { knownUtxos: [plain, trick] }),
+    );
+    expect(known.code).toBe("INVALID_OPTION");
+    // Text that is not the CBOR of a UTxO is named by its entry, no cause kept
+    expect(known.message).toMatch(
+      /^invalid knownUtxos: entry 1 is .*, not the CBOR of a transaction unspent output$/,
+    );
+    const signers = await timed(() =>
+      requiredSigners(built.tx, [plain, trick]),
+    );
+    expect(signers.code).toBe("INVALID_OPTION");
+    expect(signers.message).toContain(named);
   });
 
   it("starts the wallet's reads and the lookups together", async () => {

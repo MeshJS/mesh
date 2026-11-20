@@ -359,6 +359,14 @@ export type UtxoBytes = {
   inlineDatum?: Uint8Array;
   /** The CBOR of the reference script, `[language, script]`, its chunks joined */
   scriptRef?: Uint8Array;
+  /** The out ref, `[transaction id, index]`, where the token reader finds one */
+  outRef?: { txHash: string; outputIndex: bigint };
+  /**
+   * Set where the output is a map with a key other than 0, 1, 2 or 3, read as the value decoder
+   * reads a key, a key 3 in a longer form being 3: the decoder does not read the value of such a
+   * key, and reads what follows it one place off, a script at a key's place among them
+   */
+  otherKey?: true;
 };
 
 /** What stands in for the byte string of an inline datum: `h'00'`, which holds the integer 0 */
@@ -391,9 +399,10 @@ const encodedAt = (reader: CborReader, offset: () => number) => {
  * `[input, output]` in CBOR, from the offsets of the token reader, and writes the same bytes with
  * a stand-in for each, so that a value decoder reads the rest without reading data or a script
  * of any depth or work; neither is decoded. Of a key the map repeats, the last is found, as the
- * decoder reads it, and each has its stand-in. An output in the array form holds neither.
- * Undefined where the bytes do not start with one well-formed item; an output of a shape the
- * reader does not find is left as written, for the decoder to judge
+ * decoder reads it, and each has its stand-in. An output in the array form holds neither. A key
+ * other than 0 to 3 is marked, and the output read no further. Undefined where the bytes do not
+ * start with one well-formed item; an output of a shape the reader does not find is left as
+ * written, for the decoder to judge
  */
 export const splitUtxoBytes = (bytes: Uint8Array): UtxoBytes | undefined => {
   if (walked(bytes) === undefined) return undefined;
@@ -402,11 +411,31 @@ export const splitUtxoBytes = (bytes: Uint8Array): UtxoBytes | undefined => {
   const found: Omit<UtxoBytes, "standIn"> = {};
   // The byte strings of inline datums and reference scripts, each replaced by its stand-in
   const replaced: { start: number; end: number; by: Uint8Array }[] = [];
+  /** The out ref `[transaction id, index]` the reader is at, kept where it reads as one */
+  const readInput = () => {
+    if (reader.peekState() !== State.StartArray) {
+      reader.skipValue();
+      return;
+    }
+    const items = reader.readStartArray();
+    const state = reader.peekState();
+    if (
+      items === 2 &&
+      (state === State.ByteString ||
+        state === State.StartIndefiniteLengthByteString)
+    ) {
+      const txHash = hexOf(reader.readByteString());
+      if (reader.peekState() === State.UnsignedInteger)
+        found.outRef = { txHash, outputIndex: reader.readUInt() };
+    }
+    while (reader.peekState() !== State.EndArray) reader.skipValue();
+    reader.readEndArray();
+  };
   try {
     if (reader.peekState() !== State.StartArray) return { standIn: bytes };
     const items = reader.readStartArray();
     if (items !== 2 && items !== null) return { standIn: bytes };
-    reader.skipValue();
+    readInput();
     if (reader.peekState() !== State.StartMap) return { standIn: bytes };
     const pairs = reader.readStartMap();
     for (let pair = 0; pairs === null || pair < pairs; pair++) {
@@ -414,7 +443,9 @@ export const splitUtxoBytes = (bytes: Uint8Array): UtxoBytes | undefined => {
       const key =
         reader.peekState() === State.UnsignedInteger
           ? reader.readUInt()
-          : (reader.skipValue(), undefined);
+          : undefined;
+      if (key === undefined || key > 3n)
+        return { standIn: bytes, ...found, otherKey: true };
       if (key === 3n) {
         const script = encodedAt(reader, offset);
         if (script) {

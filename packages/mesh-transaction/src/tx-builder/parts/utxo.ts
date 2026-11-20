@@ -479,7 +479,9 @@ const hexOf = (bytes: Uint8Array) => Buffer.from(bytes).toString("hex");
 /**
  * A UTxO from the CBOR of a transaction unspent output. Its inline datum and its reference script
  * are found by the token reader and kept as the bytes hold them; the decoder reads the rest with
- * stand-ins in their place, and the script is described as `describeScriptRef` describes one
+ * stand-ins in their place, and the script is described as `describeScriptRef` describes one. An
+ * output with a key other than 0 to 3, which the ledger takes in no output, is refused before
+ * the decoder runs, its out ref named where the reader finds it
  */
 const fromCbor = (cbor: string): Utxo => {
   let split: UtxoBytes | undefined;
@@ -494,7 +496,21 @@ const fromCbor = (cbor: string): Utxo => {
       error,
     );
   }
-  const { standIn, inlineDatum, scriptRef } = split;
+  const { standIn, inlineDatum, scriptRef, outRef, otherKey } = split;
+  // The decoder would read what follows such a key one place off, a script at a key's place
+  // among them, and decode it: refused before it runs
+  if (otherKey) {
+    const named =
+      outRef !== undefined &&
+      HASH_32.test(outRef.txHash) &&
+      outRef.outputIndex <= 0xffffn
+        ? `${describe({ txHash: outRef.txHash, outputIndex: Number(outRef.outputIndex) })} is `
+        : "";
+    return problem(
+      "outRef",
+      `${named}not the CBOR of a transaction unspent output: its output has a key other than 0, 1, 2 and 3`,
+    );
+  }
   let unspent: ReturnType<typeof deserializeTxUnspentOutput>;
   try {
     unspent = deserializeTxUnspentOutput(hexOf(standIn));
