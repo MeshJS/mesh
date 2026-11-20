@@ -870,7 +870,9 @@ new plan's, also for the steps it holds of the old plan, and carry on. Never
   to a fork deeper than the margin and less deep than `final`, where the old transaction landed
   before its end. So the margin of a plan whose steps may pass by time should cover the depth of the
   rollbacks it defends against: about the time its `confirmations` take, as in the scenario of a
-  large sum.
+  large sum. A wallet payer whose own read returns its list from before such a hidden transaction
+  landed does the same: that read covers the wallet's addresses, which are then not read through
+  the provider, so the transaction passes by time and its recipient can be paid twice.
 - Dead ends, where no plan is made: nothing left to build (every step is final, in a block or a
   consolidation step: `INVALID_OPTION`, `steps`), a step that `failed` its script (`INVALID_OPTION`,
   `steps`: its parts need fixing), a step left whose own end of validity has passed
@@ -1772,11 +1774,16 @@ A witness set that repeats a key is read as the decoder reads it, the last entry
 
 Reading takes a time that grows with the data the transaction carries, up to about a second on a
 laptop, on the calling thread; the UTxOs add the time of their bytes, since their data is not
-decoded. A server reads strangers' transactions off its request path, in a worker of its own. A
-bootstrap witness the transaction came with is counted for the Byron addresses it spends from, not
-matched to the address it is for. The object does not know whether the transaction was sent:
-`awaitInclusion()` looks for it, and `submit()` returns when the ledger refuses bytes the provider
-already finds.
+decoded. `plan` decodes a step given built twice, so one at the bound takes up to about two seconds
+there (1.5 to 1.8 s measured). The bound on nested data counts a big integer as a tag and one
+string, though its time grows with the square of its length: that matters only with a `maxTxSize`
+above 64 KB, where one integer of 128 KB takes 1 s in a datum and 2 s in metadata. An item the
+bounds admit can overflow a stack smaller than about a browser's (on `node --stack-size=400` every
+one is read), and the error is then the runtime's. A server reads strangers' transactions off its
+request path, in a worker of its own. A bootstrap witness the transaction came with is counted for
+the Byron addresses it spends from, not matched to the address it is for. The object does not know
+whether the transaction was sent: `awaitInclusion()` looks for it, and `submit()` returns when the
+ledger refuses bytes the provider already finds.
 
 ### Signing functions
 
