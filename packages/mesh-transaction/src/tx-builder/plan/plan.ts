@@ -23,11 +23,10 @@ import type {
   MadePlan,
   MakePlanOptions,
   PlanOrder,
-  StandIns,
   StepInput,
 } from "./make";
 import type { ChainObserver, ObservedTip, TxSearch } from "./observer";
-import type { LineClasses, LineInput, LineTx, LookAnswer } from "./replace";
+import type { LineClasses, LineTx, LookAnswer } from "./replace";
 import type {
   PlanOptions,
   PlanStep,
@@ -1122,13 +1121,11 @@ export class TxPlan {
         ...(signal !== undefined && { signal }),
         ...(state.trace !== undefined && { trace: state.trace }),
         ...(line !== undefined && {
-          withReads: async (reads, standIns) => {
+          withReads: async (reads) => {
             ({ unread } = await this.#refuseOpenOutputs(
               state,
               base,
               line,
-              base.steps.filter((step) => step.status === "final"),
-              standIns,
               reads,
               ask,
             ));
@@ -1408,11 +1405,10 @@ export class TxPlan {
    *   deadlines given are the new plan's, also for the steps it holds of this plan, and carry on
    *   to a plan made in its place. The new plan stops when a look of it finds one of those
    *   transactions in a block.
-   * - The addresses a transaction called dead pays, or one found in a block once that the look
-   *   calls expired, at most 16 in a call, are read past the builder's cache: first those of one
-   *   that may pass by time beside a step built, then those of one found in a block once, then the
-   *   rest. A provider's own cache of address reads is not under the library's control, and a list
-   *   it gives counts as its answer.
+   * - The addresses a transaction called dead pays, at most 16 in a call in the order of the line
+   *   (`unread` counts the rest), and those one found in a block once that the look calls expired
+   *   pays, at most 16 more, are read past the builder's cache. A provider's own cache of address
+   *   reads is not under the library's control, and a list it gives counts as its answer.
    * @throws TxPlanError STILL_LIVE (retryable with `details.safeAfter`; without it, of old steps
    *   found in a block once that the search does not find past their ends, its message says so);
    *   CANNOT_OBSERVE (`unconfirmed`, retryable after the builder's `pollMs`; `noTip`; `noValidity`,
@@ -1696,13 +1692,11 @@ export class TxPlan {
       asked: addressOf,
       tip,
       open: classes.open.filter((tx) => !settledOnes.has(tx)),
-      withReads: async (reads, standIns) => {
+      withReads: async (reads) => {
         ({ unread, goneUnread } = await this.#refuseOpenOutputs(
           state,
           base,
           classes.open,
-          classes.kept,
-          standIns,
           reads,
           ask,
         ));
@@ -2172,69 +2166,57 @@ export class TxPlan {
    * CANNOT_OBSERVE (`unconfirmed`) when a list of UTxOs the call reads holds an output of an
    * open transaction of the line, told by its hash: each payer's read, and the read of each
    * address a step of the line that is dead, gone or used up pays, where no payer's read covered
-   * it (at most 16): the search says it is in no block, and the address says it is. Of a used-up
-   * transaction, whose collateral return is on chain for good, only its regular outputs count. A
-   * read of an address that fails, or answers no list, refuses the call with its own error. The
-   * addresses read are those a step that is dead, gone or used up pays, and those an entry of the
-   * plans before that is dead or gone pays, at most 16 in a call: first those of a dead one the
-   * steps about to be built may land beside (one that may pass by time), then those of a gone
-   * one, then the rest. An entry keeps the first 16 addresses its transaction pays; those it
-   * could not keep are counted as unread, though a payer's read may have covered one: the count
-   * may be high, never low
+   * it: the search says it is in no block, and the address says it is. Of a used-up transaction,
+   * whose collateral return is on chain for good, only its regular outputs count. A read of an
+   * address that fails, or answers no list, refuses the call with its own error. The addresses
+   * read are those a step that is dead or used up pays, and those an entry of the plans before
+   * that is dead pays, in the order of the line, at most 16 in a call; then, in a budget of their
+   * own of 16, those a step or an entry that is gone pays. Those left unread of the gone ones
+   * count in no `unread`: while one is, `#refuseGone` gives no message. An entry keeps the first
+   * 16 addresses its transaction pays; those a dead one could not keep are counted as unread,
+   * though a payer's read may have covered one: the count may be high, never low
    * @param open The open transactions of the line to match
-   * @param kept The kept transactions of the line, as the pair rule is given them
-   * @param standIns What is sure of the steps about to be built
-   * @returns how many addresses were left unread past the 16, with those entries could not keep;
-   *   and whether an address of a gone transaction is among them
+   * @returns how many addresses of dead and used-up transactions were left unread past the 16,
+   *   with those dead entries could not keep; and whether an address a gone transaction pays was
+   *   left unread
    * @throws TxBuildError PROVIDER_FAILED, MISSING_FETCHER
    */
   async #refuseOpenOutputs(
     state: PlanState,
     base: PlanRecord,
     open: readonly LineTx[],
-    kept: readonly LineInput[],
-    standIns: StandIns,
     reads: readonly { readonly read: PayerRead }[],
     ask: Ask,
   ): Promise<{ readonly unread: number; readonly goneUnread: boolean }> {
     const stepOf = new Map(
       base.steps.map((step) => [step.txHash.toLowerCase(), step]),
     );
-    // The dead ones that may pass by time: the stand-ins may land beside them
-    const beside = new Set(
-      landsBeside(standIns.steps, open, kept, standIns.earlier).flatMap(
-        (pair) => pair.open.map((tx) => tx.txHash),
-      ),
-    );
     const byHash = new Map<string, LineTx>();
     const outputs = new Map<string, LineTx>();
-    /** The addresses the transactions pay, by need: those that may pass by time first */
-    const passing: string[] = [];
-    const gone: string[] = [];
-    const rest: string[] = [];
-    /** The addresses the expired entries pay that they could not keep */
+    /** The addresses the dead and used-up transactions pay, in their order */
+    const paid: string[] = [];
+    /** The addresses the gone transactions pay, in their order */
+    const gonePaid: string[] = [];
+    /** The addresses the dead entries pay that they could not keep */
     let notKept = 0;
+    /** A gone entry pays an address it could not keep */
     let goneNotKept = false;
     for (const tx of open) {
       const step = stepOf.get(tx.txHash);
-      // A gone one is read as a dead one: a search that lost it may say it is in no block
+      // A gone one is read as a dead one, in a budget of its own: a search that lost it may say
+      // it is in no block
       const expired = tx.dead === true || tx.gone === true;
+      const into = tx.gone === true ? gonePaid : paid;
       if (tx.usedUp !== true) byHash.set(tx.txHash, tx);
       else
         for (const output of step?.built.outputs ?? [])
           outputs.set(outRefKey(output.txHash, output.outputIndex), tx);
-      const into =
-        tx.dead === true && beside.has(tx.txHash)
-          ? passing
-          : tx.gone === true
-            ? gone
-            : rest;
       if (step !== undefined && (expired || tx.usedUp === true))
         into.push(...step.built.outputs.map((output) => output.address));
       else if (step === undefined && expired) {
         into.push(...(tx.pays ?? []));
-        notKept += tx.paysMore ?? 0;
-        if (tx.gone === true && (tx.paysMore ?? 0) > 0) goneNotKept = true;
+        if (tx.gone !== true) notKept += tx.paysMore ?? 0;
+        else if ((tx.paysMore ?? 0) > 0) goneNotKept = true;
       }
     }
     const check = (utxo: { txHash: string; outputIndex: number }) => {
@@ -2254,14 +2236,19 @@ export class TxPlan {
         check(utxo);
       }
     }
-    // Those no read covered, at most 16, by need
-    const unread = Array.from(new Set([...passing, ...gone, ...rest])).filter(
+    // Those no read covered, at most 16; then those of the gone ones, at most 16 more
+    const unread = Array.from(new Set(paid)).filter(
       (address) => !covered.has(address),
     );
     const addresses = unread.splice(0, MAX_PAID_ADDRESSES);
-    const goneUnread =
-      goneNotKept || unread.some((address) => gone.includes(address));
-    const answer = { unread: unread.length + notKept, goneUnread };
+    const goneLeft = Array.from(new Set(gonePaid)).filter(
+      (address) => !covered.has(address) && !addresses.includes(address),
+    );
+    addresses.push(...goneLeft.splice(0, MAX_PAID_ADDRESSES));
+    const answer = {
+      unread: unread.length + notKept,
+      goneUnread: goneNotKept || goneLeft.length > 0,
+    };
     if (addresses.length === 0) return answer;
     const fetcher = internals(state.builder).cache?.fetcher;
     const lists = await ask(

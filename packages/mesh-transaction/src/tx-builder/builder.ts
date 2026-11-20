@@ -328,8 +328,8 @@ export type BuildEvent =
       step: string;
       txHash: string;
       /**
-       * How many addresses the transactions of the call pay that were not read: past the 16 a call
-       * reads, those of a transaction that may pass by time first, and past the first 16 an entry
+       * How many addresses the dead and used-up transactions of the call pay that were not read:
+       * past the 16 a call reads of them, in the order of the line, and past the first 16 an entry
        * of a plan before keeps of those its transaction pays (an address so counted may be one a
        * payer's read covered); absent when none
        */

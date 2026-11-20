@@ -2243,10 +2243,107 @@ describe("the order of the address reads within their cap", () => {
     await carolListsD(await crowd(15, true));
   });
 
-  it("a dead step that pays 16 addresses of its own, kept apart by the guard, beside the dead partner's transaction: the address of the one that may pass by time is read first and answers (CANNOT_OBSERVE); so with a second step of the wallet, which stands on the first", async () => {
+  /**
+   * The new plan is made, d passes by time beside it, and `NO_SHARED_INPUT` names d alone with
+   * `unread`: the 16 addresses of g come first in the line, and d's are left unread. Nothing
+   * names g, which the steps given keep apart
+   */
+  const dUnread = async (
+    ctx: Awaited<ReturnType<typeof crowd>>,
+    steps: Record<string, unknown>,
+    unread: number,
+  ) => {
+    const { old, d } = ctx;
+    const read: string[] = [];
+    ctx.provider.control.hooks.fetchAddressUTxOs = (
+      forward,
+      address: string,
+    ) => {
+      read.push(address);
+      return forward(address);
+    };
+    const events: BuildEvent[] = [];
+    const next = await old.replan({
+      id: "i1",
+      steps,
+      trace: (event: BuildEvent) => void events.push(event),
+    } as never);
+    expect(read).not.toContain(carol);
+    expect(
+      events.filter(
+        (event) => event.type === "warning" && event.code === "NO_SHARED_INPUT",
+      ),
+    ).toEqual([
+      {
+        type: "warning",
+        code: "NO_SHARED_INPUT",
+        step: "d",
+        txHash: d,
+        unread,
+      },
+    ]);
+    expect(old.replacedBy).toBe("i1");
+    return next;
+  };
+
+  it("a dead step that pays 16 addresses of its own, kept apart by the guard, beside the dead partner's transaction: the addresses are read in the order of the line, d's are left unread, and the warning counts them", async () => {
     const ctx = await crowd(16, false);
-    await carolListsD(ctx);
-    await carolListsD(ctx, { e: payTo(alice, 11n * ADA) });
+    const next = await dUnread(ctx, { c: payTo(carol, 13n * ADA) }, 2);
+    expect(names(next)).toEqual(["c"]);
+  });
+
+  it("the same with the wallet's step given built that spends an input of g, and a step of a third payer linked to its output: the same warning, with g's change unread too", async () => {
+    const ctx = await crowd(16, false);
+    const { builder, wallet, old } = ctx;
+    const third = await walletOfIndex(3);
+    const x = await builder.build(
+      [
+        spend.pubKey({ utxo: old.step("g").inputs[0]! }),
+        output({
+          address: (await third.getChangeAddress())!,
+          value: { lovelace: 20n * ADA },
+        }),
+      ],
+      { payer: wallet },
+    );
+    await x.sign();
+    const next = await dUnread(
+      ctx,
+      {
+        x,
+        c: {
+          parts: [
+            spend.pubKey({ utxo: { step: "x", output: 0 } }),
+            output({ address: carol, value: { lovelace: 13n * ADA } }),
+          ],
+          payer: third,
+        },
+      },
+      3,
+    );
+    expect(next.step("c").standsOn).toEqual(["x"]);
+  });
+
+  it("the same with that step of the wallet given as its bytes, and a step of the wallet linked to its change: the same warning", async () => {
+    const ctx = await crowd(16, false);
+    const { builder, wallet, old } = ctx;
+    const x = await builder.build(
+      [spend.pubKey({ utxo: old.step("g").inputs[0]! }), payTo(bob, 3n * ADA)],
+      { payer: wallet },
+    );
+    await x.sign();
+    const next = await dUnread(
+      ctx,
+      {
+        x: x.signedTx!,
+        c: [
+          spend.pubKey({ utxo: { step: "x", output: 1 } }),
+          payTo(carol, 13n * ADA),
+        ],
+      },
+      2,
+    );
+    expect(next.step("c").standsOn).toEqual(["x"]);
   });
 });
 

@@ -1762,7 +1762,7 @@ describe("a plan in place of another", () => {
       expect(names(next)).toEqual(["a"]);
     });
 
-    it("the addresses of an old transaction that may pass by time beside the step added are read before those of one the plan's steps keep apart", async () => {
+    it("the addresses of the old transactions called dead are read in the order of the line, 16 a call: those of one that passes by time, past them, are counted in the warning's unread", async () => {
       const { emulator, provider, builder, wallet } = await stepSetup(
         "scalus",
         { funds: [100n * ADA, 50n * ADA] },
@@ -1810,7 +1810,8 @@ describe("a plan in place of another", () => {
         "g",
         "d",
       ]);
-      // The step added stands on h: g is kept apart from it, d is not
+      // The step added stands on h: g is kept apart from it, d is not. The 16 addresses g's entry
+      // keeps come first in the line, and d's are left unread
       const read: string[] = [];
       provider.control.hooks.fetchAddressUTxOs = (forward, address: string) => {
         read.push(address);
@@ -1818,7 +1819,10 @@ describe("a plan in place of another", () => {
       };
       const told = events.length;
       await next.add({ e: payTo(alice, 11n * ADA) });
-      expect(read).toContain(carol);
+      expect(read).toEqual(
+        expect.arrayContaining([...next.toJSON().before!.open[0]!.pays!]),
+      );
+      expect(read).not.toContain(carol);
       expect(
         events
           .slice(told)

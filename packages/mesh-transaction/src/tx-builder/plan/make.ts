@@ -27,7 +27,7 @@ import type {
   StepGiven,
   StepRecord,
 } from "./core";
-import type { GuardStep, LineInput, LineTx, RuleBody, StepTx } from "./replace";
+import type { GuardStep, LineInput } from "./replace";
 import type {
   PlanOptions,
   PlanStep,
@@ -76,7 +76,7 @@ import {
 import { effectiveDeadlines, horizonSlot } from "./deadlines";
 import { decodeTx, unquoted, UnreadContent } from "./json";
 import { chainObserver } from "./observer";
-import { lineTxOf, outRefsOfParts, rootGuards } from "./replace";
+import { rootGuards } from "./replace";
 
 // Builds a plan: every body at once, in order, each on the UTxOs the steps before it
 // leave. Each payer is read once; each step is built with the steps before it as `after`, so
@@ -1399,13 +1399,9 @@ export const buildAddedSteps = async (
     readonly trace?: MakePlanOptions["trace"];
     /** The change addresses asked before in the call, which the reads must give again */
     readonly asked?: AddressOf;
-    /**
-     * Told each payer's read before any step is built, with what is sure of the steps about to
-     * be built (`standInsOf`); what it throws stops the call
-     */
+    /** Told each payer's read before any step is built; what it throws stops the call */
     readonly withReads?: (
       reads: readonly { readonly step: StepInput; readonly read: PayerRead }[],
-      standIns: StandIns,
     ) => Promise<void>;
   },
 ): Promise<NewStep[]> => {
@@ -1418,14 +1414,14 @@ export const buildAddedSteps = async (
     ...(signal !== undefined && { signal }),
     ...(context.asked !== undefined && { asked: context.asked }),
   });
+  await context.withReads?.(
+    read
+      .filter((step) => step.prebuilt === undefined)
+      .map((step) => ({ step, read: readOf(step) })),
+  );
   const recorded = base.options;
-  const before = base.steps.map((step) => stepBeforeOf(step, recorded));
-  const reads = read
-    .filter((step) => step.prebuilt === undefined)
-    .map((step) => ({ step, read: readOf(step) }));
-  await context.withReads?.(reads, standInsOf(read, reads, before, new Map()));
   const made = await buildSteps(builder, read, {
-    before,
+    before: base.steps.map((step) => stepBeforeOf(step, recorded)),
     after: [],
     tip: context.tip,
     ttlMs: base.deadlines.ttlMs,
@@ -1500,13 +1496,13 @@ export const fillKeptLinks = (
  * holds it (`rootGuards`), as `spend.pubKey({ utxo })`
  * @param open The open transactions that may still land
  * @param reads Each step built from parts, with its payer's read
- * @param prebuilt The steps given built, as `readPrebuilt` read them, or by their objects
+ * @param prebuilt The steps given built, as `readPrebuilt` read them
  */
 const guardsOf = (
   open: readonly LineInput[],
   reads: readonly { readonly step: StepInput; readonly read: PayerRead }[],
   read: readonly StepInput[],
-  prebuilt: ReadonlyMap<string, { readonly built: RuleBody }>,
+  prebuilt: ReadonlyMap<string, PrebuiltRead>,
   taken: readonly StepBefore[],
 ): ReadonlyMap<string, readonly TxPart[]> => {
   const byPayer = new Map<string, readonly Utxo[]>();
@@ -1535,93 +1531,6 @@ const guardsOf = (
       spend.pubKey({ utxo: guard.utxo }),
     ]);
   return parts;
-};
-
-/**
- * What is sure of the steps a loop is about to build, before any is built, as the rule reads
- * transactions: the steps, in their order, and the steps before them they may stand on
- */
-export type StandIns = {
-  readonly steps: readonly LineTx[];
-  readonly earlier: readonly StepTx[];
-};
-
-/**
- * The steps a loop is about to build, by what is sure of them before any is built. A step built
- * from parts spends what its parts and its guards spend, and stands on the step before it of its
- * payer that is not final (by an output of it), as the order rule makes it; a step given as an
- * object is its body. Built, a step spends more, never less, and stands on what this says: an
- * open transaction kept apart from a stand-in is kept apart from that step. A step given as
- * bytes alone is known by nothing, and stands on nothing here; nor does any step after it
- * @param before The steps of the plan before the loop, as it is given them
- * @param guards The parts each step gets beside its own, as `guardsOf` gives them
- */
-const standInsOf = (
-  read: readonly StepInput[],
-  reads: readonly { readonly step: StepInput; readonly read: PayerRead }[],
-  before: readonly StepBefore[],
-  guards: ReadonlyMap<string, readonly TxPart[]>,
-): StandIns => {
-  const payerOf = new Map(
-    reads.map((each) => [each.step.name, each.read.snapshot.changeAddress]),
-  );
-  /** The steps the order rule looks back on: those before, then the stand-ins so far */
-  const chain: {
-    readonly txHash: string;
-    readonly outputs: number;
-    readonly final: boolean;
-    readonly of: (payer: string) => boolean;
-  }[] = before.map((each) => ({
-    txHash: each.built.txHash.toLowerCase(),
-    outputs: each.built.outputs.length,
-    final: each.final,
-    of: (payer) => isOfPayer(each, payer),
-  }));
-  let known = true;
-  const steps = read.map((step, i): LineTx => {
-    const tx = step.prebuilt?.tx;
-    if (tx instanceof BuiltTx) {
-      chain.push({
-        txHash: tx.txHash.toLowerCase(),
-        outputs: tx.outputs.length,
-        final: false,
-        of: (payer) => tx.change.some((output) => output.address === payer),
-      });
-      return lineTxOf({ name: step.name, built: tx });
-    }
-    // No transaction has this hash
-    const txHash = `step-${i}`;
-    const payer = payerOf.get(step.name);
-    if (step.prebuilt !== undefined) known = false;
-    if (step.prebuilt !== undefined || payer === undefined)
-      return { step: step.name, txHash, spends: [], sources: [], refs: [] };
-    const { spent } = outRefsOfParts([
-      ...step.parts,
-      ...(guards.get(step.name) ?? []),
-    ]);
-    const nearest = known
-      ? [...chain].reverse().find((each) => each.of(payer))
-      : undefined;
-    const on =
-      nearest === undefined || nearest.final || nearest.outputs === 0
-        ? []
-        : [`${nearest.txHash}#0`];
-    chain.push({
-      txHash,
-      outputs: 1,
-      final: false,
-      of: (each) => each === payer,
-    });
-    return {
-      step: step.name,
-      txHash,
-      spends: spent,
-      sources: [],
-      refs: [...spent, ...on],
-      outputs: 1,
-    };
-  });
-  return { steps, earlier: before };
 };
 
 /** What a plan made in place of another was built to */
@@ -1720,13 +1629,9 @@ export const buildReplan = async (
      * input it shares with the first step built for the payer that holds it
      */
     readonly open: readonly LineInput[];
-    /**
-     * Told the reads before any step is built, with what is sure of the steps about to be built
-     * (`standInsOf`); what it throws stops the call
-     */
+    /** Told the reads before any step is built; what it throws stops the call */
     readonly withReads: (
       reads: readonly { readonly step: StepInput; readonly read: PayerRead }[],
-      standIns: StandIns,
     ) => Promise<void>;
     readonly keep: (steps: readonly MadeStep[]) => PlanBefore;
     /** The steps of `base` the new plan takes, in the order of `base` */
@@ -1756,6 +1661,7 @@ export const buildReplan = async (
   const reads = read
     .filter((step) => step.prebuilt === undefined)
     .map((step) => ({ step, read: readOf(step) }));
+  await context.withReads(reads);
   const kept = base.steps.filter((step) => step.status === "final");
   const keptNames = new Set(kept.map((step) => step.name));
   const takenNames = new Set(context.taken.map((step) => step.name));
@@ -1781,25 +1687,6 @@ export const buildReplan = async (
         ? [{ ...stepBeforeOf(step, base.options), taken: true as const }]
         : [],
   );
-  const takenBefore = before.filter((step) => step.taken === true);
-  // The guards the build gives, known now when every step given built is an object: its body is
-  // the one its bytes give
-  const objects = new Map<string, { readonly built: RuleBody }>();
-  for (const step of read)
-    if (step.prebuilt?.tx instanceof BuiltTx)
-      objects.set(step.name, { built: step.prebuilt.tx });
-  const known = read.every(
-    (step) => step.prebuilt === undefined || objects.has(step.name),
-  );
-  // A link the build refuses is told by the build, after the reads
-  let guards: ReadonlyMap<string, readonly TxPart[]> = new Map();
-  try {
-    if (known)
-      guards = guardsOf(context.open, reads, read, objects, takenBefore);
-  } catch {
-    guards = new Map();
-  }
-  await context.withReads(reads, standInsOf(read, reads, before, guards));
   // Read from the transactions' own bytes, as `makePlan` reads them
   const after = readAfter(options.after, afterBound(builder.params));
   // The steps given built, read once by the one reader: the guards keep off what they name
@@ -1809,7 +1696,13 @@ export const buildReplan = async (
     ...(merged.knownUtxos !== undefined && { knownUtxos: merged.knownUtxos }),
     ...(signal !== undefined && { signal }),
   });
-  const extra = guardsOf(context.open, reads, read, prebuilt, takenBefore);
+  const extra = guardsOf(
+    context.open,
+    reads,
+    read,
+    prebuilt,
+    before.filter((step) => step.taken === true),
+  );
   const added = new Set<unknown>();
   const given = read.map((step) => {
     const more = extra.get(step.name);
