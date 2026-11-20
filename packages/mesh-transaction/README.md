@@ -1797,7 +1797,7 @@ runs 13 distinct native scripts of 15 643 bytes from its reference inputs (203 3
 the bound lets through) is read in about 0.7 s by `fromCbor` with them in `knownUtxos` and by
 `requiredSigners`, and planned as a step given built in about 1.5 s, its record 4.2 MB; one of 235
 is refused in about 20 ms by each, 50 ms by `plan`. `plan` decodes a step given built twice, so
-one at the bound on nested data takes up to about two seconds there (1.5 to 1.8 s measured). That
+one at the bound on nested data takes up to about two seconds there (1.6 to 2.1 s measured). That
 bound counts a big integer as a tag and one string, though its time grows with the square of its
 length: that matters only with a `maxTxSize` above 64 KB, where one integer of 128 KB takes 1 s in
 a datum and 2 s in metadata. An

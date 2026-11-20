@@ -457,6 +457,16 @@ export type DeclaredOutputs = {
 /** The key `DeclaredOutputs` travels under in the options of a build */
 export const DECLARED_OUTPUTS: unique symbol = Symbol("declared outputs");
 
+/**
+ * The key a plan gives `fromCbor` the UTxOs of its own transactions under, read already from
+ * their bytes, beside the `knownUtxos` of the call: not an option of `fromCbor`, and not
+ * enumerable, which the options refuse. The package does not export it
+ */
+export const PLAN_UTXOS: unique symbol = Symbol("plan's own UTxOs");
+
+/** The options of `fromCbor` with the UTxOs of a plan's own transactions */
+export type PlanOwnUtxos = { readonly [PLAN_UTXOS]?: readonly Utxo[] };
+
 /** Every part kind, once: the compiler checks the list against `TxPart` */
 const PART_KINDS: ReadonlySet<string> = new Set(
   Object.keys({
@@ -2345,9 +2355,16 @@ export class TxBuilder {
         if (past) throw refScriptsRefused(txCbor, past);
       }
     };
+    // A plan's own UTxOs come first, read already: an entry of knownUtxos for one of their out refs
+    // is passed over
+    const unheld = namedOutRefs(decodedBody);
     const known = new Map<string, Utxo>();
+    for (const utxo of (options as PlanOwnUtxos | undefined)?.[PLAN_UTXOS] ??
+      [])
+      if (unheld.delete(utxoKey(utxo))) known.set(utxoKey(utxo), utxo);
+    countScripts(Array.from(known.values()));
     for (const utxo of toKnownUtxos(knownUtxos, {
-      named: namedOutRefs(decodedBody),
+      named: unheld,
       placed: countScripts,
     }))
       known.set(utxoKey(utxo), utxo);

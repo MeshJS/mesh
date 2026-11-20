@@ -42,6 +42,7 @@ import {
   flattenParts,
   isPartKind,
   ownAfterEntry,
+  PLAN_UTXOS,
   readAfter,
 } from "../builder";
 import { BuiltTx, isBuiltHere } from "../built-tx";
@@ -60,14 +61,7 @@ import { validity } from "../parts/scalars";
 import { isLinkedPart } from "../parts/unresolved";
 import { plainUtxo, utxoKey } from "../parts/utxo";
 import { changeAddressOf, givenPayerEntries, toPayerSource } from "../payer";
-import {
-  readTransaction,
-  readTransactionItems,
-  refScriptBytes,
-  refScriptsBeyond,
-  refScriptsRefused,
-  spentAndRead,
-} from "../sign";
+import { readTransactionItems } from "../sign";
 import { scanTransaction } from "../tx-scan";
 import { addValues, fromMultiAsset, negate, valueOf } from "../value";
 import {
@@ -2055,10 +2049,12 @@ const keptAmong = (
  * `builder.fromCbor`, the public reader, from the bytes given or the object's `partialTx`, with
  * the UTxOs the plan knows: the outputs of the steps before and of the steps given built before
  * it, from their own transactions; then those of the transactions of `after`, read from their
- * own bytes at the door (`readAfter`); then the
- * `knownUtxos` the call builds with; each out ref once, the first. Any other is read through the
- * provider. The object `fromCbor` returns becomes the step through its JSON and the reader of a
- * record: so a step enters a plan as a record gives it back.
+ * own bytes at the door (`readAfter`); then the `knownUtxos` the call builds with, as given; each
+ * out ref once, the first. The reader counts the reference scripts of all of them before it reads
+ * an entry of `knownUtxos` whole, from the one decode of the step it makes, and reads only the
+ * entries for the out refs the step names. Any other is read through the provider. The object
+ * `fromCbor` returns becomes the step through its JSON and the reader of a record: so a step
+ * enters a plan as a record gives it back.
  * @throws every error of `fromCbor`, with the step's name at the start of its message;
  *   TxBuildError INVALID_OPTION (`steps`) for a transaction a record does not hold, an object
  *   that lists another number of outputs, a transaction the plan has under another name, and
@@ -2077,30 +2073,6 @@ const readPrebuilt = async (
 ): Promise<Map<string, PrebuiltRead>> => {
   const read = new Map<string, PrebuiltRead>();
   const done: { readonly name: string; readonly built: BuiltTxData }[] = [];
-  // The reference scripts of each step given built are bounded as a node bounds them, before a
-  // UTxO of knownUtxos is read whole; a transaction that cannot be read is refused by fromCbor
-  for (const step of given) {
-    if (step.prebuilt === undefined) continue;
-    let refs: string[];
-    try {
-      scanTransaction(step.prebuilt.text, builder.params?.maxTxSize);
-      refs = spentAndRead(readTransaction(step.prebuilt.text).body);
-    } catch {
-      continue;
-    }
-    const past = refScriptsBeyond(
-      refScriptBytes(refs, [
-        ...context.before.flatMap((each) => each.built.outputs),
-        ...context.after.flatMap((each) => each.outputs),
-        ...(Array.isArray(context.knownUtxos)
-          ? (context.knownUtxos as readonly unknown[])
-          : []),
-      ]),
-    );
-    if (past)
-      throw withStep(refScriptsRefused(step.prebuilt.text, past), step.name);
-  }
-  const known = toKnownUtxos(context.knownUtxos);
   // The transactions of `after` were read from their own bytes at the door
   const ofAfter = context.after.flatMap((each) => each.outputs);
   for (const step of given) {
@@ -2108,20 +2080,21 @@ const readPrebuilt = async (
     const { name } = step;
     const { tx, text } = step.prebuilt;
     try {
-      // The plan's own transactions first: an entry of knownUtxos never replaces one of them
-      const knownUtxos = new Map<string, Utxo>();
-      const put = (utxo: Utxo) => {
-        const key = utxoKey(utxo);
-        if (!knownUtxos.has(key)) knownUtxos.set(key, plainUtxo(utxo));
-      };
-      for (const each of [...context.before, ...done])
-        each.built.outputs.forEach(put);
-      ofAfter.forEach(put);
-      known.forEach(put);
-      const object = await abortable(
-        builder.fromCbor(text, {
-          knownUtxos: Array.from(knownUtxos.values()),
+      // The plan's own transactions first: an entry of knownUtxos never replaces one of them. The
+      // reader counts the reference scripts of both, then reads the entries of knownUtxos the
+      // step names, in the one decode of the step it makes
+      const own = [
+        ...[...context.before, ...done].flatMap((each) => each.built.outputs),
+        ...ofAfter,
+      ].map(plainUtxo);
+      const options = {
+        ...(context.knownUtxos !== undefined && {
+          knownUtxos: context.knownUtxos,
         }),
+      };
+      Object.defineProperty(options, PLAN_UTXOS, { value: own });
+      const object = await abortable(
+        builder.fromCbor(text, options),
         context.signal,
         CALL,
       );
