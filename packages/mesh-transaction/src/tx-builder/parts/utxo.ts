@@ -290,119 +290,95 @@ const unknownScript = (scriptRef: string, stated?: string): OutputScript => ({
   ...(stated !== undefined && { hash: stated }),
 });
 
-/** The head of a CBOR item: its major type, its argument, undefined for an indefinite length */
-type Head = { major: number; value: bigint | undefined; next: number };
-
-/** The head of the item at `at`, read from the bytes; undefined where it is not well formed */
-const headAt = (bytes: Uint8Array, at: number): Head | undefined => {
-  const initial = bytes[at];
-  if (initial === undefined) return undefined;
-  const major = initial >> 5;
-  const info = initial & 0x1f;
-  if (info < 24) return { major, value: BigInt(info), next: at + 1 };
-  if (info === 31) return { major, value: undefined, next: at + 1 };
-  if (info > 27) return undefined;
-  const size = 2 ** (info - 24);
-  if (at + 1 + size > bytes.length) return undefined;
-  let value = 0n;
-  for (let i = 1; i <= size; i++)
-    value = (value << 8n) | BigInt(bytes[at + i]!);
-  return { major, value, next: at + 1 + size };
-};
-
 /** The largest integer of 64 bits, the `n` of `[3, n, scripts]` as the ledger reads it */
 const MAX_INT64 = 2n ** 63n - 1n;
 
 /** A list of native scripts while it is read */
 type ScriptList = {
   readonly scripts: NativeScriptPrototype[];
-  /** The scripts left to read in a list of definite length; undefined for indefinite length */
-  left: number | undefined;
-  /** Whether the script that holds the list is of indefinite length: a break follows the list */
-  readonly closes: boolean;
+  /** Whether it stands for `[0, script]`, the list of the one script read */
+  readonly top: boolean;
   readonly level: number;
 };
 
 /**
- * The native script the bytes hold whole, read as the ledger reads one, with no call of itself at
- * any depth and in a time that grows with their size: `[0, key hash of 28 bytes]`,
+ * The native script `hex` holds whole, read as the ledger reads one, on the token reader of
+ * `@cardano-sdk/core`, with no call of itself at any depth: `[0, key hash of 28 bytes]`,
  * `[1, scripts]`, `[2, scripts]`, `[3, n, scripts]`, `[4, slot]`, `[5, slot]`, each script and
  * each list of scripts of definite or indefinite length; its kind and a slot an unsigned integer
  * of up to 8 bytes, `n` an integer of 64 bits, in a form of any length. The script is in the form
  * `TxSigners.nativeScripts` lists. `depth` counts each array one level, `[0, script]` around it
- * the first, as the walk counts the CBOR of a reference script. Undefined for anything else: what
- * the ledger does not read, and a key hash written in pieces, which the ledger is not known to read
+ * the first, as the walk counts the CBOR of a reference script. The reader copies the bytes left
+ * at each item, so the time grows with the square of the size, which the callers bound. Undefined
+ * for anything else: what the ledger does not read, CBOR that is not well formed, and a key hash
+ * written in pieces, which the ledger is not known to read
  */
 const readNative = (
-  bytes: Uint8Array,
+  hex: string,
 ): { script: NativeScriptPrototype; depth: number } | undefined => {
-  let at = 0;
-  let depth = 1;
-  const top: NativeScriptPrototype[] = [];
-  // The lists being read, the innermost last; the script itself is the one script of a list
-  const lists: ScriptList[] = [
-    { scripts: top, left: 1, closes: false, level: 1 },
-  ];
-  const uint = () => {
-    const head = headAt(bytes, at);
-    if (head?.major !== 0 || head.value === undefined) return undefined;
-    at = head.next;
-    return head.value;
-  };
-  /** Reads the break that ends a script of indefinite length */
-  const closed = () => bytes[at++] === 0xff;
-  while (lists.length > 0) {
-    const list = lists[lists.length - 1]!;
-    if (list.left === 0 || (list.left === undefined && bytes[at] === 0xff)) {
-      if (list.left === undefined) at++;
-      lists.pop();
-      if (list.closes && !closed()) return undefined;
-      continue;
-    }
-    if (list.left !== undefined) list.left--;
-    const level = list.level + 1;
-    depth = Math.max(depth, level);
-    const open = headAt(bytes, at);
-    if (open?.major !== 4) return undefined;
-    at = open.next;
-    const kind = uint();
-    if (kind === undefined || kind > 5n) return undefined;
-    if (open.value !== undefined && open.value !== (kind === 3n ? 3n : 2n))
-      return undefined;
-    const indefinite = open.value === undefined;
-    if (kind === 0n) {
-      const key = headAt(bytes, at);
-      if (key?.major !== 2 || key.value !== 28n || key.next + 28 > bytes.length)
-        return undefined;
-      at = key.next + 28;
-      list.scripts.push({
-        type: "SCRIPT_PUBKEY",
-        value: { addr_keyhash: hexOf(bytes.subarray(key.next, at)) },
-      });
-    } else if (kind >= 4n) {
-      const slot = uint();
-      if (slot === undefined) return undefined;
-      list.scripts.push({
-        type: kind === 4n ? "TIMELOCK_START" : "TIMELOCK_EXPIRY",
-        value: { slot: slot.toString() },
-      });
-    } else {
+  try {
+    const reader = new CborReader(HexBlob(hex));
+    let depth = 1;
+    const top: NativeScriptPrototype[] = [];
+    // The lists being read, the innermost last
+    const lists: ScriptList[] = [{ scripts: top, top: true, level: 1 }];
+    /** Reads the end of the array of a script, which no other item may come before */
+    const closed = () => {
+      if (reader.peekState() !== State.EndArray) return false;
+      reader.readEndArray();
+      return true;
+    };
+    while (lists.length > 0) {
+      const list = lists[lists.length - 1]!;
+      if (list.top ? top.length === 1 : reader.peekState() === State.EndArray) {
+        lists.pop();
+        // The list, then the array of the script that holds it
+        if (!list.top) {
+          reader.readEndArray();
+          if (!closed()) return undefined;
+        }
+        continue;
+      }
+      const level = list.level + 1;
+      depth = Math.max(depth, level);
+      if (reader.peekState() !== State.StartArray) return undefined;
+      const length = reader.readStartArray();
+      if (reader.peekState() !== State.UnsignedInteger) return undefined;
+      const kind = reader.readUInt();
+      if (kind > 5n) return undefined;
+      if (length !== null && length !== (kind === 3n ? 3 : 2)) return undefined;
+      if (kind === 0n) {
+        if (reader.peekState() !== State.ByteString) return undefined;
+        const key = reader.readByteString();
+        if (key.length !== 28) return undefined;
+        list.scripts.push({
+          type: "SCRIPT_PUBKEY",
+          value: { addr_keyhash: hexOf(key) },
+        });
+        if (!closed()) return undefined;
+        continue;
+      }
+      if (kind >= 4n) {
+        if (reader.peekState() !== State.UnsignedInteger) return undefined;
+        const slot = reader.readUInt();
+        list.scripts.push({
+          type: kind === 4n ? "TIMELOCK_START" : "TIMELOCK_EXPIRY",
+          value: { slot: slot.toString() },
+        });
+        if (!closed()) return undefined;
+        continue;
+      }
       let n = 0n;
       if (kind === 3n) {
-        const required = headAt(bytes, at);
-        if (
-          required === undefined ||
-          (required.major !== 0 && required.major !== 1) ||
-          required.value === undefined ||
-          required.value > MAX_INT64
-        )
-          return undefined;
-        n = required.major === 0 ? required.value : -1n - required.value;
-        at = required.next;
+        const state = reader.peekState();
+        if (state === State.UnsignedInteger) n = reader.readUInt();
+        else if (state === State.NegativeInteger)
+          n = -1n - reader.readCborNegativeIntegerRepresentation();
+        else return undefined;
+        if (n > MAX_INT64 || n < -1n - MAX_INT64) return undefined;
       }
-      const inner = headAt(bytes, at);
-      if (inner?.major !== 4) return undefined;
-      at = inner.next;
+      if (reader.peekState() !== State.StartArray) return undefined;
+      reader.readStartArray();
       const scripts: NativeScriptPrototype[] = [];
       list.scripts.push(
         kind === 1n
@@ -412,17 +388,14 @@ const readNative = (
             : { type: "SCRIPT_N_OF_K", value: { n, native_scripts: scripts } },
       );
       depth = Math.max(depth, level + 1);
-      lists.push({
-        scripts,
-        left: inner.value === undefined ? undefined : Number(inner.value),
-        closes: indefinite,
-        level: level + 1,
-      });
-      continue;
+      lists.push({ scripts, top: false, level: level + 1 });
     }
-    if (indefinite && !closed()) return undefined;
+    return reader.getBytesRemaining() === 0
+      ? { script: top[0]!, depth }
+      : undefined;
+  } catch {
+    return undefined;
   }
-  return at === bytes.length ? { script: top[0]!, depth } : undefined;
 };
 
 /**
@@ -453,7 +426,7 @@ const readScriptRef = (
     if (tag === 0) {
       // One in an output is part of a transaction, so none on chain is larger than one
       if (script.length / 2 > MAX_TX_BYTES) return undefined;
-      if (!readNative(Buffer.from(script, "hex"))) return undefined;
+      if (!readNative(script)) return undefined;
       return { tag, script, hashed: script };
     }
     if (reader.peekState() !== State.ByteString) return undefined;
@@ -514,7 +487,7 @@ export const heldNativeScript = (
   script: OutputScript | undefined,
 ): { script: NativeScriptPrototype; hash: string } | undefined => {
   if (script?.type !== "native") return undefined;
-  const read = readNative(Buffer.from(script.cbor, "hex"));
+  const read = readNative(script.cbor);
   return read !== undefined && read.depth <= MAX_TX_DEPTH
     ? { script: read.script, hash: script.hash }
     : undefined;

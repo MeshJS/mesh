@@ -1365,6 +1365,46 @@ describe("Utxo scripts", () => {
     }
   });
 
+  it("is unknown, as given, for a native script of indefinite length with an item after its fields, which the ledger does not read, and refused in the builder's form", () => {
+    const items = [
+      cbor.arrIndef(cbor.uint(0), cbor.bytes(keyHashHex(1)), cbor.uint(0)),
+      cbor.arrIndef(cbor.uint(1), cbor.arr(), cbor.uint(0)),
+      cbor.arrIndef(cbor.uint(4), cbor.uint(0), cbor.uint(0)),
+      cbor.arrIndef(cbor.uint(3), cbor.uint(1), cbor.arr(), cbor.arr()),
+      cbor.arr(
+        cbor.uint(1),
+        cbor.arr(
+          cbor.arrIndef(cbor.uint(0), cbor.bytes(keyHashHex(1)), cbor.uint(0)),
+        ),
+      ),
+    ];
+    for (const native of items) {
+      const scriptRef = `8200${native}`;
+      for (const form of [
+        meshWith({ scriptRef }),
+        ownWith({ script: { type: "unknown", scriptRef } }),
+        inCbor(scriptRef),
+      ])
+        expect([native, toUtxo(form as UtxoInput).script]).toStrictEqual([
+          native,
+          { type: "unknown", scriptRef },
+        ]);
+      expect([native, heldNativeScript(describeScriptRef(scriptRef))]).toEqual([
+        native,
+        undefined,
+      ]);
+      expect(() =>
+        readUtxo(ownWith({ script: { type: "native", cbor: native } })),
+      ).toThrow(`the UTxO ${hash(1)}#0: the native script cannot be read`);
+    }
+    // Without the item after them, each is read
+    expect(
+      describeScriptRef(
+        `8200${cbor.arrIndef(cbor.uint(0), cbor.bytes(keyHashHex(1)))}`,
+      ).type,
+    ).toBe("native");
+  });
+
   it("reads an unknown script again: what can be read is described", () => {
     const utxo = toUtxo({
       ...ada.utxo,
