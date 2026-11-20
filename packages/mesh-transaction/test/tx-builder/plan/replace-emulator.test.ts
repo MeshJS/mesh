@@ -1566,6 +1566,83 @@ describe("a plan in place of another", () => {
       expect(old.replacedBy).toBeUndefined();
     });
 
+    it("an address that lists an output of a used-up step: the call waits, and the message says the search finds it in a block with its script failed", async () => {
+      const { emulator, provider, builder, wallet } = await stepSetup(
+        "scalus",
+        {
+          funds: [100n * ADA, 50n * ADA],
+          builder: { planDefaults: { ...FAST, confirmations: 3 } },
+        },
+      );
+      const locked = emulator.fund(builder.scriptAddress(plutus), {
+        lovelace: 10n * ADA,
+      });
+      const old = await builder.plan(
+        {
+          a: payTo(alice, 11n * ADA),
+          s: [
+            spend.plutus({
+              utxo: locked,
+              script: plutus,
+              redeemer: { data: mConStr0([]) },
+            }),
+            payTo(bob, 12n * ADA),
+          ],
+        },
+        { id: "order", payer: wallet },
+      );
+      await old.run({ waitFor: "sent" });
+      await old.refresh();
+      await old.run({ waitFor: "sent", submitter: swallowing() });
+      const sHash = old.step("s").txHash;
+      const at = emulator.slot;
+      provider.control.hooks.fetchTxInfo = async (forward, hash: string) =>
+        hash === sHash
+          ? {
+              hash: sHash,
+              slot: at - 20,
+              block: "b".repeat(64),
+              blockHeight: at - 20,
+              validContract: false,
+            }
+          : forward(hash);
+      advance(emulator, 1);
+      await old.refresh();
+      expect(statuses(old)).toEqual({ a: "included", s: "failed" });
+      // The provider lists the regular output of s, which a failed script does not make
+      const paid = old.step("s").outputs.find((o) => o.address === bob)!;
+      provider.control.hooks.fetchAddressUTxOs = async (
+        forward,
+        address: string,
+      ) => {
+        const listed = await forward(address);
+        return address === bob
+          ? [
+              ...listed,
+              {
+                input: { txHash: sHash, outputIndex: paid.outputIndex },
+                output: {
+                  address: bob,
+                  amount: [{ unit: "lovelace", quantity: "12000000" }],
+                },
+              },
+            ]
+          : listed;
+      };
+      const error = await caught(
+        old.replan({ id: "order:2", steps: { s: payTo(bob, 12n * ADA) } }),
+      );
+      expect([error.code, reasonOf(error), error.txHash]).toEqual([
+        "CANNOT_OBSERVE",
+        "unconfirmed",
+        sHash,
+      ]);
+      expect(error.message).toContain(
+        `an address lists ${sHash}#${paid.outputIndex}, an output of step "s" (${sHash}), which the search finds in a block with its script failed, so that its collateral return is its one output`,
+      );
+      expect(old.replacedBy).toBeUndefined();
+    });
+
     it("two plans on, the payment of a transaction of the plans before at the address a dead step pays: CANNOT_OBSERVE", async () => {
       const hidden = new Set<string>();
       const { emulator, builder, wallet } = await stepSetup("scalus", {

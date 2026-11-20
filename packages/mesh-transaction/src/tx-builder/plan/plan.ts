@@ -624,6 +624,8 @@ type Observed = {
   readonly noValidity: boolean;
   /** A step was found while the tip or the find has no block height */
   readonly noDepth: boolean;
+  /** A search answered that the provider cannot search for a transaction */
+  readonly noSearch: boolean;
   /** What each search of the look answered */
   readonly answers: readonly LookAnswer[];
 };
@@ -1149,6 +1151,7 @@ export class TxPlan {
           base,
           tip,
           "nothing was added",
+          seen,
         );
         this.#refuseStandingOnOpen(newSteps, line);
         this.#refuseHeld(apart.held, base);
@@ -1408,15 +1411,17 @@ export class TxPlan {
    *   deadlines given are the new plan's, also for the steps it holds of this plan, and carry on
    *   to a plan made in its place. The new plan stops when a look of it finds one of those
    *   transactions in a block.
-   * - The addresses a transaction called dead pays, at most 16 in a call in the order of the line
-   *   (`unread` counts the rest), and those one found in a block once that the look calls expired
-   *   pays, at most 16 more, are read past the builder's cache. A provider's own cache of address
-   *   reads is not under the library's control, and a list it gives counts as its answer.
+   * - The addresses the dead and the used-up transactions pay, at most 16 in a call in the order
+   *   of the line (`unread` counts the rest), and those one found in a block once that the look
+   *   calls expired pays, at most 16 more, are read past the builder's cache. A provider's own
+   *   cache of address reads is not under the library's control, and a list it gives counts as
+   *   its answer.
    * @throws TxPlanError STILL_LIVE (retryable with `details.safeAfter`; without it, of old steps
    *   found in a block once that the search does not find past their ends, its message says so);
    *   CANNOT_OBSERVE (`unconfirmed`, retryable after the builder's `pollMs`; `noTip`; `noValidity`,
    *   not retryable, for a transaction that runs a Plutus script found by a provider that does not
-   *   say whether its scripts passed; `noSearch`, `noDepth` from probing the provider);
+   *   say whether its scripts passed; `noSearch`, `noDepth` from probing the provider, and
+   *   `noSearch` for a provider that cannot search where the call would wait on its search);
    *   INVALID_STATE (`final`) for a final plan, also one that came to final while the new plan
    *   was built, (`stopped`) for a plan replaced by a plan of another id, or by one this object
    *   does not hold and no store can tell of, (`pastHorizon`), (`recordVersion`) for a stored
@@ -1713,16 +1718,21 @@ export class TxPlan {
             !notFoundByLook(seen.answers, step.txHash) ||
             !pastMarginAt(stepUntil(step), base.deadlines.expiryMarginMs, tip),
         );
-        if (hidden !== undefined)
+        if (hidden !== undefined) {
+          // A provider that cannot search never answers it: the wait would never end
+          if (seen.noSearch) throw this.#noSearch();
           throw this.#unconfirmed(
             `step ${JSON.stringify(hidden.name)} is past its end of validity and may be in a block the search does not show, or have been sent by another party before its end`,
             hidden.txHash,
           );
+        }
         const first = late[0];
         if (first !== undefined)
           throw stepsRefused(
             first.kind === "prebuilt"
-              ? `step ${JSON.stringify(first.name)} was given built and its end of validity has passed: the same transaction cannot land; give the steps of the new plan`
+              ? first.seen !== undefined
+                ? `step ${JSON.stringify(first.name)} was given built, its end of validity has passed, and the search does not find it, though a look found it in a block once: if it is in a block, the provider lost it, and else the same transaction cannot land; give the steps of the new plan`
+                : `step ${JSON.stringify(first.name)} was given built and its end of validity has passed: the same transaction cannot land; give the steps of the new plan`
               : `step ${JSON.stringify(first.name)} cannot be built again as it was given: its parts give an end of validity, and the chain's tip has passed it, so the transaction could not land; give the steps of the new plan`,
           );
         if (unheld !== undefined)
@@ -1761,6 +1771,7 @@ export class TxPlan {
       base,
       tip,
       "nothing was written",
+      seen,
     );
     this.#refuseStandingOnOpen(made.steps, classes.open);
     this.#refuseHeld(apart.held);
@@ -1899,6 +1910,15 @@ export class TxPlan {
         `the plan was replaced by ${JSON.stringify(record.replacedBy)}: a plan is replaced once, and the plan made in its place is the one to replan`,
         { details: { reason: "stopped" } },
       );
+  }
+
+  /** CANNOT_OBSERVE (`noSearch`), as for a provider a plan cannot follow: not retryable */
+  #noSearch() {
+    return this.#error(
+      "CANNOT_OBSERVE",
+      "the provider cannot follow the plan: it cannot search for a transaction; use another provider",
+      { details: { reason: "noSearch" } },
+    );
   }
 
   /**
@@ -2223,7 +2243,7 @@ export class TxPlan {
       const tx = byHash.get(utxo.txHash.toLowerCase()) ?? outputs.get(outRef);
       if (tx !== undefined)
         throw this.#unconfirmed(
-          `an address lists ${outRef}, an output of step ${JSON.stringify(tx.step)} (${tx.txHash}), which the search does not find in a block`,
+          `an address lists ${outRef}, an output of step ${JSON.stringify(tx.step)} (${tx.txHash}), ${tx.usedUp === true ? "which the search finds in a block with its script failed, so that its collateral return is its one output" : "which the search does not find in a block"}`,
           tx.txHash,
         );
     };
@@ -2297,16 +2317,19 @@ export class TxPlan {
   /**
    * The pairs `landsBeside` gives, judged: a transaction that is dead passes; any other refuses
    * the call, STILL_LIVE, with every such hash and, when time settles them all, `safeAfter`,
-   * never in the past: past it, CANNOT_OBSERVE (`unconfirmed`), the look did not settle them
+   * never in the past: past it, CANNOT_OBSERVE (`unconfirmed`), the look did not settle them,
+   * and `noSearch` when the provider cannot search, which would never settle them
    * @param done What the call did not do
+   * @param seen The look of the call
    * @returns the dead transactions a step passed beside
-   * @throws TxPlanError STILL_LIVE
+   * @throws TxPlanError STILL_LIVE, CANNOT_OBSERVE
    */
   #judgePairs(
     pairs: readonly { readonly open: readonly LineTx[] }[],
     base: PlanRecord,
     tip: PlanTip,
     done: string,
+    seen: Observed,
   ): LineTx[] {
     const live = new Map<string, LineTx>();
     const dead = new Map<string, LineTx>();
@@ -2323,12 +2346,20 @@ export class TxPlan {
       : undefined;
     const waitMs = safeAfter === undefined ? 0 : safeAfter - tip.timeMs;
     // Past their end and the margin by the tip, and still not dead: this look did not settle
-    // them (a search that gave no answer, or a clock behind the tip). Time has done its part
-    if (safeAfter !== undefined && waitMs <= 0)
+    // them (a search that gave no answer, a transaction that funds one that is not found either,
+    // or a clock behind the tip). Time has done its part
+    if (safeAfter !== undefined && waitMs <= 0) {
+      if (seen.noSearch) throw this.#noSearch();
+      const one = txs.length === 1;
       throw this.#unconfirmed(
-        `${txs.map((tx) => `step ${JSON.stringify(tx.step)} (${tx.txHash})`).join(", ")} of this plan or a plan before it ${txs.length === 1 ? "is" : "are"} past the end of validity and the margin, and the search did not answer that it is not found (or the local clock is behind the tip): ${done}`,
+        `${txs.map((tx) => `step ${JSON.stringify(tx.step)} (${tx.txHash})`).join(", ")} of this plan or a plan before it ${one ? "is" : "are"} past the end of validity and the margin, and ${
+          txs.every((tx) => notFoundByLook(seen.answers, tx.txHash))
+            ? `the search answered that it does not find ${one ? "it" : "them"}, and the look does not call ${one ? "it" : "them"} expired, as it does not find the transaction that funds ${one ? "it" : "each"} in a block either`
+            : "the search did not answer that it is not found (or the local clock is behind the tip)"
+        }: ${done}`,
         txs[0]!.txHash,
       );
+    }
     const named = txs
       .map((tx) => `step ${JSON.stringify(tx.step)} (${tx.txHash})`)
       .join(", ");
@@ -2812,7 +2843,12 @@ export class TxPlan {
    * the look finds in a block is told to `trace`.
    */
   async #look(state: PlanState, ask: Ask, line = false): Promise<Observed> {
-    let seen: Observed = { noValidity: false, noDepth: false, answers: [] };
+    let seen: Observed = {
+      noValidity: false,
+      noDepth: false,
+      noSearch: false,
+      answers: [],
+    };
     // Each round searches steps no round of this look searched; a round that finds a step in a
     // block lets the next one search the steps that stand on it. Every round searches one step
     // more at least, so a look ends
@@ -2854,6 +2890,7 @@ export class TxPlan {
           : seen.tip !== undefined && { tip: seen.tip }),
         noValidity: seen.noValidity || found.noValidity,
         noDepth: seen.noDepth || found.noDepth,
+        noSearch: seen.noSearch || found.noSearch,
         answers: [...answers.values()],
       };
       if (watched.length === 0) break;
@@ -3010,6 +3047,10 @@ export class TxPlan {
       ...(tip !== undefined && { tip }),
       noValidity,
       noDepth,
+      noSearch: all.some((txHash) => {
+        const search = searches.get(txHash);
+        return search !== undefined && "unsupported" in search;
+      }),
       answers,
     };
   }

@@ -1930,6 +1930,183 @@ describe("a step left whose end of validity has passed", () => {
     expect(times(emulator, carol, 13n * ADA)).toBe(1);
   });
 
+  /**
+   * A partner's transaction given built that pays carol 13 ada, in a plan with `b`; `fork`, the
+   * chain as it was before the partner was funded
+   */
+  const partnerPlan = async (
+    planDefaults: NonNullable<
+      Parameters<typeof storeSetup>[0]
+    >["planDefaults"] = {
+      ...FAST,
+      confirmations: 1000,
+    },
+  ) => {
+    const ctx = await storeSetup({
+      funds: [100n * ADA, 50n * ADA],
+      planDefaults,
+    });
+    const { emulator, builder, wallet } = ctx;
+    const fork = emulator.fork();
+    const partner = await walletOfIndex(1);
+    const partnerAddress = (await partner.getChangeAddress())!;
+    const own = emulator.fund(partnerAddress, { lovelace: 100n * ADA });
+    const built = await builder.build(
+      [
+        spend.pubKey({ utxo: own }),
+        output({ address: carol, value: { lovelace: 13n * ADA } }),
+        validity({ until: builder.timeAt(emulator.slot) + 300_000 }),
+      ],
+      { payer: partner },
+    );
+    await built.sign();
+    const old = await builder.plan(
+      { p: built, b: payTo(alice, 11n * ADA) },
+      { id: "order", payer: wallet },
+    );
+    return {
+      ...ctx,
+      built,
+      old,
+      p: old.step("p").txHash,
+      partner,
+      partnerAddress,
+      fork,
+    };
+  };
+
+  it("a provider that cannot search, the partner's step sent, past its end and the margin: no answer ever comes, and the call says so (CANNOT_OBSERVE, noSearch), with steps too; carol is paid once", async () => {
+    const { emulator, provider, built, old, store } = await partnerPlan();
+    await emulator.submitTx(built.signedTx!);
+    provider.control.hooks.fetchTxInfo = null;
+    for (const slots of [1000, 100_000]) {
+      advance(emulator, slots);
+      await old.refresh().catch(() => undefined);
+      for (const steps of [undefined, { c: payTo(carol, 13n * ADA) }]) {
+        const error = await caught(
+          old.replan({ id: "i1", ...(steps && { steps }) }),
+        );
+        expect([error.code, reasonOf(error), error.retryable]).toEqual([
+          "CANNOT_OBSERVE",
+          "noSearch",
+          false,
+        ]);
+        expect(error.message).toMatch(
+          /^the provider cannot follow the plan: it cannot search for a transaction; use another provider/,
+        );
+      }
+    }
+    expect(await store.inner.load("i1")).toBeUndefined();
+    expect(times(emulator, carol, 13n * ADA)).toBe(1);
+  });
+
+  it("a partner's step whose funding transaction a rollback took out for good, with steps, past its end and the margin: the message says the search answered that it does not find the step, and the look does not call it expired, as it does not find the transaction that funds it", async () => {
+    const { emulator, provider, old, p, store, fork } = await partnerPlan({
+      ...FAST,
+      expiryMarginMs: 60_000,
+    });
+    await caught(
+      old.run({
+        submitter: submitterOf(async (tx) => {
+          const txHash = await hashOf(tx);
+          return txHash === p ? txHash : emulator.submitTx(tx);
+        }),
+        timeoutMs: 300,
+      }),
+    );
+    fork.advanceTo({ slot: emulator.slot + 1000 });
+    provider.control.target = fork;
+    await old.refresh();
+    expect(old.step("p").status).toBe("sent");
+    const error = await caught(
+      old.replan({ id: "i1", steps: { c: payTo(carol, 13n * ADA) } }),
+    );
+    expect([error.code, reasonOf(error), error.txHash]).toEqual([
+      "CANNOT_OBSERVE",
+      "unconfirmed",
+      p,
+    ]);
+    expect(error.message).toContain(
+      `step "p" (${p}) of this plan or a plan before it is past the end of validity and the margin, and the search answered that it does not find it, and the look does not call it expired, as it does not find the transaction that funds it in a block either`,
+    );
+    expect(await store.inner.load("i1")).toBeUndefined();
+  });
+
+  it("a partner's step found in a block, which the search then loses while it stays there, its outputs spent, past its end: the refusal says the search does not find it, and that if it is in a block the provider lost it", async () => {
+    const ctx = await storeSetup({
+      funds: [100n * ADA, 50n * ADA],
+      planDefaults: { ...FAST, confirmations: 1000 },
+    });
+    const { emulator, provider, builder, wallet } = ctx;
+    const partner = await walletOfIndex(1);
+    const partnerAddress = (await partner.getChangeAddress())!;
+    const own = emulator.fund(partnerAddress, { lovelace: 100n * ADA });
+    const recipient = await walletOfIndex(2);
+    const to = (await recipient.getChangeAddress())!;
+    const built = await builder.build(
+      [
+        spend.pubKey({ utxo: own }),
+        output({ address: to, value: { lovelace: 13n * ADA } }),
+        validity({ until: builder.timeAt(emulator.slot) + 300_000 }),
+      ],
+      { payer: partner },
+    );
+    await built.sign();
+    const old = await builder.plan(
+      { p: built, b: payTo(alice, 11n * ADA) },
+      { id: "order", payer: wallet },
+    );
+    const p = old.step("p").txHash;
+    await old
+      .run({ waitFor: "included", signers: [wallet] })
+      .catch(() => undefined);
+    expect(old.step("p").status).toBe("included");
+    provider.control.hooks.fetchTxInfo = (forward, hash: string) => {
+      if (hash.toLowerCase() === p)
+        throw Object.assign(new Error("not found"), {
+          kind: "notFound",
+          status: 404,
+        });
+      return forward(hash);
+    };
+    for (const [owner, address] of [
+      [recipient, to],
+      [partner, partnerAddress],
+    ] as const) {
+      const [left] = emulator
+        .utxos({ address })
+        .filter((utxo) => utxo.input.txHash === p);
+      const move = await builder.build(
+        [
+          spend.pubKey({
+            utxo: {
+              txHash: left!.input.txHash,
+              outputIndex: left!.input.outputIndex,
+            },
+          }),
+          payTo(bob, 2n * ADA),
+        ],
+        { payer: owner },
+      );
+      await move.sign();
+      await emulator.submitTx(move.signedTx!);
+    }
+    advance(emulator, 400);
+    await old.refresh();
+    await old.refresh();
+    expect(old.step("p").status).toBe("expired");
+    expect(old.step("p").seen).toBeDefined();
+    const error = await caught(old.replan({ id: "i1" }));
+    expect([error.code, error.details.option]).toEqual([
+      "INVALID_OPTION",
+      "steps",
+    ]);
+    expect(error.message).toContain(
+      `step "p" was given built, its end of validity has passed, and the search does not find it, though a look found it in a block once: if it is in a block, the provider lost it, and else the same transaction cannot land`,
+    );
+    await expect(emulator.fetchTxInfo(p)).resolves.toBeDefined();
+  });
+
   it("a step from parts whose own end has passed and that the plan never signed: inside the margin the call waits (CANNOT_OBSERVE), as another party may hold a copy it signed; once its end and the margin have passed it is refused (INVALID_OPTION)", async () => {
     const ctx = await storeSetup({
       funds: [100n * ADA, 50n * ADA],

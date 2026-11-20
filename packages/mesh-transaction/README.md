@@ -832,8 +832,9 @@ new plan's, also for the steps it holds of the old plan, and carry on. Never
   never sent or holds without every witness: another party may hold a copy it signed. It is refused
   only on the call's own look: once its end and the margin have passed by the tip and the clock,
   and the search answered that it does not find it. Until then, also while the search fails, the
-  call waits (`CANNOT_OBSERVE`, `unconfirmed`). Where others took every input of it, see the dead
-  ends below.
+  call waits (`CANNOT_OBSERVE`, `unconfirmed`); a provider that cannot search at all never answers,
+  and the call says so (`CANNOT_OBSERVE`, `noSearch`), as it does for an old transaction past its
+  end that time does not settle. Where others took every input of it, see the dead ends below.
 - What a new plan cannot hold is waited for, with `CANNOT_OBSERVE` (`unconfirmed`, again after
   `retryAfterMs`): a transaction in a block with a failed script, and one of a plan before the one
   replaced that a look found in a block, each until it is `final`; a step in a block the search
@@ -852,11 +853,11 @@ new plan's, also for the steps it holds of the old plan, and carry on. Never
   `expired`, also when it was found in a block once: a search may lose a transaction that stays in
   its block. An address a payer's read of the call lists, through the provider or a wallet, is not
   read again; a payer given as a snapshot `{ changeAddress, utxos }` is the application's own list,
-  not a read, and its addresses are read as the others are. Of those of the transactions never
-  found, at most 16 are read in a call, in the order of the line, and the warning's `unread` counts
-  the rest; of those of the ones found in a block once, at most 16 more, and while one is left
-  unread the message of the dead end of two payers below is not given. A search that fails is no
-  answer: past the end and the margin it is `CANNOT_OBSERVE` (`unconfirmed`), not `STILL_LIVE`. A
+  not a read, and its addresses are read as the others are. Of those of the dead and the used-up
+  transactions, at most 16 are read in a call, in the order of the line, and the warning's `unread`
+  counts the rest; of those of the ones found in a block once, at most 16 more, and while one is
+  left unread the message of the dead end of two payers below is not given. A search that fails is
+  no answer: past the end and the margin it is `CANNOT_OBSERVE` (`unconfirmed`), not `STILL_LIVE`. A
   read of an address that fails or gives no list throws its error (`PROVIDER_FAILED`); an empty list
   is an answer, and so is a list the provider's own cache gives, which the library does not control.
 - The one case that goes by time: an old transaction this call's look answered "not found", past its
@@ -2360,8 +2361,9 @@ provider's tip is more than two minutes ahead of the local clock (the look goes 
 no input with an old transaction called dead, which rests on its end of validity and the
 provider's search: a search that hid it, or a switch of the network to a fork deeper than the
 margin and less deep than `final` where it landed in time, makes the plan pay twice (`unread`: the
-addresses past the 16 a call reads, and those an old transaction pays past the first 16 its entry
-keeps). A step that comes back because the step below it was found warns of nothing.
+addresses of the dead and the used-up transactions past the 16 a call reads, and those an old
+transaction pays past the first 16 its entry keeps). A step that comes back because the step below
+it was found warns of nothing.
 
 The lists the library gives out are open: part kinds, `SignerRole`, redeemer tags,
 `LanguageVersion`, native script variants, plan and step statuses, the values of `reason`,

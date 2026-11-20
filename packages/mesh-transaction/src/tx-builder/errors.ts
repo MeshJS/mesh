@@ -421,7 +421,8 @@ export type TxPlanErrorDetails = {
    * built, a step stands on an output of an old transaction the search does not find, an address
    * shows such an output, or an old transaction past its end and the margin got no answer from the
    * search. The other reasons are about the provider itself; `noDepth`: no block heights, for any
-   * plan. A transaction's `awaitInclusion()` raises `noSearch` and `noValidity`
+   * plan; `noSearch` of `replan` and `add` also where the call would wait on a search the
+   * provider cannot make. A transaction's `awaitInclusion()` raises `noSearch` and `noValidity`
    */
   CANNOT_OBSERVE: {
     reason: "noTip" | "noValidity" | "noDepth" | "noSearch" | "unconfirmed";
