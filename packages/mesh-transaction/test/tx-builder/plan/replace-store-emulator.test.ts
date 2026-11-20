@@ -1575,7 +1575,7 @@ describe("a step left whose end of validity has passed", () => {
       error.retryable,
     ]).toEqual(["CANNOT_OBSERVE", "unconfirmed", aHash, true]);
     expect(error.message).toMatch(
-      /^step "a" is past its end of validity and may be in a block the search does not show, or be sent by another party before its margin passes; nothing was written, and the same call later tells/,
+      /^step "a" is past its end of validity and may be in a block the search does not show, or have been sent by another party before its end; nothing was written, and the same call later tells/,
     );
     expect(old.replacedBy).toBeUndefined();
     expect((await store.inner.load("order"))!.replacedBy).toBeUndefined();
@@ -1792,7 +1792,7 @@ describe("a step left whose end of validity has passed", () => {
       { txHashes: [p] },
     ]);
     expect(error.message).toBe(
-      `step "p" (${p}) of this plan or a plan before it was found in a block, the search does not find it now, and its end of validity has passed: a rollback took it out, and it lands again only if the chain goes back to the blocks that held it, or the provider lost it while it stayed in its block. No plan is made in its place: no step this call builds by default is kept apart from it; the application decides how to pay what is left. ${NOT_UNPAID}`,
+      `step "p" (${p}) of this plan or a plan before it was found in a block, the search does not find it now, and its end of validity has passed: a rollback took it out, and it lands again only if the chain goes back to the blocks that held it, or the provider lost it while it stayed in its block. No plan is made in its place: a step this call builds is not kept apart from it; the application decides how to pay what is left. ${NOT_UNPAID}`,
     );
     // No rollback happened: it is in its block
     expect(await emulator.fetchTxInfo(p)).toBeDefined();
@@ -1846,7 +1846,7 @@ describe("a step left whose end of validity has passed", () => {
       waited.retryable,
     ]).toEqual(["CANNOT_OBSERVE", "unconfirmed", p, true]);
     expect(waited.message).toMatch(
-      /^step "p" is past its end of validity and may be in a block the search does not show, or be sent by another party before its margin passes; nothing was written/,
+      /^step "p" is past its end of validity and may be in a block the search does not show, or have been sent by another party before its end; nothing was written/,
     );
     // Past the margin it is refused, also long after; its bytes cannot land
     for (const slots of [40, 10_000, 100_000]) {
@@ -1952,7 +1952,7 @@ describe("a step left whose end of validity has passed", () => {
       waited.retryable,
     ]).toEqual(["CANNOT_OBSERVE", "unconfirmed", old.step("a").txHash, true]);
     expect(waited.message).toMatch(
-      /^step "a" is past its end of validity and may be in a block the search does not show, or be sent by another party before its margin passes/,
+      /^step "a" is past its end of validity and may be in a block the search does not show, or have been sent by another party before its end/,
     );
     advance(emulator, 600);
     await old.refresh();
@@ -2033,7 +2033,7 @@ describe("a step left whose end of validity has passed", () => {
         error.retryable,
       ]).toEqual(["CANNOT_OBSERVE", "unconfirmed", p, true]);
       expect(error.message).toMatch(
-        /^step "p" is past its end of validity and may be in a block the search does not show, or be sent by another party before its margin passes; nothing was written/,
+        /^step "p" is past its end of validity and may be in a block the search does not show, or have been sent by another party before its end; nothing was written/,
       );
       expect(plan.replacedBy).toBeUndefined();
       expect(await store.inner.load(id)).toBeUndefined();
@@ -3320,7 +3320,7 @@ describe("the reconciliation loop of the README", () => {
       ]);
       expect(error.message).toMatch(
         new RegExp(
-          `^step "a" \\(${a}\\) of this plan or a plan before it was found in a block, the search does not find it now, and its end of validity has passed: a rollback took it out, and it lands again only if the chain goes back to the blocks that held it, or the provider lost it while it stayed in its block\\. No plan is made in its place: no step this call builds by default is kept apart from it; the application decides how to pay what is left\\.`,
+          `^step "a" \\(${a}\\) of this plan or a plan before it was found in a block, the search does not find it now, and its end of validity has passed: a rollback took it out, and it lands again only if the chain goes back to the blocks that held it, or the provider lost it while it stayed in its block\\. No plan is made in its place: a step this call builds is not kept apart from it; the application decides how to pay what is left\\.`,
         ),
       );
     }

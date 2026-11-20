@@ -1315,10 +1315,11 @@ export class TxPlan {
    * the deadlines and data options this plan records apply. `id` is the new plan's id. A plan made
    * with `steps` that pay what this plan was not to pay is followed by its own id: when this plan
    * becomes final after all, that payment was not made, unless a step of it passed by time
-   * (`NO_SHARED_INPUT`). A step given that pays what a step of this plan or a plan before it was to
-   * pay keeps that step's name: once that step is final after all, the name is kept and nothing is
-   * built again under it; under a new name a later `replan` without `steps` builds it again, and
-   * pays twice.
+   * (`NO_SHARED_INPUT`). Names are payments, one for one: a step given that pays what a step of
+   * this plan or a plan before it was to pay pays that and nothing else, under that step's name.
+   * Once that step is final after all, the name is kept and nothing is built again under it; under
+   * a new name a later `replan` without `steps` builds it again, and pays twice. One step that pays
+   * for two old steps, or two that share the payments of one, can pay twice in the same way.
    *
    * ```ts
    * const next = await plan.replan({ id: "order-7:2" });
@@ -1349,11 +1350,11 @@ export class TxPlan {
    *   parts, a consolidation step): that output never exists in the new plan. Both are told once
    *   the payers' reads are checked: a read that lists an output of a step the search does not find
    *   (the step left, or the step below it) is waited for first. A step past its own end may be in
-   *   a block the search does not show, or be sent by another party, whatever this plan holds of
-   *   its witnesses: another party may hold a copy it signed. It is refused only once its end and
-   *   the margin have passed by the tip and the clock and this call's search answered that it does
-   *   not find it; until then, also while the search fails, the call waits (CANNOT_OBSERVE,
-   *   `unconfirmed`). The application gives the steps of the new plan.
+   *   a block the search does not show, or have been sent by another party before its end, whatever
+   *   this plan holds of its witnesses: another party may hold a copy it signed. It is refused only
+   *   once its end and the margin have passed by the tip and the clock and this call's search
+   *   answered that it does not find it; until then, also while the search fails, the call waits
+   *   (CANNOT_OBSERVE, `unconfirmed`). The application gives the steps of the new plan.
    * - What the new plan cannot hold is waited for, CANNOT_OBSERVE (`unconfirmed`): a
    *   transaction in a block with a failed script, and a transaction of a plan before this one
    *   that a look found in a block, each until it is final; a step in a block this call's
@@ -1374,19 +1375,20 @@ export class TxPlan {
    *   also of one called dead, that the payer still holds: the ledger then takes one of the two and
    *   never both, whatever a provider shows. Where no input is shared, a transaction that may still
    *   land refuses the call (STILL_LIVE): when time does not settle it, the message names steps
-   *   that hold that transaction or spend an input of it, under the names of the steps they pay
-   *   for. When each such one was found in a block once, the search does not find it now, and its
-   *   end of validity has passed (a step on it too, `orphaned`), the message says what is known: a
-   *   rollback took it out, or the provider lost it while it stayed in its block; no step this call
-   *   builds by default is kept apart from it, and the application decides how to pay what is left.
-   *   A plan of its own is kept apart from nothing the library knows: it is safe once more than `k`
-   *   blocks (the security parameter) are on the chain after those ends, unless the provider lost
-   *   them. One kept without its end (`seenBefore`), or one an address of which the cap of reads
-   *   left unread, gets the message of any pair. One this call's look answered it did not find,
-   *   past its end of validity, which no look ever found, is left to its end and the provider's
-   *   search, and `trace` is told (`NO_SHARED_INPUT`) once the new plan is recorded: a search that
-   *   hid it, or a switch of the network to a fork deeper than the margin and less deep than final
-   *   where it landed in time, makes the new plan pay twice. A search that fails is no answer: the
+   *   that hold that transaction or spend an input of it, each paying what one old step was to pay
+   *   and nothing else, under its name. When each such one was found in a block once, the search
+   *   does not find it now, and its end of validity has passed (a step on it too, `orphaned`), the
+   *   message says what is known: a rollback took it out, or the provider lost it while it stayed
+   *   in its block; a step this call builds is not kept apart from it, and the application decides
+   *   how to pay what is left. A plan of its own is kept apart from nothing the library knows: it
+   *   is safe once more than `k` blocks (the security parameter) are on the chain after the end of
+   *   every transaction of the line that may still land, unless the provider lost them. One kept
+   *   without its end (`seenBefore`), or one an address of which the cap of reads left unread, gets
+   *   the message of any pair. One this call's look answered it did not find, past its end of
+   *   validity, which no look ever found, is left to its end and the provider's search, and
+   *   `trace` is told (`NO_SHARED_INPUT`) once the new plan is recorded: a search that hid it, or a
+   *   switch of the network to a fork deeper than the margin and less deep than final where it
+   *   landed in time, makes the new plan pay twice. A search that fails is no answer: the
    *   transaction may still land.
    * - This plan is marked before the new one is recorded: `replacedBy` names it, and this plan
    *   signs and sends nothing more. A plan is replaced once. The same call again, with the id
@@ -1713,7 +1715,7 @@ export class TxPlan {
         );
         if (hidden !== undefined)
           throw this.#unconfirmed(
-            `step ${JSON.stringify(hidden.name)} is past its end of validity and may be in a block the search does not show, or be sent by another party before its margin passes`,
+            `step ${JSON.stringify(hidden.name)} is past its end of validity and may be in a block the search does not show, or have been sent by another party before its end`,
             hidden.txHash,
           );
         const first = late[0];
@@ -2280,10 +2282,10 @@ export class TxPlan {
     const one = txs.length === 1;
     // Each was found in a block and the search does not find it now: a rollback took it out, or
     // the provider lost it while it stayed. A step of one payer holds no input of another
-    // payer's old step, so the steps built by default are not kept apart from them
+    // payer's old step, so a step this call builds is not kept apart from them
     throw this.#error(
       "STILL_LIVE",
-      `${named} of this plan or a plan before it ${one ? "was" : "were"} found in a block, the search does not find ${one ? "it" : "them"} now, and ${one ? "its end" : "their ends"} of validity ${one ? "has" : "have"} passed: a rollback took ${one ? "it" : "them"} out, and ${one ? "it lands" : "they land"} again only if the chain goes back to the blocks that held ${one ? "it" : "them"}, or the provider lost ${one ? "it while it stayed in its block" : "them while they stayed in their blocks"}. No plan is made in its place: no step this call builds by default is kept apart from ${one ? "it" : "them"}; the application decides how to pay what is left`,
+      `${named} of this plan or a plan before it ${one ? "was" : "were"} found in a block, the search does not find ${one ? "it" : "them"} now, and ${one ? "its end" : "their ends"} of validity ${one ? "has" : "have"} passed: a rollback took ${one ? "it" : "them"} out, and ${one ? "it lands" : "they land"} again only if the chain goes back to the blocks that held ${one ? "it" : "them"}, or the provider lost ${one ? "it while it stayed in its block" : "them while they stayed in their blocks"}. No plan is made in its place: a step this call builds is not kept apart from ${one ? "it" : "them"}; the application decides how to pay what is left`,
       { details: { txHashes: [...live.keys()] } },
     );
   }
@@ -2330,7 +2332,7 @@ export class TxPlan {
       "STILL_LIVE",
       `a step built could land beside ${named} of this plan or a plan before it, which may still land and share no input with it: ${done}; ${
         safeAfter === undefined
-          ? "no time settles it, as one of them has no end of validity or was found in a block once: steps that hold that transaction or spend an input of it, under the names of the steps they pay for, are the way"
+          ? "no time settles it, as one of them has no end of validity or was found in a block once: steps that hold that transaction or spend an input of it are the way, each paying what one old step was to pay and nothing else, under its name: one step for two old steps, or two for one, can pay twice"
           : "the same call passes once its end of validity and the margin have passed (safeAfter)"
       }`,
       {
@@ -3583,8 +3585,7 @@ const onStep = (
 
 /**
  * The out refs at an address, read from the provider past its cache, for the check of what a
- * transaction the search does not find paid: a read that fails is no answer, and refuses the
- * call
+ * transaction of the plans before paid: a read that fails is no answer, and refuses the call
  * @throws TxBuildError MISSING_FETCHER without a provider; PROVIDER_FAILED when the read fails
  *   or its answer cannot be read
  */
@@ -3595,12 +3596,12 @@ const readAddress = async (
   if (fetcher === undefined)
     throw new TxBuildError(
       "MISSING_FETCHER",
-      `the UTxOs at ${address}, which a transaction the search does not find pays, have to be read through a provider, and the builder has none`,
+      `the UTxOs at ${address}, which a transaction of the plans before pays, have to be read through a provider, and the builder has none`,
     );
   const failed = (cause: unknown) =>
     new TxBuildError(
       "PROVIDER_FAILED",
-      `reading the UTxOs at ${address}, which a transaction the search does not find pays, failed or gave no list: nothing was written, and the application may make the same call again`,
+      `reading the UTxOs at ${address}, which a transaction of the plans before pays, failed or gave no list: nothing was written, and the application may make the same call again`,
       { details: { operation: "fetchAddressUTxOs" }, cause },
     );
   let utxos: unknown;

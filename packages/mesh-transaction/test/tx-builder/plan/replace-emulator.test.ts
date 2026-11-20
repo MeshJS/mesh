@@ -1502,10 +1502,68 @@ describe("a plan in place of another", () => {
       const error = await caught(old.replan({ id: "order:2" }));
       expect(error.code).toBe("PROVIDER_FAILED");
       expect(error.message).toContain(
-        `reading the UTxOs at ${alice}, which a transaction the search does not find pays, failed or gave no list`,
+        `reading the UTxOs at ${alice}, which a transaction of the plans before pays, failed or gave no list`,
       );
       expect(old.replacedBy).toBeUndefined();
       expect(times(emulator, alice, 11n * ADA)).toBe(1);
+    });
+
+    it("a read of the address a used-up step pays that fails: the error names a transaction of the plans before, which the search finds in a block", async () => {
+      const { emulator, provider, builder, wallet } = await stepSetup(
+        "scalus",
+        {
+          funds: [100n * ADA, 50n * ADA],
+          builder: { planDefaults: { ...FAST, confirmations: 3 } },
+        },
+      );
+      const locked = emulator.fund(builder.scriptAddress(plutus), {
+        lovelace: 10n * ADA,
+      });
+      const old = await builder.plan(
+        {
+          a: payTo(alice, 11n * ADA),
+          s: [
+            spend.plutus({
+              utxo: locked,
+              script: plutus,
+              redeemer: { data: mConStr0([]) },
+            }),
+            payTo(bob, 12n * ADA),
+          ],
+        },
+        { id: "order", payer: wallet },
+      );
+      await old.run({ waitFor: "sent" });
+      await old.refresh();
+      await old.run({ waitFor: "sent", submitter: swallowing() });
+      // The search finds s at the depth of final with a failed script
+      const sHash = old.step("s").txHash;
+      const at = emulator.slot;
+      provider.control.hooks.fetchTxInfo = async (forward, hash: string) =>
+        hash === sHash
+          ? {
+              hash: sHash,
+              slot: at - 20,
+              block: "b".repeat(64),
+              blockHeight: at - 20,
+              validContract: false,
+            }
+          : forward(hash);
+      advance(emulator, 1);
+      await old.refresh();
+      expect(statuses(old)).toEqual({ a: "included", s: "failed" });
+      provider.control.hooks.fetchAddressUTxOs = (forward, address: string) => {
+        if (address === bob) throw tooMany();
+        return forward(address);
+      };
+      const error = await caught(
+        old.replan({ id: "order:2", steps: { s: payTo(bob, 12n * ADA) } }),
+      );
+      expect(error.code).toBe("PROVIDER_FAILED");
+      expect(error.message).toContain(
+        `reading the UTxOs at ${bob}, which a transaction of the plans before pays, failed or gave no list`,
+      );
+      expect(old.replacedBy).toBeUndefined();
     });
 
     it("two plans on, the payment of a transaction of the plans before at the address a dead step pays: CANNOT_OBSERVE", async () => {
@@ -3922,7 +3980,7 @@ describe("two payers beside a step in a block", () => {
     ]);
     expect(refusal.message).toMatch(/^a step built could land beside /);
     expect(refusal.message).toContain(
-      "no time settles it, as one of them has no end of validity or was found in a block once: steps that hold that transaction or spend an input of it, under the names of the steps they pay for, are the way",
+      "no time settles it, as one of them has no end of validity or was found in a block once: steps that hold that transaction or spend an input of it are the way, each paying what one old step was to pay and nothing else, under its name: one step for two old steps, or two for one, can pay twice",
     );
     expect(next.replacedBy).toBeUndefined();
     // Once the treasury's step is past its end, only a is left: the message says what happened
@@ -3934,7 +3992,7 @@ describe("two payers beside a step in a block", () => {
       const later = await caught(next.replan({ id: "order:3" }));
       takenOut(later, [a]);
       expect(later.message).toBe(
-        `step "a" (${a}) of this plan or a plan before it was found in a block, the search does not find it now, and its end of validity has passed: a rollback took it out, and it lands again only if the chain goes back to the blocks that held it, or the provider lost it while it stayed in its block. No plan is made in its place: no step this call builds by default is kept apart from it; the application decides how to pay what is left. ${NOT_UNPAID}`,
+        `step "a" (${a}) of this plan or a plan before it was found in a block, the search does not find it now, and its end of validity has passed: a rollback took it out, and it lands again only if the chain goes back to the blocks that held it, or the provider lost it while it stayed in its block. No plan is made in its place: a step this call builds is not kept apart from it; the application decides how to pay what is left. ${NOT_UNPAID}`,
       );
       before.advanceTo({ slot: before.slot + 1000 });
     }
@@ -3943,7 +4001,7 @@ describe("two payers beside a step in a block", () => {
     expect(times(before, dave, 14n * ADA)).toBe(0);
   });
 
-  it("the same rollback when a pays 16 addresses besides alice's: the cap leaves addresses of a unread, so the refusal is the one of any pair, which names steps under the names they pay for; with 14 every address is read and the refusal says what happened", async () => {
+  it("the same rollback when a pays 16 addresses besides alice's: the cap leaves addresses of a unread, so the refusal is the one of any pair, which names steps each under the name of the one old step it pays for; with 14 every address is read and the refusal says what happened", async () => {
     for (const [more, plain] of [
       [16, false],
       [14, true],
@@ -3971,7 +4029,7 @@ describe("two payers beside a step in a block", () => {
           new RegExp(`^a step built could land beside step "a" \\(${a}\\) `),
         );
         expect(error.message).toContain(
-          "under the names of the steps they pay for, are the way",
+          "each paying what one old step was to pay and nothing else, under its name",
         );
       }
       expect(next.replacedBy).toBeUndefined();
@@ -4006,7 +4064,7 @@ describe("two payers beside a step in a block", () => {
       const error = await caught(next.replan({ id: "order:3" }));
       takenOut(error, [t, a]);
       expect(error.message).toBe(
-        `step "t" (${t}), step "a" (${a}) of this plan or a plan before it were found in a block, the search does not find them now, and their ends of validity have passed: a rollback took them out, and they land again only if the chain goes back to the blocks that held them, or the provider lost them while they stayed in their blocks. No plan is made in its place: no step this call builds by default is kept apart from them; the application decides how to pay what is left. ${NOT_UNPAID}`,
+        `step "t" (${t}), step "a" (${a}) of this plan or a plan before it were found in a block, the search does not find them now, and their ends of validity have passed: a rollback took them out, and they land again only if the chain goes back to the blocks that held them, or the provider lost them while they stayed in their blocks. No plan is made in its place: a step this call builds is not kept apart from them; the application decides how to pay what is left. ${NOT_UNPAID}`,
       );
       before.advanceTo({ slot: before.slot + 1000 });
     }
@@ -4015,7 +4073,7 @@ describe("two payers beside a step in a block", () => {
     expect(times(before, dave, 14n * ADA)).toBe(0);
   });
 
-  it("after that refusal the message names no steps as a way out: no step this call builds by default is kept apart from them, and the application decides how to pay what is left", async () => {
+  it("after that refusal the message names no steps as a way out: a step this call builds is not kept apart from them, and the application decides how to pay what is left", async () => {
     const ctx = await order();
     const { treasury, before, old } = ctx;
     const next = await old.replan({ id: "order:2" });
@@ -4030,7 +4088,7 @@ describe("two payers beside a step in a block", () => {
     const refusal = await caught(next.replan({ id: "order:3" }));
     takenOut(refusal, [next.step("t").txHash, old.step("a").txHash]);
     expect(refusal.message).toContain(
-      "No plan is made in its place: no step this call builds by default is kept apart from them; the application decides how to pay what is left",
+      "No plan is made in its place: a step this call builds is not kept apart from them; the application decides how to pay what is left",
     );
     expect(refusal.message).not.toMatch(/spend an input|are the way/);
     expect(next.replacedBy).toBeUndefined();
@@ -4148,7 +4206,7 @@ describe("two payers beside a step in a block", () => {
       const error = await caught(next.replan({ id: "order:3" }));
       takenOut(error, [t, a, b]);
       expect(error.message).toBe(
-        `step "t" (${t}), step "a" (${a}), step "b" (${b}) of this plan or a plan before it were found in a block, the search does not find them now, and their ends of validity have passed: a rollback took them out, and they land again only if the chain goes back to the blocks that held them, or the provider lost them while they stayed in their blocks. No plan is made in its place: no step this call builds by default is kept apart from them; the application decides how to pay what is left. ${NOT_UNPAID}`,
+        `step "t" (${t}), step "a" (${a}), step "b" (${b}) of this plan or a plan before it were found in a block, the search does not find them now, and their ends of validity have passed: a rollback took them out, and they land again only if the chain goes back to the blocks that held them, or the provider lost them while they stayed in their blocks. No plan is made in its place: a step this call builds is not kept apart from them; the application decides how to pay what is left. ${NOT_UNPAID}`,
       );
       before.advanceTo({ slot: before.slot + 1000 });
     }
