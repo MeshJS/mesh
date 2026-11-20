@@ -1,7 +1,13 @@
 import { DEFAULT_PROTOCOL_PARAMETERS, IFetcher, Protocol } from "@meshsdk/core";
 import { Address, Crypto, HexBlob, Serialization } from "@meshsdk/core-cst";
 
-import { TxBuilder, TxBuildError, TxError, Utxo } from "../../src/tx-builder";
+import {
+  addWitnesses,
+  TxBuilder,
+  TxBuildError,
+  TxError,
+  Utxo,
+} from "../../src/tx-builder";
 import { readTxBytes } from "../../src/tx-builder/builder";
 import { scanTransaction } from "../../src/tx-builder/tx-scan";
 import {
@@ -407,6 +413,54 @@ describe("TxBuilder.fromCbor › a map that repeats a key, read as the decoder r
       ["SPEND", 0, "d87980"],
       ["SPEND", 0, "d87a80"],
     ]);
+  });
+
+  it("reads a witness set that repeats the key of its vkey witnesses as the decoder reads it, the last entry; and refuses to write a witness into one", async () => {
+    const body = bodyWith([
+      uint(14),
+      arr(bytes(key.keyHash), bytes(other.keyHash)),
+    ]);
+    const txHash = txHashOf(body);
+    const given = tx(
+      body,
+      map(
+        [uint(0), arr(vkeyWitness(key, txHash))],
+        [uint(0), arr(vkeyWitness(other, txHash))],
+      ),
+    );
+    const read = Serialization.Transaction.fromCbor(HexBlob(given))
+      .witnessSet()
+      .vkeys()!
+      .values()
+      .map((witness) => witness.vkey());
+    expect(read).toEqual([other.vkey]);
+    const made = await offline().fromCbor(given, { knownUtxos: knownUtxos() });
+    expect(made.missing.map((m) => m.keyHash)).toEqual([key.keyHash]);
+    // The other way round, the key's witness is the one read
+    const back = await offline().fromCbor(
+      tx(
+        body,
+        map(
+          [uint(0), arr(vkeyWitness(other, txHash))],
+          [uint(0), arr(vkeyWitness(key, txHash))],
+        ),
+      ),
+      { knownUtxos: knownUtxos() },
+    );
+    expect(back.missing.map((m) => m.keyHash)).toEqual([other.keyHash]);
+    // A witness is written into no entry of a set that repeats the key
+    for (const repeated of [
+      given,
+      tx(body, map([uint(2), arr()], [uint(2), arr()])),
+    ]) {
+      const error = await caught(() =>
+        addWitnesses(repeated, map([uint(0), arr(vkeyWitness(key, txHash))])),
+      );
+      expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
+      expect((error as Error).message).toContain(
+        "its witness set repeats the key of its vkey or bootstrap witnesses",
+      );
+    }
   });
 
   it("takes an inline datum and a datum of the witness set whose Plutus map repeats a key, byte for byte", async () => {

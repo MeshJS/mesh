@@ -403,7 +403,8 @@ export const splitUtxoBytes = (bytes: Uint8Array): UtxoBytes | undefined => {
           reader.skipValue();
         }
       } else if (key === 2n && reader.peekState() === State.StartArray) {
-        // [1, 24(h'…')], in a list of either kind of length
+        // [1, 24(h'…')], in a list of either kind of length; a datum hash after it is the datum
+        delete found.inlineDatum;
         reader.readStartArray();
         const inline =
           reader.peekState() === State.UnsignedInteger &&

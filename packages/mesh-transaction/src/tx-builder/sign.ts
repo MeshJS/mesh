@@ -294,7 +294,9 @@ const readWitnessSet = (bytes: Uint8Array): WitnessSet => {
       keyBytes: map.items[i]!,
       value: map.items[i + 1]!,
     });
-  const valueOf = (key: number) => entries.find((e) => e.key === key)?.value;
+  // Of a key the set repeats, the last entry, as the value decoder reads it
+  const valueOf = (key: number) =>
+    [...entries].reverse().find((e) => e.key === key)?.value;
   const vkeys = valueOf(VKEYS);
   const bootstraps = valueOf(BOOTSTRAPS);
   return {
@@ -306,6 +308,16 @@ const readWitnessSet = (bytes: Uint8Array): WitnessSet => {
     }),
   };
 };
+
+/**
+ * Whether a witness set repeats the key of its vkey or of its bootstrap witnesses: witnesses
+ * written into it would stand in one of its entries, and which of them a reader takes is not
+ * known to the writer
+ */
+export const repeatsKeyWitnesses = (set: WitnessSet): boolean =>
+  [VKEYS, BOOTSTRAPS].some(
+    (key) => set.entries.filter((e) => e.key === key).length > 1,
+  );
 
 /** The witnesses of a set, vkey witnesses first */
 const witnessesOf = (set: WitnessSet) => [
@@ -635,6 +647,18 @@ export const withWitnesses = (
   tagged: boolean | KeyWitnessTags = raw.taggedSets,
 ): string => {
   if (added.length === 0) return raw.hex;
+  if (repeatsKeyWitnesses(raw.witnessSet))
+    throw new TxBuildError(
+      "INVALID_OPTION",
+      "invalid tx: its witness set repeats the key of its vkey or bootstrap witnesses, and a reader may take another entry than the one a witness is written into: none is written",
+      {
+        details: {
+          option: "tx",
+          value: "string",
+          allowed: "a transaction in CBOR hex",
+        },
+      },
+    );
   const tags = bothTags(tagged);
   const { witnessSet, top } = raw;
   const byKind = {
@@ -1302,8 +1326,9 @@ export const payerHasNothingLeft = (
  * @throws TxPlanError INVALID_WITNESS for an argument that cannot be decoded, or holding a
  *   witness that does not verify against the body; `details.argument` is the index of that
  *   argument among `witnesses`, counted from 0
- * @throws TxBuildError INVALID_OPTION for a `tx` that is not a transaction; `details.value` is
- *   only the JavaScript type of what was given
+ * @throws TxBuildError INVALID_OPTION for a `tx` that is not a transaction, or whose witness set
+ *   repeats the key of its vkey or bootstrap witnesses; `details.value` is only the JavaScript
+ *   type of what was given
  */
 export async function addWitnesses(
   tx: string,

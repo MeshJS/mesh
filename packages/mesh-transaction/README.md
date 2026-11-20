@@ -1757,7 +1757,9 @@ them, and the members show that reading: the last value of a repeated key, or bo
 a body joined, and the value of an unknown key read as the next key. A node refuses such a
 transaction since protocol version 9. A validity flag of false is read as the bytes give it, and
 the transaction is shown as one marked valid: a node sets the flag itself. `builder.restore` reads
-the transaction and the witnesses of a JSON within the same bounds, before any of them is decoded.
+the transaction and the witnesses of a JSON within the same bounds, before any of them is decoded,
+and refuses a transaction whose witness set repeats the key of its vkey or bootstrap witnesses.
+A witness set that repeats a key is read as the decoder reads it, the last entry.
 
 Reading takes a time that grows with the data the transaction carries, up to about a second on a
 laptop, on the calling thread; the UTxOs add the time of their bytes, since their data is not
@@ -1782,10 +1784,11 @@ it did not build. Code that has a builder makes the object of such a transaction
 | `requiredSigners(tx, spent)`                  | who must sign a transaction built elsewhere, given the UTxO of every input and collateral input (`UTXO_NOT_FOUND` for a missing one), and of reference inputs for the native scripts they hold, in any form of `UtxoInput`; each key with its roles, as the build gives them. `builder.fromCbor(tx)` reads those UTxOs itself and gives the same as `signers`                                                                                                          |
 
 `addWitnesses` and `signedKeyHashes` return promises. Bad arguments (a `tx` that is not a
-transaction, a signer that cannot sign, a malformed `spent`) are `TxBuildError` `INVALID_OPTION`,
-whose `details.value` is only the JavaScript type of a `tx` or a signer, since either may be a key;
-`SIGN_DECLINED`, `SIGNER_FAILED` and `INVALID_WITNESS` are `TxPlanError`: catch them with
-`TxError.is`.
+transaction, or whose witness set repeats the key of its vkey or bootstrap witnesses, as a witness
+would go into one entry and a reader may take another; a signer that cannot sign; a malformed
+`spent`) are `TxBuildError` `INVALID_OPTION`, whose `details.value` is only the JavaScript type of
+a `tx` or a signer, since either may be a key; `SIGN_DECLINED`, `SIGNER_FAILED` and
+`INVALID_WITNESS` are `TxPlanError`: catch them with `TxError.is`.
 
 ```ts
 import {

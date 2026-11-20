@@ -66,7 +66,15 @@ import {
   withWitnesses,
 } from "../../src/tx-builder/sign";
 import { alwaysSucceedCbor, baseAddress } from "../test-util";
-import { arr, head, map, topItems, tx as txOf, uint } from "./cbor-util";
+import {
+  arr,
+  head,
+  map,
+  mapPairs,
+  topItems,
+  tx as txOf,
+  uint,
+} from "./cbor-util";
 import { hashSigner, keysSigner, TestKey, testKey } from "./hash-signer-util";
 import { pay, setup } from "./plan/plan-emulator-util";
 import { ref } from "./utxo-util";
@@ -3589,6 +3597,30 @@ describe("BuiltTx as JSON, and TxBuilder.restore", () => {
         );
         // No run of its hex
         expect((error as Error).message).not.toMatch(/[0-9a-f]{16}/);
+      }
+    });
+
+    it("refuses a built.tx whose witness set repeats the key of its vkey or bootstrap witnesses, into which the witnesses it holds would be written: two empty entries, and a witness hidden in the first", async () => {
+      const { built, payer } = await fixture();
+      const json = throughText(built);
+      const [body, , ...rest] = topItems(built.tx);
+      await built.sign({ signers: keysSigner("object", payer).signer });
+      const vkeys = mapPairs(topItems(built.partialTx)[1]!).find(
+        ([key]) => key === uint(0),
+      )![1];
+      for (const set of [
+        map([uint(0), arr()], [uint(0), arr()]),
+        map([uint(0), vkeys], [uint(0), arr()]),
+        map([uint(2), arr()], [uint(2), arr()]),
+      ]) {
+        const error = await refusedRestore(builder(), {
+          ...json,
+          built: { ...json.built, tx: arr(body!, set, ...rest) },
+        });
+        expect(TxBuildError.is(error, "INVALID_OPTION")).toBe(true);
+        expect((error as Error).message).toBe(
+          "invalid json: the witness set of its transaction repeats the key of its vkey or bootstrap witnesses",
+        );
       }
     });
 

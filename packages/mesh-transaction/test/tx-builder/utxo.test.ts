@@ -1416,6 +1416,42 @@ describe("the data and the reference script of a UTxO, read without being decode
       ]);
   });
 
+  it("reads a UTxO in CBOR that writes its datum twice as the decoder reads it, the last: an inline datum then a hash, a hash then an inline datum, two inline datums", () => {
+    const datumHash = "ee".repeat(32);
+    const twice = (...entries: string[]) =>
+      cbor.arr(
+        cbor.arr(cbor.bytes(hash(5)), cbor.uint(1)),
+        cbor.map(
+          [cbor.uint(0), cbor.bytes(addressHex)],
+          [cbor.uint(1), cbor.uint(5_000_000)],
+          ...entries.map((entry) => [cbor.uint(2), entry] as [string, string]),
+        ),
+      );
+    const inlineOf = (data: string) =>
+      cbor.arr(cbor.uint(1), `d818${cbor.bytes(data)}`);
+    const hashOf = cbor.arr(cbor.uint(0), cbor.bytes(datumHash));
+    const inline = (data: string) => ({
+      type: "inline",
+      data: { type: "CBOR", content: data },
+    });
+    for (const [entries, datum] of [
+      [[inlineOf("01"), hashOf], { type: "hash", hash: datumHash }],
+      [[hashOf, inlineOf("01")], inline("01")],
+      [[inlineOf("01"), inlineOf("02")], inline("02")],
+    ] as const) {
+      const given = twice(...entries);
+      const decoded = TransactionUnspentOutput.fromCbor(HexBlob(given))
+        .output()
+        .datum()!;
+      expect(
+        decoded.asInlineData()
+          ? inline(decoded.asInlineData()!.toCbor())
+          : { type: "hash", hash: decoded.asDataHash() },
+      ).toEqual(datum);
+      expect(readUtxo(given).datum).toEqual(datum);
+    }
+  });
+
   it("reads a UTxO in CBOR that writes its reference script twice as the decoder reads it, the last, and no decoder meets either past the bounds: a script nested 3 000 deep, then a shallow one, and the other way round", () => {
     const shallow = `8200${nested(1)}`;
     const deepOne = `8200${nested(3_000)}`;

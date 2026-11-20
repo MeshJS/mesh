@@ -49,6 +49,7 @@ import {
   payerWitnesses,
   readTransaction,
   readWitnessArgument,
+  repeatsKeyWitnesses,
   signerWitnesses,
   toSigners,
   unreadableSigner,
@@ -1117,6 +1118,12 @@ export const restoreBuiltTx = async (
       "built.tx is not a transaction in CBOR hex this library reads",
     );
   }
+  // The witnesses it holds are written into its witness set
+  if (repeatsKeyWitnesses(raw.witnessSet))
+    throw invalidJson(
+      json,
+      "the witness set of its transaction repeats the key of its vkey or bootstrap witnesses",
+    );
   // The transaction of a JSON is the unsigned one, as toJSON writes it: a witness inside it
   // would be held unverified, and would hide that its key has not signed
   const { vkeys, bootstraps } = raw.witnessSet;
