@@ -38,8 +38,9 @@ export const MAX_TX_DEPTH = 1024;
 /**
  * The most work the value decoder may have with a transaction, as the walk counts it: for each
  * array and map, the items inside it times its bytes and `ITEM_WORK` more, and for each tag the
- * items inside it times its bytes and `TAG_ITEM_WORK` more; each piece of a string written in
- * pieces is an item, as the decoder reads each piece again at each container around it; the
+ * items inside it times its bytes and `TAG_ITEM_WORK` more, and `TAG_WORK`; each piece of a
+ * string written in pieces is an item, as the decoder reads each piece again at each container
+ * around it, and the string counts as a container of its pieces, which the decoder joins; the
  * items inside a byte string under tag 24 count for the containers inside it alone, as the
  * decoder reads them with a reader of their own. One unit is about 0.4 ns of decoding on a
  * laptop of 2026 (an Apple M3 Max, Node 26): the slowest transactions this lets through, of
@@ -55,6 +56,12 @@ const ITEM_WORK = 6_500;
 
 /** The work of each item inside a tag: a constructor of Plutus data is read with two readers */
 const TAG_ITEM_WORK = 12_500;
+
+/**
+ * The work of each tag beside its items: the decoder reads a constructor of Plutus data with
+ * readers of its own, whatever it holds, in about 36 µs
+ */
+const TAG_WORK = 60_000;
 
 const TOO_MUCH_DATA =
   "the transaction carries more nested data than this library reads";
@@ -131,13 +138,16 @@ const walk = (
   let work = 0;
   const offset = (level: Level) =>
     level.size - level.reader.getBytesRemaining();
-  const close = (level: Level, frame: Frame, items: number) => {
-    work +=
-      items *
-      (offset(level) - frame.start + (frame.tag ? TAG_ITEM_WORK : ITEM_WORK));
+  const count = (more: number) => {
+    work += more;
     if (bounds !== undefined && work > bounds.work)
       throw new TxScanError(TOO_MUCH_DATA);
   };
+  const close = (level: Level, frame: Frame, items: number) =>
+    count(
+      items *
+        (offset(level) - frame.start + (frame.tag ? TAG_ITEM_WORK : ITEM_WORK)),
+    );
   /** An item of the level is read: each tag around it closes with it */
   const read = (level: Level) => {
     level.items++;
@@ -159,23 +169,29 @@ const walk = (
   /**
    * Reads a string written in pieces, one piece at a time: each piece is an item of the level,
    * and counts for every container around it, as the decoder reads each piece again at each of
-   * them. The content of a byte string is returned, its pieces joined
+   * them. The string counts as a container of its pieces too: the decoder joins them copying
+   * what is left of the string at each. The content of a byte string is returned, its pieces
+   * joined
    */
   const pieces = (level: Level, text: boolean): Uint8Array => {
     const { reader } = level;
+    const start = offset(level);
     const content: Uint8Array[] = [];
     if (text) reader.readStartIndefiniteLengthTextString();
     else reader.readStartIndefiniteLengthByteString();
     const end = text
       ? State.EndIndefiniteLengthTextString
       : State.EndIndefiniteLengthByteString;
+    let taken = 0;
     while (reader.peekState() !== end) {
       if (text) reader.readTextString();
       else content.push(reader.readByteString());
-      level.items++;
+      taken++;
     }
     if (text) reader.readEndIndefiniteLengthTextString();
     else reader.readEndIndefiniteLengthByteString();
+    level.items += taken;
+    count(taken * (offset(level) - start + ITEM_WORK));
     return Buffer.concat(content);
   };
   for (;;) {
@@ -214,6 +230,7 @@ const walk = (
       case State.Tag: {
         const tag = reader.readTag();
         open(level, true);
+        count(TAG_WORK);
         const next = reader.peekState();
         if (
           bounds !== undefined &&

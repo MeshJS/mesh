@@ -469,7 +469,8 @@ describe("TxBuilder.fromCbor › the size and the depth it reads", () => {
 
   /**
    * A transaction whose inline datum is byte strings under tag 24, each inside the one before,
-   * `count` of them: its deepest item is at level 5 + `count`, and the decoder has almost no work
+   * `count` of them: its deepest item is at level 5 + `count`, and the walk counts little work, a
+   * tag's own for each
    */
   const encodedInside = (count: number) => {
     let content = "00";
@@ -489,7 +490,7 @@ describe("TxBuilder.fromCbor › the size and the depth it reads", () => {
   };
 
   it("walks 1024 levels, the CBOR inside byte strings counted on, and refuses 1025 at once", async () => {
-    expect(scanTransaction(encodedInside(1019))).toBeLessThan(1_000_000);
+    expect(scanTransaction(encodedInside(1019))).toBeLessThan(100_000_000);
     const given = encodedInside(1020);
     const started = performance.now();
     const error = await caught(() =>
@@ -1061,6 +1062,62 @@ describe("TxBuilder.fromCbor › the CBOR inside a byte string, and the time dat
       text,
       "the transaction carries more nested data than this library reads",
     );
+  }, 60_000);
+
+  it("counts a tag and a string in pieces as their decoders read them: a constructor is read with readers of its own whatever it holds, and pieces are joined copying the string at each", async () => {
+    /** Datums of lists `depth` deep around `n` items, each `item` */
+    const listOf = (n: number, depth: number, item: string) =>
+      tx(
+        bodyWith(),
+        map([
+          uint(4),
+          arr(
+            "9f".repeat(depth) +
+              head(4, n) +
+              item.repeat(n) +
+              "ff".repeat(depth),
+          ),
+        ]),
+      );
+    expect(scanTransaction(listOf(1_000, 0, "d87980"))).toBeGreaterThan(
+      1_000 * 60_000,
+    );
+    const filled = (depth: number) => {
+      let n = 5_500;
+      while (listOf(n, depth, "d87980").length / 2 > 16_384) n -= 10;
+      return listOf(n, depth, "d87980");
+    };
+    await offline().fromCbor(filled(9), { knownUtxos: knownUtxos() });
+    const given = filled(12);
+    expectRefused(
+      await caught(() =>
+        offline().fromCbor(given, { knownUtxos: knownUtxos() }),
+      ),
+      given,
+      "the transaction carries more nested data than this library reads",
+    );
+    // An inline datum of one list around a byte string in 8 000 one-byte pieces counts about
+    // twice the list of 8 000 one-byte strings: the list, and the string that holds the pieces
+    const inline = (data: string) =>
+      tx(
+        map(
+          [uint(0), inputs()],
+          [
+            uint(1),
+            arr(
+              map(
+                [uint(0), bytes(`60${key.keyHash}`)],
+                [uint(1), uint(3_000_000)],
+                [uint(2), arr(uint(1), `d818${bytes(data)}`)],
+              ),
+            ),
+          ],
+          [uint(2), uint(170_000)],
+        ),
+      );
+    const pieced = scanTransaction(inline(`9f5f${"4100".repeat(8_000)}ffff`))!;
+    const strings = scanTransaction(inline(`9f${"4100".repeat(8_000)}ff`))!;
+    expect(pieced).toBeGreaterThan(1.9 * strings);
   }, 60_000);
 
   it("reads a byte string of 10 KB in 64-byte pieces, as Plutus data writes a long one, a few constructors down, in the witness set and inline", async () => {
