@@ -56,6 +56,7 @@ import {
   witnessesToAdd,
   writeWitnessSet,
 } from "./sign";
+import { scanTransaction, TxScanError } from "./tx-scan";
 import { askedKeys } from "./witnesses";
 
 // The object of one built transaction: the data of the build as its own members, and the calls
@@ -1093,6 +1094,14 @@ export const restoreBuiltTx = async (
         },
       },
     );
+  // A JSON may come from another party: its transaction is bounded as `fromCbor` bounds one,
+  // before any of it is decoded
+  try {
+    scanTransaction(built.tx, builder.params?.maxTxSize);
+  } catch (error) {
+    if (!(error instanceof TxScanError)) throw error;
+    throw invalidJson(json, `its transaction is not read: ${error.message}`);
+  }
   let raw: RawTx;
   try {
     raw = readTransaction(built.tx);

@@ -66,6 +66,7 @@ import {
   withWitnesses,
 } from "../../src/tx-builder/sign";
 import { alwaysSucceedCbor, baseAddress } from "../test-util";
+import { arr, map, topItems, tx as txOf, uint } from "./cbor-util";
 import { hashSigner, keysSigner, TestKey, testKey } from "./hash-signer-util";
 import { pay, setup } from "./plan/plan-emulator-util";
 import { ref } from "./utxo-util";
@@ -3505,6 +3506,55 @@ describe("BuiltTx as JSON, and TxBuilder.restore", () => {
         built: { ...json.built, tx },
       });
       expectSignedTxRefused(error, forged.vkey, forged.signature);
+    });
+
+    it("refuses, before any of it is decoded, a built.tx larger, deeper or more work for the decoder than fromCbor reads, quoting none of it", async () => {
+      const { built } = await fixture();
+      const json = throughText(built);
+      const [body] = topItems(built.tx);
+      const nested = (depth: number) => "9f".repeat(depth) + "ff".repeat(depth);
+      for (const [tx, reason] of [
+        [
+          txOf(body!, map(), {
+            aux: map([
+              uint(674),
+              arr(...Array<string>(300).fill("58" + "40" + "00".repeat(64))),
+            ]),
+          }),
+          "the transaction is more than the 16384 bytes of the protocol's maximum transaction size",
+        ],
+        [
+          txOf(body!, map([uint(4), arr(nested(1_100))])),
+          "the transaction nests its items deeper than the 1024 levels this library reads",
+        ],
+        [
+          txOf(
+            body!,
+            map([uint(4), arr(...Array<string>(60).fill(nested(128)))]),
+          ),
+          "the transaction carries more nested data than this library reads",
+        ],
+      ] as const) {
+        const started = performance.now();
+        const error = await refusedRestore(builder(), {
+          ...json,
+          built: { ...json.built, tx },
+        });
+        expect(performance.now() - started).toBeLessThan(200);
+        expect(TxBuildError.is(error, "INVALID_OPTION")).toBe(true);
+        expect((error as TxBuildError).details).toEqual({
+          option: "json",
+          value: "object",
+          allowed: expect.any(String),
+        });
+        expect((error as Error).message).toBe(
+          `invalid json: its transaction is not read: ${reason}`,
+        );
+        for (let i = 0; i + 16 <= tx.length; i += 2)
+          expect((error as Error).message.includes(tx.slice(i, i + 16))).toBe(
+            false,
+          );
+      }
     });
 
     it("refuses the object's own partialTx as built.tx, which would leave its key missing", async () => {

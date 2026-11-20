@@ -2099,9 +2099,11 @@ export class TxBuilder {
    * A `BuiltTx` from its JSON: the transaction another process built, or this one before a
    * restart, with the witnesses it held. It makes no request. The record is believed as a
    * `BuiltTxData` the application kept is: give it what the application wrote itself. Its
-   * transaction is read again: it must be the unsigned one, `txHash` must be the hash of its
-   * body, and every witness the record holds is verified against that body. A transaction made
-   * by `fromCbor` is written and restored the same way.
+   * transaction is read again, within the bounds `fromCbor` reads one within (size, depth and
+   * the decoder's work), checked before any of it is decoded, as a JSON may come from another
+   * party: it must be the unsigned one, `txHash` must be the hash of its body, and every witness
+   * the record holds is verified against that body. A transaction made by `fromCbor` is written
+   * and restored the same way.
    *
    * ```ts
    * await db.put(orderId, JSON.stringify(built));
@@ -2116,10 +2118,10 @@ export class TxBuilder {
    * @throws TxPlanError INVALID_STATE (`recordVersion`) for a record of another kind, a newer
    *   version, or with content this library does not read
    * @throws TxBuildError INVALID_OPTION (`json`) for a value that is no record, a record whose
-   *   transaction holds a vkey or bootstrap witness (signatures go in its `witnesses`), whose
-   *   `txHash` is not the hash of its transaction, or that holds a witness that is not of its
-   *   body; `details.value` is only the JavaScript type of what was given; NETWORK_MISMATCH for a
-   *   transaction built for another network
+   *   transaction is past those bounds or holds a vkey or bootstrap witness (signatures go in its
+   *   `witnesses`), whose `txHash` is not the hash of its transaction, or that holds a witness
+   *   that is not of its body; `details.value` is only the JavaScript type of what was given;
+   *   NETWORK_MISMATCH for a transaction built for another network
    */
   restore(json: BuiltTxJSON): Promise<BuiltTx> {
     return restoreBuiltTx(this, json);
