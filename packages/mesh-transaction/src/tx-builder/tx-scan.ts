@@ -24,6 +24,11 @@ import { CborReader, HexBlob, Serialization } from "@meshsdk/core-cst";
  * 1.2, strings in pieces at 0.3 to 1.1, native scripts at 0.2 to 0.5, as they are counted for
  * more than their decoder spends. The largest of each family the bound lets through decodes in
  * 0.16 to 0.94 s.
+ *
+ * The reference script of a UTxO is never decoded: its language, its hash and its size are read
+ * from its bytes on the token reader. Only a native one is decoded, for the keys it names, where a
+ * native witness runs it or the signers of a transaction are read from the UTxOs given with it,
+ * and only within `MAX_SCRIPT_WORK`.
  */
 
 const State = Serialization.CborReaderState;

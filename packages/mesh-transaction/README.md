@@ -2097,16 +2097,23 @@ const utxo: Utxo = {
   reads it. The builder checks it by a walk over its bytes and does not decode it, so a deeply
   nested datum on a key-locked UTxO does not slow a build.
 - `script`: the reference script, left out when the output holds none. A Plutus script is a
-  `PlutusScript` with its `hash`, a native script its CBOR with its `hash`. A script given as bytes
-  (a Mesh `scriptRef`, CBOR, or an `unknown` script) that the library cannot read (a language it
-  does not know, bytes that are not a script, bytes it would not write back the same, or a hash
-  other than the one stated with it) is `{ type: "unknown", scriptRef, hash? }`, its bytes kept:
-  the UTxO can still be spent, the script counts for the fee by its size, and it cannot be named as
-  a `{ reference }` (`INVALID_SCRIPT`). So is a script, in any form and from any source, that nests
-  deeper than 1 024 levels or that the decoder would take more than about 10 ms to read (a native
-  script that nests more than 33 levels deep or names more than 189 keys): it is never decoded,
-  and its UTxO is read and can pay, since anyone can send an output that holds one. A `plutus` or
-  `native` script given in the builder's form that cannot be read is refused instead (see below).
+  `PlutusScript` with its `hash`, a native script its CBOR with its `hash`. A reference script is
+  never decoded: its language, its hash and its size are read from its bytes, the hash as the
+  ledger takes it (blake2b-224 of the language's tag and the script as written), so a script of
+  any depth, from any source, is read at once and its UTxO can pay. A script given as bytes (a
+  Mesh `scriptRef`, CBOR, or an `unknown` script) that the library cannot read (another framing, a
+  language it does not know, bytes after the script, a Plutus script whose byte string is written
+  in pieces, bytes it would not write back the same, or a hash other than the one stated with it)
+  is `{ type: "unknown", scriptRef, hash? }`, its bytes kept: the UTxO can still be spent, the
+  script counts for the fee by its size, and it cannot be named as a `{ reference }`
+  (`INVALID_SCRIPT`). A `plutus` or `native` script given in the builder's form that cannot be read
+  is refused instead (see below).
+- A native script named as the `{ reference }` of a native witness is decoded for the keys it
+  names, which are priced and asked for, and only if the decoder reads it in about 10 ms: one that
+  nests more than 33 levels deep or names more than 189 keys, or that is not a native script,
+  cannot be named so (`INVALID_SCRIPT`). Where the signers of a transaction are read from the
+  UTxOs given with it (`requiredSigners`, `fromCbor`, `finalize`), such a script is not listed in
+  `nativeScripts`, and its keys are not asked for.
 - A `Utxo` has `txHash` and `outputIndex`, so it is an out ref wherever one is asked for; given to
   a part, it is the UTxO in full.
 

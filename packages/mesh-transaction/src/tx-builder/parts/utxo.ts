@@ -32,7 +32,8 @@ import { givenShape, shownValue } from "./shape";
  * The builder's UTxO form. Every UTxO the builder is given, as a `Utxo`, a Mesh `UTxO` or the
  * CBOR of a transaction unspent output, goes through `readUtxo`, which checks it and copies it
  * into a `Utxo` in normal form: hex in lower case, the address in bech32 (base58 for Byron),
- * lovelace first and tokens by unit, the reference script described with its hash.
+ * lovelace first and tokens by unit, the reference script described with its hash, read from its
+ * bytes and never decoded.
  */
 
 /** What part of a UTxO a `UtxoError` is about, for a caller to map onto its own error code */
@@ -783,8 +784,9 @@ const UTXO_FORMS =
  *
  * The result is in normal form: hex in lower case, the address in bech32 (base58 for Byron),
  * lovelace first and tokens by unit, a token of quantity zero left out, a reference script
- * described with its hash. Members that are not a UTxO's (the `label` and `change` of a built
- * output) are not copied.
+ * described with its hash. The reference script is never decoded: its language, hash and size
+ * are read from its bytes, so one of any depth is read at once. Members that are not a UTxO's
+ * (the `label` and `change` of a built output) are not copied.
  * @throws TxBuildError INVALID_OPTION `{ option: "utxo", value, allowed }`, `value` the
  *   JavaScript type of what was given, the reason as `cause`, for a value that is not a UTxO: a transaction hash, output index, address, unit or
  *   quantity that cannot be read; a reward address; a `dataHash` that is not the hash of the
