@@ -69,6 +69,7 @@ import {
   withdrawal,
 } from "../../src/tx-builder";
 import { feeForSize } from "../../src/tx-builder/fee";
+import * as utxoModule from "../../src/tx-builder/parts/utxo";
 import {
   askSigner,
   KeyWitness,
@@ -1337,28 +1338,37 @@ describe("requiredSigners", () => {
       expectAgrees(built);
     });
 
-    /** `all` around one key `levels` times, and `all` of `count` keys: native scripts in CBOR */
-    const nestedCbor = (levels: number) =>
-      "820181".repeat(levels) +
-      cbor.arr(cbor.uint(0), cbor.bytes(keyHashHex(35)));
-    const keysCbor = (count: number) =>
+    /** `all` around a script `levels` times, by default one key, and `all` of `count` keys */
+    const nestedCbor = (
+      levels: number,
+      inner = cbor.arr(cbor.uint(0), cbor.bytes(keyHashHex(35))),
+    ) => "820181".repeat(levels) + inner;
+    const keysCbor = (count: number, from = 100) =>
       `8201${cbor.head(4, count)}${Array.from({ length: count }, (_, i) =>
-        cbor.arr(cbor.uint(0), cbor.bytes(keyHashHex(100 + i))),
+        cbor.arr(cbor.uint(0), cbor.bytes(keyHashHex(from + i))),
       ).join("")}`;
-    /** Native scripts within the bounds of their decoding for their keys, and past them */
-    const shapes: [string, string, boolean][] = [
-      ["nested 33 deep", nestedCbor(33), true],
-      ["of 189 keys", keysCbor(189), true],
-      ["nested 34 deep", nestedCbor(34), false],
-      ["of 190 keys", keysCbor(190), false],
+    /**
+     * Native scripts whose keys are read, at any number of keys and nested no deeper than 1 024
+     * levels as the walk counts them, `[0, script]` the first: `all` around a key 511 times
+     * reaches 1 024; and those whose keys are not read
+     */
+    const shapes: [string, string, "keys" | "deep" | "unknown"][] = [
+      ["nested 34 deep", nestedCbor(34), "keys"],
+      ["of 190 keys", keysCbor(190), "keys"],
       [
         "15 KB of an all of 10 nested 500 deep",
         `8201${cbor.head(4, 10)}${nestedCbor(500).repeat(10)}`,
-        false,
+        "keys",
       ],
-      ["nested 3 000 deep", nestedCbor(3_000), false],
-      // One well-formed item, read as a native script with its hash, that is not one
-      ["a byte string, not a native script", cbor.bytes("ab"), false],
+      ["nested 511 deep, 1 024 levels", nestedCbor(511), "keys"],
+      [
+        "nested 511 deep around all [], 1 025 levels",
+        nestedCbor(511, cbor.arr(cbor.uint(1), cbor.arr())),
+        "deep",
+      ],
+      ["nested 3 000 deep", nestedCbor(3_000), "deep"],
+      // A well-formed item that is not a native script
+      ["a byte string, not a native script", cbor.bytes("ab"), "unknown"],
     ];
     /** A UTxO holding the native script, given as bytes, and an output it locks */
     const heldScript = (native: string) => {
@@ -1373,18 +1383,43 @@ describe("requiredSigners", () => {
       );
       return { hash, holder, locked };
     };
+    const input = (u: Utxo) =>
+      cbor.arr(cbor.bytes(u.txHash), cbor.uint(u.outputIndex));
+    /** A transaction that spends these UTxOs and reads these, written by hand */
+    const handTx = (spends: Utxo[], reads: Utxo[]) =>
+      cbor.tx(
+        cbor.map(
+          [cbor.uint(0), cbor.tag258(cbor.arr(...spends.map(input)))],
+          [
+            cbor.uint(1),
+            cbor.arr(
+              cbor.map(
+                [
+                  cbor.uint(0),
+                  cbor.bytes(Address.fromBech32(recipient).toBytes()),
+                ],
+                [cbor.uint(1), cbor.uint(3_000_000)],
+              ),
+            ),
+          ],
+          [cbor.uint(2), cbor.uint(200_000)],
+          [cbor.uint(18), cbor.tag258(cbor.arr(...reads.map(input)))],
+        ),
+      );
 
-    it("decodes a native script a reference input holds for the keys it names only within the bounds of that decoding: a spend and a mint through one build with its keys priced; past them each is INVALID_SCRIPT at once, the script read with its hash", async () => {
-      // 189 keys priced do not fit in a transaction: 120 stand for them
-      const buildable: [string, string, boolean][] = [
-        ["of 120 keys", keysCbor(120), true],
-        ...shapes.filter(([name]) => name !== "of 189 keys"),
+    it("reads the keys of a native script a reference input holds from its bytes, at any number of keys and up to 1 024 levels: a spend and a mint through one build with its keys priced; one level deeper, and what is not a native script, are INVALID_SCRIPT at once", async () => {
+      // 190 keys priced do not fit in a transaction: 120 stand for them
+      const buildable: [string, string, "keys" | "deep" | "unknown"][] = [
+        ["of 120 keys", keysCbor(120), "keys"],
+        ...shapes.filter(([name]) => name !== "of 190 keys"),
       ];
-      for (const [name, native, within] of buildable) {
+      for (const [name, native, read] of buildable) {
         const { hash, holder, locked } = heldScript(native);
         expect([name, toUtxo(holder).script]).toEqual([
           name,
-          { type: "native", cbor: native, hash },
+          read === "unknown"
+            ? { type: "unknown", scriptRef: `8200${native}` }
+            : { type: "native", cbor: native, hash },
         ]);
         // The keys it names, each `[0, key hash]`
         const named = [...native.matchAll(/8200581c([0-9a-f]{56})/g)].map(
@@ -1408,11 +1443,10 @@ describe("requiredSigners", () => {
           } catch (e) {
             error = e;
           }
-          // Seconds where the script is decoded past the bounds: 16 s for the 15 KB one
           expect(performance.now() - started).toBeLessThan(
-            within ? 5_000 : 2_000,
+            read === "keys" ? 5_000 : 2_000,
           );
-          if (within) {
+          if (read === "keys") {
             expect([name, error]).toEqual([name, undefined]);
             expect(built!.signers.nativeScripts).toHaveLength(1);
             // Every key the script names is priced and asked for
@@ -1426,53 +1460,58 @@ describe("requiredSigners", () => {
               "INVALID_SCRIPT",
             ]);
             expect((error as Error).message).toContain(
-              `${holder.txHash}#0 holds a native script whose keys this library does not read`,
+              read === "deep"
+                ? `${holder.txHash}#0 holds a native script whose keys this library does not read`
+                : `${holder.txHash}#0 holds a reference script this library cannot read`,
             );
           }
         }
       }
     });
 
-    it("lists a native script a reference input holds, for a transaction read whole, only within the bounds of its decoding: past them it is not listed, and the transaction is read at once", async () => {
-      const addressHex = Address.fromBech32(recipient).toBytes();
-      for (const [name, native, within] of shapes) {
+    it("lists a native script a reference input holds, for a transaction read whole, where its keys are read: at any number of keys and up to 1 024 levels, not one level deeper nor what is not a native script, and the transaction is read at once", async () => {
+      for (const [name, native, read] of shapes) {
         const { holder, locked } = heldScript(native);
         const keyInput = utxo(lovelace(ada(50)));
-        const input = (u: Utxo) =>
-          cbor.arr(cbor.bytes(u.txHash), cbor.uint(u.outputIndex));
         // It spends the key input and the script's output, and reads the holder
-        const tx = cbor.tx(
-          cbor.map(
-            [
-              cbor.uint(0),
-              cbor.tag258(cbor.arr(input(keyInput), input(locked))),
-            ],
-            [
-              cbor.uint(1),
-              cbor.arr(
-                cbor.map(
-                  [cbor.uint(0), cbor.bytes(addressHex)],
-                  [cbor.uint(1), cbor.uint(3_000_000)],
-                ),
-              ),
-            ],
-            [cbor.uint(2), cbor.uint(200_000)],
-            [cbor.uint(18), cbor.tag258(cbor.arr(input(holder)))],
-          ),
-        );
+        const tx = handTx([keyInput, locked], [holder]);
         const spent = [keyInput, locked, holder];
         const started = performance.now();
         const signers = requiredSigners(tx, spent);
-        const read = await builder().fromCbor(tx, { knownUtxos: spent });
-        // Seconds where the script is decoded past the bounds: 8 s for the 15 KB one
+        const whole = await builder().fromCbor(tx, { knownUtxos: spent });
         expect(performance.now() - started).toBeLessThan(2_000);
+        const listed = read === "keys" ? 1 : 0;
         expect([
           name,
           signers.nativeScripts.length,
-          read.signers.nativeScripts.length,
-        ]).toEqual([name, within ? 1 : 0, within ? 1 : 0]);
-        expect(read.signers.keyHashes).toEqual(signers.keyHashes);
+          whole.signers.nativeScripts.length,
+        ]).toEqual([name, listed, listed]);
+        expect(whole.signers.keyHashes).toEqual(signers.keyHashes);
       }
+    });
+
+    it("reads the keys of no native script a reference input holds that the transaction does not run, its hash known without them: 40 reference inputs whose UTxOs hold 16 KB of keys each; of one the transaction runs, those of that one alone", async () => {
+      const holders = Array.from(
+        { length: 40 },
+        (_, i) => heldScript(keysCbor(510, 1_000 + 510 * i)).holder,
+      );
+      expect(
+        utxoModule.scriptSize(toUtxo(holders[0]!).script!),
+      ).toBeGreaterThan(16_300);
+      const keyInput = utxo(lovelace(ada(50)));
+      const keysRead = jest.spyOn(utxoModule, "heldNativeScript");
+      const idle = handTx([keyInput], holders);
+      expect(
+        requiredSigners(idle, [keyInput, ...holders]).nativeScripts,
+      ).toEqual([]);
+      await builder().fromCbor(idle, { knownUtxos: [keyInput, ...holders] });
+      expect(keysRead).not.toHaveBeenCalled();
+      const { locked } = heldScript(keysCbor(510, 1_000));
+      const runs = handTx([keyInput, locked], holders);
+      const signers = requiredSigners(runs, [keyInput, locked, ...holders]);
+      expect(signers.nativeScripts).toHaveLength(1);
+      expect(keysRead).toHaveBeenCalledTimes(1);
+      keysRead.mockRestore();
     });
   });
 });

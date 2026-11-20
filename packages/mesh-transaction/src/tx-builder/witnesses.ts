@@ -24,7 +24,7 @@ import type {
 } from "./parts/types";
 import type { AskedKey } from "./sign";
 import { nativeScriptToPrototype } from "./parts/normalize";
-import { decodedNativeScript } from "./parts/utxo";
+import { heldNativeScript } from "./parts/utxo";
 
 /** Who has to sign a transaction: key hashes, and Byron addresses spent from */
 export type Signers = { keyHashes: Set<string>; byronAddresses: Set<string> };
@@ -168,15 +168,13 @@ export const nativeScriptEntry = (
 });
 
 /**
- * The native script a UTxO holds as its reference script, if it holds one that is decoded for its
- * keys: not one past the bounds of that decoding
+ * The native script a UTxO holds as its reference script, if it holds one whose keys are read:
+ * not one nested deeper than `MAX_TX_DEPTH`
  */
 export const nativeScriptRef = (
   utxo: Readonly<Utxo> | undefined,
-): { script: NativeScriptPrototype; hash: string } | undefined => {
-  const native = decodedNativeScript(utxo?.script);
-  return native && nativeScriptEntry(native);
-};
+): { script: NativeScriptPrototype; hash: string } | undefined =>
+  heldNativeScript(utxo?.script);
 
 /**
  * The script of a native witness and its hash, the script read from its reference output when

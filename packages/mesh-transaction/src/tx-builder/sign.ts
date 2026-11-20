@@ -1540,14 +1540,16 @@ export const bodySigners = (
   }
   for (const policyId of Object.keys(body.mint ?? {})) scripts.add(policyId);
 
-  // Native scripts the witness set holds, then those held by given UTxOs the transaction reads
+  // Native scripts the witness set holds, then those held by given UTxOs the transaction reads:
+  // the keys of one are read only where the transaction runs it, known by its hash
   for (const native of raw.witnesses.nativeScripts()?.values() ?? [])
     addNativeScript(collected, nativeScriptEntry(native));
   for (const input of [...body.inputs, ...(body.reference_inputs ?? [])]) {
-    const native = nativeScriptRef(
-      given.get(outRefKey(input.transaction_id, input.index)),
-    );
-    if (native && scripts.has(native.hash)) addNativeScript(collected, native);
+    const utxo = given.get(outRefKey(input.transaction_id, input.index));
+    if (utxo?.script?.type !== "native" || !scripts.has(utxo.script.hash))
+      continue;
+    const native = nativeScriptRef(utxo);
+    if (native) addNativeScript(collected, native);
   }
   return { collected, scripts };
 };

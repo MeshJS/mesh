@@ -2,6 +2,7 @@ import {
   deserializeAddress,
   mConStr0,
   NativeScript,
+  Protocol,
   resolveNativeScriptHash,
   resolveScriptRef,
   UTxO,
@@ -26,7 +27,9 @@ import {
   Utxo,
 } from "../../src/tx-builder";
 import { scriptDataHashOf } from "../../src/tx-builder/hashes";
-import { alwaysSucceedCbor, baseAddress } from "../test-util";
+import { itemDepth } from "../../src/tx-builder/tx-scan";
+import { askedKeys } from "../../src/tx-builder/witnesses";
+import { alwaysSucceedCbor, baseAddress, keyHashHex } from "../test-util";
 
 const words = Array(24).fill("solution");
 const recipient = baseAddress(2);
@@ -64,11 +67,13 @@ const attachedCbor = (() => {
 const setup = async (
   validator: "scalus" | "cquisitor",
   evaluator: "emulator" | "default" = "emulator",
+  protocol?: Partial<Protocol>,
 ) => {
   const emulator = await TxEmulator.create({
     validator,
     network: "preprod",
     slot: 100_000_000,
+    ...(protocol && { params: protocol }),
   });
   const builder = new TxBuilder({
     network: "preprod",
@@ -408,6 +413,56 @@ describe.each(["scalus", "cquisitor"] as const)(
       s.expectV3ScriptData(built);
       s.expectFeeCovers(built);
       expect(rules(await s.submit(built))).toEqual([]);
+    });
+
+    it("spends and mints through { reference } a native script of 500 keys, and one 500 levels deep as the walk counts them, its keys read from its bytes and each asked for", async () => {
+      // A witness is priced for each key a script names: for 500, some 50 KB
+      const s = await setup(validator, "emulator", { maxTxSize: 65_536 });
+      s.plain(40n);
+      const own = deserializeAddress(s.address).pubKeyHash;
+      const sig = (keyHash: string) => ({ type: "sig" as const, keyHash });
+      const wide: NativeScript = {
+        type: "any",
+        scripts: [
+          ...Array.from({ length: 499 }, (_, i) => sig(keyHashHex(i))),
+          sig(own),
+        ],
+      };
+      let deep: NativeScript = sig(own);
+      for (let i = 0; i < 249; i++) deep = { type: "all", scripts: [deep] };
+      expect(itemDepth(Buffer.from(resolveScriptRef(deep), "hex"))).toBe(500);
+      for (const [script, keys, name] of [
+        [wide, 500, "77"],
+        [deep, 1, "64"],
+      ] as const) {
+        const holds = s.add({
+          address: recipient,
+          amount: lovelace(30n),
+          scriptRef: resolveScriptRef(script),
+        });
+        const locked = s.add({
+          address: scriptHashToBech32(
+            resolveNativeScriptHash(script),
+            undefined,
+            0,
+          ),
+          amount: lovelace(10n),
+        });
+        const built = await s.build([
+          spend.native({ utxo: locked, script: { reference: holds } }),
+          mint.native({ script: { reference: holds }, assets: { [name]: 1n } }),
+        ]);
+
+        expect(built.prototype.witness_set.native_scripts).toBeUndefined();
+        expect(built.signers.nativeScripts).toHaveLength(1);
+        // Each key the script names is asked for, the wallet's among them
+        const asked = askedKeys(built.signers)
+          .filter(({ roles }) => roles.includes("nativeScript"))
+          .map(({ keyHash }) => keyHash);
+        expect(asked).toHaveLength(keys);
+        expect(asked).toContain(own);
+        expect(rules(await s.submit(built))).toEqual([]);
+      }
     });
 
     it("keeps the attached script when the UTxO that holds it is not spent", async () => {

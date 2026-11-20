@@ -13,6 +13,7 @@ import {
   HexBlob,
   normalizePlutusScript,
   Script,
+  Serialization,
   toTxUnspentOutput,
   TransactionId,
   TransactionInput,
@@ -35,6 +36,7 @@ import {
 } from "../../src/tx-builder";
 import {
   describeScriptRef,
+  heldNativeScript,
   outputAsUtxo,
   outRefOf,
   plainUtxo,
@@ -49,6 +51,7 @@ import {
   UtxoProblem,
 } from "../../src/tx-builder/parts/utxo";
 import { toAssets, valueOf } from "../../src/tx-builder/value";
+import { nativeScriptEntry } from "../../src/tx-builder/witnesses";
 import { alwaysSucceedCbor, baseAddress, keyHashHex } from "../test-util";
 import * as cbor from "./cbor-util";
 
@@ -1194,6 +1197,168 @@ describe("Utxo scripts", () => {
           scriptRef,
           { type: "unknown", scriptRef },
         ]);
+      expect(() =>
+        readUtxo(ownWith({ script: { type: "native", cbor: native } })),
+      ).toThrow(`the UTxO ${hash(1)}#0: the native script cannot be read`);
+    }
+  });
+
+  /** A native script's keys and form as the decoder gives them, by `nativeScriptEntry` */
+  const entryOf = (native: string) =>
+    nativeScriptEntry(Serialization.NativeScript.fromCbor(HexBlob(native)));
+  /** Its keys and form as the library reads them from a UTxO that holds it */
+  const keysOf = (native: string) =>
+    heldNativeScript(describeScriptRef(`8200${native}`));
+  /** A seeded generator of numbers below `n` */
+  const seeded = (seed: number) => (n: number) => {
+    seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648;
+    return seed % n;
+  };
+  /** A native script of every kind, nested and wide, each head in a form `pick` chooses */
+  const generated = (pick: (n: number) => number, depth: number): string => {
+    const int = (major: number, n: number) =>
+      pick(3) === 0
+        ? `${(0x1b + 32 * major).toString(16)}${n.toString(16).padStart(16, "0")}`
+        : cbor.head(major, n);
+    const list = (items: string[]) =>
+      pick(2) === 0
+        ? cbor.arrIndef(...items)
+        : `${pick(3) === 0 ? `98${items.length.toString(16).padStart(2, "0")}` : cbor.head(4, items.length)}${items.join("")}`;
+    const children = () =>
+      Array.from({ length: pick(depth > 0 ? 4 : 1) }, () =>
+        generated(pick, depth - 1),
+      );
+    switch (depth > 0 ? pick(6) : [0, 4, 5][pick(3)]!) {
+      case 0:
+        return cbor.arr(
+          int(0, 0),
+          pick(4) === 0
+            ? `5a0000001c${keyHashHex(pick(1_000))}`
+            : cbor.bytes(keyHashHex(pick(1_000))),
+        );
+      case 1:
+      case 2: {
+        const kind = pick(2) + 1;
+        return cbor.arr(int(0, kind), list(children()));
+      }
+      case 3: {
+        const scripts = children();
+        return cbor.arr(
+          int(0, 3),
+          pick(5) === 0 ? int(1, pick(3)) : int(0, pick(scripts.length + 2)),
+          list(scripts),
+        );
+      }
+      default:
+        return cbor.arr(int(0, 4 + pick(2)), int(0, pick(2 ** 31)));
+    }
+  };
+
+  it("reads the keys of a native script, and its form as the signers list it, as the decoder gives them, from its bytes: every fixture, every kind, wide and nested, canonical and not, 600 scripts generated; where the decoder and the ledger read the bytes apart, as the ledger reads them", () => {
+    const pick = seeded(20_261_120);
+    const natives = [
+      ...Object.values(fixtures).flatMap(({ mesh }) =>
+        mesh.output.scriptRef?.startsWith("8200")
+          ? [mesh.output.scriptRef.slice(4)]
+          : [],
+      ),
+      nativeCbor,
+      resolveScriptRef({
+        type: "atLeast",
+        required: 2,
+        scripts: [1, 2, 3].map((n) => ({
+          type: "sig" as const,
+          keyHash: keyHashHex(n),
+        })),
+      }).slice(4),
+      cbor.arr(
+        cbor.uint(1),
+        cbor.arr(...Array.from({ length: 500 }, (_, i) => key(i))),
+      ),
+      "820181".repeat(100) + key(1),
+      cbor.arr(cbor.uint(3), "3b7fffffffffffffff", cbor.arr(key(1))),
+      cbor.arr(cbor.uint(4), cbor.uint64(2n ** 53n)),
+      ...Array.from({ length: 600 }, () => generated(pick, 4)),
+    ];
+    expect(
+      natives.filter((native) => native.includes("9f")).length,
+    ).toBeGreaterThan(100);
+    for (const native of natives) {
+      const decoded = entryOf(native);
+      expect([native, keysOf(native)]).toStrictEqual([native, decoded]);
+      expect(decoded.hash).toBe(cbor.blake(`00${native}`, 28));
+    }
+    // Where they differ: a list of indefinite length around the script itself, which the decoder
+    // refuses; an n or a slot of more than 53 bits, which it reads through a number
+    const own = cbor.arrIndef(
+      cbor.uint(1),
+      cbor.arr(key(1), cbor.arrIndef(cbor.uint(5), cbor.uint(9))),
+    );
+    expect(() => entryOf(own)).toThrow();
+    expect(keysOf(own)).toStrictEqual({
+      script: {
+        type: "SCRIPT_ALL",
+        value: {
+          native_scripts: [
+            { type: "SCRIPT_PUBKEY", value: { addr_keyhash: keyHashHex(1) } },
+            { type: "TIMELOCK_EXPIRY", value: { slot: "9" } },
+          ],
+        },
+      },
+      hash: cbor.blake(`00${own}`, 28),
+    });
+    const most = cbor.arr(cbor.uint(3), "3b7ffffffffffffffe", cbor.arr());
+    expect(keysOf(most)!.script).toEqual({
+      type: "SCRIPT_N_OF_K",
+      value: { n: -(2n ** 63n) + 1n, native_scripts: [] },
+    });
+    const slot = cbor.arr(cbor.uint(5), "1bffffffffffffffff");
+    expect(keysOf(slot)!.script).toEqual({
+      type: "TIMELOCK_EXPIRY",
+      value: { slot: "18446744073709551615" },
+    });
+    expect(entryOf(slot).script).not.toEqual(keysOf(slot)!.script);
+  });
+
+  it("is unknown, as given, for an item after the language 0 that is not a native script as the ledger reads one, and refused in the builder's form: a byte string, a number, a map, null, a tag, a key hash of 27 bytes or in pieces, a list of the wrong length, a kind past 5, a slot below 0 or of more than 8 bytes, an n past 64 bits", () => {
+    const items = [
+      cbor.bytes("ab"),
+      "00",
+      cbor.map([cbor.uint(0), cbor.bytes(keyHashHex(1))]),
+      "f6",
+      `d818${cbor.bytes(nativeCbor)}`,
+      cbor.arr(cbor.uint(0), cbor.bytes(keyHashHex(1).slice(2))),
+      cbor.arr(cbor.uint(0), cbor.chunkedBytes(keyHashHex(1), 14)),
+      cbor.arr(cbor.uint(3), cbor.bytes("ab")),
+      cbor.arr(cbor.uint(0), cbor.bytes(keyHashHex(1)), cbor.uint(0)),
+      cbor.arr(cbor.uint(1), cbor.arr(), cbor.uint(0)),
+      cbor.arr(cbor.uint(3), cbor.arr()),
+      cbor.arr(cbor.uint(6), cbor.uint(0)),
+      cbor.arr("20", cbor.uint(0)),
+      cbor.arr(cbor.uint(4), "20"),
+      cbor.arr(cbor.uint(4), "c249010000000000000000"),
+      cbor.arr(cbor.uint(3), "1b8000000000000000", cbor.arr()),
+      cbor.arr(cbor.uint(3), "3b8000000000000000", cbor.arr()),
+      cbor.arr(cbor.uint(1), "d9010281" + key(1)),
+      // A script of indefinite length without its break, a list one script short
+      cbor.arrIndef(cbor.uint(1), cbor.arr()).slice(0, -2),
+      cbor.arr(cbor.uint(1), cbor.head(4, 2) + key(1)),
+    ];
+    for (const native of items) {
+      const scriptRef = `8200${native}`;
+      for (const form of [
+        meshWith({ scriptRef }),
+        ownWith({ script: { type: "unknown", scriptRef } }),
+        inCbor(scriptRef),
+      ])
+        expect([native, toUtxo(form as UtxoInput).script]).toStrictEqual([
+          native,
+          { type: "unknown", scriptRef },
+        ]);
+      expect([native, heldNativeScript(describeScriptRef(scriptRef))]).toEqual([
+        native,
+        undefined,
+      ]);
       expect(() =>
         readUtxo(ownWith({ script: { type: "native", cbor: native } })),
       ).toThrow(`the UTxO ${hash(1)}#0: the native script cannot be read`);

@@ -1,4 +1,8 @@
-import type { LanguageVersion, UTxO } from "@meshsdk/common";
+import type {
+  LanguageVersion,
+  NativeScriptPrototype,
+  UTxO,
+} from "@meshsdk/common";
 import {
   Address,
   blake2b,
@@ -23,7 +27,7 @@ import {
   isOneCborItem,
   MAX_ADDRESS_BYTES,
   MAX_TX_BYTES,
-  scriptBounds,
+  MAX_TX_DEPTH,
   splitUtxoBytes,
 } from "../tx-scan";
 import { emptyValue, toAssets } from "../value";
@@ -78,6 +82,8 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 
 const reason = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
+
+const hexOf = (bytes: Uint8Array) => Buffer.from(bytes).toString("hex");
 
 /** Whether a member of a Mesh output is set: neither missing, null nor empty */
 const isSet = (value: unknown) =>
@@ -284,14 +290,148 @@ const unknownScript = (scriptRef: string, stated?: string): OutputScript => ({
   ...(stated !== undefined && { hash: stated }),
 });
 
+/** The head of a CBOR item: its major type, its argument, undefined for an indefinite length */
+type Head = { major: number; value: bigint | undefined; next: number };
+
+/** The head of the item at `at`, read from the bytes; undefined where it is not well formed */
+const headAt = (bytes: Uint8Array, at: number): Head | undefined => {
+  const initial = bytes[at];
+  if (initial === undefined) return undefined;
+  const major = initial >> 5;
+  const info = initial & 0x1f;
+  if (info < 24) return { major, value: BigInt(info), next: at + 1 };
+  if (info === 31) return { major, value: undefined, next: at + 1 };
+  if (info > 27) return undefined;
+  const size = 2 ** (info - 24);
+  if (at + 1 + size > bytes.length) return undefined;
+  let value = 0n;
+  for (let i = 1; i <= size; i++)
+    value = (value << 8n) | BigInt(bytes[at + i]!);
+  return { major, value, next: at + 1 + size };
+};
+
+/** The largest integer of 64 bits, the `n` of `[3, n, scripts]` as the ledger reads it */
+const MAX_INT64 = 2n ** 63n - 1n;
+
+/** A list of native scripts while it is read */
+type ScriptList = {
+  readonly scripts: NativeScriptPrototype[];
+  /** The scripts left to read in a list of definite length; undefined for indefinite length */
+  left: number | undefined;
+  /** Whether the script that holds the list is of indefinite length: a break follows the list */
+  readonly closes: boolean;
+  readonly level: number;
+};
+
 /**
- * The tag and the script of `[language, script]` in hex, read with the token reader, never with
- * a value decoder: an array of two items of definite length; a tag of 0 to 3 in one byte; for 0,
- * one well-formed CBOR item of no more than `MAX_TX_BYTES`, which the walk a transaction is read
- * with passes without a call of itself at any depth; for 1 to 3, one byte string of definite
- * length; nothing after. `script` is the item as written,
- * `hashed` the bytes its hash is taken over: the item of a native script, the content of the byte
- * string of a Plutus one. Undefined for anything else
+ * The native script the bytes hold whole, read as the ledger reads one, with no call of itself at
+ * any depth and in a time that grows with their size: `[0, key hash of 28 bytes]`,
+ * `[1, scripts]`, `[2, scripts]`, `[3, n, scripts]`, `[4, slot]`, `[5, slot]`, each script and
+ * each list of scripts of definite or indefinite length; its kind and a slot an unsigned integer
+ * of up to 8 bytes, `n` an integer of 64 bits, in a form of any length. The script is in the form
+ * `TxSigners.nativeScripts` lists. `depth` counts each array one level, `[0, script]` around it
+ * the first, as the walk counts the CBOR of a reference script. Undefined for anything else: what
+ * the ledger does not read, and a key hash written in pieces, which the ledger is not known to read
+ */
+const readNative = (
+  bytes: Uint8Array,
+): { script: NativeScriptPrototype; depth: number } | undefined => {
+  let at = 0;
+  let depth = 1;
+  const top: NativeScriptPrototype[] = [];
+  // The lists being read, the innermost last; the script itself is the one script of a list
+  const lists: ScriptList[] = [
+    { scripts: top, left: 1, closes: false, level: 1 },
+  ];
+  const uint = () => {
+    const head = headAt(bytes, at);
+    if (head?.major !== 0 || head.value === undefined) return undefined;
+    at = head.next;
+    return head.value;
+  };
+  /** Reads the break that ends a script of indefinite length */
+  const closed = () => bytes[at++] === 0xff;
+  while (lists.length > 0) {
+    const list = lists[lists.length - 1]!;
+    if (list.left === 0 || (list.left === undefined && bytes[at] === 0xff)) {
+      if (list.left === undefined) at++;
+      lists.pop();
+      if (list.closes && !closed()) return undefined;
+      continue;
+    }
+    if (list.left !== undefined) list.left--;
+    const level = list.level + 1;
+    depth = Math.max(depth, level);
+    const open = headAt(bytes, at);
+    if (open?.major !== 4) return undefined;
+    at = open.next;
+    const kind = uint();
+    if (kind === undefined || kind > 5n) return undefined;
+    if (open.value !== undefined && open.value !== (kind === 3n ? 3n : 2n))
+      return undefined;
+    const indefinite = open.value === undefined;
+    if (kind === 0n) {
+      const key = headAt(bytes, at);
+      if (key?.major !== 2 || key.value !== 28n || key.next + 28 > bytes.length)
+        return undefined;
+      at = key.next + 28;
+      list.scripts.push({
+        type: "SCRIPT_PUBKEY",
+        value: { addr_keyhash: hexOf(bytes.subarray(key.next, at)) },
+      });
+    } else if (kind >= 4n) {
+      const slot = uint();
+      if (slot === undefined) return undefined;
+      list.scripts.push({
+        type: kind === 4n ? "TIMELOCK_START" : "TIMELOCK_EXPIRY",
+        value: { slot: slot.toString() },
+      });
+    } else {
+      let n = 0n;
+      if (kind === 3n) {
+        const required = headAt(bytes, at);
+        if (
+          required === undefined ||
+          (required.major !== 0 && required.major !== 1) ||
+          required.value === undefined ||
+          required.value > MAX_INT64
+        )
+          return undefined;
+        n = required.major === 0 ? required.value : -1n - required.value;
+        at = required.next;
+      }
+      const inner = headAt(bytes, at);
+      if (inner?.major !== 4) return undefined;
+      at = inner.next;
+      const scripts: NativeScriptPrototype[] = [];
+      list.scripts.push(
+        kind === 1n
+          ? { type: "SCRIPT_ALL", value: { native_scripts: scripts } }
+          : kind === 2n
+            ? { type: "SCRIPT_ANY", value: { native_scripts: scripts } }
+            : { type: "SCRIPT_N_OF_K", value: { n, native_scripts: scripts } },
+      );
+      depth = Math.max(depth, level + 1);
+      lists.push({
+        scripts,
+        left: inner.value === undefined ? undefined : Number(inner.value),
+        closes: indefinite,
+        level: level + 1,
+      });
+      continue;
+    }
+    if (indefinite && !closed()) return undefined;
+  }
+  return at === bytes.length ? { script: top[0]!, depth } : undefined;
+};
+
+/**
+ * The tag and the script of `[language, script]` in hex, read from its bytes, never with a value
+ * decoder: an array of two items of definite length; a tag of 0 to 3 in one byte; for 0, one
+ * native script of no more than `MAX_TX_BYTES`, read as the ledger reads one; for 1 to 3, one
+ * byte string of definite length; nothing after. `script` is the item as written, `hashed` the
+ * bytes its hash is taken over: the item of a native script, the content of the byte string of a
+ * Plutus one. Undefined for anything else
  */
 const readScriptRef = (
   given: string,
@@ -309,25 +449,17 @@ const readScriptRef = (
     const tag = Number(reader.readUInt());
     if (offset() !== before + 1 || tag > 3) return undefined;
     const start = offset();
-    // A native script is walked in a time that grows with the square of its size; one in an
-    // output is part of a transaction, so none on chain is larger than one
-    if (tag === 0 && given.length / 2 - start > MAX_TX_BYTES) return undefined;
-    let content: Uint8Array | undefined;
-    if (tag === 0) {
-      // The walk a transaction is read with, which refuses all that is not well formed
-      if (!isOneCborItem(Buffer.from(given.slice(2 * start), "hex")))
-        return undefined;
-    } else if (reader.peekState() === State.ByteString) {
-      content = reader.readByteString();
-      if (reader.getBytesRemaining() !== 0) return undefined;
-    } else return undefined;
     const script = given.slice(2 * start);
-    return {
-      tag,
-      script,
-      hashed:
-        content === undefined ? script : Buffer.from(content).toString("hex"),
-    };
+    if (tag === 0) {
+      // One in an output is part of a transaction, so none on chain is larger than one
+      if (script.length / 2 > MAX_TX_BYTES) return undefined;
+      if (!readNative(Buffer.from(script, "hex"))) return undefined;
+      return { tag, script, hashed: script };
+    }
+    if (reader.peekState() !== State.ByteString) return undefined;
+    const content = reader.readByteString();
+    if (reader.getBytesRemaining() !== 0) return undefined;
+    return { tag, script, hashed: hexOf(content) };
   } catch {
     return undefined;
   }
@@ -368,24 +500,21 @@ export const describeScriptRef = (
 };
 
 /**
- * The native script a reference script holds, decoded for the keys it names, which a native
- * witness that runs it prices and asks for. The value decoder reads one in a time that grows
- * with the square of its depth, and anyone can send an output that holds one: it is decoded
- * only once a walk over its bytes finds it within `scriptBounds`. Undefined past them, and for
- * what is not a native script
+ * The native script a reference script holds, read from its bytes as `describeScriptRef` reads
+ * it, in the form `TxSigners.nativeScripts` lists, with its hash: the keys it names are those a
+ * native witness that runs it prices and asks for. Any number of keys is read. Undefined for what
+ * is not a native script, and for one nested deeper than `MAX_TX_DEPTH` as the walk counts the
+ * levels of `[0, script]`: its form is a tree that this library and the application walk by
+ * recursion
  */
-export const decodedNativeScript = (
+export const heldNativeScript = (
   script: OutputScript | undefined,
-): Serialization.NativeScript | undefined => {
+): { script: NativeScriptPrototype; hash: string } | undefined => {
   if (script?.type !== "native") return undefined;
-  const scriptRef = scriptRefOf(script);
-  if (scriptBounds(Buffer.from(scriptRef, "hex")) !== "within")
-    return undefined;
-  try {
-    return Serialization.NativeScript.fromCbor(HexBlob(script.cbor));
-  } catch {
-    return undefined;
-  }
+  const read = readNative(Buffer.from(script.cbor, "hex"));
+  return read !== undefined && read.depth <= MAX_TX_DEPTH
+    ? { script: read.script, hash: script.hash }
+    : undefined;
 };
 
 /** A reference script as the CBOR of `[language, script]` in hex, the form a Mesh `UTxO` holds */
@@ -482,8 +611,6 @@ const withDatum = (datum: OutputDatum | undefined) =>
 
 const withScript = (script: OutputScript | undefined) =>
   script === undefined ? {} : { script };
-
-const hexOf = (bytes: Uint8Array) => Buffer.from(bytes).toString("hex");
 
 /**
  * A UTxO from the CBOR of a transaction unspent output. Its inline datum and its reference script

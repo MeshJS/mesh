@@ -41,7 +41,7 @@ import { TxPartError } from "./errors";
 import { givenShape, shownValue } from "./shape";
 import {
   addressOf,
-  decodedNativeScript,
+  heldNativeScript,
   readUtxo,
   scriptSize,
   UtxoError,
@@ -678,7 +678,7 @@ export const toNativeScriptSource = (
       `${outRefString(resolvable.input)} holds a Plutus script, not a native one`,
     );
   // The keys it names are priced and asked for: a script whose keys are not read cannot run
-  if (!decodedNativeScript(held.script))
+  if (!heldNativeScript(held.script))
     return fail(
       ctx,
       "INVALID_SCRIPT",
