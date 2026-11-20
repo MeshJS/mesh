@@ -49,7 +49,12 @@ import { toKnownUtxos } from "../chain";
 import { NOT_UNPAID, TxBuildError, TxError, TxPlanError } from "../errors";
 import { checkNetworks } from "../network";
 import { invalidOption, typeOf } from "../options";
-import { checkLock, spend, toSpendDatum } from "../parts/inputs";
+import {
+  checkGivenDatum,
+  checkLock,
+  spend,
+  toSpendDatum,
+} from "../parts/inputs";
 import { fail, freeze, withKnownHash } from "../parts/normalize";
 import { validity } from "../parts/scalars";
 import { isLinkedPart } from "../parts/unresolved";
@@ -617,34 +622,28 @@ const linkedOutputs = (
   return labelled;
 };
 
-/** Checks a datum given with a Plutus spend against the output it spends */
-const checkDatum = (ctx: PartContext, datum: SpendDatum, utxo: Utxo) => {
+/**
+ * Checks a datum given with a Plutus spend against the output it spends: the datum the spend
+ * reads, which for data given of an output that holds its datum inline is the inline one
+ */
+const checkDatum = (
+  ctx: PartContext,
+  datum: SpendDatum,
+  utxo: Utxo,
+): SpendDatum => {
   const outRef = utxoKey(utxo);
   const held = utxo.datum;
   if (datum.type === "inline") {
     if (held?.type !== "inline")
       fail(ctx, "DATUM_MISMATCH", `${outRef} holds no inline datum`);
-    return;
+    return datum;
   }
   if (datum.type === "none") {
     if (held !== undefined)
       fail(ctx, "DATUM_MISMATCH", `${outRef} holds a datum`);
-    return;
+    return datum;
   }
-  if (held?.type === "inline")
-    fail(
-      ctx,
-      "DATUM_MISMATCH",
-      `${outRef} holds its datum inline; spend it with datum "inline"`,
-    );
-  if (held?.type !== "hash")
-    fail(ctx, "DATUM_MISMATCH", `${outRef} holds no datum hash`);
-  if (held!.type === "hash" && held!.hash !== datum.hash)
-    fail(
-      ctx,
-      "DATUM_MISMATCH",
-      `${outRef} holds datum hash ${held!.hash}, not the given datum's ${datum.hash}`,
-    );
+  return checkGivenDatum(ctx, datum, utxo);
 };
 
 /**
@@ -693,10 +692,10 @@ const fillOne = (part: LinkedPart, output: BuiltOutput): TxPart => {
       ...label,
     });
   const script = withKnownHash(witness.script, credential);
-  let datum = witness.datum;
-  if (datum === undefined)
-    datum = toSpendDatum(ctx, undefined, utxo, script.version);
-  else checkDatum(ctx, datum, utxo);
+  const datum =
+    witness.datum === undefined
+      ? toSpendDatum(ctx, undefined, utxo, script.version)
+      : checkDatum(ctx, witness.datum, utxo);
   return freeze<SpendPart>({
     kind: "spend",
     input,

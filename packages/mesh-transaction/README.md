@@ -1979,7 +1979,13 @@ built.redeemers; // [{ tag: "SPEND", index, exUnits, data, label: "unlock", part
   part's address); with `collateralReturn: false`, lovelace-only inputs forfeited whole, with
   neither return nor total. Every Plutus transaction carries collateral inputs.
 - The datum of a spent script output is worked out from the output: inline, none (Plutus V3), or
-  pass `datum: { data }` for an output holding a datum hash.
+  pass `datum: { data }` for an output holding a datum hash, whose data goes into the witness set.
+  `{ data }` may be given for an output that holds its datum inline too, as a check: the data must
+  be that datum, byte for byte (its hash the hash of the inline bytes), else `DATUM_MISMATCH`
+  naming the out ref. It never goes into the witness set, and a script is judged on the datum the
+  output holds, as the ledger judges it: a local evaluation builds its context from the UTxO. For a
+  part given an out ref, the UTxO the build reads is checked the same way when it holds its datum
+  inline.
 - An attached script that an input or reference input already holds as its reference script is
   left out of the witness set.
 - An output read by several parts is one reference input, and an output the transaction spends is

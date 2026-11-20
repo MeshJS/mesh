@@ -20,6 +20,7 @@ import {
 import { encodePlan, readPlan } from "../../../src/tx-builder/plan/json";
 import { makePlan } from "../../../src/tx-builder/plan/make";
 import { alwaysSucceedCbor, baseAddress } from "../../test-util";
+import { mapPairs, topItems } from "../cbor-util";
 import { caught, walletOf } from "./plan-emulator-util";
 
 // A plan built on the emulator: every body at once, threaded through the payer's
@@ -243,6 +244,42 @@ describe.each(["scalus", "cquisitor"] as const)(
       expect(outRefs(unlock.inputs)).toEqual(outRefs([lock.outputs[0]!]));
       expect(outRefs(unlock.collateral!.inputs)).toEqual(outRefs(lock.change));
       expect(plan.steps[1]!.standsOn).toEqual(["lock"]);
+      await land(emulator, plan, () => wallet);
+      expect(emulator.utxos({ address: vault })).toHaveLength(0);
+    });
+
+    it("takes { data } for a linked output that holds its datum inline as a check: the same data spends the inline datum, carried in no witness set, and other data is DATUM_MISMATCH", async () => {
+      const { emulator, builder, wallet } = await setup(validator);
+      const vault = builder.scriptAddress(script);
+      const steps = (data: ReturnType<typeof mConStr0>) => ({
+        lock: output({
+          address: vault,
+          value: { lovelace: 10n * ADA },
+          datum: { type: "inline", data: mConStr0([]) },
+          label: "vault",
+        }),
+        unlock: [
+          spend.plutus({
+            utxo: { step: "lock", output: "vault" },
+            script,
+            redeemer: { data: mConStr0([]) },
+            datum: { data },
+          }),
+          pay(bob, 4n * ADA),
+        ],
+      });
+      const mismatch = await caught(
+        makePlan(builder, steps(mConStr0([1])), { payer: wallet }),
+      );
+      expect(mismatch.code).toBe("DATUM_MISMATCH");
+      expect(mismatch.message).toMatch(/holds its datum inline/);
+      const plan = await makePlan(builder, steps(mConStr0([])), {
+        payer: wallet,
+      });
+      const unlock = stepOf(plan, "unlock");
+      expect(
+        mapPairs(topItems(unlock.tx)[1]!).filter(([key]) => key === "04"),
+      ).toEqual([]);
       await land(emulator, plan, () => wallet);
       expect(emulator.utxos({ address: vault })).toHaveLength(0);
     });

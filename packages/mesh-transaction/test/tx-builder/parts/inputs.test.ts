@@ -502,17 +502,49 @@ describe("spend.plutus", () => {
     );
   });
 
-  it("rejects a supplied datum for an output holding its datum inline", () => {
-    expectPartError(
+  it("takes a supplied datum for an output holding its datum inline as a check: the same bytes, in any data format, spend the inline datum; other data, or an output with no datum, is DATUM_MISMATCH naming the out ref", () => {
+    const inline = utxo(0, plutusAddress, { datum: unitInline });
+    for (const data of [
+      unitDatum,
+      { type: "CBOR" as const, content: unitDatumCbor },
+      { type: "JSON" as const, content: { constructor: 0, fields: [] } },
+    ]) {
+      const part = spend.plutus({
+        utxo: inline,
+        script,
+        redeemer,
+        datum: { data },
+      });
+      expect(part.witness).toMatchObject({ datum: { type: "inline" } });
+    }
+    // The same value written otherwise is other bytes: its hash is not the inline datum's
+    for (const content of ["d8799fff", "d87a80"]) {
+      const error = expectPartError(
+        () =>
+          spend.plutus({
+            utxo: inline,
+            script,
+            redeemer,
+            datum: { data: { type: "CBOR", content } },
+          }),
+        "DATUM_MISMATCH",
+      );
+      expect(error.message).toContain(
+        `${"a".repeat(64)}#0 holds its datum inline`,
+      );
+      expect(error.message.includes(content)).toBe(false);
+    }
+    const error = expectPartError(
       () =>
         spend.plutus({
-          utxo: utxo(0, plutusAddress, { datum: unitInline }),
+          utxo: utxo(1, plutusAddress),
           script,
           redeemer,
           datum: { data: unitDatum },
         }),
       "DATUM_MISMATCH",
     );
+    expect(error.message).toContain(`${"a".repeat(64)}#1 holds no datum`);
   });
 
   it("spends an output holding no datum only with Plutus V3", () => {

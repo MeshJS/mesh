@@ -1,4 +1,4 @@
-import type { LanguageVersion } from "@meshsdk/common";
+import type { LanguageVersion, PlutusDataVariant } from "@meshsdk/common";
 
 import type { PartContext } from "./normalize";
 import type {
@@ -36,7 +36,7 @@ import {
   withKnownHash,
 } from "./normalize";
 import { shownValue } from "./shape";
-import { utxoKey } from "./utxo";
+import { dataHashOf, utxoKey } from "./utxo";
 
 /**
  * Checks that a known output is locked the way its witness expects: by a key, or by the script
@@ -55,6 +55,41 @@ export const checkLock = (
   const outRef = utxoKey(utxo);
   checkCredential(ctx, outRef, credential, expected);
   return credential;
+};
+
+/**
+ * A datum given as `{ data }` checked against the output it spends. Of an output that holds its
+ * datum inline, the given data must be that datum, by its bytes as written (the hash of the given
+ * data is the hash of those bytes), and the spend then reads the inline datum: the given copy goes
+ * nowhere, as the ledger takes the datum from the output and refuses a datum it does not need. Of
+ * an output with a datum hash, the hash of the given data must be it, and the data goes into the
+ * witness set. An output with no datum is refused
+ */
+export const checkGivenDatum = (
+  ctx: PartContext,
+  given: { readonly data: Readonly<PlutusDataVariant>; readonly hash: string },
+  utxo: Utxo,
+): SpendDatum => {
+  const outRef = utxoKey(utxo);
+  const held = utxo.datum;
+  if (held?.type === "inline") {
+    if (dataHashOf(held.data.content) !== given.hash)
+      fail(
+        ctx,
+        "DATUM_MISMATCH",
+        `${outRef} holds its datum inline, and the datum given is not that datum`,
+      );
+    return { type: "inline" };
+  }
+  if (held?.type !== "hash")
+    return fail(ctx, "DATUM_MISMATCH", `${outRef} holds no datum`);
+  if (held.hash !== given.hash)
+    fail(
+      ctx,
+      "DATUM_MISMATCH",
+      `${outRef} holds datum hash ${held.hash}, not the given datum's ${given.hash}`,
+    );
+  return { type: "provided", data: given.data, hash: given.hash };
 };
 
 /**
@@ -98,22 +133,7 @@ export const toSpendDatum = (
         `invalid datum ${shownValue(datum)}: expected "inline", "none" or { data }`,
       );
     const provided = toPlutusData(ctx, datum.data);
-    if (utxo) {
-      if (inlineDatum)
-        fail(
-          ctx,
-          "DATUM_MISMATCH",
-          `${outRef} holds its datum inline; spend it with datum "inline"`,
-        );
-      if (!datumHash)
-        fail(ctx, "DATUM_MISMATCH", `${outRef} holds no datum hash`);
-      if (datumHash !== provided.hash)
-        fail(
-          ctx,
-          "DATUM_MISMATCH",
-          `${outRef} holds datum hash ${datumHash}, not the given datum's ${provided.hash}`,
-        );
-    }
+    if (utxo) return checkGivenDatum(ctx, provided, utxo);
     return { type: "provided", ...provided };
   }
 
@@ -244,7 +264,9 @@ function plutus(params: {
  *   two CBOR wrappings) or held in a reference output (`{ reference }`)
  * @param params.redeemer Data, or a function of the final transaction (`self`: this input's
  *   index), with execution units if already known
- * @param params.datum The datum of the output; worked out from the output when omitted
+ * @param params.datum The datum of the output; worked out from the output when omitted. Data
+ *   given for an output that holds its datum inline is checked to be that datum, byte for byte,
+ *   and never goes into the witness set: the script is judged on the datum the output holds
  * @param params.label Name echoed in errors about this part, such as a script failure
  */
 function plutus(params: {

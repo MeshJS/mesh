@@ -217,8 +217,11 @@ export type RedeemerInput = {
  * The datum of a spent script output:
  * - `"inline"`: the output holds its datum inline;
  * - `"none"`: the output holds no datum (Plutus V3 only);
- * - `{ data }`: the output holds the datum's hash, and the datum is supplied with the
- *   transaction.
+ * - `{ data }`: the datum of the output. For an output that holds its datum's hash, the datum
+ *   is supplied with the transaction, in its witness set. For an output that holds its datum
+ *   inline, it is a check: the data must be that datum, byte for byte (DATUM_MISMATCH else),
+ *   and it goes nowhere, since the ledger, and a local evaluation, read the datum from the output.
+ *   An output with no datum is DATUM_MISMATCH.
  */
 export type SpendDatumInput = "inline" | "none" | { data: PlutusDataInput };
 

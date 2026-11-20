@@ -27,7 +27,7 @@ import type {
 } from "./parts/types";
 import { TxBuildError } from "./errors";
 import { checkNetworks, heldUtxos, utxoEntry } from "./network";
-import { checkLock, toSpendDatum } from "./parts/inputs";
+import { checkGivenDatum, checkLock, toSpendDatum } from "./parts/inputs";
 import {
   errorText,
   fail,
@@ -302,8 +302,15 @@ const resolveSpend = (part: SpendPart, ctx: ResolveContext): SpendPart => {
       witness: { ...witness, script: known as NativeScriptSource },
     };
   const plutus = known as PlutusScriptSource;
+  // Data given for an output read only now that holds its datum inline is checked against it as
+  // the part checks a UTxO it is given in full, and the spend reads the inline datum. Of any
+  // other output the data goes into the witness set as given: a provider may not show a hash
   const datum =
-    witness.datum ?? toSpendDatum(partCtx, undefined, utxo, plutus.version);
+    witness.datum === undefined
+      ? toSpendDatum(partCtx, undefined, utxo, plutus.version)
+      : witness.datum.type === "provided" && utxo?.datum?.type === "inline"
+        ? checkGivenDatum(partCtx, witness.datum, utxo)
+        : witness.datum;
   return {
     ...part,
     utxo,

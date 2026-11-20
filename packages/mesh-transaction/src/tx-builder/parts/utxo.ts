@@ -203,7 +203,8 @@ const readInlineData = (at: string, what: string, content: unknown) =>
   readHex("datum", at, what, content);
 
 /** The hash of a datum: blake2b-256 of its bytes as written */
-const dataHashOf = (data: string) => blake2b.hash(HexBlob(data), 32).toString();
+export const dataHashOf = (data: string) =>
+  blake2b.hash(HexBlob(data), 32).toString();
 
 const inlineDatum = (content: string): OutputDatum => ({
   type: "inline",
