@@ -1490,9 +1490,9 @@ describe("requiredSigners", () => {
       }
     });
 
-    it("reads the keys of no native script a reference input holds that the transaction does not run, its hash known without them: 40 reference inputs whose UTxOs hold 16 KB of keys each; of one the transaction runs, those of that one alone", async () => {
+    it("reads the keys of no native script a reference input holds that the transaction does not run, its hash known without them: 12 reference inputs whose UTxOs hold 16 KB of keys each, as many as a node takes; of one the transaction runs, those of that one alone", async () => {
       const holders = Array.from(
-        { length: 40 },
+        { length: 12 },
         (_, i) => heldScript(keysCbor(510, 1_000 + 510 * i)).holder,
       );
       expect(

@@ -60,7 +60,14 @@ import { validity } from "../parts/scalars";
 import { isLinkedPart } from "../parts/unresolved";
 import { plainUtxo, utxoKey } from "../parts/utxo";
 import { changeAddressOf, givenPayerEntries, toPayerSource } from "../payer";
-import { readTransactionItems } from "../sign";
+import {
+  readTransaction,
+  readTransactionItems,
+  refScriptBytes,
+  refScriptsBeyond,
+  refScriptsRefused,
+  spentAndRead,
+} from "../sign";
 import { scanTransaction } from "../tx-scan";
 import { addValues, fromMultiAsset, negate, valueOf } from "../value";
 import {
@@ -2070,6 +2077,29 @@ const readPrebuilt = async (
 ): Promise<Map<string, PrebuiltRead>> => {
   const read = new Map<string, PrebuiltRead>();
   const done: { readonly name: string; readonly built: BuiltTxData }[] = [];
+  // The reference scripts of each step given built are bounded as a node bounds them, before a
+  // UTxO of knownUtxos is read whole; a transaction that cannot be read is refused by fromCbor
+  for (const step of given) {
+    if (step.prebuilt === undefined) continue;
+    let refs: string[];
+    try {
+      scanTransaction(step.prebuilt.text, builder.params?.maxTxSize);
+      refs = spentAndRead(readTransaction(step.prebuilt.text).body);
+    } catch {
+      continue;
+    }
+    const past = refScriptsBeyond(
+      refScriptBytes(refs, [
+        ...context.before.flatMap((each) => each.built.outputs),
+        ...context.after.flatMap((each) => each.outputs),
+        ...(Array.isArray(context.knownUtxos)
+          ? (context.knownUtxos as readonly unknown[])
+          : []),
+      ]),
+    );
+    if (past)
+      throw withStep(refScriptsRefused(step.prebuilt.text, past), step.name);
+  }
   const known = toKnownUtxos(context.knownUtxos);
   // The transactions of `after` were read from their own bytes at the door
   const ofAfter = context.after.flatMap((each) => each.outputs);

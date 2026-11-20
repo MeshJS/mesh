@@ -225,12 +225,14 @@ export type TxBuildErrorDetails = {
   VALUE_TOO_LARGE: { size: number; maxValSize: number };
   /**
    * `cause` is `"selection"` when the parts alone fit a transaction and the inputs selected for
-   * them, with their change, do not; `"parts"` when the parts do not fit with one input
+   * them, with their change, do not; `"parts"` when the parts do not fit with one input;
+   * `"referenceScripts"` when the UTxOs it spends and reads hold more reference scripts than a
+   * node takes in one transaction: `size` is their bytes, `maxTxSize` the ledger's 204 800
    */
   TX_TOO_LARGE: {
     size: number;
     maxTxSize: number;
-    cause: "selection" | "parts";
+    cause: "selection" | "parts" | "referenceScripts";
   };
   FEE_TOO_LOW: { fee: bigint; minFee: bigint };
   OUTPUT_BELOW_MIN_COIN: { coin: bigint; minCoin: bigint };

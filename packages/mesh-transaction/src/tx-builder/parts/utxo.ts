@@ -509,6 +509,86 @@ export const scriptRefOf = (script: OutputScript): string => {
 export const scriptSize = (script: OutputScript): number =>
   scriptRefOf(script).length / 2;
 
+/**
+ * The size of a reference script as the ledger counts it toward `MAX_REF_SCRIPT_BYTES`, from the
+ * CBOR of `[language, script]` in hex: of a native script the bytes after its language, of a
+ * Plutus script the content of its byte string. Only the first items are read, with the token
+ * reader, never the script. For what does not read so, the size of the whole, no less than the
+ * ledger's
+ */
+export const countedScriptSize = (scriptRef: string): number => {
+  const whole = scriptRef.length / 2;
+  try {
+    const reader = new CborReader(HexBlob(scriptRef));
+    if (reader.readStartArray() !== 2) return whole;
+    const language = reader.readUInt();
+    if (language === 0n) return reader.getBytesRemaining();
+    if (language > 3n || reader.peekState() !== State.ByteString) return whole;
+    return reader.readByteString().length;
+  } catch {
+    return whole;
+  }
+};
+
+/**
+ * The out ref of a UTxO given in any form, as `txHash#index` in lower case, with the size of the
+ * reference script it holds as `countedScriptSize` counts it, read without describing the script
+ * and without reading the rest of the UTxO: for the bound on the reference scripts of a
+ * transaction, before its UTxOs are read. Undefined for a UTxO without a script, and for what is
+ * no UTxO this library reads, which its read refuses
+ */
+export const heldScriptSize = (
+  given: unknown,
+): { key: string; size: number } | undefined => {
+  try {
+    if (typeof given === "string") {
+      if (given.length > 2 * MAX_TX_BYTES || !HEX_BYTES.test(given))
+        return undefined;
+      const split = splitUtxoBytes(Buffer.from(given, "hex"));
+      if (!split?.outRef || !split.scriptRef || split.otherKey)
+        return undefined;
+      const { txHash, outputIndex } = split.outRef;
+      return {
+        key: `${txHash.toLowerCase()}#${outputIndex}`,
+        size: countedScriptSize(hexOf(split.scriptRef)),
+      };
+    }
+    if (!isObject(given)) return undefined;
+    if (isObject(given.input) && isObject(given.output)) {
+      const { scriptRef } = given.output;
+      const { txHash, outputIndex } = given.input;
+      if (typeof scriptRef !== "string" || !HEX_BYTES.test(scriptRef))
+        return undefined;
+      if (typeof txHash !== "string") return undefined;
+      return {
+        key: `${txHash.toLowerCase()}#${String(outputIndex)}`,
+        size: countedScriptSize(scriptRef),
+      };
+    }
+    const { script, txHash, outputIndex } = given;
+    if (!isObject(script) || typeof txHash !== "string") return undefined;
+    const key = `${txHash.toLowerCase()}#${String(outputIndex)}`;
+    const text = (value: unknown) =>
+      typeof value === "string" && HEX_BYTES.test(value) ? value : undefined;
+    if (script.type === "native") {
+      const cbor = text(script.cbor);
+      return cbor === undefined ? undefined : { key, size: cbor.length / 2 };
+    }
+    if (script.type === "plutus") {
+      const code = text(script.code);
+      return code === undefined
+        ? undefined
+        : { key, size: countedScriptSize(`8201${code}`) };
+    }
+    const scriptRef = text(script.scriptRef);
+    return scriptRef === undefined
+      ? undefined
+      : { key, size: countedScriptSize(scriptRef) };
+  } catch {
+    return undefined;
+  }
+};
+
 /** The content of one CBOR byte string that is the whole of `hex`; undefined for anything else */
 const byteStringContent = (hex: string): string | undefined => {
   try {

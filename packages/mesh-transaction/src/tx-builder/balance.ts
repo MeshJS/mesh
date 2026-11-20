@@ -19,7 +19,12 @@ import { TxBuildError } from "./errors";
 import { coversMinCoin, feeForSize, outputMinCoin, valueSize } from "./fee";
 import { compareInputs } from "./ordering";
 import { outRefString } from "./parts/normalize";
-import { scriptSize, utxoKey } from "./parts/utxo";
+import {
+  countedScriptSize,
+  scriptRefOf,
+  scriptSize,
+  utxoKey,
+} from "./parts/utxo";
 import {
   addValues,
   coinValue,
@@ -1357,6 +1362,31 @@ export const refScriptSize = (
     const script = known.get(key)?.script;
     if (script) size += BigInt(scriptSize(script));
     else size += BigInt(stated?.get(key) ?? 0);
+  }
+  return size;
+};
+
+/**
+ * The bytes of the reference scripts the transaction's inputs and reference inputs hold, as the
+ * ledger counts them toward `MAX_REF_SCRIPT_BYTES`, each out ref once: those of the known UTxOs,
+ * else the size stated for the out ref
+ */
+export const countedRefScripts = (
+  assembled: AssembledTx,
+  known: ReadonlyMap<string, Utxo>,
+  stated?: ReadonlyMap<string, number>,
+): number => {
+  const { body } = assembled.prototype;
+  const seen = new Set<string>();
+  let size = 0;
+  for (const input of [...body.inputs, ...(body.reference_inputs ?? [])]) {
+    const key = `${input.transaction_id}#${input.index}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const script = known.get(key)?.script;
+    size += script
+      ? countedScriptSize(scriptRefOf(script))
+      : (stated?.get(key) ?? 0);
   }
   return size;
 };

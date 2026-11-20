@@ -94,6 +94,14 @@ const TAG_ITEM_WORK = 12_500;
 const TAG_WORK = 60_000;
 
 /**
+ * The most bytes of reference scripts the UTxOs a transaction spends and reads may hold in all, as
+ * the Conway ledger bounds them (`maxRefScriptSizePerTx`, 200 KiB): past it a node refuses the
+ * transaction (`ConwayTxRefScriptsSizeTooBig`). Each out ref counts once, and each script as the
+ * ledger counts it: a native script's CBOR, the bytes of a Plutus script
+ */
+export const MAX_REF_SCRIPT_BYTES = 204_800;
+
+/**
  * The longest address an output of a transaction, or a UTxO, is read with, in bytes. The value
  * decoder takes an address of any length, and one of the Byron era is written in base58, whose
  * time grows with the square of its length. Since Allegra the ledger refuses an output to a Byron

@@ -17,8 +17,9 @@ import type { Collected, SignerRole, TxSigners } from "./witnesses";
 import { TxBuildError, TxPlanError } from "./errors";
 import { errorText } from "./parts/normalize";
 import { heldValue } from "./parts/shape";
-import { readUtxo } from "./parts/utxo";
+import { heldScriptSize, readUtxo } from "./parts/utxo";
 import { walletCodeOf } from "./payer";
+import { MAX_REF_SCRIPT_BYTES } from "./tx-scan";
 import {
   addAddress,
   addCredential,
@@ -1379,6 +1380,63 @@ const certificateCredential = (
   }
 };
 
+/** The out refs a body spends and reads, as `txHash#index` in lower case */
+export const spentAndRead = (body: Serialization.TransactionBody): string[] =>
+  [...body.inputs().values(), ...(body.referenceInputs()?.values() ?? [])].map(
+    (input) =>
+      `${input.transactionId().toString().toLowerCase()}#${input.index()}`,
+  );
+
+/**
+ * Counts the reference scripts the UTxOs of a transaction's spent and reference inputs hold, `refs`
+ * their out refs as `txHash#index` in lower case, from UTxOs given in any form, each out ref once,
+ * the first UTxO given for it; no script is described, so a transaction past the bound is refused
+ * before its UTxOs are read. Each call counts one more UTxO and gives the bytes counted so far
+ */
+export const refScriptCounter = (refs: Iterable<string>) => {
+  const wanted = new Set(refs);
+  const counted = new Set<string>();
+  let total = 0;
+  return (given: unknown): number => {
+    const held = heldScriptSize(given);
+    if (held && wanted.has(held.key) && !counted.has(held.key)) {
+      counted.add(held.key);
+      total += held.size;
+    }
+    return total;
+  };
+};
+
+/** The bytes `refScriptCounter` counts in all of `given` */
+export const refScriptBytes = (
+  refs: Iterable<string>,
+  given: Iterable<unknown>,
+): number => {
+  const count = refScriptCounter(refs);
+  let total = 0;
+  for (const entry of given) total = count(entry);
+  return total;
+};
+
+/**
+ * Why a transaction whose spent and reference inputs hold `total` bytes of reference scripts is
+ * refused, in the words of a node; undefined within `MAX_REF_SCRIPT_BYTES`
+ */
+export const refScriptsBeyond = (total: number): string | undefined =>
+  total > MAX_REF_SCRIPT_BYTES
+    ? `its spent and reference inputs hold ${total} bytes of reference scripts, more than the ${MAX_REF_SCRIPT_BYTES} a node takes in one transaction (ConwayTxRefScriptsSizeTooBig)`
+    : undefined;
+
+/** The refusal of a transaction read whose reference scripts are past the bound */
+export const refScriptsRefused = (tx: unknown, past: string) =>
+  new TxBuildError("INVALID_OPTION", `invalid tx: ${past}`, {
+    details: {
+      option: "tx",
+      value: tx === null ? "null" : typeof tx,
+      allowed: "a transaction in CBOR hex",
+    },
+  });
+
 /**
  * The signatures a serialized transaction needs, given the UTxOs it spends: for a co-signer or a
  * server checking a transaction it did not build. Each key comes with the roles it is needed in,
@@ -1407,6 +1465,12 @@ export function requiredSigners(
         },
       },
     );
+  // The reference scripts are bounded as a node bounds them, before a UTxO is read whole
+  const refs = spentAndRead(raw.body);
+  const past = refScriptsBeyond(
+    refScriptBytes(refs, spent as readonly unknown[]),
+  );
+  if (past) throw refScriptsRefused(tx, past);
   // Each entry read as a payer's UTxO is: an entry whose address cannot be read would
   // otherwise drop the key that signs for it, an answer that is silently short
   const utxos = (spent as readonly unknown[]).map((entry) => {

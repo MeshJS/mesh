@@ -102,19 +102,15 @@ const listedOutRef = (entry: unknown): OutRef | undefined => {
 };
 
 /**
- * The outputs of a transaction as the provider lists them, each checked as the payer's UTxOs
- * are and copied: the answer may be shared through a cache, and parts freeze what they hold. A
- * provider that answers with nothing gives an empty list.
+ * The answer of the provider for the outputs of a transaction, a list, none of it read; a
+ * provider that answers with nothing gives an empty list
  * @param notFound Makes the error of a read that failed, from why and what it was raised from
- * @param wanted The out refs to read: an entry that names another is passed over unread. Without
- *   it every entry is read
  */
-export const fetchTxOutputs = async (
+export const fetchTxAnswer = async (
   provider: IFetcher,
   txHash: string,
   notFound: (reason: string, cause: unknown) => TxBuildError,
-  wanted?: (ref: OutRef) => boolean,
-): Promise<Utxo[]> => {
+): Promise<readonly unknown[]> => {
   let answer: unknown;
   try {
     answer = await provider.fetchUTxOs(txHash);
@@ -127,15 +123,43 @@ export const fetchTxOutputs = async (
       "the answer is not a list",
       new Error("the answer is not a list"),
     );
-  const read: Utxo[] = [];
+  return answer;
+};
+
+/**
+ * The entries of an answer to read, with their places in it: those that name an out ref
+ * `wanted` takes, and those whose out ref cannot be read, which are read whole and whose error
+ * names why. Without `wanted` every entry
+ */
+export const answerEntries = (
+  answer: readonly unknown[],
+  wanted?: (ref: OutRef) => boolean,
+): [number, unknown][] => {
+  const entries: [number, unknown][] = [];
   answer.forEach((entry: unknown, i) => {
     if (wanted) {
-      // An entry whose out ref cannot be read is read whole, and its error names why
       const ref = listedOutRef(entry);
       if (ref && !wanted(ref)) return;
     }
+    entries.push([i, entry]);
+  });
+  return entries;
+};
+
+/**
+ * The entries of an answer as UTxOs, each checked as the payer's UTxOs are and copied: the
+ * answer may be shared through a cache, and parts freeze what they hold
+ * @param notFound As `fetchTxAnswer`
+ * @param wanted As `answerEntries`
+ */
+export const readTxAnswer = (
+  answer: readonly unknown[],
+  notFound: (reason: string, cause: unknown) => TxBuildError,
+  wanted?: (ref: OutRef) => boolean,
+): Utxo[] =>
+  answerEntries(answer, wanted).map(([i, entry]) => {
     try {
-      read.push(readUtxo(entry));
+      return readUtxo(entry);
     } catch (error) {
       throw notFound(
         `entry ${i} of the answer is not a UTxO: ${errorText(error)}`,
@@ -143,8 +167,23 @@ export const fetchTxOutputs = async (
       );
     }
   });
-  return read;
-};
+
+/**
+ * The outputs of a transaction as the provider lists them, read as `readTxAnswer` reads them
+ * @param notFound As `fetchTxAnswer`
+ * @param wanted As `answerEntries`
+ */
+export const fetchTxOutputs = async (
+  provider: IFetcher,
+  txHash: string,
+  notFound: (reason: string, cause: unknown) => TxBuildError,
+  wanted?: (ref: OutRef) => boolean,
+): Promise<Utxo[]> =>
+  readTxAnswer(
+    await fetchTxAnswer(provider, txHash, notFound),
+    notFound,
+    wanted,
+  );
 
 /**
  * Looks up every output the parts read and the builder does not know yet: once per transaction

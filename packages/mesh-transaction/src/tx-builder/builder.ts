@@ -52,6 +52,7 @@ import type { NetworkEntry } from "./network";
 import type {
   CredentialInput,
   OutputPart,
+  OutRef,
   PlutusWitness,
   TxPart,
   Utxo,
@@ -87,6 +88,7 @@ import {
   balance,
   COLLATERAL_INPUT_BYTES,
   collateralCandidates,
+  countedRefScripts,
   isPoolShortfall,
   lovelaceOnly,
   paymentPool,
@@ -149,7 +151,13 @@ import {
 } from "./payer";
 import { checkPlanDefaults } from "./plan/deadlines";
 import { planFor, resumePlan, standingSteps, TxPlan } from "./plan/plan";
-import { fetchTxOutputs, resolveParts, resolveValidity } from "./resolve";
+import {
+  answerEntries,
+  fetchTxAnswer,
+  readTxAnswer,
+  resolveParts,
+  resolveValidity,
+} from "./resolve";
 import {
   bodySigners,
   keyWitnessTags,
@@ -157,10 +165,15 @@ import {
   payerSigner,
   readTransaction,
   readTransactionItems,
+  refScriptBytes,
+  refScriptCounter,
+  refScriptsBeyond,
+  refScriptsRefused,
+  spentAndRead,
   verifies,
   withoutKeyWitnesses,
 } from "./sign";
-import { scanTransaction, TxScanError } from "./tx-scan";
+import { MAX_REF_SCRIPT_BYTES, scanTransaction, TxScanError } from "./tx-scan";
 import {
   countedKeys,
   placeholderWitnesses,
@@ -1769,6 +1782,10 @@ export class TxBuilder {
       } catch {
         throw unreadableAddress("changeAddress", changeTo, SEND_ALL_TO_ALLOWED);
       }
+    // The reference scripts are bounded as a node bounds them, before a UTxO is read whole
+    const refs = prototypeRefs(prototype);
+    const before = refScriptBytes(refs, inputs as readonly unknown[]);
+    if (refScriptsBeyond(before)) throw refScriptsTooLarge(before);
     const given = new Map<string, Utxo>();
     inputs.forEach((entry: unknown, i) => {
       let utxo: Utxo;
@@ -2242,26 +2259,6 @@ export class TxBuilder {
       FROM_CBOR_OPTIONS_ALLOWED,
       [SIGNER_IN_PLACE],
     );
-    const known = new Map<string, Utxo>();
-    for (const utxo of toKnownUtxos(knownUtxos)) {
-      const key = utxoKey(utxo);
-      const before = known.get(key);
-      // One output, two views of it: neither can be shown as the truth
-      if (before && utxoText(before) !== utxoText(utxo))
-        throw new TxBuildError(
-          "INVALID_OPTION",
-          `invalid knownUtxos: two entries name the output ${key} and differ`,
-          {
-            details: {
-              option: "knownUtxos",
-              value: typeOf(knownUtxos),
-              allowed: KNOWN_UTXOS_ONCE,
-            },
-          },
-        );
-      known.set(key, utxo);
-    }
-
     // The bytes are walked once before any of them is decoded into a value: their size, their
     // depth and the decoder's work are bounded. The size is the protocol's maximum where the
     // builder holds parameters; none are asked for
@@ -2310,6 +2307,34 @@ export class TxBuilder {
         `invalid tx: the transaction holds what this library does not read: ${errorText(error)}`,
         error,
       );
+    }
+    // The reference scripts are bounded as a node bounds them, before a UTxO is read whole: those
+    // of knownUtxos here, those of the provider's answers once all are in
+    const refs = spentAndRead(decodedBody);
+    const countRefScripts = refScriptCounter(refs);
+    if (Array.isArray(knownUtxos))
+      for (const entry of knownUtxos as readonly unknown[]) {
+        const past = refScriptsBeyond(countRefScripts(entry));
+        if (past) throw refScriptsRefused(txCbor, past);
+      }
+    const known = new Map<string, Utxo>();
+    for (const utxo of toKnownUtxos(knownUtxos)) {
+      const key = utxoKey(utxo);
+      const before = known.get(key);
+      // One output, two views of it: neither can be shown as the truth
+      if (before && utxoText(before) !== utxoText(utxo))
+        throw new TxBuildError(
+          "INVALID_OPTION",
+          `invalid knownUtxos: two entries name the output ${key} and differ`,
+          {
+            details: {
+              option: "knownUtxos",
+              value: typeOf(knownUtxos),
+              allowed: KNOWN_UTXOS_ONCE,
+            },
+          },
+        );
+      known.set(key, utxo);
     }
     const { body } = prototype;
     // Read from the decoded body: the prototype holds every id but 1 as the same value
@@ -2370,32 +2395,32 @@ export class TxBuilder {
       }
       // A few reads at a time: a transaction that names many others is not a burst of requests
       const queue = Array.from(first);
+      const notFound =
+        (hash: string, input: BodyOutRef) => (reason: string, cause: unknown) =>
+          new TxBuildError(
+            "UTXO_NOT_FOUND",
+            `fetching the outputs of ${hash} failed: ${reason}`,
+            {
+              details: {
+                input: {
+                  txHash: input.transaction_id,
+                  outputIndex: input.index,
+                },
+              },
+              cause,
+            },
+          );
+      const wanted = (hash: string) => (ref: OutRef) =>
+        ref.txHash === hash && indices.get(hash)!.has(ref.outputIndex);
+      const answers: [string, BodyOutRef, readonly unknown[]][] = [];
       const reader = async () => {
         for (let next = queue.shift(); next; next = queue.shift()) {
           const [hash, input] = next;
-          const listed = await fetchTxOutputs(
-            cache,
+          answers.push([
             hash,
-            (reason, cause) =>
-              new TxBuildError(
-                "UTXO_NOT_FOUND",
-                `fetching the outputs of ${hash} failed: ${reason}`,
-                {
-                  details: {
-                    input: {
-                      txHash: input.transaction_id,
-                      outputIndex: input.index,
-                    },
-                  },
-                  cause,
-                },
-              ),
-            (ref) =>
-              ref.txHash === hash && indices.get(hash)!.has(ref.outputIndex),
-          );
-          // Only an output of the transaction asked for is taken, under its own out ref
-          for (const utxo of listed)
-            if (utxo.txHash === hash) read.set(utxoKey(utxo), utxo);
+            input,
+            await fetchTxAnswer(cache, hash, notFound(hash, input)),
+          ]);
         }
       };
       try {
@@ -2406,6 +2431,20 @@ export class TxBuilder {
         // After a failed read no other is started
         queue.length = 0;
       }
+      // The reference scripts of every answer are counted before any of it is read whole
+      for (const [hash, , answer] of answers)
+        for (const [, entry] of answerEntries(answer, wanted(hash))) {
+          const past = refScriptsBeyond(countRefScripts(entry));
+          if (past) throw refScriptsRefused(txCbor, past);
+        }
+      for (const [hash, input, answer] of answers)
+        // Only an output of the transaction asked for is taken, under its own out ref
+        for (const utxo of readTxAnswer(
+          answer,
+          notFound(hash, input),
+          wanted(hash),
+        ))
+          if (utxo.txHash === hash) read.set(utxoKey(utxo), utxo);
     }
     const [spent, collateral, references] = named.map((list) =>
       list.map(({ input, role }): Utxo => {
@@ -2852,7 +2891,10 @@ export class TxBuilder {
         evaluated.size < open.length,
       );
       if (redeemerParts.length === 0 || !this.evaluator)
-        return this.finish(balanced, params, costModels, warnings, fee);
+        return this.finish(balanced, params, costModels, warnings, fee, {
+          known,
+          ...(declared && { stated: declared.scriptSizes }),
+        });
 
       const tx = this.serialize(balanced.assembled.prototype);
       // A serializer's answer that is no transaction is its own fault, not the scripts'
@@ -2911,7 +2953,10 @@ export class TxBuilder {
         }
       }
       if (settled)
-        return this.finish(balanced, params, costModels, warnings, fee);
+        return this.finish(balanced, params, costModels, warnings, fee, {
+          known,
+          ...(declared && { stated: declared.scriptSizes }),
+        });
     }
     throw new TxBuildError(
       "EVALUATION_NOT_CONVERGED",
@@ -3233,8 +3278,18 @@ export class TxBuilder {
     costModels: number[][],
     warnings: BuildWarning[],
     fee: bigint | undefined,
+    scripts: {
+      known: ReadonlyMap<string, Utxo>;
+      stated?: ReadonlyMap<string, number>;
+    },
   ): BuiltTxData {
     const { assembled } = balanced;
+    const refScripts = countedRefScripts(
+      assembled,
+      scripts.known,
+      scripts.stated,
+    );
+    if (refScriptsBeyond(refScripts)) throw refScriptsTooLarge(refScripts);
     const total = totalExUnits(assembled);
     if (
       total.mem > BigInt(params.maxTxExMem) ||
@@ -3796,6 +3851,43 @@ const SIGNER_IN_PLACE = {
  * message and `details.value` name only its JavaScript type, never the value
  * @param message Why, in words that quote nothing of what was given
  */
+/**
+ * TX_TOO_LARGE for a transaction whose spent and reference inputs hold more reference scripts than
+ * a node takes in one, of `size` bytes
+ */
+const refScriptsTooLarge = (size: number) =>
+  new TxBuildError(
+    "TX_TOO_LARGE",
+    `the transaction's spent and reference inputs hold ${size} bytes of reference scripts, more than the ${MAX_REF_SCRIPT_BYTES} a node takes in one transaction (ConwayTxRefScriptsSizeTooBig)`,
+    {
+      details: {
+        size,
+        maxTxSize: MAX_REF_SCRIPT_BYTES,
+        cause: "referenceScripts",
+      },
+    },
+  );
+
+/**
+ * The out refs a prototype spends and reads, as `txHash#index` in lower case; none of what is
+ * not read
+ */
+const prototypeRefs = (prototype: unknown): string[] => {
+  const body = (prototype as { body?: Record<string, unknown> } | null)?.body;
+  const refs: string[] = [];
+  for (const list of [body?.inputs, body?.reference_inputs])
+    if (Array.isArray(list))
+      for (const input of list as {
+        transaction_id?: unknown;
+        index?: unknown;
+      }[])
+        if (typeof input?.transaction_id === "string")
+          refs.push(
+            `${input.transaction_id.toLowerCase()}#${String(input.index)}`,
+          );
+  return refs;
+};
+
 const refusedTx = (txCbor: unknown, message: string, cause?: unknown) =>
   new TxBuildError("INVALID_OPTION", message, {
     details: {
