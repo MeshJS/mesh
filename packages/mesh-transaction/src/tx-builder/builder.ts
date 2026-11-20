@@ -2139,21 +2139,18 @@ export class TxBuilder {
    *
    * What is signed is the body as given, byte for byte, and `txHash` is the hash of those
    * bytes. Before any of them is decoded, the bytes are walked once, and a transaction is
-   * refused that cannot be read in one way, or in reasonable time:
+   * refused that this library's process could not read safely and in reasonable time:
    * - larger than the protocol's maximum transaction size: the `maxTxSize` of the `params` the
    *   builder was given, else 16 384 bytes, the value of mainnet, preprod and preview (no
    *   parameters are asked for);
    * - not an array of four items: the forms of the eras before Alonzo are not read;
-   * - nested deeper than 64 levels, the CBOR inside a byte string counted, or with that CBOR
-   *   written in chunks;
+   * - nested deeper than 1 024 levels, the CBOR inside a byte string under tag 24 counted on;
    * - carrying more nested data (Plutus data, metadata, scripts) than the value decoder reads
-   *   in about a second;
-   * - with a map in its body, witness set, redeemers or auxiliary data that repeats a key, or
-   *   redeemers that name one purpose twice: decoders read these in different ways, so no
-   *   member could show the one reading a ledger takes;
-   * - with a key the value decoder does not read, in the format of the Conway era, in its body,
-   *   an output, its witness set or its auxiliary data in the tagged form: the decoder would read
-   *   the value of that key as the next key, and the members after it would not be the bytes.
+   *   in about a second.
+   *
+   * A map that repeats a key, and a key the value decoder does not know, are read as that
+   * decoder reads them: the last value, both output lists joined, the value of an unknown key
+   * read as the next key. A node refuses such a transaction since protocol version 9.
    *
    * Once decoded, a transaction a ledger does not take is refused as well: a negative fee, a
    * token quantity of zero in an output or the mint, an out ref named twice among the inputs,
@@ -2161,9 +2158,9 @@ export class TxBuilder {
    * address they hold. Reading takes a time that grows with the data the transaction carries:
    * within these limits up to about a second on a laptop, on the thread that calls it, which
    * runs nothing else meanwhile. The UTxOs it names add the time of their bytes alone: their
-   * data is not decoded (an inline datum is checked by a walk over its bytes and kept as they
-   * are, and a reference script is decoded only once found nested no deeper than 64 levels), and
-   * of each transaction the provider lists, only the outputs the body names are read. A server
+   * data is not decoded (an inline datum is kept as the bytes hold it, never judged, and a
+   * reference script is decoded only once found nested no deeper than 1 024 levels), and of
+   * each transaction the provider lists, only the outputs the body names are read. A server
    * that reads transactions of strangers reads them off its request path, in a worker of its
    * own.
    *
@@ -2261,9 +2258,9 @@ export class TxBuilder {
       known.set(key, utxo);
     }
 
-    // The bytes are walked once before any of them is decoded into a value: a map that repeats a
-    // key is read in different ways by different decoders, and size and depth are bounded. The
-    // size is the protocol's maximum where the builder holds parameters; none are asked for
+    // The bytes are walked once before any of them is decoded into a value: their size, their
+    // depth and the decoder's work are bounded. The size is the protocol's maximum where the
+    // builder holds parameters; none are asked for
     const text = typeof txCbor === "string" ? txCbor.toLowerCase() : txCbor;
     try {
       scanTransaction(text, this.params?.maxTxSize);

@@ -305,7 +305,7 @@ describe("TxBuilder.fromCbor › real transactions", () => {
         value: { lovelace: 1_000_000_000_000n },
       }));
       const work = scanTransaction(hex)!;
-      expect(work).toBeLessThan(MAX_TX_WORK / 1000);
+      expect(work).toBeLessThan(MAX_TX_WORK / 400);
       const made = await new TxBuilder({
         network: network === 1 ? "mainnet" : "preprod",
         params,

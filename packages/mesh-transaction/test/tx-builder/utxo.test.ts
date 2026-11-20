@@ -602,11 +602,6 @@ describe("Utxo refusals", () => {
     ],
     ["a dataHash that is not a hash", meshWith({ dataHash: "abc" }), "datum"],
     ["plutusData that is not hex", meshWith({ plutusData: "xyz" }), "datum"],
-    [
-      "plutusData that is not Plutus data",
-      meshWith({ plutusData: "ff" }),
-      "datum",
-    ],
     ["a datum of no known type", ownWith({ datum: { type: "x" } }), "datum"],
     [
       "an inline datum as bare text",
@@ -774,23 +769,6 @@ describe("Utxo refusals", () => {
       "value",
     ],
     [
-      "plutusData with bytes after the data",
-      meshWith({ plutusData: "d8798000" }),
-      "datum",
-    ],
-    [
-      "an inline datum of two data items",
-      ownWith({
-        datum: { type: "inline", data: { type: "CBOR", content: "0102" } },
-      }),
-      "datum",
-    ],
-    [
-      "CBOR whose inline datum has bytes after the data",
-      cborWith(inline.mesh, "d81844d8799fff", "d81845d8799fff00"),
-      "datum",
-    ],
-    [
       "CBOR whose reference script is of a language the decoder does not know",
       cborWith(
         v3.mesh,
@@ -802,6 +780,39 @@ describe("Utxo refusals", () => {
   ])("refuses %s", (_, given, kind) => {
     expect(kindOf(given)).toBe(kind);
   });
+
+  it.each<[string, unknown, string]>([
+    [
+      "plutusData that is not Plutus data",
+      meshWith({ plutusData: "ff" }),
+      "ff",
+    ],
+    [
+      "plutusData with bytes after the data",
+      meshWith({ plutusData: "d8798000" }),
+      "d8798000",
+    ],
+    [
+      "an inline datum of two data items",
+      ownWith({
+        datum: { type: "inline", data: { type: "CBOR", content: "0102" } },
+      }),
+      "0102",
+    ],
+    [
+      "CBOR whose inline datum has bytes after the data",
+      cborWith(inline.mesh, "d81844d8799fff", "d81845d8799fff00"),
+      "d8799fff00",
+    ],
+  ])(
+    "keeps %s as the hex given: an inline datum is not judged",
+    (_, given, content) => {
+      expect(readUtxo(given).datum).toEqual({
+        type: "inline",
+        data: { type: "CBOR", content },
+      });
+    },
+  );
 
   it("toUtxo throws INVALID_OPTION with the type of the given value and the reason as cause", () => {
     const given = meshWith({ scriptHash: "ab".repeat(28) });
@@ -1308,42 +1319,34 @@ describe("the data and the reference script of a UTxO, read without being decode
     ["a text inside a list", cbor.arr(cbor.uint(1), "6161")],
     ["bytes that are not CBOR", "ff"],
     ["a list that does not end", "9f01"],
-  ])("refuses as an inline datum %s, as before", (_, datum) => {
-    const [own, mesh, inCbor] = withDatum(datum);
-    for (const [, given] of [own!, mesh!]) {
-      expect(kindOf(given)).toBe("datum");
-      expect(() => readUtxo(given)).toThrow(/is not Plutus data: /);
-    }
-    // In CBOR, data that cannot be read leaves the output unreadable
-    expect(kindOf(inCbor![1])).toBe("outRef");
-    expect(() => readUtxo(inCbor![1])).toThrow(
-      /^not the CBOR of a transaction unspent output: /,
-    );
-  });
+    ["bytes after the data", "d879800000"],
+  ])(
+    "keeps as an inline datum %s in each form, the hex given, never decoded",
+    (_, datum) => {
+      for (const [form, given] of withDatum(datum))
+        expect([form, readUtxo(given).datum]).toEqual([
+          form,
+          { type: "inline", data: { type: "CBOR", content: datum } },
+        ]);
+    },
+  );
 
-  it("refuses an inline datum with bytes after the data in each form, as before", () => {
-    for (const [, given] of withDatum("d879800000"))
-      expect(() => readUtxo(given)).toThrow(
-        /is not Plutus data: bytes follow the data$/,
-      );
-  });
-
-  it("describes a native reference script nested 64 levels, and refuses one nested deeper in each form at once", () => {
+  it("describes a native reference script nested 1024 levels, and refuses one nested deeper in each form at once", () => {
     // [0, native]: one level, then two for each `all` and one for the key
-    const within = `8200${nested(31)}`;
+    const within = `8200${nested(511)}`;
     for (const [form, given] of withScript(within)) {
       const utxo = readUtxo(given);
       expect([form, utxo.script!.type]).toEqual([form, "native"]);
       expect(utxo.script!.hash).toBe(refHash(within));
       expect(scriptRefOf(utxo.script!)).toBe(within);
     }
-    for (const levels of [32, 5_000])
+    for (const levels of [512, 5_000])
       for (const [form, given] of withScript(`8200${nested(levels)}`)) {
         const { thrown, ms } = timed(() => readUtxo(given));
         expect(ms).toBeLessThan(500);
         expect([form, (thrown as UtxoError).kind]).toEqual([form, "script"]);
         expect((thrown as Error).message).toMatch(
-          /reference script nests its items deeper than the 64 levels this library reads$/,
+          /reference script nests its items deeper than the 1024 levels this library reads$/,
         );
       }
   });

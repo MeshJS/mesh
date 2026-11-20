@@ -21,11 +21,9 @@ import type {
 } from "./types";
 import { TxBuildError } from "../errors";
 import {
-  BYTES_AFTER_DATA,
+  isOneCborItem,
   itemDepth,
-  itemEnd,
   MAX_TX_DEPTH,
-  notPlutusData,
   splitUtxoBytes,
 } from "../tx-scan";
 import { emptyValue, toAssets } from "../value";
@@ -194,23 +192,15 @@ const normalValue = (
 };
 
 /** Whether `hex` is exactly one well-formed CBOR item, with no bytes after it */
-export const isOneItem = (hex: string) => {
-  const bytes = Buffer.from(hex, "hex");
-  return itemEnd(bytes) === bytes.length;
-};
+export const isOneItem = (hex: string) =>
+  isOneCborItem(Buffer.from(hex, "hex"));
 
 /**
- * The CBOR of inline Plutus data, checked by a walk over its bytes to be one Plutus data item and
- * nothing after it, and kept byte for byte. The data is not decoded into a value: a datum of any
- * depth takes a time that grows with its bytes alone
+ * The CBOR of an inline datum, kept byte for byte as the hex given: it is never decoded, and its
+ * form is not judged
  */
-const readInlineData = (at: string, what: string, content: unknown) => {
-  const data = readHex("datum", at, what, content);
-  const wrong = notPlutusData(Buffer.from(data, "hex"));
-  return wrong === undefined
-    ? data
-    : problem("datum", `${at}: ${what} is not Plutus data: ${wrong}`);
-};
+const readInlineData = (at: string, what: string, content: unknown) =>
+  readHex("datum", at, what, content);
 
 /** The hash of a datum: blake2b-256 of its bytes as written */
 const dataHashOf = (data: string) => blake2b.hash(HexBlob(data), 32).toString();
@@ -422,9 +412,9 @@ const withScript = (script: OutputScript | undefined) =>
 const hexOf = (bytes: Uint8Array) => Buffer.from(bytes).toString("hex");
 
 /**
- * A UTxO from the CBOR of a transaction unspent output. Its inline datum is found by a walk over
- * the bytes and kept as they hold it; the decoder reads the rest with a stand-in in its place,
- * and a reference script only once the walk finds it nested no deeper than a transaction may be
+ * A UTxO from the CBOR of a transaction unspent output. Its inline datum is found by the token
+ * reader and kept as the bytes hold it; the decoder reads the rest with a stand-in in its place,
+ * and a reference script only once a walk finds it nested no deeper than a transaction may be
  */
 const fromCbor = (cbor: string): Utxo => {
   let split: UtxoBytes | undefined;
@@ -450,11 +440,6 @@ const fromCbor = (cbor: string): Utxo => {
   }
   let unspent: ReturnType<typeof deserializeTxUnspentOutput>;
   try {
-    // A datum that is no data leaves the output unreadable as a whole; bytes after the data are
-    // the datum's own fault, which the output's reading names
-    const wrong = inlineDatum && notPlutusData(inlineDatum);
-    if (wrong && wrong !== BYTES_AFTER_DATA)
-      throw new Error(`its inline datum is not Plutus data: ${wrong}`);
     unspent = deserializeTxUnspentOutput(hexOf(standIn));
   } catch (error) {
     return problem(

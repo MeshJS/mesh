@@ -2,6 +2,7 @@ import { DEFAULT_PROTOCOL_PARAMETERS, IFetcher, Protocol } from "@meshsdk/core";
 import { Crypto, HexBlob, Serialization } from "@meshsdk/core-cst";
 
 import { TxBuilder, TxBuildError, TxError, Utxo } from "../../src/tx-builder";
+import { scanTransaction } from "../../src/tx-builder/tx-scan";
 import {
   arr,
   arrIndef,
@@ -12,6 +13,7 @@ import {
   map,
   mapIndef,
   tag258,
+  topItems,
   tx,
   txHashOf,
   uint,
@@ -21,9 +23,10 @@ import {
 import { TestKey, testKey } from "./hash-signer-util";
 
 /*
- * The walk over the bytes of a transaction before any of them is decoded: a map that repeats a
- * key, read in different ways by different decoders, is refused; so are a transaction too large
- * and one nested too deep. Plutus data, which may repeat the keys of its maps, is not judged.
+ * The walk over the bytes of a transaction before any of them is decoded: a transaction too
+ * large, nested too deep or that would give the value decoder more work than it is let do is
+ * refused. A map that repeats a key, or holds a key the decoder does not know, is read as the
+ * decoder reads it: a ledger refuses such a transaction.
  */
 
 const params: Protocol = { ...DEFAULT_PROTOCOL_PARAMETERS };
@@ -107,9 +110,7 @@ const expectRefused = (error: unknown, given: string, reason: string) => {
     expect(text.includes(given.slice(i, i + 16))).toBe(false);
 };
 
-const REPEATS = "repeats a key, which decoders read in different ways";
-
-describe("TxBuilder.fromCbor › a map that repeats a key", () => {
+describe("TxBuilder.fromCbor › a map that repeats a key, read as the decoder reads it", () => {
   const cases: [string, () => string][] = [
     [
       "two output lists",
@@ -286,137 +287,123 @@ describe("TxBuilder.fromCbor › a map that repeats a key", () => {
     ],
   ];
 
-  it.each(cases)("refuses %s in the body, quoting nothing", async (_, made) => {
-    const given = made();
-    expectRefused(
-      await caught(() =>
-        offline().fromCbor(given, { knownUtxos: knownUtxos() }),
+  /** What the value decoder reads of the body of `given` */
+  const decodedBody = (given: string) =>
+    Serialization.TransactionBody.fromCbor(HexBlob(topItems(given)[0]!));
+
+  it.each(cases)(
+    "reads %s in the body as the decoder reads it",
+    async (name, made) => {
+      const given = made();
+      const body = decodedBody(given);
+      const read = offline().fromCbor(given, { knownUtxos: knownUtxos() });
+      // The decoder reads the last network id, and the last address, whose bytes are judged
+      if (name === "two network ids, 0 then 1") {
+        expect(body.networkId()).toBe(1);
+        expect(TxError.is(await caught(() => read), "NETWORK_MISMATCH")).toBe(
+          true,
+        );
+        return;
+      }
+      if (name === "two addresses inside one output") {
+        expectRefused(
+          await caught(() => read),
+          given,
+          "invalid tx: the address of output 0 has bytes after the address they hold",
+        );
+        return;
+      }
+      const object = await read;
+      expect(object.tx).toBe(given);
+      expect(object.fee).toBe(body.fee());
+      expect(object.outputs.map((output) => output.value.lovelace)).toEqual(
+        body.outputs().map((output) => output.amount().coin()),
+      );
+      expect(object.inputs.map((utxo) => utxo.outputIndex)).toEqual(
+        body
+          .inputs()
+          .values()
+          .map((input) => Number(input.index())),
+      );
+    },
+  );
+
+  it("reads two fees as the last, and two output lists as the decoder joins them", async () => {
+    const fees = tx(bodyWith([uint(2), uint(1)]));
+    expect(
+      (await offline().fromCbor(fees, { knownUtxos: knownUtxos() })).fee,
+    ).toBe(1n);
+    const lists = tx(
+      map(
+        [uint(0), inputs()],
+        [uint(1), arr(pay(key, 9_000_000))],
+        [uint(1), arr(pay(other, 8_000_000))],
+        [uint(2), uint(170_000)],
       ),
-      given,
-      `a map in its body ${REPEATS}`,
     );
+    const made = await offline().fromCbor(lists, { knownUtxos: knownUtxos() });
+    expect(made.outputs.map((output) => output.value.lovelace)).toEqual([
+      9_000_000n,
+      8_000_000n,
+    ]);
   });
 
-  it("refuses a witness set with two vkey entries, and one with two datum entries", async () => {
+  it("reads a witness set with two vkey entries or two datum entries, redeemers that name one purpose twice and auxiliary data that repeats a label", async () => {
     const body = bodyWith();
     const txHash = txHashOf(body);
-    for (const witnessSet of [
-      map(
-        [uint(0), arr(vkeyWitness(key, txHash))],
-        [uint(0), arr(vkeyWitness(other, txHash))],
-      ),
-      map([uint(4), arr("01")], [uint(4), arr("02")]),
-      mapIndef([uint(0), arr(vkeyWitness(key, txHash))], [uint(0), arr()]),
-    ]) {
-      const given = tx(body, witnessSet);
-      expectRefused(
-        await caught(() =>
-          offline().fromCbor(given, { knownUtxos: knownUtxos() }),
-        ),
-        given,
-        `a map in its witness set ${REPEATS}`,
-      );
-    }
-  });
-
-  it("refuses a redeemer map that names one redeemer twice, but not one whose data repeats a key", async () => {
-    const units = arr(uint(1000), uint(2000));
-    const repeated = map(
-      [arr(uint(0), uint(0)), arr("d87980", units)],
-      [arr(uint(0), uint(0)), arr("d87a80", units)],
-    );
-    const given = tx(bodyWith(), map([uint(5), repeated]));
-    expectRefused(
-      await caught(() =>
-        offline().fromCbor(given, { knownUtxos: knownUtxos() }),
-      ),
-      given,
-      `a map in the redeemers of its witness set ${REPEATS}`,
-    );
-    // A Plutus map in the data may repeat a key: it is lawful, and kept byte for byte
-    const data = map([uint(1), uint(0)], [uint(1), uint(1)]);
-    const lawful = tx(
-      bodyWith(),
-      map([uint(5), map([arr(uint(0), uint(0)), arr(data, units)])]),
-    );
-    const made = await offline().fromCbor(lawful, { knownUtxos: knownUtxos() });
-    expect(made.redeemers.map((r) => r.data)).toEqual([data]);
-    expect(made.tx).toBe(lawful);
-  });
-
-  it("refuses auxiliary data that repeats a label in each of its forms, plain, as an array and tagged, and not a metadatum that repeats a key inside", async () => {
-    const twice = map([uint(674), uint(1)], [uint(674), uint(2)]);
-    for (const aux of [
-      map([uint(1), uint(1)], [uint(1), uint(2)]),
-      twice,
-      arr(twice, arr()),
-      `d90103${map([uint(0), twice])}`,
-      `d90103${map([uint(0), map([uint(1), uint(1)])], [uint(0), map()])}`,
-    ]) {
-      const given = tx(bodyWith(), map(), { aux });
-      expectRefused(
-        await caught(() =>
-          offline().fromCbor(given, { knownUtxos: knownUtxos() }),
-        ),
-        given,
-        `a map in its auxiliary data ${REPEATS}`,
-      );
-    }
-    const inside = map([
-      uint(674),
-      map([uint(1), uint(1)], [uint(1), uint(2)]),
-    ]);
-    for (const aux of [
-      inside,
-      arr(inside, arr()),
-      `d90103${map([uint(0), inside])}`,
-    ]) {
-      const lawful = tx(bodyWith(), map(), { aux });
-      const made = await offline().fromCbor(lawful, {
-        knownUtxos: knownUtxos(),
-      });
-      expect(made.tx).toBe(lawful);
-    }
-  });
-
-  it("refuses redeemers of the array form that name one purpose twice, its index written in any width, and takes those that name each once", async () => {
     const units = arr(uint(1000), uint(2000));
     const redeemer = (tag: string, index: string, data = "d87980") =>
       arr(tag, index, data, units);
-    for (const redeemers of [
-      arr(redeemer(uint(0), uint(0)), redeemer(uint(0), uint(0), "d87a80")),
-      arr(redeemer(uint(0), uint(0)), redeemer(uint(0), "1800", "d87a80")),
-      arrIndef(
-        redeemer(uint(1), uint(0)),
-        redeemer(uint(0), uint(0)),
-        redeemer(uint(1), uint(0)),
+    const twice = map([uint(674), uint(1)], [uint(674), uint(2)]);
+    for (const given of [
+      tx(
+        body,
+        map(
+          [uint(0), arr(vkeyWitness(key, txHash))],
+          [uint(0), arr(vkeyWitness(other, txHash))],
+        ),
       ),
+      tx(body, map([uint(4), arr("01")], [uint(4), arr("02")])),
+      tx(
+        body,
+        map([
+          uint(5),
+          map(
+            [arr(uint(0), uint(0)), arr("d87980", units)],
+            [arr(uint(0), uint(0)), arr("d87a80", units)],
+          ),
+        ]),
+      ),
+      tx(
+        body,
+        map([
+          uint(5),
+          arr(redeemer(uint(0), uint(0)), redeemer(uint(0), "1800", "d87a80")),
+        ]),
+      ),
+      tx(body, map(), { aux: twice }),
+      tx(body, map(), { aux: arr(twice, arr()) }),
+      tx(body, map(), { aux: `d90103${map([uint(0), twice])}` }),
     ]) {
-      const given = tx(bodyWith(), map([uint(5), redeemers]));
-      expectRefused(
-        await caught(() =>
-          offline().fromCbor(given, { knownUtxos: knownUtxos() }),
-        ),
-        given,
-        "the redeemers of its witness set name one purpose twice, which decoders read in different ways",
-      );
+      const made = await offline().fromCbor(given, {
+        knownUtxos: knownUtxos(),
+      });
+      expect(made.txHash).toBe(txHash);
     }
-    const lawful = tx(
-      bodyWith(),
-      map([
-        uint(5),
-        arr(
-          redeemer(uint(0), uint(0)),
-          redeemer(uint(0), uint(1)),
-          redeemer(uint(1), uint(0)),
-        ),
-      ]),
+    // Both redeemers of one purpose are shown, as the decoder reads them
+    const both = await offline().fromCbor(
+      tx(
+        body,
+        map([
+          uint(5),
+          arr(redeemer(uint(0), uint(0)), redeemer(uint(0), uint(0), "d87a80")),
+        ]),
+      ),
+      { knownUtxos: knownUtxos() },
     );
-    const made = await offline().fromCbor(lawful, { knownUtxos: knownUtxos() });
-    expect(made.redeemers.map((r) => [r.tag, r.index])).toEqual([
-      ["SPEND", 0],
-      ["SPEND", 1],
-      ["MINT", 0],
+    expect(both.redeemers.map((r) => [r.tag, r.index, r.data])).toEqual([
+      ["SPEND", 0, "d87980"],
+      ["SPEND", 0, "d87a80"],
     ]);
   });
 
@@ -465,7 +452,7 @@ describe("TxBuilder.fromCbor › the size and the depth it reads", () => {
     );
   };
 
-  it("refuses a 2 KB transaction whose datum is nested 1000 deep at once", async () => {
+  it("refuses at once a 2 KB transaction whose datum is nested 1000 deep: the decoder would take more than a second", async () => {
     const given = nestedDatum(1000);
     expect(given.length / 2).toBeLessThan(2_200);
     const started = performance.now();
@@ -476,12 +463,48 @@ describe("TxBuilder.fromCbor › the size and the depth it reads", () => {
     expectRefused(
       error,
       given,
-      "the transaction nests its items deeper than the 64 levels this library reads",
+      "the transaction carries more nested data than this library reads",
     );
   });
 
-  it("refuses depth in a script reference, in the data of the witness set and in the auxiliary data, and takes a datum nested 50 deep and one that reaches the limit", async () => {
-    const deep = "81".repeat(200) + "00";
+  /**
+   * A transaction whose inline datum is byte strings under tag 24, each inside the one before,
+   * `count` of them: its deepest item is at level 5 + `count`, and the decoder has almost no work
+   */
+  const encodedInside = (count: number) => {
+    let content = "00";
+    for (let i = 1; i < count; i++) content = `d818${bytes(content)}`;
+    const output = map(
+      [uint(0), bytes(`60${key.keyHash}`)],
+      [uint(1), uint(3_000_000)],
+      [uint(2), arr(uint(1), `d818${bytes(content)}`)],
+    );
+    return tx(
+      map(
+        [uint(0), inputs()],
+        [uint(1), arr(output)],
+        [uint(2), uint(170_000)],
+      ),
+    );
+  };
+
+  it("walks 1024 levels, the CBOR inside byte strings counted on, and refuses 1025 at once", async () => {
+    expect(scanTransaction(encodedInside(1019))).toBeLessThan(1_000_000);
+    const given = encodedInside(1020);
+    const started = performance.now();
+    const error = await caught(() =>
+      offline().fromCbor(given, { knownUtxos: knownUtxos() }),
+    );
+    expect(performance.now() - started).toBeLessThan(200);
+    expectRefused(
+      error,
+      given,
+      "the transaction nests its items deeper than the 1024 levels this library reads",
+    );
+  });
+
+  it("refuses 1 100 levels in a script reference, in the data of the witness set and in the auxiliary data by their depth, and takes a datum nested 50 deep", async () => {
+    const deep = "81".repeat(1100) + "00";
     const scriptRef = map(
       [uint(0), bytes(`60${key.keyHash}`)],
       [uint(1), uint(3_000_000)],
@@ -503,21 +526,12 @@ describe("TxBuilder.fromCbor › the size and the depth it reads", () => {
           offline().fromCbor(given, { knownUtxos: knownUtxos() }),
         ),
         given,
-        "deeper than the 64 levels",
+        "deeper than the 1024 levels",
       );
     const made = await offline().fromCbor(nestedDatum(50), {
       knownUtxos: knownUtxos(),
     });
     expect(made.outputs).toHaveLength(1);
-    // The datum's lists start at the seventh level: 58 of them reach the 64th, 59 pass it
-    await offline().fromCbor(nestedDatum(58), { knownUtxos: knownUtxos() });
-    expectRefused(
-      await caught(() =>
-        offline().fromCbor(nestedDatum(59), { knownUtxos: knownUtxos() }),
-      ),
-      nestedDatum(59),
-      "deeper than the 64 levels",
-    );
   });
 
   /** A transaction padded with metadata to about `size` bytes, spending `IN#0` */
@@ -678,8 +692,8 @@ describe("TxBuilder.fromCbor › the size and the depth it reads", () => {
         amount: [{ unit: "lovelace", quantity: "2000000" }],
       },
     });
-    // Beside the output named, outputs no UTxO can be read from: an address that is no address,
-    // and a datum that is no data
+    // Beside the output named, an output no UTxO can be read from, an address that is no address,
+    // and one whose datum is no data, which is kept as the hex given
     const answer = [
       listed("not an address", 0),
       listed(key.address, 1),
@@ -703,14 +717,16 @@ describe("TxBuilder.fromCbor › the size and the depth it reads", () => {
       );
     const read = await reading(1);
     expect(read.inputs.map((utxo) => utxo.outputIndex)).toEqual([1]);
-    // Named, such an output is refused as before
-    for (const index of [0, 2]) {
-      const error = await caught(() => reading(index));
-      expect(TxError.is(error, "UTXO_NOT_FOUND")).toBe(true);
-      expect((error as Error).message).toContain(
-        `entry ${index} of the answer is not a UTxO`,
-      );
-    }
+    expect((await reading(2)).inputs[0]!.datum).toEqual({
+      type: "inline",
+      data: { type: "CBOR", content: "ff" },
+    });
+    // Named, the output with no address is refused as before
+    const refused = await caught(() => reading(0));
+    expect(TxError.is(refused, "UTXO_NOT_FOUND")).toBe(true);
+    expect((refused as Error).message).toContain(
+      "entry 0 of the answer is not a UTxO",
+    );
     // An entry whose out ref cannot be read is read whole, and refused
     answer.push({ input: { txHash: made } } as never);
     const error = await caught(() => reading(1));
@@ -743,17 +759,31 @@ describe("TxBuilder.fromCbor › the CBOR inside a byte string, and the time dat
       ),
     );
 
-  it("refuses the CBOR of an inline datum or a script reference written in chunks at once, however deep it nests", async () => {
+  it("walks the CBOR of an inline datum or a script reference written in chunks as the decoder joins it: a datum is read, and deep ones are refused at once", async () => {
     // Parameters of a larger maximum size, so that the 20 KB of the deepest are walked
     const builder = new TxBuilder({
       network: "preprod",
       params: { ...params, maxTxSize: 65_536 },
     });
-    for (const depth of [1, 1_000, 10_000]) {
-      const datum = "9f".repeat(depth) + "ff".repeat(depth);
+    const datumOf = (depth: number) => "9f".repeat(depth) + "ff".repeat(depth);
+    const made = await builder.fromCbor(
+      outputWith([uint(2), arr(uint(1), `d818${oneChunk(datumOf(1))}`)]),
+      { knownUtxos: knownUtxos() },
+    );
+    expect(made.outputs[0]!.datum).toEqual({
+      type: "inline",
+      data: { type: "CBOR", content: datumOf(1) },
+    });
+    for (const [depth, reason] of [
+      [
+        1_000,
+        "the transaction carries more nested data than this library reads",
+      ],
+      [10_000, "deeper than the 1024 levels"],
+    ] as const) {
       const script = arr(uint(0), "81".repeat(depth) + "00");
       for (const given of [
-        outputWith([uint(2), arr(uint(1), `d818${oneChunk(datum)}`)]),
+        outputWith([uint(2), arr(uint(1), `d818${oneChunk(datumOf(depth))}`)]),
         outputWith([uint(3), `d818${oneChunk(script)}`]),
       ]) {
         const started = performance.now();
@@ -761,11 +791,7 @@ describe("TxBuilder.fromCbor › the CBOR inside a byte string, and the time dat
           builder.fromCbor(given, { knownUtxos: knownUtxos() }),
         );
         expect(performance.now() - started).toBeLessThan(200);
-        expectRefused(
-          error,
-          given,
-          "the transaction writes a byte string that holds CBOR (tag 24) in chunks, which no encoder does",
-        );
+        expectRefused(error, given, reason);
       }
     }
   });
@@ -885,10 +911,19 @@ describe("TxBuilder.fromCbor › the CBOR inside a byte string, and the time dat
     );
   };
 
-  it("reads the slowest data it takes within a bound: 16 384 bytes of one datum as deep as the limit on the decoder's work lets it, and of datums 61 levels deep", async () => {
-    for (const given of [deepAndWide(16_384, 6), manyDeep(16_384, 61)]) {
-      expect(given.length / 2).toBeLessThanOrEqual(16_384);
-      expect(given.length / 2).toBeGreaterThan(16_000);
+  /** A transaction of one datum in its witness set: lists nested `depth` deep */
+  const oneDeep = (depth: number) =>
+    tx(
+      bodyWith(),
+      map([uint(4), arr("9f".repeat(depth) + "ff".repeat(depth))]),
+    );
+
+  it("reads the slowest data it takes within a bound: 16 384 bytes of one datum as wide as the limit on the decoder's work lets it, of datums 50 levels deep, and one datum 720 levels deep", async () => {
+    for (const given of [
+      deepAndWide(16_384, 2),
+      manyDeep(16_384, 50),
+      oneDeep(720),
+    ]) {
       const started = performance.now();
       const made = await offline().fromCbor(given, {
         knownUtxos: knownUtxos(),
@@ -899,12 +934,16 @@ describe("TxBuilder.fromCbor › the CBOR inside a byte string, and the time dat
     }
   }, 60_000);
 
-  it("refuses at once data that carries more nested work than the decoder is let do, however the size and the depth share it", async () => {
+  it("refuses at once data that carries more nested work than the decoder is let do, however the size and the depth share it: datums of 16 384 bytes nested 128 levels and deeper, and one datum 1018 levels deep", async () => {
     for (const given of [
-      deepAndWide(16_384, 7),
+      manyDeep(16_384, 128),
+      manyDeep(16_384, 256),
+      manyDeep(16_384, 512),
+      manyDeep(16_384, 1000),
+      deepAndWide(16_384, 4),
       deepAndWide(16_384, 61),
       deepAndWide(8_192, 31),
-      deepAndWide(6_000, 61),
+      oneDeep(1018),
     ]) {
       const started = performance.now();
       const error = await caught(() =>
@@ -918,56 +957,55 @@ describe("TxBuilder.fromCbor › the CBOR inside a byte string, and the time dat
       );
     }
     // The same data under the limit is taken
-    await offline().fromCbor(deepAndWide(4_096, 61), {
+    await offline().fromCbor(deepAndWide(2_048, 61), {
       knownUtxos: knownUtxos(),
     });
   }, 60_000);
 });
 
-describe("TxBuilder.fromCbor › a key the decoder does not read", () => {
-  const UNKNOWN =
-    "holds a key this library does not read, which a decoder that does not know it reads in a different way";
-  const refusedAs = async (given: string, place: string) =>
-    expectRefused(
-      await caught(() =>
-        offline().fromCbor(given, { knownUtxos: knownUtxos() }),
-      ),
-      given,
-      `invalid tx: a map in ${place} ${UNKNOWN}`,
-    );
+describe("TxBuilder.fromCbor › a key the decoder does not read, read as the decoder reads it", () => {
+  const read = (given: string) =>
+    offline().fromCbor(given, { knownUtxos: knownUtxos() });
+  /** A refusal of the decoder: the transaction as a whole, with its type alone */
+  const notRead = async (given: string) => {
+    const error = await caught(() => read(given));
+    expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
+    expect((error as TxBuildError).details).toEqual({
+      option: "tx",
+      value: "string",
+      allowed: "a transaction in CBOR hex",
+    });
+  };
 
-  it("refuses a body whose unknown key would make the decoder read a ttl or a fee the bytes do not hold", async () => {
+  it("reads a body whose unknown key makes the decoder read a ttl or a fee the bytes do not hold, as the decoder reads it: a ledger refuses it", async () => {
     const lawful: [string, string][] = [
       [uint(0), inputs()],
       [uint(1), arr(arr(bytes(`60${key.keyHash}`), uint(9_600_000)))],
       [uint(2), uint(400_000)],
     ];
     // The value 3 of key 25 read as the key of 500, a ttl; the value 2 as the key of a second fee
+    const ttl = await read(
+      tx(map(...lawful, [uint(25), uint(3)], [uint(500), uint(77)])),
+    );
+    expect(ttl.validity?.invalidHereafter).toBe(500);
+    const fee = await read(
+      tx(map(...lawful, [uint(25), uint(2)], [uint(5_000_000), uint(77)])),
+    );
+    expect(fee.fee).toBe(5_000_000n);
+    // Key 6, the update proposals of the eras before Conway, is passed over; a key after 22 and
+    // key 12 are not read by the decoder
+    expect(
+      (await read(tx(map(...lawful, [uint(6), arr(map(), uint(1))])))).fee,
+    ).toBe(400_000n);
     for (const extra of [
-      [
-        [uint(25), uint(3)],
-        [uint(500), uint(77)],
-      ],
-      [
-        [uint(25), uint(2)],
-        [uint(5_000_000), uint(77)],
-      ],
-    ] as [string, string][][])
-      await refusedAs(tx(map(...lawful, ...extra)), "its body");
-    // Key 6, the update proposals of the eras before Conway, and a key after 22
-    for (const extra of [
-      [uint(6), arr(map(), uint(1))],
       [uint(23), uint(0)],
       [uint(12), uint(0)],
     ] as [string, string][])
-      await refusedAs(tx(map(...lawful, extra)), "its body");
-    const made = await offline().fromCbor(tx(map(...lawful)), {
-      knownUtxos: knownUtxos(),
-    });
-    expect(made.fee).toBe(400_000n);
+      await notRead(tx(map(...lawful, extra)));
+    expect((await read(tx(map(...lawful)))).fee).toBe(400_000n);
   });
 
-  it("refuses an output, or a collateral return, whose unknown key would make the decoder read an inline datum the bytes do not hold", async () => {
+  it("reads an output whose unknown key makes the decoder read an inline datum the bytes do not hold, as the decoder reads it", async () => {
     // {0: address, 1: value, 4: 2, [1, 24(h'182a')]: 5}: the value 2 read as the datum's key
     const output = map(
       [uint(0), bytes(`60${key.keyHash}`)],
@@ -975,7 +1013,7 @@ describe("TxBuilder.fromCbor › a key the decoder does not read", () => {
       [uint(4), uint(2)],
       [arr(uint(1), `d818${bytes("182a")}`), uint(5)],
     );
-    await refusedAs(
+    const made = await read(
       tx(
         map(
           [uint(0), inputs()],
@@ -983,46 +1021,23 @@ describe("TxBuilder.fromCbor › a key the decoder does not read", () => {
           [uint(2), uint(170_000)],
         ),
       ),
-      "an output of its body",
     );
-    await refusedAs(
-      tx(
-        map(
-          [uint(0), inputs()],
-          [uint(1), arr(pay(key))],
-          [uint(2), uint(170_000)],
-          [uint(13), tag258(arr(arr(bytes(IN), uint(1))))],
-          [uint(16), output],
-        ),
-      ),
-      "an output of its body",
-    );
-    // An output in the array form has no keys
-    const listed = tx(
-      map(
-        [uint(0), inputs()],
-        [uint(1), arr(arr(bytes(`60${key.keyHash}`), uint(3_000_000)))],
-        [uint(2), uint(170_000)],
-      ),
-    );
-    expect(
-      (await offline().fromCbor(listed, { knownUtxos: knownUtxos() })).tx,
-    ).toBe(listed);
+    expect(made.outputs[0]!.datum).toEqual({
+      type: "inline",
+      data: { type: "CBOR", content: "182a" },
+    });
   });
 
-  it("refuses a witness set with a key after 7, and auxiliary data in the tagged form with a key after 4", async () => {
-    await refusedAs(tx(bodyWith(), map([uint(8), arr()])), "its witness set");
-    await refusedAs(
+  it("refuses, as the decoder does, a witness set with a key after 7 and auxiliary data in the tagged form with a key after 4", async () => {
+    await notRead(tx(bodyWith(), map([uint(8), arr()])));
+    await notRead(
       tx(bodyWith(), map(), { aux: `d90103${map([uint(5), arr()])}` }),
-      "its auxiliary data",
     );
     // Metadata in the plain form is a map of labels, any of which is read
     const labels = tx(bodyWith(), map(), {
       aux: map([uint(9_999), uint(1)], [uint(5), uint(2)]),
     });
-    expect(
-      (await offline().fromCbor(labels, { knownUtxos: knownUtxos() })).tx,
-    ).toBe(labels);
+    expect((await read(labels)).tx).toBe(labels);
   });
 });
 

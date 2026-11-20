@@ -450,9 +450,9 @@ describe("a transaction of after is read from its bytes", () => {
     "refuses a transaction of after nested deeper than the walk reads",
     async () => {
       const ctx = await stepSetup("scalus", { funds: [1000n * ADA] });
-      // The same transaction with metadata nested 10 and 100 levels
-      const shallow = manyOutputs(1, map([uint(674), "81".repeat(10) + "00"]));
-      const deep = manyOutputs(1, map([uint(674), "81".repeat(100) + "00"]));
+      // The same transaction with metadata nested 100 and 1 100 levels
+      const shallow = manyOutputs(1, map([uint(674), "81".repeat(100) + "00"]));
+      const deep = manyOutputs(1, map([uint(674), "81".repeat(1_100) + "00"]));
       const built = await ctx.builder.build(payTo(bob, 1n * ADA), {
         payer: ctx.wallet,
         after: { tx: shallow, outputs: [{}] } as never,

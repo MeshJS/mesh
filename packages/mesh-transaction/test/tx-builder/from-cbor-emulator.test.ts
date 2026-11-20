@@ -487,7 +487,7 @@ describe.each(["scalus", "cquisitor"] as const)(
       expect((await secondTx.awaitInclusion(QUICK)).txHash).toBe(second.txHash);
     });
 
-    it("refuses a body with two output lists, the first paying the user back and the second the maker: nothing is shown, signed or sent, and the user's UTxO stays", async () => {
+    it("reads a body with two output lists as the decoder reads it, both of them; the cquisitor emulator does not take it, and the scalus emulator takes it and pays the second list alone", async () => {
       await Crypto.ready();
       const user = testKey();
       const maker = testKey();
@@ -515,21 +515,29 @@ describe.each(["scalus", "cquisitor"] as const)(
         provider: emulator,
         evaluator: emulator,
       });
-      const error = await caught(coSigner.fromCbor(txOf(body)));
-      expect(error).toBeInstanceOf(TxBuildError);
-      expect(error.code).toBe("INVALID_OPTION");
-      expect(error.details).toEqual({
-        option: "tx",
-        value: "string",
-        allowed: "a transaction in CBOR hex",
-      });
-      expect(error.message).toContain("a map in its body repeats a key");
-      expect(
-        emulator
-          .utxos({ address: user.address })
-          .map((u) => u.output.amount[0]!.quantity),
-      ).toEqual(["500000000"]);
-      expect(emulator.utxos({ address: maker.address })).toEqual([]);
+      const given = txOf(
+        body,
+        map([uint(0), tag258(arr(vkeyWitness(user, txHashOf(body))))]),
+      );
+      const made = await coSigner.fromCbor(given);
+      expect(made.outputs.map((output) => output.address)).toEqual([
+        user.address,
+        maker.address,
+      ]);
+      expect(made.missing).toEqual([]);
+      const amounts = (address: string) =>
+        emulator.utxos({ address }).map((u) => u.output.amount[0]!.quantity);
+      // A node refuses a map that repeats a key since protocol version 9; the emulators differ
+      if (validator === "cquisitor") {
+        const error = await caught(made.submit());
+        expect(error.code).toBe("SUBMIT_FAILED");
+        expect(amounts(user.address)).toEqual(["500000000"]);
+        expect(amounts(maker.address)).toEqual([]);
+      } else {
+        await made.submit();
+        expect(amounts(user.address)).toEqual([]);
+        expect(amounts(maker.address)).toEqual(["499800000"]);
+      }
     });
 
     it("warns of the user's whole collateral input put up beside the maker's and returned to the maker: the warning names its 500 ada, and the transaction marked as failing takes them", async () => {
@@ -714,25 +722,32 @@ describe.each(["scalus", "cquisitor"] as const)(
           provider: emulator,
           evaluator: emulator,
         });
-        return { emulator, signed, coSigner };
+        return { emulator, signed, coSigner, user };
       };
 
-      it("refuses two redeemers of one purpose in either order, which the two validators read in different ways", async () => {
+      it("reads two redeemers of one purpose in either order as the decoder reads them, both; the cquisitor emulator refuses either order, the scalus emulator judges the last", async () => {
         for (const order of [
           [GOOD, BAD],
           [BAD, GOOD],
         ]) {
-          const { signed, coSigner } = await spendWith(order);
-          const error = await caught(coSigner.fromCbor(signed));
-          expect(error).toBeInstanceOf(TxBuildError);
-          expect(error.details).toEqual({
-            option: "tx",
-            value: "string",
-            allowed: "a transaction in CBOR hex",
-          });
-          expect(error.message).toBe(
-            "invalid tx: the redeemers of its witness set name one purpose twice, which decoders read in different ways",
+          const { emulator, signed, coSigner, user } = await spendWith(order);
+          const made = await coSigner.fromCbor(signed);
+          expect(made.redeemers.map((r) => [r.tag, r.index, r.data])).toEqual(
+            order.map((data) => ["SPEND", 0, data]),
           );
+          const taken = await made.submit().then(
+            () => true,
+            (error: any) => {
+              expect([error.code, error.cause?.kind]).toEqual([
+                "REJECTED",
+                "rejected",
+              ]);
+              return false;
+            },
+          );
+          expect(taken).toBe(validator === "scalus" && order[1] === GOOD);
+          if (!taken)
+            expect(emulator.utxos({ address: user.address })).toHaveLength(2);
         }
       });
 

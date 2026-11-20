@@ -1,10 +1,20 @@
+import { CborReader, HexBlob, Serialization } from "@meshsdk/core-cst";
+
 /*
- * A walk over the bytes of a transaction before any of it is decoded into a value. Decoders read
- * a map that repeats a key in different ways: one joins the values, another keeps the last, a
- * third refuses it. A transaction whose maps can be read in more than one way cannot be shown
- * truly, so it is refused, as is one too large or nested too deep to be decoded in reasonable
- * time.
+ * The bounds within which a transaction this library did not build is read, before any of it is
+ * decoded into a value: its size, the depth of its nesting, and the work the value decoder of
+ * `@cardano-sdk/core` would have with it. That decoder reads each array, map and tag with a
+ * reader of its own and walks again all that is inside it, copying what is left of the reader's
+ * bytes at each step: its time grows with the square of the depth of data, and with the bytes
+ * of each container times the items inside it, and it calls itself once a level, so that a datum
+ * 2 048 levels deep overflows a small stack. The walk here counts that work on the same library's
+ * token reader, `Serialization.CborReader`, read one token at a time: it calls itself nowhere,
+ * and walks the largest transaction in some tens of milliseconds. The keys of maps are not
+ * judged: a node refuses a map that repeats a key since protocol version 9, and the decoder reads
+ * one in its own way, the last value or, for the outputs of a body, both lists joined.
  */
+
+const State = Serialization.CborReaderState;
 
 /**
  * The largest transaction `fromCbor` reads, in bytes, when the builder was not given protocol
@@ -15,30 +25,39 @@
 export const MAX_TX_BYTES = 16_384;
 
 /**
- * The deepest nesting `fromCbor` reads: each array, map and tag is one level, the transaction
- * itself the first, and the items inside a byte string that holds CBOR (an inline datum, a
- * reference script) count on from the tag of that string. The data of a datum or a redeemer
- * starts at the fifth to the seventh level and keeps more than fifty of its own, more than
- * twenty constructors one inside another. The time the value decoder takes for one datum grows
- * with the square of its depth, so the limit is kept near what data needs
+ * The deepest nesting a transaction is read to: each array, map and tag is one level, the
+ * transaction itself the first, and the items inside a byte string under tag 24 (an inline datum,
+ * a reference script) count on from that tag. 1 024: the value decoder reads one datum of this
+ * depth on a stack of about a browser's (`node --stack-size=400`), and overflows it at 2 048. The
+ * bound keeps this library's own process safe; Plutus data, metadata and scripts that nest more
+ * than about 730 levels deep are refused by the bound on work first, as their decoding takes more
+ * than a second
  */
-export const MAX_TX_DEPTH = 64;
+export const MAX_TX_DEPTH = 1024;
 
 /**
- * The most work the value decoder may have with the data of a transaction, counted by the walk:
- * for each array, map, tag and byte string holding CBOR inside data (Plutus data, metadata,
- * scripts), the items inside it times its bytes. The decoder reads each such container with a
- * reader of its own, and copies what is left of that reader's bytes for each item it passes, so
- * its time follows this count: about a third of a second for each 10^9 on a laptop, up to two
- * thirds for maps. The limit keeps the time near a second. A transaction as wallets and
- * contracts make them counts below a million, and 16 384 bytes of data in one flat list about
- * 5 * 10^8. Data that nests most of its bytes deep is what goes past it: one datum of 16 384
- * bytes nested seven levels around them, of 8 192 bytes nested thirty
+ * The most work the value decoder may have with a transaction, as the walk counts it: for each
+ * array and map, the items inside it times its bytes and `ITEM_WORK` more, and for each tag the
+ * items inside it times its bytes and `TAG_ITEM_WORK` more; the items inside a byte string under
+ * tag 24 count for the containers inside it alone, as the decoder reads them with a reader of
+ * their own. One unit is about 0.4 ns of decoding on a laptop of 2026 (an Apple M3 Max, Node 26):
+ * the slowest transactions this lets through, of every shape measured, decode in 0.4 to 1.1 s.
+ * Transactions as wallets and contracts make them count at most two thousandths of it. Past it:
+ * one datum of lists nested more than 728 levels deep, 16 384 bytes of datums of lists nested
+ * more than 54 deep, or a list of more than 11 000 zeros 7 levels down
  */
 export const MAX_TX_WORK = 2_000_000_000;
 
+/** The work of each item inside an array or a map, beside its bytes: the decoder's steps */
+const ITEM_WORK = 6_500;
+
+/** The work of each item inside a tag: a constructor of Plutus data is read with two readers */
+const TAG_ITEM_WORK = 12_500;
+
 const TOO_MUCH_DATA =
   "the transaction carries more nested data than this library reads";
+
+const TOO_DEEP = `the transaction nests its items deeper than the ${MAX_TX_DEPTH} levels this library reads`;
 
 /** The tag of a byte string that holds a CBOR item */
 const ENCODED_CBOR = 24;
@@ -46,245 +65,170 @@ const ENCODED_CBOR = 24;
 /** A transaction that the walk refuses, with the reason in words that quote none of its bytes */
 export class TxScanError extends Error {}
 
-/**
- * What a container is in the transaction, which tells whether its keys are compared and what its
- * items are
- */
-type Role =
-  | "top"
-  | "tx"
-  | "body"
-  | "inBody"
-  | "outputs"
-  | "output"
-  | "witnessSet"
-  | "redeemers"
-  | "redeemer"
-  | "aux"
-  | "auxMap"
-  | "metadata"
-  | "plain";
-
-/** The roles whose maps may not repeat a key, each with the place a message names */
-const CHECKED: Partial<Record<Role, string>> = {
-  body: "its body",
-  inBody: "its body",
-  output: "its body",
-  witnessSet: "its witness set",
-  redeemers: "the redeemers of its witness set",
-  aux: "its auxiliary data",
-  auxMap: "its auxiliary data",
-  metadata: "its auxiliary data",
-};
-
-/** The head of a CBOR item */
-type Head = {
-  major: number;
-  /** The argument: a value, a length or a tag number; undefined for an indefinite length */
-  value: number | bigint | undefined;
-  /** The offset after the head */
-  next: number;
-  /** The simple value 31 of major type 7: the end of an indefinite length */
-  isBreak: boolean;
-};
-
 const malformed = () =>
   new TxScanError(
     "expected a transaction in CBOR hex: it is not well-formed CBOR",
   );
 
-/** Reads the head at `at`, before `limit`; undefined where the bytes are not well-formed */
-const readHead = (
+const hexOf = (bytes: Uint8Array) => Buffer.from(bytes).toString("hex");
+
+/** An array, a map or a tag, open while its items are read */
+type Frame = {
+  readonly tag: boolean;
+  /** The offset after its head */
+  readonly start: number;
+  /** The items its reader had read when it opened */
+  readonly before: number;
+};
+
+/** A reader over the bytes of the item, or over those of a byte string under tag 24 */
+type Level = {
+  readonly reader: CborReader;
+  readonly size: number;
+  readonly frames: Frame[];
+  /** The level of the tag around the byte string; 0 for the item itself */
+  readonly depth: number;
+  /** The items read so far: scalars, strings and containers, a tagged item once */
+  items: number;
+};
+
+const levelOf = (bytes: Uint8Array, depth: number): Level => ({
+  reader: new CborReader(HexBlob(hexOf(bytes))),
+  size: bytes.length,
+  frames: [],
+  depth,
+  items: 0,
+});
+
+/** What a walk found of one item */
+type Walked = {
+  /** The offset after the item */
+  readonly end: number;
+  /** The deepest nesting inside it, each array, map and tag one level */
+  readonly depth: number;
+  /** The work the value decoder has with it, as `MAX_TX_WORK` counts it */
+  readonly work: number;
+};
+
+/**
+ * Walks the first CBOR item of `bytes`, token by token on the reader, with no call of itself:
+ * the stack is the same however deep the item nests. With `bounds`, it walks the CBOR inside each
+ * byte string under tag 24 too, to its end, and refuses the item as soon as it is deeper, or more
+ * work, than they let through; without, such a byte string is one item
+ * @throws TxScanError past the bounds; the reader's error for bytes that are not well-formed
+ */
+const walk = (
   bytes: Uint8Array,
-  at: number,
-  limit: number,
-): Head | undefined => {
-  if (at >= limit) return undefined;
-  const initial = bytes[at]!;
-  const major = initial >> 5;
-  const info = initial & 0x1f;
-  if (info < 24) return { major, value: info, next: at + 1, isBreak: false };
-  if (info === 31) {
-    if (major === 7)
-      return { major, value: undefined, next: at + 1, isBreak: true };
-    if (major >= 2 && major <= 5)
-      return { major, value: undefined, next: at + 1, isBreak: false };
+  bounds?: { readonly depth: number; readonly work: number },
+): Walked => {
+  const levels: Level[] = [levelOf(bytes, 0)];
+  let deepest = 0;
+  let work = 0;
+  const offset = (level: Level) =>
+    level.size - level.reader.getBytesRemaining();
+  const close = (level: Level, frame: Frame, items: number) => {
+    work +=
+      items *
+      (offset(level) - frame.start + (frame.tag ? TAG_ITEM_WORK : ITEM_WORK));
+    if (bounds !== undefined && work > bounds.work)
+      throw new TxScanError(TOO_MUCH_DATA);
+  };
+  /** An item of the level is read: each tag around it closes with it */
+  const read = (level: Level) => {
+    level.items++;
+    for (;;) {
+      const top = level.frames[level.frames.length - 1];
+      if (top === undefined || !top.tag) return;
+      level.frames.pop();
+      close(level, top, level.items - top.before - 1);
+    }
+  };
+  const open = (level: Level, tag: boolean) => {
+    level.frames.push({ tag, start: offset(level), before: level.items });
+    const depth = level.depth + level.frames.length;
+    if (depth <= deepest) return;
+    deepest = depth;
+    if (bounds !== undefined && depth > bounds.depth)
+      throw new TxScanError(TOO_DEEP);
+  };
+  for (;;) {
+    const level = levels[levels.length - 1]!;
+    const { reader, frames } = level;
+    if (frames.length === 0) {
+      if (levels.length === 1) {
+        if (level.items > 0)
+          return { end: offset(level), depth: deepest, work };
+      } else if (reader.getBytesRemaining() === 0) {
+        // The byte string under tag 24 is read: one item of the level that holds it
+        levels.pop();
+        read(levels[levels.length - 1]!);
+        continue;
+      }
+    }
+    const state = reader.peekState();
+    switch (state) {
+      case State.StartArray:
+        reader.readStartArray();
+        open(level, false);
+        break;
+      case State.StartMap:
+        reader.readStartMap();
+        open(level, false);
+        break;
+      case State.EndArray:
+      case State.EndMap: {
+        if (state === State.EndArray) reader.readEndArray();
+        else reader.readEndMap();
+        const frame = frames.pop()!;
+        close(level, frame, level.items - frame.before);
+        read(level);
+        break;
+      }
+      case State.Tag: {
+        const tag = reader.readTag();
+        open(level, true);
+        const next = reader.peekState();
+        if (
+          bounds !== undefined &&
+          Number(tag) === ENCODED_CBOR &&
+          (next === State.ByteString ||
+            next === State.StartIndefiniteLengthByteString)
+        )
+          levels.push(
+            levelOf(reader.readByteString(), level.depth + frames.length),
+          );
+        break;
+      }
+      default:
+        // A scalar or a string, in chunks or not: the reader passes it in one call, in a loop
+        reader.skipValue();
+        read(level);
+    }
+  }
+};
+
+/** The walk of `bytes` with no bounds, or undefined where they do not start with one item */
+const walked = (bytes: Uint8Array): Walked | undefined => {
+  try {
+    return walk(bytes);
+  } catch {
     return undefined;
   }
-  if (info > 27) return undefined;
-  const size = 1 << (info - 24);
-  if (at + 1 + size > limit) return undefined;
-  let value = 0n;
-  for (let i = 0; i < size; i++)
-    value = (value << 8n) | BigInt(bytes[at + 1 + i]!);
-  return {
-    major,
-    value: value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : value,
-    next: at + 1 + size,
-    isBreak: false,
-  };
 };
 
-/** The length a head states, when it fits before `limit` */
-const lengthOf = (head: Head, limit: number) =>
-  typeof head.value === "number" && head.next + head.value <= limit
-    ? head.value
-    : undefined;
-
-/** The major type of a byte string and of an array */
-const BYTES = 2;
-const ARRAY = 4;
+/** Whether `bytes` are exactly one well-formed CBOR item, read with no call of itself */
+export const isOneCborItem = (bytes: Uint8Array): boolean =>
+  walked(bytes)?.end === bytes.length;
 
 /**
- * What the item after a tag of Plutus data must be: a byte string after the tags of a big
- * integer (2 and 3), a list after the tag of a constructor (121 to 127, 1280 to 1400, and 102 for
- * the general form). Undefined for a tag Plutus data does not use
- */
-const plutusTagHolds = (tag: number | bigint): number | undefined => {
-  const n = Number(tag);
-  if (n === 2 || n === 3) return BYTES;
-  if ((n >= 121 && n <= 127) || (n >= 1280 && n <= 1400) || n === 102)
-    return ARRAY;
-  return undefined;
-};
-
-/** One CBOR item as `walkItem` found it */
-type WalkedItem = {
-  /** The offset after the item */
-  end: number;
-  /** The deepest nesting inside it: each array, map and tag one level */
-  depth: number;
-};
-
-/**
- * Walks the CBOR item at `start` without recursion and without decoding it into a value: the
- * time it takes grows with the bytes alone. With `plutus`, the item must also be Plutus data in
- * its shape: integers, byte strings, lists, maps and the tags of big integers and constructors,
- * never a text, a float or a simple value. Undefined where the bytes from `start` are not one
- * such item
- */
-const walkItem = (
-  bytes: Uint8Array,
-  start: number,
-  plutus: boolean,
-): WalkedItem | undefined => {
-  // The items left in each open container, -1 for an indefinite length; the item itself first
-  const left: number[] = [1];
-  let depth = 0;
-  // The major type the item after a tag of Plutus data must have
-  let expected: number | undefined;
-  const done = () => {
-    for (;;) {
-      const top = left.length - 1;
-      if (top < 0 || left[top] === -1) return;
-      left[top]!--;
-      if (left[top] !== 0) return;
-      left.pop();
-    }
-  };
-  const open = (items: number) => {
-    left.push(items);
-    depth = Math.max(depth, left.length - 1);
-  };
-  let at = start;
-  while (left.length > 0) {
-    const head = readHead(bytes, at, bytes.length);
-    if (!head) return undefined;
-    at = head.next;
-    if (head.isBreak) {
-      if (left[left.length - 1] !== -1) return undefined;
-      left.pop();
-      done();
-      continue;
-    }
-    if (plutus) {
-      if (expected !== undefined && head.major !== expected) return undefined;
-      expected = undefined;
-    }
-    switch (head.major) {
-      case 2:
-      case 3: {
-        if (plutus && head.major === 3) return undefined;
-        if (head.value === undefined)
-          for (;;) {
-            const chunk = readHead(bytes, at, bytes.length);
-            if (!chunk) return undefined;
-            at = chunk.next;
-            if (chunk.isBreak) break;
-            const length =
-              chunk.major === head.major
-                ? lengthOf(chunk, bytes.length)
-                : undefined;
-            if (length === undefined) return undefined;
-            at += length;
-          }
-        else {
-          const length = lengthOf(head, bytes.length);
-          if (length === undefined) return undefined;
-          at += length;
-        }
-        done();
-        break;
-      }
-      case 4:
-      case 5: {
-        if (head.value === undefined) {
-          open(-1);
-          break;
-        }
-        if (typeof head.value !== "number") return undefined;
-        const items = head.value * (head.major === 5 ? 2 : 1);
-        if (items > bytes.length - at) return undefined;
-        if (items === 0) done();
-        else open(items);
-        break;
-      }
-      case 6:
-        if (plutus) {
-          expected = plutusTagHolds(head.value!);
-          if (expected === undefined) return undefined;
-        }
-        open(1);
-        break;
-      default:
-        if (plutus && head.major === 7) return undefined;
-        done();
-    }
-  }
-  return { end: at, depth };
-};
-
-/**
- * The offset after the CBOR item at `start`, found without recursion and without decoding the
- * item into a value: the time it takes grows with the bytes alone. Undefined where the bytes
- * from `start` are not one well-formed item
- */
-export const itemEnd = (bytes: Uint8Array, start = 0): number | undefined =>
-  walkItem(bytes, start, false)?.end;
-
-/** What `notPlutusData` says of one item of Plutus data with bytes after it */
-export const BYTES_AFTER_DATA = "bytes follow the data";
-
-/**
- * Why `bytes` are not exactly one item of Plutus data, found by a walk that decodes nothing, in
- * a time that grows with the bytes alone however deep the data nests; undefined when they are
- * one. It judges the shape of the data, which is all a ledger asks of it
- */
-export const notPlutusData = (bytes: Uint8Array): string | undefined => {
-  const walked = walkItem(bytes, 0, true);
-  if (walked) return walked.end === bytes.length ? undefined : BYTES_AFTER_DATA;
-  return itemEnd(bytes) === undefined
-    ? "it is not well-formed CBOR"
-    : "it holds what Plutus data does not: a text, a float, a simple value or a tag of no integer or constructor";
-};
-
-/**
- * The deepest nesting of the one CBOR item `bytes` hold, each array, map and tag one level, found
- * without recursion; undefined where they are not one well-formed item
+ * The deepest nesting of the one CBOR item `bytes` hold, each array, map and tag one level, a
+ * byte string one item whatever it holds; undefined where they are not one item
  */
 export const itemDepth = (bytes: Uint8Array): number | undefined => {
-  const walked = walkItem(bytes, 0, false);
-  return walked && walked.end === bytes.length ? walked.depth : undefined;
+  const found = walked(bytes);
+  return found !== undefined && found.end === bytes.length
+    ? found.depth
+    : undefined;
 };
 
 /** A transaction unspent output in CBOR, with the CBOR its output holds apart */
@@ -303,102 +247,76 @@ export type UtxoBytes = {
 /** What stands in for the byte string of an inline datum: `h'00'`, which holds the integer 0 */
 const STAND_IN_DATUM = Uint8Array.of(0x41, 0x00);
 
-/**
- * The content of the byte string at `at` and the offset after it, its chunks joined; undefined
- * when there is no byte string there
- */
-const byteStringAt = (
-  bytes: Uint8Array,
-  at: number,
-): { content: Uint8Array; end: number } | undefined => {
-  const head = readHead(bytes, at, bytes.length);
-  if (!head || head.isBreak || head.major !== BYTES) return undefined;
-  if (head.value !== undefined) {
-    const length = lengthOf(head, bytes.length);
-    if (length === undefined) return undefined;
-    return {
-      content: bytes.subarray(head.next, head.next + length),
-      end: head.next + length,
-    };
-  }
-  const chunks: Uint8Array[] = [];
-  let next = head.next;
-  for (;;) {
-    const chunk = readHead(bytes, next, bytes.length);
-    if (!chunk) return undefined;
-    if (chunk.isBreak)
-      return { content: Buffer.concat(chunks), end: chunk.next };
-    const length =
-      chunk.major === BYTES ? lengthOf(chunk, bytes.length) : undefined;
-    if (length === undefined) return undefined;
-    chunks.push(bytes.subarray(chunk.next, chunk.next + length));
-    next = chunk.next + length;
-  }
-};
-
-/** The byte string under tag 24 at `at`, where the bytes hold one; undefined otherwise */
-const encodedAt = (bytes: Uint8Array, at: number) => {
-  const tag = readHead(bytes, at, bytes.length);
-  if (!tag || tag.major !== 6 || tag.value !== ENCODED_CBOR) return undefined;
-  const string = byteStringAt(bytes, tag.next);
-  return string && { start: tag.next, ...string };
+/** The byte string under tag 24 the reader is at, if it is at one: its content and offsets */
+const encodedAt = (reader: CborReader, offset: () => number) => {
+  if (
+    reader.peekState() !== State.Tag ||
+    Number(reader.peekTag()) !== ENCODED_CBOR
+  )
+    return undefined;
+  reader.readTag();
+  const next = reader.peekState();
+  if (
+    next !== State.ByteString &&
+    next !== State.StartIndefiniteLengthByteString
+  )
+    return undefined;
+  const start = offset();
+  const content = reader.readByteString();
+  return { start, end: offset(), content };
 };
 
 /**
- * Finds, without decoding anything, the inline datum and the reference script of a transaction
- * unspent output `[input, output]` in CBOR, and writes the same bytes with a stand-in for the
- * datum, so that a value decoder reads the rest without reading data of any depth. An output in
- * the array form holds neither. Undefined where the bytes are not one well-formed item; an output
- * of a shape this walk does not know is left as written, for the decoder to judge
+ * Finds the inline datum and the reference script of a transaction unspent output
+ * `[input, output]` in CBOR, from the offsets of the token reader, and writes the same bytes with
+ * a stand-in for the datum, so that a value decoder reads the rest without reading data of any
+ * depth; neither is decoded. An output in the array form holds neither. Undefined where the
+ * bytes do not start with one well-formed item; an output of a shape the reader does not find
+ * is left as written, for the decoder to judge
  */
 export const splitUtxoBytes = (bytes: Uint8Array): UtxoBytes | undefined => {
-  if (itemEnd(bytes) === undefined) return undefined;
-  const top = readHead(bytes, 0, bytes.length)!;
-  if (top.major !== ARRAY || (top.value !== 2 && top.value !== undefined))
-    return { standIn: bytes };
-  const outputStart = itemEnd(bytes, top.next);
-  const output =
-    outputStart === undefined
-      ? undefined
-      : readHead(bytes, outputStart, bytes.length);
-  if (!output || output.isBreak || output.major !== 5)
-    return { standIn: bytes };
+  if (walked(bytes) === undefined) return undefined;
+  const reader = new CborReader(HexBlob(hexOf(bytes)));
+  const offset = () => bytes.length - reader.getBytesRemaining();
   const found: Omit<UtxoBytes, "standIn"> = {};
   // The byte strings of inline datums, which the stand-in replaces: a repeated key is left to the
   // decoder, which reads the last
   const datums: { start: number; end: number }[] = [];
-  let at = output.next;
-  for (
-    let pair = 0;
-    output.value === undefined || pair < output.value;
-    pair++
-  ) {
-    const key = readHead(bytes, at, bytes.length);
-    if (!key || key.isBreak) break;
-    const valueStart = itemEnd(bytes, at)!;
-    const valueEnd = itemEnd(bytes, valueStart);
-    if (valueEnd === undefined) break;
-    if (key.major === 0 && key.value === 3) {
-      const script = encodedAt(bytes, valueStart);
-      if (script) found.scriptRef = script.content;
+  try {
+    if (reader.peekState() !== State.StartArray) return { standIn: bytes };
+    const items = reader.readStartArray();
+    if (items !== 2 && items !== null) return { standIn: bytes };
+    reader.skipValue();
+    if (reader.peekState() !== State.StartMap) return { standIn: bytes };
+    const pairs = reader.readStartMap();
+    for (let pair = 0; pairs === null || pair < pairs; pair++) {
+      if (reader.peekState() === State.EndMap) break;
+      const key =
+        reader.peekState() === State.UnsignedInteger
+          ? reader.readUInt()
+          : (reader.skipValue(), undefined);
+      if (key === 3n) {
+        const script = encodedAt(reader, offset);
+        if (script) found.scriptRef = script.content;
+        else reader.skipValue();
+      } else if (key === 2n && reader.peekState() === State.StartArray) {
+        // [1, 24(h'…')], in a list of either kind of length
+        reader.readStartArray();
+        const inline =
+          reader.peekState() === State.UnsignedInteger &&
+          reader.readUInt() === 1n
+            ? encodedAt(reader, offset)
+            : undefined;
+        if (inline) {
+          found.inlineDatum = inline.content;
+          datums.push({ start: inline.start, end: inline.end });
+        }
+        while (reader.peekState() !== State.EndArray) reader.skipValue();
+        reader.readEndArray();
+      } else reader.skipValue();
     }
-    if (key.major === 0 && key.value === 2) {
-      // [1, 24(h'…')], in a list of either kind of length
-      const option = readHead(bytes, valueStart, bytes.length);
-      const kind =
-        option && option.major === ARRAY && !option.isBreak
-          ? readHead(bytes, option.next, bytes.length)
-          : undefined;
-      const inline =
-        kind && kind.major === 0 && kind.value === 1
-          ? encodedAt(bytes, kind.next)
-          : undefined;
-      if (inline) {
-        found.inlineDatum = inline.content;
-        datums.push({ start: inline.start, end: inline.end });
-      }
-    }
-    at = valueEnd;
+  } catch {
+    return { standIn: bytes };
   }
   const pieces: Uint8Array[] = [];
   let from = 0;
@@ -410,476 +328,15 @@ export const splitUtxoBytes = (bytes: Uint8Array): UtxoBytes | undefined => {
   return { standIn: Buffer.concat(pieces), ...found };
 };
 
-const hexOf = (bytes: Uint8Array, from: number, to: number) =>
-  Buffer.from(bytes.subarray(from, to)).toString("hex");
-
 /**
- * The value of the item at `start..end`, as a text in which two items are equal when they are
- * the same value: an integer whatever the width it is written in, a byte or text string whatever
- * its chunks, arrays and maps item by item whatever their kind of length, a tag with its number.
- * The item was walked already, so it is well-formed and its depth is bounded
- */
-const keyText = (bytes: Uint8Array, start: number, end: number): string => {
-  const out: string[] = [];
-  // The open containers: the items left in each, -1 for an indefinite length
-  const left: number[] = [];
-  const done = () => {
-    for (;;) {
-      const top = left.length - 1;
-      if (top < 0 || left[top] === -1) return;
-      left[top]!--;
-      if (left[top] !== 0) return;
-      left.pop();
-      out.push(")");
-    }
-  };
-  let at = start;
-  while (at < end) {
-    const from = at;
-    const head = readHead(bytes, at, end)!;
-    at = head.next;
-    if (head.isBreak) {
-      left.pop();
-      out.push(")");
-      done();
-      continue;
-    }
-    switch (head.major) {
-      case 0:
-      case 1:
-        out.push(`${head.major}:${head.value!.toString()}`);
-        done();
-        break;
-      case 2:
-      case 3: {
-        let content = "";
-        if (head.value === undefined) {
-          for (;;) {
-            const chunk = readHead(bytes, at, end)!;
-            at = chunk.next;
-            if (chunk.isBreak) break;
-            content += hexOf(bytes, at, at + (chunk.value as number));
-            at += chunk.value as number;
-          }
-        } else {
-          content = hexOf(bytes, at, at + (head.value as number));
-          at += head.value as number;
-        }
-        out.push(`${head.major}:${content}`);
-        done();
-        break;
-      }
-      case 4:
-      case 5: {
-        const items =
-          head.value === undefined
-            ? -1
-            : (head.value as number) * (head.major === 5 ? 2 : 1);
-        out.push(`${head.major}(`);
-        if (items === 0) {
-          out.push(")");
-          done();
-        } else left.push(items);
-        break;
-      }
-      case 6:
-        out.push(`6:${head.value!.toString()}(`);
-        left.push(1);
-        break;
-      default:
-        out.push(`7:${hexOf(bytes, from, head.next)}`);
-        done();
-    }
-  }
-  return out.join(",");
-};
-
-/** A container, a tag or a byte string holding CBOR, open while its items are walked */
-type Frame = {
-  kind: "array" | "map" | "tag" | "encoded";
-  /** The items left, -1 for an indefinite length; a map counts its keys and its values */
-  left: number;
-  depth: number;
-  role: Role;
-  /** The offset its items end before at the latest: the end of a byte string holding CBOR */
-  limit: number;
-  /** The items walked so far */
-  walked: number;
-  /** The offset of the item being walked */
-  itemStart: number;
-  /**
-   * The keys of a map whose keys are compared, each as `keyText` gives it; of redeemers in the
-   * array form, the purpose of each
-   */
-  keys?: Set<string>;
-  /** The key of the value being walked, in a map whose keys are compared */
-  lastKey?: string;
-  /** A tag's number */
-  tag?: number | bigint;
-  /** The offset of its first item */
-  start: number;
-  /** The items walked in the whole transaction before its first */
-  itemsBefore: number;
-};
-
-/** The integers from `from` to `to` as `keyText` writes them */
-const keysFrom = (from: number, to: number) =>
-  Array.from({ length: to - from + 1 }, (_, i) => `0:${from + i}`);
-
-/*
- * The keys of the maps whose values the value decoder reads by key, as it reads them in the
- * format of the Conway era. It does not skip the value of a key it does not know: it reads that
- * value as the next key, and what it shows after it is not what the bytes hold. So a transaction
- * with another key in these maps is refused. A later era's keys need these lists raised.
- */
-/** The keys of a transaction body: 0 to 5, 7 to 9, 11, and 13 to 22 */
-const BODY_KEYS: ReadonlySet<string> = new Set([
-  ...keysFrom(0, 5),
-  ...keysFrom(7, 9),
-  ...keysFrom(11, 11),
-  ...keysFrom(13, 22),
-]);
-/** The keys of an output in the map form: its address, value, datum and reference script */
-const OUTPUT_KEYS: ReadonlySet<string> = new Set(keysFrom(0, 3));
-/** The keys of a witness set: 0 to 7 */
-const WITNESS_SET_KEYS: ReadonlySet<string> = new Set(keysFrom(0, 7));
-/** The keys of auxiliary data in the tagged form: its metadata, native and Plutus scripts */
-const AUXILIARY_DATA_KEYS: ReadonlySet<string> = new Set(keysFrom(0, 4));
-
-/** The roles whose maps hold only known keys, each with its keys and the place a message names */
-const KNOWN_KEYS: Partial<Record<Role, [ReadonlySet<string>, string]>> = {
-  body: [BODY_KEYS, "its body"],
-  output: [OUTPUT_KEYS, "an output of its body"],
-  witnessSet: [WITNESS_SET_KEYS, "its witness set"],
-  auxMap: [AUXILIARY_DATA_KEYS, "its auxiliary data"],
-};
-
-/** The key 1 of a body, its outputs, and 16, its collateral return, as `keyText` writes them */
-const OUTPUTS_KEY = "0:1";
-const COLLATERAL_RETURN_KEY = "0:16";
-
-/** The key 5 of a witness set, its redeemers, as `keyText` writes it */
-const REDEEMERS_KEY = "0:5";
-/** The key 0 of tagged auxiliary data, its metadata, as `keyText` writes it */
-const METADATA_KEY = "0:0";
-
-/** The role of the item a container walks next */
-const roleOfItem = (frame: Frame): Role => {
-  switch (frame.role) {
-    case "top":
-      return "tx";
-    case "tx":
-      return frame.walked === 0
-        ? "body"
-        : frame.walked === 1
-          ? "witnessSet"
-          : frame.walked === 3
-            ? "aux"
-            : "plain";
-    case "body":
-      // The value of a key, which follows it
-      if (frame.walked % 2 === 1 && frame.lastKey === OUTPUTS_KEY)
-        return "outputs";
-      if (frame.walked % 2 === 1 && frame.lastKey === COLLATERAL_RETURN_KEY)
-        return "output";
-      return "inBody";
-    case "outputs":
-      return frame.kind === "array" ? "output" : "inBody";
-    case "output":
-    case "inBody":
-      return "inBody";
-    case "witnessSet":
-      return frame.walked % 2 === 1 && frame.lastKey === REDEEMERS_KEY
-        ? "redeemers"
-        : "plain";
-    case "redeemers":
-      // In the array form each item is a redeemer, [tag, index, data, units]
-      return frame.kind === "array" ? "redeemer" : "plain";
-    case "aux":
-      // A map of metadata, an array [metadata, scripts], or a tagged map whose key 0 is metadata
-      return frame.kind === "tag"
-        ? "auxMap"
-        : frame.kind === "array" && frame.walked === 0
-          ? "metadata"
-          : "plain";
-    case "auxMap":
-      return frame.walked % 2 === 1 && frame.lastKey === METADATA_KEY
-        ? "metadata"
-        : "plain";
-    default:
-      return "plain";
-  }
-};
-
-/**
- * Walks the bytes of a transaction once, without recursion, and refuses one that cannot be read
- * in a single way, or in reasonable time:
- * - that is not an array of four items, the form of every era since Alonzo;
- * - nested deeper than `MAX_TX_DEPTH` anywhere, the items inside a byte string that holds CBOR
- *   included, and with such a byte string written in chunks;
- * - with a map that repeats a key, keys compared by value: the body and every map inside it (not
- *   inside its byte strings), the witness set itself, the redeemers of the witness set (the keys
- *   of the map form, the tag and index of each item of the array form; not their data), and the
- *   auxiliary data, its metadata map in each of its three forms. Plutus data may repeat the keys
- *   of its maps, so the data of datums and redeemers is not compared;
- * - with a key the value decoder does not read in its body, an output in the map form, its
- *   witness set or its auxiliary data in the tagged form: the decoder would read the value of
- *   that key as the next key;
- * - that is not one well-formed CBOR item. A byte string that holds CBOR that is not well-formed
- *   is passed over, and the decoder judges it.
- * @throws TxScanError with the reason, which quotes none of the bytes
- */
-const scanBytes = (bytes: Uint8Array) => {
-  const stack: Frame[] = [
-    {
-      kind: "array",
-      left: 1,
-      depth: 0,
-      role: "top",
-      limit: bytes.length,
-      walked: 0,
-      itemStart: 0,
-      start: 0,
-      itemsBefore: 0,
-    },
-  ];
-  let at = 0;
-  // The items walked so far, and the work the value decoder does for the containers closed
-  let items = 0;
-  let work = 0;
-
-  /**
-   * A container is closed at `at`: the value decoder copies what is left of its bytes for each
-   * item inside it, so its work is its items times its bytes
-   */
-  const closed = (frame: Frame) => {
-    if (frame.role !== "plain" && frame.role !== "metadata") return;
-    work += (items - frame.itemsBefore) * (at - frame.start);
-    if (work > MAX_TX_WORK) throw new TxScanError(TOO_MUCH_DATA);
-  };
-
-  /** An item of the innermost container is walked: a key is compared, the count goes down */
-  const itemDone = () => {
-    const frame = stack[stack.length - 1]!;
-    items++;
-    if (frame.keys && frame.kind === "map" && frame.walked % 2 === 0) {
-      const key = keyText(bytes, frame.itemStart, at);
-      if (frame.keys.has(key))
-        throw new TxScanError(
-          `a map in ${CHECKED[frame.role]} repeats a key, which decoders read in different ways`,
-        );
-      frame.keys.add(key);
-      frame.lastKey = key;
-      const known = KNOWN_KEYS[frame.role];
-      if (known && !known[0].has(key))
-        throw new TxScanError(
-          `a map in ${known[1]} holds a key this library does not read, which a decoder that does not know it reads in a different way`,
-        );
-    }
-    // A redeemer of the array form names its purpose by its first two items, its tag and index
-    if (
-      frame.role === "redeemer" &&
-      frame.kind === "array" &&
-      frame.walked === 1
-    ) {
-      const purposes = stack[stack.length - 2]!.keys!;
-      const purpose = keyText(bytes, frame.start, at);
-      if (purposes.has(purpose))
-        throw new TxScanError(
-          "the redeemers of its witness set name one purpose twice, which decoders read in different ways",
-        );
-      purposes.add(purpose);
-    }
-    frame.walked++;
-    if (frame.left > 0) frame.left--;
-  };
-
-  /** Bytes that are not well-formed: in a byte string that holds CBOR, the walk goes on after it */
-  const notWellFormed = () => {
-    const index = stack.map((f) => f.kind).lastIndexOf("encoded");
-    if (index === -1) throw malformed();
-    at = stack[index]!.limit;
-    stack.length = index;
-    itemDone();
-  };
-
-  const open = (
-    frame: Omit<Frame, "walked" | "itemStart" | "start" | "itemsBefore">,
-  ) => {
-    if (frame.depth > MAX_TX_DEPTH)
-      throw new TxScanError(
-        `the transaction nests its items deeper than the ${MAX_TX_DEPTH} levels this library reads`,
-      );
-    stack.push({
-      ...frame,
-      walked: 0,
-      itemStart: at,
-      start: at,
-      itemsBefore: items,
-    });
-  };
-
-  while (stack.length > 0) {
-    const frame = stack[stack.length - 1]!;
-    const { limit } = frame;
-    if (frame.left === 0) {
-      stack.pop();
-      if (stack.length === 0) break;
-      // What is left of a byte string after the CBOR it holds is passed over with it
-      if (frame.kind === "encoded") at = limit;
-      closed(frame);
-      itemDone();
-      continue;
-    }
-    const head = readHead(bytes, at, limit);
-    if (!head) {
-      notWellFormed();
-      continue;
-    }
-    if (head.isBreak) {
-      // A break ends an indefinite length only, and never stands between a key and its value
-      if (
-        frame.left !== -1 ||
-        (frame.kind === "map" && frame.walked % 2 === 1)
-      ) {
-        notWellFormed();
-        continue;
-      }
-      at = head.next;
-      stack.pop();
-      closed(frame);
-      itemDone();
-      continue;
-    }
-    frame.itemStart = at;
-    const role = roleOfItem(frame);
-    const depth = frame.depth + 1;
-    if (role === "tx" && !(head.major === 4 && head.value === 4))
-      throw new TxScanError(
-        "the transaction is not an array of four items (its body, witness set, validity flag and auxiliary data): the forms of earlier eras are not read",
-      );
-    switch (head.major) {
-      case 0:
-      case 1:
-        at = head.next;
-        itemDone();
-        break;
-      case 2:
-      case 3: {
-        if (head.value === undefined) {
-          // No encoder writes the CBOR a byte string holds in chunks, and the decoder joins them
-          if (
-            head.major === 2 &&
-            frame.kind === "tag" &&
-            frame.tag === ENCODED_CBOR
-          )
-            throw new TxScanError(
-              "the transaction writes a byte string that holds CBOR (tag 24) in chunks, which no encoder does",
-            );
-          // A string in chunks: each a string of the same type with a stated length
-          let next = head.next;
-          for (;;) {
-            const chunk = readHead(bytes, next, limit);
-            const length =
-              chunk && !chunk.isBreak && chunk.major === head.major
-                ? lengthOf(chunk, limit)
-                : undefined;
-            if (chunk?.isBreak) {
-              next = chunk.next;
-              break;
-            }
-            if (length === undefined) {
-              next = -1;
-              break;
-            }
-            next = chunk!.next + length;
-          }
-          if (next === -1) notWellFormed();
-          else {
-            at = next;
-            itemDone();
-          }
-          break;
-        }
-        const length = lengthOf(head, limit);
-        if (length === undefined) {
-          notWellFormed();
-          break;
-        }
-        at = head.next;
-        if (
-          head.major === 2 &&
-          frame.kind === "tag" &&
-          frame.tag === ENCODED_CBOR
-        ) {
-          // The CBOR the string holds is walked for its depth, its keys are not compared
-          stack.push({
-            kind: "encoded",
-            left: 1,
-            depth: frame.depth,
-            role: "plain",
-            limit: at + length,
-            walked: 0,
-            itemStart: at,
-            start: at,
-            itemsBefore: items,
-          });
-          break;
-        }
-        at += length;
-        itemDone();
-        break;
-      }
-      case 4:
-      case 5: {
-        const items =
-          head.value === undefined
-            ? -1
-            : typeof head.value === "number"
-              ? head.value * (head.major === 5 ? 2 : 1)
-              : Infinity;
-        // Each item takes a byte at least
-        if (items > limit - head.next) {
-          notWellFormed();
-          break;
-        }
-        at = head.next;
-        open({
-          kind: head.major === 4 ? "array" : "map",
-          left: items,
-          depth,
-          role,
-          limit,
-          ...(((head.major === 5 && CHECKED[role] !== undefined) ||
-            (head.major === 4 && role === "redeemers")) && {
-            keys: new Set<string>(),
-          }),
-        });
-        break;
-      }
-      case 6:
-        if (head.value === undefined) {
-          notWellFormed();
-          break;
-        }
-        at = head.next;
-        open({ kind: "tag", left: 1, depth, role, limit, tag: head.value });
-        break;
-      default:
-        // A simple value or a float, whose bytes the head counts
-        at = head.next;
-        itemDone();
-    }
-  }
-  if (at !== bytes.length) throw malformed();
-  return work;
-};
-
-/**
- * Walks a transaction given as CBOR hex, as `scanBytes` says, and refuses one larger than
- * `maxBytes`; a value that is not hex is left to the reader, which refuses it
+ * Walks a transaction given as CBOR hex and refuses one this library does not read in reasonable
+ * time: larger than `maxBytes`, before a byte of it is read; not an array of four items, the form
+ * of every era since Alonzo; not one well-formed CBOR item; nested deeper than `MAX_TX_DEPTH`; or
+ * more work for the value decoder than `MAX_TX_WORK`. A value that is not hex is left to the
+ * reader, which refuses it
  * @param maxBytes The largest transaction read: the `maxTxSize` of the protocol parameters the
  *   builder holds, else `MAX_TX_BYTES`
+ * @returns the work the walk counted
  * @throws TxScanError with the reason, which quotes none of the text
  */
 export const scanTransaction = (
@@ -897,5 +354,19 @@ export const scanTransaction = (
     !/^[0-9a-fA-F]*$/.test(text)
   )
     return undefined;
-  return scanBytes(Buffer.from(text, "hex"));
+  const bytes = Buffer.from(text, "hex");
+  let found: Walked;
+  try {
+    const top = new CborReader(HexBlob(hexOf(bytes)));
+    if (top.peekState() !== State.StartArray || top.readStartArray() !== 4)
+      throw new TxScanError(
+        "the transaction is not an array of four items (its body, witness set, validity flag and auxiliary data): the forms of earlier eras are not read",
+      );
+    found = walk(bytes, { depth: MAX_TX_DEPTH, work: MAX_TX_WORK });
+  } catch (error) {
+    if (error instanceof TxScanError) throw error;
+    throw malformed();
+  }
+  if (found.end !== bytes.length) throw malformed();
+  return found.work;
 };
