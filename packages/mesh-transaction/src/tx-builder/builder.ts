@@ -2215,9 +2215,8 @@ export class TxBuilder {
    *   the view is only as true as its answers
    * @throws TxBuildError INVALID_OPTION (`tx`) for a value that is not a transaction in CBOR hex
    *   that this library reads: one the walk or the checks above refuse, or proposing a protocol
-   *   parameter change, which this library does not read from CBOR; and for a transaction whose
-   *   validity flag is false: a node that takes it takes its collateral. `details.value` is only
-   *   the JavaScript type of what was given. INVALID_OPTION (`options`) for options that are not
+   *   parameter change, which this library does not read from CBOR. `details.value` is only the
+   *   JavaScript type of what was given. INVALID_OPTION (`options`) for options that are not
    *   an object or hold a member other than `knownUtxos`, with the JavaScript type alone;
    *   (`knownUtxos`) for what is not a list of UTxOs, and for two entries that name one output
    *   and differ. NETWORK_MISMATCH for a transaction, or a UTxO, of another network than the
@@ -2278,11 +2277,6 @@ export class TxBuilder {
     const txHash = raw.txId;
     if (txHash !== given.txId)
       throw new Error("the body changed while its witnesses were taken out");
-    if (!raw.isValid)
-      throw refusedTx(
-        txCbor,
-        "invalid tx: the transaction states that its scripts fail (its validity flag is false): a node that takes it takes its collateral",
-      );
 
     const decodedBody = raw.body;
     const proposals = decodedBody.proposalProcedures()?.values() ?? [];

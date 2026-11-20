@@ -812,18 +812,23 @@ describe("TxBuilder.fromCbor › what it refuses, and what it does not judge", (
       );
   });
 
-  it("is INVALID_OPTION (tx) for a transaction whose validity flag is false", async () => {
+  it("reads a transaction whose validity flag is false as one marked valid, its bytes as given: the node sets the flag itself", async () => {
     const a = hashOf();
-    const given = tx(bodyOf({ inputs: [[a, 0]] }), map(), { valid: "f4" });
-    const error = await caught(() =>
-      offline().fromCbor(given, { knownUtxos: [utxoOf([a, 0])] }),
-    );
-    expectRefusedTx(error, given);
-    expect(error.message).toContain("validity flag is false");
-    // The same transaction marked valid is taken
-    await offline().fromCbor(tx(bodyOf({ inputs: [[a, 0]] })), {
+    const body = bodyOf({ inputs: [[a, 0]] });
+    const given = tx(body, map(), { valid: "f4" });
+    const made = await offline().fromCbor(given, {
       knownUtxos: [utxoOf([a, 0])],
     });
+    const valid = await offline().fromCbor(tx(body), {
+      knownUtxos: [utxoOf([a, 0])],
+    });
+    expect(made.tx).toBe(given);
+    expect(made.txHash).toBe(valid.txHash);
+    expect([made.fee, made.outputs, made.inputs]).toEqual([
+      valid.fee,
+      valid.outputs,
+      valid.inputs,
+    ]);
   });
 
   it("is INVALID_OPTION (tx) with a message of its own for a transaction that proposes a parameter change", async () => {
