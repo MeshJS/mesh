@@ -1725,26 +1725,36 @@ Before signing a transaction someone else built:
   application's own data, never taken from the party that made the transaction, and the provider
   is believed as much; a wallet signs its own inputs whatever the object shows.
 
-The library judges whether it can read the transaction in one way; the fee, the balance, the
-scripts, the validity interval and whether the inputs are unspent are the ledger's. Refused, as
-`INVALID_OPTION` (`tx`) with `details.value` only the JavaScript type, unless named otherwise:
+The library judges whether its own process can read the transaction safely and in reasonable
+time; the fee, the balance, the scripts, the validity interval and whether the inputs are unspent
+are the ledger's. Refused, as `INVALID_OPTION` (`tx`) with `details.value` only the JavaScript
+type, unless named otherwise:
 
 - text that is not a transaction in CBOR hex, or not an array of four items (earlier eras' forms);
 - larger than the `maxTxSize` of the builder's `params`, else 16 384 bytes, the value of mainnet,
-  preprod and preview (no parameters are asked for); nested deeper than 64 levels, the CBOR inside
-  a byte string counted; carrying more nested data (Plutus data, metadata, scripts) than is
-  decoded in about a second;
-- a map that repeats a key (in the body, the witness set, the redeemers or the auxiliary data, a
-  metadata label among them), redeemers that name one purpose twice, and a key this library does
-  not read in the body, an output, the witness set or tagged auxiliary data;
+  preprod and preview (no parameters are asked for), before a byte of it is read;
+- nested deeper than 1 024 levels, the CBOR inside a byte string under tag 24 counted on: the value
+  decoder calls itself once a level, reads that depth on a stack of about a browser's, and
+  overflows it at 2 048;
+- carrying more nested data (Plutus data, metadata, scripts) than the value decoder reads in about
+  a second: its time grows with the square of the depth of data, and with the bytes of each list
+  and map times the items inside it. One datum of lists nested more than about 730 levels is past
+  it, and so are 16 384 bytes of datums nested more than about 54; transactions as wallets and
+  contracts make them take at most two thousandths of the bound;
 - a negative fee, a token quantity of zero, an out ref named twice among the inputs, collateral
   inputs or reference inputs, an output address with bytes after the address;
-- a validity flag of false: a node takes the collateral of such a transaction;
 - a protocol parameter change proposal, which this library does not read from CBOR (the
   transaction itself may be valid);
 - another network: `NETWORK_MISMATCH`, for its addresses, its UTxOs or the network id its body
   states (role `body`);
 - a signature that is not of the body: `INVALID_WITNESS` (`wrongBody`).
+
+A map that repeats a key and a key the value decoder does not know are read as that decoder reads
+them, and the members show that reading: the last value of a repeated key, or both output lists of
+a body joined, and the value of an unknown key read as the next key. A node refuses such a
+transaction since protocol version 9. A validity flag of false is read as the bytes give it, and
+the transaction is shown as one marked valid: a node sets the flag itself. `builder.restore` reads
+the transaction of a JSON within the same bounds, before any of it is decoded.
 
 Reading takes a time that grows with the data the transaction carries, up to about a second on a
 laptop, on the calling thread; the UTxOs add the time of their bytes, since their data is not
@@ -2117,25 +2127,25 @@ an inline datum, `dataHash` without it a datum hash, and `scriptRef` the referen
 
 - an output index above 65535, a reward address, a quantity (or the sum of a repeated unit)
   above 2^64 − 1;
-- an inline datum that is not exactly one item of Plutus data, and a `dataHash` that is not the
-  hash of the `plutusData` beside it;
+- a `dataHash` that is not the hash of the `plutusData` beside it (an inline datum is kept as the
+  hex given, never decoded, and its form is not judged);
 - a `scriptHash` without a `scriptRef`, a script hash that is not 28 bytes of hex, and a `plutus`
   or `native` script given in the builder's form that cannot be read or written back the same, is
   of a Plutus version other than `V1`, `V2` and `V3`, or whose `hash` is not its own (an `unknown`
   script with another hash stays `unknown`), and a reference script, in any form, nested deeper
-  than 64 levels;
+  than 1 024 levels;
 - text that is not the CBOR of a transaction unspent output; the CBOR decoder also refuses a
   reference script in a language it does not know.
 
-`output()` refuses such an inline datum too (`INVALID_DATA`), so every output the builder makes is a
-UTxO it takes back. The error names where the UTxO was given: from a part, `TxPartError` with the
-code of the member at fault (`INVALID_OUT_REF`, `INVALID_ADDRESS`, `INVALID_VALUE`, `INVALID_DATA`,
-`INVALID_SCRIPT`), and `INVALID_OUT_REF` for text that is not UTxO CBOR (a reference script the
-decoder refuses included) and for an object of both forms or of neither; from an option or argument,
-`INVALID_OPTION` with the entry's JavaScript type in `details.value`; from a wallet's answer,
-`WALLET_FAILED` (`getUtxos`) or `INSUFFICIENT_COLLATERAL` (`getCollateral`); from the provider,
-`PROVIDER_FAILED` for the payer's UTxOs and `UTXO_NOT_FOUND` for an out ref looked up. The reason is
-the `cause`.
+`output()` refuses an inline datum that is not exactly one item of Plutus data (`INVALID_DATA`), and
+every output the builder makes is a UTxO it takes back. The error names where the UTxO was given:
+from a part, `TxPartError` with the code of the member at fault (`INVALID_OUT_REF`,
+`INVALID_ADDRESS`, `INVALID_VALUE`, `INVALID_DATA`, `INVALID_SCRIPT`), and `INVALID_OUT_REF` for
+text that is not UTxO CBOR (a reference script the decoder refuses included) and for an object of
+both forms or of neither; from an option or argument, `INVALID_OPTION` with the entry's JavaScript
+type in `details.value`; from a wallet's answer, `WALLET_FAILED` (`getUtxos`) or
+`INSUFFICIENT_COLLATERAL` (`getCollateral`); from the provider, `PROVIDER_FAILED` for the payer's
+UTxOs and `UTXO_NOT_FOUND` for an out ref looked up. The reason is the `cause`.
 
 ## The result
 

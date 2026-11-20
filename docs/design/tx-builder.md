@@ -499,14 +499,15 @@ same object ([The path without a lifecycle][r-no-lifecycle]).
   `witnesses`), whose hash is not its body's, whose witnesses are not of its body
   (`INVALID_OPTION`), of another network (`NETWORK_MISMATCH`), or with content it does not read
   (`INVALID_STATE`, `recordVersion`); its errors quote nothing of the record but its network.
-- **A transaction from CBOR.** `fromCbor` decodes nothing before one walk over the bytes, which
-  refuses what cannot be read in one way or in reasonable time: above the size limit (the builder's
-  `maxTxSize`, else 16 384 bytes), nested deeper than 64 levels, more nested data than about a
-  second of decoding, a map that repeats a key, redeemers that name one purpose twice, a key the
-  decoder does not read, an earlier era's form. Once decoded it refuses what a ledger does not
-  take (a negative fee, a zero quantity, an out ref twice, an address with trailing bytes), a
-  validity flag of false, another network, a parameter-change proposal (not read from CBOR) and a
-  signature that is not of the body. It judges nothing else: the fee, the balance, the scripts and
+- **A transaction from CBOR.** `fromCbor` decodes nothing before one walk over the bytes on the
+  token reader of `@cardano-sdk/core`, which refuses what the library's process could not read
+  safely or in reasonable time: above the size limit (the builder's `maxTxSize`, else 16 384
+  bytes), nested deeper than 1 024 levels, more nested data than about a second of decoding, an
+  earlier era's form. A map that repeats a key and a key the decoder does not know are read as the
+  decoder reads them; a node refuses such a transaction. Once decoded it refuses what a ledger
+  does not take (a negative fee, a zero quantity, an out ref twice, an address with trailing
+  bytes), another network, a parameter-change proposal (not read from CBOR) and a signature that
+  is not of the body. It judges nothing else: the fee, the balance, the scripts and
   the validity interval are the ledger's. It writes no byte that a hash covers, and a transaction
   that came signed takes no more bytes than it was given in. Its view of the inputs and signers is
   only as true as `knownUtxos` and the provider; it warns `COLLATERAL_RETURN_ELSEWHERE` because the
