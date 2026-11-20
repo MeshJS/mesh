@@ -316,7 +316,9 @@ export const itemDepth = (bytes: Uint8Array): number | undefined => {
 /**
  * The most work the value decoder may have with the reference script of a UTxO, as the walk
  * counts it: a script of this work decodes in about 10 ms. A Plutus script is one byte string and
- * counts far below; a native script that nests 30 levels deep, or holds 600 keys, comes near it
+ * counts far below. A native script is within it up to 33 levels or 189 keys, as measured:
+ * `all` around one key nested 33 levels deep is within, 34 past; `all` of 189 signatures within,
+ * of 190 past
  */
 export const MAX_SCRIPT_WORK = 24_000_000;
 

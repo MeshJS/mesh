@@ -1367,8 +1367,8 @@ describe("the data and the reference script of a UTxO, read without being decode
     }
   });
 
-  it("decodes and describes a reference script just within the bounds: native scripts nested 33 deep, and of 188 keys", () => {
-    for (const scriptRef of [`8200${nested(33)}`, keys(188)])
+  it("decodes and describes a reference script just within the bounds: native scripts nested 33 deep, and of 189 keys", () => {
+    for (const scriptRef of [`8200${nested(33)}`, keys(189)])
       for (const [form, given] of withScript(scriptRef)) {
         const utxo = readUtxo(given);
         expect([form, utxo.script!.type]).toEqual([form, "native"]);

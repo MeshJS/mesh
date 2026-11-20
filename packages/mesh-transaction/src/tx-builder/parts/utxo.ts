@@ -143,7 +143,7 @@ const tooLong = (at: string) =>
  * one longer than `MAX_ADDRESS_BYTES`, by the length of its text before it is parsed: base58
  * takes a time that grows with the square of it. A key may be given there by mistake, so a text
  * that is no address is told by its shape, never quoted, and the parser's error, which may quote
- * it, is not kept
+ * it, is not kept; nor is a reward address quoted, which the CBOR of a UTxO may hold
  */
 const readAddress = (at: string, text: unknown): string => {
   if (typeof text === "string" && text.length > 2 * MAX_ADDRESS_BYTES)
@@ -159,7 +159,7 @@ const readAddress = (at: string, text: unknown): string => {
   if (parsed.asReward())
     return problem(
       "address",
-      `${at}: ${text as string} is a reward address, not a payment address`,
+      `${at}: its address is a reward address, not a payment address`,
     );
   return addressText(parsed);
 };

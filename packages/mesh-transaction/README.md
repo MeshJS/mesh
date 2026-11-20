@@ -2097,7 +2097,7 @@ const utxo: Utxo = {
   the UTxO can still be spent, the script counts for the fee by its size, and it cannot be named as
   a `{ reference }` (`INVALID_SCRIPT`). So is a script, in any form and from any source, that nests
   deeper than 1 024 levels or that the decoder would take more than about 10 ms to read (a native
-  script that nests more than 33 levels deep or names more than 188 keys): it is never decoded,
+  script that nests more than 33 levels deep or names more than 189 keys): it is never decoded,
   and its UTxO is read and can pay, since anyone can send an output that holds one. A `plutus` or
   `native` script given in the builder's form that cannot be read is refused instead (see below).
 - A `Utxo` has `txHash` and `outputIndex`, so it is an out ref wherever one is asked for; given to

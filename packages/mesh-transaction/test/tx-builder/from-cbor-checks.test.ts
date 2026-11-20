@@ -37,6 +37,7 @@ import { baseAddress, keyHashHex, vrfKeyHashHex } from "../test-util";
 import {
   arr,
   arrIndef,
+  byronAddress,
   bytes,
   map,
   tag258,
@@ -447,6 +448,58 @@ describe("TxBuilder.fromCbor › the UTxOs", () => {
       ],
     });
     expect(made.inputs).toEqual([first]);
+  });
+
+  it("is INVALID_OPTION (knownUtxos) for the CBOR of a UTxO whose address is longer than 256 bytes, or is a reward address, with the reason of the UTxO read and its out ref, quoting none of it; a text that is no UTxO is told by its shape", async () => {
+    const a = hashOf();
+    const given = tx(bodyOf({ inputs: [[a, 0]] }));
+    const known = hashOf();
+    const long = arr(
+      arr(bytes(known), uint(1)),
+      map([uint(0), bytes(byronAddress(4_000))], [uint(1), uint(5_000_000)]),
+    );
+    const allowed =
+      "a list of UTxOs: Utxo { txHash, outputIndex, address, value }, Mesh UTxO { input, output }, or the CBOR of a transaction unspent output";
+    const error = await caught(() =>
+      offline().fromCbor(given, { knownUtxos: [utxoOf([a, 0]), long] }),
+    );
+    expectBuildError(error, "INVALID_OPTION");
+    expect(error.message).toBe(
+      `invalid knownUtxos: entry 1 is the CBOR of a UTxO this library does not read: the UTxO ${known}#1: its address is longer than the 256 bytes this library reads`,
+    );
+    expect(error.details).toEqual({
+      option: "knownUtxos",
+      value: "string",
+      allowed,
+    });
+    expect(everything(error)).not.toMatch(/(?:ab){8}|(?:cd){8}/);
+    // A reward address, which holds no UTxOs, is not quoted either
+    const reward = arr(
+      arr(bytes(known), uint(2)),
+      map([uint(0), bytes(`e0${"ab".repeat(28)}`)], [uint(1), uint(5_000_000)]),
+    );
+    const atReward = await caught(() =>
+      offline().fromCbor(given, { knownUtxos: [reward] }),
+    );
+    expectBuildError(atReward, "INVALID_OPTION");
+    expect(atReward.message).toBe(
+      `invalid knownUtxos: entry 0 is the CBOR of a UTxO this library does not read: the UTxO ${known}#2: its address is a reward address, not a payment address`,
+    );
+    expect(everything(atReward)).not.toMatch(/stake_test1|(?:ab){8}/);
+    // Text that does not read as a UTxO, a key given by mistake among them
+    for (const [text, shape] of [
+      ["ab".repeat(32), "64 hex digits"],
+      ["not hex", "text of 7 characters"],
+    ] as const) {
+      const refused = await caught(() =>
+        offline().fromCbor(given, { knownUtxos: [text] }),
+      );
+      expectBuildError(refused, "INVALID_OPTION");
+      expect(refused.message).toBe(
+        `invalid knownUtxos: entry 0 is ${shape}, not the CBOR of a transaction unspent output`,
+      );
+      expect(everything(refused)).not.toContain(text);
+    }
   });
 
   it("does not use a known UTxO the transaction does not name", async () => {

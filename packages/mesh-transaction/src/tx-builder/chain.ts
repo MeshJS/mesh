@@ -15,7 +15,12 @@ import {
   outRefString,
   textShape,
 } from "./parts/normalize";
-import { describeScriptRef, plainUtxo, readUtxo } from "./parts/utxo";
+import {
+  describeScriptRef,
+  plainUtxo,
+  readUtxo,
+  UtxoError,
+} from "./parts/utxo";
 import { inputsOf } from "./resolve";
 import { fromValuePrototype, toAssets } from "./value";
 
@@ -89,8 +94,9 @@ const KNOWN_UTXOS_ALLOWED =
  * may be given there by mistake, whole or inside an entry: a text is never quoted, only its shape
  * is told, and `details.value` names only the JavaScript type of a value that is not a list and
  * of an entry that is refused. The message tells which entry and what is wrong with it, as the
- * UTxO reader tells it
- * @throws TxBuildError INVALID_OPTION for what is not a list, or an entry that is not a UTxO
+ * UTxO reader tells it; of a text, only once the reader has its out ref, else its shape alone
+ * @throws TxBuildError INVALID_OPTION for what is not a list, or an entry that is not a UTxO, or
+ *   not one this library reads
  */
 export const toKnownUtxos = (knownUtxos: unknown): Utxo[] => {
   if (knownUtxos === undefined) return [];
@@ -110,6 +116,24 @@ export const toKnownUtxos = (knownUtxos: unknown): Utxo[] => {
     try {
       return readUtxo(entry);
     } catch (error) {
+      // The CBOR of a UTxO read as far as its out ref, with a member this library does not
+      // read: the reader's reason, which names the out ref and quotes none of the text
+      if (
+        typeof entry === "string" &&
+        error instanceof UtxoError &&
+        error.kind !== "outRef"
+      )
+        throw new TxBuildError(
+          "INVALID_OPTION",
+          `invalid knownUtxos: entry ${i} is the CBOR of a UTxO this library does not read: ${error.message}`,
+          {
+            details: {
+              option: "knownUtxos",
+              value: "string",
+              allowed: KNOWN_UTXOS_ALLOWED,
+            },
+          },
+        );
       // A text that is not the CBOR of a UTxO: its shape alone, and no cause that could quote it
       if (typeof entry === "string")
         throw new TxBuildError(
