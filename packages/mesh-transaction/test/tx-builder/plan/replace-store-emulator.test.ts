@@ -2033,8 +2033,11 @@ describe("a step left whose end of validity has passed", () => {
       p,
     ]);
     expect(error.message).toContain(
-      `step "p" (${p}) of this plan or a plan before it is past the end of validity and the margin, and the search answered that it does not find it, and the look does not call it expired, as it does not find the transaction that funds it in a block either`,
+      `step "p" (${p}) of this plan or a plan before it is past the end of validity and the margin, and the search answered that it does not find it, and the look does not call it expired, as it does not find the transaction that funds it in a block either; nothing was written, and the same call answers so until the search finds that transaction in a block, which it does only if that transaction lands`,
     );
+    // Said once, with no word that a later call tells
+    expect(error.message.split("nothing was written")).toHaveLength(2);
+    expect(error.message).not.toMatch(/later tells/);
     expect(await store.inner.load("i1")).toBeUndefined();
   });
 
@@ -2688,6 +2691,36 @@ describe("the order of the address reads within their cap", () => {
     // d paid the recipient, who spent it; nothing was built to pay again
     expect(times(emulator, to, 13n * ADA)).toBe(0);
     await expect(emulator.fetchTxInfo(d)).resolves.toBeDefined();
+  });
+
+  it("a snapshot of the shop that lists the refund: the message names the payer's snapshot, no address, and says why the same snapshot gives the same answer", async () => {
+    const { emulator, provider, old, d, to, shop } = await refundLine();
+    const reads: string[] = [];
+    provider.control.hooks.fetchAddressUTxOs = (forward, address: string) => {
+      reads.push(address);
+      return forward(address);
+    };
+    const error = await caught(
+      old.replan({
+        id: "order:2",
+        steps: { d: payTo(to, 13n * ADA) },
+        payer: {
+          changeAddress: shop,
+          utxos: emulator.utxos({ address: shop }),
+        },
+      }),
+    );
+    expect([error.code, reasonOf(error), error.txHash]).toEqual([
+      "CANNOT_OBSERVE",
+      "unconfirmed",
+      d,
+    ]);
+    expect(error.message).toContain(
+      `the payer's snapshot lists ${d}#1, an output of step "d" (${d}), which the search does not find in a block; nothing was written, and while the call is given the same snapshot it answers so, as the snapshot is the application's own list: a snapshot taken after that step lands or fails, or the payer read through the provider, lets the call go on, unless the chain holds that output while the search does not find that step in a block`,
+    );
+    expect(error.message).not.toMatch(/an address lists|later tells/);
+    expect(reads).toEqual([]);
+    expect(times(emulator, to, 13n * ADA)).toBe(0);
   });
 
   it("the same with the wallet as the payer, read through the chain: its read lists the refund, and the call waits", async () => {

@@ -1922,21 +1922,22 @@ export class TxPlan {
   }
 
   /**
-   * CANNOT_OBSERVE (`unconfirmed`): nothing was written, and the same call later tells; retry
-   * after the builder's `pollMs`
+   * CANNOT_OBSERVE (`unconfirmed`): nothing was written, and the same call later tells, or what
+   * `then` says; retry after the builder's `pollMs`
+   * @param then What the call did not do and what it waits for, in place of those words
    */
-  #unconfirmed(why: string, txHash?: string) {
+  #unconfirmed(
+    why: string,
+    txHash?: string,
+    then = "nothing was written, and the same call later tells",
+  ) {
     const { builder, record } = stateOf(this);
-    return this.#error(
-      "CANNOT_OBSERVE",
-      `${why}; nothing was written, and the same call later tells`,
-      {
-        details: { reason: "unconfirmed" },
-        retryAfterMs: effectiveWait({}, record.deadlines, builder.planDefaults)
-          .pollMs,
-        ...(txHash !== undefined && { txHash }),
-      },
-    );
+    return this.#error("CANNOT_OBSERVE", `${why}; ${then}`, {
+      details: { reason: "unconfirmed" },
+      retryAfterMs: effectiveWait({}, record.deadlines, builder.planDefaults)
+        .pollMs,
+      ...(txHash !== undefined && { txHash }),
+    });
   }
 
   /**
@@ -2184,16 +2185,17 @@ export class TxPlan {
    * open transaction of the line, told by its hash: each payer's read, and the read of each
    * address a step of the line that is dead, gone or used up pays, where no payer's read through
    * the provider or a wallet in this call covered it (a snapshot payer covers none: it is the
-   * application's own list): the search says it is in no block, and the address says it is. Of a
-   * used-up transaction, whose collateral return is on chain for good, only its regular outputs
-   * count. A read of an address that fails, or answers no list, refuses the call with its own
-   * error. The addresses
-   * read are those a step that is dead or used up pays, and those an entry of the plans before
-   * that is dead pays, in the order of the line, at most 16 in a call; then, in a budget of their
-   * own of 16, those a step or an entry that is gone pays. Those left unread of the gone ones
-   * count in no `unread`: while one is, `#refuseGone` gives no message. An entry keeps the first
-   * 16 addresses its transaction pays; those a dead one could not keep are counted as unread,
-   * though a payer's read may have covered one: the count may be high, never low
+   * application's own list): the search says it is in no block, and the address says it is. The
+   * message names a snapshot that lists one as the payer's snapshot, which lists it again in each
+   * call it is given to. Of a used-up transaction, whose collateral return is on chain for good,
+   * only its regular outputs count. A read of an address that fails, or answers no list, refuses
+   * the call with its own error. The addresses read are those a step that is dead or used up
+   * pays, and those an entry of the plans before that is dead pays, in the order of the line, at
+   * most 16 in a call; then, in a budget of their own of 16, those a step or an entry that is gone
+   * pays. Those left unread of the gone ones count in no `unread`: while one is, `#refuseGone`
+   * gives no message. An entry keeps the first 16 addresses its transaction pays; those a dead
+   * one could not keep are counted as unread, though a payer's read may have covered one: the
+   * count may be high, never low
    * @param open The open transactions of the line to match
    * @returns how many addresses of dead and used-up transactions were left unread past the 16,
    *   with those dead entries could not keep; and whether an address a gone transaction pays was
@@ -2238,14 +2240,23 @@ export class TxPlan {
         else if ((tx.paysMore ?? 0) > 0) goneNotKept = true;
       }
     }
-    const check = (utxo: { txHash: string; outputIndex: number }) => {
+    /** @param snapshot The UTxO is one of a payer given as a snapshot, no read of an address */
+    const check = (
+      utxo: { txHash: string; outputIndex: number },
+      snapshot = false,
+    ) => {
       const outRef = outRefKey(utxo.txHash, utxo.outputIndex);
       const tx = byHash.get(utxo.txHash.toLowerCase()) ?? outputs.get(outRef);
-      if (tx !== undefined)
+      if (tx === undefined) return;
+      const what = `${outRef}, an output of step ${JSON.stringify(tx.step)} (${tx.txHash}), ${tx.usedUp === true ? "which the search finds in a block with its script failed, so that its collateral return is its one output" : "which the search does not find in a block"}`;
+      // The same snapshot lists it again in every call it is given to
+      if (snapshot)
         throw this.#unconfirmed(
-          `an address lists ${outRef}, an output of step ${JSON.stringify(tx.step)} (${tx.txHash}), ${tx.usedUp === true ? "which the search finds in a block with its script failed, so that its collateral return is its one output" : "which the search does not find in a block"}`,
+          `the payer's snapshot lists ${what}`,
           tx.txHash,
+          "nothing was written, and while the call is given the same snapshot it answers so, as the snapshot is the application's own list: a snapshot taken after that step lands or fails, or the payer read through the provider, lets the call go on, unless the chain holds that output while the search does not find that step in a block",
         );
+      throw this.#unconfirmed(`an address lists ${what}`, tx.txHash);
     };
     // Only a read through the provider or a wallet in this call covers an address; a snapshot is
     // the application's own list, its UTxOs checked all the same
@@ -2254,7 +2265,7 @@ export class TxPlan {
       if (read.given !== true) covered.add(read.snapshot.changeAddress);
       for (const utxo of read.snapshot.utxos) {
         if (read.given !== true) covered.add(utxo.address);
-        check(utxo);
+        check(utxo, read.given === true);
       }
     }
     // Those no read covered, at most 16; then those of the gone ones, at most 16 more
@@ -2354,13 +2365,25 @@ export class TxPlan {
     // or a clock behind the tip). Time has done its part
     if (safeAfter !== undefined && waitMs <= 0) {
       const one = txs.length === 1;
+      const notFound = txs.every((tx) =>
+        notFoundByLook(seen.answers, tx.txHash),
+      );
+      // What the call waits for is said once, with what it did not do: the look calls such a
+      // step expired only once the search finds the transaction that funds it in a block
       throw this.#unconfirmed(
         `${txs.map((tx) => `step ${JSON.stringify(tx.step)} (${tx.txHash})`).join(", ")} of this plan or a plan before it ${one ? "is" : "are"} past the end of validity and the margin, and ${
-          txs.every((tx) => notFoundByLook(seen.answers, tx.txHash))
+          notFound
             ? `the search answered that it does not find ${one ? "it" : "them"}, and the look does not call ${one ? "it" : "them"} expired, as it does not find the transaction that funds ${one ? "it" : "each"} in a block either`
             : "the search did not answer that it is not found (or the local clock is behind the tip)"
-        }: ${done}`,
+        }`,
         txs[0]!.txHash,
+        `${done}, and ${
+          !notFound
+            ? "the same call later tells"
+            : one
+              ? "the same call answers so until the search finds that transaction in a block, which it does only if that transaction lands"
+              : "the same call answers so until the search finds each of those transactions in a block, which it does only for one that lands"
+        }`,
       );
     }
     const named = txs
