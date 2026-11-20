@@ -34,9 +34,12 @@ const txOf = (i: number) => (i + 1).toString(16).padStart(64, "0");
 const key = (i: number) => `8200581c${i.toString(16).padStart(56, "0")}`;
 const deepAround = (levels: number, leaf: string) =>
   "820181".repeat(levels) + leaf;
-/** A native script of 15 623 bytes, 1 024 levels deep: all of 10, each nested 510 deep */
+/**
+ * A native script of 15 643 bytes, 504 levels deep, whose keys are read: all of 20, each nested
+ * 250 deep
+ */
 const heavy = (i: number) =>
-  `82018a${deepAround(510, key(i * 16 + 1))}${deepAround(510, key(1)).repeat(9)}`;
+  `820194${deepAround(250, key(i * 16 + 1))}${deepAround(250, key(1)).repeat(19)}`;
 const policyOf = (item: string) =>
   Crypto.blake2b.hash(HexBlob(`00${item}`), 28).toString();
 const mesh = (i: number, scriptRef?: string, lovelace = "50000000"): UTxO => ({
@@ -89,7 +92,7 @@ const timed = async (run: () => unknown) => {
 };
 
 describe("the reference scripts of a transaction, bounded as the ledger bounds them", () => {
-  // 235 scripts of 15 623 bytes: 3 671 405 bytes, eighteen times the bound
+  // 235 scripts of 15 643 bytes: 3 676 105 bytes, eighteen times the bound
   const items = Array.from({ length: 235 }, (_, i) => heavy(i));
   const tx = runs(items);
   const known = [mesh(0), ...items.map((it, i) => mesh(100 + i, `8200${it}`))];
@@ -214,7 +217,7 @@ describe("the reference scripts of a transaction, bounded as the ledger bounds t
     expect(error.message).toContain("hold 204801 bytes");
   });
 
-  it("reads a transaction that runs 13 such native scripts, 203 099 bytes, with their keys; builds one with them as reference inputs, and refuses to build one with 14", async () => {
+  it("reads a transaction that runs 13 such native scripts, 203 359 bytes, with their keys; builds one with them as reference inputs, and refuses to build one with 14", async () => {
     const within = items.slice(0, 13);
     const atBound = runs(within);
     const holders = [
@@ -245,10 +248,10 @@ describe("the reference scripts of a transaction, bounded as the ledger bounds t
     );
     expect(TxError.is(error, "TX_TOO_LARGE")).toBe(true);
     expect(error.message).toBe(
-      `the transaction's spent and reference inputs hold 218722 bytes of reference scripts, more than the 204800 ${said}`,
+      `the transaction's spent and reference inputs hold 219002 bytes of reference scripts, more than the 204800 ${said}`,
     );
     expect((error as TxBuildError<"TX_TOO_LARGE">).details).toEqual({
-      size: 218_722,
+      size: 219_002,
       maxTxSize: 204_800,
       cause: "referenceScripts",
     });

@@ -169,7 +169,7 @@ export const nativeScriptEntry = (
 
 /**
  * The native script a UTxO holds as its reference script, if it holds one whose keys are read:
- * not one nested deeper than `MAX_TX_DEPTH`
+ * not one nested deeper than `MAX_NATIVE_DEPTH`
  */
 export const nativeScriptRef = (
   utxo: Readonly<Utxo> | undefined,

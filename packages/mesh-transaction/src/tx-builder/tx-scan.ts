@@ -94,6 +94,17 @@ const TAG_ITEM_WORK = 12_500;
 const TAG_WORK = 60_000;
 
 /**
+ * The deepest a native reference script nests, as the walk counts the levels of `[0, script]`,
+ * for the keys it names to be read: 512. Its form is a tree that this library and the application
+ * copy and write by recursion (`structuredClone`, JSON), so on a stack of about a browser's
+ * (`node --stack-size=400`) each path that reads its keys, a build, `fromCbor`, `requiredSigners`,
+ * `finalize`, a step given built and their records, runs through to 622 levels and fails from 642,
+ * in a fresh process; at 512 the application may stand 2 000 frames deep when it writes the JSON.
+ * A script deeper is described and spent, its keys not read
+ */
+export const MAX_NATIVE_DEPTH = 512;
+
+/**
  * The most bytes of reference scripts the UTxOs a transaction spends and reads may hold in all, as
  * the Conway ledger bounds them (`maxRefScriptSizePerTx`, 200 KiB): past it a node refuses the
  * transaction (`ConwayTxRefScriptsSizeTooBig`). Each out ref counts once, and each script as the

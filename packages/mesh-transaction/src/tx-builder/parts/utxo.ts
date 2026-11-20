@@ -26,8 +26,8 @@ import { TxBuildError } from "../errors";
 import {
   isOneCborItem,
   MAX_ADDRESS_BYTES,
+  MAX_NATIVE_DEPTH,
   MAX_TX_BYTES,
-  MAX_TX_DEPTH,
   splitUtxoBytes,
 } from "../tx-scan";
 import { emptyValue, toAssets } from "../value";
@@ -479,8 +479,8 @@ export const describeScriptRef = (
  * The native script a reference script holds, read from its bytes as `describeScriptRef` reads
  * it, in the form `TxSigners.nativeScripts` lists, with its hash: the keys it names are those a
  * native witness that runs it prices and asks for. Any number of keys is read. Undefined for what
- * is not a native script, and for one nested deeper than `MAX_TX_DEPTH` as the walk counts the
- * levels of `[0, script]`: its form is a tree that this library and the application walk by
+ * is not a native script, and for one nested deeper than `MAX_NATIVE_DEPTH` as the walk counts
+ * the levels of `[0, script]`: its form is a tree that this library and the application copy by
  * recursion
  */
 export const heldNativeScript = (
@@ -488,7 +488,7 @@ export const heldNativeScript = (
 ): { script: NativeScriptPrototype; hash: string } | undefined => {
   if (script?.type !== "native") return undefined;
   const read = readNative(script.cbor);
-  return read !== undefined && read.depth <= MAX_TX_DEPTH
+  return read !== undefined && read.depth <= MAX_NATIVE_DEPTH
     ? { script: read.script, hash: script.hash }
     : undefined;
 };

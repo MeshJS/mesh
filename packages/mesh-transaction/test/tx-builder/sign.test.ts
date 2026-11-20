@@ -1348,24 +1348,25 @@ describe("requiredSigners", () => {
         cbor.arr(cbor.uint(0), cbor.bytes(keyHashHex(from + i))),
       ).join("")}`;
     /**
-     * Native scripts whose keys are read, at any number of keys and nested no deeper than 1 024
-     * levels as the walk counts them, `[0, script]` the first: `all` around a key 511 times
-     * reaches 1 024; and those whose keys are not read
+     * Native scripts whose keys are read, at any number of keys and nested no deeper than 512
+     * levels as the walk counts them, `[0, script]` the first: `all` around a key 255 times
+     * reaches 512; and those whose keys are not read
      */
     const shapes: [string, string, "keys" | "deep" | "unknown"][] = [
       ["nested 34 deep", nestedCbor(34), "keys"],
       ["of 190 keys", keysCbor(190), "keys"],
       [
-        "15 KB of an all of 10 nested 500 deep",
-        `8201${cbor.head(4, 10)}${nestedCbor(500).repeat(10)}`,
+        "15 KB of an all of 20 nested 250 deep",
+        `8201${cbor.head(4, 20)}${nestedCbor(250).repeat(20)}`,
         "keys",
       ],
-      ["nested 511 deep, 1 024 levels", nestedCbor(511), "keys"],
+      ["nested 255 deep, 512 levels", nestedCbor(255), "keys"],
       [
-        "nested 511 deep around all [], 1 025 levels",
-        nestedCbor(511, cbor.arr(cbor.uint(1), cbor.arr())),
+        "nested 255 deep around all [], 513 levels",
+        nestedCbor(255, cbor.arr(cbor.uint(1), cbor.arr())),
         "deep",
       ],
+      ["nested 511 deep, 1 024 levels", nestedCbor(511), "deep"],
       ["nested 3 000 deep", nestedCbor(3_000), "deep"],
       // A well-formed item that is not a native script
       ["a byte string, not a native script", cbor.bytes("ab"), "unknown"],
@@ -1407,7 +1408,7 @@ describe("requiredSigners", () => {
         ),
       );
 
-    it("reads the keys of a native script a reference input holds from its bytes, at any number of keys and up to 1 024 levels: a spend and a mint through one build with its keys priced; one level deeper, and what is not a native script, are INVALID_SCRIPT at once", async () => {
+    it("reads the keys of a native script a reference input holds from its bytes, at any number of keys and up to 512 levels: a spend and a mint through one build with its keys priced; one level deeper, and what is not a native script, are INVALID_SCRIPT at once", async () => {
       // 190 keys priced do not fit in a transaction: 120 stand for them
       const buildable: [string, string, "keys" | "deep" | "unknown"][] = [
         ["of 120 keys", keysCbor(120), "keys"],
@@ -1469,7 +1470,7 @@ describe("requiredSigners", () => {
       }
     });
 
-    it("lists a native script a reference input holds, for a transaction read whole, where its keys are read: at any number of keys and up to 1 024 levels, not one level deeper nor what is not a native script, and the transaction is read at once", async () => {
+    it("lists a native script a reference input holds, for a transaction read whole, where its keys are read: at any number of keys and up to 512 levels, not one level deeper nor what is not a native script, and the transaction is read at once", async () => {
       for (const [name, native, read] of shapes) {
         const { holder, locked } = heldScript(native);
         const keyInput = utxo(lovelace(ada(50)));
