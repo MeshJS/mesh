@@ -237,6 +237,11 @@ export type GetCollateral = (params: {
 export type PayerRead = {
   readonly snapshot: PayerSnapshot;
   readonly getCollateral?: GetCollateral;
+  /**
+   * The snapshot is the application's own, given as it is: nothing of it was read through the
+   * provider or a wallet, so it says nothing of what the chain holds at its addresses
+   */
+  readonly given?: true;
 };
 
 /** The numeric `code` of a thrown value, as CIP-30 errors carry it; read without instanceof */
@@ -444,8 +449,12 @@ export const readPayerSource = async (
 ): Promise<PayerRead> => {
   if (source.form === "snapshot")
     return source.getCollateral
-      ? { snapshot: source.snapshot, getCollateral: source.getCollateral }
-      : { snapshot: source.snapshot };
+      ? {
+          snapshot: source.snapshot,
+          getCollateral: source.getCollateral,
+          given: true,
+        }
+      : { snapshot: source.snapshot, given: true };
   if (source.form === "wallet") return readWallet(source.wallet, ctx);
   const utxos = await fetchPayerUtxos(source.address, ctx);
   checkNetworks(

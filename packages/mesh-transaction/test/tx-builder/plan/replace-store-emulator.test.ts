@@ -2403,6 +2403,121 @@ describe("the order of the address reads within their cap", () => {
     );
     expect(next.step("c").standsOn).toEqual(["x"]);
   });
+
+  /**
+   * A plan on a store whose step `d`, a partner's transaction given built, pays `to` 13 ada and
+   * refunds the shop, the wallet, 5 ada at its change address: it lands, the search never finds
+   * it, and `to` and the partner spend their outputs, past its end. `snapshot`: the shop's UTxOs
+   * as they were before `d` landed, as the application kept them
+   */
+  const refundLine = async () => {
+    const ctx = await storeSetup({
+      funds: [100n * ADA, 50n * ADA],
+      planDefaults: { ...FAST, confirmations: 1000 },
+    });
+    const { emulator, provider, builder, wallet } = ctx;
+    const shop = (await wallet.getChangeAddress())!;
+    const partner = await walletOfIndex(1);
+    const partnerAddress = (await partner.getChangeAddress())!;
+    const own = emulator.fund(partnerAddress, { lovelace: 100n * ADA });
+    const recipient = await walletOfIndex(2);
+    const to = (await recipient.getChangeAddress())!;
+    const built = await builder.build(
+      [
+        spend.pubKey({ utxo: own }),
+        output({ address: to, value: { lovelace: 13n * ADA } }),
+        output({ address: shop, value: { lovelace: 5n * ADA } }),
+        validity({ until: builder.timeAt(emulator.slot) + 300_000 }),
+      ],
+      { payer: partner },
+    );
+    await built.sign();
+    const snapshot = {
+      changeAddress: shop,
+      utxos: emulator.utxos({ address: shop }),
+    };
+    const old = await builder.plan(
+      { d: built },
+      { id: "order", payer: wallet },
+    );
+    const d = old.step("d").txHash;
+    provider.control.hooks.fetchTxInfo = (forward, hash: string) => {
+      if (hash.toLowerCase() === d)
+        throw Object.assign(new Error("not found"), {
+          kind: "notFound",
+          status: 404,
+        });
+      return forward(hash);
+    };
+    await emulator.submitTx(built.signedTx!);
+    advance(emulator, 1);
+    for (const [owner, address] of [
+      [recipient, to],
+      [partner, partnerAddress],
+    ] as const) {
+      const [paid] = emulator
+        .utxos({ address })
+        .filter((utxo) => utxo.input.txHash === d);
+      const move = await builder.build(
+        [
+          spend.pubKey({
+            utxo: {
+              txHash: paid!.input.txHash,
+              outputIndex: paid!.input.outputIndex,
+            },
+          }),
+          payTo(bob, 2n * ADA),
+        ],
+        { payer: owner },
+      );
+      await move.sign();
+      await emulator.submitTx(move.signedTx!);
+    }
+    advance(emulator, 700);
+    await old.refresh();
+    await old.refresh();
+    expect(statuses(old)).toEqual({ d: "expired" });
+    return { ...ctx, old, d, to, snapshot, shop };
+  };
+
+  it("a payer given as a snapshot is no read of its addresses: the refund of a hidden transaction at the shop's address, which the shop's snapshot from before it does not list, is read, and the call waits; the recipient is paid once", async () => {
+    const { emulator, provider, old, d, to, snapshot, shop } =
+      await refundLine();
+    const reads: string[] = [];
+    provider.control.hooks.fetchAddressUTxOs = (forward, address: string) => {
+      reads.push(address);
+      return forward(address);
+    };
+    const error = await caught(
+      old.replan({
+        id: "order:2",
+        steps: { d: payTo(to, 13n * ADA) },
+        payer: snapshot,
+      }),
+    );
+    expect([error.code, reasonOf(error), error.txHash]).toEqual([
+      "CANNOT_OBSERVE",
+      "unconfirmed",
+      d,
+    ]);
+    expect(error.message).toContain(`an address lists ${d}#1`);
+    expect(reads).toContain(shop);
+    // d paid the recipient, who spent it; nothing was built to pay again
+    expect(times(emulator, to, 13n * ADA)).toBe(0);
+    await expect(emulator.fetchTxInfo(d)).resolves.toBeDefined();
+  });
+
+  it("the same with the wallet as the payer, read through the chain: its read lists the refund, and the call waits", async () => {
+    const { old, d, to } = await refundLine();
+    const error = await caught(
+      old.replan({ id: "order:2", steps: { d: payTo(to, 13n * ADA) } }),
+    );
+    expect([error.code, reasonOf(error), error.txHash]).toEqual([
+      "CANNOT_OBSERVE",
+      "unconfirmed",
+      d,
+    ]);
+  });
 });
 
 describe("a plan with nothing left to pay", () => {

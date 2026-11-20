@@ -850,13 +850,15 @@ new plan's, also for the steps it holds of the old plan, and carry on. Never
 - An address that lists an output of an old transaction the search does not find refuses the call
   (`CANNOT_OBSERVE`). The addresses an old transaction pays are read once the look calls it
   `expired`, also when it was found in a block once: a search may lose a transaction that stays in
-  its block. Of those of the transactions never found, at most 16 are read in a call, in the order
-  of the line, and the warning's `unread` counts the rest; of those of the ones found in a block
-  once, at most 16 more, and while one is left unread the message of the dead end of two payers
-  below is not given. A search that fails is no answer: past the end and the margin it is
-  `CANNOT_OBSERVE` (`unconfirmed`), not `STILL_LIVE`. A read of an address that fails or gives no
-  list throws its error (`PROVIDER_FAILED`); an empty list is an answer, and so is a list the
-  provider's own cache gives, which the library does not control.
+  its block. An address a payer's read of the call lists, through the provider or a wallet, is not
+  read again; a payer given as a snapshot `{ changeAddress, utxos }` is the application's own list,
+  not a read, and its addresses are read as the others are. Of those of the transactions never
+  found, at most 16 are read in a call, in the order of the line, and the warning's `unread` counts
+  the rest; of those of the ones found in a block once, at most 16 more, and while one is left
+  unread the message of the dead end of two payers below is not given. A search that fails is no
+  answer: past the end and the margin it is `CANNOT_OBSERVE` (`unconfirmed`), not `STILL_LIVE`. A
+  read of an address that fails or gives no list throws its error (`PROVIDER_FAILED`); an empty list
+  is an answer, and so is a list the provider's own cache gives, which the library does not control.
 - The one case that goes by time: an old transaction this call's look answered "not found", past its
   end and the margin, that shares no input with the new plan. `trace` gets `NO_SHARED_INPUT` once
   the new plan is recorded. Two things then make the new plan pay twice: a provider that hides a

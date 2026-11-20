@@ -2162,10 +2162,12 @@ export class TxPlan {
   /**
    * CANNOT_OBSERVE (`unconfirmed`) when a list of UTxOs the call reads holds an output of an
    * open transaction of the line, told by its hash: each payer's read, and the read of each
-   * address a step of the line that is dead, gone or used up pays, where no payer's read covered
-   * it: the search says it is in no block, and the address says it is. Of a used-up transaction,
-   * whose collateral return is on chain for good, only its regular outputs count. A read of an
-   * address that fails, or answers no list, refuses the call with its own error. The addresses
+   * address a step of the line that is dead, gone or used up pays, where no payer's read through
+   * the provider or a wallet in this call covered it (a snapshot payer covers none: it is the
+   * application's own list): the search says it is in no block, and the address says it is. Of a
+   * used-up transaction, whose collateral return is on chain for good, only its regular outputs
+   * count. A read of an address that fails, or answers no list, refuses the call with its own
+   * error. The addresses
    * read are those a step that is dead or used up pays, and those an entry of the plans before
    * that is dead pays, in the order of the line, at most 16 in a call; then, in a budget of their
    * own of 16, those a step or an entry that is gone pays. Those left unread of the gone ones
@@ -2225,11 +2227,13 @@ export class TxPlan {
           tx.txHash,
         );
     };
+    // Only a read through the provider or a wallet in this call covers an address; a snapshot is
+    // the application's own list, its UTxOs checked all the same
     const covered = new Set<string>();
     for (const { read } of reads) {
-      covered.add(read.snapshot.changeAddress);
+      if (read.given !== true) covered.add(read.snapshot.changeAddress);
       for (const utxo of read.snapshot.utxos) {
-        covered.add(utxo.address);
+        if (read.given !== true) covered.add(utxo.address);
         check(utxo);
       }
     }
