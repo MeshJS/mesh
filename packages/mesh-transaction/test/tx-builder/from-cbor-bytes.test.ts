@@ -961,6 +961,139 @@ describe("TxBuilder.fromCbor › the CBOR inside a byte string, and the time dat
       knownUtxos: knownUtxos(),
     });
   }, 60_000);
+
+  /**
+   * A transaction of about `size` bytes holding, where `where` says, a datum of lists nested
+   * `depth` deep around one byte string written in one-byte pieces, as many as fit
+   */
+  const inPieces = (
+    where: "witness set" | "inline datum" | "redeemer" | "metadata",
+    depth: number,
+    size = 16_384,
+  ) => {
+    const made = (n: number) => {
+      const data =
+        "9f".repeat(depth) + `5f${"4100".repeat(n)}ff` + "ff".repeat(depth);
+      switch (where) {
+        case "witness set":
+          return tx(bodyWith(), map([uint(4), arr(data)]));
+        case "inline datum":
+          return tx(
+            map(
+              [uint(0), inputs()],
+              [
+                uint(1),
+                arr(
+                  map(
+                    [uint(0), bytes(`60${key.keyHash}`)],
+                    [uint(1), uint(3_000_000)],
+                    [uint(2), arr(uint(1), `d818${bytes(data)}`)],
+                  ),
+                ),
+              ],
+              [uint(2), uint(170_000)],
+            ),
+          );
+        case "redeemer":
+          return tx(
+            bodyWith(),
+            map([
+              uint(5),
+              map([arr(uint(0), uint(0)), arr(data, arr(uint(1), uint(1)))]),
+            ]),
+          );
+        case "metadata":
+          return tx(bodyWith(), map(), { aux: map([uint(1), data]) });
+      }
+    };
+    let n = Math.floor(size / 2);
+    while (made(n).length / 2 > size) n -= 10;
+    return made(n);
+  };
+
+  it("counts each piece of a string written in pieces for every container around it: a datum of lists around a byte string of 7 700 one-byte pieces is refused at once, in the witness set, inline, in a redeemer and in metadata, at 100 and 400 levels, and at 64 KB", async () => {
+    for (const where of [
+      "witness set",
+      "inline datum",
+      "redeemer",
+      "metadata",
+    ] as const)
+      for (const depth of [100, 400]) {
+        const given = inPieces(where, depth);
+        expect(given.length / 2).toBeGreaterThan(16_300);
+        const started = performance.now();
+        const error = await caught(() =>
+          offline().fromCbor(given, { knownUtxos: knownUtxos() }),
+        );
+        expect(performance.now() - started).toBeLessThan(1_000);
+        expectRefused(
+          error,
+          given,
+          "the transaction carries more nested data than this library reads",
+        );
+      }
+    // At 65 536 bytes, the bound of `after` without parameters, 232 levels deep
+    const large = new TxBuilder({
+      network: "preprod",
+      params: { ...params, maxTxSize: 65_536 },
+    });
+    const given = inPieces("witness set", 232, 65_536);
+    expect(given.length / 2).toBeGreaterThan(65_400);
+    const error = await caught(() =>
+      large.fromCbor(given, { knownUtxos: knownUtxos() }),
+    );
+    expectRefused(
+      error,
+      given,
+      "the transaction carries more nested data than this library reads",
+    );
+    // A text string in pieces in metadata counts as a byte string does
+    const text = tx(bodyWith(), map(), {
+      aux: map([
+        uint(1),
+        "9f".repeat(400) + `7f${"6161".repeat(7_700)}ff` + "ff".repeat(400),
+      ]),
+    });
+    expectRefused(
+      await caught(() =>
+        offline().fromCbor(text, { knownUtxos: knownUtxos() }),
+      ),
+      text,
+      "the transaction carries more nested data than this library reads",
+    );
+  }, 60_000);
+
+  it("reads a byte string of 10 KB in 64-byte pieces, as Plutus data writes a long one, a few constructors down, in the witness set and inline", async () => {
+    const long = `5f${`5840${"ab".repeat(64)}`.repeat(160)}ff`;
+    const datum = "d8799f".repeat(4) + long + "ff".repeat(4);
+    const given = tx(
+      map(
+        [uint(0), inputs()],
+        [
+          uint(1),
+          arr(
+            map(
+              [uint(0), bytes(`60${key.keyHash}`)],
+              [uint(1), uint(30_000_000)],
+              [uint(2), arr(uint(1), `d818${bytes(datum)}`)],
+            ),
+          ),
+        ],
+        [uint(2), uint(170_000)],
+      ),
+      map([uint(4), arr(datum)]),
+    );
+    expect(given.length / 2).toBeGreaterThan(20_000);
+    const made = await new TxBuilder({
+      network: "preprod",
+      params: { ...params, maxTxSize: 32_768 },
+    }).fromCbor(given, { knownUtxos: knownUtxos() });
+    expect(made.tx).toBe(given);
+    expect(made.outputs[0]!.datum).toEqual({
+      type: "inline",
+      data: { type: "CBOR", content: datum },
+    });
+  }, 60_000);
 });
 
 describe("TxBuilder.fromCbor › a key the decoder does not read, read as the decoder reads it", () => {

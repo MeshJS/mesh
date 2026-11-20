@@ -38,10 +38,12 @@ export const MAX_TX_DEPTH = 1024;
 /**
  * The most work the value decoder may have with a transaction, as the walk counts it: for each
  * array and map, the items inside it times its bytes and `ITEM_WORK` more, and for each tag the
- * items inside it times its bytes and `TAG_ITEM_WORK` more; the items inside a byte string under
- * tag 24 count for the containers inside it alone, as the decoder reads them with a reader of
- * their own. One unit is about 0.4 ns of decoding on a laptop of 2026 (an Apple M3 Max, Node 26):
- * the slowest transactions this lets through, of every shape measured, decode in 0.4 to 1.1 s.
+ * items inside it times its bytes and `TAG_ITEM_WORK` more; each piece of a string written in
+ * pieces is an item, as the decoder reads each piece again at each container around it; the
+ * items inside a byte string under tag 24 count for the containers inside it alone, as the
+ * decoder reads them with a reader of their own. One unit is about 0.4 ns of decoding on a
+ * laptop of 2026 (an Apple M3 Max, Node 26): the slowest transactions this lets through, of
+ * every shape measured, decode in 0.4 to 1.1 s.
  * Transactions as wallets and contracts make them count at most two thousandths of it. Past it:
  * one datum of lists nested more than 728 levels deep, 16 384 bytes of datums of lists nested
  * more than 54 deep, or a list of more than 11 000 zeros 7 levels down
@@ -88,7 +90,10 @@ type Level = {
   readonly frames: Frame[];
   /** The level of the tag around the byte string; 0 for the item itself */
   readonly depth: number;
-  /** The items read so far: scalars, strings and containers, a tagged item once */
+  /**
+   * The items read so far: scalars, strings and containers, a tagged item once, and each piece
+   * of a string written in pieces
+   */
   items: number;
 };
 
@@ -151,6 +156,28 @@ const walk = (
     if (bounds !== undefined && depth > bounds.depth)
       throw new TxScanError(TOO_DEEP);
   };
+  /**
+   * Reads a string written in pieces, one piece at a time: each piece is an item of the level,
+   * and counts for every container around it, as the decoder reads each piece again at each of
+   * them. The content of a byte string is returned, its pieces joined
+   */
+  const pieces = (level: Level, text: boolean): Uint8Array => {
+    const { reader } = level;
+    const content: Uint8Array[] = [];
+    if (text) reader.readStartIndefiniteLengthTextString();
+    else reader.readStartIndefiniteLengthByteString();
+    const end = text
+      ? State.EndIndefiniteLengthTextString
+      : State.EndIndefiniteLengthByteString;
+    while (reader.peekState() !== end) {
+      if (text) reader.readTextString();
+      else content.push(reader.readByteString());
+      level.items++;
+    }
+    if (text) reader.readEndIndefiniteLengthTextString();
+    else reader.readEndIndefiniteLengthByteString();
+    return Buffer.concat(content);
+  };
   for (;;) {
     const level = levels[levels.length - 1]!;
     const { reader, frames } = level;
@@ -195,12 +222,22 @@ const walk = (
             next === State.StartIndefiniteLengthByteString)
         )
           levels.push(
-            levelOf(reader.readByteString(), level.depth + frames.length),
+            levelOf(
+              next === State.ByteString
+                ? reader.readByteString()
+                : pieces(level, false),
+              level.depth + frames.length,
+            ),
           );
         break;
       }
+      case State.StartIndefiniteLengthByteString:
+      case State.StartIndefiniteLengthTextString:
+        pieces(level, state === State.StartIndefiniteLengthTextString);
+        read(level);
+        break;
       default:
-        // A scalar or a string, in chunks or not: the reader passes it in one call, in a loop
+        // A scalar or a string of one piece: the reader passes it in one call
         reader.skipValue();
         read(level);
     }
