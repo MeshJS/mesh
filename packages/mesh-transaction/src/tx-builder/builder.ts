@@ -1766,7 +1766,9 @@ export class TxBuilder {
    *   in CBOR hex; MISSING_PARAMETER when the provider's protocol parameters lack a field a
    *   build reads, or hold one that is not a number; DUPLICATE_PART `{ item }`, the out ref, for
    *   a prototype whose inputs, reference inputs or collateral inputs name one output twice, or
-   *   whose reference inputs name an output it spends
+   *   whose reference inputs name an output it spends; TX_TOO_LARGE (`cause: "referenceScripts"`)
+   *   when the UTxOs it spends and reads hold more than `MAX_REF_SCRIPT_BYTES` of reference
+   *   scripts, before they are read whole
    */
   async finalize(
     prototype: TransactionPrototype,
@@ -2081,7 +2083,8 @@ export class TxBuilder {
    *   hold one that is not a number; TxPartError when what is looked up does not fit a part
    *   (e.g. a reference output holding a different script), and INVALID_DATA for a validity
    *   part whose time bound is before the network's slot clock starts, or whose interval holds
-   *   no slot once converted
+   *   no slot once converted; TX_TOO_LARGE (`cause: "referenceScripts"`) when the UTxOs it would
+   *   spend and read hold more than `MAX_REF_SCRIPT_BYTES` of reference scripts
    */
   async build(
     parts: PartsInput = [],
@@ -2176,13 +2179,16 @@ export class TxBuilder {
    * token quantity of zero in an output or the mint, an out ref named twice among the inputs,
    * the collateral inputs or the reference inputs, an output address with bytes after the
    * address they hold, and required signers written as credentials, the guards of an era after
-   * Conway, which the decoder reads into no signer. Reading takes a time that grows with the data the transaction carries:
-   * within these limits up to about a second on a laptop, on the thread that calls it, which
-   * runs nothing else meanwhile. The UTxOs it names add the time of their bytes alone: their
-   * data is not decoded (an inline datum is kept as the bytes hold it, never judged, and a
-   * reference script is never decoded: a native one is read from its bytes, and the keys it names
-   * only where the transaction runs it), and of each transaction the provider lists, only the
-   * outputs the body names are read. A server
+   * Conway, which the decoder reads into no signer. So is one whose spent and reference inputs
+   * hold more than `MAX_REF_SCRIPT_BYTES` (204 800) of reference scripts, as a node bounds them,
+   * counted from the UTxOs given and the provider's answers before any of them is read whole.
+   * Reading takes a time that grows with the data the transaction carries: within these limits
+   * up to about a second on a laptop, on the thread that calls it, which runs nothing else
+   * meanwhile. The UTxOs it names add the time of their bytes: their data is not decoded (an
+   * inline datum is kept as the bytes hold it, never judged, and a reference script is never
+   * decoded: a native one is read from its bytes on the token reader, whose time grows with the
+   * square of its size, and the keys it names only where the transaction runs it), and of each
+   * transaction the provider lists, only the outputs the body names are read. A server
    * that reads transactions of strangers reads them off its request path, in a worker of its
    * own.
    *

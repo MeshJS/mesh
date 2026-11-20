@@ -29,15 +29,23 @@ import { CborReader, HexBlob, Serialization } from "@meshsdk/core-cst";
  * simple value below 32 written in two bytes, which it takes.
  *
  * The reference script of a UTxO is never decoded: its language, its hash and its size are read
- * from its bytes, and a native one, of no more than `MAX_TX_BYTES`, as the ledger reads one, by a
- * reader of its own with no call of itself and in a time that grows with its size; so are the
- * keys it names, where it nests no deeper than `MAX_TX_DEPTH`, and where the signers of a
- * transaction are read from the UTxOs given with it, only for a script it runs. On the laptop
- * above, a UTxO that holds the slowest native script of 16 384 bytes is read in at most 4.3 ms; a
- * payment from a payer whose 40 UTxOs each hold one in 53 ms, from a provider, a wallet or a
- * snapshot; a transaction of 16 384 bytes whose 452 reference inputs each hold one in 0.47 s, by
- * `fromCbor` and by `requiredSigners`. A UTxO in CBOR whose output has a key other than 0 to 3 is
- * refused before the decoder runs: the ledger takes no such output.
+ * from its bytes, and a native one, of no more than `MAX_TX_BYTES`, as the ledger reads one, on
+ * the token reader with no call of itself; so are the keys it names, where it nests no deeper
+ * than `MAX_NATIVE_DEPTH`, and where the signers of a transaction are read from the UTxOs given
+ * with it, only for a script it runs. The token reader copies the bytes left at each item, so the
+ * time grows with the square of a script's size, and of the pieces of a string written in pieces:
+ * a UTxO in CBOR is read only up to `MAX_TX_BYTES`, and the reference scripts of a transaction
+ * only up to `MAX_REF_SCRIPT_BYTES` in all, counted before any of its UTxOs is read whole. On the
+ * laptop above, with `@cardano-sdk/core` 0.47.1, three runs, the worst: a UTxO that holds the
+ * slowest native script of about 16 KB is read in 38 ms, its keys in 55 ms; a UTxO in CBOR of
+ * 16 117 bytes whose script is written in 16 000 empty pieces in 59 ms, and one longer than
+ * `MAX_TX_BYTES` (64 KB, 256 KB, 1 MB) is refused in less than 0.1 ms; a payment from a payer of
+ * 40 UTxOs that each hold such a script in 1.0 s, from a provider, a wallet or a snapshot, and of
+ * 40 UTxOs in pieces in 1.95 s; a transaction that runs 13 distinct native scripts of 15 643
+ * bytes from its reference inputs (203 359 bytes, the most the bound lets through) in 0.67 s by
+ * `requiredSigners`, 0.72 s by `fromCbor`, 1.5 s by `plan` as a step given built, its record
+ * 4.2 MB; one that runs 235 is refused in 23, 21 and 46 ms. A UTxO in CBOR whose output has a
+ * key other than 0 to 3 is refused before the decoder runs: the ledger takes no such output.
  */
 
 const State = Serialization.CborReaderState;

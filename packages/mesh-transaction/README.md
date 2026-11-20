@@ -1763,6 +1763,12 @@ type, unless named otherwise:
   transaction itself may be valid);
 - required signers written as credentials, the guards of an era after Conway, which the value
   decoder reads into no signer (`requiredSigners` refuses them too);
+- spent and reference inputs whose UTxOs hold more than 204 800 bytes of reference scripts in all,
+  as a node bounds them (`maxRefScriptSizePerTx`, `ConwayTxRefScriptsSizeTooBig`), each script
+  counted as the ledger counts it: refused from the bytes of the UTxOs given or read through the
+  provider, before any of them is read whole. `requiredSigners` and a plan's step given built
+  refuse it the same way, and `build` and `finalize` make no such transaction (`TX_TOO_LARGE`,
+  `cause: "referenceScripts"`);
 - another network: `NETWORK_MISMATCH`, for its addresses, its UTxOs or the network id its body
   states (role `body`);
 - a signature that is not of the body: `INVALID_WITNESS` (`wrongBody`).
@@ -1778,12 +1784,16 @@ A witness set that repeats a key is read as the decoder reads it, the last entry
 
 Reading takes a time that grows with the data the transaction carries, up to about a second on a
 laptop, on the calling thread; the UTxOs add the time of their bytes, since their data is not
-decoded: a transaction of 16 384 bytes whose 452 reference inputs each hold the slowest native
-script of 16 384 bytes is read in about 0.5 s, by `fromCbor` with them in `knownUtxos` and by
-`requiredSigners`. `plan` decodes a step given built twice, so one at the bound takes up to about
-two seconds there (1.5 to 1.8 s measured). The bound on nested data counts a big integer as a tag
-and one string, though its time grows with the square of its length: that matters only with a
-`maxTxSize` above 64 KB, where one integer of 128 KB takes 1 s in a datum and 2 s in metadata. An
+decoded, and that of their native scripts, read on a token reader whose time grows with the square
+of a script's size. The bound on reference scripts keeps it within a transaction's worth: one that
+runs 13 distinct native scripts of 15 643 bytes from its reference inputs (203 359 bytes, the most
+the bound lets through) is read in about 0.7 s by `fromCbor` with them in `knownUtxos` and by
+`requiredSigners`, and planned as a step given built in about 1.5 s, its record 4.2 MB; one of 235
+is refused in about 20 ms by each, 50 ms by `plan`. `plan` decodes a step given built twice, so
+one at the bound on nested data takes up to about two seconds there (1.5 to 1.8 s measured). That
+bound counts a big integer as a tag and one string, though its time grows with the square of its
+length: that matters only with a `maxTxSize` above 64 KB, where one integer of 128 KB takes 1 s in
+a datum and 2 s in metadata. An
 item the bounds admit can overflow a stack smaller than about a browser's (on
 `node --stack-size=400` every one is read), and the error is then the runtime's. A server reads
 strangers' transactions off its request path, in a worker of its own. A bootstrap witness the
@@ -2104,30 +2114,35 @@ const utxo: Utxo = {
   nested datum on a key-locked UTxO does not slow a build.
 - `script`: the reference script, left out when the output holds none. A Plutus script is a
   `PlutusScript` with its `hash`, a native script its CBOR with its `hash`. A reference script is
-  never decoded: its language, its hash and its size are read from its bytes, the hash as the
-  ledger takes it, blake2b-224 of the language's tag and the script as written: of a native script
-  its CBOR as written, of a Plutus script the content of its byte string (its head is not hashed).
-  A native script is read as the ledger reads one, `[0, key hash]`, `[1, scripts]`,
-  `[2, scripts]`, `[3, n, scripts]`, `[4, slot]` or `[5, slot]`, each list of definite or
-  indefinite length, with no call of itself and in a time that grows with its size, so a script
-  of any depth, from any source, is read at once and its UTxO can pay. On a laptop a UTxO that
-  holds the slowest native script of 16 384 bytes is read in at most about 5 ms, and a payment from
-  a payer whose 40 UTxOs each hold one (from a provider, a wallet or a snapshot) is built in about
-  55 ms. A script given as bytes (a Mesh `scriptRef`, CBOR, or an `unknown` script) that the
-  library cannot read is `{ type: "unknown", scriptRef, hash? }`, its bytes kept: another framing,
-  a language it does not know, bytes after the script, CBOR that is not well formed, a Plutus
-  script whose byte string is written in pieces, a native script larger than a transaction (16 384
-  bytes: one in an output is part of a transaction), an item after the language 0 that is not a
-  native script as the ledger reads one (a key hash written in pieces among them), bytes it would
-  not write back the same, or a hash other than the one stated with it. Such a UTxO can still be
-  spent, the script counts for the fee by its size, and it cannot be named as a `{ reference }`
+  never decoded: its language, its hash and its size are read from its bytes, the hash as the ledger
+  takes it, blake2b-224 of the language's tag and the script as written: of a native script its CBOR
+  as written, of a Plutus script the content of its byte string (its head is not hashed). A native
+  script is read as the ledger reads one, `[0, key hash]`, `[1, scripts]`, `[2, scripts]`,
+  `[3, n, scripts]`, `[4, slot]` or `[5, slot]`, each list of definite or indefinite length, with no
+  call of itself, on the token reader of `@cardano-sdk/core`: it copies the bytes left at each item,
+  so its time grows with the square of the script's size, which is bounded by a transaction's (16
+  384 bytes). On a laptop a UTxO that holds the slowest native script of about 16 KB is read in at
+  most about 40 ms (its keys in 55 ms), and a payment from a payer whose 40 UTxOs each hold one
+  (from a provider, a wallet or a snapshot) is built in about 1 s; a UTxO in CBOR of 16 KB whose
+  script is written in empty pieces is read in about 60 ms, and 40 of them in a payer's in about 2
+  s. A script given as bytes (a Mesh `scriptRef`, CBOR, or an `unknown` script) that the library
+  cannot read is `{ type: "unknown", scriptRef, hash? }`, its bytes kept: another framing, a
+  language it does not know, bytes after the script, CBOR that is not well formed, a Plutus script
+  whose byte string is written in pieces, a native script larger than a transaction (16 384 bytes:
+  one in an output is part of a transaction), an item after the language 0 that is not a native
+  script as the ledger reads one (a key hash written in pieces among them), bytes it would not write
+  back the same, or a hash other than the one stated with it. Such a UTxO can still be spent, the
+  script counts for the fee by its size, and it cannot be named as a `{ reference }`
   (`INVALID_SCRIPT`). A `plutus` or `native` script given in the builder's form that cannot be read
   is refused instead (see below).
 - The keys a native script names, which a native witness that runs it prices and asks for, are
   read from its bytes, any number of them, with the slots and the `n` of `atLeast` exact as the
-  ledger reads them, as long as it nests no deeper than 1 024 levels as the walk of a transaction
+  ledger reads them, as long as it nests no deeper than 512 levels as the walk of a transaction
   counts them (each array a level, `[0, script]` the first): its form is a tree that this library
-  and the application walk by recursion. One nested deeper is described and can be spent, and
+  and the application copy and write by recursion. On `node --stack-size=400`, about a browser's
+  stack, every path that reads such keys (a build, `fromCbor`, `requiredSigners`, `finalize`, a step
+  given built, and the JSON of each) runs through at 512 levels, and the first fails at 642 in a
+  fresh process. One nested deeper is described and can be spent, and
   cannot be named as a `{ reference }` (`INVALID_SCRIPT`). Where the signers of a transaction are
   read from the UTxOs given with it (`requiredSigners`, `fromCbor`, `finalize`), the keys of a
   native script are read only for one the transaction runs, known by its hash, and one nested
@@ -2193,7 +2208,11 @@ an inline datum, `dataHash` without it a datum hash, and `scriptRef` the referen
 - text that is not the CBOR of a transaction unspent output, and the CBOR of one whose output has
   a key other than 0, 1, 2 and 3, which the ledger takes in no output and the value decoder passes
   over with its value. It is refused before it is decoded, its out ref named (among `knownUtxos`,
-  its entry).
+  its entry);
+- the CBOR of a transaction unspent output longer than 16 384 bytes, the size of a transaction, of
+  which its output is a part, before any of it is read: the token reader would take a time that
+  grows with the square of its pieces (a script written in 16 000 empty pieces takes 60 ms, in 1 MB
+  of them more than a minute).
 
 `output()` refuses an inline datum that is not exactly one item of Plutus data (`INVALID_DATA`), and
 every output the builder makes is a UTxO it takes back. The error names where the UTxO was given:
@@ -2343,7 +2362,7 @@ message of a plan's `TxPlanError` says.
 | `INSUFFICIENT_COLLATERAL`  | `TxBuildError` | no collateral, or not enough, can be put up, given inputs and what can be added to them counted; given inputs that do not cover it with `topUpCollateral: false`; with `collateralReturn: false`, UTxOs holding tokens are not counted; also a wallet's `getCollateral` that failed (the `cause`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | `{ required, available }`                                                                                     | no                                                                           |
 | `OUTPUT_BELOW_MIN_COIN`    | `TxBuildError` | an output holds less lovelace than the ledger requires                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `{ coin, minCoin }`                                                                                           | no                                                                           |
 | `VALUE_TOO_LARGE`          | `TxBuildError` | an output's value is larger than `maxValSize`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `{ size, maxValSize }`                                                                                        | no                                                                           |
-| `TX_TOO_LARGE`             | `TxBuildError` | the transaction is larger than `maxTxSize`: its parts (`cause: "parts"`), or the inputs selected for them with their change (`"selection"`); for `"selection"` a plan puts consolidation steps before the step instead, unless the step has `sendAllTo`, the plan has `consolidate: false`, more are needed than it allows, or one cannot be built                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | `{ size, maxTxSize, cause }`                                                                                  | no                                                                           |
+| `TX_TOO_LARGE`             | `TxBuildError` | the transaction is larger than `maxTxSize`: its parts (`cause: "parts"`), or the inputs selected for them with their change (`"selection"`); for `"selection"` a plan puts consolidation steps before the step instead, unless the step has `sendAllTo`, the plan has `consolidate: false`, more are needed than it allows, or one cannot be built; from `build` and `finalize`, also the reference scripts its spent and reference inputs hold, more than the 204 800 bytes a node takes (`"referenceScripts"`, `size` their bytes, `maxTxSize` 204 800)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | `{ size, maxTxSize, cause }`                                                                                  | no                                                                           |
 | `FEE_TOO_LOW`              | `TxBuildError` | the `fee` given is below the final transaction's minimum fee                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | `{ fee, minFee }`                                                                                             | no                                                                           |
 | `FEE_NOT_CONVERGED`        | `TxBuildError` | balancing did not settle on a fee within its rounds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | none                                                                                                          | no                                                                           |
 | `UNSUPPORTED_SERIALIZER`   | `TxBuildError` | the serializer cannot serialize a `TransactionPrototype`, throws, or answers with something that is not a transaction                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | none                                                                                                          | no                                                                           |

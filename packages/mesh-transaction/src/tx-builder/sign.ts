@@ -1445,8 +1445,10 @@ export const refScriptsRefused = (tx: unknown, past: string) =>
  *   a UTxO in. UTxOs of reference inputs may be given too: only then is a native script the
  *   transaction runs from one of them listed in `nativeScripts`
  * @throws TxBuildError UTXO_NOT_FOUND for an input or collateral input whose UTxO is not in
- *   `spent`; INVALID_OPTION for a `tx` that is not a transaction, and for a `spent` that is not
- *   a list or holds an entry that is not a UTxO (an address that does not parse among them)
+ *   `spent`; INVALID_OPTION for a `tx` that is not a transaction, for one whose spent and
+ *   reference inputs hold more than `MAX_REF_SCRIPT_BYTES` of reference scripts in the UTxOs of
+ *   `spent`, counted before they are read whole, and for a `spent` that is not a list or holds an
+ *   entry that is not a UTxO (an address that does not parse among them)
  */
 export function requiredSigners(
   tx: string,
