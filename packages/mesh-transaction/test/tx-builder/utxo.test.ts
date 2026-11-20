@@ -1839,8 +1839,17 @@ describe("the data and the reference script of a UTxO, read without being decode
     };
     expect(sized(16_384).length / 2).toBe(2 + 16_384);
     const within = sized(16_384);
+    // A UTxO in CBOR that holds one is longer than a transaction, which holds its output: refused
+    // at once by that bound
+    const { thrown: long, ms: refused } = timed(() =>
+      readUtxo(utxoCbor({ scriptRef: within })),
+    );
+    expect(refused).toBeLessThan(200);
+    expect((long as Error).message).toContain(
+      "it is more than the 16384 bytes of the protocol's maximum transaction size",
+    );
     for (const [form, given] of [
-      ...withScript(within),
+      ...withScript(within).filter(([form]) => form !== "its CBOR"),
       [
         "an unknown script",
         ownWith({ script: { type: "unknown", scriptRef: within } }),
@@ -1859,7 +1868,6 @@ describe("the data and the reference script of a UTxO, read without being decode
       for (const [form, given, kept] of [
         ["a Mesh UTxO", meshWith({ scriptRef }), undefined],
         ["a Mesh UTxO", meshWith({ scriptRef, scriptHash: stated }), stated],
-        ["its CBOR", utxoCbor({ scriptRef }), undefined],
         [
           "an unknown script",
           ownWith({ script: { type: "unknown", scriptRef, hash: stated } }),
@@ -2069,6 +2077,48 @@ describe("the data and the reference script of a UTxO, read without being decode
         type: "native",
         hash: refHash(shallow),
       });
+  });
+
+  it("refuses at once a UTxO in CBOR longer than a transaction, before it is read: its script under tag 24 in empty pieces at 64 KB, 256 KB and 1 MB; one of 16 000 pieces, within, is read", () => {
+    const scriptRef = `8200${nested(1)}`;
+    const inPieces = (pieces: number) =>
+      cbor.arr(
+        cbor.arr(cbor.bytes(hash(5)), cbor.uint(1)),
+        cbor.map(
+          [cbor.uint(0), cbor.bytes(addressHex)],
+          [cbor.uint(1), cbor.uint(5_000_000)],
+          [
+            cbor.uint(3),
+            `d8185f${"40".repeat(pieces)}${cbor.bytes(scriptRef)}ff`,
+          ],
+        ),
+      );
+    const within = inPieces(16_000);
+    expect(within.length / 2).toBeLessThanOrEqual(16_384);
+    expect(readUtxo(within).script).toMatchObject({
+      type: "native",
+      hash: refHash(scriptRef),
+    });
+    for (const size of [65_536, 262_144, 1_048_576]) {
+      const given = inPieces(size);
+      const { thrown, ms } = timed(() => readUtxo(given));
+      expect([size, ms < 200]).toEqual([size, true]);
+      expect((thrown as UtxoError).kind).toBe("outRef");
+      expect((thrown as Error).message).toBe(
+        "not the CBOR of a transaction unspent output: it is more than the 16384 bytes of the protocol's maximum transaction size, of which its output is a part",
+      );
+      expect(() => toUtxo(given)).toThrow(
+        "invalid utxo: not the CBOR of a transaction unspent output: it is more than",
+      );
+      expect(() => readOutRef(given)).toThrow(UtxoError);
+    }
+    // A UTxO of 16 384 bytes is read, one of 16 385 refused
+    const pieces = 16_384 - (within.length / 2 - 16_000);
+    expect(inPieces(pieces).length / 2).toBe(16_384);
+    expect(readUtxo(inPieces(pieces)).script?.type).toBe("native");
+    expect(() => readUtxo(inPieces(pieces + 1))).toThrow(
+      "it is more than the 16384 bytes",
+    );
   });
 });
 

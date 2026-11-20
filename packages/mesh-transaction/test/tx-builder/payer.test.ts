@@ -741,6 +741,68 @@ describe("TxBuilder: the payer read and the other reads", () => {
     expect(signers.message).toContain(named);
   });
 
+  it("fails a payment at once with the error of the read when the wallet, the snapshot or the provider holds a UTxO in CBOR longer than a transaction, its script under tag 24 in empty pieces; refused at once as well as a part's UTxO, among knownUtxos and the UTxOs requiredSigners is given", async () => {
+    const scriptRef = `8200581c${"ab".repeat(28)}`;
+    const said =
+      "not the CBOR of a transaction unspent output: it is more than the 16384 bytes of the protocol's maximum transaction size, of which its output is a part";
+    const timed = async (run: () => unknown) => {
+      const started = performance.now();
+      const error = await caught(run);
+      expect(performance.now() - started).toBeLessThan(500);
+      return error as TxBuildError;
+    };
+    const plain = asCbor(funds[0]!);
+    for (const size of [65_536, 262_144, 1_048_576]) {
+      const long =
+        `82825820${"ef".repeat(32)}00a3` +
+        `0058${(hexOf(wallet).length / 2).toString(16)}${hexOf(wallet)}011a02faf080` +
+        `03d8185f${"40".repeat(size)}58${(scriptRef.length / 2).toString(16)}${scriptRef}ff`;
+      const fromWallet = await timed(() =>
+        offline().build([pay()], { payer: cip30([plain, long]) }),
+      );
+      expect(fromWallet.code).toBe("WALLET_FAILED");
+      expect(fromWallet.message).toContain(said);
+      const fromSnapshot = await timed(() =>
+        offline().build([pay()], {
+          payer: { changeAddress: wallet, utxos: [plain, long] },
+        }),
+      );
+      expect(fromSnapshot.code).toBe("INVALID_OPTION");
+      expect(fromSnapshot.message).toContain(said);
+      const { provider } = fakeProvider();
+      const answering = {
+        ...provider,
+        fetchAddressUTxOs: async () => [plain, long],
+      } as unknown as IFetcher;
+      const fromProvider = await timed(() =>
+        new TxBuilder({ network, params, provider: answering }).build([pay()], {
+          payer: wallet,
+        }),
+      );
+      expect(fromProvider.code).toBe("PROVIDER_FAILED");
+      expect(fromProvider.message).toContain(said);
+
+      const asPart = await timed(() => spend.pubKey({ utxo: long }));
+      expect(TxError.is(asPart, "INVALID_OUT_REF")).toBe(true);
+      expect(asPart.message).toContain(said);
+      const built = await offline().build([pay()], {
+        payer: { changeAddress: wallet, utxos: [plain] },
+      });
+      const known = await timed(() =>
+        offline().fromCbor(built.tx, { knownUtxos: [plain, long] }),
+      );
+      expect(known.code).toBe("INVALID_OPTION");
+      expect(known.message).toMatch(
+        /^invalid knownUtxos: entry 1 is .*, not the CBOR of a transaction unspent output$/,
+      );
+      const signers = await timed(() =>
+        requiredSigners(built.tx, [plain, long]),
+      );
+      expect(signers.code).toBe("INVALID_OPTION");
+      expect(signers.message).toContain(said);
+    }
+  });
+
   it("starts the wallet's reads and the lookups together", async () => {
     const { open, opened } = gate();
     const started: string[] = [];

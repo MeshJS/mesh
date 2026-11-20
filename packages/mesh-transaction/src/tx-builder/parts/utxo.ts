@@ -591,11 +591,19 @@ const withScript = (script: OutputScript | undefined) =>
 /**
  * A UTxO from the CBOR of a transaction unspent output. Its inline datum and its reference script
  * are found by the token reader and kept as the bytes hold them; the decoder reads the rest with
- * stand-ins in their place, and the script is described as `describeScriptRef` describes one. An
- * output with a key other than 0 to 3, which the ledger takes in no output, is refused before
- * the decoder runs, its out ref named where the reader finds it
+ * stand-ins in their place, and the script is described as `describeScriptRef` describes one. A
+ * UTxO of more than `MAX_TX_BYTES` is refused before it is read; an output with a key other than
+ * 0 to 3, which the ledger takes in no output, before the decoder runs, its out ref named where
+ * the reader finds it
  */
 const fromCbor = (cbor: string): Utxo => {
+  // Its output is part of a transaction: one longer than a transaction is refused before it is
+  // read, as the token reader takes a time that grows with the square of its pieces
+  if (cbor.length > 2 * MAX_TX_BYTES)
+    return problem(
+      "outRef",
+      `not the CBOR of a transaction unspent output: it is more than the ${MAX_TX_BYTES} bytes of the protocol's maximum transaction size, of which its output is a part`,
+    );
   let split: UtxoBytes | undefined;
   try {
     if (!HEX_BYTES.test(cbor)) throw new Error("the text is not hex");
@@ -920,7 +928,7 @@ const UTXO_FORMS =
  *   quantity that cannot be read; a reward address; a `dataHash` that is not the hash of the
  *   `plutusData` beside it; a `scriptHash` without a `scriptRef`; a script hash that is not the
  *   script's; text that is not the CBOR of a transaction unspent output, or the CBOR of one whose
- *   output has a key other than 0 to 3
+ *   output has a key other than 0 to 3 or of more than `MAX_TX_BYTES` (16 384) bytes
  */
 export const toUtxo = (given: UtxoInput): Utxo => {
   try {
