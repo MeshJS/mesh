@@ -636,8 +636,8 @@ const fromCbor = (cbor: string): Utxo => {
     );
   }
   const { standIn, inlineDatum, scriptRef, outRef, otherKey } = split;
-  // The decoder would read what follows such a key one place off, a script at a key's place
-  // among them, and decode it: refused before it runs
+  // The ledger takes no output with such a key, and the decoder passes over its value: refused
+  // before the decoder runs
   if (otherKey) {
     const named =
       outRef !== undefined &&

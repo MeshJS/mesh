@@ -158,6 +158,12 @@ export const topItems = (txHex: string) => {
   return items;
 };
 
+/** A transaction marked as failing: its validity flag false, its other items as written */
+export const markedFailing = (txHex: string) => {
+  const [bodyHex, witnessSetHex, , aux] = topItems(txHex);
+  return tx(bodyHex!, witnessSetHex, { valid: "f4", aux });
+};
+
 /** The key-value pairs of a CBOR map, each as hex */
 export const mapPairs = (mapHex: string) => {
   const reader = new CborReader(HexBlob(mapHex));

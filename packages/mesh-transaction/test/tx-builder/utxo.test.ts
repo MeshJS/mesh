@@ -1961,7 +1961,7 @@ describe("the data and the reference script of a UTxO, read without being decode
     });
   });
 
-  it("refuses at once a UTxO in CBOR whose output has a key other than 0, 1, 2 and 3, its out ref named, before the decoder reads what follows the key one place off and decodes a script 3 000 deep standing at a key's place: key 4, key -1, key 4 in a long form, a key of text, in a map of indefinite length, a script at key 3 beside it; a key 3 in a long form is key 3", () => {
+  it("refuses at once a UTxO in CBOR whose output has a key other than 0, 1, 2 and 3, its out ref named, before the decoder runs, which passes over the value of such a key, a script 3 000 deep among them: key 4, key -1, key 4 in a long form, a key of text, in a map of indefinite length, a script at key 3 beside it; a key 3 in a long form is key 3", () => {
     const shallow = `8200${nested(1)}`;
     const deepOne = `8200${nested(3_000)}`;
     const held = (scriptRef: string) => `d818${cbor.bytes(scriptRef)}`;

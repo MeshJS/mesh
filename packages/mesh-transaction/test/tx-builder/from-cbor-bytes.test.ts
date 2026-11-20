@@ -3,6 +3,7 @@ import { Address, Crypto, HexBlob, Serialization } from "@meshsdk/core-cst";
 
 import {
   addWitnesses,
+  requiredSigners,
   TxBuilder,
   TxBuildError,
   TxError,
@@ -1223,61 +1224,113 @@ describe("TxBuilder.fromCbor › a key the decoder does not read, read as the de
     });
   };
 
-  it("reads a body whose unknown key makes the decoder read a ttl or a fee the bytes do not hold, as the decoder reads it: a ledger refuses it", async () => {
+  it("passes over the value of a body key the decoder does not know, as the decoder does: a ledger refuses it", async () => {
     const lawful: [string, string][] = [
       [uint(0), inputs()],
       [uint(1), arr(arr(bytes(`60${key.keyHash}`), uint(9_600_000)))],
       [uint(2), uint(400_000)],
     ];
-    // The value 3 of key 25 read as the key of 500, a ttl; the value 2 as the key of a second fee
-    const ttl = await read(
-      tx(map(...lawful, [uint(25), uint(3)], [uint(500), uint(77)])),
-    );
-    expect(ttl.validity?.invalidHereafter).toBe(500);
-    const fee = await read(
-      tx(map(...lawful, [uint(25), uint(2)], [uint(5_000_000), uint(77)])),
-    );
-    expect(fee.fee).toBe(5_000_000n);
-    // Key 6, the update proposals of the eras before Conway, is passed over; a key after 22 and
-    // key 12 are not read by the decoder
-    expect(
-      (await read(tx(map(...lawful, [uint(6), arr(map(), uint(1))])))).fee,
-    ).toBe(400_000n);
+    // Neither the value 77 nor the key 500 is read as a ttl or a fee
+    for (const extra of [
+      [uint(500), uint(77)],
+      [uint(12), uint(0)],
+      [uint(24), uint(0)],
+      [uint(27), arr(uint(1), uint(2))],
+      [uint(6), arr(map(), uint(1))],
+    ] as [string, string][]) {
+      const given = tx(map(...lawful, extra));
+      const made = await read(given);
+      expect(made.tx).toBe(given);
+      expect(made.fee).toBe(400_000n);
+      expect(made.validity?.invalidHereafter).toBeUndefined();
+    }
+    // Keys 23, 25 and 26, the sub transactions, direct deposits and balance intervals of a later
+    // era, are read by the decoder, which refuses them in another form
     for (const extra of [
       [uint(23), uint(0)],
-      [uint(12), uint(0)],
+      [uint(23), arr()],
+      [uint(25), uint(3)],
+      [uint(25), map()],
+      [uint(26), map()],
     ] as [string, string][])
       await notRead(tx(map(...lawful, extra)));
     expect((await read(tx(map(...lawful)))).fee).toBe(400_000n);
   });
 
-  it("reads an output whose unknown key makes the decoder read an inline datum the bytes do not hold, as the decoder reads it", async () => {
-    // {0: address, 1: value, 4: 2, [1, 24(h'182a')]: 5}: the value 2 read as the datum's key
-    const output = map(
-      [uint(0), bytes(`60${key.keyHash}`)],
-      [uint(1), uint(3_000_000)],
-      [uint(4), uint(2)],
-      [arr(uint(1), `d818${bytes("182a")}`), uint(5)],
-    );
+  it("refuses required signers written as credentials, which the decoder reads as the guards of a later era and no signer", async () => {
+    const lawful: [string, string][] = [
+      [uint(0), inputs()],
+      [uint(1), arr(arr(bytes(`60${key.keyHash}`), uint(9_600_000)))],
+      [uint(2), uint(400_000)],
+    ];
+    for (const guards of [
+      arr(arr(uint(0), bytes(other.keyHash))),
+      tag258(
+        arr(arr(uint(0), bytes(other.keyHash)), arr(uint(1), bytes(POLICY))),
+      ),
+    ]) {
+      const given = tx(map(...lawful, [uint(14), guards]));
+      const error = await caught(() => read(given));
+      expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
+      expect((error as Error).message).toContain(
+        "its required signers are credentials",
+      );
+      let signers: unknown;
+      try {
+        signers = requiredSigners(given, knownUtxos());
+      } catch (e) {
+        signers = e;
+      }
+      expect(TxError.is(signers, "INVALID_OPTION")).toBe(true);
+    }
+    // The key hashes of Conway are read, each a signer
     const made = await read(
+      tx(map(...lawful, [uint(14), tag258(arr(bytes(other.keyHash)))])),
+    );
+    expect(made.missing.map((m) => m.keyHash).sort()).toEqual(
+      [key.keyHash, other.keyHash].sort(),
+    );
+  });
+
+  it("passes over an output key the decoder does not know, as the decoder does, and refuses a key after it that is not an integer", async () => {
+    const output = (...extra: [string, string][]) =>
       tx(
         map(
           [uint(0), inputs()],
-          [uint(1), arr(output)],
+          [
+            uint(1),
+            arr(
+              map(
+                [uint(0), bytes(`60${key.keyHash}`)],
+                [uint(1), uint(3_000_000)],
+                ...extra,
+              ),
+            ),
+          ],
           [uint(2), uint(170_000)],
         ),
+      );
+    // {0: address, 1: value, 4: 2}: the value 2 is passed over, no datum is read from it
+    const made = await read(output([uint(4), uint(2)]));
+    expect(made.outputs[0]!.datum).toBeUndefined();
+    // {0: address, 1: value, 4: 2, [1, 24(h'182a')]: 5}
+    await notRead(
+      output(
+        [uint(4), uint(2)],
+        [arr(uint(1), `d818${bytes("182a")}`), uint(5)],
       ),
     );
-    expect(made.outputs[0]!.datum).toEqual({
-      type: "inline",
-      data: { type: "CBOR", content: "182a" },
-    });
   });
 
-  it("refuses, as the decoder does, a witness set with a key after 7 and auxiliary data in the tagged form with a key after 4", async () => {
-    await notRead(tx(bodyWith(), map([uint(8), arr()])));
-    await notRead(
+  it("passes over a witness set key after 7 and reads Plutus V4 scripts in tagged auxiliary data, as the decoder does; refuses a key after 5 there", async () => {
+    for (const given of [
+      tx(bodyWith(), map([uint(8), arr()])),
+      tx(bodyWith(), map([uint(24), uint(0)])),
       tx(bodyWith(), map(), { aux: `d90103${map([uint(5), arr()])}` }),
+    ])
+      expect((await read(given)).tx).toBe(given);
+    await notRead(
+      tx(bodyWith(), map(), { aux: `d90103${map([uint(6), arr()])}` }),
     );
     // Metadata in the plain form is a map of labels, any of which is read
     const labels = tx(bodyWith(), map(), {

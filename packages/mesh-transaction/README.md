@@ -1761,14 +1761,16 @@ type, unless named otherwise:
   inputs or reference inputs, an output address with bytes after the address;
 - a protocol parameter change proposal, which this library does not read from CBOR (the
   transaction itself may be valid);
+- required signers written as credentials, the guards of an era after Conway, which the value
+  decoder reads into no signer (`requiredSigners` refuses them too);
 - another network: `NETWORK_MISMATCH`, for its addresses, its UTxOs or the network id its body
   states (role `body`);
 - a signature that is not of the body: `INVALID_WITNESS` (`wrongBody`).
 
 A map that repeats a key and a key the value decoder does not know are read as that decoder reads
 them, and the members show that reading: the last value of a repeated key, or both output lists of
-a body joined, and the value of an unknown key read as the next key. A node refuses such a
-transaction since protocol version 9. A validity flag of false is read as the bytes give it, and
+a body joined, and an unknown key of a body, an output or a witness set passed over with its value.
+A node refuses such a transaction since protocol version 9. A validity flag of false is read as the bytes give it, and
 the transaction is shown as one marked valid: a node sets the flag itself. `builder.restore` reads
 the transaction and the witnesses of a JSON within the same bounds, before any of them is decoded,
 and refuses a transaction whose witness set repeats the key of its vkey or bootstrap witnesses.
@@ -2189,9 +2191,9 @@ an inline datum, `dataHash` without it a datum hash, and `scriptRef` the referen
   of a Plutus version other than `V1`, `V2` and `V3`, or whose `hash` is not its own (an `unknown`
   script with another hash stays `unknown`);
 - text that is not the CBOR of a transaction unspent output, and the CBOR of one whose output has
-  a key other than 0, 1, 2 and 3, which the ledger takes in no output: the value decoder would read
-  what follows such a key one place off, a script at a key's place among it. It is refused before
-  it is decoded, its out ref named (among `knownUtxos`, its entry).
+  a key other than 0, 1, 2 and 3, which the ledger takes in no output and the value decoder passes
+  over with its value. It is refused before it is decoded, its out ref named (among `knownUtxos`,
+  its entry).
 
 `output()` refuses an inline datum that is not exactly one item of Plutus data (`INVALID_DATA`), and
 every output the builder makes is a UTxO it takes back. The error names where the UTxO was given:

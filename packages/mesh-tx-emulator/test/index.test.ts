@@ -23,6 +23,7 @@ import {
 } from "@meshsdk/core";
 import {
   Cardano,
+  CborWriter,
   deserializeTx,
   scriptHashToRewardAddress,
   transactionPrototypeFromHex,
@@ -56,6 +57,19 @@ const outRef = (n: number) => ({
 const anchor = {
   anchor_url: "https://example.com/a.json",
   anchor_data_hash: "cd".repeat(32),
+};
+/** A signed transaction marked as failing: its validity flag false, its other items as written */
+const markedFailing = (txHex: string) => {
+  const tx = deserializeTx(txHex);
+  const writer = new CborWriter();
+  writer.writeStartArray(4);
+  writer.writeEncodedValue(Buffer.from(tx.body().toCbor(), "hex"));
+  writer.writeEncodedValue(Buffer.from(tx.witnessSet().toCbor(), "hex"));
+  writer.writeBoolean(false);
+  const aux = tx.auxiliaryData();
+  if (aux) writer.writeEncodedValue(Buffer.from(aux.toCbor(), "hex"));
+  else writer.writeNull();
+  return writer.encodeAsHex();
 };
 /** A transaction hash no ledger here holds */
 const UNKNOWN = "ab".repeat(32);
@@ -1138,12 +1152,9 @@ describe.each(["scalus", "cquisitor"] as const)(
         .registerStakeCertificate(openStake)
         .changeAddress(address)
         .complete();
-      const tx = deserializeTx(await wallet.signTx(txHex));
-      tx.setIsValid(false);
+      const tx = markedFailing(await wallet.signTx(txHex));
 
-      expect(expectAccepted(await emulator.submit(tx.toCbor())).isValid).toBe(
-        false,
-      );
+      expect(expectAccepted(await emulator.submit(tx)).isValid).toBe(false);
       expect((await emulator.fetchAccountInfo(openStake)).active).toBe(false);
       // The registration it carried was not made, so it still can be
       expectAccepted(
@@ -1486,9 +1497,8 @@ describe.each(["scalus", "cquisitor"] as const)(
         .setCollateralReturnAddress(address)
         .changeAddress(address)
         .complete();
-      const tx = deserializeTx(await wallet.signTx(txHex));
-      tx.setIsValid(false);
-      const result = expectAccepted(await emulator.submit(tx.toCbor()));
+      const tx = markedFailing(await wallet.signTx(txHex));
+      const result = expectAccepted(await emulator.submit(tx));
       const slot = emulator.slot;
 
       const info = await emulator.fetchTxInfo(result.txHash);
@@ -2841,12 +2851,11 @@ describe("TxEmulator (cquisitor) ledger rules", () => {
         .setCollateralReturnAddress(address)
         .changeAddress(address)
         .complete();
-      const tx = deserializeTx(await wallet.signTx(txHex));
-      tx.setIsValid(false);
+      const tx = markedFailing(await wallet.signTx(txHex));
       return {
         emulator,
         collateral,
-        result: await emulator.submit(tx.toCbor()),
+        result: await emulator.submit(tx),
       };
     };
 

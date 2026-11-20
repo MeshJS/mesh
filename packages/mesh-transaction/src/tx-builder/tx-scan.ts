@@ -37,7 +37,7 @@ import { CborReader, HexBlob, Serialization } from "@meshsdk/core-cst";
  * payment from a payer whose 40 UTxOs each hold one in 53 ms, from a provider, a wallet or a
  * snapshot; a transaction of 16 384 bytes whose 452 reference inputs each hold one in 0.47 s, by
  * `fromCbor` and by `requiredSigners`. A UTxO in CBOR whose output has a key other than 0 to 3 is
- * refused before the decoder runs: the decoder reads what follows such a key one place off.
+ * refused before the decoder runs: the ledger takes no such output.
  */
 
 const State = Serialization.CborReaderState;
@@ -355,8 +355,8 @@ export type UtxoBytes = {
   outRef?: { txHash: string; outputIndex: bigint };
   /**
    * Set where the output is a map with a key other than 0, 1, 2 or 3, read as the value decoder
-   * reads a key, a key 3 in a longer form being 3: the decoder does not read the value of such a
-   * key, and reads what follows it one place off, a script at a key's place among them
+   * reads a key, a key 3 in a longer form being 3: the ledger takes no such output, and the
+   * decoder passes over the value of such a key
    */
   otherKey?: true;
 };

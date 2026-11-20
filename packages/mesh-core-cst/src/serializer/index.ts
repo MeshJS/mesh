@@ -603,10 +603,12 @@ class CardanoSDKSerializerCore {
 
   private scriptsProvided: Set<string> = new Set<string>();
   private datumsProvided: Set<PlutusData> = new Set<PlutusData>();
+  // Plutus V4 is not supported: no script of it is ever used
   private usedLanguages: Record<PlutusLanguageVersion, boolean> = {
     [0]: false,
     [1]: false,
     [2]: false,
+    [3]: false,
   };
   private protocolParams: Protocol;
   private refScriptSize: number;

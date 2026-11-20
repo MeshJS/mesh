@@ -116,7 +116,9 @@ export const checkRequirementsMatchTrusted = (
   );
 
 /** Parses the payload's signed tx once, shared across the rule checks below. */
-export const parseSignedTx = (payload: PaymentPayload) => {
+export const parseSignedTx = (
+  payload: PaymentPayload,
+): { tx: Tx; txHex: string } => {
   const txHex = base64ToHex(payload.payload.transaction);
   return { tx: deserializeTx(txHex), txHex };
 };

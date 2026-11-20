@@ -16,6 +16,7 @@ import {
 } from "../../src/tx-builder";
 import { cip30Wallet } from "../cip30-wallet";
 import { alwaysFailCbor, alwaysSucceedCbor } from "../test-util";
+import { markedFailing } from "./cbor-util";
 import { asCbor, asMesh, ref } from "./utxo-util";
 
 const words = Array(24).fill("solution");
@@ -194,11 +195,10 @@ describe.each(["scalus", "cquisitor"] as const)(
       );
       const { inputs, total, return: returned } = built.collateral!;
       expect(inputs.map(ref)).toEqual([given.input, five.input]);
-      const marked = deserializeTx(
+      const marked = markedFailing(
         await addWitnesses(built.tx, await signWitnesses(wallet, built.tx)),
       );
-      marked.setIsValid(false);
-      const result = await emulator.submit(marked.toCbor());
+      const result = await emulator.submit(marked);
       if (!result.accepted) throw new Error(JSON.stringify(result));
       expect(result.isValid).toBe(false);
       expect(result.consumed.map((u) => u.input)).toEqual(
@@ -346,11 +346,10 @@ describe.each(["scalus", "cquisitor"] as const)(
       );
       const { inputs, total } = built.collateral!;
       expect(inputs.map(ref)).toEqual([four.input]);
-      const marked = deserializeTx(
+      const marked = markedFailing(
         await addWitnesses(built.tx, await signWitnesses(wallet, built.tx)),
       );
-      marked.setIsValid(false);
-      const result = await emulator.submit(marked.toCbor());
+      const result = await emulator.submit(marked);
       if (!result.accepted) throw new Error(JSON.stringify(result));
       expect(result.isValid).toBe(false);
       expect(result.consumed.map((u) => u.input)).toEqual([four.input]);

@@ -32,6 +32,7 @@ import {
   head,
   map,
   mapPairs,
+  markedFailing,
   tag258,
   topItems,
   txHashOf,
@@ -622,8 +623,7 @@ describe.each(["scalus", "cquisitor"] as const)(
       ]);
       witnessSet.setVkeys(vkeys);
       flipped.setWitnessSet(witnessSet);
-      flipped.setIsValid(false);
-      const result = await emulator.submit(flipped.toCbor());
+      const result = await emulator.submit(markedFailing(flipped.toCbor()));
       expect(rules(result)).toEqual([]);
       expect(emulator.utxos({ address: user.address })).toEqual([]);
     });

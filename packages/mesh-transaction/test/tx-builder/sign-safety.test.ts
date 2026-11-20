@@ -2920,7 +2920,7 @@ describe("R8: awaitInclusion changes nothing", () => {
         Transaction.fromCbor(TxCBOR(tx)).witnessSet().redeemers()?.values() ??
         []
       ).map((r) => ({
-        tag: TAGS[r.tag()]!,
+        tag: TAGS[Number(r.tag())]!,
         index: Number(r.index()),
         budget: { mem: 1000, steps: 2000 },
       })),

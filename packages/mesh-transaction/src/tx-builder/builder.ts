@@ -2152,13 +2152,14 @@ export class TxBuilder {
    *   in about a second.
    *
    * A map that repeats a key, and a key the value decoder does not know, are read as that
-   * decoder reads them: the last value, both output lists joined, the value of an unknown key
-   * read as the next key. A node refuses such a transaction since protocol version 9.
+   * decoder reads them: the last value, both output lists joined, an unknown key passed over
+   * with its value. A node refuses such a transaction since protocol version 9.
    *
    * Once decoded, a transaction a ledger does not take is refused as well: a negative fee, a
    * token quantity of zero in an output or the mint, an out ref named twice among the inputs,
-   * the collateral inputs or the reference inputs, and an output address with bytes after the
-   * address they hold. Reading takes a time that grows with the data the transaction carries:
+   * the collateral inputs or the reference inputs, an output address with bytes after the
+   * address they hold, and required signers written as credentials, the guards of an era after
+   * Conway, which the decoder reads into no signer. Reading takes a time that grows with the data the transaction carries:
    * within these limits up to about a second on a laptop, on the thread that calls it, which
    * runs nothing else meanwhile. The UTxOs it names add the time of their bytes alone: their
    * data is not decoded (an inline datum is kept as the bytes hold it, never judged, and a

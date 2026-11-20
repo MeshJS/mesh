@@ -2,7 +2,7 @@ import { inConwayEra, setInConwayEra } from "@cardano-sdk/core";
 
 import type { TransactionPrototype } from "@meshsdk/common";
 
-import { Transaction } from "../types";
+import { CborWriter, Transaction, TxCBOR } from "../types";
 import { auxiliaryDataPrototypeToCardano } from "./auxiliary-data";
 import { transactionBodyPrototypeToCardano } from "./body";
 import { transactionWitnessSetPrototypeToCardano } from "./witness-set";
@@ -32,10 +32,11 @@ export type TxPrototypeToCborOptions = {
  * reading a module-global (`inConwayEra`, flipped by `setInConwayEra`) at *serialization* time —
  * verified: building under `setInConwayEra(true)` and then serializing under `false` yields the
  * untagged form. Since the returned `Transaction` is serialized later by the caller, the encoding
- * is whatever the ambient global says at that moment — and that global defaults to `false` but is
- * set to `true` as a side effect of constructing a `CardanoSDKSerializer`. If you need a
- * deterministic result, use `transactionPrototypeToHex`, which pins the flag around the actual
- * `toCbor()` call.
+ * is whatever the ambient global says at that moment — and that global defaults to `true` (since
+ * `@cardano-sdk/core` 0.47) and is set to `true` as a side effect of constructing a
+ * `CardanoSDKSerializer`. A transaction marked invalid is the exception: it is encoded when it is
+ * built, as the global says then. If you need a deterministic result, use
+ * `transactionPrototypeToHex`, which pins the flag around the building and the `toCbor()` call.
  */
 export const transactionPrototypeToCardano = (proto: TransactionPrototype): Transaction => {
   const body = transactionBodyPrototypeToCardano(proto.body);
@@ -45,17 +46,27 @@ export const transactionPrototypeToCardano = (proto: TransactionPrototype): Tran
     : undefined;
 
   const transaction = new Transaction(body, witnessSet, auxiliaryData);
-  // Constructor has no `isValid` param — must be set explicitly, or every phase-2-invalid
-  // (collateral-only, expected-to-fail-on-chain) transaction would silently round-trip as valid.
-  transaction.setIsValid(proto.is_valid);
-  return transaction;
+  if (proto.is_valid) return transaction;
+  // The constructor marks every transaction valid, and `@cardano-sdk/core` sets the flag only
+  // when it reads one: a phase-2-invalid (collateral-only) transaction is written with the flag
+  // false and read back, or it would silently round-trip as valid. Its sets are encoded here, as
+  // the ambient `inConwayEra` says at this moment.
+  const writer = new CborWriter();
+  writer.writeStartArray(4);
+  writer.writeEncodedValue(Buffer.from(body.toCbor(), "hex"));
+  writer.writeEncodedValue(Buffer.from(witnessSet.toCbor(), "hex"));
+  writer.writeBoolean(false);
+  if (auxiliaryData)
+    writer.writeEncodedValue(Buffer.from(auxiliaryData.toCbor(), "hex"));
+  else writer.writeNull();
+  return Transaction.fromCbor(TxCBOR(writer.encodeAsHex()));
 };
 
 /**
  * CST equivalent of whisky's `proto_to_transaction_hex`, with deterministic set encoding.
  *
- * Pins `@cardano-sdk/core`'s `inConwayEra` global for the duration of the `toCbor()` call and
- * restores it afterwards, so (a) every set in the transaction is encoded the same way and (b)
+ * Pins `@cardano-sdk/core`'s `inConwayEra` global for the duration of the building and the
+ * `toCbor()` call and restores it afterwards, so (a) every set in the transaction is encoded the same way and (b)
  * this call neither depends on nor leaks ambient global state. The save/restore is the only way
  * to control it — the flag is not exposed per-`CborSet`.
  */
@@ -63,11 +74,10 @@ export const transactionPrototypeToHex = (
   proto: TransactionPrototype,
   { taggedSets = true }: TxPrototypeToCborOptions = {},
 ): string => {
-  const transaction = transactionPrototypeToCardano(proto);
   const previous = inConwayEra;
   setInConwayEra(taggedSets);
   try {
-    return transaction.toCbor();
+    return transactionPrototypeToCardano(proto).toCbor();
   } finally {
     setInConwayEra(previous);
   }
