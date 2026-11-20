@@ -24,7 +24,7 @@ import {
   UtxoTwiceError,
 } from "./parts/utxo";
 import { walletCodeOf } from "./payer";
-import { MAX_REF_SCRIPT_BYTES } from "./tx-scan";
+import { checkConwayKeys, MAX_REF_SCRIPT_BYTES, TxScanError } from "./tx-scan";
 import {
   addAddress,
   addCredential,
@@ -394,6 +394,8 @@ const readRawTx = (hex: string): RawTx => {
     expectFinished(reader);
   }
   const auxiliaryData = rest[0]![0] === NULL ? undefined : rest[0]!;
+  // A key of a later era, or of none, is refused before a value decoder reads its value
+  checkConwayKeys(body!, witnessSet!);
   return {
     ...items,
     body: Serialization.TransactionBody.fromCbor(HexBlob(toHex(body!))),
@@ -428,15 +430,24 @@ const invalidTx = (tx: unknown, cause?: unknown) =>
   );
 
 /**
- * Reads `tx` as a transaction, its parts decoded once
+ * Reads `tx` as a transaction, its parts decoded once. A key the Conway ledger does not read, of
+ * its body, an output or its witness set, is refused before they are decoded (`checkConwayKeys`)
  * @throws TxBuildError INVALID_OPTION for a value that is not the CBOR of a transaction whose
- *   vkey and bootstrap witnesses can be read
+ *   vkey and bootstrap witnesses can be read, and for one with such a key
  */
 export const readTransaction = (tx: unknown): RawTx => {
   if (!isHex(tx)) throw invalidTx(tx);
   try {
     return readRawTx(tx);
   } catch (error) {
+    if (error instanceof TxScanError)
+      throw new TxBuildError("INVALID_OPTION", `invalid tx: ${error.message}`, {
+        details: {
+          option: "tx",
+          value: "string",
+          allowed: "a transaction in CBOR hex",
+        },
+      });
     throw invalidTx(tx, error);
   }
 };
@@ -1467,7 +1478,8 @@ export const refScriptsRefused = (tx: unknown, past: string) =>
  *   transaction does not name is passed over, its out ref alone read; two that name one output
  *   must hold the same, and two texts of CBOR for one output be one text
  * @throws TxBuildError UTXO_NOT_FOUND for an input or collateral input whose UTxO is not in
- *   `spent`; INVALID_OPTION for a `tx` that is not a transaction, for one whose spent and
+ *   `spent`; INVALID_OPTION for a `tx` that is not a transaction, or holds a key of its body, an
+ *   output or its witness set the Conway ledger does not read, for one whose spent and
  *   reference inputs hold more than `MAX_REF_SCRIPT_BYTES` of reference scripts in the UTxOs of
  *   `spent`, counted before they are read whole, and for a `spent` that is not a list or holds an
  *   entry that is not a UTxO (an address that does not parse among them), or two entries that

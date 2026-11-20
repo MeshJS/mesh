@@ -45,7 +45,9 @@ import { CborReader, HexBlob, Serialization } from "@meshsdk/core-cst";
  * bytes from its reference inputs (203 359 bytes, the most the bound lets through) in 0.67 s by
  * `requiredSigners`, 0.72 s by `fromCbor`, 1.5 s by `plan` as a step given built, its record
  * 4.2 MB; one that runs 235 is refused in 23, 21 and 46 ms. A UTxO in CBOR whose output has a
- * key other than 0 to 3 is refused before the decoder runs: the ledger takes no such output.
+ * key other than 0 to 3 is refused before the decoder runs: the ledger takes no such output. So is
+ * a transaction whose body, outputs or witness set hold a key the Conway ledger does not read
+ * (`checkConwayKeys`), by every reader of a whole transaction.
  */
 
 const State = Serialization.CborReaderState;
@@ -565,6 +567,99 @@ const longestAddress = (bytes: Uint8Array): number => {
     else reader.skipValue();
   }
   return longest;
+};
+
+/**
+ * The keys of a transaction body the Conway ledger reads: 0 to 22 but 6, 10 and 12, which it
+ * does not know. Those of a later era (23 sub-transactions, 25 direct deposits, 26 balance
+ * intervals) the value decoder of `@cardano-sdk/core` reads, and any other it passes over with its
+ * value
+ */
+const CONWAY_BODY_KEYS: ReadonlySet<bigint> = new Set(
+  [0, 1, 2, 3, 4, 5, 7, 8, 9, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22].map(
+    BigInt,
+  ),
+);
+
+/** The keys of a witness set the Conway ledger reads: 0 to 7 */
+const MAX_WITNESS_KEY = 7n;
+
+/** The keys of an output in the map form the Conway ledger reads: 0 to 3 */
+const MAX_OUTPUT_KEY = 3n;
+
+/**
+ * Reads the keys of the map the reader is at, each an unsigned integer `takes` takes, its value
+ * read by `value`, else skipped; refused with `refused` for any other key
+ */
+const readKeys = (
+  reader: CborReader,
+  takes: (key: bigint) => boolean,
+  refused: string,
+  value: (key: bigint) => void = () => reader.skipValue(),
+) => {
+  reader.readStartMap();
+  while (reader.peekState() !== State.EndMap) {
+    if (reader.peekState() !== State.UnsignedInteger)
+      throw new TxScanError(refused);
+    const key = reader.readUInt();
+    if (!takes(key)) throw new TxScanError(refused);
+    value(key);
+  }
+  reader.readEndMap();
+};
+
+/**
+ * Refuses a transaction whose body, an output of it (its collateral return among them) or its
+ * witness set holds a key the Conway ledger does not read, before a value decoder runs: read on
+ * the token reader, each value skipped but the outputs'. A node refuses such a transaction, and
+ * the value decoder would read the fields of a later era, or pass over a key with its value. What
+ * is not a map where one is read is left to the decoder, which refuses it
+ * @param body The CBOR of the body
+ * @param witnessSet The CBOR of the witness set
+ * @throws TxScanError with the reason, which quotes none of the bytes
+ */
+export const checkConwayKeys = (
+  body: Uint8Array,
+  witnessSet: Uint8Array,
+): void => {
+  // An output of the array form has no keys
+  const output = (reader: CborReader) => {
+    if (reader.peekState() === State.StartMap)
+      readKeys(
+        reader,
+        (key) => key <= MAX_OUTPUT_KEY,
+        "an output of the transaction has a key other than 0, 1, 2 and 3, which the Conway ledger does not read",
+      );
+    else reader.skipValue();
+  };
+  try {
+    const reader = new CborReader(HexBlob(hexOf(body)));
+    if (reader.peekState() === State.StartMap)
+      readKeys(
+        reader,
+        (key) => CONWAY_BODY_KEYS.has(key),
+        "the body of the transaction has a key the Conway ledger does not read (a field of a later era, or none)",
+        (key) => {
+          if (key === 16n) output(reader);
+          else if (key !== 1n || reader.peekState() !== State.StartArray)
+            reader.skipValue();
+          else {
+            reader.readStartArray();
+            while (reader.peekState() !== State.EndArray) output(reader);
+            reader.readEndArray();
+          }
+        },
+      );
+    const set = new CborReader(HexBlob(hexOf(witnessSet)));
+    if (set.peekState() === State.StartMap)
+      readKeys(
+        set,
+        (key) => key <= MAX_WITNESS_KEY,
+        "the witness set of the transaction has a key other than 0 to 7, which the Conway ledger does not read",
+      );
+  } catch (error) {
+    if (error instanceof TxScanError) throw error;
+  }
 };
 
 /**

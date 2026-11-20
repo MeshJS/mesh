@@ -1210,7 +1210,7 @@ describe("TxBuilder.fromCbor › the CBOR inside a byte string, and the time dat
   }, 60_000);
 });
 
-describe("TxBuilder.fromCbor › a key the decoder does not read, read as the decoder reads it", () => {
+describe("TxBuilder.fromCbor › a key the Conway ledger does not read, refused before it is decoded", () => {
   const read = (given: string) =>
     offline().fromCbor(given, { knownUtxos: knownUtxos() });
   /** A refusal of the decoder: the transaction as a whole, with its type alone */
@@ -1223,38 +1223,78 @@ describe("TxBuilder.fromCbor › a key the decoder does not read, read as the de
       allowed: "a transaction in CBOR hex",
     });
   };
+  /**
+   * The refusal of a key the Conway ledger does not read, by `fromCbor` and `requiredSigners`
+   * alike, in milliseconds, with a message that quotes none of the bytes
+   */
+  const refusedKey = async (given: string, message: string) => {
+    for (const run of [
+      () => read(given),
+      () => requiredSigners(given, knownUtxos()),
+    ]) {
+      const started = performance.now();
+      const error = await caught(run);
+      expect(performance.now() - started).toBeLessThan(1_500);
+      expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
+      expect((error as Error).message).toBe(`invalid tx: ${message}`);
+      expect((error as TxBuildError).details).toEqual({
+        option: "tx",
+        value: "string",
+        allowed: "a transaction in CBOR hex",
+      });
+      expect((error as Error).cause).toBeUndefined();
+    }
+  };
+  const BODY_KEY =
+    "the body of the transaction has a key the Conway ledger does not read (a field of a later era, or none)";
 
-  it("passes over the value of a body key the decoder does not know, as the decoder does: a ledger refuses it", async () => {
+  it("refuses a body key the Conway ledger does not read, before the decoder reads its value: the fields of a later era among them, whatever they hold", async () => {
     const lawful: [string, string][] = [
       [uint(0), inputs()],
       [uint(1), arr(arr(bytes(`60${key.keyHash}`), uint(9_600_000)))],
       [uint(2), uint(400_000)],
     ];
-    // Neither the value 77 nor the key 500 is read as a ttl or a fee
+    // A direct deposit to a base address, which the decoder would quote in its refusal
+    const base = `00${key.keyHash}${other.keyHash}`;
     for (const extra of [
       [uint(500), uint(77)],
+      [uint(6), arr(map(), uint(1))],
+      [uint(10), uint(0)],
       [uint(12), uint(0)],
       [uint(24), uint(0)],
       [uint(27), arr(uint(1), uint(2))],
-      [uint(6), arr(map(), uint(1))],
-    ] as [string, string][]) {
-      const given = tx(map(...lawful, extra));
-      const made = await read(given);
-      expect(made.tx).toBe(given);
-      expect(made.fee).toBe(400_000n);
-      expect(made.validity?.invalidHereafter).toBeUndefined();
-    }
-    // Keys 23, 25 and 26, the sub transactions, direct deposits and balance intervals of a later
-    // era, are read by the decoder, which refuses them in another form
-    for (const extra of [
       [uint(23), uint(0)],
       [uint(23), arr()],
       [uint(25), uint(3)],
-      [uint(25), map()],
+      [uint(25), map([bytes(base), uint(1)])],
       [uint(26), map()],
+      ["20", uint(0)],
+      [bytes("00"), uint(0)],
     ] as [string, string][])
-      await notRead(tx(map(...lawful, extra)));
+      await refusedKey(tx(map(...lawful, extra)), BODY_KEY);
     expect((await read(tx(map(...lawful)))).fee).toBe(400_000n);
+    // Each key of Conway is read, written in any length
+    expect((await read(tx(map(...lawful, ["1816", uint(1)])))).fee).toBe(
+      400_000n,
+    );
+  });
+
+  it("refuses at once a sub-transaction whose datum is at the bound on work, which the decoder would read again at each decode of the body", async () => {
+    const deep = (levels: number) => "81".repeat(levels) + "00";
+    const sub = arr(
+      map([uint(0), inputs(1)], [uint(1), arr()], [uint(2), uint(0)]),
+      map([uint(4), arr(deep(700))]),
+      "f6",
+    );
+    const given = tx(
+      map(
+        [uint(0), inputs()],
+        [uint(1), arr(arr(bytes(`60${key.keyHash}`), uint(9_600_000)))],
+        [uint(2), uint(400_000)],
+        [uint(23), tag258(arr(sub))],
+      ),
+    );
+    await refusedKey(given, BODY_KEY);
   });
 
   it("refuses required signers written as credentials, which the decoder reads as the guards of a later era and no signer", async () => {
@@ -1292,43 +1332,76 @@ describe("TxBuilder.fromCbor › a key the decoder does not read, read as the de
     );
   });
 
-  it("passes over an output key the decoder does not know, as the decoder does, and refuses a key after it that is not an integer", async () => {
+  it("refuses an output key other than 0 to 3, in an output and in the collateral return, before the decoder reads its value", async () => {
     const output = (...extra: [string, string][]) =>
+      map(
+        [uint(0), bytes(`60${key.keyHash}`)],
+        [uint(1), uint(3_000_000)],
+        ...extra,
+      );
+    const OUTPUT_KEY =
+      "an output of the transaction has a key other than 0, 1, 2 and 3, which the Conway ledger does not read";
+    for (const extra of [
+      [uint(4), uint(2)],
+      [uint(4), arr(uint(1), `d818${bytes("182a")}`)],
+      ["1904d2", uint(0)],
+      [arr(uint(1), `d818${bytes("182a")}`), uint(5)],
+    ] as [string, string][]) {
+      await refusedKey(
+        tx(
+          map(
+            [uint(0), inputs()],
+            [uint(1), arr(output(), output(extra))],
+            [uint(2), uint(170_000)],
+          ),
+        ),
+        OUTPUT_KEY,
+      );
+      await refusedKey(
+        tx(
+          map(
+            [uint(0), inputs()],
+            [uint(1), arr(output())],
+            [uint(2), uint(170_000)],
+            [uint(16), output(extra)],
+          ),
+        ),
+        OUTPUT_KEY,
+      );
+    }
+    // Keys 0 to 3, and an output of the array form, are read
+    const made = await read(
       tx(
         map(
           [uint(0), inputs()],
           [
             uint(1),
             arr(
-              map(
-                [uint(0), bytes(`60${key.keyHash}`)],
-                [uint(1), uint(3_000_000)],
-                ...extra,
-              ),
+              output([uint(2), arr(uint(0), bytes("ab".repeat(32)))]),
+              arr(bytes(`60${key.keyHash}`), uint(3_000_000)),
             ),
           ],
           [uint(2), uint(170_000)],
         ),
-      );
-    // {0: address, 1: value, 4: 2}: the value 2 is passed over, no datum is read from it
-    const made = await read(output([uint(4), uint(2)]));
-    expect(made.outputs[0]!.datum).toBeUndefined();
-    // {0: address, 1: value, 4: 2, [1, 24(h'182a')]: 5}
-    await notRead(
-      output(
-        [uint(4), uint(2)],
-        [arr(uint(1), `d818${bytes("182a")}`), uint(5)],
       ),
     );
+    expect(made.outputs).toHaveLength(2);
   });
 
-  it("passes over a witness set key after 7 and reads Plutus V4 scripts in tagged auxiliary data, as the decoder does; refuses a key after 5 there", async () => {
-    for (const given of [
-      tx(bodyWith(), map([uint(8), arr()])),
-      tx(bodyWith(), map([uint(24), uint(0)])),
-      tx(bodyWith(), map(), { aux: `d90103${map([uint(5), arr()])}` }),
+  it("refuses a witness set key after 7 before the decoder reads its value, and reads Plutus V4 scripts in tagged auxiliary data, as the decoder does; refuses a key after 5 there", async () => {
+    for (const witnessSet of [
+      map([uint(8), arr()]),
+      map([uint(24), uint(0)]),
+      map([uint(4), arr()], ["1a00000009", uint(0)]),
     ])
-      expect((await read(given)).tx).toBe(given);
+      await refusedKey(
+        tx(bodyWith(), witnessSet),
+        "the witness set of the transaction has a key other than 0 to 7, which the Conway ledger does not read",
+      );
+    const given = tx(bodyWith(), map(), {
+      aux: `d90103${map([uint(5), arr()])}`,
+    });
+    expect((await read(given)).tx).toBe(given);
     await notRead(
       tx(bodyWith(), map(), { aux: `d90103${map([uint(6), arr()])}` }),
     );

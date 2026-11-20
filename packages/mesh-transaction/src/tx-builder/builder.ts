@@ -2188,9 +2188,11 @@ export class TxBuilder {
    * - carrying more nested data (Plutus data, metadata, scripts) than the value decoder reads
    *   in about a second.
    *
-   * A map that repeats a key, and a key the value decoder does not know, are read as that
-   * decoder reads them: the last value, both output lists joined, an unknown key passed over
-   * with its value. A node refuses such a transaction since protocol version 9.
+   * A map that repeats a key is read as the value decoder reads it: the last value, both output
+   * lists joined; a node refuses such a transaction since protocol version 9. A key the Conway
+   * ledger does not read, of the body, an output or the witness set, is refused before any of it
+   * is decoded: a field of a later era (sub-transactions, direct deposits, balance intervals),
+   * which the decoder reads, and any other, which it passes over with its value.
    *
    * Once decoded, a transaction a ledger does not take is refused as well: a negative fee, a
    * token quantity of zero in an output or the mint, an out ref named twice among the inputs,

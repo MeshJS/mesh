@@ -1764,6 +1764,13 @@ type, unless named otherwise:
   transaction itself may be valid);
 - required signers written as credentials, the guards of an era after Conway, which the value
   decoder reads into no signer (`requiredSigners` refuses them too);
+- a key the Conway ledger does not read, of the body (0 to 22 but 6, 10 and 12), of an output or the
+  collateral return (0 to 3) or of the witness set (0 to 7), before any of it is decoded, with a
+  message that quotes none of the bytes: the fields of a later era (sub-transactions with their
+  witnesses and data, direct deposits, balance intervals), which the value decoder of
+  `@cardano-sdk/core` 0.47 reads, and any other key, which it passes over with its value. Every
+  reader of a whole transaction refuses it so (`requiredSigners`, `after`, a step given built,
+  `restore` among them);
 - spent and reference inputs whose UTxOs hold more than 204 800 bytes of reference scripts in all,
   as a node bounds them (`maxRefScriptSizePerTx`, `ConwayTxRefScriptsSizeTooBig`), each script
   counted as the ledger counts it: refused from the bytes of the UTxOs given or read through the
@@ -1774,11 +1781,10 @@ type, unless named otherwise:
   states (role `body`);
 - a signature that is not of the body: `INVALID_WITNESS` (`wrongBody`).
 
-A map that repeats a key and a key the value decoder does not know are read as that decoder reads
-them, and the members show that reading: the last value of a repeated key, or both output lists of
-a body joined, and an unknown key of a body, an output or a witness set passed over with its value.
-A node refuses such a transaction since protocol version 9. A validity flag of false is read as the bytes give it, and
-the transaction is shown as one marked valid: a node sets the flag itself. `builder.restore` reads
+A map that repeats a key is read as the value decoder reads it, and the members show that reading:
+the last value of a repeated key, or both output lists of a body joined. A node refuses such a
+transaction since protocol version 9. A validity flag of false is read as the bytes give it, and the
+transaction is shown as one marked valid: a node sets the flag itself. `builder.restore` reads
 the transaction and the witnesses of a JSON within the same bounds, before any of them is decoded,
 and refuses a transaction whose witness set repeats the key of its vkey or bootstrap witnesses.
 A witness set that repeats a key is read as the decoder reads it, the last entry.
