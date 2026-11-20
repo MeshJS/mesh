@@ -1735,12 +1735,17 @@ type, unless named otherwise:
   preprod and preview (no parameters are asked for), before a byte of it is read;
 - nested deeper than 1 024 levels, the CBOR inside a byte string under tag 24 counted on: the value
   decoder calls itself once a level, reads that depth on a stack of about a browser's, and
-  overflows it at 2 048;
-- carrying more nested data (Plutus data, metadata, scripts) than the value decoder reads in about
-  a second: its time grows with the square of the depth of data, and with the bytes of each list
-  and map times the items inside it. One datum of lists nested more than about 730 levels is past
-  it, and so are 16 384 bytes of datums nested more than about 54; transactions as wallets and
-  contracts make them take at most two thousandths of the bound;
+  overflows it at 2 048. Data meets the next bound long before: these levels are reached by byte
+  strings under tag 24 nested in each other;
+- carrying more nested data (Plutus data, metadata, scripts) than the value decoder reads in about a
+  second: its time grows with the square of the depth of data, and with the bytes of each list and
+  map times the items inside it, each piece of a string written in pieces counted. One datum of
+  lists nested more than 728 levels is past it (constructors: 434, maps: 523, a native script: 303),
+  and so are 16 384 bytes of datums nested more than 55. The largest of each shape the bound lets
+  through decodes in 0.16 to 0.94 s on a laptop. The real transactions of the tests take 0.02 to
+  0.26 % of the bound, and lawful heavy ones 5 to 11 % (an order book of 120 orders in a datum, a
+  mint of 40 assets with their metadata, outputs of many tokens near 16 384 bytes, 60 datums in the
+  witness set);
 - an output, or the collateral return, that pays an address longer than 256 bytes, before any of
   it is read: a Byron address is written in base58, whose time grows with the square of its
   length, and since Allegra the ledger takes none longer than about 110 bytes;

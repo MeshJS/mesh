@@ -2,16 +2,28 @@ import { CborReader, HexBlob, Serialization } from "@meshsdk/core-cst";
 
 /*
  * The bounds within which a transaction this library did not build is read, before any of it is
- * decoded into a value: its size, the depth of its nesting, and the work the value decoder of
- * `@cardano-sdk/core` would have with it. That decoder reads each array, map and tag with a
- * reader of its own and walks again all that is inside it, copying what is left of the reader's
- * bytes at each step: its time grows with the square of the depth of data, and with the bytes
- * of each container times the items inside it, and it calls itself once a level, so that a datum
- * 2 048 levels deep overflows a small stack. The walk here counts that work on the same library's
- * token reader, `Serialization.CborReader`, read one token at a time: it calls itself nowhere,
- * and walks the largest transaction in some tens of milliseconds. The keys of maps are not
- * judged: a node refuses a map that repeats a key since protocol version 9, and the decoder reads
- * one in its own way, the last value or, for the outputs of a body, both lists joined.
+ * decoded into a value: its size, the depth of its nesting, the work the value decoder of
+ * `@cardano-sdk/core` would have with it, and the length of the addresses its outputs pay. That
+ * decoder reads each array, map and tag with a reader of its own and walks again all that is
+ * inside it, copying what is left of the reader's bytes at each token, each piece of a string
+ * written in pieces among them: its time grows with the square of the depth of data, and with the
+ * bytes of each container times the items inside it, and it calls itself once a level, so that a
+ * datum 2 048 levels deep overflows a small stack. The walk here counts that work on the same
+ * library's token reader, `Serialization.CborReader`, read one token at a time: it calls itself
+ * nowhere, and walks the largest transaction in some tens of milliseconds (65 536 bytes in about
+ * 0.1 s). The keys of maps are not judged: a node refuses a map that repeats a key since protocol
+ * version 9, and the decoder reads one in its own way, the last value or, for the outputs of a
+ * body, both lists joined.
+ *
+ * The count against the decoders a foreign transaction meets, `fromCbor` end to end, the worst of
+ * three runs in plain Node (an Apple M3 Max, Node 26, `@cardano-sdk/core` 0.46.12): Plutus data in
+ * the witness set, inline and in redeemers; metadata; native scripts in the witness set, in the
+ * auxiliary data and as reference scripts; strings in pieces; tokens, outputs, mints, signers and
+ * withdrawals. Of the 59 shapes of 80 ms or more, each decodes in 0.21 to 1.39 times 0.42 ns a
+ * unit: nested data and metadata at 0.8 to 1.4, flat lists, maps, outputs and redeemers at 0.5 to
+ * 1.2, strings in pieces at 0.3 to 1.1, native scripts at 0.2 to 0.5, as they are counted for
+ * more than their decoder spends. The largest of each family the bound lets through decodes in
+ * 0.16 to 0.94 s.
  */
 
 const State = Serialization.CborReaderState;
@@ -29,9 +41,11 @@ export const MAX_TX_BYTES = 16_384;
  * transaction itself the first, and the items inside a byte string under tag 24 (an inline datum,
  * a reference script) count on from that tag. 1 024: the value decoder reads one datum of this
  * depth on a stack of about a browser's (`node --stack-size=400`), and overflows it at 2 048. The
- * bound keeps this library's own process safe; Plutus data, metadata and scripts that nest more
- * than about 730 levels deep are refused by the bound on work first, as their decoding takes more
- * than a second
+ * bound keeps this library's own process safe. Data is refused by the bound on work long before,
+ * as its decoding would take more than a second: one datum of lists nested past 728 levels (752 of
+ * definite lists), constructors past 434 (868 levels), maps past 523, metadata past 729, a native
+ * script past 303 (606 levels). 1 024 levels are reached by byte strings under tag 24 nested in
+ * each other, which the decoder does not unfold
  */
 export const MAX_TX_DEPTH = 1024;
 
@@ -44,10 +58,12 @@ export const MAX_TX_DEPTH = 1024;
  * items inside a byte string under tag 24 count for the containers inside it alone, as the
  * decoder reads them with a reader of their own. One unit is about 0.4 ns of decoding on a
  * laptop of 2026 (an Apple M3 Max, Node 26): the slowest transactions this lets through, of
- * every shape measured, decode in 0.4 to 1.1 s.
- * Transactions as wallets and contracts make them count at most two thousandths of it. Past it:
- * one datum of lists nested more than 728 levels deep, 16 384 bytes of datums of lists nested
- * more than 54 deep, or a list of more than 11 000 zeros 7 levels down
+ * every shape measured, decode in 0.16 to 0.94 s. The real transactions of the tests count 0.02
+ * to 0.26 % of it; lawful heavy ones 5 to 11 %: an order book of 120 orders in one datum, a mint
+ * of 40 assets with their metadata, outputs of many tokens near 16 384 bytes, 60 datums in the
+ * witness set. Past it: one datum of lists nested more than 728 levels deep, 16 384 bytes of
+ * datums of lists nested more than 55 deep, a list of more than 10 607 zeros 7 levels down, or
+ * 16 384 bytes of constructors with no fields more than 9 lists down
  */
 export const MAX_TX_WORK = 2_000_000_000;
 
