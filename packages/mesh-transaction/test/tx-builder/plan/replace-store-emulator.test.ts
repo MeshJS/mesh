@@ -1,5 +1,6 @@
 import type { TxEmulator } from "@meshsdk/tx-emulator";
 import type { MeshWallet } from "@meshsdk/wallet";
+import { ProviderError } from "@meshsdk/common";
 import { mConStr0 } from "@meshsdk/core";
 
 import type {
@@ -1870,6 +1871,63 @@ describe("a step left whose end of validity has passed", () => {
     expect(old.replacedBy).toBeUndefined();
     expect(await store.inner.load("i1")).toBeUndefined();
     expect(times(fork, carol, 13n * ADA)).toBe(0);
+  });
+
+  it("a step given built in a block whose search fails, past its end and the margin: no answer is no word that it is in no block, so the call waits (CANNOT_OBSERVE); once the search answers, it is final and carol is paid once", async () => {
+    const ctx = await storeSetup({
+      funds: [100n * ADA, 50n * ADA],
+      planDefaults: { ...FAST, confirmations: 1000, expiryMarginMs: 600_000 },
+    });
+    const { emulator, provider, builder, wallet, store } = ctx;
+    const partner = await walletOfIndex(1);
+    const own = emulator.fund((await partner.getChangeAddress())!, {
+      lovelace: 100n * ADA,
+    });
+    const built = await builder.build(
+      [
+        spend.pubKey({ utxo: own }),
+        output({ address: carol, value: { lovelace: 13n * ADA } }),
+        validity({ until: builder.timeAt(emulator.slot) + 300_000 }),
+      ],
+      { payer: partner },
+    );
+    await built.sign();
+    const old = await builder.plan(
+      { p: built, b: payTo(alice, 11n * ADA) },
+      { id: "order", payer: wallet },
+    );
+    const p = old.step("p").txHash;
+    await emulator.submitTx(built.signedTx!);
+    const failing = { on: true };
+    provider.control.hooks.fetchTxInfo = (forward, hash: string) => {
+      if (failing.on && hash.toLowerCase() === p)
+        throw new ProviderError("too many requests", {
+          kind: "rateLimited",
+          status: 429,
+          retryable: true,
+        });
+      return forward(hash);
+    };
+    advance(emulator, 1000);
+    await old.refresh();
+    expect(statuses(old)).toEqual({ p: "signed", b: "built" });
+    for (let i = 0; i < 2; i++) {
+      const error = await caught(old.replan({ id: "i1" }));
+      expect([
+        error.code,
+        reasonOf(error),
+        error.txHash,
+        error.retryable,
+      ]).toEqual(["CANNOT_OBSERVE", "unconfirmed", p, true]);
+      expect(error.message).toMatch(/^step "p" is past its end of validity/);
+      expect(old.replacedBy).toBeUndefined();
+      expect(await store.inner.load("i1")).toBeUndefined();
+      advance(emulator, 1);
+    }
+    failing.on = false;
+    await old.refresh();
+    expect(old.step("p").status).toBe("final");
+    expect(times(emulator, carol, 13n * ADA)).toBe(1);
   });
 
   it("a step from parts whose own end has passed and that the plan never signed: inside the margin the call waits (CANNOT_OBSERVE), as another party may hold a copy it signed; once its end and the margin have passed it is refused (INVALID_OPTION)", async () => {

@@ -1350,9 +1350,10 @@ export class TxPlan {
    *   the payers' reads are checked: a read that lists an output of a step the search does not find
    *   (the step left, or the step below it) is waited for first. A step past its own end may be in
    *   a block the search does not show, or be sent by another party, whatever this plan holds of
-   *   its witnesses: another party may hold a copy it signed. The call waits (CANNOT_OBSERVE,
-   *   `unconfirmed`) until its end and the margin have passed by the tip and the clock, or the look
-   *   calls it expired, and then refuses it. The application gives the steps of the new plan.
+   *   its witnesses: another party may hold a copy it signed. It is refused only once its end and
+   *   the margin have passed by the tip and the clock and this call's search answered that it does
+   *   not find it; until then, also while the search fails, the call waits (CANNOT_OBSERVE,
+   *   `unconfirmed`). The application gives the steps of the new plan.
    * - What the new plan cannot hold is waited for, CANNOT_OBSERVE (`unconfirmed`): a
    *   transaction in a block with a failed script, and a transaction of a plan before this one
    *   that a look found in a block, each until it is final; a step in a block this call's
@@ -1425,8 +1426,9 @@ export class TxPlan {
    *   plan's, (`payer`) for a payer of no known form or one that answered two change addresses,
    *   (`trace`) for a trace that is not a function, (`signal`), (`steps`) when nothing is left and
    *   no step is given, for a step that failed its script when no step is given, for a step left
-   *   whose own end of validity has passed, once the margin has passed too, or that was given built
-   *   and stands on a step the new plan does not hold, when no step is given, for a name that is
+   *   whose own end of validity has passed, once the margin has passed too and the search answered
+   *   that it does not find it, or that was given built and stands on a step the new plan does not
+   *   hold, when no step is given, for a name that is
    *   final in this plan or a plan before it or in a block in this plan, for more than 32 steps
    *   with those in a block, for a link to a step that is neither given, in a block nor final, and
    *   for all that `builder.plan` refuses, (`after`) for a transaction of these plans that is not
@@ -1700,21 +1702,14 @@ export class TxPlan {
           reads,
           ask,
         ));
-        // One that this look does not call expired (its end and the margin passed, and the
-        // search answered "not found") may be in a block the search does not show, whatever the
-        // plan holds of its witnesses: another party may hold a copy it signed, and have sent
-        // it. Waited for until its end and the margin have passed by the tip and the clock, so
-        // that no wait lasts for ever. An orphaned one stands on a step that will not land, and
-        // lands with it or never
+        // Refused only on this look's own word: its search answered "not found", and its end and
+        // the margin have passed by the tip and the clock. Else it may be in a block the search
+        // does not show, whatever the plan holds of its witnesses: another party may hold a copy
+        // it signed, and have sent it. A search that failed is no answer, and is waited for
         const hidden = late.find(
           (step) =>
-            step.status !== "orphaned" &&
-            !pastMarginAt(
-              stepUntil(step),
-              base.deadlines.expiryMarginMs,
-              tip,
-            ) &&
-            !expiredByLook(classes, step.txHash),
+            !notFoundByLook(seen.answers, step.txHash) ||
+            !pastMarginAt(stepUntil(step), base.deadlines.expiryMarginMs, tip),
         );
         if (hidden !== undefined)
           throw this.#unconfirmed(
@@ -3631,13 +3626,14 @@ const readAddress = async (
 };
 
 /**
- * Whether this look calls the open transaction of this hash expired: dead, or, found in a block
- * once, gone from it
+ * Whether this look's search answered that it does not find the transaction of this hash: a
+ * search that failed, or was not made, gave no answer
  */
-const expiredByLook = (classes: Pick<LineClasses, "open">, txHash: string) => {
+const notFoundByLook = (answers: readonly LookAnswer[], txHash: string) => {
   const hash = txHash.toLowerCase();
-  const tx = classes.open.find((each) => each.txHash === hash);
-  return tx !== undefined && (tx.dead === true || tx.gone === true);
+  return answers.some(
+    (answer) => answer.txHash.toLowerCase() === hash && answer.found === false,
+  );
 };
 
 /**

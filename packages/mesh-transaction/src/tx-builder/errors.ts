@@ -415,13 +415,13 @@ export type TxPlanErrorDetails = {
    * plan or the plans before it is in a block, not final, and the new plan cannot hold it (a failed
    * script, a plan before the one replaced, a search that gave no answer), a step built cannot
    * stand on the step before it of its payer, which is in a block, every step of the plan is in a
-   * block and nothing is left to pay, a step left is past its own end, not yet past the margin, and
-   * the look does not call it expired, or the record moved under the build. Of `replan` and `add`:
-   * an old transaction only a step in a block keeps from landing beside a step built, a step stands
-   * on an output of an old transaction the search does not find, an address shows such an output,
-   * or an old transaction past its end and the margin got no answer from the search. The other
-   * reasons are about the provider itself; `noDepth`: no block heights, for any plan. A
-   * transaction's `awaitInclusion()` raises `noSearch` and `noValidity`
+   * block and nothing is left to pay, a step left is past its own end and either not past the
+   * margin or not answered "not found" by the search, or the record moved under the build. Of
+   * `replan` and `add`: an old transaction only a step in a block keeps from landing beside a step
+   * built, a step stands on an output of an old transaction the search does not find, an address
+   * shows such an output, or an old transaction past its end and the margin got no answer from the
+   * search. The other reasons are about the provider itself; `noDepth`: no block heights, for any
+   * plan. A transaction's `awaitInclusion()` raises `noSearch` and `noValidity`
    */
   CANNOT_OBSERVE: {
     reason: "noTip" | "noValidity" | "noDepth" | "noSearch" | "unconfirmed";
