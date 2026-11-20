@@ -20,12 +20,7 @@ import type {
   UtxoInput,
 } from "./types";
 import { TxBuildError } from "../errors";
-import {
-  isOneCborItem,
-  itemDepth,
-  MAX_TX_DEPTH,
-  splitUtxoBytes,
-} from "../tx-scan";
+import { isOneCborItem, scriptBounds, splitUtxoBytes } from "../tx-scan";
 import { emptyValue, toAssets } from "../value";
 import { givenShape, shownValue } from "./shape";
 
@@ -255,34 +250,31 @@ const readScriptHash = (at: string, hash: unknown): string => {
   return hash.toLowerCase();
 };
 
+/** A reference script held as given, with the hash stated for it, if any: never decoded */
+const unknownScript = (scriptRef: string, stated?: string): OutputScript => ({
+  type: "unknown",
+  scriptRef,
+  ...(stated !== undefined && { hash: stated }),
+});
+
 /**
  * A reference script as a `Utxo` holds it, from the CBOR of `[language, script]` in hex and
  * the hash stated for it, if any. What this library cannot read, and what it reads with a hash
  * other than the stated one, is `unknown`: kept as given, with the stated hash. So is a script
  * whose bytes would not be written back as given (bytes after it, other framing), since the
- * described form must give the same bytes back. The script is decoded only once a walk over its
- * bytes finds it nested no deeper than `MAX_TX_DEPTH` levels, the depth a transaction is read to.
- * @param at What the script belongs to, for an error
- * @throws UtxoError (`script`) when `scriptRef` is not hex, or nests deeper than that
+ * described form must give the same bytes back, and a script that is not one well-formed item
+ * within the bounds of `scriptBounds`, which is never decoded: anyone can send an output that
+ * holds one.
+ * @throws UtxoError (`script`) when `scriptRef` is not hex
  */
 export const describeScriptRef = (
   scriptRef: string,
   statedHash?: string,
-  at?: string,
 ): OutputScript => {
   const given = readHex("script", "a reference script", "it", scriptRef);
-  const depth = itemDepth(Buffer.from(given, "hex"));
-  if (depth !== undefined && depth > MAX_TX_DEPTH)
-    return problem(
-      "script",
-      `${at === undefined ? "a reference script" : `${at}: its reference script`} nests its items deeper than the ${MAX_TX_DEPTH} levels this library reads`,
-    );
   const stated = statedHash?.toLowerCase();
-  const unknown: OutputScript = {
-    type: "unknown",
-    scriptRef: given,
-    ...(stated !== undefined && { hash: stated }),
-  };
+  const unknown = unknownScript(given, stated);
+  if (scriptBounds(Buffer.from(given, "hex")) !== "within") return unknown;
   let described: OutputScript;
   try {
     const script = Script.fromCbor(HexBlob(given));
@@ -368,9 +360,8 @@ const readScript = (at: string, script: unknown): OutputScript => {
     return describeScriptRef(
       readHex("script", at, "the reference script", script.scriptRef),
       stated,
-      at,
     );
-  let described: OutputScript;
+  let scriptRef: string;
   if (script.type === "plutus") {
     const version = script.version as LanguageVersion;
     if (
@@ -381,19 +372,19 @@ const readScript = (at: string, script: unknown): OutputScript => {
         "script",
         `${at}: unknown Plutus version ${shownValue(script.version)}: expected V1, V2 or V3`,
       );
-    described = describeScriptRef(
-      `82${LANGUAGE_TAG[version]}${plutusCode(at, script.code)}`,
-      undefined,
-      at,
-    );
+    scriptRef = `82${LANGUAGE_TAG[version]}${plutusCode(at, script.code)}`;
   } else if (script.type === "native") {
     const cbor = readHex("script", at, "the native script", script.cbor);
-    described = describeScriptRef(`8200${cbor}`, undefined, at);
+    scriptRef = `8200${cbor}`;
   } else
     return problem(
       "script",
       `${at}: a script of the type ${shownValue(script.type)}: expected plutus, native or unknown`,
     );
+  // Past the bounds, the script is held as given, never decoded, whatever type it is given as
+  if (scriptBounds(Buffer.from(scriptRef, "hex")) === "past")
+    return unknownScript(scriptRef, stated);
+  const described = describeScriptRef(scriptRef);
   if (described.type === "unknown")
     return problem("script", `${at}: the ${script.type} script cannot be read`);
   if (stated !== undefined && stated !== described.hash)
@@ -413,9 +404,9 @@ const withScript = (script: OutputScript | undefined) =>
 const hexOf = (bytes: Uint8Array) => Buffer.from(bytes).toString("hex");
 
 /**
- * A UTxO from the CBOR of a transaction unspent output. Its inline datum is found by the token
- * reader and kept as the bytes hold it; the decoder reads the rest with a stand-in in its place,
- * and a reference script only once a walk finds it nested no deeper than a transaction may be
+ * A UTxO from the CBOR of a transaction unspent output. Its inline datum and its reference script
+ * are found by the token reader and kept as the bytes hold them; the decoder reads the rest with
+ * stand-ins in their place, and the script is described as `describeScriptRef` describes one
  */
 const fromCbor = (cbor: string): Utxo => {
   let split: UtxoBytes | undefined;
@@ -431,14 +422,6 @@ const fromCbor = (cbor: string): Utxo => {
     );
   }
   const { standIn, inlineDatum, scriptRef } = split;
-  if (scriptRef) {
-    const depth = itemDepth(scriptRef);
-    if (depth !== undefined && depth > MAX_TX_DEPTH)
-      return problem(
-        "script",
-        `a transaction unspent output in CBOR: its reference script nests its items deeper than the ${MAX_TX_DEPTH} levels this library reads`,
-      );
-  }
   let unspent: ReturnType<typeof deserializeTxUnspentOutput>;
   try {
     unspent = deserializeTxUnspentOutput(hexOf(standIn));
@@ -455,26 +438,29 @@ const fromCbor = (cbor: string): Utxo => {
       Number(unspent.input().index()),
     ),
     unspent.output(),
-    inlineDatum && hexOf(inlineDatum),
+    {
+      ...(inlineDatum && { datum: hexOf(inlineDatum) }),
+      ...(scriptRef && { script: hexOf(scriptRef) }),
+    },
   );
 };
 
 /**
  * A UTxO from its out ref and its output as decoded: what the output holds, byte for byte
- * @param heldDatum The CBOR of the inline datum, where the output was decoded with a stand-in in
- *   its place
+ * @param held The CBOR of the inline datum and of the reference script, where the output was
+ *   decoded with stand-ins in their place
  */
 const fromOutput = (
   ref: OutRef,
   output: Serialization.TransactionOutput,
-  heldDatum?: string,
+  held: { readonly datum?: string; readonly script?: string } = {},
 ): Utxo => {
   const at = describe(ref);
   const amount = output.amount();
   const datum = output.datum();
-  const inline = heldDatum ?? datum?.asInlineData()?.toCbor().toString();
+  const inline = held.datum ?? datum?.asInlineData()?.toCbor().toString();
   const dataHash = datum?.asDataHash()?.toString();
-  const scriptRef = output.scriptRef()?.toCbor().toString();
+  const scriptRef = held.script ?? output.scriptRef()?.toCbor().toString();
   return {
     ...ref,
     address: readAddress(at, addressText(output.address())),
@@ -490,9 +476,7 @@ const fromOutput = (
           : undefined,
     ),
     ...withScript(
-      scriptRef === undefined
-        ? undefined
-        : describeScriptRef(scriptRef, undefined, at),
+      scriptRef === undefined ? undefined : describeScriptRef(scriptRef),
     ),
   };
 };
@@ -553,7 +537,6 @@ const fromMesh = (given: Record<string, unknown>): Utxo => {
     script = describeScriptRef(
       readHex("script", at, "its scriptRef", scriptRef),
       stated,
-      at,
     );
   // Without its bytes, a reference script cannot be priced
   else if (stated !== undefined)

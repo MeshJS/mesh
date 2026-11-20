@@ -768,15 +768,6 @@ describe("Utxo refusals", () => {
       meshWith({ amount: [, { unit: "lovelace", quantity: "5" }] as never }),
       "value",
     ],
-    [
-      "CBOR whose reference script is of a language the decoder does not know",
-      cborWith(
-        v3.mesh,
-        resolveScriptRef({ code: double, version: "V3" }),
-        `8204${double}`,
-      ),
-      "outRef",
-    ],
   ])("refuses %s", (_, given, kind) => {
     expect(kindOf(given)).toBe(kind);
   });
@@ -833,21 +824,16 @@ describe("Utxo refusals", () => {
     expect(error.message).toMatch(/scriptHash without scriptRef/);
   });
 
-  it("toUtxo throws INVALID_OPTION for the CBOR of a script language the decoder does not know", () => {
+  it("toUtxo reads the CBOR of a script of a language the decoder does not know as it reads its Mesh form: the script unknown, as given", () => {
     const cbor = cborWith(
       v3.mesh,
       resolveScriptRef({ code: double, version: "V3" }),
       `8204${double}`,
     );
-    expect(() => toUtxo(cbor)).toThrow(TxBuildError);
-    try {
-      toUtxo(cbor);
-    } catch (error) {
-      expect(TxBuildError.is(error, "INVALID_OPTION")).toBe(true);
-    }
-    // Its Mesh form is carried, with the script as unknown
-    expect(toUtxo(meshWith({ scriptRef: `8204${double}` })).script?.type).toBe(
-      "unknown",
+    const unknown = { type: "unknown", scriptRef: `8204${double}` };
+    expect(toUtxo(cbor).script).toEqual(unknown);
+    expect(toUtxo(meshWith({ scriptRef: `8204${double}` })).script).toEqual(
+      unknown,
     );
   });
 
@@ -1331,24 +1317,93 @@ describe("the data and the reference script of a UTxO, read without being decode
     },
   );
 
-  it("describes a native reference script nested 1024 levels, and refuses one nested deeper in each form at once", () => {
-    // [0, native]: one level, then two for each `all` and one for the key
-    const within = `8200${nested(511)}`;
-    for (const [form, given] of withScript(within)) {
-      const utxo = readUtxo(given);
-      expect([form, utxo.script!.type]).toEqual([form, "native"]);
-      expect(utxo.script!.hash).toBe(refHash(within));
-      expect(scriptRefOf(utxo.script!)).toBe(within);
-    }
-    for (const levels of [512, 5_000])
-      for (const [form, given] of withScript(`8200${nested(levels)}`)) {
+  /** `all` of `count` native scripts, each `nested(levels)`: as `[0, native]` */
+  const allOf = (count: number, levels: number) =>
+    `8200${`8201${cbor.head(4, count)}${nested(levels).repeat(count)}`}`;
+  /** `all` of `count` keys, as `[0, native]` */
+  const keys = (count: number) =>
+    `8200${`8201${cbor.head(4, count)}${Array.from(
+      { length: count },
+      (_, i) => `8200581c${i.toString(16).padStart(56, "0")}`,
+    ).join("")}`}`;
+
+  it("holds a reference script past the bounds of its decoding as given, never decoded, in each form at once: 15 KB of an all of 10 native scripts nested 500 deep, one nested 34 deep, of 190 keys, and one nested 5 000 deep", () => {
+    for (const scriptRef of [
+      allOf(10, 500),
+      `8200${nested(34)}`,
+      keys(190),
+      `8200${nested(5_000)}`,
+    ])
+      for (const [form, given] of withScript(scriptRef)) {
         const { thrown, ms } = timed(() => readUtxo(given));
+        expect([form, thrown]).toEqual([form, undefined]);
         expect(ms).toBeLessThan(500);
-        expect([form, (thrown as UtxoError).kind]).toEqual([form, "script"]);
-        expect((thrown as Error).message).toMatch(
-          /reference script nests its items deeper than the 1024 levels this library reads$/,
-        );
+        expect([form, readUtxo(given).script]).toEqual([
+          form,
+          { type: "unknown", scriptRef },
+        ]);
       }
+    // The hash stated for it is kept, in each form that states one
+    const scriptRef = allOf(10, 500);
+    const stated = "ab".repeat(28);
+    for (const given of [
+      meshWith({ scriptRef, scriptHash: stated }),
+      ownWith({ script: { type: "unknown", scriptRef, hash: stated } }),
+      ownWith({
+        script: { type: "native", cbor: scriptRef.slice(4), hash: stated },
+      }),
+    ]) {
+      const { ms } = timed(() => readUtxo(given));
+      expect(ms).toBeLessThan(500);
+      expect(readUtxo(given).script).toEqual({
+        type: "unknown",
+        scriptRef,
+        hash: stated,
+      });
+      expect(toMeshUtxo(given as UtxoInput).output).toMatchObject({
+        scriptRef,
+        scriptHash: stated,
+      });
+    }
+  });
+
+  it("decodes and describes a reference script just within the bounds: native scripts nested 33 deep, and of 188 keys", () => {
+    for (const scriptRef of [`8200${nested(33)}`, keys(188)])
+      for (const [form, given] of withScript(scriptRef)) {
+        const utxo = readUtxo(given);
+        expect([form, utxo.script!.type]).toEqual([form, "native"]);
+        expect(utxo.script!.hash).toBe(refHash(scriptRef));
+        expect(scriptRefOf(utxo.script!)).toBe(scriptRef);
+      }
+  });
+
+  it("reads a UTxO in CBOR that writes its reference script twice as the decoder reads it, the last, and no decoder meets either past the bounds: a script nested 3 000 deep, then a shallow one, and the other way round", () => {
+    const shallow = `8200${nested(1)}`;
+    const deepOne = `8200${nested(3_000)}`;
+    const twice = (first: string, second: string) =>
+      cbor.arr(
+        cbor.arr(cbor.bytes(hash(5)), cbor.uint(1)),
+        cbor.map(
+          [cbor.uint(0), cbor.bytes(addressHex)],
+          [cbor.uint(1), cbor.uint(5_000_000)],
+          [cbor.uint(3), `d818${cbor.bytes(first)}`],
+          [cbor.uint(3), `d818${cbor.bytes(second)}`],
+        ),
+      );
+    const { thrown, ms } = timed(() => readUtxo(twice(deepOne, shallow)));
+    expect(thrown).toBeUndefined();
+    expect(ms).toBeLessThan(500);
+    expect(readUtxo(twice(deepOne, shallow)).script).toMatchObject({
+      type: "native",
+      hash: refHash(shallow),
+    });
+    const other = timed(() => readUtxo(twice(shallow, deepOne)));
+    expect(other.thrown).toBeUndefined();
+    expect(other.ms).toBeLessThan(500);
+    expect(readUtxo(twice(shallow, deepOne)).script).toEqual({
+      type: "unknown",
+      scriptRef: deepOne,
+    });
   });
 });
 

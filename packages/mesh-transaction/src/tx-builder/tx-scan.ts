@@ -285,11 +285,36 @@ export const itemDepth = (bytes: Uint8Array): number | undefined => {
     : undefined;
 };
 
+/**
+ * The most work the value decoder may have with the reference script of a UTxO, as the walk
+ * counts it: a script of this work decodes in about 10 ms. A Plutus script is one byte string and
+ * counts far below; a native script that nests 30 levels deep, or holds 600 keys, comes near it
+ */
+export const MAX_SCRIPT_WORK = 24_000_000;
+
+/**
+ * What a walk finds of `bytes`, the CBOR of a reference script `[language, script]`, before any
+ * of it is decoded: `within` the bounds the value decoder reads one in, nested no deeper than
+ * `MAX_TX_DEPTH` and no more work than `MAX_SCRIPT_WORK`; `past` them; or `malformed`, not one
+ * well-formed item. A script of a UTxO is decoded only within them: anyone can send an output
+ * that holds one past them
+ */
+export const scriptBounds = (
+  bytes: Uint8Array,
+): "within" | "past" | "malformed" => {
+  try {
+    const found = walk(bytes, { depth: MAX_TX_DEPTH, work: MAX_SCRIPT_WORK });
+    return found.end === bytes.length ? "within" : "malformed";
+  } catch (error) {
+    return error instanceof TxScanError ? "past" : "malformed";
+  }
+};
+
 /** A transaction unspent output in CBOR, with the CBOR its output holds apart */
 export type UtxoBytes = {
   /**
-   * The same bytes with an inline datum in place of the one written: the integer 0, which a
-   * value decoder reads at no cost
+   * The same bytes with stand-ins in place of each inline datum and reference script written,
+   * which a value decoder reads at no cost: the integer 0, and a Plutus script of no bytes
    */
   standIn: Uint8Array;
   /** The CBOR of the inline datum, as the output holds it, its chunks joined */
@@ -300,6 +325,9 @@ export type UtxoBytes = {
 
 /** What stands in for the byte string of an inline datum: `h'00'`, which holds the integer 0 */
 const STAND_IN_DATUM = Uint8Array.of(0x41, 0x00);
+
+/** What stands in for the byte string of a reference script: `h'820140'`, `[1, h'']` */
+const STAND_IN_SCRIPT = Uint8Array.of(0x43, 0x82, 0x01, 0x40);
 
 /** The byte string under tag 24 the reader is at, if it is at one: its content and offsets */
 const encodedAt = (reader: CborReader, offset: () => number) => {
@@ -323,19 +351,19 @@ const encodedAt = (reader: CborReader, offset: () => number) => {
 /**
  * Finds the inline datum and the reference script of a transaction unspent output
  * `[input, output]` in CBOR, from the offsets of the token reader, and writes the same bytes with
- * a stand-in for the datum, so that a value decoder reads the rest without reading data of any
- * depth; neither is decoded. An output in the array form holds neither. Undefined where the
- * bytes do not start with one well-formed item; an output of a shape the reader does not find
- * is left as written, for the decoder to judge
+ * a stand-in for each, so that a value decoder reads the rest without reading data or a script
+ * of any depth or work; neither is decoded. Of a key the map repeats, the last is found, as the
+ * decoder reads it, and each has its stand-in. An output in the array form holds neither.
+ * Undefined where the bytes do not start with one well-formed item; an output of a shape the
+ * reader does not find is left as written, for the decoder to judge
  */
 export const splitUtxoBytes = (bytes: Uint8Array): UtxoBytes | undefined => {
   if (walked(bytes) === undefined) return undefined;
   const reader = new CborReader(HexBlob(hexOf(bytes)));
   const offset = () => bytes.length - reader.getBytesRemaining();
   const found: Omit<UtxoBytes, "standIn"> = {};
-  // The byte strings of inline datums, which the stand-in replaces: a repeated key is left to the
-  // decoder, which reads the last
-  const datums: { start: number; end: number }[] = [];
+  // The byte strings of inline datums and reference scripts, each replaced by its stand-in
+  const replaced: { start: number; end: number; by: Uint8Array }[] = [];
   try {
     if (reader.peekState() !== State.StartArray) return { standIn: bytes };
     const items = reader.readStartArray();
@@ -351,8 +379,13 @@ export const splitUtxoBytes = (bytes: Uint8Array): UtxoBytes | undefined => {
           : (reader.skipValue(), undefined);
       if (key === 3n) {
         const script = encodedAt(reader, offset);
-        if (script) found.scriptRef = script.content;
-        else reader.skipValue();
+        if (script) {
+          found.scriptRef = script.content;
+          replaced.push({ ...script, by: STAND_IN_SCRIPT });
+        } else {
+          delete found.scriptRef;
+          reader.skipValue();
+        }
       } else if (key === 2n && reader.peekState() === State.StartArray) {
         // [1, 24(h'…')], in a list of either kind of length
         reader.readStartArray();
@@ -363,7 +396,7 @@ export const splitUtxoBytes = (bytes: Uint8Array): UtxoBytes | undefined => {
             : undefined;
         if (inline) {
           found.inlineDatum = inline.content;
-          datums.push({ start: inline.start, end: inline.end });
+          replaced.push({ ...inline, by: STAND_IN_DATUM });
         }
         while (reader.peekState() !== State.EndArray) reader.skipValue();
         reader.readEndArray();
@@ -374,8 +407,8 @@ export const splitUtxoBytes = (bytes: Uint8Array): UtxoBytes | undefined => {
   }
   const pieces: Uint8Array[] = [];
   let from = 0;
-  for (const { start, end } of datums) {
-    pieces.push(bytes.subarray(from, start), STAND_IN_DATUM);
+  for (const { start, end, by } of replaced) {
+    pieces.push(bytes.subarray(from, start), by);
     from = end;
   }
   pieces.push(bytes.subarray(from));

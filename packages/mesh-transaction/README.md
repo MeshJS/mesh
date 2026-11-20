@@ -2080,8 +2080,11 @@ const utxo: Utxo = {
   does not know, bytes that are not a script, bytes it would not write back the same, or a hash
   other than the one stated with it) is `{ type: "unknown", scriptRef, hash? }`, its bytes kept:
   the UTxO can still be spent, the script counts for the fee by its size, and it cannot be named as
-  a `{ reference }` (`INVALID_SCRIPT`). A `plutus` or `native` script given in the builder's form
-  is refused instead (see below).
+  a `{ reference }` (`INVALID_SCRIPT`). So is a script, in any form and from any source, that nests
+  deeper than 1 024 levels or that the decoder would take more than about 10 ms to read (a native
+  script that nests more than 33 levels deep or names more than 188 keys): it is never decoded,
+  and its UTxO is read and can pay, since anyone can send an output that holds one. A `plutus` or
+  `native` script given in the builder's form that cannot be read is refused instead (see below).
 - A `Utxo` has `txHash` and `outputIndex`, so it is an out ref wherever one is asked for; given to
   a part, it is the UTxO in full.
 
@@ -2138,20 +2141,18 @@ an inline datum, `dataHash` without it a datum hash, and `scriptRef` the referen
 - a `scriptHash` without a `scriptRef`, a script hash that is not 28 bytes of hex, and a `plutus`
   or `native` script given in the builder's form that cannot be read or written back the same, is
   of a Plutus version other than `V1`, `V2` and `V3`, or whose `hash` is not its own (an `unknown`
-  script with another hash stays `unknown`), and a reference script, in any form, nested deeper
-  than 1 024 levels;
-- text that is not the CBOR of a transaction unspent output; the CBOR decoder also refuses a
-  reference script in a language it does not know.
+  script with another hash stays `unknown`);
+- text that is not the CBOR of a transaction unspent output.
 
 `output()` refuses an inline datum that is not exactly one item of Plutus data (`INVALID_DATA`), and
 every output the builder makes is a UTxO it takes back. The error names where the UTxO was given:
 from a part, `TxPartError` with the code of the member at fault (`INVALID_OUT_REF`,
 `INVALID_ADDRESS`, `INVALID_VALUE`, `INVALID_DATA`, `INVALID_SCRIPT`), and `INVALID_OUT_REF` for
-text that is not UTxO CBOR (a reference script the decoder refuses included) and for an object of
-both forms or of neither; from an option or argument, `INVALID_OPTION` with the entry's JavaScript
-type in `details.value`; from a wallet's answer, `WALLET_FAILED` (`getUtxos`) or
-`INSUFFICIENT_COLLATERAL` (`getCollateral`); from the provider, `PROVIDER_FAILED` for the payer's
-UTxOs and `UTXO_NOT_FOUND` for an out ref looked up. The reason is the `cause`.
+text that is not UTxO CBOR and for an object of both forms or of neither; from an option or
+argument, `INVALID_OPTION` with the entry's JavaScript type in `details.value`; from a wallet's
+answer, `WALLET_FAILED` (`getUtxos`) or `INSUFFICIENT_COLLATERAL` (`getCollateral`); from the
+provider, `PROVIDER_FAILED` for the payer's UTxOs and `UTXO_NOT_FOUND` for an out ref looked up.
+The reason is the `cause`.
 
 ## The result
 
