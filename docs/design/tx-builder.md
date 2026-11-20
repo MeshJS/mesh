@@ -621,7 +621,6 @@ rule.
   no option to leave the remainder to the fee.
 - A reference script is priced by the bytes of `[language, script]`, a few above the ledger's
   count.
-- The CBOR decoder refuses a UTxO whose reference script is in a language it does not know.
 
 [readme]: ../../packages/mesh-transaction/README.md
 [r-old]: ../../packages/mesh-transaction/README.md#the-old-meshtxbuilder

@@ -25,10 +25,19 @@ import { CborReader, HexBlob, Serialization } from "@meshsdk/core-cst";
  * more than their decoder spends. The largest of each family the bound lets through decodes in
  * 0.16 to 0.94 s.
  *
+ * The walk refuses what is not well-formed CBOR (RFC 8949): what the token reader refuses, and a
+ * simple value below 32 written in two bytes, which it takes.
+ *
  * The reference script of a UTxO is never decoded: its language, its hash and its size are read
- * from its bytes on the token reader. Only a native one is decoded, for the keys it names, where a
- * native witness runs it or the signers of a transaction are read from the UTxOs given with it,
- * and only within `MAX_SCRIPT_WORK`.
+ * from its bytes, and a native one, of no more than `MAX_TX_BYTES`, as the ledger reads one, by a
+ * reader of its own with no call of itself and in a time that grows with its size; so are the
+ * keys it names, where it nests no deeper than `MAX_TX_DEPTH`, and where the signers of a
+ * transaction are read from the UTxOs given with it, only for a script it runs. On the laptop
+ * above, a UTxO that holds the slowest native script of 16 384 bytes is read in at most 4.3 ms; a
+ * payment from a payer whose 40 UTxOs each hold one in 53 ms, from a provider, a wallet or a
+ * snapshot; a transaction of 16 384 bytes whose 452 reference inputs each hold one in 0.47 s, by
+ * `fromCbor` and by `requiredSigners`. A UTxO in CBOR whose output has a key other than 0 to 3 is
+ * refused before the decoder runs: the decoder reads what follows such a key one place off.
  */
 
 const State = Serialization.CborReaderState;

@@ -468,13 +468,16 @@ const readScriptRef = (
 /**
  * A reference script as a `Utxo` holds it, from the CBOR of `[language, script]` in hex and
  * the hash stated for it, if any. It is never decoded: its language, its hash and its size are
- * read from its bytes, the hash as the ledger takes it, blake2b-224 of the tag and the bytes as
- * written, so a script of any depth is read at once. What this library cannot read (another
- * framing, a language it does not know, bytes after the script, a Plutus script in pieces, a
- * native script larger than a transaction, `MAX_TX_BYTES`, which no output on chain holds), and
- * what it reads with a hash other than the stated one, is `unknown`: kept as given, with the
- * stated hash. So is a script whose bytes would not be written back as given, since the described
- * form must give the same bytes back.
+ * read from its bytes, the hash as the ledger takes it, blake2b-224 of the tag and the script as
+ * written: of a native script its CBOR as written, of a Plutus one the content of its byte
+ * string, its head not hashed. A native script is read as the ledger reads one, in a time that
+ * grows with its size, so a script of any depth is read at once. What this library cannot read
+ * (another framing, a language it does not know, bytes after the script, CBOR that is not well
+ * formed, a Plutus script in pieces, a native script larger than a transaction, `MAX_TX_BYTES`,
+ * which no output on chain holds, an item after the language 0 that is not a native script as the
+ * ledger reads one), and what it reads with a hash other than the stated one, is `unknown`: kept
+ * as given, with the stated hash. So is a script whose bytes would not be written back as given,
+ * since the described form must give the same bytes back.
  * @throws UtxoError (`script`) when `scriptRef` is not hex
  */
 export const describeScriptRef = (
@@ -937,13 +940,14 @@ const UTXO_FORMS =
  * The result is in normal form: hex in lower case, the address in bech32 (base58 for Byron),
  * lovelace first and tokens by unit, a token of quantity zero left out, a reference script
  * described with its hash. The reference script is never decoded: its language, hash and size
- * are read from its bytes, so one of any depth is read at once. Members that are not a UTxO's
- * (the `label` and `change` of a built output) are not copied.
+ * are read from its bytes, so one of any depth is read at once (see `describeScriptRef`). Members
+ * that are not a UTxO's (the `label` and `change` of a built output) are not copied.
  * @throws TxBuildError INVALID_OPTION `{ option: "utxo", value, allowed }`, `value` the
  *   JavaScript type of what was given, the reason as `cause`, for a value that is not a UTxO: a transaction hash, output index, address, unit or
  *   quantity that cannot be read; a reward address; a `dataHash` that is not the hash of the
  *   `plutusData` beside it; a `scriptHash` without a `scriptRef`; a script hash that is not the
- *   script's; text that is not the CBOR of a transaction unspent output
+ *   script's; text that is not the CBOR of a transaction unspent output, or the CBOR of one whose
+ *   output has a key other than 0 to 3
  */
 export const toUtxo = (given: UtxoInput): Utxo => {
   try {

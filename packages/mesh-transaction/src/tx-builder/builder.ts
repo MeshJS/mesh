@@ -2162,8 +2162,9 @@ export class TxBuilder {
    * within these limits up to about a second on a laptop, on the thread that calls it, which
    * runs nothing else meanwhile. The UTxOs it names add the time of their bytes alone: their
    * data is not decoded (an inline datum is kept as the bytes hold it, never judged, and a
-   * reference script is decoded only once found nested no deeper than 1 024 levels), and of
-   * each transaction the provider lists, only the outputs the body names are read. A server
+   * reference script is never decoded: a native one is read from its bytes, and the keys it names
+   * only where the transaction runs it), and of each transaction the provider lists, only the
+   * outputs the body names are read. A server
    * that reads transactions of strangers reads them off its request path, in a worker of its
    * own.
    *

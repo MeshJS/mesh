@@ -1736,7 +1736,9 @@ time; the fee, the balance, the scripts, the validity interval and whether the i
 are the ledger's. Refused, as `INVALID_OPTION` (`tx`) with `details.value` only the JavaScript
 type, unless named otherwise:
 
-- text that is not a transaction in CBOR hex, or not an array of four items (earlier eras' forms);
+- text that is not a transaction in CBOR hex, not well-formed CBOR (RFC 8949: a simple value below
+  32 written in two bytes among it, which the value decoder takes), or not an array of four items
+  (earlier eras' forms);
 - larger than the `maxTxSize` of the builder's `params`, else 16 384 bytes, the value of mainnet,
   preprod and preview (no parameters are asked for), before a byte of it is read;
 - nested deeper than 1 024 levels, the CBOR inside a byte string under tag 24 counted on: the value
@@ -1774,16 +1776,18 @@ A witness set that repeats a key is read as the decoder reads it, the last entry
 
 Reading takes a time that grows with the data the transaction carries, up to about a second on a
 laptop, on the calling thread; the UTxOs add the time of their bytes, since their data is not
-decoded. `plan` decodes a step given built twice, so one at the bound takes up to about two seconds
-there (1.5 to 1.8 s measured). The bound on nested data counts a big integer as a tag and one
-string, though its time grows with the square of its length: that matters only with a `maxTxSize`
-above 64 KB, where one integer of 128 KB takes 1 s in a datum and 2 s in metadata. An item the
-bounds admit can overflow a stack smaller than about a browser's (on `node --stack-size=400` every
-one is read), and the error is then the runtime's. A server reads strangers' transactions off its
-request path, in a worker of its own. A bootstrap witness the transaction came with is counted for
-the Byron addresses it spends from, not matched to the address it is for. The object does not know
-whether the transaction was sent: `awaitInclusion()` looks for it, and `submit()` returns when the
-ledger refuses bytes the provider already finds.
+decoded: a transaction of 16 384 bytes whose 452 reference inputs each hold the slowest native
+script of 16 384 bytes is read in about 0.5 s, by `fromCbor` with them in `knownUtxos` and by
+`requiredSigners`. `plan` decodes a step given built twice, so one at the bound takes up to about
+two seconds there (1.5 to 1.8 s measured). The bound on nested data counts a big integer as a tag
+and one string, though its time grows with the square of its length: that matters only with a
+`maxTxSize` above 64 KB, where one integer of 128 KB takes 1 s in a datum and 2 s in metadata. An
+item the bounds admit can overflow a stack smaller than about a browser's (on
+`node --stack-size=400` every one is read), and the error is then the runtime's. A server reads
+strangers' transactions off its request path, in a worker of its own. A bootstrap witness the
+transaction came with is counted for the Byron addresses it spends from, not matched to the address
+it is for. The object does not know whether the transaction was sent: `awaitInclusion()` looks for
+it, and `submit()` returns when the ledger refuses bytes the provider already finds.
 
 ### Signing functions
 
@@ -2099,21 +2103,33 @@ const utxo: Utxo = {
 - `script`: the reference script, left out when the output holds none. A Plutus script is a
   `PlutusScript` with its `hash`, a native script its CBOR with its `hash`. A reference script is
   never decoded: its language, its hash and its size are read from its bytes, the hash as the
-  ledger takes it (blake2b-224 of the language's tag and the script as written), so a script of
-  any depth, from any source, is read at once and its UTxO can pay. A script given as bytes (a
-  Mesh `scriptRef`, CBOR, or an `unknown` script) that the library cannot read (another framing, a
-  language it does not know, bytes after the script, a Plutus script whose byte string is written
-  in pieces, bytes it would not write back the same, or a hash other than the one stated with it)
-  is `{ type: "unknown", scriptRef, hash? }`, its bytes kept: the UTxO can still be spent, the
-  script counts for the fee by its size, and it cannot be named as a `{ reference }`
+  ledger takes it, blake2b-224 of the language's tag and the script as written: of a native script
+  its CBOR as written, of a Plutus script the content of its byte string (its head is not hashed).
+  A native script is read as the ledger reads one, `[0, key hash]`, `[1, scripts]`,
+  `[2, scripts]`, `[3, n, scripts]`, `[4, slot]` or `[5, slot]`, each list of definite or
+  indefinite length, with no call of itself and in a time that grows with its size, so a script
+  of any depth, from any source, is read at once and its UTxO can pay. On a laptop a UTxO that
+  holds the slowest native script of 16 384 bytes is read in at most about 5 ms, and a payment from
+  a payer whose 40 UTxOs each hold one (from a provider, a wallet or a snapshot) is built in about
+  55 ms. A script given as bytes (a Mesh `scriptRef`, CBOR, or an `unknown` script) that the
+  library cannot read is `{ type: "unknown", scriptRef, hash? }`, its bytes kept: another framing,
+  a language it does not know, bytes after the script, CBOR that is not well formed, a Plutus
+  script whose byte string is written in pieces, a native script larger than a transaction (16 384
+  bytes: one in an output is part of a transaction), an item after the language 0 that is not a
+  native script as the ledger reads one (a key hash written in pieces among them), bytes it would
+  not write back the same, or a hash other than the one stated with it. Such a UTxO can still be
+  spent, the script counts for the fee by its size, and it cannot be named as a `{ reference }`
   (`INVALID_SCRIPT`). A `plutus` or `native` script given in the builder's form that cannot be read
   is refused instead (see below).
-- A native script named as the `{ reference }` of a native witness is decoded for the keys it
-  names, which are priced and asked for, and only if the decoder reads it in about 10 ms: one that
-  nests more than 33 levels deep or names more than 189 keys, or that is not a native script,
-  cannot be named so (`INVALID_SCRIPT`). Where the signers of a transaction are read from the
-  UTxOs given with it (`requiredSigners`, `fromCbor`, `finalize`), such a script is not listed in
-  `nativeScripts`, and its keys are not asked for.
+- The keys a native script names, which a native witness that runs it prices and asks for, are
+  read from its bytes, any number of them, with the slots and the `n` of `atLeast` exact as the
+  ledger reads them, as long as it nests no deeper than 1 024 levels as the walk of a transaction
+  counts them (each array a level, `[0, script]` the first): its form is a tree that this library
+  and the application walk by recursion. One nested deeper is described and can be spent, and
+  cannot be named as a `{ reference }` (`INVALID_SCRIPT`). Where the signers of a transaction are
+  read from the UTxOs given with it (`requiredSigners`, `fromCbor`, `finalize`), the keys of a
+  native script are read only for one the transaction runs, known by its hash, and one nested
+  deeper is not listed in `nativeScripts`.
 - A `Utxo` has `txHash` and `outputIndex`, so it is an out ref wherever one is asked for; given to
   a part, it is the UTxO in full.
 
@@ -2172,7 +2188,10 @@ an inline datum, `dataHash` without it a datum hash, and `scriptRef` the referen
   or `native` script given in the builder's form that cannot be read or written back the same, is
   of a Plutus version other than `V1`, `V2` and `V3`, or whose `hash` is not its own (an `unknown`
   script with another hash stays `unknown`);
-- text that is not the CBOR of a transaction unspent output.
+- text that is not the CBOR of a transaction unspent output, and the CBOR of one whose output has
+  a key other than 0, 1, 2 and 3, which the ledger takes in no output: the value decoder would read
+  what follows such a key one place off, a script at a key's place among it. It is refused before
+  it is decoded, its out ref named (among `knownUtxos`, its entry).
 
 `output()` refuses an inline datum that is not exactly one item of Plutus data (`INVALID_DATA`), and
 every output the builder makes is a UTxO it takes back. The error names where the UTxO was given:
