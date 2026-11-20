@@ -52,7 +52,6 @@ import type { NetworkEntry } from "./network";
 import type {
   CredentialInput,
   OutputPart,
-  OutRef,
   PlutusWitness,
   TxPart,
   Utxo,
@@ -138,10 +137,13 @@ import {
 import { givenShape, heldValue, shownValue, textShape } from "./parts/shape";
 import {
   outputAsUtxo,
+  placeUtxos,
   plainUtxo,
+  readPlaced,
   readUtxo,
   toMeshUtxo,
   utxoKey,
+  UtxoTwiceError,
 } from "./parts/utxo";
 import {
   givenPayerEntries,
@@ -152,8 +154,8 @@ import {
 import { checkPlanDefaults } from "./plan/deadlines";
 import { planFor, resumePlan, standingSteps, TxPlan } from "./plan/plan";
 import {
-  answerEntries,
   fetchTxAnswer,
+  placeTxAnswer,
   readTxAnswer,
   resolveParts,
   resolveValidity,
@@ -161,6 +163,7 @@ import {
 import {
   bodySigners,
   keyWitnessTags,
+  namedOutRefs,
   newWitnesses,
   payerSigner,
   readTransaction,
@@ -424,7 +427,8 @@ export type BuildOptions = {
    * Being listed here makes no UTxO selectable and takes none out of selection: one the payer
    * also holds is still selected. They are used as given, and reach every evaluator with the
    * transaction, as the outputs of `after` do; the payer's UTxOs reach only one that sets
-   * `acceptsKnownUtxos`. Each may be in any form the builder takes a UTxO in.
+   * `acceptsKnownUtxos`. Each may be in any form the builder takes a UTxO in; two that name one
+   * output must hold the same, and two texts of CBOR for one output be one text (INVALID_OPTION).
    */
   knownUtxos?: readonly UtxoInput[];
   /**
@@ -1753,17 +1757,20 @@ export class TxBuilder {
    * const final = await builder.finalize(edited, { inputs: built.inputs, changeAddress });
    * ```
    * @param context.inputs The UTxOs its inputs, reference inputs and collateral inputs spend or
-   *   read: all of them, none is looked up; each in any form the builder takes a UTxO in
+   *   read: all of them, none is looked up; each in any form the builder takes a UTxO in. An entry
+   *   for an out ref the prototype does not name is passed over, its out ref alone read; two that
+   *   name one output must hold the same, and two texts of CBOR for one output be one text
    * @param context.changeAddress In bech32 or hex
    * @throws TxBuildError FEE_TOO_LOW `{ fee, minFee }` when the fee is now too small and there is
    *   no change output to take it from; UTXO_NOT_FOUND `{ input }` for an input, reference input
    *   or collateral input whose UTxO is not given; INSUFFICIENT_COLLATERAL `{ required,
    *   available }` when the raised fee is no longer covered by the collateral of a transaction
    *   that runs Plutus scripts; MISSING_PARAMETER when such a transaction's cost models are not
-   *   known; INVALID_OPTION for a `changeAddress` that is no address, and for `inputs` that is
-   *   not a list of UTxOs; FEE_NOT_CONVERGED when the fee does not settle; UNSUPPORTED_SERIALIZER
-   *   when the builder's serializer throws, or answers with something that is not a transaction
-   *   in CBOR hex; MISSING_PARAMETER when the provider's protocol parameters lack a field a
+   *   known; INVALID_OPTION for a `changeAddress` that is no address, for `inputs` that is not a
+   *   list of UTxOs, and for two entries of it that name one output and differ;
+   *   FEE_NOT_CONVERGED when the fee does not settle; UNSUPPORTED_SERIALIZER when the builder's
+   *   serializer throws, or answers with something that is not a transaction in CBOR hex;
+   *   MISSING_PARAMETER when the provider's protocol parameters lack a field a
    *   build reads, or hold one that is not a number; DUPLICATE_PART `{ item }`, the out ref, for
    *   a prototype whose inputs, reference inputs or collateral inputs name one output twice, or
    *   whose reference inputs name an output it spends; TX_TOO_LARGE (`cause: "referenceScripts"`)
@@ -1784,26 +1791,36 @@ export class TxBuilder {
       } catch {
         throw unreadableAddress("changeAddress", changeTo, SEND_ALL_TO_ALLOWED);
       }
-    // The reference scripts are bounded as a node bounds them, before a UTxO is read whole
-    const refs = prototypeRefs(prototype);
-    const before = refScriptBytes(refs, inputs as readonly unknown[]);
-    if (refScriptsBeyond(before)) throw refScriptsTooLarge(before);
-    const given = new Map<string, Utxo>();
-    inputs.forEach((entry: unknown, i) => {
-      let utxo: Utxo;
-      try {
-        utxo = readUtxo(entry);
-      } catch (error) {
-        throw invalidEntry(
-          "inputs",
-          kindOf(entry),
-          FINALIZE_INPUTS_ALLOWED,
-          `entry ${i} is not a UTxO: ${errorText(error)}`,
-          error,
-        );
-      }
-      given.set(utxoKey(utxo), utxo);
-    });
+    const refused = (error: unknown, i: number, entry: unknown): never => {
+      throw invalidEntry(
+        "inputs",
+        kindOf(entry),
+        FINALIZE_INPUTS_ALLOWED,
+        `entry ${i} is not a UTxO: ${errorText(error)}`,
+        error,
+      );
+    };
+    let given: Map<string, Utxo>;
+    try {
+      // Only the entries for the out refs the prototype names are read, each out ref once
+      const named = prototypeRefs(prototype);
+      const placed = placeUtxos(inputs, refused, new Set(named.all));
+      // The reference scripts are bounded as a node bounds them, before a UTxO is read whole
+      const before = refScriptBytes(
+        named.spentAndRead,
+        Array.from(placed.first.values(), (each) => each.given),
+      );
+      if (refScriptsBeyond(before)) throw refScriptsTooLarge(before);
+      given = readPlaced(placed, refused);
+    } catch (error) {
+      if (!(error instanceof UtxoTwiceError)) throw error;
+      throw invalidEntry(
+        "inputs",
+        "object",
+        "a list of the UTxOs the transaction spends, reads and puts up as collateral, in which the entries that name one output are alike",
+        error.message,
+      );
+    }
 
     // A copy without key witnesses: none would verify over a changed body, and the fee is
     // priced for the keys the transaction calls for
@@ -2235,8 +2252,9 @@ export class TxBuilder {
    * @param options.knownUtxos UTxOs the transaction spends, reads or puts up as collateral, used
    *   as given and not looked up: the outputs of a transaction the provider has not seen yet,
    *   spent outputs a provider does not list, or all of them on a builder without a provider.
-   *   Each in any form the builder takes a UTxO in; two entries that name one output must be
-   *   alike; one the transaction does not name is checked as any other, and not used. They must
+   *   Each in any form the builder takes a UTxO in. Only the entries for the out refs the body
+   *   names are read, the others passed over with their out ref alone read; two that name one
+   *   output must hold the same, and two texts of CBOR for one output be one text. They must
    *   be the caller's own data, never taken from the party that made the transaction: the
    *   object's view of the inputs, and of who must sign, is only as true as these UTxOs, and a
    *   wallet signs its own inputs whatever the object shows. The same holds for the provider:
@@ -2250,7 +2268,8 @@ export class TxBuilder {
    *   and differ. NETWORK_MISMATCH for a transaction, or a UTxO, of another network than the
    *   builder's. UTXO_NOT_FOUND `{ input }` for an input, collateral input or reference input
    *   whose UTxO is neither given nor found, or could not be read (the provider's error is the
-   *   `cause`); MISSING_FETCHER when one has to be read and the builder has no provider
+   *   `cause`), or that the provider answers in two entries that differ; MISSING_FETCHER when one
+   *   has to be read and the builder has no provider
    * @throws TxPlanError INVALID_WITNESS (`wrongBody`) `{ argument: 0, keyHash }` for a
    *   transaction that holds a signature that is not of its body
    */
@@ -2315,33 +2334,21 @@ export class TxBuilder {
       );
     }
     // The reference scripts are bounded as a node bounds them, before a UTxO is read whole: those
-    // of knownUtxos here, those of the provider's answers once all are in
-    const refs = spentAndRead(decodedBody);
-    const countRefScripts = refScriptCounter(refs);
-    if (Array.isArray(knownUtxos))
-      for (const entry of knownUtxos as readonly unknown[]) {
+    // of knownUtxos here, those of the provider's answers once all are in. Of knownUtxos only the
+    // entries for the out refs the body names are read
+    const countRefScripts = refScriptCounter(spentAndRead(decodedBody));
+    const countScripts = (entries: readonly unknown[]) => {
+      for (const entry of entries) {
         const past = refScriptsBeyond(countRefScripts(entry));
         if (past) throw refScriptsRefused(txCbor, past);
       }
+    };
     const known = new Map<string, Utxo>();
-    for (const utxo of toKnownUtxos(knownUtxos)) {
-      const key = utxoKey(utxo);
-      const before = known.get(key);
-      // One output, two views of it: neither can be shown as the truth
-      if (before && utxoText(before) !== utxoText(utxo))
-        throw new TxBuildError(
-          "INVALID_OPTION",
-          `invalid knownUtxos: two entries name the output ${key} and differ`,
-          {
-            details: {
-              option: "knownUtxos",
-              value: typeOf(knownUtxos),
-              allowed: KNOWN_UTXOS_ONCE,
-            },
-          },
-        );
-      known.set(key, utxo);
-    }
+    for (const utxo of toKnownUtxos(knownUtxos, {
+      named: namedOutRefs(decodedBody),
+      placed: countScripts,
+    }))
+      known.set(utxoKey(utxo), utxo);
     const { body } = prototype;
     // Read from the decoded body: the prototype holds every id but 1 as the same value
     const networkId = decodedBody.networkId();
@@ -2416,8 +2423,8 @@ export class TxBuilder {
               cause,
             },
           );
-      const wanted = (hash: string) => (ref: OutRef) =>
-        ref.txHash === hash && indices.get(hash)!.has(ref.outputIndex);
+      const wanted = (hash: string) =>
+        new Set(Array.from(indices.get(hash)!, (index) => `${hash}#${index}`));
       const answers: [string, BodyOutRef, readonly unknown[]][] = [];
       const reader = async () => {
         for (let next = queue.shift(); next; next = queue.shift()) {
@@ -2437,20 +2444,21 @@ export class TxBuilder {
         // After a failed read no other is started
         queue.length = 0;
       }
-      // The reference scripts of every answer are counted before any of it is read whole
-      for (const [hash, , answer] of answers)
-        for (const [, entry] of answerEntries(answer, wanted(hash))) {
-          const past = refScriptsBeyond(countRefScripts(entry));
-          if (past) throw refScriptsRefused(txCbor, past);
-        }
-      for (const [hash, input, answer] of answers)
-        // Only an output of the transaction asked for is taken, under its own out ref
-        for (const utxo of readTxAnswer(
-          answer,
-          notFound(hash, input),
-          wanted(hash),
-        ))
-          if (utxo.txHash === hash) read.set(utxoKey(utxo), utxo);
+      // The reference scripts of every answer are counted before any of it is read whole. Only an
+      // output of the transaction asked for is taken, under its own out ref
+      const placed = answers.map(
+        ([hash, input, answer]) =>
+          [
+            input,
+            hash,
+            placeTxAnswer(answer, notFound(hash, input), wanted(hash)),
+          ] as const,
+      );
+      for (const [, , { first }] of placed)
+        countScripts(Array.from(first.values(), (each) => each.given));
+      for (const [input, hash, each] of placed)
+        for (const utxo of readTxAnswer(each, notFound(hash, input)))
+          read.set(utxoKey(utxo), utxo);
     }
     const [spent, collateral, references] = named.map((list) =>
       list.map(({ input, role }): Utxo => {
@@ -3727,23 +3735,8 @@ const unreadForm = (
 
 const FROM_CBOR_OPTIONS_ALLOWED = "an object { knownUtxos? }";
 
-const KNOWN_UTXOS_ONCE =
-  "a list of UTxOs in which the entries that name one output are alike";
-
 /** The reads of `fromCbor` that run at the same time, at most */
 const READS_AT_ONCE = 8;
-
-/** A UTxO as a text, equal for two UTxOs that hold the same */
-const utxoText = (utxo: Utxo) =>
-  JSON.stringify(utxo, (_, value: unknown) =>
-    typeof value === "bigint"
-      ? `${value}n`
-      : typeof value === "object" && value !== null && !Array.isArray(value)
-        ? Object.fromEntries(
-            Object.entries(value).sort(([a], [b]) => (a < b ? -1 : 1)),
-          )
-        : value,
-  );
 
 /** The error for a witness inside a transaction that is not of its body */
 const notOfBody = (keyHash: string | undefined) =>
@@ -3875,23 +3868,27 @@ const refScriptsTooLarge = (size: number) =>
   );
 
 /**
- * The out refs a prototype spends and reads, as `txHash#index` in lower case; none of what is
- * not read
+ * The out refs a prototype names, as `txHash#index` in lower case: those it spends and reads,
+ * and all of them, its collateral inputs among them; none of what is not read
  */
-const prototypeRefs = (prototype: unknown): string[] => {
+const prototypeRefs = (
+  prototype: unknown,
+): { spentAndRead: string[]; all: string[] } => {
   const body = (prototype as { body?: Record<string, unknown> } | null)?.body;
-  const refs: string[] = [];
-  for (const list of [body?.inputs, body?.reference_inputs])
-    if (Array.isArray(list))
-      for (const input of list as {
-        transaction_id?: unknown;
-        index?: unknown;
-      }[])
-        if (typeof input?.transaction_id === "string")
-          refs.push(
-            `${input.transaction_id.toLowerCase()}#${String(input.index)}`,
-          );
-  return refs;
+  const refsOf = (list: unknown) =>
+    Array.isArray(list)
+      ? (list as { transaction_id?: unknown; index?: unknown }[]).flatMap(
+          (input) =>
+            typeof input?.transaction_id === "string"
+              ? [`${input.transaction_id.toLowerCase()}#${String(input.index)}`]
+              : [],
+        )
+      : [];
+  const spentAndRead = [
+    ...refsOf(body?.inputs),
+    ...refsOf(body?.reference_inputs),
+  ];
+  return { spentAndRead, all: [...spentAndRead, ...refsOf(body?.collateral)] };
 };
 
 const refusedTx = (txCbor: unknown, message: string, cause?: unknown) =>

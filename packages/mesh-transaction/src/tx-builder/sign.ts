@@ -17,7 +17,12 @@ import type { Collected, SignerRole, TxSigners } from "./witnesses";
 import { TxBuildError, TxPlanError } from "./errors";
 import { errorText } from "./parts/normalize";
 import { heldValue } from "./parts/shape";
-import { heldScriptSize, readUtxo } from "./parts/utxo";
+import {
+  heldScriptSize,
+  placeUtxos,
+  readPlaced,
+  UtxoTwiceError,
+} from "./parts/utxo";
 import { walletCodeOf } from "./payer";
 import { MAX_REF_SCRIPT_BYTES } from "./tx-scan";
 import {
@@ -1388,6 +1393,21 @@ export const spentAndRead = (body: Serialization.TransactionBody): string[] =>
   );
 
 /**
+ * The out refs a body names, as `txHash#index` in lower case: those it spends, puts up as
+ * collateral and reads
+ */
+export const namedOutRefs = (
+  body: Serialization.TransactionBody,
+): Set<string> =>
+  new Set([
+    ...spentAndRead(body),
+    ...(body.collateral()?.values() ?? []).map(
+      (input) =>
+        `${input.transactionId().toString().toLowerCase()}#${input.index()}`,
+    ),
+  ]);
+
+/**
  * Counts the reference scripts the UTxOs of a transaction's spent and reference inputs hold, `refs`
  * their out refs as `txHash#index` in lower case, from UTxOs given in any form, each out ref once,
  * the first UTxO given for it; no script is described, so a transaction past the bound is refused
@@ -1443,12 +1463,15 @@ export const refScriptsRefused = (tx: unknown, past: string) =>
  * as the build of the same transaction gives them
  * @param spent The UTxO of every input and collateral input, each in any form the builder takes
  *   a UTxO in. UTxOs of reference inputs may be given too: only then is a native script the
- *   transaction runs from one of them listed in `nativeScripts`
+ *   transaction runs from one of them listed in `nativeScripts`. An entry for an out ref the
+ *   transaction does not name is passed over, its out ref alone read; two that name one output
+ *   must hold the same, and two texts of CBOR for one output be one text
  * @throws TxBuildError UTXO_NOT_FOUND for an input or collateral input whose UTxO is not in
  *   `spent`; INVALID_OPTION for a `tx` that is not a transaction, for one whose spent and
  *   reference inputs hold more than `MAX_REF_SCRIPT_BYTES` of reference scripts in the UTxOs of
  *   `spent`, counted before they are read whole, and for a `spent` that is not a list or holds an
- *   entry that is not a UTxO (an address that does not parse among them)
+ *   entry that is not a UTxO (an address that does not parse among them), or two entries that
+ *   name one output and differ
  */
 export function requiredSigners(
   tx: string,
@@ -1467,32 +1490,50 @@ export function requiredSigners(
         },
       },
     );
-  // The reference scripts are bounded as a node bounds them, before a UTxO is read whole
-  const refs = spentAndRead(raw.body);
-  const past = refScriptsBeyond(
-    refScriptBytes(refs, spent as readonly unknown[]),
-  );
-  if (past) throw refScriptsRefused(tx, past);
   // Each entry read as a payer's UTxO is: an entry whose address cannot be read would
   // otherwise drop the key that signs for it, an answer that is silently short
-  const utxos = (spent as readonly unknown[]).map((entry) => {
-    try {
-      return readUtxo(entry);
-    } catch (error) {
-      throw new TxBuildError(
-        "INVALID_OPTION",
-        `invalid spent: an entry is not a UTxO: ${errorText(error)}`,
-        {
-          details: {
-            option: "spent",
-            value: typeOf(entry),
-            allowed: "a list of UTxOs",
-          },
-          cause: error,
+  const refused = (error: unknown, _: number, entry: unknown): never => {
+    throw new TxBuildError(
+      "INVALID_OPTION",
+      `invalid spent: an entry is not a UTxO: ${errorText(error)}`,
+      {
+        details: {
+          option: "spent",
+          value: typeOf(entry),
+          allowed: "a list of UTxOs",
         },
-      );
-    }
-  });
+        cause: error,
+      },
+    );
+  };
+  let utxos: Utxo[];
+  try {
+    // Only the entries for the out refs the body names are read, each out ref once
+    const placed = placeUtxos(spent, refused, namedOutRefs(raw.body));
+    // The reference scripts are bounded as a node bounds them, before a UTxO is read whole
+    const past = refScriptsBeyond(
+      refScriptBytes(
+        spentAndRead(raw.body),
+        Array.from(placed.first.values(), (each) => each.given),
+      ),
+    );
+    if (past) throw refScriptsRefused(tx, past);
+    utxos = Array.from(readPlaced(placed, refused).values());
+  } catch (error) {
+    if (!(error instanceof UtxoTwiceError)) throw error;
+    throw new TxBuildError(
+      "INVALID_OPTION",
+      `invalid spent: ${error.message}`,
+      {
+        details: {
+          option: "spent",
+          value: "object",
+          allowed:
+            "a list of UTxOs in which the entries that name one output are alike",
+        },
+      },
+    );
+  }
   return signersOf(bodySigners(raw, utxos).collected);
 }
 

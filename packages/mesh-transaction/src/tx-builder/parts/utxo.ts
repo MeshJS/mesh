@@ -475,6 +475,24 @@ export const describeScriptRef = (
   return described;
 };
 
+/** Reference scripts described, by the hash stated and the bytes */
+type ScriptsRead = Map<string, OutputScript>;
+
+/** `describeScriptRef`, taken from `scripts` where the same was described before */
+const describedOnce = (
+  scriptRef: string,
+  statedHash: string | undefined,
+  scripts: ScriptsRead | undefined,
+): OutputScript => {
+  if (scripts === undefined) return describeScriptRef(scriptRef, statedHash);
+  const key = `${statedHash?.toLowerCase() ?? ""}:${scriptRef.toLowerCase()}`;
+  const before = scripts.get(key);
+  if (before) return { ...before };
+  const described = describeScriptRef(scriptRef, statedHash);
+  scripts.set(key, described);
+  return { ...described };
+};
+
 /**
  * The native script a reference script holds, read from its bytes as `describeScriptRef` reads
  * it, in the form `TxSigners.nativeScripts` lists, with its hash: the keys it names are those a
@@ -621,15 +639,20 @@ const plutusCode = (at: string, code: unknown): string => {
 };
 
 /** A reference script given in the builder's form, read again from its bytes */
-const readScript = (at: string, script: unknown): OutputScript => {
+const readScript = (
+  at: string,
+  script: unknown,
+  scripts?: ScriptsRead,
+): OutputScript => {
   if (!isObject(script))
     return problem("script", `${at}: invalid script ${shownValue(script)}`);
   const stated =
     script.hash === undefined ? undefined : readScriptHash(at, script.hash);
   if (script.type === "unknown")
-    return describeScriptRef(
+    return describedOnce(
       readHex("script", at, "the reference script", script.scriptRef),
       stated,
+      scripts,
     );
   let scriptRef: string;
   if (script.type === "plutus") {
@@ -651,7 +674,7 @@ const readScript = (at: string, script: unknown): OutputScript => {
       "script",
       `${at}: a script of the type ${shownValue(script.type)}: expected plutus, native or unknown`,
     );
-  const described = describeScriptRef(scriptRef);
+  const described = describedOnce(scriptRef, undefined, scripts);
   if (described.type === "unknown")
     return problem("script", `${at}: the ${script.type} script cannot be read`);
   if (stated !== undefined && stated !== described.hash)
@@ -676,7 +699,7 @@ const withScript = (script: OutputScript | undefined) =>
  * 0 to 3, which the ledger takes in no output, before the decoder runs, its out ref named where
  * the reader finds it
  */
-const fromCbor = (cbor: string): Utxo => {
+const fromCbor = (cbor: string, scripts?: ScriptsRead): Utxo => {
   // Its output is part of a transaction: one longer than a transaction is refused before it is
   // read, as the token reader takes a time that grows with the square of its pieces
   if (cbor.length > 2 * MAX_TX_BYTES)
@@ -731,6 +754,7 @@ const fromCbor = (cbor: string): Utxo => {
       ...(inlineDatum && { datum: hexOf(inlineDatum) }),
       ...(scriptRef && { script: hexOf(scriptRef) }),
     },
+    scripts,
   );
 };
 
@@ -743,6 +767,7 @@ const fromOutput = (
   ref: OutRef,
   output: Serialization.TransactionOutput,
   held: { readonly datum?: string; readonly script?: string } = {},
+  scripts?: ScriptsRead,
 ): Utxo => {
   const at = describe(ref);
   // Bounded before its text is written: base58 takes a time that grows with the square of it
@@ -768,7 +793,9 @@ const fromOutput = (
           : undefined,
     ),
     ...withScript(
-      scriptRef === undefined ? undefined : describeScriptRef(scriptRef),
+      scriptRef === undefined
+        ? undefined
+        : describedOnce(scriptRef, undefined, scripts),
     ),
   };
 };
@@ -783,7 +810,10 @@ const meshQuantity = (at: string, unit: unknown, quantity: unknown) => {
   return BigInt(quantity);
 };
 
-const fromMesh = (given: Record<string, unknown>): Utxo => {
+const fromMesh = (
+  given: Record<string, unknown>,
+  scripts?: ScriptsRead,
+): Utxo => {
   const { input, output } = given;
   if (!isObject(input))
     return problem("outRef", "a Mesh UTxO is an object { input, output }");
@@ -826,9 +856,10 @@ const fromMesh = (given: Record<string, unknown>): Utxo => {
   const stated = isSet(scriptHash) ? readScriptHash(at, scriptHash) : undefined;
   let script: OutputScript | undefined;
   if (isSet(scriptRef))
-    script = describeScriptRef(
+    script = describedOnce(
       readHex("script", at, "its scriptRef", scriptRef),
       stated,
+      scripts,
     );
   // Without its bytes, a reference script cannot be priced
   else if (stated !== undefined)
@@ -846,7 +877,10 @@ const fromMesh = (given: Record<string, unknown>): Utxo => {
   };
 };
 
-const fromOwn = (given: Record<string, unknown>): Utxo => {
+const fromOwn = (
+  given: Record<string, unknown>,
+  scripts?: ScriptsRead,
+): Utxo => {
   const ref = readOutRefMembers(given.txHash, given.outputIndex);
   const at = describe(ref);
   const address = readAddress(at, given.address);
@@ -882,7 +916,9 @@ const fromOwn = (given: Record<string, unknown>): Utxo => {
       given.datum === undefined ? undefined : readDatum(at, given.datum),
     ),
     ...withScript(
-      given.script === undefined ? undefined : readScript(at, given.script),
+      given.script === undefined
+        ? undefined
+        : readScript(at, given.script, scripts),
     ),
   };
 };
@@ -919,15 +955,192 @@ const formOf = (given: unknown): Form => {
  * not a UTxO's are not copied, and the result shares nothing with what was given.
  * @throws UtxoError for a value that is not a UTxO, or not one a `Utxo` can hold
  */
-export const readUtxo = (given: unknown): Utxo => {
+export const readUtxo = (given: unknown): Utxo => readScripted(given);
+
+/**
+ * `readUtxo`, with the reference scripts described before by their bytes: one given again is
+ * taken from there, not read again
+ */
+const readScripted = (given: unknown, scripts?: ScriptsRead): Utxo => {
   switch (formOf(given)) {
     case "cbor":
-      return fromCbor(given as string);
+      return fromCbor(given as string, scripts);
     case "mesh":
-      return fromMesh(given as Record<string, unknown>);
+      return fromMesh(given as Record<string, unknown>, scripts);
     case "own":
-      return fromOwn(given as Record<string, unknown>);
+      return fromOwn(given as Record<string, unknown>, scripts);
   }
+};
+
+/**
+ * The out ref of the CBOR of a transaction unspent output, read from its first items on the token
+ * reader as the value decoder reads them, the rest not read; undefined where it does not read so
+ */
+const cborOutRef = (cbor: string): OutRef | undefined => {
+  if (cbor.length > 2 * MAX_TX_BYTES || !HEX_BYTES.test(cbor)) return undefined;
+  try {
+    const reader = new CborReader(HexBlob(cbor));
+    if (reader.readStartArray() !== 2 || reader.readStartArray() !== 2)
+      return undefined;
+    const txHash = hexOf(reader.readByteString());
+    const index = reader.readInt();
+    return readOutRefMembers(txHash, Number(index));
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * The out ref of a UTxO given in any form, as `utxoKey` writes it of the UTxO read whole, read
+ * without the rest of it: of a `Utxo` and a Mesh `UTxO` their members, of the CBOR of a
+ * transaction unspent output its first items
+ * @throws UtxoError where there is none to read, as `readUtxo` throws it
+ */
+export const givenOutRef = (given: unknown): string => {
+  if (typeof given === "string") {
+    const ref = cborOutRef(given);
+    // What has no out ref read so is no UTxO this library reads: its read tells why
+    return utxoKey(ref ?? readUtxo(given));
+  }
+  if (formOf(given) === "own") {
+    const { txHash, outputIndex } = given as Record<string, unknown>;
+    return utxoKey(readOutRefMembers(txHash, outputIndex));
+  }
+  const { input } = given as Record<string, unknown>;
+  if (!isObject(input))
+    return problem("outRef", "a Mesh UTxO is an object { input, output }");
+  return utxoKey(readOutRefMembers(input.txHash, input.outputIndex));
+};
+
+/** A UTxO as a text, equal for two UTxOs that hold the same */
+export const utxoText = (utxo: Utxo) =>
+  JSON.stringify(utxo, (_, value: unknown) =>
+    typeof value === "bigint"
+      ? `${value}n`
+      : typeof value === "object" && value !== null && !Array.isArray(value)
+        ? Object.fromEntries(
+            Object.entries(value).sort(([a], [b]) => (a < b ? -1 : 1)),
+          )
+        : value,
+  );
+
+/** Two entries given for one out ref that differ: `key` the out ref, `at` their places */
+export class UtxoTwiceError extends Error {
+  readonly key: string;
+  readonly at: readonly [number, number];
+
+  constructor(key: string, at: readonly [number, number]) {
+    super(`two entries name the output ${key} and differ`);
+    this.name = "UtxoTwiceError";
+    this.key = key;
+    this.at = at;
+  }
+}
+
+/** UTxOs given for out refs, placed by their out refs before any of them is read whole */
+export type PlacedUtxos = {
+  /** The first entry given for each out ref taken, with its place, in the order given */
+  readonly first: ReadonlyMap<
+    string,
+    { readonly at: number; readonly given: unknown }
+  >;
+  /** Each later entry for one of those out refs that is not an entry given before it */
+  readonly later: readonly {
+    readonly key: string;
+    readonly at: number;
+    readonly given: unknown;
+  }[];
+};
+
+/**
+ * What is wrong with the entry at `at`: the caller's error, with the reader's as its reason
+ */
+export type EntryRefused = (
+  error: unknown,
+  at: number,
+  given: unknown,
+) => never;
+
+/**
+ * Places UTxOs given in any form by their out refs, reading of each only its out ref
+ * (`givenOutRef`): an entry for an out ref `named` does not take is passed over, never read
+ * whole. Of the entries for one out ref, the first is the one counted and read; an object given
+ * again, or the same text of CBOR, is the same entry. Two texts of CBOR for one out ref differ: a
+ * text is read only once for it, as each is read in a time that grows with the square of its
+ * pieces. The other entries are read with the first by `readPlaced`, and must be the same UTxO
+ * @param named The out refs taken, as `utxoKey` writes them; every one without it
+ * @throws UtxoTwiceError for two texts of CBOR that name one out ref and differ
+ * @throws what `refused` throws for an entry whose out ref cannot be read
+ */
+export const placeUtxos = (
+  entries: readonly unknown[],
+  refused: EntryRefused,
+  named?: ReadonlySet<string>,
+): PlacedUtxos => {
+  const first = new Map<string, { at: number; given: unknown }>();
+  const later: { key: string; at: number; given: unknown }[] = [];
+  const texts = new Map<string, { at: number; text: string }>();
+  const objects = new Map<string, Set<unknown>>();
+  // Each place, a hole of a sparse list among them: it is no UTxO
+  for (let at = 0; at < entries.length; at++) {
+    const given: unknown = entries[at];
+    let key: string;
+    try {
+      key = givenOutRef(given);
+    } catch (error) {
+      return refused(error, at, given);
+    }
+    if (named && !named.has(key)) continue;
+    if (typeof given === "string") {
+      const text = given.toLowerCase();
+      const seen = texts.get(key);
+      if (seen?.text === text) continue;
+      if (seen) throw new UtxoTwiceError(key, [seen.at, at]);
+      texts.set(key, { at, text });
+    } else {
+      const seen = objects.get(key) ?? new Set<unknown>();
+      if (seen.has(given)) continue;
+      objects.set(key, seen.add(given));
+    }
+    if (first.has(key)) later.push({ key, at, given });
+    else first.set(key, { at, given });
+  }
+  return { first, later };
+};
+
+/**
+ * Reads the UTxOs `placeUtxos` placed, by their out refs, in the order given. Each later entry is
+ * read first, with the first entry for its out ref, and must hold the same: two that differ are
+ * refused before the other entries are read. A reference script described for an entry before is
+ * not read again
+ * @throws UtxoTwiceError for a later entry that differs from the first
+ * @throws what `refused` throws for an entry that is not a UTxO this library reads
+ */
+export const readPlaced = (
+  placed: PlacedUtxos,
+  refused: EntryRefused,
+): Map<string, Utxo> => {
+  const scripts: ScriptsRead = new Map();
+  const read = (given: unknown, at: number): Utxo => {
+    try {
+      return readScripted(given, scripts);
+    } catch (error) {
+      return refused(error, at, given);
+    }
+  };
+  const utxos = new Map<string, Utxo>();
+  const firstOf = (key: string): Utxo => {
+    const known = utxos.get(key);
+    if (known) return known;
+    const { at, given } = placed.first.get(key)!;
+    const utxo = read(given, at);
+    utxos.set(key, utxo);
+    return utxo;
+  };
+  for (const { key, at, given } of placed.later)
+    if (utxoText(firstOf(key)) !== utxoText(read(given, at)))
+      throw new UtxoTwiceError(key, [placed.first.get(key)!.at, at]);
+  return new Map(Array.from(placed.first.keys(), (key) => [key, firstOf(key)]));
 };
 
 /**

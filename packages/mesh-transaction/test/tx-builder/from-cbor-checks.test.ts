@@ -450,10 +450,18 @@ describe("TxBuilder.fromCbor › the UTxOs", () => {
     expect(made.inputs).toEqual([first]);
   });
 
-  it("is INVALID_OPTION (knownUtxos) for the CBOR of a UTxO whose address is longer than 256 bytes, or is a reward address, with the reason of the UTxO read and its out ref, quoting none of it; a text that is no UTxO is told by its shape", async () => {
+  it("is INVALID_OPTION (knownUtxos) for the CBOR of a UTxO the transaction names whose address is longer than 256 bytes, or is a reward address, with the reason of the UTxO read and its out ref, quoting none of it; a text that is no UTxO is told by its shape", async () => {
     const a = hashOf();
-    const given = tx(bodyOf({ inputs: [[a, 0]] }));
     const known = hashOf();
+    const given = tx(
+      bodyOf({
+        inputs: [[a, 0]],
+        references: [
+          [known, 1],
+          [known, 2],
+        ],
+      }),
+    );
     const long = arr(
       arr(bytes(known), uint(1)),
       map([uint(0), bytes(byronAddress(4_000))], [uint(1), uint(5_000_000)]),
@@ -479,11 +487,11 @@ describe("TxBuilder.fromCbor › the UTxOs", () => {
       map([uint(0), bytes(`e0${"ab".repeat(28)}`)], [uint(1), uint(5_000_000)]),
     );
     const atReward = await caught(() =>
-      offline().fromCbor(given, { knownUtxos: [reward] }),
+      offline().fromCbor(given, { knownUtxos: [utxoOf([a, 0]), reward] }),
     );
     expectBuildError(atReward, "INVALID_OPTION");
     expect(atReward.message).toBe(
-      `invalid knownUtxos: entry 0 is the CBOR of a UTxO this library does not read: the UTxO ${known}#2: its address is a reward address, not a payment address`,
+      `invalid knownUtxos: entry 1 is the CBOR of a UTxO this library does not read: the UTxO ${known}#2: its address is a reward address, not a payment address`,
     );
     expect(everything(atReward)).not.toMatch(/stake_test1|(?:ab){8}/);
     // Text that does not read as a UTxO, a key given by mistake among them
@@ -502,10 +510,20 @@ describe("TxBuilder.fromCbor › the UTxOs", () => {
     }
   });
 
-  it("does not use a known UTxO the transaction does not name", async () => {
+  it("does not use a known UTxO the transaction does not name, nor read more of it than its out ref", async () => {
     const [a, b] = [hashOf(), hashOf()];
     const built = await offline().fromCbor(tx(bodyOf({ inputs: [[a, 0]] })), {
-      knownUtxos: [utxoOf([a, 0]), utxoOf([b, 0])],
+      knownUtxos: [
+        utxoOf([a, 0]),
+        utxoOf([b, 0]),
+        // Not a UTxO this library reads past its out ref: its address is a reward address
+        arr(
+          arr(bytes(b), uint(1)),
+          map([uint(0), bytes(`e0${"ab".repeat(28)}`)], [uint(1), uint(1)]),
+        ),
+        // Nor a Utxo past its out ref: no value, an address that is none
+        { txHash: b, outputIndex: 2, address: "not an address" } as never,
+      ],
     });
     expect(built.inputs).toEqual([utxoOf([a, 0])]);
     expect(built.referenceInputs).toEqual([]);
@@ -753,13 +771,23 @@ describe("TxBuilder.fromCbor › the network", () => {
     ]);
   });
 
-  it("is NETWORK_MISMATCH for a known UTxO, whether the transaction names it or not, and for a UTxO read", async () => {
+  it("is NETWORK_MISMATCH for a known UTxO the transaction names, and for a UTxO read; one it does not name is not read", async () => {
     const [a, b] = [hashOf(), hashOf()];
     const mainnet = onMainnet(baseAddress(1));
     const given = tx(bodyOf({ inputs: [[a, 0]] }));
+    expect(
+      (
+        await offline().fromCbor(given, {
+          knownUtxos: [utxoOf([a, 0]), utxoOf([b, 0], { address: mainnet })],
+        })
+      ).inputs,
+    ).toEqual([utxoOf([a, 0])]);
     for (const knownUtxos of [
       [utxoOf([a, 0], { address: mainnet })],
-      [utxoOf([a, 0]), utxoOf([b, 0], { address: mainnet })],
+      [
+        utxoOf([b, 0], { address: mainnet }),
+        utxoOf([a, 0], { address: mainnet }),
+      ],
     ]) {
       const error = await caught(() =>
         offline().fromCbor(given, { knownUtxos }),

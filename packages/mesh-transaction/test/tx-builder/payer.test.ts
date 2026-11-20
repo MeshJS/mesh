@@ -32,6 +32,7 @@ import {
   PartEntry,
   Payer,
   PayerSnapshot,
+  referenceInput,
   RequiredKeys,
   requiredSigners,
   spend,
@@ -723,9 +724,11 @@ describe("TxBuilder: the payer read and the other reads", () => {
     const asPart = await timed(() => spend.pubKey({ utxo: trick }));
     expect(TxError.is(asPart, "INVALID_OUT_REF")).toBe(true);
     expect(asPart.message).toContain(named);
-    const built = await offline().build([pay()], {
-      payer: { changeAddress: wallet, utxos: [plain] },
-    });
+    // A transaction that reads the output of that out ref, which a reader of it is given
+    const built = await offline().build(
+      [pay(), referenceInput({ utxo: { ...other, txHash, outputIndex: 0 } })],
+      { payer: { changeAddress: wallet, utxos: [plain] } },
+    );
     const known = await timed(() =>
       offline().fromCbor(built.tx, { knownUtxos: [plain, trick] }),
     );

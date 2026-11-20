@@ -25,6 +25,7 @@ import type {
   ValidityPart,
   WithdrawalPart,
 } from "./parts/types";
+import type { PlacedUtxos } from "./parts/utxo";
 import { TxBuildError } from "./errors";
 import { checkNetworks, heldUtxos, utxoEntry } from "./network";
 import { checkGivenDatum, checkLock, toSpendDatum } from "./parts/inputs";
@@ -39,7 +40,7 @@ import {
   toPlutusScriptSource,
   withKnownHash,
 } from "./parts/normalize";
-import { readOutRef, readUtxo, utxoKey } from "./parts/utxo";
+import { placeUtxos, readPlaced, utxoKey, UtxoTwiceError } from "./parts/utxo";
 
 /** Deposits the protocol parameters on `Protocol` leave out */
 export type GovernanceDeposits = {
@@ -92,15 +93,6 @@ export const inputsOf = (part: TxPart): TransactionInputPrototype[] => {
   return inputs;
 };
 
-/** The out ref an entry of a provider's answer names, or undefined where it names none */
-const listedOutRef = (entry: unknown): OutRef | undefined => {
-  try {
-    return readOutRef(entry);
-  } catch {
-    return undefined;
-  }
-};
-
 /**
  * The answer of the provider for the outputs of a transaction, a list, none of it read; a
  * provider that answers with nothing gives an empty list
@@ -127,63 +119,62 @@ export const fetchTxAnswer = async (
 };
 
 /**
- * The entries of an answer to read, with their places in it: those that name an out ref
- * `wanted` takes, and those whose out ref cannot be read, which are read whole and whose error
- * names why. Without `wanted` every entry
+ * The entries of an answer placed by their out refs (`placeUtxos`), none of them read whole:
+ * those that name an out ref of `wanted`; an entry whose out ref cannot be read is refused with
+ * why. Without `wanted` every entry
+ * @param notFound As `fetchTxAnswer`
+ * @param wanted The out refs to read, as `utxoKey` writes them
+ * @throws TxBuildError from `notFound` for an entry whose out ref cannot be read, and for two
+ *   that name one output and differ
  */
-export const answerEntries = (
+export const placeTxAnswer = (
   answer: readonly unknown[],
-  wanted?: (ref: OutRef) => boolean,
-): [number, unknown][] => {
-  const entries: [number, unknown][] = [];
-  answer.forEach((entry: unknown, i) => {
-    if (wanted) {
-      const ref = listedOutRef(entry);
-      if (ref && !wanted(ref)) return;
-    }
-    entries.push([i, entry]);
-  });
-  return entries;
-};
+  notFound: (reason: string, cause: unknown) => TxBuildError,
+  wanted?: ReadonlySet<string>,
+): PlacedUtxos =>
+  twiceRefused(notFound, () =>
+    placeUtxos(answer, answerEntryRefused(notFound), wanted),
+  );
 
 /**
- * The entries of an answer as UTxOs, each checked as the payer's UTxOs are and copied: the
- * answer may be shared through a cache, and parts freeze what they hold
+ * The entries of an answer `placeTxAnswer` placed, as UTxOs, each checked as the payer's UTxOs
+ * are and copied: the answer may be shared through a cache, and parts freeze what they hold
  * @param notFound As `fetchTxAnswer`
- * @param wanted As `answerEntries`
+ * @throws TxBuildError from `notFound` for an entry that is not a UTxO this library reads, and
+ *   for two that name one output and differ
  */
 export const readTxAnswer = (
-  answer: readonly unknown[],
+  placed: PlacedUtxos,
   notFound: (reason: string, cause: unknown) => TxBuildError,
-  wanted?: (ref: OutRef) => boolean,
 ): Utxo[] =>
-  answerEntries(answer, wanted).map(([i, entry]) => {
-    try {
-      return readUtxo(entry);
-    } catch (error) {
-      throw notFound(
-        `entry ${i} of the answer is not a UTxO: ${errorText(error)}`,
-        error,
-      );
-    }
-  });
-
-/**
- * The outputs of a transaction as the provider lists them, read as `readTxAnswer` reads them
- * @param notFound As `fetchTxAnswer`
- * @param wanted As `answerEntries`
- */
-export const fetchTxOutputs = async (
-  provider: IFetcher,
-  txHash: string,
-  notFound: (reason: string, cause: unknown) => TxBuildError,
-  wanted?: (ref: OutRef) => boolean,
-): Promise<Utxo[]> =>
-  readTxAnswer(
-    await fetchTxAnswer(provider, txHash, notFound),
-    notFound,
-    wanted,
+  twiceRefused(notFound, () =>
+    Array.from(readPlaced(placed, answerEntryRefused(notFound)).values()),
   );
+
+const answerEntryRefused =
+  (notFound: (reason: string, cause: unknown) => TxBuildError) =>
+  (error: unknown, i: number): never => {
+    throw notFound(
+      `entry ${i} of the answer is not a UTxO: ${errorText(error)}`,
+      error,
+    );
+  };
+
+/** What `run` gives, two entries of an answer that name one output and differ refused */
+const twiceRefused = <T>(
+  notFound: (reason: string, cause: unknown) => TxBuildError,
+  run: () => T,
+): T => {
+  try {
+    return run();
+  } catch (error) {
+    if (!(error instanceof UtxoTwiceError)) throw error;
+    throw notFound(
+      `entries ${error.at[0]} and ${error.at[1]} of the answer name the output ${error.key} and differ`,
+      error,
+    );
+  }
+};
 
 /**
  * Looks up every output the parts read and the builder does not know yet: once per transaction
@@ -233,7 +224,7 @@ const fetchMissing = async (
   ctx.onFetch?.(
     Array.from(missing.values(), (l) => l.map(outRefString)).flat(),
   );
-  await Promise.all(
+  const answers = await Promise.all(
     Array.from(missing.keys(), async (txHash) => {
       const [first] = missing.get(txHash)!;
       const notFound = (reason: string, cause: unknown) =>
@@ -246,10 +237,21 @@ const fetchMissing = async (
             cause,
           },
         );
-      for (const utxo of await fetchTxOutputs(provider, txHash, notFound))
-        ctx.known.set(utxoKey(utxo), utxo);
+      return {
+        notFound,
+        answer: await fetchTxAnswer(provider, txHash, notFound),
+      };
     }),
   );
+  // Every answer is placed by its out refs before any is read whole, and read one after another:
+  // the first refusal stops the reads
+  const placed = answers.map(({ notFound, answer }) => ({
+    notFound,
+    placed: placeTxAnswer(answer, notFound),
+  }));
+  for (const each of placed)
+    for (const utxo of readTxAnswer(each.placed, each.notFound))
+      ctx.known.set(utxoKey(utxo), utxo);
   for (const inputs of missing.values()) {
     for (const input of inputs) {
       if (!ctx.known.has(outRefString(input)))

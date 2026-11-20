@@ -224,7 +224,9 @@ const PLACES: readonly {
   {
     name: "an input of finalize",
     run: (text) =>
-      offline().finalize(built.prototype, { inputs: [ownAt(text)] }),
+      offline().finalize(built.prototype, {
+        inputs: [{ ...ownAt(text), txHash: funds.txHash }],
+      }),
     code: "INVALID_OPTION",
   },
   {
@@ -244,7 +246,8 @@ const PLACES: readonly {
   },
   {
     name: "a spent UTxO of requiredSigners",
-    run: (text) => requiredSigners(built.tx, [ownAt(text)]),
+    run: (text) =>
+      requiredSigners(built.tx, [{ ...ownAt(text), txHash: funds.txHash }]),
     code: "INVALID_OPTION",
   },
 ];
