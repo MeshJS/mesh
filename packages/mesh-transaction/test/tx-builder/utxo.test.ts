@@ -1588,6 +1588,73 @@ describe("the data and the reference script of a UTxO, read without being decode
     );
   });
 
+  it("reads a native reference script only up to the size of a transaction, and a Plutus one of any size: a native script of 16 384 bytes is described; one of 16 385, and one of 300 KB nested 50 000 deep, are unknown at once with the hash stated, in each form, and refused in the builder's form", () => {
+    /** `all` of time locks, as `[0, native]`, whose native script is `size` bytes */
+    const sized = (size: number) => {
+      const extra = (size - 5) % 3;
+      const count = (size - 5 - extra) / 3;
+      const last = ["820400", "82041800", "8204190000"][extra]!;
+      return `8200820199${count.toString(16).padStart(4, "0")}${"820400".repeat(count - 1)}${last}`;
+    };
+    expect(sized(16_384).length / 2).toBe(2 + 16_384);
+    const within = sized(16_384);
+    for (const [form, given] of [
+      ...withScript(within),
+      [
+        "an unknown script",
+        ownWith({ script: { type: "unknown", scriptRef: within } }),
+      ],
+    ] as [string, unknown][])
+      expect([form, readUtxo(given).script]).toEqual([
+        form,
+        { type: "native", cbor: within.slice(4), hash: ledgerHash(within) },
+      ]);
+    const stated = "ab".repeat(28);
+    const plutus = `8203${cbor.bytes(cbor.bytes("ab".repeat(300_000)))}`;
+    for (const scriptRef of [
+      sized(16_385),
+      `8200${"820181".repeat(50_000)}8200581c${keyHashHex(1)}`,
+    ]) {
+      for (const [form, given, kept] of [
+        ["a Mesh UTxO", meshWith({ scriptRef }), undefined],
+        ["a Mesh UTxO", meshWith({ scriptRef, scriptHash: stated }), stated],
+        ["its CBOR", utxoCbor({ scriptRef }), undefined],
+        [
+          "an unknown script",
+          ownWith({ script: { type: "unknown", scriptRef, hash: stated } }),
+          stated,
+        ],
+      ] as [string, unknown, string | undefined][]) {
+        const { thrown, ms } = timed(() => readUtxo(given));
+        expect([form, thrown]).toEqual([form, undefined]);
+        expect(ms).toBeLessThan(200);
+        expect([form, readUtxo(given).script]).toEqual([
+          form,
+          { type: "unknown", scriptRef, ...(kept && { hash: kept }) },
+        ]);
+        expect(toMeshUtxo(given as UtxoInput).output.scriptHash).toBe(kept);
+      }
+      const typed = timed(() =>
+        readUtxo(
+          ownWith({ script: { type: "native", cbor: scriptRef.slice(4) } }),
+        ),
+      );
+      expect(typed.ms).toBeLessThan(200);
+      expect((typed.thrown as UtxoError).message).toBe(
+        `the UTxO ${hash(1)}#0: the native script cannot be read`,
+      );
+    }
+    // A Plutus script is one byte string, read at any size
+    const big = timed(() => readUtxo(meshWith({ scriptRef: plutus })));
+    expect(big.ms).toBeLessThan(200);
+    expect(readUtxo(meshWith({ scriptRef: plutus })).script).toEqual({
+      type: "plutus",
+      version: "V3",
+      code: plutus.slice(4),
+      hash: cbor.blake(`03${cbor.bytes("ab".repeat(300_000))}`, 28),
+    });
+  });
+
   it("refuses a UTxO whose address is longer than 256 bytes before its base58 is read, its out ref named, in each form: a Byron address of 1 KB, of 257 bytes, and in CBOR of 15 KB; reads one of 256", () => {
     const inCbor = (raw: string) =>
       cbor.arr(

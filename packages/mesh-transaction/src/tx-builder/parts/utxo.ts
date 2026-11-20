@@ -22,6 +22,7 @@ import { TxBuildError } from "../errors";
 import {
   isOneCborItem,
   MAX_ADDRESS_BYTES,
+  MAX_TX_BYTES,
   scriptBounds,
   splitUtxoBytes,
 } from "../tx-scan";
@@ -286,8 +287,8 @@ const unknownScript = (scriptRef: string, stated?: string): OutputScript => ({
 /**
  * The tag and the script of `[language, script]` in hex, read with the token reader, never with
  * a value decoder: an array of two items of definite length; a tag of 0 to 3 in one byte; for 0,
- * one well-formed CBOR item, which the reader passes without a call of itself at any depth; for
- * 1 to 3, one byte string of definite length; nothing after. `script` is the item as written,
+ * one well-formed CBOR item of no more than `MAX_TX_BYTES`, which the reader passes without a call
+ * of itself at any depth; for 1 to 3, one byte string of definite length; nothing after. `script` is the item as written,
  * `hashed` the bytes its hash is taken over: the item of a native script, the content of the byte
  * string of a Plutus one. Undefined for anything else
  */
@@ -307,6 +308,9 @@ const readScriptRef = (
     const tag = Number(reader.readUInt());
     if (offset() !== before + 1 || tag > 3) return undefined;
     const start = offset();
+    // A native script is walked in a time that grows with the square of its size; one in an
+    // output is part of a transaction, so none on chain is larger than one
+    if (tag === 0 && given.length / 2 - start > MAX_TX_BYTES) return undefined;
     let content: Uint8Array | undefined;
     if (tag === 0) reader.skipValue();
     else if (reader.peekState() === State.ByteString)
@@ -330,7 +334,8 @@ const readScriptRef = (
  * the hash stated for it, if any. It is never decoded: its language, its hash and its size are
  * read from its bytes, the hash as the ledger takes it, blake2b-224 of the tag and the bytes as
  * written, so a script of any depth is read at once. What this library cannot read (another
- * framing, a language it does not know, bytes after the script, a Plutus script in pieces), and
+ * framing, a language it does not know, bytes after the script, a Plutus script in pieces, a
+ * native script larger than a transaction, `MAX_TX_BYTES`, which no output on chain holds), and
  * what it reads with a hash other than the stated one, is `unknown`: kept as given, with the
  * stated hash. So is a script whose bytes would not be written back as given, since the described
  * form must give the same bytes back.
