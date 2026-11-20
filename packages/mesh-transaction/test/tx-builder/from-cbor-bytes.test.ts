@@ -1306,6 +1306,68 @@ describe("TxBuilder.fromCbor › forms a decoder takes and a ledger does not", (
       );
   });
 
+  it("refuses at once what is not well-formed CBOR (RFC 8949) in a script reference, an inline datum, the data of the witness set and the auxiliary data: a simple value below 32 in two bytes, which the reader takes; additional information 28 to 30; a break with nothing open; a piece of another kind inside a string in pieces", async () => {
+    const places = (item: string) => [
+      tx(
+        map(
+          [uint(0), inputs()],
+          [
+            uint(1),
+            arr(
+              map(
+                [uint(0), bytes(`60${key.keyHash}`)],
+                [uint(1), uint(3_000_000)],
+                [
+                  uint(3),
+                  `d818${bytes(arr(uint(0), arr(uint(1), arr(item))))}`,
+                ],
+              ),
+            ),
+          ],
+          [uint(2), uint(170_000)],
+        ),
+      ),
+      tx(
+        map(
+          [uint(0), inputs()],
+          [
+            uint(1),
+            arr(
+              map(
+                [uint(0), bytes(`60${key.keyHash}`)],
+                [uint(1), uint(3_000_000)],
+                [uint(2), arr(uint(1), `d818${bytes(arr(item))}`)],
+              ),
+            ),
+          ],
+          [uint(2), uint(170_000)],
+        ),
+      ),
+      tx(bodyWith(), map([uint(4), arr(arr(item))])),
+      tx(bodyWith(), map(), { aux: map([uint(674), arr(item)]) }),
+    ];
+    for (const item of [
+      "f800",
+      "f81f",
+      ...["1c", "3d", "5e", "7c", "9d", "be", "dc", "fd", "fe"],
+      "ff",
+      "5f6161ff",
+      "7f4100ff",
+    ])
+      for (const given of places(item)) {
+        expect(() => scanTransaction(given)).toThrow(
+          "expected a transaction in CBOR hex: it is not well-formed CBOR",
+        );
+        const started = performance.now();
+        const error = await read(given);
+        expect(performance.now() - started).toBeLessThan(200);
+        expectRefused(error, given, "it is not well-formed CBOR");
+      }
+    // A simple value of 32 in two bytes is well formed: the walk takes it
+    for (const given of places("f820"))
+      expect(scanTransaction(given)).toBeGreaterThan(0);
+  });
+
   it("refuses a negative fee", async () => {
     const given = tx(
       map(

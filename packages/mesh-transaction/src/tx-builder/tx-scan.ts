@@ -125,6 +125,7 @@ type Frame = {
 /** A reader over the bytes of the item, or over those of a byte string under tag 24 */
 type Level = {
   readonly reader: CborReader;
+  readonly bytes: Uint8Array;
   readonly size: number;
   readonly frames: Frame[];
   /** The level of the tag around the byte string; 0 for the item itself */
@@ -138,6 +139,7 @@ type Level = {
 
 const levelOf = (bytes: Uint8Array, depth: number): Level => ({
   reader: new CborReader(HexBlob(hexOf(bytes))),
+  bytes,
   size: bytes.length,
   frames: [],
   depth,
@@ -159,7 +161,8 @@ type Walked = {
  * the stack is the same however deep the item nests. With `bounds`, it walks the CBOR inside each
  * byte string under tag 24 too, to its end, and refuses the item as soon as it is deeper, or more
  * work, than they let through; without, such a byte string is one item
- * @throws TxScanError past the bounds; the reader's error for bytes that are not well-formed
+ * @throws TxScanError past the bounds; an Error for bytes that are not well-formed: the reader's,
+ *   and for a simple value below 32 written in two bytes, which the reader takes
  */
 const walk = (bytes: Uint8Array, bounds?: Bounds): Walked => {
   const levels: Level[] = [levelOf(bytes, 0)];
@@ -286,10 +289,20 @@ const walk = (bytes: Uint8Array, bounds?: Bounds): Walked => {
         pieces(level, state === State.StartIndefiniteLengthTextString);
         read(level);
         break;
-      default:
+      default: {
+        // A simple value below 32 written in two bytes is not well formed (RFC 8949, 3.3), and
+        // the reader takes it: refused as the reader refuses what is not well formed
+        const at = offset(level);
+        if (
+          state === State.SimpleValue &&
+          level.bytes[at] === 0xf8 &&
+          level.bytes[at + 1]! < 0x20
+        )
+          throw new Error("a simple value below 32 in two bytes");
         // A scalar or a string of one piece: the reader passes it in one call
         reader.skipValue();
         read(level);
+      }
     }
   }
 };

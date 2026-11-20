@@ -9,6 +9,7 @@ import {
 } from "@meshsdk/core";
 import {
   Address,
+  CborReader,
   HexBlob,
   normalizePlutusScript,
   Script,
@@ -1162,6 +1163,41 @@ describe("Utxo scripts", () => {
     // In pieces, the decoder joins the pieces: a script this library does not read
     const pieces = `8203${cbor.chunkedBytes(flat)}`;
     expect(decoded(pieces)?.type).toBe("plutus");
+  });
+
+  it("is unknown, as given, for a native script that is not well formed (RFC 8949), in each form, and refused in the builder's form: a simple value below 32 in two bytes, which the reader takes, alone and in a list; additional information 28 to 30 in each major type; a break with nothing open; a piece of another kind, or in pieces itself, inside a string in pieces", () => {
+    const reader = new CborReader(HexBlob("f800"));
+    expect(reader.readSimpleValue()).toBe(0);
+    const malformed = [
+      "f800",
+      "f81f",
+      cbor.arr(cbor.uint(1), cbor.arr("f810")),
+      ...["1c", "3d", "5e", "7c", "9d", "be", "dc", "fd", "fe"],
+      cbor.arr("ff"),
+      "5f6161ff",
+      "7f4100ff",
+      "5f01ff",
+      "5f5f4100ffff",
+    ];
+    for (const native of malformed) {
+      const scriptRef = `8200${native}`;
+      expect([scriptRef, describeScriptRef(scriptRef)]).toStrictEqual([
+        scriptRef,
+        { type: "unknown", scriptRef },
+      ]);
+      for (const form of [
+        meshWith({ scriptRef }),
+        ownWith({ script: { type: "unknown", scriptRef } }),
+        inCbor(scriptRef),
+      ])
+        expect([scriptRef, toUtxo(form as UtxoInput).script]).toStrictEqual([
+          scriptRef,
+          { type: "unknown", scriptRef },
+        ]);
+      expect(() =>
+        readUtxo(ownWith({ script: { type: "native", cbor: native } })),
+      ).toThrow(`the UTxO ${hash(1)}#0: the native script cannot be read`);
+    }
   });
 
   it("reads an unknown script again: what can be read is described", () => {

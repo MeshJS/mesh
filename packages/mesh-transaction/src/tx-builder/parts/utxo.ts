@@ -287,8 +287,9 @@ const unknownScript = (scriptRef: string, stated?: string): OutputScript => ({
 /**
  * The tag and the script of `[language, script]` in hex, read with the token reader, never with
  * a value decoder: an array of two items of definite length; a tag of 0 to 3 in one byte; for 0,
- * one well-formed CBOR item of no more than `MAX_TX_BYTES`, which the reader passes without a call
- * of itself at any depth; for 1 to 3, one byte string of definite length; nothing after. `script` is the item as written,
+ * one well-formed CBOR item of no more than `MAX_TX_BYTES`, which the walk a transaction is read
+ * with passes without a call of itself at any depth; for 1 to 3, one byte string of definite
+ * length; nothing after. `script` is the item as written,
  * `hashed` the bytes its hash is taken over: the item of a native script, the content of the byte
  * string of a Plutus one. Undefined for anything else
  */
@@ -312,11 +313,14 @@ const readScriptRef = (
     // output is part of a transaction, so none on chain is larger than one
     if (tag === 0 && given.length / 2 - start > MAX_TX_BYTES) return undefined;
     let content: Uint8Array | undefined;
-    if (tag === 0) reader.skipValue();
-    else if (reader.peekState() === State.ByteString)
+    if (tag === 0) {
+      // The walk a transaction is read with, which refuses all that is not well formed
+      if (!isOneCborItem(Buffer.from(given.slice(2 * start), "hex")))
+        return undefined;
+    } else if (reader.peekState() === State.ByteString) {
       content = reader.readByteString();
-    else return undefined;
-    if (reader.getBytesRemaining() !== 0) return undefined;
+      if (reader.getBytesRemaining() !== 0) return undefined;
+    } else return undefined;
     const script = given.slice(2 * start);
     return {
       tag,
