@@ -20,6 +20,7 @@ import {
   certificate,
   guard,
   keySigner,
+  message,
   output,
   requiredSigners,
   signedKeyHashes,
@@ -380,6 +381,55 @@ describe.each(["scalus", "cquisitor"] as const)(
         expect(await emulator.submitTx(signed)).toBe(built.txHash);
       },
     );
+
+    it("needs the signature of a guard's stake key", async () => {
+      const { emulator, builder } = await setup(validator);
+      const wallet = await walletOf();
+      const stake = await walletOf("stake");
+      const address = (await wallet.getChangeAddress())!;
+      emulator.fund(address, { lovelace: 100_000_000n });
+      const { stakeCredentialHash } = deserializeAddress(address);
+      const built = await builder.build(
+        [
+          output({ address: recipient, value: { lovelace: 5_000_000n } }),
+          guard.pubKey({ keyHash: stakeCredentialHash }),
+        ],
+        { payer: address },
+      );
+
+      const paymentOnly = await addWitnesses(
+        built.tx,
+        await signWitnesses(wallet, built.tx),
+      );
+      expect((await emulator.simulate(paymentOnly)).accepted).toBe(false);
+      const both = await addWitnesses(
+        paymentOnly,
+        await signWitnesses(stake, built.tx),
+      );
+      expect((await emulator.simulate(both)).accepted).toBe(true);
+    });
+
+    it("carries a message longer than one line", async () => {
+      const { emulator, builder } = await setup(validator);
+      const wallet = await walletOf();
+      const address = (await wallet.getChangeAddress())!;
+      emulator.fund(address, { lovelace: 100_000_000n });
+      // 200 bytes of one- and two-byte characters
+      const text = "aé".repeat(66) + "ab";
+      expect(new TextEncoder().encode(text).length).toBe(200);
+      const built = await builder.build(
+        [
+          output({ address: recipient, value: { lovelace: 5_000_000n } }),
+          message({ text }),
+        ],
+        { payer: address },
+      );
+      const signed = await addWitnesses(
+        built.tx,
+        await signWitnesses(wallet, built.tx),
+      );
+      expect((await emulator.simulate(signed)).accepted).toBe(true);
+    });
   },
 );
 

@@ -221,11 +221,11 @@ builder does not compute on it, for what it leaves open:
 - Whether a datum is inline follows from which of `plutusData` and `dataHash` is set, and
   `dataHash` is set in both cases.
 - `scriptRef` is CBOR whose framing differs between sources and which every consumer decoded
-  again; one that could not be decoded passed a build and failed `requiredSigners` and `finalize`
-  with the decoder's own error. `scriptHash` was not read.
+  again; one that could not be decoded passed a build and failed `requiredSigners` with the
+  decoder's own error. `scriptHash` was not read.
 
 **One door in.** Wherever a UTxO is given (a part, a payer snapshot, a wallet's or provider's
-answer, `knownUtxos`, `finalize`, `minFee`, `requiredSigners`, `utxosAfter`) it may be a `Utxo`, a
+answer, `knownUtxos`, `minFee`, `requiredSigners`, `utxosAfter`) it may be a `Utxo`, a
 Mesh `UTxO` or the CBOR of a transaction unspent output (`UtxoInput`). One function, exported as
 `toUtxo`, checks it and copies it into a `Utxo` in normal form: lower-case hex, the address in
 bech32 (base58 for Byron), lovelace always present and tokens in unit order, the reference script
@@ -455,12 +455,12 @@ chains are in the README: [Plans][r-plans], [Servers][r-servers] and
 
 ## Signing without a plan
 
-`build()` and `finalize()` return a `BuiltTx`: one built transaction as an object. Its own members
-are the `BuiltTxData` data, read-only, so it goes wherever that data goes (`after`, `utxosAfter`,
+`build()` returns a `BuiltTx`: one built transaction as an object. Its own members are the
+`BuiltTxData` data, read-only, so it goes wherever that data goes (`after`, `utxosAfter`,
 `outputOf`) and copies as plain data. The object itself is frozen; the data nested in its members is
 the build's own and can be changed, and nothing that is signed or sent is read from it. Beside them
 it holds the witnesses given to it, the payer of its build when that payer can sign (written
-nowhere: none after `finalize`, `restore` or `fromCbor`), and has `sign({ signers?, partial?,
+nowhere: none after `restore` or `fromCbor`), and has `sign({ signers?, partial?,
 signal? })` (without signers, the payer signs, by a plan's rules), `addWitnesses(...)`,
 `submit({ submitter?, signal? })`, `awaitInclusion({ timeoutMs?, pollMs?, signal? })`, `signedTx`
 (only when no key is missing), `partialTx` (the witnesses held so far, for a party that signs next
@@ -478,8 +478,8 @@ transactions. Do not rebuild to retry: a retry is the same call on the
 same object ([The path without a lifecycle][r-no-lifecycle]).
 
 - **Keeping.** A signature is kept once per key and kind, after it verifies against the body: the
-  keys asked for, as many other keys as the build's `extraKeyWitnesses` (none after `finalize`;
-  after `fromCbor`, as many as the transaction came with), and as many bootstrap witnesses as the
+  keys asked for, as many other keys as the build's `extraKeyWitnesses` (after `fromCbor`, as many
+  as the transaction came with), and as many bootstrap witnesses as the
   transaction spends from Byron addresses. A key counts as signed by its vkey witness alone. A vkey
   or bootstrap entry is written with the set tag it had in the transaction or the JSON the object
   was made of, else as the body writes its input set.
@@ -549,14 +549,9 @@ declare function requiredSigners(
 
 `addWitnesses` and `signedKeyHashes` return promises, unlike the synchronous forms first proposed:
 checking a signature waits for the Ed25519 library to start, so every refusal of theirs is a
-rejected promise. `finalize` completes an edited or hand-assembled prototype: it hashes it again,
-prices it for its signers and takes a fee increase from the change output at `changeAddress`. It
-looks up no UTxO (every input, reference input and collateral input is given in `inputs`, else
-`UTXO_NOT_FOUND`), runs no script and changes no collateral; parameters and cost models still come
-from `params` and `costModels` or the provider. It refuses (`DUPLICATE_PART`, `details.item`) a
-prototype that names an output twice among its inputs, its reference inputs or its collateral
-inputs, or reads an output it spends, and repairs nothing: a prototype made by hand fixes the
-positions its redeemers may rely on.
+rejected promise. A `TransactionPrototype` is the layer the serializer turns into CBOR: the
+builder makes no transaction of one. A prototype assembled by hand (`assembleTxPrototype`) is
+serialized, and `builder.fromCbor` makes the `BuiltTx` of its bytes.
 
 ## Errors
 
@@ -603,14 +598,13 @@ rule.
   registration, a proposal, DRep votes, a treasury donation), `collateral-emulator`,
   `evaluator-emulator`, `network-emulator`, `payer-emulator`, `selection-emulator`,
   `traps-emulator`.
-- On `TxEmulator` of `@meshsdk/tx-emulator`: `add-emulator`, `chain-emulator`, `finalize-emulator`,
-  `redeemer-emulator`, `script-witness-emulator`, `sign-emulator`, `built-tx-emulator`,
-  `validity-emulator`; the plan tests under `plan/` that need a chain, beside the state machine's
-  own tests (`state-table`, `state-rules`, `state-random`) and those of the record and stores
-  (`json`, `record`, `store`); the old `MeshTxBuilder`'s adapter tests
-  (`test/mesh-tx-builder/legacy-adapter-*`); and the README doc-test, `test/readme.test.ts`, which
-  runs the task lines of the README's first example as they stand there and checks that its table of
-  errors names every code. See [Testing on the emulator][r-testing].
+- On `TxEmulator` of `@meshsdk/tx-emulator`: `add-emulator`, `chain-emulator`, `redeemer-emulator`,
+  `script-witness-emulator`, `sign-emulator`, `built-tx-emulator`, `validity-emulator`; the plan
+  tests under `plan/` that need a chain, beside the state machine's own tests (`state-table`,
+  `state-rules`, `state-random`) and those of the record and stores (`json`, `record`, `store`);
+  the old `MeshTxBuilder`'s adapter tests (`test/mesh-tx-builder/legacy-adapter-*`); and the README
+  doc-test, `test/readme.test.ts`, which runs the task lines of the README's first example as they
+  stand there and checks that its table of errors names every code. See [Testing on the emulator][r-testing].
 
 ## Open items
 

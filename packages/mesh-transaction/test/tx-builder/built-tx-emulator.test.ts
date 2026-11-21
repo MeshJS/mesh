@@ -281,12 +281,10 @@ describe.each(["scalus", "cquisitor"] as const)(
       expect(await emulator.submitTx(built.signedTx!)).toBe(built.txHash);
     });
 
-    it("signs what finalize returns", async () => {
-      const { emulator, builder, built, address } =
-        await registration(validator);
-      const final = await builder.finalize(structuredClone(built.prototype), {
-        inputs: built.inputs,
-        changeAddress: address,
+    it("signs what fromCbor returns, which holds no payer", async () => {
+      const { emulator, builder, built } = await registration(validator);
+      const final = await builder.fromCbor(built.tx, {
+        knownUtxos: built.inputs,
       });
       expect(final).toBeInstanceOf(BuiltTx);
       const keys = await seedKeys();

@@ -138,7 +138,6 @@ describe("UTxOs given for out refs, each out ref once", () => {
     "the light first": [spent, ...lights, ...heavies],
     "the heavy first": [spent, ...heavies, ...lights],
   };
-  const prototype = transactionPrototypeFromHex(tx);
   /** The reference inputs by out ref, which the build finds among knownUtxos or the provider's */
   const byOutRef = items.map((_, i) =>
     referenceInput({ utxo: { txHash: txOf(100 + i), outputIndex: 0 } }),
@@ -168,7 +167,6 @@ describe("UTxOs given for out refs, each out ref once", () => {
           "fromCbor, the provider's answers",
           () => online(answers).fromCbor(tx, { knownUtxos: [spent] }),
         ],
-        ["finalize", () => offline().finalize(prototype, { inputs: given })],
         [
           "build, knownUtxos",
           () =>
@@ -199,7 +197,6 @@ describe("UTxOs given for out refs, each out ref once", () => {
     const held = mesh(txOf(100), `8200${items[0]}`);
     const other = mesh(txOf(100), `8200${light(0)}`);
     const ref = `${txOf(100)}#0`;
-    const proto = transactionPrototypeFromHex(one);
     for (const [a, b] of [
       [held, other],
       [other, held],
@@ -222,13 +219,6 @@ describe("UTxOs given for out refs, each out ref once", () => {
       );
       expect(known.error.message).toBe(
         `invalid knownUtxos: two entries name the output ${ref} ${how}`,
-      );
-      const final = await timed(() =>
-        offline().finalize(proto, { inputs: [spent, a, b] }),
-      );
-      expect(TxError.is(final.error, "INVALID_OPTION")).toBe(true);
-      expect(final.error.message).toBe(
-        `invalid inputs: two entries name the output ${ref} ${how}`,
       );
       const answered = await timed(() =>
         online(new Map([[txOf(100), [a, b]]])).fromCbor(one, {
@@ -257,9 +247,6 @@ describe("UTxOs given for out refs, each out ref once", () => {
       (await offline().fromCbor(one, { knownUtxos: same })).signers
         .nativeScripts,
     ).toHaveLength(1);
-    expect(
-      (await offline().finalize(proto, { inputs: same })).referenceInputs,
-    ).toHaveLength(1);
     // A text of CBOR in capitals is the same text. Another text of the same UTxO, its index in a
     // longer form, names it in different bytes, and is refused: a text is read once for an out ref
     const text = cborOf(held);
@@ -273,9 +260,8 @@ describe("UTxOs given for out refs, each out ref once", () => {
     );
   });
 
-  it("passes over at once the UTxOs given that the transaction does not name, 235 heavy ones among them in each form: requiredSigners, fromCbor, finalize", async () => {
+  it("passes over at once the UTxOs given that the transaction does not name, 235 heavy ones among them in each form: requiredSigners, fromCbor", async () => {
     const one = runs(items.slice(0, 1));
-    const proto = transactionPrototypeFromHex(one);
     const unnamed = items.map((it, i) => mesh(otherOf(i), `8200${it}`));
     const given = [
       spent,
@@ -298,11 +284,6 @@ describe("UTxOs given for out refs, each out ref once", () => {
     expect(known.error).toBeUndefined();
     expect(known.ms).toBeLessThan(AT_ONCE_MS);
     expect(read!.signers.nativeScripts).toHaveLength(1);
-    const final = await timed(() =>
-      offline().finalize(proto, { inputs: given }),
-    );
-    expect(final.error).toBeUndefined();
-    expect(final.ms).toBeLessThan(AT_ONCE_MS);
   });
 
   it("prices with minFee at once beside the UTxOs given that the body does not name, 235 heavy ones among them in each form: the price that of the UTxOs it names, one of those given twice with other contents refused", async () => {
@@ -415,7 +396,6 @@ describe("UTxOs given for out refs, each out ref once", () => {
 
   it("refuses at its head an out ref whose transaction hash is not one byte string of definite length of 32 bytes, or whose index is no unsigned integer, as it refuses other out refs: 235 entries of 16 384 bytes, the hash in empty pieces, at once", async () => {
     const one = runs(items.slice(0, 1));
-    const proto = transactionPrototypeFromHex(one);
     const held = map([uint(0), bytes(addressHex)], [uint(1), "1a02faf080"]);
     /** An entry of 16 384 bytes for an out ref the transaction does not name */
     const inPieces = (i: number) => {
@@ -439,7 +419,6 @@ describe("UTxOs given for out refs, each out ref once", () => {
         "fromCbor",
         (entries) => offline().fromCbor(one, { knownUtxos: entries }),
       ],
-      ["finalize", (entries) => offline().finalize(proto, { inputs: entries })],
       [
         "a payer",
         (entries) =>
@@ -499,7 +478,6 @@ describe("UTxOs given for out refs, each out ref once", () => {
 
   it("refuses at its head a UTxO or an out ref that is no list of two items of definite length, before a piece of it is read, as it refuses other out refs", async () => {
     const one = runs(items.slice(0, 1));
-    const proto = transactionPrototypeFromHex(one);
     const held = map([uint(0), bytes(addressHex)], [uint(1), "1a02faf080"]);
     /** The hash of the out ref `i` in 16 000 empty pieces, which a read joins */
     const inPieces = (i: number) =>
@@ -529,7 +507,6 @@ describe("UTxOs given for out refs, each out ref once", () => {
         "fromCbor",
         (entries) => offline().fromCbor(one, { knownUtxos: entries }),
       ],
-      ["finalize", (entries) => offline().finalize(proto, { inputs: entries })],
       [
         "a payer",
         (entries) =>
@@ -571,7 +548,6 @@ describe("UTxOs given for out refs, each out ref once", () => {
 
   it("reads at once the same UTxO given many times as one, its script read once", async () => {
     const one = runs(items.slice(0, 1));
-    const proto = transactionPrototypeFromHex(one);
     // Copies of one UTxO, each a new object, its members in another order
     const copies = Array.from({ length: 200 }, (_, i) => {
       const { input, output } = mesh(txOf(100), `8200${items[0]}`);
@@ -586,11 +562,6 @@ describe("UTxOs given for out refs, each out ref once", () => {
     );
     expect(known.error).toBeUndefined();
     expect(known.ms).toBeLessThan(AT_ONCE_MS);
-    const final = await timed(() =>
-      offline().finalize(proto, { inputs: given }),
-    );
-    expect(final.error).toBeUndefined();
-    expect(final.ms).toBeLessThan(AT_ONCE_MS);
   });
 
   it("refuses at once a plan of a step given built whose knownUtxos give an out ref twice, in either order", async () => {

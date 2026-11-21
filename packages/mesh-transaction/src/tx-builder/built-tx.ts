@@ -300,9 +300,8 @@ const keysText = (keys: readonly RequiredKey[]) =>
   keys.map((k) => `${k.keyHash} (${k.roles.join(", ")})`).join("; ");
 
 /**
- * One built transaction, on its own: what `builder.build()` and `builder.finalize()` return,
- * what `builder.fromCbor()` makes of a transaction that exists only as CBOR, and what
- * `builder.restore()` brings back.
+ * One built transaction, on its own: what `builder.build()` returns, what `builder.fromCbor()`
+ * makes of a transaction that exists only as CBOR, and what `builder.restore()` brings back.
  *
  * It is a `BuiltTxData`: every member of it is here as the object's own read-only data, so it goes
  * wherever a `BuiltTxData` goes (`after`, `utxosAfter`, `outputOf`), and `{ ...built }` or
@@ -321,9 +320,9 @@ const keysText = (keys: readonly RequiredKey[]) =>
  * An object made by `build()` keeps the payer of its build when that payer has a signing method
  * at the build, as a plan's payer signs: a wallet, or a snapshot object that carries such a
  * method; it is never written by `toJSON()`. A payer given as an address, or as an object
- * without a signing method, is not kept, and an object made by `finalize()`, `fromCbor()` or
- * `restore()` holds no payer: it signs with the signers named in `sign({ signers })`, or takes
- * witnesses made elsewhere.
+ * without a signing method, is not kept, and an object made by `fromCbor()` or `restore()` holds
+ * no payer: it signs with the signers named in `sign({ signers })`, or takes witnesses made
+ * elsewhere.
  *
  * ```ts
  * const again = await builder.restore(json);
@@ -361,7 +360,7 @@ export class BuiltTx implements BuiltTxData {
   declare readonly redeemers: BuiltTxData["redeemers"];
   /** Every input spent, resolved, in the transaction's order */
   declare readonly inputs: BuiltTxData["inputs"];
-  /** The inputs added to pay for the transaction; none from `finalize` and from `fromCbor` */
+  /** The inputs added to pay for the transaction; none from `fromCbor` */
   declare readonly selectedInputs: BuiltTxData["selectedInputs"];
   /** The reference inputs, resolved, in the transaction's order */
   declare readonly referenceInputs: BuiltTxData["referenceInputs"];
@@ -378,9 +377,8 @@ export class BuiltTx implements BuiltTxData {
    */
   declare readonly change: BuiltTxData["change"];
   /**
-   * The collateral, when the transaction runs Plutus scripts; of a transaction completed by
-   * `finalize` or made by `fromCbor`, whenever the body has collateral inputs, in the body's
-   * order
+   * The collateral, when the transaction runs Plutus scripts; of a transaction made by
+   * `fromCbor`, whenever the body has collateral inputs, in the body's order
    */
   declare readonly collateral?: BuiltTxData["collateral"];
   /** The keys that must sign, each with the roles it is needed in */
@@ -403,7 +401,7 @@ export class BuiltTx implements BuiltTxData {
   declare readonly warnings: BuiltTxData["warnings"];
   /**
    * Every part of the transaction, resolved, the ones added by balancing included; empty on a
-   * transaction completed by `finalize` or made by `fromCbor`
+   * transaction made by `fromCbor`
    */
   declare readonly parts: BuiltTxData["parts"];
 
@@ -457,8 +455,7 @@ export class BuiltTx implements BuiltTxData {
   readonly #payer?: Signer;
 
   /**
-   * Made by `builder.build()`, `builder.finalize()`, `builder.fromCbor()` and `builder.restore()`
-   * only
+   * Made by `builder.build()`, `builder.fromCbor()` and `builder.restore()` only
    */
   private constructor(
     builder: TxBuilder,
@@ -577,7 +574,7 @@ export class BuiltTx implements BuiltTxData {
       const missing = this.missing;
       throw new TxPlanError(
         "MISSING_SIGNATURES",
-        `nobody can sign: name signers in sign({ signers }), or add witnesses with addWitnesses; the object holds no payer that signs (an address, a snapshot or a wallet without a signing method is none, and so is an object made by finalize(), fromCbor() or restore()); ${
+        `nobody can sign: name signers in sign({ signers }), or add witnesses with addWitnesses; the object holds no payer that signs (an address, a snapshot or a wallet without a signing method is none, and so is an object made by fromCbor() or restore()); ${
           missing.length === 0
             ? "every key the transaction needs has signed it"
             : `${missing.length} key(s) the transaction needs have not signed it`
@@ -940,8 +937,7 @@ const internals = (builder: TxBuilder) =>
   builder as unknown as BuilderInternals;
 
 /**
- * A `BuiltTx` of the data of a build: the object `build()`, `finalize()`, `fromCbor()` and
- * `restore()` return
+ * A `BuiltTx` of the data of a build: the object `build()`, `fromCbor()` and `restore()` return
  * @param builder The builder that made it: it submits through it and looks through its provider
  * @param extraKeys The build's `extraKeyWitnesses`: witnesses of other keys its fee counts; of a
  *   transaction from CBOR, the number of such witnesses it came with
@@ -971,14 +967,14 @@ export const makeBuiltTx = (
 };
 
 /**
- * The objects `build()` and `finalize()` made in this process: their data is the build's own.
- * Those of `fromCbor()` and `restore()` are not among them
+ * The objects `build()` made in this process: their data is the build's own. Those of
+ * `fromCbor()` and `restore()` are not among them
  */
 const BUILT_HERE = new WeakSet<BuiltTx>();
 
 /**
- * Whether `build()` or `finalize()` of a builder made this object in this process: then the
- * labels of its outputs are the build's, and not the word of whoever wrote a JSON
+ * Whether `build()` of a builder made this object in this process: then the labels of its
+ * outputs are the build's, and not the word of whoever wrote a JSON
  */
 export const isBuiltHere = (tx: BuiltTx): boolean => BUILT_HERE.has(tx);
 

@@ -5,7 +5,6 @@ import type {
   IFetcher,
   IMeshTxSerializer,
   ISubmitter,
-  LanguageVersion,
   NativeScript,
   NetworkConfig,
   NetworkInput,
@@ -78,12 +77,7 @@ import type { GovernanceDeposits } from "./resolve";
 import type { RawTx, Signer } from "./sign";
 import type { TxSigners } from "./witnesses";
 import { abortable, throwIfAborted } from "./abort";
-import {
-  checkPartRepeats,
-  checkPrototypeRepeats,
-  incomplete,
-  unresolvedError,
-} from "./assemble";
+import { checkPartRepeats, incomplete, unresolvedError } from "./assemble";
 import {
   balance,
   COLLATERAL_INPUT_BYTES,
@@ -108,13 +102,10 @@ import {
 } from "./chain";
 import { TxBuildError, TxPlanError } from "./errors";
 import {
-  bodyRefScriptSize,
   checkProtocol,
   coversMinCoin,
-  feeForSize,
   outputMinCoin,
   prototypeExUnits,
-  prototypeRefs,
   valueSize,
 } from "./fee";
 import { auxiliaryDataHashOf, scriptDataHashOf } from "./hashes";
@@ -142,14 +133,11 @@ import {
 import { givenShape, heldValue, shownValue, textShape } from "./parts/shape";
 import {
   outputAsUtxo,
-  placeUtxos,
   plainUtxo,
-  readPlaced,
   readUtxo,
   toMeshUtxo,
   utxoKey,
   utxoText,
-  UtxoTwiceError,
 } from "./parts/utxo";
 import {
   givenPayerEntries,
@@ -184,12 +172,7 @@ import {
   withoutKeyWitnesses,
 } from "./sign";
 import { MAX_REF_SCRIPT_BYTES, scanTransaction, TxScanError } from "./tx-scan";
-import {
-  countedKeys,
-  placeholderWitnesses,
-  signersOf,
-  txSigners,
-} from "./witnesses";
+import { countedKeys, signersOf, txSigners } from "./witnesses";
 
 /**
  * What the builder reads the chain through: every read, the tip and the search; submits when it
@@ -745,7 +728,7 @@ const unsupportedSerializer = (reason: string, cause?: unknown) =>
 const SEND_ALL_TO_ALLOWED = "a payment address, in bech32 or hex";
 const PARAMS_ALLOWED = "a whole Protocol";
 const AFTER_ALLOWED =
-  "a transaction built by TxBuilder.build, finalize, fromCbor or restore (its tx and outputs), a plan, or a list of them";
+  "a transaction built by TxBuilder.build, fromCbor or restore (its tx and outputs), a plan, or a list of them";
 
 /**
  * A transaction of `after` as the build reads it: what it spends, its outputs, its change marked
@@ -1145,8 +1128,8 @@ export type BuiltRedeemer = {
   /** The redeemer data, in CBOR hex, as the transaction carries it */
   data: string;
   /**
-   * The part the redeemer belongs to; absent on a transaction completed by `finalize` or made by
-   * `fromCbor`, which have no parts
+   * The part the redeemer belongs to; absent on a transaction made by `fromCbor`, which has no
+   * parts
    */
   part?: AssembledRedeemer["part"];
   label?: string;
@@ -1195,18 +1178,17 @@ export type BuiltOutput = Utxo & {
   /** The label of the output part it comes from */
   readonly label?: string;
   /**
-   * Set on change outputs: those at the payer's change address that took change; of a
-   * transaction completed by `finalize`, every output at its `changeAddress`; on no output of a
-   * transaction made by `fromCbor`
+   * Set on change outputs: those at the payer's change address that took change; on no output
+   * of a transaction made by `fromCbor`
    */
   readonly change?: true;
 };
 
 /**
- * A transaction built and balanced, ready to sign. Plain data. `build()` and `finalize()` return
- * it as a `BuiltTx`; a step of a plan is this data with its place in the plan. `fromCbor()`
- * returns the same data of a transaction it did not build: read from its bytes and from the UTxOs
- * of its inputs.
+ * A transaction built and balanced, ready to sign. Plain data. `build()` returns it as a
+ * `BuiltTx`; a step of a plan is this data with its place in the plan. `fromCbor()` returns the
+ * same data of a transaction it did not build: read from its bytes and from the UTxOs of its
+ * inputs.
  */
 export type BuiltTxData = {
   /**
@@ -1229,7 +1211,7 @@ export type BuiltTxData = {
   redeemers: BuiltRedeemer[];
   /** Every input spent, resolved, in the transaction's order */
   inputs: Utxo[];
-  /** The inputs added to pay for the transaction; none from `finalize` and from `fromCbor` */
+  /** The inputs added to pay for the transaction; none from `fromCbor` */
   selectedInputs: Utxo[];
   /** The reference inputs, resolved, in the transaction's order */
   referenceInputs: Utxo[];
@@ -1246,11 +1228,11 @@ export type BuiltTxData = {
    */
   change: BuiltOutput[];
   /**
-   * The collateral, when the transaction runs Plutus scripts; of a transaction completed by
-   * `finalize` or made by `fromCbor`, whenever the body has collateral inputs, in the body's
-   * order. The inputs given by `collateral` parts come first, in their order, then those the
-   * builder added to them or chose. Built with `collateralReturn: false`, it has no `return`,
-   * and `total` is all the lovelace of the inputs.
+   * The collateral, when the transaction runs Plutus scripts; of a transaction made by
+   * `fromCbor`, whenever the body has collateral inputs, in the body's order. The inputs given
+   * by `collateral` parts come first, in their order, then those the builder added to them or
+   * chose. Built with `collateralReturn: false`, it has no `return`, and `total` is all the
+   * lovelace of the inputs.
    */
   collateral?: TxCollateral;
   /** The keys that must sign, each with the roles it is needed in */
@@ -1278,7 +1260,7 @@ export type BuiltTxData = {
   warnings: BuildWarning[];
   /**
    * Every part of the transaction, resolved, the ones added by balancing included; empty on a
-   * transaction completed by `finalize` or made by `fromCbor`
+   * transaction made by `fromCbor`
    */
   parts: TxPart[];
 };
@@ -1767,309 +1749,6 @@ export class TxBuilder {
         error,
       );
     }
-  }
-
-  /**
-   * Completes an edited or hand-assembled prototype without balancing it: recomputes the script
-   * data and auxiliary data hashes, prices it for its signers and, given `changeAddress`, takes
-   * a fee increase from the change output there: the last output at that address that still
-   * holds its minimum lovelace afterwards. A fee that covers the minimum is kept as it is.
-   *
-   * Scripts are not run again: redeemers keep the execution units the prototype states. After an
-   * edit that a script can see, build again from parts instead. Collateral is not changed. Key
-   * and bootstrap witnesses of the prototype are dropped: the result is unsigned, and priced for
-   * the keys the prototype calls for, no others. The prototype given is not changed.
-   *
-   * The prototype must name each output once among its inputs, once among its reference inputs
-   * and once among its collateral inputs, and must not read an output it spends: it is refused
-   * otherwise, not repaired, since its redeemers may rely on its positions.
-   *
-   * The result has no parts: `parts` and `selectedInputs` are empty, redeemers carry no `part`
-   * and outputs no `label`. `change` holds every output at `changeAddress`, a payment to that
-   * address included; without `changeAddress` it is empty. The result is a `BuiltTx`, as
-   * from `build`.
-   *
-   * ```ts
-   * const edited = structuredClone(built.prototype);
-   * edited.body.ttl = String(builder.slotAt(Date.now() + 600_000));
-   * const final = await builder.finalize(edited, { inputs: built.inputs, changeAddress });
-   * ```
-   * @param context.inputs The UTxOs its inputs, reference inputs and collateral inputs spend or
-   *   read: all of them, none is looked up; each in any form the builder takes a UTxO in. An entry
-   *   for an out ref the prototype does not name is passed over, its out ref alone read; two that
-   *   name one output must hold the same, and two texts of CBOR for one output be one text
-   * @param context.changeAddress In bech32 or hex
-   * @throws TxBuildError FEE_TOO_LOW `{ fee, minFee }` when the fee is now too small and there is
-   *   no change output to take it from; UTXO_NOT_FOUND `{ input }` for an input, reference input
-   *   or collateral input whose UTxO is not given; INSUFFICIENT_COLLATERAL `{ required,
-   *   available }` when the raised fee is no longer covered by the collateral of a transaction
-   *   that runs Plutus scripts; MISSING_PARAMETER when such a transaction's cost models are not
-   *   known; INVALID_OPTION for a `changeAddress` that is no address, for `inputs` that is not a
-   *   list of UTxOs, and for two entries of it that name one output and differ;
-   *   FEE_NOT_CONVERGED when the fee does not settle; UNSUPPORTED_SERIALIZER when the builder's
-   *   serializer throws, or answers with something that is not a transaction in CBOR hex;
-   *   MISSING_PARAMETER when the provider's protocol parameters lack a field a
-   *   build reads, or hold one that is not a number; DUPLICATE_PART `{ item }`, the out ref, for
-   *   a prototype whose inputs, reference inputs or collateral inputs name one output twice, or
-   *   whose reference inputs name an output it spends; TX_TOO_LARGE (`cause: "referenceScripts"`)
-   *   when the UTxOs it spends and reads hold more than `MAX_REF_SCRIPT_BYTES` of reference
-   *   scripts, before they are read whole
-   */
-  async finalize(
-    prototype: TransactionPrototype,
-    context: { inputs: readonly UtxoInput[]; changeAddress?: string },
-  ): Promise<BuiltTx> {
-    const { inputs, changeAddress: changeTo } = context ?? {};
-    if (!Array.isArray(inputs))
-      throw invalidOption("inputs", inputs, FINALIZE_INPUTS_ALLOWED);
-    let changeAddress: string | undefined;
-    if (changeTo !== undefined)
-      try {
-        changeAddress = toAddressText(changeTo);
-      } catch {
-        throw unreadableAddress("changeAddress", changeTo, SEND_ALL_TO_ALLOWED);
-      }
-    const refused = (error: unknown, i: number, entry: unknown): never => {
-      throw invalidEntry(
-        "inputs",
-        kindOf(entry),
-        FINALIZE_INPUTS_ALLOWED,
-        `entry ${i} is not a UTxO: ${errorText(error)}`,
-        error,
-      );
-    };
-    let given: Map<string, Utxo>;
-    try {
-      // Only the entries for the out refs the prototype names are read, each out ref once
-      const named = prototypeRefs(prototype);
-      const placed = placeUtxos(inputs, refused, new Set(named.all));
-      // The reference scripts are bounded as a node bounds them, before a UTxO is read whole
-      const counter = refScriptCounter(named.spentAndRead);
-      counter.addPlaced(placed);
-      const past = counter.past();
-      if (past) throw refScriptsTooLarge(past.size, past.why);
-      given = readPlaced(placed, refused);
-    } catch (error) {
-      if (!(error instanceof UtxoTwiceError)) throw error;
-      throw invalidEntry(
-        "inputs",
-        "object",
-        "a list of the UTxOs the transaction spends, reads and puts up as collateral, in which the entries that name one output are alike",
-        error.message,
-      );
-    }
-
-    // A copy without key witnesses: none would verify over a changed body, and the fee is
-    // priced for the keys the transaction calls for
-    const draft = structuredClone(prototype);
-    delete draft.witness_set.vkeys;
-    delete draft.witness_set.bootstraps;
-    const { body } = draft;
-    // Positions are the prototype's own: a repeat is refused, never dropped
-    checkPrototypeRepeats(body);
-    const utxoOf =
-      (role: string) =>
-      (input: { transaction_id: string; index: number }): Utxo => {
-        const utxo = given.get(
-          `${input.transaction_id.toLowerCase()}#${input.index}`,
-        );
-        if (utxo) return utxo;
-        throw new TxBuildError(
-          "UTXO_NOT_FOUND",
-          `the UTxO of ${input.transaction_id}#${input.index}, which the transaction ${role}, is not given in inputs`,
-          {
-            details: {
-              input: { txHash: input.transaction_id, outputIndex: input.index },
-            },
-          },
-        );
-      };
-    const spent = body.inputs.map(utxoOf("spends"));
-    const collateral = (body.collateral ?? []).map(
-      utxoOf("puts up as collateral"),
-    );
-    const references = (body.reference_inputs ?? []).map(utxoOf("reads"));
-    const changeOutputs = new Set<number>();
-    if (changeAddress !== undefined)
-      body.outputs.forEach((output, i) => {
-        if (sameAddress(output.address, changeAddress)) changeOutputs.add(i);
-      });
-
-    // A Plutus script runs only for a redeemer: datums alone need no cost model
-    const runsPlutus = (draft.witness_set.redeemers?.length ?? 0) > 0;
-    const [params, costModels] = await Promise.all([
-      this.loadParams(),
-      runsPlutus ? this.loadCostModels() : Promise.resolve(undefined),
-    ]);
-    if (runsPlutus && !costModels)
-      throw new TxBuildError(
-        "MISSING_PARAMETER",
-        this.cache
-          ? "the transaction runs Plutus scripts, and the provider gave no cost models; give the builder costModels"
-          : "the transaction runs Plutus scripts, and the builder has no cost models: give it costModels, or a provider to read them from",
-        { details: { parameter: "costModels" } },
-      );
-
-    // Who signs, and the scripts the body calls for, as for a transaction built elsewhere
-    const unsigned = this.serialize(draft);
-    let read: ReturnType<typeof readTransaction>;
-    try {
-      read = readTransaction(unsigned);
-    } catch (error) {
-      if (!this.serializer) throw error;
-      const cause = (error as { cause?: unknown }).cause ?? error;
-      throw unsupportedSerializer(
-        `it answered with CBOR that is not a transaction: ${errorText(cause)}`,
-        cause,
-      );
-    }
-    const { collected, scripts } = bodySigners(read, [
-      ...spent,
-      ...collateral,
-      ...references,
-    ]);
-    const languages = runsPlutus
-      ? plutusLanguages(draft, [...spent, ...references], scripts)
-      : new Set<LanguageVersion>();
-
-    // Both hashes from the bytes of this builder's serializer, which the fee does not change
-    const scriptDataHash = scriptDataHashOf(
-      unsigned,
-      languages,
-      costModels ?? [],
-    );
-    if (scriptDataHash) body.script_data_hash = scriptDataHash;
-    else delete body.script_data_hash;
-    const auxiliaryDataHash = auxiliaryDataHashOf(unsigned);
-    if (auxiliaryDataHash) body.auxiliary_data_hash = auxiliaryDataHash;
-    else delete body.auxiliary_data_hash;
-
-    const { vkeyWitnesses, bootstrapWitnesses } = placeholderWitnesses({
-      keyHashes: collected.priced,
-      byronAddresses: collected.byronAddresses,
-    });
-    const refScripts = bodyRefScriptSize(body, [...spent, ...references]);
-    const exUnits = prototypeExUnits(draft);
-    const priceOf = (candidate: TransactionPrototype) =>
-      feeForSize(
-        this.serialize({
-          ...candidate,
-          witness_set: {
-            ...candidate.witness_set,
-            ...(vkeyWitnesses.length > 0 && { vkeys: vkeyWitnesses }),
-            ...(bootstrapWitnesses.length > 0 && {
-              bootstraps: bootstrapWitnesses,
-            }),
-          },
-        }).length / 2,
-        refScripts,
-        exUnits,
-        params,
-      );
-
-    const fee = BigInt(body.fee);
-    let required = priceOf(draft);
-    let final = draft;
-    if (required > fee) {
-      const feeTooLow = (reason: string) =>
-        new TxBuildError(
-          "FEE_TOO_LOW",
-          `the fee ${fee} is below the transaction's minimum fee ${required}, and ${reason}`,
-          { details: { fee, minFee: required } },
-        );
-      if (changeAddress === undefined)
-        throw feeTooLow("no changeAddress is given to take the increase from");
-      let settled = false;
-      for (let round = 0; round < MAX_FINALIZE_ROUNDS && !settled; round++) {
-        // The whole increase from one output, counted from the prototype as given: the last
-        // output at the change address that still holds its minimum afterwards
-        const increase = required - fee;
-        const lowered = (i: number) => {
-          const output = body.outputs[i]!;
-          const coin = BigInt(output.amount.coin) - increase;
-          return coin < 0n
-            ? undefined
-            : {
-                ...output,
-                amount: { ...output.amount, coin: coin.toString() },
-              };
-        };
-        const payer = [...changeOutputs].reverse().find((i) => {
-          const output = lowered(i);
-          return (
-            output !== undefined &&
-            coversMinCoin(output, params.coinsPerUtxoSize)
-          );
-        });
-        if (payer === undefined)
-          throw feeTooLow(
-            changeOutputs.size === 0
-              ? `no output is at the change address ${changeAddress}`
-              : `no output at the change address ${changeAddress} can pay ${increase} lovelace and keep its minimum`,
-          );
-        const candidate = structuredClone(draft);
-        candidate.body.fee = required.toString();
-        candidate.body.outputs[payer] = lowered(payer)!;
-        const next = priceOf(candidate);
-        if (next <= required) {
-          final = candidate;
-          settled = true;
-        } else required = next;
-      }
-      if (!settled)
-        throw new TxBuildError(
-          "FEE_NOT_CONVERGED",
-          `the fee did not settle within ${MAX_FINALIZE_ROUNDS} rounds`,
-        );
-      if (runsPlutus) checkCollateral(final, collateral, params);
-    }
-
-    const tx = this.serialize(final);
-    const txHash = this.txHashOf(tx);
-    const outputs = bodyOutputs(txHash, final.body).map(
-      (utxo, i): BuiltOutput =>
-        changeOutputs.has(i) ? { ...utxo, change: true as const } : utxo,
-    );
-    const validity = validityOf(final.body, this.network);
-    return makeBuiltTx(this, {
-      tx,
-      txHash,
-      prototype: final,
-      fee: BigInt(final.body.fee),
-      exUnits,
-      redeemers: (final.witness_set.redeemers ?? []).map((r) => ({
-        tag: r.tag.type,
-        index: Number(r.index),
-        exUnits: {
-          mem: BigInt(r.ex_units.mem),
-          steps: BigInt(r.ex_units.steps),
-        },
-        data: dataCbor(r.data),
-      })),
-      inputs: spent,
-      selectedInputs: [],
-      referenceInputs: references,
-      outputs,
-      change: outputs.filter((o) => o.change),
-      ...(collateral.length > 0 && {
-        collateral: {
-          inputs: collateral,
-          total: collateralTotal(final.body, collateral),
-          ...(final.body.collateral_return && {
-            return: outputUtxo(
-              txHash,
-              final.body.outputs.length,
-              final.body.collateral_return,
-            ),
-          }),
-        },
-      }),
-      signers: signersOf(collected),
-      ...(validity && { validity }),
-      network: { name: this.network.name, networkId: this.network.networkId },
-      warnings: [],
-      parts: [],
-    });
   }
 
   /**
@@ -2646,7 +2325,7 @@ export class TxBuilder {
    *   the plan's payer, sign it as any step, for the keys that have not signed it yet; a witness
    *   it needs from a party that is no signer of the call comes through `plan.addWitnesses`.
    *   What it spends no other step spends or selects. A link names its outputs by position, and
-   *   by label only on an object `build` or `finalize` made in this process. One without an end
+   *   by label only on an object `build` made in this process. One without an end
    *   of validity never expires (`NEVER_EXPIRES` in its `warnings`), so `until` is undefined.
    *
    * The plan's deadlines are its own options, else this builder's `planDefaults`, else the
@@ -3527,42 +3206,6 @@ export class TxBuilder {
   }
 }
 
-/** Most rounds `finalize` prices the transaction in, as balancing does */
-const MAX_FINALIZE_ROUNDS = 50;
-
-const FINALIZE_INPUTS_ALLOWED =
-  "a list of the UTxOs the transaction spends, reads and puts up as collateral";
-
-/** Whether an output's address is this address text, whatever form the output holds it in */
-const sameAddress = (address: string, text: string) => {
-  try {
-    return toAddressText(address) === text;
-  } catch {
-    return false;
-  }
-};
-
-/**
- * The Plutus versions a transaction runs, as the ledger takes them: those of the Plutus scripts
- * of its witness set, and of the Plutus reference scripts held by the UTxOs it spends or reads
- * whose hash the body calls for
- */
-const plutusLanguages = (
-  prototype: TransactionPrototype,
-  utxos: readonly Utxo[],
-  called: ReadonlySet<string>,
-): Set<LanguageVersion> => {
-  const languages = new Set<LanguageVersion>();
-  const witnessSet = prototype.witness_set;
-  if (witnessSet.plutus_v1_scripts?.length) languages.add("V1");
-  if (witnessSet.plutus_v2_scripts?.length) languages.add("V2");
-  if (witnessSet.plutus_v3_scripts?.length) languages.add("V3");
-  for (const { script } of utxos)
-    if (script?.type === "plutus" && called.has(script.hash))
-      languages.add(script.version);
-  return languages;
-};
-
 /**
  * The lovelace a transaction's collateral forfeits: its stated total, else the lovelace of its
  * collateral inputs less that of its collateral return
@@ -3578,26 +3221,6 @@ const collateralTotal = (
     0n,
   );
   return held - BigInt(body.collateral_return?.amount.coin ?? 0);
-};
-
-/**
- * Checks that a transaction's collateral covers `collateralPercent` of its fee
- * @throws TxBuildError INSUFFICIENT_COLLATERAL `{ required, available }` when it does not
- */
-const checkCollateral = (
-  prototype: TransactionPrototype,
-  collateral: readonly Utxo[],
-  params: Protocol,
-) => {
-  const fee = BigInt(prototype.body.fee);
-  const required = (fee * BigInt(params.collateralPercent) + 99n) / 100n;
-  const available = collateralTotal(prototype.body, collateral);
-  if (required > available)
-    throw new TxBuildError(
-      "INSUFFICIENT_COLLATERAL",
-      `the fee ${fee} calls for ${required} lovelace of collateral, and the transaction puts up ${available}; raise total_collateral and lower the collateral return, or build again`,
-      { details: { required, available } },
-    );
 };
 
 /**

@@ -16,7 +16,6 @@ import {
   NetworkInput,
   Protocol,
   resolveNativeScriptHash,
-  resolveScriptHash,
   resolveScriptRef,
   ScriptEvaluationError,
   ScriptFailure,
@@ -27,7 +26,6 @@ import {
 import { CSLSerializer } from "@meshsdk/core-csl";
 import {
   Address,
-  blake2b,
   keyHashToRewardAddress,
   OfflineEvaluatorScalus,
   resolvePlutusScriptAddress,
@@ -40,7 +38,6 @@ import {
 } from "@meshsdk/core-cst";
 
 import {
-  assembleTxPrototype,
   Assets,
   BuildEvent,
   BuildOptions,
@@ -51,7 +48,6 @@ import {
   collateralReturn,
   donation,
   guard,
-  message,
   metadata,
   minCoin,
   minFee,
@@ -66,7 +62,6 @@ import {
   spend,
   toUtxo,
   TxBuilder,
-  TxBuilderOptions,
   TxBuildError,
   TxError,
   TxPart,
@@ -2949,30 +2944,6 @@ describe("TxBuilder: serialization", () => {
       });
     });
 
-    it("is UNSUPPORTED_SERIALIZER from finalize, never INVALID_OPTION tx", async () => {
-      const built = await new TxBuilder({ network, params }).build(
-        parts,
-        options,
-      );
-      const thrown = unsupported(
-        await rejection(
-          withSerializer(throwing).finalize(built.prototype, {
-            inputs: built.inputs,
-          }),
-        ),
-      );
-      expect(thrown.cause).toBe(boom);
-      const notATransaction = unsupported(
-        await rejection(
-          withSerializer(() => "a0").finalize(built.prototype, {
-            inputs: built.inputs,
-          }),
-        ),
-      );
-      expect(notATransaction.cause).toBeInstanceOf(Error);
-      expect(TxError.is(notATransaction.cause)).toBe(false);
-    });
-
     it("leaves the built-in encoder and a working serializer as they were", async () => {
       const cst = await new TxBuilder({ network, params }).build(
         parts,
@@ -2984,12 +2955,6 @@ describe("TxBuilder: serialization", () => {
         serializer: new CSLSerializer(),
       }).build(parts, options);
       expect(csl.txHash).toBe(cst.txHash);
-      const final = await new TxBuilder({
-        network,
-        params,
-        serializer: new CSLSerializer(),
-      }).finalize(cst.prototype, { inputs: cst.inputs });
-      expect(final.txHash).toBe(cst.txHash);
     });
   });
 });
@@ -3024,29 +2989,6 @@ describe("TxBuilder: a fee that does not settle", () => {
       "FEE_NOT_CONVERGED",
     );
     expect(TxError.is(error, "FEE_NOT_CONVERGED")).toBe(true);
-    expect(error.details).toBeUndefined();
-  });
-
-  it("is FEE_NOT_CONVERGED from finalize, without details", async () => {
-    const built = await new TxBuilder({ network, params }).build(
-      parts,
-      options,
-    );
-    const edited = structuredClone(built.prototype);
-    // Below the minimum, so that finalize raises it
-    edited.body.fee = "0";
-    const change = built.change[0]!;
-    const error = await expectBuildError(
-      new TxBuilder({
-        network,
-        params,
-        serializer: growing() as never,
-      }).finalize(edited, {
-        inputs: built.inputs,
-        changeAddress: change.address,
-      }),
-      "FEE_NOT_CONVERGED",
-    );
     expect(error.details).toBeUndefined();
   });
 });
@@ -4580,637 +4522,23 @@ describe("minFee", () => {
   });
 });
 
-describe("TxBuilder: finalize", () => {
-  const nativeScript: NativeScript = {
-    type: "all",
-    scripts: [{ type: "sig", keyHash: keyHashHex(7) }],
-  };
-  const builder = (options: Partial<TxBuilderOptions> = {}) =>
-    new TxBuilder({
+describe("TxBuilder: a prototype", () => {
+  it("is not made into a transaction by the builder: it has no finalize", () => {
+    const builder = new TxBuilder({ network, params });
+    expect("finalize" in TxBuilder.prototype).toBe(false);
+    expect("finalize" in builder).toBe(false);
+    // @ts-expect-error: TxBuilder has no finalize
+    expect(builder.finalize).toBeUndefined();
+  });
+});
+
+describe("TxBuilder: legacy stake certificates", () => {
+  it("leaves the legacy stake certificates working, with no warning about them", async () => {
+    const built = await new TxBuilder({
       network,
       params,
       costModels,
       evaluator: fakeEvaluator().evaluator,
-      ...options,
-    });
-  const payer = (...extra: Utxo[]) => ({
-    changeAddress: wallet,
-    utxos: [utxo(lovelace(ada(100))), ...extra],
-  });
-  /** Every UTxO the body names: inputs, reference inputs and collateral */
-  const named = (built: BuiltTxData) => [
-    ...built.inputs,
-    ...built.referenceInputs,
-    ...(built.collateral?.inputs ?? []),
-  ];
-  const locked = (n: number, address = scriptAddress): Utxo => ({
-    txHash: (0xd0 + n).toString(16).repeat(32),
-    outputIndex: 0,
-    address,
-    value: lovelace(ada(10)),
-    datum: unitInline,
-  });
-  const payment = (b = builder()) =>
-    b.build(output({ address: recipient, value: { lovelace: ada(5) } }), {
-      payer: payer(),
-    });
-  /** A Plutus spend with collateral, its script read from a reference output */
-  const plutusSpend = async (b = builder()) => {
-    const holder = utxo(lovelace(ada(20)), { script: plutusRef });
-    const built = await b.build(
-      [
-        spend.plutus({
-          utxo: locked(1),
-          script: { reference: holder },
-          redeemer: { data: mConStr0([1]) },
-          label: "unlock",
-        }),
-      ],
-      { payer: payer(holder) },
-    );
-    return { built, holder };
-  };
-  /** The prototype with its fee lowered, so that finalize must raise it */
-  const underpaid = (built: BuiltTxData, by = 10_000n) => {
-    const edited = structuredClone(built.prototype);
-    edited.body.fee = (built.fee - by).toString();
-    return edited;
-  };
-
-  it("refuses a fee below the minimum without a change address", async () => {
-    const built = await payment();
-    const error = await expectBuildError(
-      builder().finalize(underpaid(built), { inputs: built.inputs }),
-      "FEE_TOO_LOW",
-    );
-    const details = error.details as { fee: bigint; minFee: bigint };
-    expect(details.fee).toBe(built.fee - 10_000n);
-    expect(typeof details.minFee).toBe("bigint");
-    expect(details.minFee).toBeGreaterThan(details.fee);
-  });
-
-  it("gives back a built transaction untouched: a payment, a native script spend, a Plutus spend", async () => {
-    const native = await builder().build(
-      [
-        spend.native({
-          utxo: locked(2, builder().scriptAddress(nativeScript)),
-          script: nativeScript,
-        }),
-      ],
-      { payer: payer() },
-    );
-    const { built: plutus } = await plutusSpend();
-    expect(plutus.collateral).toBeDefined();
-    expect(plutus.referenceInputs).toHaveLength(1);
-    for (const built of [await payment(), native, plutus]) {
-      const final = await builder().finalize(built.prototype, {
-        inputs: named(built),
-      });
-      expect(final.tx).toBe(built.tx);
-      expect(final.txHash).toBe(built.txHash);
-      expect(final.fee).toBe(built.fee);
-    }
-  });
-
-  it("prices a raised fee for the keys a native script names", async () => {
-    const native = await builder().build(
-      [
-        spend.native({
-          utxo: locked(2, builder().scriptAddress(nativeScript)),
-          script: nativeScript,
-        }),
-      ],
-      { payer: payer() },
-    );
-    const final = await builder().finalize(underpaid(native), {
-      inputs: named(native),
-      changeAddress: wallet,
-    });
-    // The locked UTxO pays for itself: the one key is the one the script names, which no
-    // signer role lists
-    expect(final.inputs).toHaveLength(1);
-    expect(final.signers.keyHashes).toEqual([]);
-    expect(final.fee).toBe(
-      minFee(final.prototype, {
-        params,
-        vkeyWitnesses: 1,
-        inputs: named(native),
-      }),
-    );
-    expect(final.fee).toBe(native.fee);
-  });
-
-  it("prices a raised fee for a bootstrap witness of a Byron input", async () => {
-    const byron = "Ae2tdPwUPEZ4YjgvykNpoFeYUxoyhNj2kg8KfKWN2FizsSpLUPv68MpTVDo";
-    const atByron = utxo(lovelace(ada(100)), {}, byron);
-    const prototype = assembleTxPrototype(
-      [
-        spend.pubKey({ utxo: atByron }),
-        output({ address: recipient, value: { lovelace: ada(5) } }),
-        output({ address: wallet, value: { lovelace: ada(95) } }),
-      ],
-      { fee: 0n },
-    ).prototype;
-    const final = await builder().finalize(prototype, {
-      inputs: [atByron],
-      changeAddress: wallet,
-    });
-    expect(final.signers.byronAddresses).toEqual([byron]);
-    expect(final.signers.keyHashes).toEqual([]);
-    // The same transaction signed: one bootstrap witness, the address's attributes an empty map
-    const signed = structuredClone(final.prototype);
-    signed.witness_set.bootstraps = [
-      {
-        vkey: "33".repeat(32),
-        signature: "44".repeat(64),
-        chain_code: Array(32).fill(0),
-        attributes: [0xa0],
-      },
-    ];
-    expect(final.fee).toBe(minFee(signed, { params, vkeyWitnesses: 0 }));
-    expect(final.fee).toBeGreaterThan(
-      minFee(final.prototype, { params, vkeyWitnesses: 0 }),
-    );
-  });
-
-  it("refuses a prototype that names an output twice, or reads an output it spends", async () => {
-    const { built } = await plutusSpend();
-    const [input] = built.prototype.body.inputs;
-    const [reference] = built.prototype.body.reference_inputs!;
-    const [put] = built.prototype.body.collateral!;
-    const keyOf = (i: { transaction_id: string; index: number }) =>
-      `${i.transaction_id.toLowerCase()}#${i.index}`;
-    const upper = (i: { transaction_id: string; index: number }) => ({
-      ...i,
-      transaction_id: i.transaction_id.toUpperCase(),
-    });
-    const cases: [
-      string,
-      (body: TransactionPrototype["body"]) => void,
-      string,
-      string,
-    ][] = [
-      [
-        "an input twice",
-        (body) => body.inputs.push(upper(input!)),
-        keyOf(input!),
-        "twice in the inputs",
-      ],
-      [
-        "a reference input twice",
-        (body) => body.reference_inputs!.push({ ...reference! }),
-        keyOf(reference!),
-        "twice in the reference inputs",
-      ],
-      [
-        "a collateral input twice",
-        (body) => body.collateral!.push({ ...put! }),
-        keyOf(put!),
-        "twice in the collateral inputs",
-      ],
-      [
-        "an input read",
-        (body) => body.reference_inputs!.push({ ...input! }),
-        keyOf(input!),
-        "both spent and read",
-      ],
-      [
-        "an input read, its hash in another case",
-        (body) => body.reference_inputs!.push(upper(input!)),
-        keyOf(input!),
-        "both spent and read",
-      ],
-    ];
-    for (const [, edit, item, says] of cases) {
-      const edited = structuredClone(built.prototype);
-      edit(edited.body);
-      const error = await expectBuildError(
-        builder().finalize(edited, {
-          inputs: named(built),
-          changeAddress: wallet,
-        }),
-        "DUPLICATE_PART",
-      );
-      expect(error.details).toEqual({ item });
-      expect(error.part).toBeUndefined();
-      expect(error.message).toContain(says);
-      expect(error.message).toContain("the prototype must hold it once");
-    }
-    // The same prototype without the repeat is finalized as built
-    const final = await builder().finalize(built.prototype, {
-      inputs: named(built),
-    });
-    expect(final.tx).toBe(built.tx);
-  });
-
-  it("takes the change address in hex or bech32, and refuses one that is no address, or inputs that are no UTxOs", async () => {
-    const built = await payment();
-    const edited = underpaid(built);
-    const fromBech32 = await builder().finalize(edited, {
-      inputs: built.inputs,
-      changeAddress: wallet,
-    });
-    const fromHex = await builder().finalize(edited, {
-      inputs: built.inputs,
-      changeAddress: Address.fromBech32(wallet).toBytes(),
-    });
-    expect(fromHex.tx).toBe(fromBech32.tx);
-    expect(fromHex.change).toEqual(fromBech32.change);
-
-    const error = await expectBuildError(
-      builder().finalize(edited, {
-        inputs: built.inputs,
-        changeAddress: "not an address",
-      }),
-      "INVALID_OPTION",
-    );
-    expect((error.details as { option: string }).option).toBe("changeAddress");
-
-    // Nor are inputs that are not a list of UTxOs taken
-    for (const inputs of [undefined, [42]]) {
-      const bad = await expectBuildError(
-        builder().finalize(edited, {
-          inputs: inputs as unknown as UTxO[],
-          changeAddress: wallet,
-        }),
-        "INVALID_OPTION",
-      );
-      expect((bad.details as { option: string }).option).toBe("inputs");
-    }
-  });
-
-  describe("the output that pays the increase", () => {
-    const funded = utxo(lovelace(ada(100)));
-    const least = minCoin(output({ address: wallet, value: {} }), params);
-    /** A transaction assembled by hand with fee 0, its outputs at the wallet as given */
-    const assembled = (...walletCoins: bigint[]) =>
-      assembleTxPrototype(
-        [
-          spend.pubKey({ utxo: funded }),
-          output({ address: recipient, value: { lovelace: ada(5) } }),
-          ...walletCoins.map((lovelace) =>
-            output({ address: wallet, value: { lovelace } }),
-          ),
-        ],
-        { fee: 0n },
-      ).prototype;
-    const finalize = (prototype: TransactionPrototype) =>
-      builder().finalize(prototype, {
-        inputs: [funded],
-        changeAddress: wallet,
-      });
-    const coins = (built: BuiltTxData) =>
-      built.prototype.body.outputs.map((o) => BigInt(o.amount.coin));
-
-    it("refuses when the only output there holds just its minimum", async () => {
-      const error = await expectBuildError(
-        finalize(assembled(least)),
-        "FEE_TOO_LOW",
-      );
-      // The prototype's fee, and the minimum reached
-      const details = error.details as { fee: bigint; minFee: bigint };
-      expect(details.fee).toBe(0n);
-      expect(typeof details.minFee).toBe("bigint");
-      expect(details.minFee).toBeGreaterThan(0n);
-    });
-
-    it("refuses when no output is at the change address", async () => {
-      const error = await expectBuildError(
-        builder().finalize(assembled(ada(50)), {
-          inputs: [funded],
-          changeAddress: baseAddress(3),
-        }),
-        "FEE_TOO_LOW",
-      );
-      const details = error.details as { fee: bigint; minFee: bigint };
-      expect(details.fee).toBe(0n);
-      expect(details.minFee).toBeGreaterThan(0n);
-    });
-
-    it("takes the whole increase from the last output there that can pay", async () => {
-      const final = await finalize(assembled(ada(40), ada(50)));
-      expect(coins(final)).toEqual([ada(5), ada(40), ada(50) - final.fee]);
-    });
-
-    it("passes over a last output that holds just its minimum", async () => {
-      const final = await finalize(assembled(ada(40), least));
-      expect(coins(final)).toEqual([ada(5), ada(40) - final.fee, least]);
-    });
-  });
-
-  it("leaves the prototype it is given as it was", async () => {
-    const built = await payment();
-    const edited = underpaid(built);
-    edited.witness_set.vkeys = [
-      { vkey: "11".repeat(32), signature: "22".repeat(64) },
-    ];
-    const before = structuredClone(edited);
-    await builder().finalize(edited, {
-      inputs: built.inputs,
-      changeAddress: wallet,
-    });
-    expect(edited).toEqual(before);
-  });
-
-  it("recomputes the auxiliary data hash, and removes it with the auxiliary data", async () => {
-    const built = await builder().build(
-      [
-        output({ address: recipient, value: { lovelace: ada(5) } }),
-        message({ text: "first" }),
-      ],
-      { payer: payer() },
-    );
-    const edited = structuredClone(built.prototype);
-    edited.auxiliary_data!.metadata!["674"] = {
-      type: "MAP",
-      value: [
-        [
-          { type: "STRING", value: "msg" },
-          { type: "LIST", value: [{ type: "STRING", value: "second" }] },
-        ],
-      ],
-    };
-    const final = await builder().finalize(edited, {
-      inputs: built.inputs,
-      changeAddress: wallet,
-    });
-    const auxiliaryData = Transaction.fromCbor(
-      TxCBOR(final.tx),
-    ).auxiliaryData();
-    expect(final.prototype.body.auxiliary_data_hash).toBe(
-      blake2b.hash(auxiliaryData!.toCbor(), 32).toString(),
-    );
-    expect(final.prototype.body.auxiliary_data_hash).not.toBe(
-      built.prototype.body.auxiliary_data_hash,
-    );
-
-    const stripped = structuredClone(built.prototype);
-    delete stripped.auxiliary_data;
-    const bare = await builder().finalize(stripped, { inputs: built.inputs });
-    expect(bare.prototype.body.auxiliary_data_hash).toBeUndefined();
-    expect(
-      Transaction.fromCbor(TxCBOR(bare.tx)).auxiliaryData(),
-    ).toBeUndefined();
-  });
-
-  it("needs cost models only for a transaction that runs a Plutus script", async () => {
-    const withoutModels = () => builder({ costModels: undefined });
-    const { built } = await plutusSpend();
-    const error = await expectBuildError(
-      withoutModels().finalize(built.prototype, { inputs: named(built) }),
-      "MISSING_PARAMETER",
-    );
-    expect(error.details).toEqual({ parameter: "costModels" });
-
-    const paid = await payment();
-    await withoutModels().finalize(paid.prototype, { inputs: named(paid) });
-    // Nor asked of a provider
-    const { fetcher, calls } = fakeFetcher([]);
-    await builder({ costModels: undefined, provider: fetcher }).finalize(
-      paid.prototype,
-      { inputs: named(paid) },
-    );
-    expect(calls.fetchCostModels).toBeUndefined();
-    // A datum in the witness set runs no script
-    const withDatum = await builder().build(
-      output({
-        address: scriptAddress,
-        value: { lovelace: ada(5) },
-        datum: { type: "hash", data: mConStr0([7]), embed: true },
-      }),
-      { payer: payer() },
-    );
-    expect(withDatum.prototype.witness_set.plutus_data).toBeDefined();
-    const final = await withoutModels().finalize(withDatum.prototype, {
-      inputs: named(withDatum),
-    });
-    expect(final.tx).toBe(withDatum.tx);
-  });
-
-  it("reports the transaction it completes as data, without parts", async () => {
-    const { built, holder } = await plutusSpend();
-    const edited = underpaid(built, 0n);
-    // A raise needs collateral to cover it: put up more of it by hand
-    edited.body.total_collateral = (
-      BigInt(edited.body.total_collateral!) + ada(1)
-    ).toString();
-    edited.body.collateral_return!.amount.coin = (
-      BigInt(edited.body.collateral_return!.amount.coin) - ada(1)
-    ).toString();
-    edited.body.ttl = "99999999";
-    const final = await builder().finalize(edited, {
-      inputs: named(built),
-      changeAddress: wallet,
-    });
-
-    expect(final.fee).toBeGreaterThan(built.fee);
-    // Worked out from the body, as the build worked them out from its parts
-    expect(final.signers).toEqual(built.signers);
-    expect(final.signers.keys[0]!.roles).toEqual(["collateral"]);
-    expect(final.inputs.map(ref)).toEqual(
-      final.prototype.body.inputs.map((i) => ({
-        txHash: i.transaction_id,
-        outputIndex: i.index,
-      })),
-    );
-    expect(final.referenceInputs.map(ref)).toEqual([ref(holder)]);
-    for (const [i, o] of final.outputs.entries())
-      expect(ref(o)).toEqual({ txHash: final.txHash, outputIndex: i });
-    expect(final.change.length).toBeGreaterThan(0);
-    for (const o of final.change) {
-      expect(o.address).toBe(wallet);
-      expect(o.change).toBe(true);
-      expect(final.outputs).toContainEqual(o);
-    }
-    expect(final.parts).toEqual([]);
-    expect(final.selectedInputs).toEqual([]);
-    expect(final.warnings).toEqual([]);
-    expect(final.validity).toMatchObject({ invalidHereafter: 99999999 });
-    expect(final.network).toEqual(built.network);
-    expect(final.redeemers).toEqual([
-      {
-        tag: "SPEND",
-        index: 0,
-        exUnits: built.redeemers[0]!.exUnits,
-        data: built.redeemers[0]!.data,
-      },
-    ]);
-    expect(built.redeemers[0]!.part).toBeDefined();
-    expect(final.exUnits).toEqual(built.exUnits);
-    // The return as the UTxO it becomes if the script fails: the output after the body's own
-    const returned = edited.body.collateral_return!;
-    expect(final.collateral).toEqual({
-      inputs: built.collateral!.inputs,
-      total: BigInt(edited.body.total_collateral!),
-      return: {
-        txHash: final.txHash,
-        outputIndex: final.prototype.body.outputs.length,
-        address: returned.address,
-        value: { lovelace: BigInt(returned.amount.coin) },
-      },
-    });
-    // The inputs gone, the change added
-    const after = utxosAfter(named(built), final);
-    expect(after).toContainEqual(
-      expect.objectContaining(ref(final.change[0]!)),
-    );
-    for (const spent of final.inputs)
-      expect(after.map(ref)).not.toContainEqual(ref(spent));
-
-    const unmarked = await builder().finalize(built.prototype, {
-      inputs: named(built),
-    });
-    expect(unmarked.change).toEqual([]);
-    expect(unmarked.outputs.some((o) => o.change)).toBe(false);
-  });
-
-  it("counts collateral without a stated total as its inputs less its return", async () => {
-    const { built } = await plutusSpend();
-    const untotalled = structuredClone(built.prototype);
-    delete untotalled.body.total_collateral;
-    const held = built.collateral!.inputs.reduce(
-      (total, u) => total + u.value.lovelace,
-      0n,
-    );
-    const returned = BigInt(untotalled.body.collateral_return!.amount.coin);
-    expect(held - returned).toBeGreaterThan(0n);
-
-    // Kept fee: the total is read from the inputs and the return
-    const kept = await builder().finalize(untotalled, { inputs: named(built) });
-    expect(kept.fee).toBe(built.fee);
-    expect(kept.prototype.body.total_collateral).toBeUndefined();
-    expect(kept.collateral!.total).toBe(held - returned);
-
-    // Raised fee: the collateral is checked against the same amount, here less 1 ada
-    const short = structuredClone(untotalled);
-    short.body.fee = (built.fee - 10_000n).toString();
-    short.body.collateral_return!.amount.coin = (returned + ada(1)).toString();
-    const error = await expectBuildError(
-      builder().finalize(short, {
-        inputs: named(built),
-        changeAddress: wallet,
-      }),
-      "INSUFFICIENT_COLLATERAL",
-    );
-    const details = error.details as { required: bigint; available: bigint };
-    expect(details.available).toBe(held - returned - ada(1));
-    expect(details.required).toBeGreaterThan(details.available);
-  });
-
-  it("looks up no UTxO: one left out of inputs is UTXO_NOT_FOUND", async () => {
-    const { built, holder } = await plutusSpend();
-    // The provider answers in the Mesh form, as providers do
-    const { fetcher } = fakeFetcher(named(built));
-    const lookups = jest.spyOn(fetcher, "fetchUTxOs");
-    const b = builder({ provider: fetcher });
-    const collateralInput = built.collateral!.inputs[0]!;
-    const without = (...left: UtxoInput[]) =>
-      named(built).filter(
-        (u) => !left.some((l) => utxoKeyOf(l) === utxoKeyOf(u)),
-      );
-    // The collateral input is a spent one's twin here only if they are one UTxO: keep them apart
-    expect(utxoKeyOf(collateralInput)).not.toBe(utxoKeyOf(built.inputs[0]!));
-
-    for (const [left, reported] of [
-      [[holder], holder],
-      [[collateralInput], collateralInput],
-      [[collateralInput, built.inputs[0]!], built.inputs[0]!],
-    ] as [UtxoInput[], UtxoInput][]) {
-      const error = await expectBuildError(
-        b.finalize(built.prototype, { inputs: without(...left) }),
-        "UTXO_NOT_FOUND",
-      );
-      expect(error.details).toStrictEqual({
-        input: ref(toUtxo(reported)),
-      });
-    }
-    expect(lookups).not.toHaveBeenCalled();
-
-    // A UTxO the body does not name changes nothing
-    const extra = await b.finalize(built.prototype, {
-      inputs: [...named(built), utxo(lovelace(ada(3)))],
-    });
-    expect(extra.tx).toBe(built.tx);
-  });
-
-  it("drops the key witnesses a prototype carries, and prices only the signers", async () => {
-    const built = await payment();
-    const edited = underpaid(built);
-    const plain = await builder().finalize(edited, {
-      inputs: built.inputs,
-      changeAddress: wallet,
-    });
-    const signed = structuredClone(edited);
-    signed.witness_set.vkeys = [1, 2, 3].map((i) => ({
-      vkey: i.toString(16).padStart(64, "0"),
-      signature: i.toString(16).padStart(128, "0"),
-    }));
-    signed.witness_set.bootstraps = [
-      {
-        vkey: "33".repeat(32),
-        signature: "44".repeat(64),
-        chain_code: Array(32).fill(0),
-        attributes: [0xa0],
-      },
-    ];
-    const final = await builder().finalize(signed, {
-      inputs: built.inputs,
-      changeAddress: wallet,
-    });
-    const witnessSet = Transaction.fromCbor(TxCBOR(final.tx)).witnessSet();
-    expect(witnessSet.vkeys()).toBeUndefined();
-    expect(witnessSet.bootstraps()).toBeUndefined();
-    expect(final.fee).toBe(plain.fee);
-    expect(final.tx).toBe(plain.tx);
-  });
-
-  it("runs no script: the redeemers keep the units the prototype states", async () => {
-    const { built } = await plutusSpend();
-    const evaluateTx = jest.fn(async () => {
-      throw new Error("not to be called");
-    });
-    const final = await builder({ evaluator: { evaluateTx } }).finalize(
-      built.prototype,
-      { inputs: named(built) },
-    );
-    expect(evaluateTx).not.toHaveBeenCalled();
-    expect(final.redeemers.map((r) => r.exUnits)).toEqual(
-      built.redeemers.map((r) => r.exUnits),
-    );
-  });
-
-  it("hashes the cost models of the scripts the transaction runs only", async () => {
-    // A key UTxO that holds an unrelated Plutus V2 script, spent beside a V3 spend
-    const keyWithScript = utxo(lovelace(ada(20)), {
-      script: {
-        type: "plutus",
-        version: "V2",
-        code: alwaysSucceedCbor,
-        hash: resolveScriptHash(alwaysSucceedCbor, "V2"),
-      },
-    });
-    const built = await builder().build(
-      [
-        spend.plutus({
-          utxo: locked(3),
-          script: plutusScript,
-          redeemer: { data: mConStr0([3]) },
-        }),
-        spend.pubKey({ utxo: keyWithScript }),
-      ],
-      { payer: payer() },
-    );
-    const final = await builder().finalize(built.prototype, {
-      inputs: named(built),
-    });
-    expect(final.prototype.body.script_data_hash).toBe(
-      built.prototype.body.script_data_hash,
-    );
-    expect(final.txHash).toBe(built.txHash);
-  });
-
-  it("leaves the legacy stake certificates working, with no warning about them", async () => {
-    const built = await builder({
       deposits: { drepDeposit: ada(500), govActionDeposit: ada(1000) },
     }).build(
       [
@@ -5221,7 +4549,7 @@ describe("TxBuilder: finalize", () => {
           stake: keyHashToRewardAddress(keyHashHex(5), 0),
         }),
       ],
-      { payer: payer() },
+      { payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(100)))] } },
     );
     expect(built.prototype.body.certs).toHaveLength(2);
     expect(built.warnings).toEqual([]);

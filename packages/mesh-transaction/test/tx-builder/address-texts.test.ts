@@ -221,23 +221,6 @@ const PLACES: readonly {
     code: "INVALID_OPTION",
   },
   {
-    name: "the change address of finalize",
-    run: (text) =>
-      offline().finalize(built.prototype, {
-        inputs: [funds],
-        changeAddress: text,
-      }),
-    code: "INVALID_OPTION",
-  },
-  {
-    name: "an input of finalize",
-    run: (text) =>
-      offline().finalize(built.prototype, {
-        inputs: [{ ...ownAt(text), txHash: funds.txHash }],
-      }),
-    code: "INVALID_OPTION",
-  },
-  {
     name: "an input of minFee",
     run: (text) =>
       minFee(built.prototype, {

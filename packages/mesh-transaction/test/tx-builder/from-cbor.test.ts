@@ -1198,6 +1198,30 @@ describe("TxBuilder.fromCbor: collateral returned to someone else", () => {
       ),
     ]);
   });
+
+  it("counts the collateral of a body that states no total as its inputs less its return, and takes a total it states", async () => {
+    const knownUtxos = [
+      handUtxo(user.address, 1, ada(500)),
+      handUtxo(user.address, 2, ada(7)),
+    ];
+    const untotalled = await warningsOf(
+      [
+        [cbor.uint(13), collateralOf(1, 2)],
+        [cbor.uint(16), returnedTo(addressHex(user))],
+      ],
+      knownUtxos,
+    );
+    expect(untotalled.collateral!.total).toBe(ada(507) - ada(495));
+    const stated = await warningsOf(
+      [
+        [cbor.uint(13), collateralOf(1, 2)],
+        [cbor.uint(16), returnedTo(addressHex(user))],
+        [cbor.uint(17), cbor.uint(5_000_000)],
+      ],
+      knownUtxos,
+    );
+    expect(stated.collateral!.total).toBe(ada(5));
+  });
 });
 
 describe("TxBuilder.fromCbor: the bytes", () => {
@@ -1624,7 +1648,7 @@ describe("TxBuilder.fromCbor: the witnesses it came with", () => {
         { keyHash: key.keyHash, roles: ["input"] },
       ]);
       expect(error.message).toContain(
-        "an object made by finalize(), fromCbor() or restore()",
+        "an object made by fromCbor() or restore()",
       );
     }
     expect(made.partialTx).toBe(given.tx);

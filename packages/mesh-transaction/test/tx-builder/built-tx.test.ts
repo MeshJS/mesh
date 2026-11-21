@@ -333,12 +333,9 @@ describe("BuiltTx: the object", () => {
     }
   });
 
-  it("is what finalize returns too, and signs there", async () => {
+  it("is what fromCbor returns too, and signs there", async () => {
     const { built, payer, guardKey, builder: b } = await fixture();
-    const final = await b.finalize(structuredClone(built.prototype), {
-      inputs: built.inputs,
-      changeAddress: payer.address,
-    });
+    const final = await b.fromCbor(built.tx, { knownUtxos: built.inputs });
     expect(final).toBeInstanceOf(BuiltTx);
     expect(Object.isFrozen(final)).toBe(true);
     // The keys of the body, in the body's order
@@ -356,7 +353,7 @@ describe("BuiltTx: the object", () => {
     );
   });
 
-  it("types: build and finalize give the class, a step of a plan the data alone", async () => {
+  it("types: build gives the class, a step of a plan the data alone", async () => {
     const { built } = await fixture();
     const data: BuiltTxData = built;
     expect(data).toBe(built);
@@ -1273,16 +1270,13 @@ describe("BuiltTx.sign without signers: the payer of the build", () => {
       expect(requests).toHaveLength(0);
     });
 
-    it("an object made by finalize()", async () => {
+    it("an object made by fromCbor() of a transaction this builder built for a payer that signs", async () => {
       await Crypto.ready();
       const key = testKey();
       const { signer, requests } = keysSigner("object", key);
       const b = builder();
       const built = await paidBy(walletPayer(key, signer), undefined, b);
-      const final = await b.finalize(structuredClone(built.prototype), {
-        inputs: built.inputs,
-        changeAddress: key.address,
-      });
+      const final = await b.fromCbor(built.tx, { knownUtxos: built.inputs });
       await expectNobody(final, [keyOf(key.keyHash, "input")]);
       expect(requests).toHaveLength(0);
     });
@@ -3887,12 +3881,15 @@ describe("BuiltTx as JSON, and TxBuilder.restore", () => {
       return { built, payer, scriptKey, builder: b };
     };
 
-    /** What `finalize` makes of the prototype of the build with every warning */
-    const finalized = async () => {
+    /** What `fromCbor` makes of the transaction of the build with every warning */
+    const readBack = async () => {
       const { built, payer, builder: b } = await everyWarning();
-      const final = await b.finalize(structuredClone(built.prototype), {
-        inputs: [...built.inputs, ...built.collateral!.inputs],
-        changeAddress: payer.address,
+      const final = await b.fromCbor(built.tx, {
+        knownUtxos: [
+          ...built.inputs,
+          ...built.referenceInputs,
+          ...built.collateral!.inputs,
+        ],
       });
       return { built: final, payer, builder: b };
     };
@@ -3907,7 +3904,7 @@ describe("BuiltTx as JSON, and TxBuilder.restore", () => {
       ],
       ["collateral with a return", withReturn],
       ["signers with a native script and a Byron address", byronAndNative],
-      ["a finalize result", finalized],
+      ["a fromCbor result", readBack],
     ];
 
     it("builds what the cases name", async () => {
@@ -3939,7 +3936,7 @@ describe("BuiltTx as JSON, and TxBuilder.restore", () => {
       const { built: byron } = await byronAndNative();
       expect(byron.signers.byronAddresses).toEqual([BYRON]);
       expect(byron.signers.nativeScripts).toHaveLength(1);
-      const { built: final } = await finalized();
+      const { built: final } = await readBack();
       expect(final.parts).toEqual([]);
       expect(final.redeemers.length).toBeGreaterThan(0);
       expect(final.collateral).toBeDefined();

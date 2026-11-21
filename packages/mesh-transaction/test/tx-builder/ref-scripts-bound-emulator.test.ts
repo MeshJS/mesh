@@ -104,7 +104,7 @@ describe("the reference scripts of a transaction, bounded as the ledger bounds t
   const tx = runs(items);
   const known = [mesh(0), ...items.map((it, i) => mesh(100 + i, `8200${it}`))];
 
-  it("refuses at once a transaction past it where its signers are read from the UTxOs given: requiredSigners, fromCbor with knownUtxos or through the provider, finalize", async () => {
+  it("refuses at once a transaction past it where its signers are read from the UTxOs given: requiredSigners, fromCbor with knownUtxos or through the provider", async () => {
     const refused = (error: TxError) => {
       expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
       expect(error.message).toMatch(
@@ -136,18 +136,6 @@ describe("the reference scripts of a transaction, bounded as the ledger bounds t
     );
     expect(read.ms).toBeLessThan(AT_ONCE_MS);
     refused(read.error);
-    const final = await timed(() =>
-      offline().finalize(transactionPrototypeFromHex(tx), { inputs: known }),
-    );
-    expect(final.ms).toBeLessThan(AT_ONCE_MS);
-    expect(TxError.is(final.error, "TX_TOO_LARGE")).toBe(true);
-    expect(final.error.message).toContain(said);
-    expect((final.error as TxBuildError<"TX_TOO_LARGE">).details).toMatchObject(
-      {
-        maxTxSize: 204_800,
-        cause: "referenceScripts",
-      },
-    );
   });
 
   it("refuses at once a plan of a step given built past it, the step named", async () => {
@@ -202,15 +190,6 @@ describe("the reference scripts of a transaction, bounded as the ledger bounds t
       (await timed(() => offline().fromCbor(tx, { knownUtxos: some }))).error
         .message,
     ).toBe(`invalid tx: ${partly}`);
-    const final = await timed(() =>
-      offline().finalize(transactionPrototypeFromHex(tx), { inputs: some }),
-    );
-    expect(final.error.message).toBe(
-      partly.replace("its spent", "the transaction's spent"),
-    );
-    expect((final.error as TxBuildError<"TX_TOO_LARGE">).details.size).toBe(
-      20 * 15_643,
-    );
   });
 
   it("counts a reference script given as bytes as given, bytes after the byte string of a Plutus script among them", async () => {

@@ -198,14 +198,13 @@ describe("UTxOs in any form", () => {
       expect(toUtxo(utxo)).toStrictEqual(utxo);
   });
 
-  it("give the same results to finalize, requiredSigners, minFee and utxosAfter", async () => {
+  it("give the same results to fromCbor, requiredSigners, minFee and utxosAfter", async () => {
     const built = await scenario(asOwn);
     const results = await Promise.all(
       FORMS.map(async ([, f]) => {
         const named = namedIn(built, f);
-        const final = await offline().finalize(built.prototype, {
-          inputs: named,
-          changeAddress: wallet,
+        const final = await offline().fromCbor(built.tx, {
+          knownUtxos: named,
         });
         return {
           final,
@@ -329,14 +328,13 @@ describe("a UTxO with a reference script this library cannot read", () => {
     ).toBe(priced);
   });
 
-  it("leaves requiredSigners and finalize working", async () => {
+  it("leaves requiredSigners and fromCbor working", async () => {
     const built = await buildSpending(odd);
     expect(requiredSigners(built.tx, built.inputs)).toEqual(built.signers);
     expect(requiredSigners(built.tx, [odd, extra])).toEqual(built.signers);
-    const final = await new TxBuilder({ network, params }).finalize(
-      built.prototype,
-      { inputs: [odd, extra] },
-    );
+    const final = await new TxBuilder({ network, params }).fromCbor(built.tx, {
+      knownUtxos: [odd, extra],
+    });
     expect(final.txHash).toBe(built.txHash);
     expect(final.inputs.find((u) => key(u) === key(odd))!.script).toEqual({
       type: "unknown",
@@ -358,14 +356,11 @@ describe("out refs reported", () => {
   it("hold exactly txHash and outputIndex in UTXO_NOT_FOUND", async () => {
     const built = await scenario(asOwn);
     const left = namedIn(built, asOwn).slice(1);
-    for (const error of [
-      await caught(
-        () => offline().finalize(built.prototype, { inputs: left }),
-        "UTXO_NOT_FOUND",
-      ),
-      await caught(() => requiredSigners(built.tx, left), "UTXO_NOT_FOUND"),
-    ])
-      expect(Object.keys(error.details.input).sort()).toEqual(OUT_REF_KEYS);
+    const error = await caught(
+      () => requiredSigners(built.tx, left),
+      "UTXO_NOT_FOUND",
+    );
+    expect(Object.keys(error.details.input).sort()).toEqual(OUT_REF_KEYS);
 
     // Looked up and not found
     const provider = {

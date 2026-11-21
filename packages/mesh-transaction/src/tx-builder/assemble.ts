@@ -224,45 +224,6 @@ const checkRepeats = (byKind: PartsByKind) => {
 export const checkPartRepeats = (parts: readonly TxPart[]): void =>
   checkRepeats(groupParts(parts));
 
-/**
- * Refuses a prototype whose inputs, reference inputs or collateral inputs name one output twice,
- * or whose reference inputs name an output it spends. Nothing is dropped: a prototype made by
- * hand fixes the positions its redeemers rely on. Out refs are compared whatever the case of the
- * hash.
- * @throws TxBuildError DUPLICATE_PART `{ item }`, the out ref, its hash in lower case
- */
-export const checkPrototypeRepeats = (
-  body: Readonly<TransactionBodyPrototype>,
-): void => {
-  const keyOf = (input: Readonly<TransactionInputPrototype>) =>
-    `${input.transaction_id.toLowerCase()}#${input.index}`;
-  const refuse = (message: string, item: string): never => {
-    throw new TxBuildError(
-      "DUPLICATE_PART",
-      `${message}: the prototype must hold it once`,
-      { details: { item } },
-    );
-  };
-  const distinct = (
-    inputs: readonly Readonly<TransactionInputPrototype>[],
-    what: string,
-  ) => {
-    const seen = new Set<string>();
-    for (const input of inputs) {
-      const key = keyOf(input);
-      if (seen.has(key)) refuse(`${key} is given twice in the ${what}`, key);
-      seen.add(key);
-    }
-    return seen;
-  };
-  const spent = distinct(body.inputs, "inputs");
-  const read = distinct(body.reference_inputs ?? [], "reference inputs");
-  distinct(body.collateral ?? [], "collateral inputs");
-  for (const key of read)
-    if (spent.has(key))
-      refuse(`${key} is both spent and read as a reference input`, key);
-};
-
 /** Fails on a second item with the same key */
 const checkUnique = <P extends TxPart>(
   parts: P[],

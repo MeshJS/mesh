@@ -11,11 +11,7 @@ import { heldValue, shownValue } from "./parts/shape";
 export type TxBuildErrorCode =
   /** A part still leaves something to be filled in; `details` lists the gaps */
   | "UNRESOLVED"
-  /**
-   * Two parts claim what a transaction holds only once: an input, a policy, a voter, ...; or a
-   * prototype given to `finalize` names one output twice among its inputs, reference inputs or
-   * collateral inputs, or reads an output it spends
-   */
+  /** Two parts claim what a transaction holds only once: an input, a policy, a voter, ... */
   | "DUPLICATE_PART"
   /**
    * Collateral inputs that cannot cover the total collateral, or that hold native assets in a

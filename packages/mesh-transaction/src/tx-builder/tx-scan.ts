@@ -57,14 +57,12 @@ import { CborReader, HexBlob, Serialization } from "@meshsdk/core-cst";
  * measure in a fresh process) by `fromCbor` and `requiredSigners`, but a form copied or written by
  * recursion overflows it sooner, with the runtime's `RangeError`. In metadata, an inline datum and
  * the datum of a redeemer, lists may overflow it from about 400 levels where the JSON of the
- * object is written or read back (`toJSON`, `restore`) and in `plan` as a step given built, and
- * from about 570 in `finalize`, which copies the prototype; maps from about 240 (420 in
- * `finalize`); constructors, in the datums, from about 400, and `finalize` takes the deepest
- * admitted; lists or constructors and maps nested in each other from about 300 (490 in
- * `finalize` of metadata). Each is a margin below the least measured: at the edge a run passes or
- * fails by a level, and an item at the bottom of the data takes a level. Data of the witness set
- * and the native scripts of the witness set and of the auxiliary data went through those four
- * paths at the deepest the bounds admit. Other paths and shapes were not measured.
+ * object is written or read back (`toJSON`, `restore`) and in `plan` as a step given built; maps
+ * from about 240; constructors, in the datums, from about 400; lists or constructors and maps
+ * nested in each other from about 300. Each is a margin below the least measured: at the edge a
+ * run passes or fails by a level, and an item at the bottom of the data takes a level. Data of the
+ * witness set and the native scripts of the witness set and of the auxiliary data went through
+ * those paths at the deepest the bounds admit. Other paths and shapes were not measured.
  */
 
 const State = Serialization.CborReaderState;
@@ -126,8 +124,8 @@ const TAG_WORK = 60_000;
  * for the keys it names to be read: 512. Its form is a tree that this library and the application
  * copy and write by recursion (`structuredClone`, JSON), so on a stack of about a browser's
  * (`node --stack-size=400`) each path that reads its keys, a build, `fromCbor`, `requiredSigners`,
- * `finalize`, a step given built and their records, runs through to 622 levels and fails from 642,
- * in a fresh process. There, at 512, the application may stand 575 frames deep when it writes the
+ * a step given built and their records, runs through to 622 levels and fails from 642, in a fresh
+ * process. There, at 512, the application may stand 575 frames deep when it writes the
  * JSON of such a transaction, plans or builds it, 825 when it restores one, and about 2 700 when it
  * reads one. A script deeper is described and spent, its keys not read
  */

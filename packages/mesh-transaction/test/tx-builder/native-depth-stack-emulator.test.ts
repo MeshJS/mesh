@@ -19,7 +19,7 @@ const PACKAGE = resolve(__dirname, "../..");
 /** The child: each path for a script nested `levels` times, `all` around `inner` */
 const CHILD = `
 import { DEFAULT_PROTOCOL_PARAMETERS } from "@meshsdk/common";
-import { Address, Crypto, HexBlob, transactionPrototypeFromHex } from "@meshsdk/core-cst";
+import { Address, Crypto, HexBlob } from "@meshsdk/core-cst";
 import { TxEmulator } from "@meshsdk/tx-emulator";
 import { MeshWallet } from "@meshsdk/wallet";
 import * as mt from ${JSON.stringify(SRC)};
@@ -88,9 +88,6 @@ const outcome = async (f: () => Promise<unknown> | unknown) => {
     ),
     fromCbor: await outcome(async () => roundTrip(await offline().fromCbor(tx, { knownUtxos: known }))),
     requiredSigners: await outcome(() => mt.requiredSigners(tx, known).nativeScripts.length),
-    finalize: await outcome(async () =>
-      roundTrip(await offline().finalize(transactionPrototypeFromHex(tx), { inputs: known })),
-    ),
     plan: await outcome(async () => {
       const builder = new mt.TxBuilder({ network: "preprod", provider: emulator, evaluator: emulator });
       const plan = await builder.plan({ given: tx }, { payer: wallet, knownUtxos: [holder] });
@@ -144,7 +141,7 @@ describe("the keys of a native reference script, read to the depth a small stack
       ),
     ) as Record<string, string>;
 
-  it("reads them on node --stack-size=400 for a script of 512 levels, `all` around a key 255 times, in every path: a build through { reference }, fromCbor, requiredSigners, finalize, a plan of the step given built, each written to JSON and read back", () => {
+  it("reads them on node --stack-size=400 for a script of 512 levels, `all` around a key 255 times, in every path: a build through { reference }, fromCbor, requiredSigners, a plan of the step given built, each written to JSON and read back", () => {
     const shape = `8200${"820181".repeat(255)}8200581c${"ab".repeat(28)}`;
     expect(itemDepth(Buffer.from(shape, "hex"))).toBe(MAX_NATIVE_DEPTH);
     expect(onSmallStack(255, "key")).toEqual({
@@ -152,7 +149,6 @@ describe("the keys of a native reference script, read to the depth a small stack
       build: "1/1",
       fromCbor: "1/1",
       requiredSigners: "1",
-      finalize: "1/1",
       plan: "1/1",
     });
   }, 180_000);
@@ -165,7 +161,6 @@ describe("the keys of a native reference script, read to the depth a small stack
       build: "threw INVALID_SCRIPT",
       fromCbor: "0/0",
       requiredSigners: "0",
-      finalize: "0/0",
       plan: "0/0",
     });
   }, 180_000);

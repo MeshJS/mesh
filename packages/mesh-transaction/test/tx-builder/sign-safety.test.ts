@@ -1395,7 +1395,7 @@ describe("R1, added: the object keeps no signer, and the payer of its build only
   );
 
   it(
-    "holds no payer in an object restored from JSON or made by finalize(): the wallet that paid goes while they live",
+    "holds no payer in an object restored from JSON or made by fromCbor(): the wallet that paid goes while they live",
     async () => {
       await Crypto.ready();
       const b = offline();
@@ -1410,15 +1410,12 @@ describe("R1, added: the object keeps no signer, and the payer of its build only
         ref = new WeakRef(payer);
         return {
           restored: await b.restore(JSON.parse(JSON.stringify(built))),
-          final: await b.finalize(structuredClone(built.prototype), {
-            inputs: built.inputs,
-            changeAddress: key.address,
-          }),
+          read: await b.fromCbor(built.tx, { knownUtxos: built.inputs }),
         };
       };
-      const { restored, final } = await make();
+      const { restored, read } = await make();
       expect(await isCollected(ref!)).toBe(true);
-      for (const built of [restored, final])
+      for (const built of [restored, read])
         expect(codeOf(await caught(() => built.sign()))).toBe(
           "MISSING_SIGNATURES",
         );
