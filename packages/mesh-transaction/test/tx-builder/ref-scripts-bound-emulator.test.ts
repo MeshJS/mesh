@@ -80,8 +80,12 @@ const runs = (
     "f6",
   );
 const offline = () => new TxBuilder({ network: "preprod", params });
-/** A read of seconds fails this; a loaded machine's milliseconds do not */
-const AT_ONCE_MS = 1_500;
+/**
+ * A read of seconds fails this, a loaded machine's milliseconds do not: more than ten times the
+ * slowest of these calls in the whole suite on a quiet machine (210 ms), where reading the UTxOs
+ * past the bound takes 8 s and more
+ */
+const AT_ONCE_MS = 3_000;
 const said = "a node takes in one transaction (ConwayTxRefScriptsSizeTooBig)";
 const timed = async (run: () => unknown) => {
   const started = performance.now();

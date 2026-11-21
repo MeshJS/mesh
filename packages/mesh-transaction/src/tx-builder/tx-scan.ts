@@ -44,21 +44,25 @@ import { CborReader, HexBlob, Serialization } from "@meshsdk/core-cst";
  * refused in less than 0.1 ms; a payment from a payer of 40 UTxOs that each hold such a script in
  * 1.0 s, from a provider, a wallet or a snapshot, and of 40 UTxOs in pieces in 2.0 to 4.8 s; a
  * transaction that runs 13 distinct native scripts of 15 643 bytes from its reference inputs
- * (203 359 bytes, the most the bound lets through) in 0.68 s by `requiredSigners`, 0.73 s by
- * `fromCbor`, 1.26 s by `plan` as a step given built, its record 4.2 MB; one that runs 235 is
- * refused in 26, 32 and 56 ms. A UTxO in CBOR whose output has a
+ * (203 359 bytes, the most the bound lets through) in 0.68 s by `requiredSigners`, 0.74 s by
+ * `fromCbor`, 1.27 s by `plan` as a step given built, its record 4.2 MB; one that runs 235 is
+ * refused in 26, 32 and 56 ms. A step at both bounds at once, 13 scripts of 204 800 bytes in all
+ * and data at the bound on work, in 1.39 s by `requiredSigners`, 1.60 s by `fromCbor`, 3.38 s by
+ * `plan`, its record 4.4 MB. A UTxO in CBOR whose output has a
  * key other than 0 to 3 is refused before the decoder runs: the ledger takes no such output. So is
  * a transaction whose body, outputs or witness set hold a key the Conway ledger does not read
  * (`checkConwayKeys`), by every reader of a whole transaction.
  *
  * What the bounds admit is read on a stack of about a browser's (`node --stack-size=400`, each
  * measure in a fresh process) by `fromCbor` and `requiredSigners`, but a form copied or written by
- * recursion overflows it sooner: metadata, an inline datum or the datum of a redeemer deeper than
- * about 410 levels (a map of metadata deeper than about 245) where the JSON of the object is
- * written or read back, a plan's record and `plan` among them, and deeper than about 578 in
- * `finalize`, which copies the prototype. The error is then the runtime's `RangeError`. Data of
- * the witness set, constructors, maps and native scripts go through every path at the deepest the
- * bounds admit.
+ * recursion overflows it sooner, with the runtime's `RangeError`. In metadata, an inline datum and
+ * the datum of a redeemer, lists overflow past about 409 levels where the JSON of the object is
+ * written or read back (`toJSON`, `restore`), about 408 in `plan` as a step given built and about
+ * 578 in `finalize`, which copies the prototype; maps past 245 (248 or 249 in `plan`, 428 or 429
+ * in `finalize`); constructors, in the datums, past 408 (407 in `plan`), and `finalize` takes the
+ * deepest admitted. Data of the witness set and the native scripts of the witness set and of the
+ * auxiliary data went through those four paths at the deepest the bounds admit. The README gives
+ * each measure; other paths and shapes were not measured.
  */
 
 const State = Serialization.CborReaderState;

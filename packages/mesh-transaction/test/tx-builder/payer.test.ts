@@ -18,6 +18,7 @@ import {
   Crypto,
   HexBlob,
   resolvePlutusScriptAddress,
+  Serialization,
   TransactionInput,
   TransactionOutput,
   TransactionUnspentOutput,
@@ -677,12 +678,24 @@ describe("TxBuilder: the payer read and the other reads", () => {
     };
     for (const utxos of [[utxo(ada(100)), held], [held]]) {
       const { provider } = fakeProvider(utxos);
+      // Never decoded, whatever the machine's load: no decoder of scripts is called
+      const decoders = [
+        jest.spyOn(Serialization.NativeScript, "fromCbor"),
+        jest.spyOn(Serialization.Script, "fromCbor"),
+      ];
       const started = performance.now();
-      const built = await new TxBuilder({ network, params, provider }).build(
-        [pay()],
-        { payer: wallet },
-      );
-      expect(performance.now() - started).toBeLessThan(1_500);
+      let built: Awaited<ReturnType<TxBuilder["build"]>>;
+      try {
+        built = await new TxBuilder({ network, params, provider }).build(
+          [pay()],
+          { payer: wallet },
+        );
+      } finally {
+        expect(decoders.map((spy) => spy.mock.calls.length)).toEqual([0, 0]);
+        for (const spy of decoders) spy.mockRestore();
+      }
+      // A decode takes seconds: more than ten times its time in the whole suite (410 ms)
+      expect(performance.now() - started).toBeLessThan(3_000);
       if (utxos.length === 1)
         expect(built.inputs).toContainEqual({ ...held, script });
     }
@@ -752,7 +765,7 @@ describe("TxBuilder: the payer read and the other reads", () => {
     const timed = async (run: () => unknown) => {
       const started = performance.now();
       const error = await caught(run);
-      expect(performance.now() - started).toBeLessThan(1_500);
+      expect(performance.now() - started).toBeLessThan(3_000);
       return error as TxBuildError;
     };
     const plain = asCbor(funds[0]!);
@@ -921,8 +934,8 @@ describe("TxBuilder: a payer's UTxOs that name one out ref twice", () => {
     );
   const payment = pay(14 * 20 - 5);
   const first = `${listed[0]!.txHash}#0`;
-  /** A read of seconds fails this; a loaded machine's milliseconds do not */
-  const AT_ONCE_MS = 2_000;
+  /** A read of seconds fails this, a loaded machine's milliseconds do not */
+  const AT_ONCE_MS = 3_000;
   const timed = async (run: () => unknown) => {
     const started = performance.now();
     const error = (await caught(run)) as TxBuildError;
@@ -960,7 +973,12 @@ describe("TxBuilder: a payer's UTxOs that name one out ref twice", () => {
           `reading the payer wallet failed: its UTxOs: two entries name the output ${first} ${how}`,
         );
       }
-      const { provider } = fakeProvider(utxos);
+      // The provider's answer is written before the call: its own conversion is not timed
+      const answer = utxos.map(asMesh);
+      const provider = {
+        ...fakeProvider().provider,
+        fetchAddressUTxOs: async () => answer,
+      } as unknown as IFetcher;
       const fromProvider = await timed(() =>
         new TxBuilder({ network, params, provider }).build([payment], {
           payer: wallet,

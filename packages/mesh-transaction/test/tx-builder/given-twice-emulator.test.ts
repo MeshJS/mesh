@@ -109,8 +109,12 @@ const answering = (answers: ReadonlyMap<string, readonly UtxoInput[]>) =>
   }) as never;
 const online = (answers: ReadonlyMap<string, readonly UtxoInput[]>) =>
   new TxBuilder({ network: "preprod", params, provider: answering(answers) });
-/** A read of seconds fails this; a loaded machine's milliseconds do not */
-const AT_ONCE_MS = 1_500;
+/**
+ * A read of seconds fails this, a loaded machine's milliseconds do not: about eight times the
+ * slowest of these calls in the whole suite on a quiet machine (380 ms), where reading the UTxOs
+ * they pass over or refuse takes 6.7 s and more
+ */
+const AT_ONCE_MS = 3_000;
 const timed = async (run: () => unknown) => {
   const started = performance.now();
   let error: unknown;

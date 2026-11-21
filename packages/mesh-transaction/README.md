@@ -1809,19 +1809,35 @@ is refused in about 30 ms by each, 55 ms by `plan`. `plan` decodes a step given 
 one at the bound on nested data takes up to about two seconds there (1.6 to 2.1 s measured). That
 bound counts a big integer as a tag and one string, though its time grows with the square of its
 length: that matters only with a `maxTxSize` above 64 KB, where one integer of 128 KB takes 1 s in
-a datum and 2 s in metadata. On a stack of about a browser's (`node --stack-size=400`, each
-measure in a fresh process) every transaction the bounds admit is read by `fromCbor` and
-`requiredSigners`, but not every one is written or copied whole: metadata, an inline datum or the
-datum of a redeemer nested deeper than about 410 levels (a map of metadata deeper than about 245)
-overflows the stack when the object's JSON is written or read back (`toJSON`, `restore`, a plan's
-record, `plan` itself, from about 409), and from about 578 levels in `finalize`, which copies the
-prototype; the error is then the runtime's `RangeError`. Data in the witness set, constructors,
-maps and native scripts nest no deeper than that within the bounds, and go through every path. A
-server reads
-strangers' transactions off its request path, in a worker of its own. A bootstrap witness the
-transaction came with is counted for the Byron addresses it spends from, not matched to the address
-it is for. The object does not know whether the transaction was sent: `awaitInclusion()` looks for
-it, and `submit()` returns when the ledger refuses bytes the provider already finds.
+a datum and 2 s in metadata. A step at both bounds at once, 13 such scripts and data at the
+bound on work, is read in about 1.4 s by `requiredSigners` and 1.6 s by `fromCbor`, and planned
+as a step given built in about 3.4 s, its record 4.4 MB (measured: 1.39, 1.60 and 3.38 s).
+
+On a stack of about a browser's (`node --stack-size=400`), each measure in a fresh process, the
+deepest each path took of each shape, in levels ("all" is the deepest the bounds admit, which
+the brackets give):
+
+| Shape                                                                  | `fromCbor`, `requiredSigners` | `toJSON`, `restore` | `plan`    | `finalize` |
+| ---------------------------------------------------------------------- | ----------------------------- | ------------------- | --------- | ---------- |
+| lists in metadata (729, of definite length 753)                        | all                           | 410 (definite: 409) | 409 (408) | 579        |
+| maps in metadata (524)                                                 | all                           | 245                 | 249       | 429        |
+| lists in an inline datum (731)                                         | all                           | 409                 | 408       | 578        |
+| maps in an inline datum (526)                                          | all                           | 245                 | 248       | 428        |
+| constructors in an inline datum (435)                                  | all                           | 408                 | 407       | all        |
+| lists in the datum of a redeemer (727)                                 | all                           | 409                 | 408       | 578        |
+| maps in the datum of a redeemer (522)                                  | all                           | 245                 | 249       | 428        |
+| constructors in the datum of a redeemer (434)                          | all                           | 408                 | 407       | all        |
+| data of the witness set: lists, constructors, maps (728, 434, 523)     | all                           | all                 | all       | all        |
+| native scripts of the witness set and of the auxiliary data (303, 302) | all                           | all                 | all       | all        |
+
+`toJSON` writes the JSON of the object `fromCbor` gives and `restore` reads it back; `plan` takes
+the transaction as a step given built, writes its record and resumes it; `finalize` copies the
+prototype. Past those depths the error is the runtime's `RangeError`. Other paths and shapes were
+not measured. A server reads strangers' transactions off its request path, in a worker of its own. A
+bootstrap witness the transaction came with is counted for the Byron addresses it spends from, not
+matched to the address it is for. The object does not know whether the transaction was sent:
+`awaitInclusion()` looks for it, and `submit()` returns when the ledger refuses bytes the provider
+already finds.
 
 ### Signing functions
 

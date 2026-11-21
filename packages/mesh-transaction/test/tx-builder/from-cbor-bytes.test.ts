@@ -1232,9 +1232,20 @@ describe("TxBuilder.fromCbor › a key the Conway ledger does not read, refused 
       () => read(given),
       () => requiredSigners(given, knownUtxos()),
     ]) {
+      // Before the decoders, whatever the machine's load: none of them is called
+      const decoders = [
+        jest.spyOn(Serialization.TransactionBody, "fromCbor"),
+        jest.spyOn(Serialization.TransactionWitnessSet, "fromCbor"),
+      ];
       const started = performance.now();
-      const error = await caught(run);
-      expect(performance.now() - started).toBeLessThan(1_500);
+      let error: unknown;
+      try {
+        error = await caught(run);
+      } finally {
+        expect(decoders.map((spy) => spy.mock.calls.length)).toEqual([0, 0]);
+        for (const spy of decoders) spy.mockRestore();
+      }
+      expect(performance.now() - started).toBeLessThan(3_000);
       expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
       expect((error as Error).message).toBe(`invalid tx: ${message}`);
       expect((error as TxBuildError).details).toEqual({

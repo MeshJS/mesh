@@ -319,8 +319,11 @@ describe("The knownUtxos of a plan", () => {
       scriptRef: `8200820194${nested(i * 16 + 1)}${nested(1).repeat(19)}`,
     },
   }));
-  /** A read of seconds fails this; a loaded machine's milliseconds do not */
-  const AT_ONCE_MS = 2_000;
+  /**
+   * A read of seconds fails this, a loaded machine's milliseconds do not: reading the entries
+   * passed over takes 6 s
+   */
+  const AT_ONCE_MS = 3_000;
 
   it("plans at once beside 235 heavy entries no step names, a step of parts or a step given built; records only the entries its steps name, small, and runs from its record", async () => {
     const { builder, emulator, wallet, address, funded } = await setup({

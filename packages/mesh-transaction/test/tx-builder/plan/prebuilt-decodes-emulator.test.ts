@@ -127,7 +127,9 @@ describe("a plan of a step given built", () => {
     } catch (e) {
       error = e;
     }
-    expect(performance.now() - started).toBeLessThan(1_500);
+    // About eight times its time in the whole suite on a quiet machine (400 ms): reading the 14
+    // outputs before counting them takes seconds
+    expect(performance.now() - started).toBeLessThan(3_000);
     expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
     expect((error as Error).message).toBe(
       'step "given": invalid tx: its spent and reference inputs hold more than the 204800 bytes of reference scripts a node takes in one transaction (ConwayTxRefScriptsSizeTooBig)',
