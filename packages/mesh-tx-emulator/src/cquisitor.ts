@@ -8,6 +8,7 @@ import type { ProtocolParams } from "scalus";
 import type { Action, RedeemerTagType, UTxO } from "@meshsdk/common";
 import { GovernanceActionKind } from "@meshsdk/common";
 import {
+  addVKeyWitnessesToTransaction,
   Crypto,
   deserializeTx,
   Ed25519PublicKeyHex,
@@ -112,24 +113,16 @@ const placeholderWitness = (index: number) =>
   );
 
 /**
- * The bytes the signatures of `signers` more keys add to a transaction, encoded as signing it
- * with a Mesh wallet does
+ * The bytes the signatures of `signers` more keys add to a transaction, written as a Mesh wallet
+ * writes them: in the form of the vkey witness set the transaction holds, or of its body's inputs
  */
 const signatureBytes = (txHex: string, signers: number): number => {
   if (signers === 0) return 0;
-  const tx = deserializeTx(txHex);
-  const witnessSet = tx.witnessSet();
-  const vkeys = Serialization.CborSet.fromCore(
-    [],
-    Serialization.VkeyWitness.fromCore,
+  const signed = addVKeyWitnessesToTransaction(
+    txHex,
+    Array.from({ length: signers }, (_, index) => placeholderWitness(index)),
   );
-  vkeys.setValues([
-    ...(witnessSet.vkeys()?.values() ?? []),
-    ...Array.from({ length: signers }, (_, index) => placeholderWitness(index)),
-  ]);
-  witnessSet.setVkeys(vkeys);
-  tx.setWitnessSet(witnessSet);
-  return tx.toCbor().length / 2 - txHex.length / 2;
+  return signed.length / 2 - txHex.length / 2;
 };
 
 type CquisitorErrors = Awaited<

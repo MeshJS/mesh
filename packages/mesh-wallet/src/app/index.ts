@@ -8,12 +8,10 @@ import {
 import {
   Address,
   deserializeTx,
-  Serialization,
   toAddress,
   toTxUnspentOutput,
   TransactionUnspentOutput,
-  TransactionWitnessSet,
-  VkeyWitness,
+  vkeyWitnessSetFor,
 } from "@meshsdk/core-cst";
 
 import { EmbeddedWallet } from "../embedded";
@@ -186,16 +184,8 @@ export class AppWallet implements ISigner, ISubmitter {
         keyIndex,
       );
 
-      if (!returnFullTx) {
-        const witnessSet = new TransactionWitnessSet();
-        witnessSet.setVkeys(
-          Serialization.CborSet.fromCore(
-            [newSignatures.toCore()],
-            VkeyWitness.fromCore,
-          ),
-        );
-        return witnessSet.toCbor();
-      }
+      // The witness set alone, in the form the transaction's would take
+      if (!returnFullTx) return vkeyWitnessSetFor(unsignedTx, [newSignatures]);
 
       const signedTx = EmbeddedWallet.addWitnessSets(unsignedTx, [newSignatures]);
       return signedTx;

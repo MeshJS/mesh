@@ -6,6 +6,7 @@ import {
   CredentialType,
   Crypto,
   HexBlob,
+  keyWitnessSetTags,
   Serialization,
   Transaction,
   transactionPrototypeFromCardano,
@@ -1138,7 +1139,10 @@ const KEY_HASHES_ALLOWED = "a list of key hashes in hex";
  * or the signer itself when it is a function, each of whose signatures is verified against the
  * transaction's hash; else `signTx`: `signTx(tx, true, false)` on a Mesh wallet,
  * `signTx(tx, true)` on a CIP-30 api. A full transaction in the answer is reduced to the
- * witnesses it adds.
+ * witnesses it adds. The witness set is written in the form of the transaction's: its vkey and
+ * its bootstrap entries with the set tag 258 when the transaction's own are, or, for an entry it
+ * does not hold, when its body's inputs are (`keyWitnessSetTags` of `@meshsdk/core-cst`), so that
+ * merged into it, it leaves the transaction the size its fee was priced for.
  * @param keyHashes The keys asked for. A signer with `signTxWitnesses` is handed the list; a
  *   signer of hashes is handed it as `keys`, one entry per hash in the same order, each with
  *   empty `roles` since the call does not say why, and is not asked when it is empty; without
@@ -1183,9 +1187,15 @@ export async function signWitnesses(
         },
       );
   }
-  return askSigner(signer, readTransaction(tx), {
+  const raw = readTransaction(tx);
+  const answer = await askSigner(signer, raw, {
     keys: keyHashes?.map((keyHash) => ({ keyHash, roles: [] })),
   });
+  // Written in the form the transaction's own witness sets take, whatever form the signer used
+  return writeWitnessSet(
+    witnessesOf(readWitnessSet(Buffer.from(answer, "hex"))),
+    keyWitnessSetTags(raw.hex),
+  );
 }
 
 const invalidWitness = (

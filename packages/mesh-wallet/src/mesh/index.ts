@@ -24,12 +24,11 @@ import {
   fromTxUnspentOutput,
   Hash28ByteBase16,
   resolvePrivateKey,
-  Serialization,
   toAddress,
   toTxUnspentOutput,
   TransactionUnspentOutput,
-  TransactionWitnessSet,
   VkeyWitness,
+  vkeyWitnessSetFor,
 } from "@meshsdk/core-cst";
 import { Transaction } from "@meshsdk/transaction";
 
@@ -539,16 +538,8 @@ export class MeshWallet implements IWallet {
       this._accountType,
     );
 
-    if (!returnFullTx) {
-      let witnessSet = new TransactionWitnessSet();
-      witnessSet.setVkeys(
-        Serialization.CborSet.fromCore(
-          [newSignatures.toCore()],
-          VkeyWitness.fromCore,
-        ),
-      );
-      return witnessSet.toCbor().toString();
-    }
+    // The witness set alone, in the form the transaction's would take
+    if (!returnFullTx) return vkeyWitnessSetFor(unsignedTx, [newSignatures]);
 
     let signedTx = EmbeddedWallet.addWitnessSets(unsignedTx, [newSignatures]);
     return signedTx;
@@ -614,16 +605,8 @@ export class MeshWallet implements IWallet {
       }
     }
 
-    const witnessSet = new TransactionWitnessSet();
-    if (witnesses.length > 0) {
-      witnessSet.setVkeys(
-        Serialization.CborSet.fromCore(
-          witnesses.map((witness) => witness.toCore()),
-          VkeyWitness.fromCore,
-        ),
-      );
-    }
-    return witnessSet.toCbor().toString();
+    // In the form the transaction's vkey witness set would take
+    return vkeyWitnessSetFor(tx, witnesses);
   }
 
   /**

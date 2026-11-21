@@ -1856,6 +1856,12 @@ it did not build. Code that has a builder makes the object of such a transaction
 | `await signedKeyHashes(tx)`                   | the key hashes whose vkey witness in `tx` verifies against its body                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `requiredSigners(tx, spent)`                  | who must sign a transaction built elsewhere, given the UTxO of every input and collateral input (`UTXO_NOT_FOUND` for a missing one), and of reference inputs for the native scripts they hold, in any form of `UtxoInput`; each key with its roles, as the build gives them. `builder.fromCbor(tx)` reads those UTxOs itself and gives the same as `signers`                                                                                                          |
 
+The witness set `signWitnesses` returns is written in the form of the transaction, whatever form
+the signer answers in: its vkey and its bootstrap entries with the set tag 258 where the
+transaction's own are, and, for an entry the transaction does not hold, where its body writes its
+inputs with it. Added to the transaction, it leaves it the size its fee was priced for. The wallets
+of `@meshsdk/wallet` write their witnesses so too.
+
 `addWitnesses` and `signedKeyHashes` return promises. Bad arguments (a `tx` that is not a
 transaction, or whose witness set repeats the key of its vkey or bootstrap witnesses, as a witness
 would go into one entry and a reader may take another; a signer that cannot sign; a malformed

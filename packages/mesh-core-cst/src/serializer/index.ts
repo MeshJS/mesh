@@ -115,6 +115,7 @@ import {
   VkeyWitness,
 } from "../types";
 import {
+  addVKeyWitnessesToTransaction,
   buildEd25519PrivateKeyFromSecretKey,
   fromBuilderToPlutusData,
   mergeValue,
@@ -479,10 +480,7 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
 
   addSigningKeys = (txHex: string, signingKeys: string[]): string => {
     let cardanoTx = Transaction.fromCbor(Serialization.TxCBOR(txHex));
-    let currentWitnessSet = cardanoTx.witnessSet();
-    let currentWitnessSetVkeys = currentWitnessSet.vkeys();
-    let currentWitnessSetVkeysValues: Serialization.VkeyWitness[] =
-      currentWitnessSetVkeys ? [...currentWitnessSetVkeys.values()] : [];
+    const added: Serialization.VkeyWitness[] = [];
     for (let i = 0; i < signingKeys.length; i++) {
       let keyHex = signingKeys[i];
       if (keyHex) {
@@ -491,7 +489,7 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
         }
         const cardanoSigner = buildEd25519PrivateKeyFromSecretKey(keyHex);
         const signature = cardanoSigner.sign(HexBlob(cardanoTx.getId()));
-        currentWitnessSetVkeysValues.push(
+        added.push(
           new VkeyWitness(
             Ed25519PublicKeyHex(cardanoSigner.toPublic().hex()),
             Ed25519SignatureHex(signature.hex()),
@@ -499,14 +497,8 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
         );
       }
     }
-    currentWitnessSet.setVkeys(
-      Serialization.CborSet.fromCore(
-        currentWitnessSetVkeysValues.map((vkw) => vkw.toCore()),
-        VkeyWitness.fromCore,
-      ),
-    );
-    cardanoTx.setWitnessSet(currentWitnessSet);
-    return cardanoTx.toCbor();
+    // In the form of the transaction's witness set, or of its body's inputs
+    return addVKeyWitnessesToTransaction(txHex, added);
   };
 
   serializeValue(value: Asset[]): string {

@@ -451,8 +451,12 @@ describe("addWitnesses", () => {
 
   it("takes only the witnesses of a full transaction, keeping the validity flag", async () => {
     const tx = await scriptTx();
-    const full = await wallets.payment.signTx(tx, true);
-    expect(topItems(full)[2]).toBe("f5");
+    // The wallet keeps the flag; a full transaction marked otherwise is made of its items
+    const [body, witnessSet, valid, aux] = topItems(
+      await wallets.payment.signTx(tx, true),
+    );
+    expect(valid).toBe("f4");
+    const full = cbor.tx(body!, witnessSet, { valid: "f5", aux });
     const signed = await addWitnesses(tx, full);
     expect(topItems(signed)[2]).toBe("f4");
     expect(vkeysOf(signed)).toEqual(vkeysOf(full));
@@ -705,6 +709,50 @@ describe("the set tag of the key witnesses", () => {
     // Empty entries, tagged and plain
     expect(tagsOf("a200d901028002d9010280")).toEqual({});
     expect(tagsOf("a200800280")).toEqual({});
+  });
+
+  it("signWitnesses writes the witness set in the form of the transaction, whatever form the signer answers in", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    /** A CIP-30 api answering the wallet's witnesses with the set tag or without, always */
+    const cip30 = (tagged: boolean) => ({
+      signTx: async (tx: string) =>
+        writeWitnessSet(
+          readWitnessArgument(await wallets.payment.signTxWitnesses(tx))
+            .witnesses,
+          tagged,
+        ),
+    });
+    const signers: Signer[] = [
+      wallets.payment,
+      cip30(true),
+      cip30(false),
+      hashSigner("object", ({ txHash }) => [key.answer(txHash)]).signer,
+      hashSigner("callback", ({ txHash }) => [key.answer(txHash)]).signer,
+      // A signer that answers with the transaction signed
+      { signTx: async (tx: string) => wallets.payment.signTx(tx, true) },
+    ];
+    for (const taggedSets of [true, false]) {
+      const unsigned = await scriptTx(taggedSets);
+      const raw = readTransaction(unsigned);
+      // A transaction that holds a vkey witness, written in the other form than its body's
+      const held = withWitnesses(raw, [witnessesOf(raw.txId)[0]], !taggedSets);
+      for (const signer of signers) {
+        for (const [tx, tagged] of [
+          [unsigned, taggedSets],
+          [held, !taggedSets],
+        ] as const) {
+          const set = await signWitnesses(signer, tx);
+          const { witnessSet, witnesses } = readWitnessArgument(set);
+          expect(witnesses).toHaveLength(1);
+          expect(witnessSet.vkeys!.tagged).toBe(tagged);
+          // Added to the transaction, it is written as the transaction writes its own
+          expect(await addWitnesses(tx, set)).toBe(
+            withWitnesses(readTransaction(tx), witnesses),
+          );
+        }
+      }
+    }
   });
 });
 
