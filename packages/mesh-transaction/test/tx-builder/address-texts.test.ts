@@ -243,7 +243,8 @@ const PLACES: readonly {
       minFee(built.prototype, {
         params,
         vkeyWitnesses: 1,
-        inputs: [ownAt(text)],
+        // At the out ref the body spends: an entry for another is passed over
+        inputs: [{ ...ownAt(text), txHash: funds.txHash }],
       }),
     code: "INVALID_OPTION",
   },

@@ -9,6 +9,7 @@ import { TxEmulator } from "@meshsdk/tx-emulator";
 import { MeshWallet } from "@meshsdk/wallet";
 
 import {
+  minFee,
   output,
   referenceInput,
   requiredSigners,
@@ -302,6 +303,60 @@ describe("UTxOs given for out refs, each out ref once", () => {
     );
     expect(final.error).toBeUndefined();
     expect(final.ms).toBeLessThan(AT_ONCE_MS);
+  });
+
+  it("prices with minFee at once beside the UTxOs given that the body does not name, 235 heavy ones among them in each form: the price that of the UTxOs it names, one of those given twice with other contents refused", async () => {
+    const one = runs(items.slice(0, 1));
+    const proto = transactionPrototypeFromHex(one);
+    const read = mesh(txOf(100), `8200${items[0]}`);
+    const unnamed = items.map((it, i) => mesh(otherOf(i), `8200${it}`));
+    const context = { params, vkeyWitnesses: 1 };
+    const named = minFee(proto, { ...context, inputs: [spent, read] });
+    // The script read is priced: the UTxOs it names change the price, those it does not do not
+    expect(named).toBeGreaterThan(minFee(proto, context));
+    for (const others of [
+      unnamed,
+      unnamed.map(cborOf),
+      // Not a UTxO past its out ref, or given again with other contents: never read
+      unnamed.map((utxo) => ({
+        ...utxo,
+        output: { ...utxo.output, address: "not an address" },
+      })),
+      [...unnamed, ...items.map((_, i) => mesh(otherOf(i)))],
+    ]) {
+      let price: bigint | undefined;
+      const priced = await timed(() => {
+        price = minFee(proto, { ...context, inputs: [spent, ...others, read] });
+      });
+      expect(priced.error).toBeUndefined();
+      expect(priced.ms).toBeLessThan(AT_ONCE_MS);
+      expect(price).toBe(named);
+    }
+    // An entry for its collateral input is read too: one that is no UTxO is refused
+    const withCollateral = structuredClone(proto);
+    withCollateral.body.collateral = [{ transaction_id: otherOf(0), index: 0 }];
+    const notUtxo = { ...unnamed[0]!, output: { address: "not an address" } };
+    expect(
+      minFee(proto, { ...context, inputs: [spent, read, notUtxo] as never }),
+    ).toBe(named);
+    const collateral = await timed(() =>
+      minFee(withCollateral, {
+        ...context,
+        inputs: [spent, read, notUtxo] as never,
+      }),
+    );
+    expect(TxError.is(collateral.error, "INVALID_OPTION")).toBe(true);
+    expect(collateral.error.message).toContain(
+      "invalid inputs: entry 2 is not a UTxO",
+    );
+    // An out ref the body names, given twice with other contents, is refused where it is read
+    const twice = await timed(() =>
+      minFee(proto, { ...context, inputs: [spent, read, mesh(txOf(100))] }),
+    );
+    expect(TxError.is(twice.error, "INVALID_OPTION")).toBe(true);
+    expect(twice.error.message).toBe(
+      `invalid inputs: two entries name the output ${txOf(100)}#0 and differ`,
+    );
   });
 
   it("builds at once reading of knownUtxos and of the provider's answers only the entries its parts name: 235 heavy others passed over in each form, one that is no UTxO past its out ref among them", async () => {

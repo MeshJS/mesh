@@ -3408,31 +3408,33 @@ describe("TxBuilder: malformed values given or read", () => {
     });
 
     it("refuses an entry of minFee's inputs and of utxosAfter's utxos that is not a UTxO", async () => {
+      // minFee reads the entries for the out refs the body names: those are for the one it spends
+      const spent = funds();
       const built = await new TxBuilder({ network, params }).build([pay], {
-        payer: { changeAddress: wallet, utxos: [funds()] },
+        payer: { changeAddress: wallet, utxos: [spent] },
       });
       const held = funds();
-      const notUtxos: [string, unknown][] = [
+      const notUtxosOf = (base: UTxO): [string, unknown][] => [
         [
           "a Mesh UTxO at a reward address",
           {
-            ...held,
+            ...base,
             output: {
-              ...held.output,
+              ...base.output,
               address: keyHashToRewardAddress(keyHashHex(1), 0),
             },
           },
         ],
         [
           "a Mesh UTxO with a scriptHash and no scriptRef",
-          { ...held, output: { ...held.output, scriptHash: "ab".repeat(28) } },
+          { ...base, output: { ...base.output, scriptHash: "ab".repeat(28) } },
         ],
         [
           "a Mesh UTxO whose dataHash is not that of its plutusData",
           {
-            ...held,
+            ...base,
             output: {
-              ...held.output,
+              ...base.output,
               plutusData: "d87980",
               dataHash: "00".repeat(32),
             },
@@ -3441,19 +3443,20 @@ describe("TxBuilder: malformed values given or read", () => {
         [
           "an amount with no digits",
           {
-            ...held,
+            ...base,
             output: {
-              ...held.output,
+              ...base.output,
               amount: [{ unit: "lovelace", quantity: "ten" }],
             },
           },
         ],
         [
           "a Utxo without lovelace",
-          { ...toUtxo(held), value: { [`${"ab".repeat(28)}01`]: 1n } },
+          { ...toUtxo(base), value: { [`${"ab".repeat(28)}01`]: 1n } },
         ],
         ["text that is not CBOR", "zz"],
       ];
+      const notUtxos = notUtxosOf(held);
       const context = { params, vkeyWitnesses: 1 };
       const refused = (call: () => unknown, option: string, entry: unknown) => {
         let error: unknown;
@@ -3476,25 +3479,25 @@ describe("TxBuilder: malformed values given or read", () => {
           `invalid ${option}: entry 1 is not a UTxO: `,
         );
       };
-      for (const [, entry] of notUtxos) {
+      for (const [, entry] of notUtxosOf(spent))
         refused(
           () =>
             minFee(built.prototype, {
               ...context,
-              inputs: [held, entry] as never,
+              inputs: [spent, entry] as never,
             }),
           "inputs",
           entry,
         );
+      for (const [, entry] of notUtxos)
         refused(
           () => utxosAfter([held, entry] as never, built),
           "utxos",
           entry,
         );
-      }
       // The same UTxOs without the entry are taken
       expect(
-        minFee(built.prototype, { ...context, inputs: [held] }),
+        minFee(built.prototype, { ...context, inputs: [spent] }),
       ).toBeGreaterThan(0n);
       expect(utxosAfter([held], built)).toHaveLength(2);
     });

@@ -114,6 +114,7 @@ import {
   feeForSize,
   outputMinCoin,
   prototypeExUnits,
+  prototypeRefs,
   valueSize,
 } from "./fee";
 import { auxiliaryDataHashOf, scriptDataHashOf } from "./hashes";
@@ -3970,30 +3971,6 @@ const refScriptsTooLarge = (
       },
     },
   );
-
-/**
- * The out refs a prototype names, as `txHash#index` in lower case: those it spends and reads,
- * and all of them, its collateral inputs among them; none of what is not read
- */
-const prototypeRefs = (
-  prototype: unknown,
-): { spentAndRead: string[]; all: string[] } => {
-  const body = (prototype as { body?: Record<string, unknown> } | null)?.body;
-  const refsOf = (list: unknown) =>
-    Array.isArray(list)
-      ? (list as { transaction_id?: unknown; index?: unknown }[]).flatMap(
-          (input) =>
-            typeof input?.transaction_id === "string"
-              ? [`${input.transaction_id.toLowerCase()}#${String(input.index)}`]
-              : [],
-        )
-      : [];
-  const spentAndRead = [
-    ...refsOf(body?.inputs),
-    ...refsOf(body?.reference_inputs),
-  ];
-  return { spentAndRead, all: [...spentAndRead, ...refsOf(body?.collateral)] };
-};
 
 /**
  * A transaction `fromCbor` does not take. A private key may be given there by mistake, so the

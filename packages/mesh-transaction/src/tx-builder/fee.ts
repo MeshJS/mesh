@@ -264,6 +264,30 @@ export const bodyRefScriptSize = (
   return size;
 };
 
+/**
+ * The out refs a prototype names, as `txHash#index` in lower case: those it spends and reads,
+ * and all of them, its collateral inputs among them; none of what is not read
+ */
+export const prototypeRefs = (
+  prototype: unknown,
+): { spentAndRead: string[]; all: string[] } => {
+  const body = (prototype as { body?: Record<string, unknown> } | null)?.body;
+  const refsOf = (list: unknown) =>
+    Array.isArray(list)
+      ? (list as { transaction_id?: unknown; index?: unknown }[]).flatMap(
+          (input) =>
+            typeof input?.transaction_id === "string"
+              ? [`${input.transaction_id.toLowerCase()}#${String(input.index)}`]
+              : [],
+        )
+      : [];
+  const spentAndRead = [
+    ...refsOf(body?.inputs),
+    ...refsOf(body?.reference_inputs),
+  ];
+  return { spentAndRead, all: [...spentAndRead, ...refsOf(body?.collateral)] };
+};
+
 /** The execution units of a transaction's redeemers, added up */
 export const prototypeExUnits = (
   prototype: Readonly<TransactionPrototype>,
@@ -283,7 +307,8 @@ export const prototypeExUnits = (
  * The placeholders stand in place of the prototype's own key witnesses, which are not counted on
  * top; its bootstrap witnesses are sized as given. The size is the one the prototype encoder of
  * `@meshsdk/core-cst` gives. The reference scripts counted are those of the UTxOs in `inputs`
- * that the body spends or reads; without `inputs` there are none. The execution units are those
+ * that the body spends or reads; without `inputs` there are none. An entry for an out ref the
+ * body does not name is passed over, only its out ref read. The execution units are those
  * the prototype's redeemers state. Pure and synchronous; the prototype is left as given.
  *
  * Only the shape of its arguments is checked: a prototype that the encoder cannot write fails
@@ -294,11 +319,12 @@ export const prototypeExUnits = (
  * @param context.params The protocol parameters
  * @param context.vkeyWitnesses How many key witnesses the signed transaction carries
  * @param context.inputs UTxOs of the body's inputs and reference inputs, for their reference
- *   scripts, in any form the builder takes a UTxO in; two entries for one out ref must hold the
- *   same, and the same UTxO given again is one
+ *   scripts, in any form the builder takes a UTxO in; two entries for one out ref the body names
+ *   must hold the same, and the same UTxO given again is one
  * @throws TxBuildError INVALID_OPTION for a prototype without `body` and `witness_set`, a
  *   `vkeyWitnesses` that is not a whole number of 0 or more, `inputs` that is not a list, holds
- *   an entry that is not a UTxO or two that name one output and differ, the out ref named, and
+ *   an entry whose out ref cannot be read, or for an out ref the body names an entry that is not
+ *   a UTxO or two that differ, the out ref named, and
  *   `params` lacking a field the fee is worked out from, or holding one that is not a number
  */
 export const minFee = (
@@ -349,11 +375,16 @@ export const minFee = (
       },
     );
   };
-  // Each out ref once: two entries for it must hold the same, and the first is the one priced
+  // Only the entries for the out refs the body names are read, each out ref once: two entries
+  // for it must hold the same, and the first is the one priced
+  const named = new Set(prototypeRefs(prototype).all);
   let utxos: Utxo[];
   try {
     utxos = Array.from(
-      readPlaced(placeUtxos(inputs as unknown[], refused), refused).values(),
+      readPlaced(
+        placeUtxos(inputs as unknown[], refused, named),
+        refused,
+      ).values(),
     );
   } catch (error) {
     if (!(error instanceof UtxoTwiceError)) throw error;

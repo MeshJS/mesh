@@ -2302,10 +2302,10 @@ form it is compared by content): two texts of CBOR for one out ref are not read 
 as each is read in a time that grows with the square of its pieces, and are refused as naming the
 output in different bytes, though they may hold the same (an index in a longer form, the keys of
 the output in another order). The first entry for an out ref is the one the bound on reference
-scripts counts and the one read. Where a transaction is read with the UTxOs given
-(`fromCbor`, `finalize`, `requiredSigners`), an entry for an out ref it does not name is passed
-over, only its out ref read: 235 such UTxOs that each hold a native script of 15 643 bytes are
-passed over in a few milliseconds, where reading them took 6 s. So it is where a transaction is
+scripts counts and the one read. Where a transaction is read or priced with the UTxOs given
+(`fromCbor`, `finalize`, `requiredSigners`, `minFee`), an entry for an out ref it does not name is
+passed over, only its out ref read: 235 such UTxOs that each hold a native script of 15 643 bytes
+are passed over in a few milliseconds, where reading them took 6 s. So it is where a transaction is
 built or planned: `build` reads an entry of `knownUtxos`, and an output of the provider's answer
 for a transaction, only for an out ref its parts name, and a plan the entries its steps name
 (`plan`, `plan.add`, `replan`), keeping each other in its record as given; an entry for an out
