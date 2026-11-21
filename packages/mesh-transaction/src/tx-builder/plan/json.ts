@@ -1118,27 +1118,143 @@ const exUnits = (value: unknown, path: string) => {
 export const utxos = (value: unknown, path: string) =>
   list(value, path).map((item, i) => utxoValue(item, `${path}[${i}]`));
 
+/** A place in an entry of `knownUtxos`: the names of members and the indices of items to it */
+type Place = (string | number)[];
+
+/**
+ * Whether a place in an entry of `knownUtxos` is a quantity of the value of a `Utxo`, whose decimal
+ * text the reader of a record reads as a `bigint`: the entry has no input or output, its value is
+ * an object, and the place is a member of it
+ */
+const quantityAt = (entry: Obj, place: readonly (string | number)[]) =>
+  place.length === 2 &&
+  place[0] === "value" &&
+  typeof place[1] === "string" &&
+  !Object.prototype.hasOwnProperty.call(entry, "input") &&
+  !Object.prototype.hasOwnProperty.call(entry, "output") &&
+  isPlainObject(entry.value);
+
+/**
+ * An entry of a plan's `knownUtxos` as the record writes it: its text, or the copy of its object
+ * the plan holds, every `bigint` as its decimal string, every other value as it is. Where the
+ * reader would give back a value of another type, the place is named: in `bigints`, a `bigint`
+ * other than a quantity of the value of a `Utxo`; in `texts`, a decimal text at such a quantity
+ */
+export const encodeGivenUtxo = (entry: unknown): unknown => {
+  if (!isPlainObject(entry)) return plain(entry, "knownUtxos");
+  const bigints: Place[] = [];
+  const texts: Place[] = [];
+  const place: (string | number)[] = [];
+  const write = (value: unknown): unknown => {
+    if (typeof value === "bigint") {
+      if (!quantityAt(entry, place)) bigints.push([...place]);
+      return value.toString();
+    }
+    if (typeof value === "string") {
+      if (DECIMAL.test(value) && quantityAt(entry, place))
+        texts.push([...place]);
+      return value;
+    }
+    if (typeof value !== "object" || value === null)
+      return plain(value, "knownUtxos");
+    const at = (key: string | number, member: unknown) => {
+      place.push(key);
+      try {
+        return write(member);
+      } finally {
+        place.pop();
+      }
+    };
+    if (Array.isArray(value)) return value.map((item, i) => at(i, item));
+    return Object.fromEntries(
+      Object.entries(value).flatMap(([key, member]) =>
+        member === undefined ? [] : [[key, at(key, member)]],
+      ),
+    );
+  };
+  const json = write(entry) as Obj;
+  return {
+    ...json,
+    ...(bigints.length > 0 && { bigints }),
+    ...(texts.length > 0 && { texts }),
+  };
+};
+
+/** The places a list of an entry's JSON names, each once */
+const places = (value: unknown, path: string, seen: Set<string>) =>
+  list(value, path).map((item, i) => {
+    const at = `${path}[${i}]`;
+    const steps = list(item, at);
+    if (steps.length === 0) unread(`${at} is an empty list, not a place`);
+    steps.forEach((step, k) => {
+      if (typeof step !== "string") count(step, `${at}[${k}]`);
+    });
+    const key = JSON.stringify(steps);
+    if (seen.has(key)) unread(`${at} names a place named before`);
+    seen.add(key);
+    return key;
+  });
+
 /**
  * An entry of a plan's `knownUtxos` as the record holds it, as it was given and not read: its
- * text, or its object with the members a UTxO is read from (`utxoMembers`); of a `Utxo`, its
- * quantities back as `bigint`s
+ * text, or the copy of its object (`encodeGivenUtxo`), each value of the type it was given: the
+ * decimal text of a quantity of the value of a `Utxo` as a `bigint`, unless `texts` names its
+ * place; at a place `bigints` names, a `bigint`
  */
 export const givenUtxoValue = (value: unknown, path: string): unknown => {
   if (typeof value === "string") return value;
-  const json = object(value, path);
-  if ("input" in json || "output" in json || !isPlainObject(json.value))
-    return json;
-  return {
-    ...json,
-    value: Object.fromEntries(
-      Object.entries(json.value).map(([unit, quantity]) => [
-        unit,
-        typeof quantity === "string" && DECIMAL.test(quantity)
-          ? BigInt(quantity)
-          : quantity,
-      ]),
-    ),
+  const { bigints, texts, ...json } = object(value, path);
+  const seen = new Set<string>();
+  const marks = new Map<string, "bigint" | "text">([
+    ...(bigints === undefined
+      ? []
+      : places(bigints, `${path}.bigints`, seen).map(
+          (key) => [key, "bigint"] as const,
+        )),
+    ...(texts === undefined
+      ? []
+      : places(texts, `${path}.texts`, seen).map(
+          (key) => [key, "text"] as const,
+        )),
+  ]);
+  const place: (string | number)[] = [];
+  const read = (member: unknown): unknown => {
+    if (typeof member === "string") {
+      if (!DECIMAL.test(member)) return member;
+      const key = JSON.stringify(place);
+      const mark = marks.get(key);
+      marks.delete(key);
+      if (mark === "text" && !quantityAt(json, place))
+        unread(
+          `${path}.texts names a place that is no quantity of a Utxo's value`,
+        );
+      if (mark === "bigint" && quantityAt(json, place))
+        unread(
+          `${path}.bigints names a quantity of a Utxo's value, a bigint without it`,
+        );
+      return mark === "bigint" ||
+        (mark === undefined && quantityAt(json, place))
+        ? BigInt(member)
+        : member;
+    }
+    if (typeof member !== "object" || member === null) return member;
+    const at = (key: string | number, item: unknown) => {
+      place.push(key);
+      try {
+        return read(item);
+      } finally {
+        place.pop();
+      }
+    };
+    if (Array.isArray(member)) return member.map((item, i) => at(i, item));
+    return Object.fromEntries(
+      Object.entries(member).map(([key, item]) => [key, at(key, item)]),
+    );
   };
+  const out = read(json);
+  if (marks.size > 0)
+    unread(`${path} names a place that holds no decimal text`);
+  return out;
 };
 
 const givenUtxos = (value: unknown, path: string) =>
@@ -1722,8 +1838,25 @@ export const encodePlan = (record: PlanRecord): TxPlanJSON => ({
     confirmations: record.deadlines.confirmations,
   },
   steps: record.steps.map(encodeStep),
-  options: encodeValue(record.options) as Record<string, unknown>,
+  options: encodePlanOptions(record.options),
 });
+
+/** The data options of a plan as its record writes them, of `knownUtxos` by `encodeGivenUtxo` */
+const encodePlanOptions = (options: PlanRecord["options"]) =>
+  Object.fromEntries(
+    Object.entries(options).flatMap(([key, value]) =>
+      value === undefined
+        ? []
+        : [
+            [
+              key,
+              key === "knownUtxos"
+                ? (value as readonly unknown[]).map(encodeGivenUtxo)
+                : encodeValue(value),
+            ],
+          ],
+    ),
+  );
 
 /* ---------------------------------------------------------------------------------------------
  * Reading

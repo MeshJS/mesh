@@ -1076,55 +1076,6 @@ export const givenOutRef = (given: unknown): string => {
   return utxoKey(readOutRefMembers(input.txHash, input.outputIndex));
 };
 
-/** An object with only the members named that it has, each as it is */
-const membersOf = (value: unknown, names: readonly string[]): unknown =>
-  isObject(value) && !Array.isArray(value)
-    ? Object.fromEntries(
-        names.flatMap((name) =>
-          value[name] === undefined ? [] : [[name, value[name]]],
-        ),
-      )
-    : value;
-
-/**
- * A UTxO given in any form with only the members it is read from, none of them read: a text as
- * it is; of a `Utxo` its out ref, address, value, datum and script; of a Mesh `UTxO` the out ref
- * of its `input`, and of its `output` the address, the amount (each asset its unit and
- * quantity), the datum and the reference script with their hashes
- */
-export const utxoMembers = (given: unknown): unknown => {
-  if (typeof given === "string" || !isObject(given)) return given;
-  if (!("input" in given) && !("output" in given))
-    return membersOf(given, [
-      "txHash",
-      "outputIndex",
-      "address",
-      "value",
-      "datum",
-      "script",
-    ]);
-  const output = membersOf(given.output, [
-    "address",
-    "amount",
-    "dataHash",
-    "plutusData",
-    "scriptRef",
-    "scriptHash",
-  ]);
-  const amount = isObject(output) ? output.amount : undefined;
-  return {
-    input: membersOf(given.input, ["txHash", "outputIndex"]),
-    output: Array.isArray(amount)
-      ? {
-          ...(output as Record<string, unknown>),
-          amount: Array.from(amount as unknown[], (asset) =>
-            membersOf(asset, ["unit", "quantity"]),
-          ),
-        }
-      : output,
-  };
-};
-
 /** A UTxO as a text, equal for two UTxOs that hold the same */
 export const utxoText = (utxo: Utxo) =>
   JSON.stringify(utxo, (_, value: unknown) =>

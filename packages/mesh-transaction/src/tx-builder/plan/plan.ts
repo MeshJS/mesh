@@ -118,6 +118,7 @@ import {
   readAddedSteps,
   readReplanSteps,
   refuseUnread,
+  withKnownCopy,
   withRecordedMarks,
 } from "./make";
 import {
@@ -958,8 +959,8 @@ export class TxPlan {
    *
    * - A step is paid by its own payer (`{ parts, payer }`), else by the plan's payer, as it was
    *   given to `builder.plan` or `builder.resume`. The data options the plan records apply,
-   *   unless the step has its own; `knownUtxos` as the plan was given them, an entry read when
-   *   a step names it; `canSelect` and `coinSelection` are given in the step.
+   *   unless the step has its own; of `knownUtxos` the copy the plan recorded, an entry read
+   *   when a step names it; `canSelect` and `coinSelection` are given in the step.
    * - A step may be a transaction built before, a `BuiltTx` or its CBOR hex, as in
    *   `builder.plan`: the UTxOs it names come from the plan's steps, its recorded `knownUtxos`
    *   or the provider. The same transaction under its name again is the same step.
@@ -1503,10 +1504,11 @@ export class TxPlan {
     if (opts.trace !== undefined && typeof opts.trace !== "function")
       throw invalidOption("trace", opts.trace, "a function");
     const { steps, after, ...rest } = opts;
-    const callOptions: MakePlanOptions = {
+    // Each entry of knownUtxos is copied once, before any request: the new plan reads the copy
+    const callOptions: MakePlanOptions = withKnownCopy({
       ...rest,
       ...(after !== undefined && { after: afterOf(after) }),
-    };
+    });
     // A transaction of after too large to read is refused before any request
     checkAfterSize(callOptions.after, afterBound(builder.params));
     const own =

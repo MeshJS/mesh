@@ -341,6 +341,38 @@ describe("A recorded id given to builder.plan", () => {
     }
   });
 
+  it("copies knownUtxos for the same call again as for the first: an entry the copy refuses is refused before the record is compared", async () => {
+    const { builder, wallet, instance, funded } = await storeSetup();
+    await builder.plan(pay(), {
+      id: "order-1",
+      payer: wallet,
+      knownUtxos: funded,
+    });
+    const value = { lovelace: 5_000_000n };
+    Object.defineProperty(value, "lovelace", {
+      enumerable: true,
+      get() {
+        throw new Error("cannot be read");
+      },
+    });
+    const throwing = { ...toUtxo(funded[0]!), txHash: "ee".repeat(32), value };
+    for (const knownUtxos of [[...funded, throwing], [throwing]]) {
+      const other = instance();
+      const error = await caught(
+        other.builder.plan(pay(), {
+          id: "order-1",
+          payer: wallet,
+          knownUtxos: knownUtxos as never,
+        }),
+      );
+      expectCode(error, "INVALID_OPTION");
+      expect(error.message).toContain(
+        `invalid knownUtxos: entry ${knownUtxos.length - 1} is not a UTxO: a member it is read from throws when read`,
+      );
+      expect(other.store.saves()).toEqual([]);
+    }
+  });
+
   it("is PLAN_EXISTS for another sendAllTo than the recorded one; the same one passes", async () => {
     const { builder, wallet, instance } = await storeSetup();
     await builder.plan([], {

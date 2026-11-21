@@ -95,9 +95,9 @@ export type PlanSteps = Readonly<Record<string, PlanStep>>;
  * with named steps they are given in the step, and here are INVALID_OPTION. The deadlines and
  * the data options (`knownUtxos`, `registeredPools`, `extraKeyWitnesses`, `topUpCollateral`,
  * `collateralReturn`, `consolidate`, and the payer's change address) are written into the plan,
- * `knownUtxos` as given, each entry read only when a step names it, also a step added later;
- * `payer`, `after`, `canSelect`, `coinSelection`, `signal` and `trace` are kept by the object
- * only, or not at all.
+ * of `knownUtxos` a copy made once, each entry read only when a step names it, also a step added
+ * later; `payer`, `after`, `canSelect`, `coinSelection`, `signal` and `trace` are kept by the
+ * object only, or not at all.
  */
 export type PlanOptions = Omit<BuildOptions, "after"> &
   PlanDeadlines & {

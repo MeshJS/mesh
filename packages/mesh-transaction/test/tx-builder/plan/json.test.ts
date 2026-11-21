@@ -1104,6 +1104,100 @@ describe("readPlan", () => {
       );
   });
 
+  it("reads each value of an entry of knownUtxos of the type it was given: the places of a bigint and of a decimal text it would read otherwise are named", () => {
+    const mesh = {
+      input: { txHash: hash(1), outputIndex: 0 },
+      output: {
+        address: wallet,
+        amount: [
+          { unit: "lovelace", quantity: 5_000_000n },
+          { unit: "lovelace", quantity: "7" },
+        ],
+      },
+    };
+    const own = {
+      ...utxoAt(2, wallet, { value: { lovelace: "7", [unit]: 2n } as never }),
+      datum: { type: "hash", hash: 12n },
+    };
+    const lawful = utxoAt(3, wallet, { value: { lovelace: 7n } });
+    const written = [
+      {
+        ...mesh,
+        output: {
+          ...mesh.output,
+          amount: [
+            { unit: "lovelace", quantity: "5000000" },
+            { unit: "lovelace", quantity: "7" },
+          ],
+        },
+        bigints: [["output", "amount", 0, "quantity"]],
+      },
+      {
+        ...own,
+        value: { lovelace: "7", [unit]: "2" },
+        datum: { type: "hash", hash: "12" },
+        bigints: [["datum", "hash"]],
+        texts: [["value", "lovelace"]],
+      },
+      { ...lawful, value: { lovelace: "7" } },
+    ];
+    const json = changed((json) => (json.options.knownUtxos = written));
+    const read = readPlan(json);
+    expect(read.options.knownUtxos).toStrictEqual([mesh, own, lawful]);
+    // Written again as it was read
+    expect(JSON.parse(JSON.stringify(encodePlan(read)))).toStrictEqual(json);
+    for (const [marks, message] of [
+      [
+        { bigints: [["output", "address"]] },
+        /names a place that holds no decimal text/,
+      ],
+      [
+        { bigints: [["output", "nothing"]] },
+        /names a place that holds no decimal text/,
+      ],
+      [
+        { texts: [["output", "amount", 1, "quantity"]] },
+        /texts names a place that is no quantity/,
+      ],
+      [{ bigints: [[]] }, /bigints\[0\] is an empty list, not a place/],
+      [{ bigints: "output" }, /bigints is "output", not a list/],
+      [
+        { bigints: [["output", -1]] },
+        /bigints\[0\]\[1\] is -1, not a whole number/,
+      ],
+      [
+        {
+          bigints: [["output", "amount", 0, "quantity"]],
+          texts: [["output", "amount", 0, "quantity"]],
+        },
+        /texts\[0\] names a place named before/,
+      ],
+    ] as const)
+      expectUnread(
+        () =>
+          readPlan(
+            changed(
+              (json) =>
+                (json.options.knownUtxos = [{ ...written[0], ...marks }]),
+            ),
+          ),
+        message,
+      );
+    // A quantity of a Utxo's value is a bigint without being named
+    expectUnread(
+      () =>
+        readPlan(
+          changed(
+            (json) =>
+              (json.options.knownUtxos = [
+                { ...written[2], bigints: [["value", "lovelace"]] },
+              ]),
+          ),
+        ),
+      /bigints names a quantity of a Utxo's value, a bigint without it/,
+    );
+  });
+
   it("refuses a UTxO of another shape wherever the record holds one", () => {
     // A UTxO in the Mesh form, which a record holds only among the knownUtxos given
     const mesh = {
