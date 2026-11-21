@@ -989,24 +989,91 @@ export const namedBy = (
 /** No out ref: `toKnownUtxos` given it reads of each entry its out ref alone */
 const NO_OUT_REFS: ReadonlySet<string> = new Set();
 
+/** Members nested deeper than this are no UTxO's: a UTxO in any form is a few levels deep */
+const MAX_UTXO_DEPTH = 16;
+
+/**
+ * Why the members a UTxO is read from cannot be copied: one holds itself, or is nested deeper
+ * than `MAX_UTXO_DEPTH`; undefined when they can. It walks what the copy walks, never deeper,
+ * so neither a cycle nor a deep member runs the stack out
+ */
+const uncopiable = (
+  value: unknown,
+  ancestors: object[] = [],
+): string | undefined => {
+  if (typeof value !== "object" || value === null) return undefined;
+  if (ancestors.includes(value)) return "a member it is read from holds itself";
+  if (ancestors.length >= MAX_UTXO_DEPTH)
+    return `a member it is read from is nested more than ${MAX_UTXO_DEPTH} levels deep, as no UTxO is`;
+  ancestors.push(value);
+  try {
+    for (const member of Object.values(value)) {
+      const why = uncopiable(member, ancestors);
+      if (why !== undefined) return why;
+    }
+  } finally {
+    ancestors.pop();
+  }
+  return undefined;
+};
+
+/** Whether an object is a plain object, of any realm: its prototype the root one, or none */
+const plainPrototype = (value: object) => {
+  const proto: unknown = Object.getPrototypeOf(value);
+  return proto === null || Object.getPrototypeOf(proto) === null;
+};
+
+/**
+ * Whether the record's copy of the members a UTxO is read from is those members: the same own
+ * members, each enumerable and named by a string, of plain objects and lists, and the same
+ * values of the same types. A member not enumerable, named by a symbol or left undefined, which
+ * the copy leaves out, and a quantity of another type than its form takes, which the copy
+ * turns into one, make it another
+ */
+const sameAsGiven = (given: unknown, copy: unknown): boolean => {
+  if (typeof given !== "object" || given === null) return given === copy;
+  if (typeof copy !== "object" || copy === null) return false;
+  const keys = Reflect.ownKeys(given);
+  if (keys.length !== Reflect.ownKeys(copy).length) return false;
+  const a = given as Record<string, unknown>;
+  const b = copy as Record<string, unknown>;
+  if (Array.isArray(given))
+    return (
+      Array.isArray(copy) &&
+      given.length === copy.length &&
+      given.every((_, i) => i in copy && sameAsGiven(a[i], b[i]))
+    );
+  return (
+    !Array.isArray(copy) &&
+    plainPrototype(given) &&
+    keys.every(
+      (key) =>
+        typeof key === "string" &&
+        Object.prototype.propertyIsEnumerable.call(given, key) &&
+        Object.prototype.hasOwnProperty.call(copy, key) &&
+        sameAsGiven(a[key], b[key]),
+    )
+  );
+};
+
 /**
  * The entries of `knownUtxos` as a plan's record keeps them: every one, as it was given and not
  * read past its out ref, a copy as the record's JSON gives it back (`givenUtxoValue`). An entry
- * is read when a step names it, whenever the step is built
+ * is read when a step names it, whenever the step is built, and reads the same then as when it
+ * was given: an entry the copy would change is refused when the plan is made, never changed.
+ * The members are walked at most `MAX_UTXO_DEPTH` levels deep, and none is read as a UTxO
  * @throws TxBuildError INVALID_OPTION as `toKnownUtxos` for what is not a list, and an entry
  *   whose out ref cannot be read; for an object holding what is no JSON data where a UTxO is
- *   read from
+ *   read from, a member that holds itself or is nested deeper than `MAX_UTXO_DEPTH`, and one
+ *   the copy would change; the entry named
  */
 const recordedKnownUtxos = (knownUtxos: unknown): unknown[] => {
   toKnownUtxos(knownUtxos, { named: NO_OUT_REFS });
   return (knownUtxos as readonly unknown[]).map((entry, i) => {
-    try {
-      return givenUtxoValue(encodeValue(utxoMembers(entry)), "");
-    } catch (error) {
-      if (!(error instanceof TypeError)) throw error;
-      throw new TxBuildError(
+    const refused = (why: string) =>
+      new TxBuildError(
         "INVALID_OPTION",
-        `invalid knownUtxos: entry ${i} is not a UTxO: a member it is read from holds what is not data, which a plan's record cannot hold`,
+        `invalid knownUtxos: entry ${i} is not a UTxO: ${why}`,
         {
           details: {
             option: "knownUtxos",
@@ -1015,7 +1082,24 @@ const recordedKnownUtxos = (knownUtxos: unknown): unknown[] => {
           },
         },
       );
+    const members = utxoMembers(entry);
+    const why = uncopiable(members);
+    if (why !== undefined)
+      throw refused(`${why}, which a plan's record cannot hold`);
+    let copy: unknown;
+    try {
+      copy = givenUtxoValue(encodeValue(members), "");
+    } catch (error) {
+      if (!(error instanceof TypeError)) throw error;
+      throw refused(
+        "a member it is read from holds what is not data, which a plan's record cannot hold",
+      );
     }
+    if (!sameAsGiven(members, copy))
+      throw refused(
+        "a plan's record would not give back a member it is read from as it was given: a member not enumerable, named by a symbol or left undefined, or a quantity of another type than its form takes",
+      );
+    return copy;
   });
 };
 

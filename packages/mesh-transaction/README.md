@@ -1121,7 +1121,11 @@ payer's change address and the three effective deadlines. Of `knownUtxos` the re
 entry as it was given, its text or its object (the members a UTxO is read from), unread: an entry is
 read when a step names it, so a step `plan.add` builds later, or `replan` given no `knownUtxos` of
 its own, finds the entries given at the start, and two entries for one out ref that differ are
-refused when it is read. The same call again is compared on the entries for the out refs its steps'
+refused when it is read. An entry reads the same then as when it was given: one the record would
+give back otherwise (a member not enumerable, named by a symbol or left undefined, a quantity of
+another type than its form takes), and one with a member that holds itself or is nested more than
+16 levels deep, are refused when the plan is made (`INVALID_OPTION`, the entry named), whether a
+step names them or not. The same call again is compared on the entries for the out refs its steps'
 transactions spend, put up and read: an entry for another out ref may change or go, and where there
 is none of those, `knownUtxos` left out is the same as `[]`. Not recorded: wallets, signers, the
 submitter, functions (`canSelect`, `coinSelection`, `trace`) and `signal`. Every change is saved

@@ -528,4 +528,194 @@ describe("The knownUtxos of a plan", () => {
       ]);
     }
   });
+
+  /** The error of a call, which must fail */
+  const refusal = async (call: () => Promise<unknown>) => {
+    try {
+      await call();
+    } catch (error) {
+      return error as TxBuildError<"INVALID_OPTION">;
+    }
+    throw new Error("the call did not fail");
+  };
+  /** The token of the forms below: a policy and an asset name, in hex */
+  const unit = `${"ab".repeat(28)}cafe`;
+
+  it("gives an entry one answer, a step naming it at the start or later: one its record would change is refused when the plan is made, the entry named, never changed", async () => {
+    const { builder, wallet } = await setup();
+    const own = (i: number) => toUtxo(offChain(i));
+    const hidden = { lovelace: 3_000_007n };
+    Object.defineProperty(hidden, unit, { value: 5n, enumerable: false });
+    const forms: Record<string, UTxO | Utxo> = {
+      "a token of a Utxo not enumerable": { ...own(7), value: hidden },
+      "a token of a Utxo under a symbol": {
+        ...own(8),
+        value: { lovelace: 3_000_008n, [Symbol(unit)]: 5n } as never,
+      },
+      "a Mesh quantity as a bigint": {
+        ...offChain(9),
+        output: {
+          ...offChain(9).output,
+          amount: [{ unit: "lovelace", quantity: 3_000_009n as never }],
+        },
+      },
+      "the lovelace of a Utxo as decimal text": {
+        ...own(10),
+        value: { lovelace: "3000010" as never },
+      },
+      "a token of a Utxo left undefined": {
+        ...own(11),
+        value: { lovelace: 3_000_011n, [unit]: undefined as never },
+      },
+    };
+    for (const [form, entry] of Object.entries(forms)) {
+      const knownUtxos = [offChain(6), entry];
+      const atStart = await refusal(() =>
+        builder.plan({ first: reading(entry) }, { payer: wallet, knownUtxos }),
+      );
+      const unnamed = await refusal(() =>
+        builder.plan({ first: pay() }, { payer: wallet, knownUtxos }),
+      );
+      for (const error of [atStart, unnamed]) {
+        expect([form, TxBuildError.is(error, "INVALID_OPTION")]).toEqual([
+          form,
+          true,
+        ]);
+        expect(error.details.option).toBe("knownUtxos");
+        expect(error.message).toContain(
+          "invalid knownUtxos: entry 1 is not a UTxO",
+        );
+      }
+      expect(unnamed.message).toContain(
+        "a plan's record would not give back a member it is read from as it was given",
+      );
+    }
+    // Written as the reader takes them, the same entries are held as given, and read by a step
+    // added later as by a step at the start
+    const exact: Record<string, UTxO | Utxo> = {
+      "a Utxo with a token": {
+        ...own(7),
+        value: { lovelace: 3_000_007n, [unit]: 5n },
+      },
+      "a Mesh UTxO with a token": {
+        ...offChain(9),
+        output: {
+          ...offChain(9).output,
+          amount: [
+            { unit: "lovelace", quantity: "3000009" },
+            { unit, quantity: "5" },
+          ],
+        },
+      },
+    };
+    for (const [form, entry] of Object.entries(exact)) {
+      const knownUtxos = [offChain(6), entry];
+      const atStart = await builder.plan(
+        { first: reading(entry) },
+        { payer: wallet, knownUtxos },
+      );
+      const later = await builder.plan(
+        { first: pay() },
+        { payer: wallet, knownUtxos },
+      );
+      const resumed = await builder.resume(
+        JSON.parse(JSON.stringify(later.toJSON())),
+        { payer: wallet },
+      );
+      for (const object of [later, resumed]) {
+        await object.add({ second: reading(entry) });
+        expect([form, object.steps.at(-1)!.referenceInputs]).toEqual([
+          form,
+          atStart.steps[0]!.referenceInputs,
+        ]);
+      }
+    }
+    // A plan made: replan given such an entry is refused too, the plan as it was
+    const plan = await builder.plan(
+      { first: pay() },
+      { id: "known", payer: wallet, knownUtxos: [offChain(6)] },
+    );
+    await plan.stop();
+    for (const entry of Object.values(forms)) {
+      const error = await refusal(() =>
+        plan.replan({
+          id: "again",
+          steps: { second: pay() },
+          payer: wallet,
+          knownUtxos: [offChain(6), entry],
+        }),
+      );
+      expect(TxBuildError.is(error, "INVALID_OPTION")).toBe(true);
+      expect(error.message).toContain(
+        "invalid knownUtxos: entry 1 is not a UTxO",
+      );
+    }
+    expect(plan.toJSON().options.knownUtxos).toEqual([offChain(6)]);
+  });
+
+  it("refuses an entry with a member nested deeply or holding itself when the plan is made, in milliseconds, named or not", async () => {
+    const { builder, wallet } = await setup();
+    /** Lists nested `depth` deep, made without recursion */
+    const lists = (depth: number) => {
+      let value: unknown = [];
+      for (let i = 0; i < depth; i++) value = [value];
+      return value;
+    };
+    const objects = (depth: number) => {
+      let value: unknown = { type: "CBOR", content: "00" };
+      for (let i = 0; i < depth; i++) value = { type: "inline", data: value };
+      return value;
+    };
+    const cyclic: Record<string, unknown> = { type: "inline" };
+    cyclic.data = cyclic;
+    const loop: unknown[] = [];
+    loop.push(loop);
+    const forms: Record<string, [UTxO | Utxo, string]> = {
+      "Mesh plutusData, lists 100 000 deep": [
+        {
+          ...offChain(12),
+          output: { ...offChain(12).output, plutusData: lists(100_000) },
+        } as never,
+        "nested more than 16 levels deep",
+      ],
+      "a Utxo datum, objects 100 000 deep": [
+        { ...toUtxo(offChain(13)), datum: objects(100_000) as never },
+        "nested more than 16 levels deep",
+      ],
+      "a Utxo datum holding itself": [
+        { ...toUtxo(offChain(14)), datum: cyclic as never },
+        "holds itself",
+      ],
+      "a Mesh amount holding itself": [
+        {
+          ...offChain(15),
+          output: { ...offChain(15).output, amount: loop as never },
+        },
+        "holds itself",
+      ],
+    };
+    for (const [form, [entry, why]] of Object.entries(forms)) {
+      const knownUtxos = [offChain(6), entry];
+      const started = performance.now();
+      const unnamed = await refusal(() =>
+        builder.plan({ first: pay() }, { payer: wallet, knownUtxos }),
+      );
+      expect(performance.now() - started).toBeLessThan(AT_ONCE_MS);
+      expect([form, TxBuildError.is(unnamed, "INVALID_OPTION")]).toEqual([
+        form,
+        true,
+      ]);
+      expect(unnamed.message).toContain(
+        "invalid knownUtxos: entry 1 is not a UTxO",
+      );
+      expect(unnamed.message).toContain(why);
+      const atStart = await refusal(() =>
+        builder.plan({ first: reading(entry) }, { payer: wallet, knownUtxos }),
+      );
+      expect(TxBuildError.is(atStart, "INVALID_OPTION")).toBe(true);
+      expect(atStart.message).toContain(
+        "invalid knownUtxos: entry 1 is not a UTxO",
+      );
+    }
+  });
 });
