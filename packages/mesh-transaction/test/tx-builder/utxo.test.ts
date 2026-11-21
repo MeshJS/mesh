@@ -2059,11 +2059,12 @@ describe("the data and the reference script of a UTxO, read without being decode
       );
       expect(() => readOutRef(given)).toThrow(UtxoError);
     }
-    // Without an out ref the reader can tell, the refusal names none and quotes no byte
+    // Without an out ref the reader can tell (in a list of indefinite length, which the head of
+    // a UTxO is not read in), the refusal names none and quotes no byte
     const { thrown } = timed(() =>
       readUtxo(
         inCbor(
-          cbor.arr(cbor.bytes("ab"), cbor.uint(1)),
+          `9f${cbor.bytes(hash(5))}01ff`,
           cbor.map(...members, ["04", "03"], [held(deepOne), "05"]),
         ),
       ),

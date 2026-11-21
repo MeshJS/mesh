@@ -696,7 +696,8 @@ const withScript = (script: OutputScript | undefined) =>
  * A UTxO from the CBOR of a transaction unspent output. Its inline datum and its reference script
  * are found by the token reader and kept as the bytes hold them; the decoder reads the rest with
  * stand-ins in their place, and the script is described as `describeScriptRef` describes one. A
- * UTxO of more than `MAX_TX_BYTES` is refused before it is read; an output with a key other than
+ * UTxO of more than `MAX_TX_BYTES` is refused before it is read, and one whose out ref is of
+ * another form than every writer's at its head (`outRefAtHead`); an output with a key other than
  * 0 to 3, which the ledger takes in no output, before the decoder runs, its out ref named where
  * the reader finds it
  */
@@ -708,6 +709,8 @@ const fromCbor = (cbor: string, scripts?: ScriptsRead): Utxo => {
       "outRef",
       `not the CBOR of a transaction unspent output: it is more than the ${MAX_TX_BYTES} bytes of the protocol's maximum transaction size, of which its output is a part`,
     );
+  // Its out ref is read at its head first: one written in pieces is refused before they are read
+  if (HEX_BYTES.test(cbor)) outRefAtHead(cbor);
   let split: UtxoBytes | undefined;
   try {
     if (!HEX_BYTES.test(cbor)) throw new Error("the text is not hex");
@@ -974,22 +977,57 @@ const readScripted = (given: unknown, scripts?: ScriptsRead): Utxo => {
 };
 
 /**
- * The out ref of the CBOR of a transaction unspent output, read from its first items on the token
- * reader as the value decoder reads them, the rest not read; undefined where it does not read so
+ * The out ref at the head of the CBOR of a transaction unspent output, `[[id, index], output]` in
+ * hex, read from its first items on the token reader, the rest not read. The id is one byte
+ * string of definite length, 32 bytes, and the index an unsigned integer, as every writer writes
+ * them: any other is refused here, before a piece of it is read, as the reader joins a string
+ * written in pieces in a time that grows with the square of their number. Undefined for what does
+ * not start with two arrays of two items, which the value decoder refuses
+ * @throws UtxoError (`outRef`) for an id or an index of another form, and as `readOutRefMembers`
+ *   for one of another value
  */
-const cborOutRef = (cbor: string): OutRef | undefined => {
-  if (cbor.length > 2 * MAX_TX_BYTES || !HEX_BYTES.test(cbor)) return undefined;
+const outRefAtHead = (cbor: string): OutRef | undefined => {
+  let txHash: string;
+  let index: bigint;
   try {
     const reader = new CborReader(HexBlob(cbor));
     if (reader.readStartArray() !== 2 || reader.readStartArray() !== 2)
       return undefined;
-    const txHash = hexOf(reader.readByteString());
-    const index = reader.readInt();
-    return readOutRefMembers(txHash, Number(index));
-  } catch {
+    const id = reader.peekState();
+    if (id !== State.ByteString)
+      return problem(
+        "outRef",
+        `invalid transaction hash: expected a 32-byte hash in hex; got ${
+          id === State.StartIndefiniteLengthByteString
+            ? "a byte string in pieces"
+            : "an item that is not a byte string"
+        }`,
+      );
+    txHash = hexOf(reader.readByteString());
+    const at = reader.peekState();
+    if (at !== State.UnsignedInteger && at !== State.NegativeInteger)
+      return problem(
+        "outRef",
+        "invalid output index: expected a whole number from 0 to 65535; got an item that is not an integer",
+      );
+    index = reader.readInt();
+  } catch (error) {
+    if (error instanceof UtxoError) throw error;
     return undefined;
   }
+  return readOutRefMembers(txHash, Number(index));
 };
+
+/**
+ * The out ref of the CBOR of a transaction unspent output, read at its head (`outRefAtHead`);
+ * undefined for a text longer than a transaction or not hex, and where it does not start with
+ * two arrays of two items, which the read of the whole UTxO refuses
+ * @throws UtxoError as `outRefAtHead`
+ */
+const cborOutRef = (cbor: string): OutRef | undefined =>
+  cbor.length > 2 * MAX_TX_BYTES || !HEX_BYTES.test(cbor)
+    ? undefined
+    : outRefAtHead(cbor);
 
 /**
  * The out ref of a UTxO given in any form, as `utxoKey` writes it of the UTxO read whole, read

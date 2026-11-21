@@ -2144,12 +2144,12 @@ const utxo: Utxo = {
   most about 40 ms (its keys in 55 ms), and a payment from a payer whose 40 UTxOs each hold one
   (from a provider, a wallet or a snapshot) is built in about 1 s. A UTxO in CBOR of 16 384 bytes
   whose strings are written in empty pieces is read in up to about 150 ms (75 ms for its script in
-  pieces, up to 120 to 150 ms for a policy id, an asset name, a datum hash, the hash of its input
-  or its address), about 0.2 s where it is counted for the bound on reference scripts and then read
-  (`fromCbor`, `requiredSigners`, `finalize`), and 40 of them in a payer's in about 5 s. Such a
-  UTxO comes from whoever writes the text: a wallet's `getUtxos` or `getCollateral`, a provider,
-  a snapshot, `knownUtxos`, a part; whether the ledger takes those strings in pieces in an output
-  on chain is not known here. A script given as bytes (a Mesh `scriptRef`, CBOR, or an `unknown`
+  pieces, up to 120 to 150 ms for a policy id, an asset name, a datum hash or its address), about
+  0.2 s where it is counted for the bound on reference scripts and then read (`fromCbor`,
+  `requiredSigners`, `finalize`), and 40 of them in a payer's in about 5 s. Such a UTxO comes from
+  whoever writes the text: a wallet's `getUtxos` or `getCollateral`, a provider, a snapshot,
+  `knownUtxos`, a part; whether the ledger takes those strings in pieces in an output on chain is
+  not known here. Its out ref is read first, and is never in pieces (see below). A script given as bytes (a Mesh `scriptRef`, CBOR, or an `unknown`
   script) that the library cannot read is `{ type: "unknown", scriptRef, hash? }`, its bytes
   kept: another framing, a language it does not know, bytes after the script, CBOR that is not
   well formed, a Plutus script whose byte string is written in pieces, a native script larger than
@@ -2240,7 +2240,13 @@ an inline datum, `dataHash` without it a datum hash, and `scriptRef` the referen
 - the CBOR of a transaction unspent output longer than 16 384 bytes, the size of a transaction, of
   which its output is a part, before any of it is read: the token reader would take a time that
   grows with the square of its pieces (a UTxO of 16 384 bytes in empty pieces takes up to about
-  150 ms, one of 1 MB more than a minute).
+  150 ms, one of 1 MB more than a minute);
+- the CBOR of a transaction unspent output whose out ref is not written as every writer writes
+  one: its transaction hash not one byte string of definite length of 32 bytes (one in pieces
+  among others), its index not an unsigned integer. It is refused at its head, before any piece
+  is read, with the error other out refs that cannot be read get: where UTxOs are given for out
+  refs, one the transaction does not name is read as far as its out ref only, and 235 of 16 384
+  bytes whose hash is in empty pieces took 6 s that way.
 
 `output()` refuses an inline datum that is not exactly one item of Plutus data (`INVALID_DATA`), and
 every output the builder makes is a UTxO it takes back. The error names where the UTxO was given:

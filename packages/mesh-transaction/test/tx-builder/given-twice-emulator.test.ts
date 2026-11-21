@@ -12,6 +12,7 @@ import {
   output,
   referenceInput,
   requiredSigners,
+  toUtxo,
   TxBuilder,
   TxError,
   UtxoInput,
@@ -292,6 +293,90 @@ describe("UTxOs given for out refs, each out ref once", () => {
     );
     expect(final.error).toBeUndefined();
     expect(final.ms).toBeLessThan(AT_ONCE_MS);
+  });
+
+  it("refuses at its head an out ref whose transaction hash is not one byte string of definite length of 32 bytes, or whose index is no unsigned integer, as it refuses other out refs: 235 entries of 16 384 bytes, the hash in empty pieces, at once", async () => {
+    const one = runs(items.slice(0, 1));
+    const proto = transactionPrototypeFromHex(one);
+    const held = map([uint(0), bytes(addressHex)], [uint(1), "1a02faf080"]);
+    /** An entry of 16 384 bytes for an out ref the transaction does not name */
+    const inPieces = (i: number) => {
+      const hash = bytes(otherOf(i));
+      const empty = 16_384 - 2 - 1 - hash.length / 2 - 1 - 1 - held.length / 2;
+      return arr(arr(`5f${"40".repeat(empty)}${hash}ff`, uint(0)), held);
+    };
+    const pieces = items.map((_, i) => inPieces(i));
+    expect(pieces[0]!.length / 2).toBe(16_384);
+    const given = [spent, mesh(txOf(100), `8200${items[0]}`), ...pieces];
+    /** An out ref of a hash one byte short, which no reader takes */
+    const short = arr(arr(bytes(otherOf(0).slice(2)), uint(0)), held);
+    /** A message with the reason and the size of the text left out */
+    const shape = (message: string) =>
+      message
+        .replace(/got (a byte string in pieces|62 hex digits)/, "got …")
+        .replace(/\d+ hex digits/, "… hex digits");
+    const places: [string, (entries: UtxoInput[]) => unknown][] = [
+      ["requiredSigners", (entries) => requiredSigners(one, entries)],
+      [
+        "fromCbor",
+        (entries) => offline().fromCbor(one, { knownUtxos: entries }),
+      ],
+      ["finalize", (entries) => offline().finalize(proto, { inputs: entries })],
+      [
+        "a payer",
+        (entries) =>
+          offline().build([pay], {
+            payer: { changeAddress: address, utxos: entries },
+          }),
+      ],
+    ];
+    for (const [place, run] of places) {
+      const { error, ms } = await timed(() => run(given));
+      expect([place, ms < AT_ONCE_MS]).toEqual([place, true]);
+      expect([place, TxError.is(error, "INVALID_OPTION")]).toEqual([
+        place,
+        true,
+      ]);
+      // The message another out ref that cannot be read gets there, its reason told
+      const other = (
+        await timed(() => run([...given.slice(0, 2), short, ...pieces]))
+      ).error;
+      expect(shape(error.message)).toBe(shape(other.message));
+      expect(error.message).not.toMatch(/40404040/);
+    }
+    for (const entry of [
+      // In one piece
+      arr(arr(`5f${bytes(otherOf(0))}ff`, uint(0)), held),
+      // Its index as text, as a byte string of no piece, below 0
+      arr(arr(bytes(otherOf(0)), "6130"), held),
+      arr(arr(bytes(otherOf(0)), "5f40ff"), held),
+      arr(arr(bytes(otherOf(0)), "20"), held),
+    ])
+      expect(() => toUtxo(entry)).toThrow(
+        /invalid utxo: invalid (transaction hash|output index)/,
+      );
+    // A hash of another size is refused at the head too, before the output is looked at: here
+    // one with a key other than 0 to 3
+    const shortBeside = arr(
+      arr(bytes(otherOf(0).slice(2)), uint(0)),
+      map(
+        [uint(0), bytes(addressHex)],
+        [uint(1), "1a02faf080"],
+        [uint(4), uint(0)],
+      ),
+    );
+    expect(() => toUtxo(shortBeside)).toThrow(
+      "invalid utxo: invalid transaction hash: expected a 32-byte hash in hex; got 62 hex digits",
+    );
+    // A string of definite length with a longer head, an index in a longer form: read
+    const longer = arr(arr(`590020${otherOf(0)}`, "1900ff"), held);
+    expect(toUtxo(longer)).toMatchObject({
+      txHash: otherOf(0),
+      outputIndex: 255,
+    });
+    expect(
+      requiredSigners(one, [spent, longer, ...given.slice(1, 2)]).keyHashes,
+    ).toEqual([KEY_HASH]);
   });
 
   it("reads at once the same UTxO given many times as one, its script read once", async () => {
