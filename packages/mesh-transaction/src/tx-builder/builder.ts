@@ -152,6 +152,7 @@ import {
 import {
   givenPayerEntries,
   readPayerSource,
+  readPayerUtxos,
   toAddressText,
   toPayerSource,
 } from "./payer";
@@ -3039,10 +3040,11 @@ export class TxBuilder {
   /**
    * Reads a payer once, checking its network, and returns it as data: a wallet, an address (its
    * UTxOs through the provider), or a snapshot, which is converted without any request. For many
-   * builds on one read.
+   * builds on one read. Each out ref is listed once: two entries for one out ref must hold the
+   * same, and the same UTxO listed again is one.
    * @throws TxBuildError NETWORK_MISMATCH, MISSING_PAYER, INVALID_OPTION, WALLET_FAILED,
-   *   PROVIDER_FAILED; MISSING_FETCHER when the UTxOs have to be read through a provider and
-   *   there is none
+   *   PROVIDER_FAILED (the last three also for two entries that name one output and differ);
+   *   MISSING_FETCHER when the UTxOs have to be read through a provider and there is none
    */
   async readPayer(payer: Payer): Promise<PayerSnapshot> {
     return (await this.readGivenPayer(payer)).snapshot;
@@ -3142,7 +3144,7 @@ export class TxBuilder {
       if (value === undefined || value === null) utxos = [];
       else if (!Array.isArray(value))
         throw new Error("the answer is not a list");
-      else utxos = value.map((entry) => readUtxo(entry));
+      else utxos = readPayerUtxos(value);
     } catch (error) {
       throw refused(
         `answered with what is not a list of UTxOs: ${errorText(error)}`,

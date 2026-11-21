@@ -12,7 +12,7 @@ import { throwIfAborted } from "./abort";
 import { TxBuildError } from "./errors";
 import { checkNetworks, utxoEntry } from "./network";
 import { addressText, errorText, isObject, textShape } from "./parts/normalize";
-import { readUtxo } from "./parts/utxo";
+import { placeUtxos, readPlaced, UtxoTwiceError } from "./parts/utxo";
 
 /** The vkey witnesses a transaction needs, as key hashes */
 export type RequiredKeys = readonly string[];
@@ -135,6 +135,25 @@ const invalidPayer = (value: unknown, reason: string, cause?: unknown) =>
 const typeOf = (value: unknown) => (value === null ? "null" : typeof value);
 
 /**
+ * A list of a payer's UTxOs, each out ref once, in the order it first lists them: the entries are
+ * placed by their out refs before any is read whole, and two for one out ref must hold the same
+ * (`placeUtxos`, `readPlaced`). The same UTxO given again is one, and the entry taken for an out
+ * ref is the one selected, priced and bounded
+ * @param refused The error of the entry at a place that is not a UTxO, from the reader's
+ * @throws what `refused` makes; UtxoTwiceError for two entries that name one output and differ
+ */
+export const readPayerUtxos = (
+  list: readonly unknown[],
+  refused: (error: unknown, at: number, entry: unknown) => Error = (error) =>
+    error as Error,
+): Utxo[] => {
+  const refuse = (error: unknown, at: number, entry: unknown): never => {
+    throw refused(error, at, entry);
+  };
+  return Array.from(readPlaced(placeUtxos(list, refuse), refuse).values());
+};
+
+/**
  * The error for a payer, or a snapshot's change address, that is no payment address, or is of
  * no known form. A private key may be given there by mistake, so the message tells the shape of
  * what was given and `details.value` its JavaScript type, never the value, and the parser's
@@ -154,7 +173,8 @@ const unreadablePayer = (value: unknown, what: string) =>
  * Tells the form of a payer by its shape (a string, then a wallet, then a snapshot) and converts
  * what is given as data: an address and a snapshot. Nothing is requested.
  * @throws TxBuildError MISSING_PAYER for no payer; INVALID_OPTION for a payer of no known form,
- *   an address that does not parse or is a reward address, a snapshot entry that is not a UTxO
+ *   an address that does not parse or is a reward address, a snapshot entry that is not a UTxO,
+ *   and two entries of a snapshot that name one output and differ
  */
 export const toPayerSource = (payer: unknown): PayerSource => {
   if (payer === undefined || payer === null)
@@ -182,17 +202,22 @@ export const toPayerSource = (payer: unknown): PayerSource => {
         "the snapshot's change address",
       );
     }
-    const utxos = (payer.utxos as unknown[]).map((entry, i) => {
-      try {
-        return readUtxo(entry);
-      } catch (error) {
-        throw invalidPayer(
+    let utxos: Utxo[];
+    try {
+      utxos = readPayerUtxos(payer.utxos as unknown[], (error, i, entry) =>
+        invalidPayer(
           typeOf(entry),
           `the snapshot's UTxO ${i} is neither a UTxO object nor the CBOR of one: ${errorText(error)}`,
           error,
-        );
-      }
-    });
+        ),
+      );
+    } catch (error) {
+      if (!(error instanceof UtxoTwiceError)) throw error;
+      throw invalidPayer(
+        typeOf(payer.utxos),
+        `the snapshot's UTxOs ${error.at[0]} and ${error.at[1]} name the output ${error.key} and differ`,
+      );
+    }
     return { form: "snapshot", snapshot: { changeAddress, utxos } };
   }
   throw invalidPayer(
@@ -307,7 +332,7 @@ const fetchPayerUtxos = async (
   try {
     if (utxos === undefined || utxos === null) return [];
     if (!Array.isArray(utxos)) throw new Error("the answer is not a list");
-    return utxos.map(readUtxo);
+    return readPayerUtxos(utxos);
   } catch (error) {
     throw providerFailed(address, error);
   }
@@ -378,7 +403,7 @@ const readWallet = async (
       if (answer === undefined || answer === null) read = [];
       else if (!Array.isArray(answer))
         throw new Error("getUtxos answered with something that is not a list");
-      else read = answer.map(readUtxo);
+      else read = readPayerUtxos(answer);
     } catch (error) {
       throw walletFailed("its UTxOs", error, true);
     }

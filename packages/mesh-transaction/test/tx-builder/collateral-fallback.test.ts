@@ -475,6 +475,35 @@ describe("TxBuilder: the collateral fallback", () => {
     expect(sync.cause).toBe(rejection);
   });
 
+  it("is INSUFFICIENT_COLLATERAL for an answer that names one out ref with different contents, in either order; takes the same UTxO given again as one", async () => {
+    const more = { ...reserve, value: { lovelace: ada(50) } };
+    for (const answer of [
+      [asCbor(reserve), asCbor(more)],
+      [asMesh(more), asCbor(reserve)],
+    ]) {
+      const getCollateral = answering(answer);
+      const error = await expectCode(
+        () =>
+          scripted().build([scriptSpend()], {
+            payer: cip30([dust], { getCollateral }),
+          }),
+        "INSUFFICIENT_COLLATERAL",
+      );
+      expect(error.message).toContain(
+        `two entries name the output ${keyOf(reserve)} and differ`,
+      );
+    }
+    const getCollateral = answering([
+      asCbor(reserve),
+      asMesh(reserve),
+      asCbor(reserve),
+    ]);
+    const built = await scripted().build([scriptSpend()], {
+      payer: cip30([dust], { getCollateral }),
+    });
+    expect(keysOf(built.collateral!.inputs)).toEqual([keyOf(reserve)]);
+  });
+
   it("is NETWORK_MISMATCH for a UTxO of another network in the answer", async () => {
     const getCollateral = answering([asCbor(utxo(ada(5), onMainnet(wallet)))]);
     const error = await expectCode(

@@ -50,6 +50,7 @@ import {
   baseAddress,
   rewardAddress,
 } from "../test-util";
+import { arr, bytes, map, uint } from "./cbor-util";
 import { asCbor, asMesh, ref } from "./utxo-util";
 
 const network = "preprod";
@@ -887,6 +888,100 @@ describe("TxBuilder: the payer read and the other reads", () => {
       expect(utxos).toContainEqual(asMesh(locked));
       expect(utxos).not.toContainEqual(asMesh(listed));
     }
+  });
+});
+
+describe("TxBuilder: a payer's UTxOs that name one out ref twice", () => {
+  // 14 UTxOs of 20 ADA that a payment needs all of, each listed twice: once holding a native
+  // script of 15 643 bytes (an all of 20, each nested 250 deep), once holding none
+  const nested = (leaf: number) =>
+    "820181".repeat(250) + `8200581c${leaf.toString(16).padStart(56, "0")}`;
+  const scriptRef = (i: number) =>
+    `8200820194${nested(i * 16 + 1)}${nested(1).repeat(19)}`;
+  const listed = Array.from({ length: 14 }, () => utxo(ada(20)));
+  const held = listed.map((u, i): Utxo => ({
+    ...u,
+    script: { type: "unknown", scriptRef: scriptRef(i) },
+  }));
+  const orders = {
+    "the UTxO with a script first": listed.flatMap((u, i) => [held[i]!, u]),
+    "the UTxO without one first": listed.flatMap((u, i) => [u, held[i]!]),
+  };
+  /** The CBOR of one of them, written here: the encoder takes seconds to write such a script */
+  const cborOf = (u: Utxo) =>
+    arr(
+      arr(bytes(u.txHash), uint(0)),
+      map(
+        [uint(0), bytes(hexOf(u.address))],
+        [uint(1), "1a01312d00"],
+        ...(u.script?.type === "unknown"
+          ? [[uint(3), `d818${bytes(u.script.scriptRef)}`] as [string, string]]
+          : []),
+      ),
+    );
+  const payment = pay(14 * 20 - 5);
+  const first = `${listed[0]!.txHash}#0`;
+  /** A read of seconds fails this; a loaded machine's milliseconds do not */
+  const AT_ONCE_MS = 2_000;
+  const timed = async (run: () => unknown) => {
+    const started = performance.now();
+    const error = (await caught(run)) as TxBuildError;
+    expect(performance.now() - started).toBeLessThan(AT_ONCE_MS);
+    return error;
+  };
+
+  it.each(Object.entries(orders))(
+    "refuses at once a payer that lists one out ref with different contents, %s: a snapshot, a wallet's getUtxos in either form, the provider's answer for its address; the out ref named",
+    async (_, utxos) => {
+      const snapshot = await timed(() =>
+        offline().build([payment], {
+          payer: { changeAddress: wallet, utxos },
+        }),
+      );
+      expect(TxError.is(snapshot, "INVALID_OPTION")).toBe(true);
+      expect(snapshot.message).toBe(
+        `invalid payer: the snapshot's UTxOs 0 and 1 name the output ${first} and differ`,
+      );
+      for (const payer of [
+        meshFormat({ utxos: utxos.map(asMesh) }).wallet,
+        cip30(utxos.map(cborOf)),
+      ]) {
+        const fromWallet = await timed(() =>
+          offline().build([payment], { payer }),
+        );
+        expect(TxError.is(fromWallet, "WALLET_FAILED")).toBe(true);
+        expect(fromWallet.message).toBe(
+          `reading the payer wallet failed: its UTxOs: two entries name the output ${first} and differ`,
+        );
+      }
+      const { provider } = fakeProvider(utxos);
+      const fromProvider = await timed(() =>
+        new TxBuilder({ network, params, provider }).build([payment], {
+          payer: wallet,
+        }),
+      );
+      expect(TxError.is(fromProvider, "PROVIDER_FAILED")).toBe(true);
+      expect(fromProvider.message).toBe(
+        `fetching the UTxOs of the payer ${wallet} failed: two entries name the output ${first} and differ`,
+      );
+    },
+    60_000,
+  );
+
+  it("takes a UTxO a payer lists again, in any form, as one entry: selected, priced and read once", async () => {
+    const once = await offline().build([payment], {
+      payer: { changeAddress: wallet, utxos: listed },
+    });
+    const again = listed.flatMap((u) => [u, asMesh(u), u, asCbor(u)]);
+    const snapshot = { changeAddress: wallet, utxos: again };
+    const twice = await offline().build([payment], { payer: snapshot });
+    expect(twice.tx).toBe(once.tx);
+    expect(twice.fee).toBe(once.fee);
+    expect((await offline().readPayer(snapshot)).utxos).toEqual(listed);
+    const fromWallet = await offline().build([payment], {
+      payer: meshFormat({ utxos: again.map(asMesh) }).wallet,
+    });
+    expect(fromWallet.tx).toBe(once.tx);
   });
 });
 
