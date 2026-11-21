@@ -639,6 +639,48 @@ describe("TxBuilder: the collateral fallback", () => {
     ).toEqual(["own", undefined]);
   });
 
+  it("is INSUFFICIENT_COLLATERAL for an answer that names an output the payer's UTxOs hold with other contents: one payer's lists are one list", async () => {
+    const token = { [`${"33".repeat(28)}41`]: 1n };
+    // The payer lists X as dust, and the wallet would put it up as 5 ada
+    const x = utxo(100_000n);
+    // The payer spends Y with a token, and the wallet would put it up without, with no return
+    const y = { ...utxo(ada(30)), value: { lovelace: ada(30), ...token } };
+    const cases: [Utxo, Utxo, PartsInput, BuildOptions][] = [
+      [x, { ...x, value: { lovelace: ada(5) } }, [scriptSpend()], {}],
+      [
+        y,
+        { ...y, value: { lovelace: ada(30) } },
+        [
+          scriptSpend(ada(2)),
+          output({ address: recipient, value: { lovelace: ada(20) } }),
+        ],
+        { collateralReturn: false },
+      ],
+    ];
+    for (const [held, answered, parts, options] of cases)
+      for (const form of [asCbor, asMesh]) {
+        const getCollateral = answering([form(answered)]);
+        const error = await expectCode(
+          () =>
+            scripted().build(parts, {
+              ...options,
+              payer: cip30([held], { getCollateral }),
+            }),
+          "INSUFFICIENT_COLLATERAL",
+        );
+        expect(getCollateral).toHaveBeenCalledTimes(1);
+        expect(error.message).toBe(
+          `the payer's UTxOs cannot cover the collateral, and the wallet's getCollateral names the output ${keyOf(held)} as the payer's UTxOs do, and they differ`,
+        );
+      }
+    // The same UTxO in both is one
+    const getCollateral = answering([asMesh(dust), asCbor(reserve)]);
+    const built = await scripted().build([scriptSpend()], {
+      payer: cip30([dust], { getCollateral }),
+    });
+    expect(keysOf(built.collateral!.inputs)).toEqual([keyOf(reserve)]);
+  });
+
   it("adds the given UTxO once when the answer holds it too", async () => {
     const own = utxo(100_000n);
     const getCollateral = answering([asCbor(own), asCbor(reserve)]);

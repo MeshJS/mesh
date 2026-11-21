@@ -147,6 +147,7 @@ import {
   readUtxo,
   toMeshUtxo,
   utxoKey,
+  utxoText,
   UtxoTwiceError,
 } from "./parts/utxo";
 import {
@@ -2964,7 +2965,7 @@ export class TxBuilder {
           getCollateral,
           roundParts,
           context,
-          { known, canSelect, signal, spent: spentByAfter },
+          { known, payer: payer.utxos, canSelect, signal, spent: spentByAfter },
         );
         return balance(roundParts, { ...context, provisional });
       }
@@ -3096,9 +3097,11 @@ export class TxBuilder {
    * for, an upper estimate, also when given collateral inputs are topped up from the answer, and
    * returns the UTxOs of the answer that may be put up. Those become known to the build; without
    * a collateral return, only those holding lovelace alone, and the others are returned for the
-   * build to leave out and to count in its error.
-   * @throws TxBuildError INSUFFICIENT_COLLATERAL when the call fails or gives nothing usable;
-   *   NETWORK_MISMATCH for a UTxO of another network; ABORTED
+   * build to leave out and to count in its error. The answer and the payer's UTxOs are one list
+   * of the payer: an out ref both name must hold the same in both.
+   * @throws TxBuildError INSUFFICIENT_COLLATERAL when the call fails or gives nothing usable, and
+   *   for an answer that names an output the payer's UTxOs hold with other contents, the out ref
+   *   named; NETWORK_MISMATCH for a UTxO of another network; ABORTED
    */
   private async collateralFromWallet(
     getCollateral: GetCollateral,
@@ -3107,6 +3110,8 @@ export class TxBuilder {
     options: {
       /** Every UTxO the build knows, which the usable ones join */
       known: Map<string, Utxo>;
+      /** The payer's UTxOs, as the build read them */
+      payer: readonly Utxo[];
       canSelect?: (utxo: Utxo) => boolean;
       signal?: AbortSignal;
       /** The out refs the transactions of `after` spend, which are never put up */
@@ -3166,6 +3171,15 @@ export class TxBuilder {
         `answered with what is not a list of UTxOs: ${errorText(error)}`,
         error,
       );
+    }
+    // The payer's lists are one list: an output its UTxOs hold is the same in the answer
+    const listed = new Map(options.payer.map((utxo) => [utxoKey(utxo), utxo]));
+    for (const utxo of utxos) {
+      const held = listed.get(utxoKey(utxo));
+      if (held !== undefined && utxoText(held) !== utxoText(utxo))
+        throw refused(
+          `names the output ${utxoKey(utxo)} as the payer's UTxOs do, and they differ`,
+        );
     }
     checkNetworks(
       this.network,
