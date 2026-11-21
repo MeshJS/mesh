@@ -2173,8 +2173,9 @@ const utxo: Utxo = {
   output. Tokens stand in the order of their units.
 - `datum`: left out when the output holds none. An inline datum is its CBOR, byte for byte, in
   the form parts take data in: `deserializeDatum(utxo.datum.data.content)` of `@meshsdk/core`
-  reads it. The builder checks it by a walk over its bytes and does not decode it, so a deeply
-  nested datum on a key-locked UTxO does not slow a build.
+  reads it. The builder keeps its bytes and neither decodes it nor judges its form (of a UTxO in
+  CBOR the token reader only finds where it ends), so a deeply nested datum on a key-locked UTxO
+  does not slow a build.
 - `script`: the reference script, left out when the output holds none. A Plutus script is a
   `PlutusScript` with its `hash`, a native script its CBOR with its `hash`. A reference script is
   never decoded: its language, its hash and its size are read from its bytes, the hash as the ledger
