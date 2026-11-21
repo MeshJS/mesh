@@ -1,4 +1,4 @@
-import { Address, Serialization } from "@meshsdk/core-cst";
+import { Address, blake2b, Serialization } from "@meshsdk/core-cst";
 import { TxEmulator } from "@meshsdk/tx-emulator";
 import { MeshWallet } from "@meshsdk/wallet";
 
@@ -79,23 +79,23 @@ describe("a plan of a step given built", () => {
     // Transactions of after, each paying one output that holds a native script of 15 365 bytes,
     // all of 480 keys: 14 of them hold 215 110 bytes, past the 204 800 a node takes
     const key = (i: number) => `8200581c${i.toString(16).padStart(56, "0")}`;
+    const scripts: string[] = [];
+    const outputs: string[] = [];
     const bodies = Array.from({ length: 14 }, (_, i) => {
       const script = `8201${head(4, 480)}${Array.from({ length: 480 }, (_, k) => key(i * 1_000 + k)).join("")}`;
+      const paid = map(
+        [uint(0), bytes(payHex)],
+        [uint(1), uint(60_000_000)],
+        [uint(3), `d818${bytes(arr(uint(0), script))}`],
+      );
+      scripts.push(script);
+      outputs.push(paid);
       return map(
         [
           uint(0),
           arr(arr(bytes((i + 1).toString(16).padStart(64, "0")), uint(0))),
         ],
-        [
-          uint(1),
-          arr(
-            map(
-              [uint(0), bytes(payHex)],
-              [uint(1), uint(60_000_000)],
-              [uint(3), `d818${bytes(arr(uint(0), script))}`],
-            ),
-          ),
-        ],
+        [uint(1), arr(paid)],
         [uint(2), uint(1_000_000)],
       );
     });
@@ -120,15 +120,28 @@ describe("a plan of a step given built", () => {
         ],
       ),
     );
-    // What is read: every decode of a transaction's body, and every read of UTxOs a provider gives
+    // What is read: every decode of a transaction's body, every read of UTxOs a provider gives,
+    // and every read of an output of them: its decode, the decode of its reference script and
+    // of the native script it holds, and the hash of that script, which a read of the UTxO whole
+    // takes
     const decode = jest.spyOn(Serialization.TransactionBody, "fromCbor");
     const reads = [
       jest.spyOn(emulator, "fetchUTxOs"),
       jest.spyOn(emulator, "fetchAddressUTxOs"),
     ];
+    const outputReads: [jest.SpyInstance, string[]][] = [
+      [jest.spyOn(Serialization.TransactionOutput, "fromCbor"), outputs],
+      [
+        jest.spyOn(Serialization.Script, "fromCbor"),
+        scripts.map((script) => arr(uint(0), script)),
+      ],
+      [jest.spyOn(Serialization.NativeScript, "fromCbor"), scripts],
+      [jest.spyOn(blake2b, "hash"), scripts.map((script) => `00${script}`)],
+    ];
     const started = performance.now();
     let error: unknown;
     let decodes: number[];
+    let outputsRead: number[][];
     try {
       await builder.plan({ given: step }, { payer: wallet, after });
     } catch (e) {
@@ -138,6 +151,12 @@ describe("a plan of a step given built", () => {
         (body) => decode.mock.calls.filter(([cbor]) => cbor === body).length,
       );
       decode.mockRestore();
+      outputsRead = outputReads.map(([spy, items]) =>
+        items.map(
+          (item) => spy.mock.calls.filter(([given]) => given === item).length,
+        ),
+      );
+      outputReads.forEach(([spy]) => spy.mockRestore());
     }
     const read = reads.map((spy) => spy.mock.calls.length);
     reads.forEach((spy) => spy.mockRestore());
@@ -147,6 +166,8 @@ describe("a plan of a step given built", () => {
     // its reader, which counts and refuses: nothing past the bound, no UTxO asked of the provider
     expect(decodes).toEqual([...bodies.map(() => 1), 1]);
     expect(read).toEqual([0, 0]);
+    // Each output of after read once, at the door: decoded with its scripts, its script hashed
+    expect(outputsRead).toEqual(outputReads.map(() => bodies.map(() => 1)));
     expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
     expect((error as Error).message).toBe(
       'step "given": invalid tx: its spent and reference inputs hold more than the 204800 bytes of reference scripts a node takes in one transaction (ConwayTxRefScriptsSizeTooBig)',
