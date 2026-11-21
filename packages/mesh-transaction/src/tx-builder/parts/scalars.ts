@@ -33,7 +33,10 @@ import {
   ValidityPart,
 } from "./types";
 
-/** Guards of the transaction. Today one form: a key that must sign (Conway's required_signers; scripts read it among the signatories) */
+/**
+ * Guards of the transaction. Today one form: a key that must sign (Conway's required_signers;
+ * scripts read it among the signatories)
+ */
 export const guard = {
   /**
    * A required signer: a key whose signature the transaction needs, given as its hash or as an

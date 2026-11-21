@@ -321,8 +321,8 @@ const keysText = (keys: readonly RequiredKey[]) =>
  * at the build, as a plan's payer signs: a wallet, or a snapshot object that carries such a
  * method; it is never written by `toJSON()`. A payer given as an address, or as an object
  * without a signing method, is not kept, and an object made by `finalize()`, `fromCbor()` or
- * `restore()` holds no payer: it signs with the signers named in `sign({ signers })`, or takes witnesses
- * made elsewhere.
+ * `restore()` holds no payer: it signs with the signers named in `sign({ signers })`, or takes
+ * witnesses made elsewhere.
  *
  * ```ts
  * const again = await builder.restore(json);
@@ -455,7 +455,10 @@ export class BuiltTx implements BuiltTxData {
    */
   readonly #payer?: Signer;
 
-  /** Made by `builder.build()`, `builder.finalize()`, `builder.fromCbor()` and `builder.restore()` only */
+  /**
+   * Made by `builder.build()`, `builder.finalize()`, `builder.fromCbor()` and `builder.restore()`
+   * only
+   */
   private constructor(
     builder: TxBuilder,
     built: BuiltTxData,

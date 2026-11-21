@@ -1345,11 +1345,12 @@ const UTXO_FORMS =
  * are read from its bytes, so one of any depth is read at once (see `describeScriptRef`). Members
  * that are not a UTxO's (the `label` and `change` of a built output) are not copied.
  * @throws TxBuildError INVALID_OPTION `{ option: "utxo", value, allowed }`, `value` the
- *   JavaScript type of what was given, the reason as `cause`, for a value that is not a UTxO: a transaction hash, output index, address, unit or
- *   quantity that cannot be read; a reward address; a `dataHash` that is not the hash of the
- *   `plutusData` beside it; a `scriptHash` without a `scriptRef`; a script hash that is not the
- *   script's; text that is not the CBOR of a transaction unspent output, or the CBOR of one whose
- *   output has a key other than 0 to 3 or of more than `MAX_TX_BYTES` (16 384) bytes
+ *   JavaScript type of what was given, the reason as `cause`, for a value that is not a UTxO: a
+ *   transaction hash, output index, address, unit or quantity that cannot be read; a reward
+ *   address; a `dataHash` that is not the hash of the `plutusData` beside it; a `scriptHash`
+ *   without a `scriptRef`; a script hash that is not the script's; text that is not the CBOR of a
+ *   transaction unspent output, or the CBOR of one whose output has a key other than 0 to 3 or of
+ *   more than `MAX_TX_BYTES` (16 384) bytes
  */
 export const toUtxo = (given: UtxoInput): Utxo => {
   try {

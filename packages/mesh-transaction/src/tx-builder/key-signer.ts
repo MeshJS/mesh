@@ -95,7 +95,9 @@ type ReadKey = {
   publicKey?: Uint8Array;
 };
 
-/** Whether 64 bytes have the bits of an extended Ed25519 key's scalar: the clamp of its first half */
+/**
+ * Whether 64 bytes have the bits of an extended Ed25519 key's scalar: the clamp of its first half
+ */
 const clamped = (bytes: Uint8Array) =>
   (bytes[0]! & 0x07) === 0 && (bytes[31]! & 0xc0) === 0x40;
 

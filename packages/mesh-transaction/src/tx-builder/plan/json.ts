@@ -151,7 +151,9 @@ export const encodeParts = (
     return plain(part, `parts[${i}]`);
   });
 
-/** The data of a build as a record holds it: plain JSON data, every `bigint` as its decimal string */
+/**
+ * The data of a build as a record holds it: plain JSON data, every `bigint` as its decimal string
+ */
 export const encodeBuilt = (built: BuiltTxData): unknown => {
   const { parts, ...rest } = built;
   return { ...(plain(rest, "built") as object), parts: encodeParts(parts) };

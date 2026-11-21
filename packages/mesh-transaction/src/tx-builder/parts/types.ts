@@ -676,7 +676,9 @@ export type Unresolved =
   | { readonly type: "slot" }
   /** The reward address of a script's stake credential, which depends on the network */
   | { readonly type: "rewardAddress" }
-  /** The reward balance of a stake address, to withdraw in full; no address while it is not derived */
+  /**
+   * The reward balance of a stake address, to withdraw in full; no address while it is not derived
+   */
   | { readonly type: "rewardBalance"; readonly rewardAddress?: string }
   /** A deposit or refund, from a protocol parameter */
   | {

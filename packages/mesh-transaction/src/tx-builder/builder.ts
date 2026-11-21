@@ -289,7 +289,9 @@ export type BuildEvent =
   | { type: "payer"; changeAddress: string; utxos: number; selectable: number }
   /** The outputs looked up through the provider, as `txHash#index` */
   | { type: "fetched"; outRefs: string[] }
-  /** A balancing round that priced a transaction: its fee, its size in bytes, its selected inputs */
+  /**
+   * A balancing round that priced a transaction: its fee, its size in bytes, its selected inputs
+   */
   | {
       type: "round";
       round: number;
@@ -299,7 +301,9 @@ export type BuildEvent =
     }
   /** An evaluation, with the execution units it gave each redeemer */
   | { type: "evaluated"; round: number; redeemers: readonly BuiltRedeemer[] }
-  /** A submitter answered with another hash than the transaction's; sent by a plan, never by a build */
+  /**
+   * A submitter answered with another hash than the transaction's; sent by a plan, never by a build
+   */
   | {
       type: "warning";
       code: "HASH_MISMATCH";
@@ -419,13 +423,13 @@ export type BuildOptions = {
    * an output paid to another: of their change, only the outputs at this build's change address
    * are selected. A part that names an output they spend is refused with UTXO_NOT_FOUND. Their
    * collateral inputs stay selectable, since a valid transaction does not spend them. The build
-   * keeps nothing of them: a transaction not given here is not known to it. A plan given here stands for its steps that
-   * are in a block, or may still land: the inputs they spend are not selected, their change at
-   * this build's change address is selectable, and their outputs can be named by out ref. A
-   * final step stands for its inputs alone: what it spent is never selected, also from a read
-   * that still lists it, and what it left is taken from the payer's read. A step that will not
-   * land stands for nothing. Their outputs and `knownUtxos`, not the payer's UTxOs, are what an
-   * evaluator without `acceptsKnownUtxos` is handed.
+   * keeps nothing of them: a transaction not given here is not known to it. A plan given here
+   * stands for its steps that are in a block, or may still land: the inputs they spend are not
+   * selected, their change at this build's change address is selectable, and their outputs can be
+   * named by out ref. A final step stands for its inputs alone: what it spent is never selected,
+   * also from a read that still lists it, and what it left is taken from the payer's read. A step
+   * that will not land stands for nothing. Their outputs and `knownUtxos`, not the payer's UTxOs,
+   * are what an evaluator without `acceptsKnownUtxos` is handed.
    */
   after?: BuiltTxData | TxPlan | readonly (BuiltTxData | TxPlan)[];
   /**
@@ -444,7 +448,9 @@ export type BuildOptions = {
    * that is pending is no longer waited for
    */
   signal?: AbortSignal;
-  /** Receives the steps of the build, for diagnostics; whatever it throws or rejects with is ignored */
+  /**
+   * Receives the steps of the build, for diagnostics; whatever it throws or rejects with is ignored
+   */
   trace?: (event: BuildEvent) => void;
 };
 
@@ -454,9 +460,14 @@ export type BuildOptions = {
  * export.
  */
 export type DeclaredOutputs = {
-  /** Out refs (`txHash#index`) not looked up: the reference inputs and scripts naming them stay as given */
+  /**
+   * Out refs (`txHash#index`) not looked up: the reference inputs and scripts naming them stay as
+   * given
+   */
   readonly unread: ReadonlySet<string>;
-  /** Reference-script sizes declared for out refs whose UTxO the build does not know, for the fee */
+  /**
+   * Reference-script sizes declared for out refs whose UTxO the build does not know, for the fee
+   */
   readonly scriptSizes: ReadonlyMap<string, number>;
   /** Out refs named as collateral that selection may still spend, as the old builder's did */
   readonly selectableCollateral: ReadonlySet<string>;
@@ -735,7 +746,9 @@ const PARAMS_ALLOWED = "a whole Protocol";
 const AFTER_ALLOWED =
   "a transaction built by TxBuilder.build, finalize, fromCbor or restore (its tx and outputs), a plan, or a list of them";
 
-/** A transaction of `after` as the build reads it: what it spends, its outputs, its change marked */
+/**
+ * A transaction of `after` as the build reads it: what it spends, its outputs, its change marked
+ */
 type AfterTx = ChainedTx & { txHash: string; outputs: BuiltOutput[] };
 
 /** An entry of a list option that is not of its type, with why */

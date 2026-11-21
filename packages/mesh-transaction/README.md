@@ -1118,14 +1118,14 @@ are paid again.
 Recorded: the steps, the data options (`knownUtxos`, `registeredPools`, `extraKeyWitnesses`,
 `topUpCollateral`, `collateralReturn`, `consolidate`, and a step's `sendAllTo` and `fee`), each
 payer's change address and the three effective deadlines. Of `knownUtxos` the record holds every
-entry as it was given, its text or its object (the members a UTxO is read from), unread: an entry
-is read when a step names it, so a step `plan.add` or `replan` builds later finds the entries
-given at the start, and two entries for one out ref that differ are refused when it is read. The
-same call again is compared on the entries for the out refs its steps' transactions spend, put up
-and read: an entry for another out ref may change or go, and where there is none of those,
-`knownUtxos` left out is the same as `[]`. Not recorded: wallets, signers, the submitter,
-functions (`canSelect`, `coinSelection`, `trace`) and `signal`. Every change is saved before the
-method returns: a new plan before it is returned, a delivery before the bytes leave.
+entry as it was given, its text or its object (the members a UTxO is read from), unread: an entry is
+read when a step names it, so a step `plan.add` builds later, or `replan` given no `knownUtxos` of
+its own, finds the entries given at the start, and two entries for one out ref that differ are
+refused when it is read. The same call again is compared on the entries for the out refs its steps'
+transactions spend, put up and read: an entry for another out ref may change or go, and where there
+is none of those, `knownUtxos` left out is the same as `[]`. Not recorded: wallets, signers, the
+submitter, functions (`canSelect`, `coinSelection`, `trace`) and `signal`. Every change is saved
+before the method returns: a new plan before it is returned, a delivery before the bytes leave.
 
 Two processes may hold one plan, and both send the same bytes. A write over a revision another
 writer changed reads the record again and applies the same fact, up to three times, then
@@ -1817,22 +1817,21 @@ a datum and 2 s in metadata. A step at both bounds at once, 13 such scripts and 
 bound on work, is read in about 1.4 s by `requiredSigners` and 1.6 s by `fromCbor`, and planned
 as a step given built in about 3.4 s, its record 4.4 MB (measured: 1.39, 1.60 and 3.38 s).
 
-On a stack of about a browser's (`node --stack-size=400`), each measure in a fresh process, the
-deepest each path took of each shape, in levels ("all" is the deepest the bounds admit, which
-the brackets give):
+On a stack of about a browser's (`node --stack-size=400`), each measure in a fresh process, a path
+may overflow from about these depths, in levels ("all": it takes the deepest the bounds admit,
+which the brackets give). Each is a margin below the least that was measured: the deepest a run
+passes varies by a level from one process to the next, and is a level less with an item at the
+bottom of the data (a number, a byte string, a text) than with an empty list there.
 
-| Shape                                                                  | `fromCbor`, `requiredSigners` | `toJSON`, `restore` | `plan`    | `finalize` |
-| ---------------------------------------------------------------------- | ----------------------------- | ------------------- | --------- | ---------- |
-| lists in metadata (729, of definite length 753)                        | all                           | 410 (definite: 409) | 409 (408) | 579        |
-| maps in metadata (524)                                                 | all                           | 245                 | 249       | 429        |
-| lists in an inline datum (731)                                         | all                           | 409                 | 408       | 578        |
-| maps in an inline datum (526)                                          | all                           | 245                 | 248       | 428        |
-| constructors in an inline datum (435)                                  | all                           | 408                 | 407       | all        |
-| lists in the datum of a redeemer (727)                                 | all                           | 409                 | 408       | 578        |
-| maps in the datum of a redeemer (522)                                  | all                           | 245                 | 249       | 428        |
-| constructors in the datum of a redeemer (434)                          | all                           | 408                 | 407       | all        |
-| data of the witness set: lists, constructors, maps (728, 434, 523)     | all                           | all                 | all       | all        |
-| native scripts of the witness set and of the auxiliary data (303, 302) | all                           | all                 | all       | all        |
+| Shape                                                                      | `fromCbor`, `requiredSigners` | `toJSON`, `restore`, `plan` | `finalize`     |
+| -------------------------------------------------------------------------- | ----------------------------- | --------------------------- | -------------- |
+| lists in metadata, an inline datum or the datum of a redeemer (727 to 755) | all                           | from about 400              | from about 570 |
+| maps in metadata, an inline datum or the datum of a redeemer (512 to 526)  | all                           | from about 240              | from about 420 |
+| constructors in an inline datum or the datum of a redeemer (430 to 435)    | all                           | from about 400              | all            |
+| lists and maps nested in each other in metadata (609)                      | all                           | from about 300              | from about 490 |
+| constructors and maps nested in each other in a datum (436)                | all                           | from about 300              | all            |
+| data of the witness set: lists, constructors, maps (728, 434, 523)         | all                           | all                         | all            |
+| native scripts of the witness set and of the auxiliary data (303, 302)     | all                           | all                         | all            |
 
 `toJSON` writes the JSON of the object `fromCbor` gives and `restore` reads it back; `plan` takes
 the transaction as a step given built, writes its record and resumes it; `finalize` copies the
@@ -2172,16 +2171,16 @@ const utxo: Utxo = {
   `requiredSigners`, `finalize`), and 40 of them in a payer's in about 5 s. Such a UTxO comes from
   whoever writes the text: a wallet's `getUtxos` or `getCollateral`, a provider, a snapshot,
   `knownUtxos`, a part; whether the ledger takes those strings in pieces in an output on chain is
-  not known here. Its out ref is read first, and is never in pieces (see below). A script given as bytes (a Mesh `scriptRef`, CBOR, or an `unknown`
-  script) that the library cannot read is `{ type: "unknown", scriptRef, hash? }`, its bytes
-  kept: another framing, a language it does not know, bytes after the script, CBOR that is not
-  well formed, a Plutus script whose byte string is written in pieces, a native script larger than
-  a transaction (16 384 bytes: one in an output is part of a transaction), an item after the
-  language 0 that is not a native script as the ledger reads one (a key hash written in pieces
-  among them), bytes it would not write back the same, or a hash other than the one stated with
-  it. Such a UTxO can still be spent, the script counts for the fee by its size, and it cannot be
-  named as a `{ reference }` (`INVALID_SCRIPT`). A `plutus` or `native` script given in the
-  builder's form that cannot be read is refused instead (see below).
+  not known here. Its out ref is read first, and is never in pieces (see below). A script given as
+  bytes (a Mesh `scriptRef`, CBOR, or an `unknown` script) that the library cannot read is
+  `{ type: "unknown", scriptRef, hash? }`, its bytes kept: another framing, a language it does not
+  know, bytes after the script, CBOR that is not well formed, a Plutus script whose byte string is
+  written in pieces, a native script larger than a transaction (16 384 bytes: one in an output is
+  part of a transaction), an item after the language 0 that is not a native script as the ledger
+  reads one (a key hash written in pieces among them), bytes it would not write back the same, or a
+  hash other than the one stated with it. Such a UTxO can still be spent, the script counts for the
+  fee by its size, and it cannot be named as a `{ reference }` (`INVALID_SCRIPT`). A `plutus` or
+  `native` script given in the builder's form that cannot be read is refused instead (see below).
 - The keys a native script names, which a native witness that runs it prices and asks for, are
   read from its bytes, any number of them, with the slots and the `n` of `atLeast` exact as the
   ledger reads them, as long as it nests no deeper than 512 levels as the walk of a transaction

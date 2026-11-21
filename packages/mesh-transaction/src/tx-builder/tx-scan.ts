@@ -56,13 +56,15 @@ import { CborReader, HexBlob, Serialization } from "@meshsdk/core-cst";
  * What the bounds admit is read on a stack of about a browser's (`node --stack-size=400`, each
  * measure in a fresh process) by `fromCbor` and `requiredSigners`, but a form copied or written by
  * recursion overflows it sooner, with the runtime's `RangeError`. In metadata, an inline datum and
- * the datum of a redeemer, lists overflow past about 409 levels where the JSON of the object is
- * written or read back (`toJSON`, `restore`), about 408 in `plan` as a step given built and about
- * 578 in `finalize`, which copies the prototype; maps past 245 (248 or 249 in `plan`, 428 or 429
- * in `finalize`); constructors, in the datums, past 408 (407 in `plan`), and `finalize` takes the
- * deepest admitted. Data of the witness set and the native scripts of the witness set and of the
- * auxiliary data went through those four paths at the deepest the bounds admit. The README gives
- * each measure; other paths and shapes were not measured.
+ * the datum of a redeemer, lists may overflow it from about 400 levels where the JSON of the
+ * object is written or read back (`toJSON`, `restore`) and in `plan` as a step given built, and
+ * from about 570 in `finalize`, which copies the prototype; maps from about 240 (420 in
+ * `finalize`); constructors, in the datums, from about 400, and `finalize` takes the deepest
+ * admitted; lists or constructors and maps nested in each other from about 300 (490 in
+ * `finalize` of metadata). Each is a margin below the least measured: at the edge a run passes or
+ * fails by a level, and an item at the bottom of the data takes a level. Data of the witness set
+ * and the native scripts of the witness set and of the auxiliary data went through those four
+ * paths at the deepest the bounds admit. Other paths and shapes were not measured.
  */
 
 const State = Serialization.CborReaderState;

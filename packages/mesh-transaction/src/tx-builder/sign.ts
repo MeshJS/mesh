@@ -65,7 +65,9 @@ export type TxHashRequest = {
    * key hashes: the signer then chooses its keys itself
    */
   readonly keys?: readonly AskedKey[];
-  /** The transaction `txHash` is the hash of, in CBOR hex, for a signer that checks what it signs */
+  /**
+   * The transaction `txHash` is the hash of, in CBOR hex, for a signer that checks what it signs
+   */
   readonly tx: string;
   /** The signal of the call that asks, if it has one: the signer may stop its own request on it */
   readonly signal?: AbortSignal;
@@ -749,7 +751,9 @@ export const verifies = (witness: KeyWitness, txId: string) => {
  * Signing
  * ------------------------------------------------------------------------------------------- */
 
-/** The CIP-30 codes a signer's error is read by: TxSignError UserDeclined, APIError AccountChange */
+/**
+ * The CIP-30 codes a signer's error is read by: TxSignError UserDeclined, APIError AccountChange
+ */
 const USER_DECLINED = 2;
 const ACCOUNT_CHANGE = -4;
 
@@ -793,7 +797,10 @@ export const isWallet = (value: object) =>
   isFunction(value, "signTxWitnesses") ||
   isFunction(value, "signTx");
 
-/** A wallet of the Mesh 1.9 kind: `getUtxosHex` of `MeshWallet`, `_walletInstance` of `BrowserWallet` */
+/**
+ * A wallet of the Mesh 1.9 kind: `getUtxosHex` of `MeshWallet`, `_walletInstance` of
+ * `BrowserWallet`
+ */
 const isMeshWallet = (signer: object) =>
   "getUtxosHex" in signer || "_walletInstance" in signer;
 
@@ -1269,9 +1276,10 @@ export const signerWitnesses = async (
 
 /**
  * The witnesses offered for a transaction that it keeps, in order: each key once of each kind
- * (vkey and bootstrap), none of a kind and a key `held` has; vkey witnesses of the keys the fee counts, and `extraKeys` more of other keys over
- * everything held; bootstrap witnesses up to `bootstraps`, the held ones counted. A witness kept
- * past these numbers would put the fee below the minimum
+ * (vkey and bootstrap), none of a kind and a key `held` has; vkey witnesses of the keys the fee
+ * counts, and `extraKeys` more of other keys over everything held; bootstrap witnesses up to
+ * `bootstraps`, the held ones counted. A witness kept past these numbers would put the fee below
+ * the minimum
  * @param held The witnesses the transaction holds already
  * @param keys The keys the fee counts a witness for: `countedKeys` of its signers
  * @param bootstraps The bootstrap witnesses the fee counts: one per Byron address spent from
