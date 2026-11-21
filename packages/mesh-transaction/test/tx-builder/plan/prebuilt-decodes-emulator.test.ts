@@ -120,16 +120,33 @@ describe("a plan of a step given built", () => {
         ],
       ),
     );
+    // What is read: every decode of a transaction's body, and every read of UTxOs a provider gives
+    const decode = jest.spyOn(Serialization.TransactionBody, "fromCbor");
+    const reads = [
+      jest.spyOn(emulator, "fetchUTxOs"),
+      jest.spyOn(emulator, "fetchAddressUTxOs"),
+    ];
     const started = performance.now();
     let error: unknown;
+    let decodes: number[];
     try {
       await builder.plan({ given: step }, { payer: wallet, after });
     } catch (e) {
       error = e;
+    } finally {
+      decodes = [...bodies, topItems(step)[0]!].map(
+        (body) => decode.mock.calls.filter(([cbor]) => cbor === body).length,
+      );
+      decode.mockRestore();
     }
-    // About eight times its time in the whole suite on a quiet machine (400 ms): reading the 14
-    // outputs before counting them takes seconds
-    expect(performance.now() - started).toBeLessThan(3_000);
+    const read = reads.map((spy) => spy.mock.calls.length);
+    reads.forEach((spy) => spy.mockRestore());
+    // A backstop far above its time on a quiet machine (400 ms): the reads are what is counted
+    expect(performance.now() - started).toBeLessThan(30_000);
+    // Each transaction of after read once, from its bytes at the door; the step's body once, by
+    // its reader, which counts and refuses: nothing past the bound, no UTxO asked of the provider
+    expect(decodes).toEqual([...bodies.map(() => 1), 1]);
+    expect(read).toEqual([0, 0]);
     expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
     expect((error as Error).message).toBe(
       'step "given": invalid tx: its spent and reference inputs hold more than the 204800 bytes of reference scripts a node takes in one transaction (ConwayTxRefScriptsSizeTooBig)',
