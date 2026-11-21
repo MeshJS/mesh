@@ -1800,9 +1800,15 @@ is refused in about 20 ms by each, 50 ms by `plan`. `plan` decodes a step given 
 one at the bound on nested data takes up to about two seconds there (1.6 to 2.1 s measured). That
 bound counts a big integer as a tag and one string, though its time grows with the square of its
 length: that matters only with a `maxTxSize` above 64 KB, where one integer of 128 KB takes 1 s in
-a datum and 2 s in metadata. An
-item the bounds admit can overflow a stack smaller than about a browser's (on
-`node --stack-size=400` every one is read), and the error is then the runtime's. A server reads
+a datum and 2 s in metadata. On a stack of about a browser's (`node --stack-size=400`, each
+measure in a fresh process) every transaction the bounds admit is read by `fromCbor` and
+`requiredSigners`, but not every one is written or copied whole: metadata, an inline datum or the
+datum of a redeemer nested deeper than about 410 levels (a map of metadata deeper than about 245)
+overflows the stack when the object's JSON is written or read back (`toJSON`, `restore`, a plan's
+record, `plan` itself, from about 409), and from about 578 levels in `finalize`, which copies the
+prototype; the error is then the runtime's `RangeError`. Data in the witness set, constructors,
+maps and native scripts nest no deeper than that within the bounds, and go through every path. A
+server reads
 strangers' transactions off its request path, in a worker of its own. A bootstrap witness the
 transaction came with is counted for the Byron addresses it spends from, not matched to the address
 it is for. The object does not know whether the transaction was sent: `awaitInclusion()` looks for
@@ -2130,18 +2136,23 @@ const utxo: Utxo = {
   so its time grows with the square of the script's size, which is bounded by a transaction's (16
   384 bytes). On a laptop a UTxO that holds the slowest native script of about 16 KB is read in at
   most about 40 ms (its keys in 55 ms), and a payment from a payer whose 40 UTxOs each hold one
-  (from a provider, a wallet or a snapshot) is built in about 1 s; a UTxO in CBOR of 16 KB whose
-  script is written in empty pieces is read in about 60 ms, and 40 of them in a payer's in about 2
-  s. A script given as bytes (a Mesh `scriptRef`, CBOR, or an `unknown` script) that the library
-  cannot read is `{ type: "unknown", scriptRef, hash? }`, its bytes kept: another framing, a
-  language it does not know, bytes after the script, CBOR that is not well formed, a Plutus script
-  whose byte string is written in pieces, a native script larger than a transaction (16 384 bytes:
-  one in an output is part of a transaction), an item after the language 0 that is not a native
-  script as the ledger reads one (a key hash written in pieces among them), bytes it would not write
-  back the same, or a hash other than the one stated with it. Such a UTxO can still be spent, the
-  script counts for the fee by its size, and it cannot be named as a `{ reference }`
-  (`INVALID_SCRIPT`). A `plutus` or `native` script given in the builder's form that cannot be read
-  is refused instead (see below).
+  (from a provider, a wallet or a snapshot) is built in about 1 s. A UTxO in CBOR of 16 384 bytes
+  whose strings are written in empty pieces is read in up to about 150 ms (75 ms for its script in
+  pieces, up to 120 to 150 ms for a policy id, an asset name, a datum hash, the hash of its input
+  or its address), about 0.2 s where it is counted for the bound on reference scripts and then read
+  (`fromCbor`, `requiredSigners`, `finalize`), and 40 of them in a payer's in about 5 s. Such a
+  UTxO comes from whoever writes the text: a wallet's `getUtxos` or `getCollateral`, a provider,
+  a snapshot, `knownUtxos`, a part; whether the ledger takes those strings in pieces in an output
+  on chain is not known here. A script given as bytes (a Mesh `scriptRef`, CBOR, or an `unknown`
+  script) that the library cannot read is `{ type: "unknown", scriptRef, hash? }`, its bytes
+  kept: another framing, a language it does not know, bytes after the script, CBOR that is not
+  well formed, a Plutus script whose byte string is written in pieces, a native script larger than
+  a transaction (16 384 bytes: one in an output is part of a transaction), an item after the
+  language 0 that is not a native script as the ledger reads one (a key hash written in pieces
+  among them), bytes it would not write back the same, or a hash other than the one stated with
+  it. Such a UTxO can still be spent, the script counts for the fee by its size, and it cannot be
+  named as a `{ reference }` (`INVALID_SCRIPT`). A `plutus` or `native` script given in the
+  builder's form that cannot be read is refused instead (see below).
 - The keys a native script names, which a native witness that runs it prices and asks for, are
   read from its bytes, any number of them, with the slots and the `n` of `atLeast` exact as the
   ledger reads them, as long as it nests no deeper than 512 levels as the walk of a transaction
@@ -2149,7 +2160,11 @@ const utxo: Utxo = {
   and the application copy and write by recursion. On `node --stack-size=400`, about a browser's
   stack, every path that reads such keys (a build, `fromCbor`, `requiredSigners`, `finalize`, a step
   given built, and the JSON of each) runs through at 512 levels, and the first fails at 642 in a
-  fresh process. One nested deeper is described and can be spent, and
+  fresh process. There, at 512 levels, the application may stand about 575 frames deep where it
+  writes the JSON of such a transaction or plans or builds it, 825 where it restores one, and about
+  2 700 where it reads one. A `restore` of a JSON whose `signers.nativeScripts` nest deeper than
+  about 340 levels of `all` overflows that stack; deeper than JSON writes, the JSON is refused
+  (`INVALID_OPTION`). One nested deeper is described and can be spent, and
   cannot be named as a `{ reference }` (`INVALID_SCRIPT`). Where the signers of a transaction are
   read from the UTxOs given with it (`requiredSigners`, `fromCbor`, `finalize`), the keys of a
   native script are read only for one the transaction runs, known by its hash, and one nested
@@ -2218,8 +2233,8 @@ an inline datum, `dataHash` without it a datum hash, and `scriptRef` the referen
   its entry);
 - the CBOR of a transaction unspent output longer than 16 384 bytes, the size of a transaction, of
   which its output is a part, before any of it is read: the token reader would take a time that
-  grows with the square of its pieces (a script written in 16 000 empty pieces takes 60 ms, in 1 MB
-  of them more than a minute).
+  grows with the square of its pieces (a UTxO of 16 384 bytes in empty pieces takes up to about
+  150 ms, one of 1 MB more than a minute).
 
 `output()` refuses an inline datum that is not exactly one item of Plutus data (`INVALID_DATA`), and
 every output the builder makes is a UTxO it takes back. The error names where the UTxO was given:
@@ -2349,8 +2364,8 @@ Every error has `code`, `message`, and where they apply `part`, `label`, `detail
 error it was raised from, such as the provider's `ProviderError` or the wallet's error).
 `retryable: true` means only: the same call, repeated no earlier than `retryAfterMs`, is safe and
 may pass. A `TxPlanError` of a plan also carries `planId`, `status` (when thrown), `step` and
-`txHash` (the step it is about) and `plan` (the object as it is now); one of a `BuiltTx` carries none of
-them. `TxPartError.is` is `TxError.is`: tell a part error by its code. The builder throws no
+`txHash` (the step it is about) and `plan` (the object as it is now); one of a `BuiltTx` carries
+none of them. `TxPartError.is` is `TxError.is`: tell a part error by its code. The builder throws no
 `RangeError`: a bad option or argument is `INVALID_OPTION`, a missing label `UNKNOWN_LABEL`; an
 aborted `signal` is `ABORTED` in every call of the builder, of a plan and of a `BuiltTx`.
 With `MISSING_SIGNATURES`, `MISSING_SUBMITTER` and `NOT_YET_VALID` nothing went to the network.

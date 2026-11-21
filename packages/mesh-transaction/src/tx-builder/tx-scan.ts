@@ -38,16 +38,27 @@ import { CborReader, HexBlob, Serialization } from "@meshsdk/core-cst";
  * only up to `MAX_REF_SCRIPT_BYTES` in all, counted before any of its UTxOs is read whole. On the
  * laptop above, with `@cardano-sdk/core` 0.47.1, three runs, the worst: a UTxO that holds the
  * slowest native script of about 16 KB is read in 38 ms, its keys in 55 ms; a UTxO in CBOR of
- * 16 117 bytes whose script is written in 16 000 empty pieces in 59 ms, and one longer than
- * `MAX_TX_BYTES` (64 KB, 256 KB, 1 MB) is refused in less than 0.1 ms; a payment from a payer of
- * 40 UTxOs that each hold such a script in 1.0 s, from a provider, a wallet or a snapshot, and of
- * 40 UTxOs in pieces in 1.95 s; a transaction that runs 13 distinct native scripts of 15 643
+ * 16 384 bytes whose strings are written in empty pieces in up to 120 ms (75 ms for its script,
+ * 120 ms for a policy id, an asset name or a datum hash; up to 150 ms on a loaded machine), 185 ms
+ * where it is counted and then read, and one longer than `MAX_TX_BYTES` (64 KB, 256 KB, 1 MB) is
+ * refused in less than 0.1 ms; a payment from a payer of 40 UTxOs that each hold such a script in
+ * 1.0 s, from a provider, a wallet or a snapshot, and of 40 UTxOs in pieces in 2.0 to 4.8 s; a
+ * transaction that runs 13 distinct native scripts of 15 643
  * bytes from its reference inputs (203 359 bytes, the most the bound lets through) in 0.67 s by
  * `requiredSigners`, 0.72 s by `fromCbor`, 1.5 s by `plan` as a step given built, its record
  * 4.2 MB; one that runs 235 is refused in 23, 21 and 46 ms. A UTxO in CBOR whose output has a
  * key other than 0 to 3 is refused before the decoder runs: the ledger takes no such output. So is
  * a transaction whose body, outputs or witness set hold a key the Conway ledger does not read
  * (`checkConwayKeys`), by every reader of a whole transaction.
+ *
+ * What the bounds admit is read on a stack of about a browser's (`node --stack-size=400`, each
+ * measure in a fresh process) by `fromCbor` and `requiredSigners`, but a form copied or written by
+ * recursion overflows it sooner: metadata, an inline datum or the datum of a redeemer deeper than
+ * about 410 levels (a map of metadata deeper than about 245) where the JSON of the object is
+ * written or read back, a plan's record and `plan` among them, and deeper than about 578 in
+ * `finalize`, which copies the prototype. The error is then the runtime's `RangeError`. Data of
+ * the witness set, constructors, maps and native scripts go through every path at the deepest the
+ * bounds admit.
  */
 
 const State = Serialization.CborReaderState;
@@ -65,11 +76,12 @@ export const MAX_TX_BYTES = 16_384;
  * transaction itself the first, and the items inside a byte string under tag 24 (an inline datum,
  * a reference script) count on from that tag. 1 024: the value decoder reads one datum of this
  * depth on a stack of about a browser's (`node --stack-size=400`), and overflows it at 2 048. The
- * bound keeps this library's own process safe. Data is refused by the bound on work long before,
- * as its decoding would take more than a second: one datum of lists nested past 728 levels (752 of
- * definite lists), constructors past 434 (868 levels), maps past 523, metadata past 729, a native
- * script past 303 (606 levels). 1 024 levels are reached by byte strings under tag 24 nested in
- * each other, which the decoder does not unfold
+ * bound keeps the decoder within such a stack; a copy or the JSON of the data read is not (see
+ * above). Data is refused by the bound on work long before, as its decoding would take more than a
+ * second: one datum of lists nested past 728 levels (752 of definite lists), constructors past 434
+ * (868 levels), maps past 523, metadata past 729, a native script past 303 (606 levels). 1 024
+ * levels are reached by byte strings under tag 24 nested in each other, which the decoder does not
+ * unfold
  */
 export const MAX_TX_DEPTH = 1024;
 
@@ -109,8 +121,9 @@ const TAG_WORK = 60_000;
  * copy and write by recursion (`structuredClone`, JSON), so on a stack of about a browser's
  * (`node --stack-size=400`) each path that reads its keys, a build, `fromCbor`, `requiredSigners`,
  * `finalize`, a step given built and their records, runs through to 622 levels and fails from 642,
- * in a fresh process; at 512 the application may stand 2 000 frames deep when it writes the JSON.
- * A script deeper is described and spent, its keys not read
+ * in a fresh process. There, at 512, the application may stand 575 frames deep when it writes the
+ * JSON of such a transaction, plans or builds it, 825 when it restores one, and about 2 700 when it
+ * reads one. A script deeper is described and spent, its keys not read
  */
 export const MAX_NATIVE_DEPTH = 512;
 

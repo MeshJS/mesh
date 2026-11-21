@@ -66,9 +66,9 @@ export const transactionPrototypeToCardano = (proto: TransactionPrototype): Tran
  * CST equivalent of whisky's `proto_to_transaction_hex`, with deterministic set encoding.
  *
  * Pins `@cardano-sdk/core`'s `inConwayEra` global for the duration of the building and the
- * `toCbor()` call and restores it afterwards, so (a) every set in the transaction is encoded the same way and (b)
- * this call neither depends on nor leaks ambient global state. The save/restore is the only way
- * to control it — the flag is not exposed per-`CborSet`.
+ * `toCbor()` call and restores it afterwards, so (a) every set in the transaction is encoded the
+ * same way and (b) this call neither depends on nor leaks ambient global state. The save/restore
+ * is the only way to control it — the flag is not exposed per-`CborSet`.
  */
 export const transactionPrototypeToHex = (
   proto: TransactionPrototype,

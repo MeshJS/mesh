@@ -3865,11 +3865,6 @@ const SIGNER_IN_PLACE = {
 };
 
 /**
- * A transaction `fromCbor` does not take. A private key may be given there by mistake, so the
- * message and `details.value` name only its JavaScript type, never the value
- * @param message Why, in words that quote nothing of what was given
- */
-/**
  * TX_TOO_LARGE for a transaction whose spent and reference inputs hold more reference scripts than
  * a node takes in one, of `size` bytes
  */
@@ -3910,6 +3905,11 @@ const prototypeRefs = (
   return { spentAndRead, all: [...spentAndRead, ...refsOf(body?.collateral)] };
 };
 
+/**
+ * A transaction `fromCbor` does not take. A private key may be given there by mistake, so the
+ * message and `details.value` name only its JavaScript type, never the value
+ * @param message Why, in words that quote nothing of what was given
+ */
 const refusedTx = (txCbor: unknown, message: string, cause?: unknown) =>
   new TxBuildError("INVALID_OPTION", message, {
     details: {
