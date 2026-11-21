@@ -529,6 +529,60 @@ export const heldNativeScript = (
     : undefined;
 };
 
+/** Why the keys of a native script are not read: see `NATIVE_SCRIPT_UNREAD` */
+export type NativeScriptUnread = "depth" | "size" | "form";
+
+/** Why the keys of a native script are not read, in words, quoting none of its bytes */
+export const unreadNativeWords = (reason: NativeScriptUnread): string => {
+  switch (reason) {
+    case "depth":
+      return `it nests deeper than the ${MAX_NATIVE_DEPTH} levels to which this library reads the keys of a native script`;
+    case "size":
+      return `it is longer than the ${MAX_TX_BYTES} bytes of a transaction, the most this library reads of a native script`;
+    case "form":
+      return "it is in a form this library does not read (CBOR that is not well formed, a form the ledger does not read, or a key hash written in pieces)";
+  }
+};
+
+/**
+ * The native script a reference script left `unknown` holds, with its hash, and why its keys are
+ * not read, from what describing it found: its bytes are `[0, script]`, so it is a native script,
+ * and `describeScriptRef` did not read it. `"size"` for a script longer than `MAX_TX_BYTES`,
+ * which is not read; `"form"` for any other: one read and found no native script as the ledger
+ * reads one, one in bytes it would not write back the same, or one stated with another hash. Only
+ * the array and the language are read, with the token reader, as `countedScriptSize` reads them;
+ * the hash is taken over the bytes after the language, as the ledger takes it. Undefined for
+ * anything that is not `[0, script]`
+ */
+export const unknownNativeScript = (
+  script: OutputScript | undefined,
+): { hash: string; reason: "size" | "form" } | undefined => {
+  if (script?.type !== "unknown") return undefined;
+  try {
+    const { scriptRef } = script;
+    const reader = new CborReader(HexBlob(scriptRef));
+    if (
+      reader.peekState() !== State.StartArray ||
+      reader.readStartArray() !== 2
+    )
+      return undefined;
+    if (
+      reader.peekState() !== State.UnsignedInteger ||
+      reader.readUInt() !== 0n
+    )
+      return undefined;
+    const size = reader.getBytesRemaining();
+    if (size === 0) return undefined;
+    const native = scriptRef.slice(scriptRef.length - 2 * size);
+    return {
+      hash: blake2b.hash(HexBlob(`00${native}`), 28).toString(),
+      reason: size > MAX_TX_BYTES ? "size" : "form",
+    };
+  } catch {
+    return undefined;
+  }
+};
+
 /** A reference script as the CBOR of `[language, script]` in hex, the form a Mesh `UTxO` holds */
 export const scriptRefOf = (script: OutputScript): string => {
   switch (script.type) {

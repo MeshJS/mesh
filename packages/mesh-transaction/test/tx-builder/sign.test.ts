@@ -297,7 +297,9 @@ const planError = async <C extends TxPlanErrorCode>(
   expect((error as TxPlanError).code).toBe(code);
   return error as TxPlanError<C>;
 };
-const buildError = async <C extends "INVALID_OPTION" | "UTXO_NOT_FOUND">(
+const buildError = async <
+  C extends "INVALID_OPTION" | "UTXO_NOT_FOUND" | "NATIVE_SCRIPT_UNREAD",
+>(
   run: () => unknown,
   code: C,
 ) => {
@@ -1621,24 +1623,45 @@ describe("requiredSigners", () => {
       }
     });
 
-    it("lists a native script a reference input holds, for a transaction read whole, where its keys are read: at any number of keys and up to 512 levels, not one level deeper nor what is not a native script, and the transaction is read at once", async () => {
+    it("lists a native script a reference input holds, for a transaction read whole, where its keys are read: at any number of keys and up to 512 levels; refuses one a level deeper and what is not a native script as the ledger reads one, which it runs; and the transaction is read at once", async () => {
       for (const [name, native, read] of shapes) {
-        const { holder, locked } = heldScript(native);
+        const { hash, holder, locked } = heldScript(native);
         const keyInput = utxo(lovelace(ada(50)));
         // It spends the key input and the script's output, and reads the holder
         const tx = handTx([keyInput, locked], [holder]);
         const spent = [keyInput, locked, holder];
         const started = performance.now();
-        const signers = requiredSigners(tx, spent);
-        const whole = await builder().fromCbor(tx, { knownUtxos: spent });
+        if (read === "keys") {
+          const signers = requiredSigners(tx, spent);
+          const whole = await builder().fromCbor(tx, { knownUtxos: spent });
+          expect(performance.now() - started).toBeLessThan(2_000);
+          expect([
+            name,
+            signers.nativeScripts.length,
+            whole.signers.nativeScripts.length,
+          ]).toEqual([name, 1, 1]);
+          expect(whole.signers.keyHashes).toEqual(signers.keyHashes);
+          continue;
+        }
+        const details = {
+          scriptHash: hash,
+          outRef: ref(holder),
+          reason: read === "deep" ? "depth" : "form",
+        };
+        const signers = await buildError(
+          () => requiredSigners(tx, spent),
+          "NATIVE_SCRIPT_UNREAD",
+        );
+        const whole = await buildError(
+          () => builder().fromCbor(tx, { knownUtxos: spent }),
+          "NATIVE_SCRIPT_UNREAD",
+        );
         expect(performance.now() - started).toBeLessThan(2_000);
-        const listed = read === "keys" ? 1 : 0;
-        expect([
+        expect([name, signers.details, whole.details]).toEqual([
           name,
-          signers.nativeScripts.length,
-          whole.signers.nativeScripts.length,
-        ]).toEqual([name, listed, listed]);
-        expect(whole.signers.keyHashes).toEqual(signers.keyHashes);
+          details,
+          details,
+        ]);
       }
     });
 

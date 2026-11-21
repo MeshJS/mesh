@@ -9,7 +9,8 @@ import { itemDepth, MAX_NATIVE_DEPTH } from "../../src/tx-builder/tx-scan";
  * The keys of a native reference script are read to the depth a small stack holds: on
  * `node --stack-size=400`, about a browser's, every path that reads them runs through for a script
  * at `MAX_NATIVE_DEPTH` (512 levels as the walk counts them), and one a level deeper is treated
- * as a script whose keys are not read. The paths run in a child process on that stack, the source
+ * as a script whose keys are not read: the build refuses it, and so does a read of a transaction
+ * that runs it. The paths run in a child process on that stack, the source
  * bundled for it.
  */
 
@@ -153,15 +154,15 @@ describe("the keys of a native reference script, read to the depth a small stack
     });
   }, 180_000);
 
-  it("treats one of 513 levels, around all [] 255 times, as one whose keys are not read: the build refuses it, the reads list it not", () => {
+  it("treats one of 513 levels, around all [] 255 times, as one whose keys are not read: the build refuses it, and so do the reads of a transaction that runs it", () => {
     const shape = `8200${"820181".repeat(255)}820180`;
     expect(itemDepth(Buffer.from(shape, "hex"))).toBe(MAX_NATIVE_DEPTH + 1);
     expect(onSmallStack(255, "empty")).toEqual({
       described: "native",
       build: "threw INVALID_SCRIPT",
-      fromCbor: "0/0",
-      requiredSigners: "0",
-      plan: "0/0",
+      fromCbor: "threw NATIVE_SCRIPT_UNREAD",
+      requiredSigners: "threw NATIVE_SCRIPT_UNREAD",
+      plan: "threw NATIVE_SCRIPT_UNREAD",
     });
   }, 180_000);
 });

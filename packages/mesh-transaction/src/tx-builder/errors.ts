@@ -80,7 +80,13 @@ export type TxBuildErrorCode =
   /** An option with a value that is not accepted */
   | "INVALID_OPTION"
   /** No output of the transaction has this label */
-  | "UNKNOWN_LABEL";
+  | "UNKNOWN_LABEL"
+  /**
+   * Of a transaction read whole (`requiredSigners`, `fromCbor`, a step given built): it runs a
+   * native script, held by a UTxO it spends or reads, whose keys this library does not read, so
+   * who must sign cannot be listed
+   */
+  | "NATIVE_SCRIPT_UNREAD";
 
 /** Every build error code, once: the compiler checks the list against `TxBuildErrorCode` */
 export const TX_BUILD_ERROR_CODES = Object.keys({
@@ -114,6 +120,7 @@ export const TX_BUILD_ERROR_CODES = Object.keys({
   WALLET_FAILED: true,
   INVALID_OPTION: true,
   UNKNOWN_LABEL: true,
+  NATIVE_SCRIPT_UNREAD: true,
 } satisfies Record<TxBuildErrorCode, true>) as TxBuildErrorCode[];
 
 /** A part's gaps, as listed in an `UNRESOLVED` error */
@@ -253,6 +260,18 @@ export type TxBuildErrorDetails = {
   UNKNOWN_LABEL: { label: string; labels: string[] };
   /** A failed payer read: the CIP-30 APIError code, -1..-4, if any */
   WALLET_FAILED: { walletCode?: number };
+  /**
+   * The native script the transaction runs whose keys are not read: its hash, the out ref of the
+   * UTxO that holds it, and why. `"depth"`: nested deeper than `MAX_NATIVE_DEPTH`, 512 levels as
+   * the walk of a transaction counts them; `"size"`: longer than `MAX_TX_BYTES`, 16 384 bytes, the
+   * most the reader holds to; `"form"`: a form this library does not read (CBOR that is not well
+   * formed, a form the ledger does not read, a key hash written in pieces)
+   */
+  NATIVE_SCRIPT_UNREAD: {
+    scriptHash: string;
+    outRef?: OutRef;
+    reason: "depth" | "size" | "form";
+  };
 };
 
 /**

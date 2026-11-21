@@ -13,7 +13,7 @@ import {
 } from "@meshsdk/core-cst";
 
 import type { Utxo, UtxoInput } from "./parts/types";
-import type { PlacedUtxos } from "./parts/utxo";
+import type { NativeScriptUnread, PlacedUtxos } from "./parts/utxo";
 import type { RequiredKeys } from "./payer";
 import type { Collected, SignerRole, TxSigners } from "./witnesses";
 import { TxBuildError, TxPlanError } from "./errors";
@@ -23,6 +23,8 @@ import {
   heldScriptSize,
   placeUtxos,
   readPlaced,
+  unknownNativeScript,
+  unreadNativeWords,
   UtxoTwiceError,
 } from "./parts/utxo";
 import { walletCodeOf } from "./payer";
@@ -1519,16 +1521,19 @@ export const refScriptsRefused = (tx: unknown, past: string) =>
  * as the build of the same transaction gives them
  * @param spent The UTxO of every input and collateral input, each in any form the builder takes
  *   a UTxO in. UTxOs of reference inputs may be given too: only then is a native script the
- *   transaction runs from one of them listed in `nativeScripts`. An entry for an out ref the
- *   transaction does not name is passed over, its out ref alone read; two that name one output
- *   must hold the same, and two texts of CBOR for one output be one text
+ *   transaction runs from one of them listed in `nativeScripts`, or refused. An entry for an out
+ *   ref the transaction does not name is passed over, its out ref alone read; two that name one
+ *   output must hold the same, and two texts of CBOR for one output be one text
  * @throws TxBuildError UTXO_NOT_FOUND for an input or collateral input whose UTxO is not in
  *   `spent`; INVALID_OPTION for a `tx` that is not a transaction, or holds a key of its body, an
  *   output or its witness set the Conway ledger does not read, for one whose spent and
  *   reference inputs hold more than `MAX_REF_SCRIPT_BYTES` of reference scripts in the UTxOs of
  *   `spent`, counted before they are read whole, and for a `spent` that is not a list or holds an
  *   entry that is not a UTxO (an address that does not parse among them), or two entries that
- *   name one output and differ
+ *   name one output and differ; NATIVE_SCRIPT_UNREAD `{ scriptHash, outRef, reason }` for a
+ *   transaction that runs a native script, held by a UTxO of `spent` it spends or reads, whose
+ *   keys this library does not read: nested deeper than `MAX_NATIVE_DEPTH` (`"depth"`), longer
+ *   than `MAX_TX_BYTES` (`"size"`), or in a form it does not read (`"form"`)
  */
 export function requiredSigners(
   tx: string,
@@ -1619,7 +1624,9 @@ const bodyToSign = (raw: RawTx): TransactionPrototype["body"] => {
  * hashes of its proposals
  * @param body The body as a value, when the caller has read it already; else it is read here
  * @throws TxBuildError UTXO_NOT_FOUND for an input or collateral input whose UTxO is not in
- *   `spent`; INVALID_OPTION for a body that cannot be read
+ *   `spent`; INVALID_OPTION for a body that cannot be read; NATIVE_SCRIPT_UNREAD for a native
+ *   script the transaction runs, held by a UTxO of `spent` it spends or reads, whose keys are
+ *   not read, unless it holds the same script where they are
  */
 export const bodySigners = (
   raw: RawTx,
@@ -1705,12 +1712,44 @@ export const bodySigners = (
   // the keys of one are read only where the transaction runs it, known by its hash
   for (const native of raw.witnesses.nativeScripts()?.values() ?? [])
     addNativeScript(collected, nativeScriptEntry(native));
+  // A native script it runs whose keys are not read, in the order of its inputs
+  const unread: { utxo: Utxo; hash: string; reason: NativeScriptUnread }[] = [];
   for (const input of [...body.inputs, ...(body.reference_inputs ?? [])]) {
     const utxo = given.get(outRefKey(input.transaction_id, input.index));
-    if (utxo?.script?.type !== "native" || !scripts.has(utxo.script.hash))
+    if (utxo?.script?.type === "native") {
+      if (!scripts.has(utxo.script.hash)) continue;
+      const native = nativeScriptRef(utxo);
+      if (native) addNativeScript(collected, native);
+      else unread.push({ utxo, hash: utxo.script.hash, reason: "depth" });
       continue;
-    const native = nativeScriptRef(utxo);
-    if (native) addNativeScript(collected, native);
+    }
+    const held = unknownNativeScript(utxo?.script);
+    if (held && scripts.has(held.hash)) unread.push({ utxo: utxo!, ...held });
   }
+  // Refused unless its keys are read where the transaction holds it again: who must sign would
+  // be short of them
+  const first = unread.find(({ hash }) => !collected.nativeScripts.has(hash));
+  if (first) throw nativeScriptUnread(first.hash, first.reason, first.utxo);
   return { collected, scripts };
 };
+
+/**
+ * The refusal of a transaction that runs a native script whose keys are not read, held by the
+ * UTxO `holder`: its hash, the out ref and the reason named, none of its bytes quoted
+ */
+const nativeScriptUnread = (
+  scriptHash: string,
+  reason: NativeScriptUnread,
+  holder: Utxo,
+) =>
+  new TxBuildError(
+    "NATIVE_SCRIPT_UNREAD",
+    `the transaction runs the native script ${scriptHash}, which the UTxO ${outRefKey(holder.txHash, holder.outputIndex)} holds, and its keys cannot be listed: ${unreadNativeWords(reason)}`,
+    {
+      details: {
+        scriptHash,
+        outRef: { txHash: holder.txHash, outputIndex: holder.outputIndex },
+        reason,
+      },
+    },
+  );

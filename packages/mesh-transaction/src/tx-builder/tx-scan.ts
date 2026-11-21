@@ -32,10 +32,11 @@ import { CborReader, HexBlob, Serialization } from "@meshsdk/core-cst";
  * from its bytes, and a native one, of no more than `MAX_TX_BYTES`, as the ledger reads one, on
  * the token reader with no call of itself; so are the keys it names, where it nests no deeper
  * than `MAX_NATIVE_DEPTH`, and where the signers of a transaction are read from the UTxOs given
- * with it, only for a script it runs. The token reader copies the bytes left at each item, so the
- * time grows with the square of a script's size, and of the pieces of a string written in pieces:
- * a UTxO in CBOR is read only up to `MAX_TX_BYTES`, and the reference scripts of a transaction
- * only up to `MAX_REF_SCRIPT_BYTES` in all, counted before any of its UTxOs is read whole. On the
+ * with it, only for a script it runs, and one it runs whose keys are not read is refused. The
+ * token reader copies the bytes left at each item, so the time grows with the square of a
+ * script's size, and of the pieces of a string written in pieces: a UTxO in CBOR is read only up
+ * to `MAX_TX_BYTES`, and the reference scripts of a transaction only up to `MAX_REF_SCRIPT_BYTES`
+ * in all, counted before any of its UTxOs is read whole. On the
  * laptop above, with `@cardano-sdk/core` 0.47.1, three runs, the worst: a UTxO that holds the
  * slowest native script of about 16 KB is read in 38 ms, its keys in 55 ms; a UTxO in CBOR of
  * 16 384 bytes whose strings are written in empty pieces in up to 120 ms (75 ms for its script,
@@ -127,7 +128,8 @@ const TAG_WORK = 60_000;
  * a step given built and their records, runs through to 622 levels and fails from 642, in a fresh
  * process. There, at 512, the application may stand 575 frames deep when it writes the
  * JSON of such a transaction, plans or builds it, 825 when it restores one, and about 2 700 when it
- * reads one. A script deeper is described and spent, its keys not read
+ * reads one. A script deeper is described and spent, its keys not read: where the signers of a
+ * transaction are read, one it runs is refused (`NATIVE_SCRIPT_UNREAD`)
  */
 export const MAX_NATIVE_DEPTH = 512;
 

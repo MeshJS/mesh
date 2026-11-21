@@ -44,6 +44,7 @@ import {
   heldNativeScript,
   readUtxo,
   scriptSize,
+  unreadNativeWords,
   UtxoError,
   utxoKey,
 } from "./utxo";
@@ -677,12 +678,13 @@ export const toNativeScriptSource = (
       "INVALID_SCRIPT",
       `${outRefString(resolvable.input)} holds a Plutus script, not a native one`,
     );
-  // The keys it names are priced and asked for: a script whose keys are not read cannot run
+  // The keys it names are priced and asked for: a script whose keys are not read cannot run. A
+  // native script is described only where it is read, so it is one nested too deep
   if (!heldNativeScript(held.script))
     return fail(
       ctx,
       "INVALID_SCRIPT",
-      `${outRefString(resolvable.input)} holds a native script whose keys this library does not read`,
+      `${outRefString(resolvable.input)} holds a native script whose keys this library does not read: ${unreadNativeWords("depth")}`,
     );
   agree(ctx, "script hash", scriptHash, held.script.hash);
   agree(ctx, "script size", scriptSize, held.scriptSize);

@@ -83,9 +83,9 @@ describe("the error tree", () => {
       TX_BUILD_ERROR_CODES,
       TX_PLAN_ERROR_CODES,
     ];
-    expect(lists.map((list) => list.length)).toEqual([7, 30, 21]);
+    expect(lists.map((list) => list.length)).toEqual([7, 31, 21]);
     for (const list of lists) expect(new Set(list).size).toBe(list.length);
-    expect(new Set(ALL).size).toBe(7 + 30 + 21);
+    expect(new Set(ALL).size).toBe(7 + 31 + 21);
   });
 
   it("holds for nothing outside the tree, and never throws", () => {

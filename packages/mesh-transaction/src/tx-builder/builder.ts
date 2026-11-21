@@ -1992,7 +1992,11 @@ export class TxBuilder {
    *   builder's. UTXO_NOT_FOUND `{ input }` for an input, collateral input or reference input
    *   whose UTxO is neither given nor found, or could not be read (the provider's error is the
    *   `cause`), or that the provider answers in two entries that differ; MISSING_FETCHER when one
-   *   has to be read and the builder has no provider
+   *   has to be read and the builder has no provider. NATIVE_SCRIPT_UNREAD `{ scriptHash, outRef,
+   *   reason }` for a transaction that runs a native script, held by a UTxO it spends or reads,
+   *   whose keys this library does not read, so that `signers` would be short of them: nested
+   *   deeper than `MAX_NATIVE_DEPTH` (`"depth"`), longer than `MAX_TX_BYTES` (`"size"`), or in a
+   *   form it does not read (`"form"`)
    * @throws TxPlanError INVALID_WITNESS (`wrongBody`) `{ argument: 0, keyHash }` for a
    *   transaction that holds a signature that is not of its body
    */
