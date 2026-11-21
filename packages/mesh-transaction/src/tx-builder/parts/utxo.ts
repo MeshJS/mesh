@@ -1089,6 +1089,8 @@ export type PlacedUtxos = {
     readonly at: number;
     readonly given: unknown;
   }[];
+  /** The out refs of the entries passed over, none of them read past its out ref */
+  readonly passed: ReadonlySet<string>;
 };
 
 /**
@@ -1118,6 +1120,7 @@ export const placeUtxos = (
 ): PlacedUtxos => {
   const first = new Map<string, { at: number; given: unknown }>();
   const later: { key: string; at: number; given: unknown }[] = [];
+  const passed = new Set<string>();
   const texts = new Map<string, { at: number; text: string }>();
   const objects = new Map<string, Set<unknown>>();
   // Each place, a hole of a sparse list among them: it is no UTxO
@@ -1129,7 +1132,10 @@ export const placeUtxos = (
     } catch (error) {
       return refused(error, at, given);
     }
-    if (named && !named.has(key)) continue;
+    if (named && !named.has(key)) {
+      passed.add(key);
+      continue;
+    }
     if (typeof given === "string") {
       const text = given.toLowerCase();
       const seen = texts.get(key);
@@ -1144,7 +1150,7 @@ export const placeUtxos = (
     if (first.has(key)) later.push({ key, at, given });
     else first.set(key, { at, given });
   }
-  return { first, later };
+  return { first, later, passed };
 };
 
 /**

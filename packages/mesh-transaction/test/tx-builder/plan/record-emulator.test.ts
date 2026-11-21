@@ -1,3 +1,4 @@
+import type { UTxO } from "@meshsdk/core";
 import { customNetwork, mConStr0 } from "@meshsdk/core";
 
 import type { TxPlan, TxPlanJSON } from "../../../src/tx-builder";
@@ -283,7 +284,7 @@ describe("The record of a plan on TxEmulator", () => {
     expectReadBack(json, all);
   });
 
-  it("records knownUtxos given in any form the builder takes, and reads them back", async () => {
+  it("records knownUtxos given in any form the builder takes, those its steps name, and reads them back", async () => {
     const { builder, wallet, funded } = await setup();
     const known = funded.map((utxo) => toUtxo(utxo));
     for (const form of [funded, known]) {
@@ -291,7 +292,89 @@ describe("The record of a plan on TxEmulator", () => {
         payer: wallet,
         knownUtxos: form,
       });
-      expect(readPlan(plan.toJSON()).options.knownUtxos).toEqual(known);
+      const record = readPlan(plan.toJSON());
+      // The payment selects one of the two: the other is no entry of the record
+      const spent = record.steps[0]!.built.inputs;
+      expect(spent).toHaveLength(1);
+      expect(record.options.knownUtxos).toEqual(spent);
+      expect(known).toContainEqual(spent[0]);
     }
+  });
+});
+
+describe("The knownUtxos of a plan", () => {
+  // 235 UTxOs of out refs no step names, each holding a native script of 15 643 bytes: an all of
+  // 20, each nested 250 deep. Reading them whole took seconds; one of them is not a UTxO past
+  // its out ref, and is never read
+  const nested = (leaf: number) =>
+    "820181".repeat(250) + `8200581c${leaf.toString(16).padStart(56, "0")}`;
+  const unnamed = Array.from({ length: 235 }, (_, i): UTxO => ({
+    input: {
+      txHash: `dd${(i + 1).toString(16).padStart(62, "0")}`,
+      outputIndex: 0,
+    },
+    output: {
+      address: i === 0 ? "not an address" : recipient,
+      amount: [{ unit: "lovelace", quantity: "50000000" }],
+      scriptRef: `8200820194${nested(i * 16 + 1)}${nested(1).repeat(19)}`,
+    },
+  }));
+  /** A read of seconds fails this; a loaded machine's milliseconds do not */
+  const AT_ONCE_MS = 2_000;
+
+  it("plans at once beside 235 heavy entries no step names, a step of parts or a step given built; records only the entries its steps name, small, and runs from its record", async () => {
+    const { builder, emulator, wallet, address, funded } = await setup({
+      funds: [100_000_000n, 20_000_000n, 30_000_000n],
+    });
+    const [, named, other] = funded as [UTxO, UTxO, UTxO];
+    const given = await builder.build([pay(3_000_000n)], {
+      payer: { changeAddress: address, utxos: [other] },
+    });
+    const steps = {
+      "a step of parts": {
+        a: [
+          spend.pubKey({
+            utxo: {
+              txHash: named.input.txHash,
+              outputIndex: named.input.outputIndex,
+            },
+          }),
+          pay(),
+        ],
+      },
+      "a step given built": { given },
+    };
+    for (const [what, planned] of Object.entries(steps)) {
+      const started = performance.now();
+      const plan = await builder.plan(planned, {
+        payer: wallet,
+        knownUtxos: [named, ...unnamed],
+      });
+      expect([what, performance.now() - started < AT_ONCE_MS]).toEqual([
+        what,
+        true,
+      ]);
+      const json = plan.toJSON();
+      expect(JSON.stringify(json).length).toBeLessThan(100_000);
+      expect(readPlan(json).options.knownUtxos).toEqual(
+        "a" in planned ? [toUtxo(named)] : [],
+      );
+      const resumed = await builder.resume(JSON.parse(JSON.stringify(json)), {
+        payer: wallet,
+      });
+      await resumed.run({
+        signers: wallet,
+        waitFor: "sent",
+        timeoutMs: 60_000,
+      });
+      expect(resumed.toJSON().steps.map((step) => step.status)).toEqual([
+        "sent",
+      ]);
+    }
+    const paid = await emulator.fetchAddressUTxOs(recipient);
+    expect(paid.map((utxo) => utxo.output.amount[0]!.quantity).sort()).toEqual([
+      "3000000",
+      "5000000",
+    ]);
   });
 });

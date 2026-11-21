@@ -195,8 +195,16 @@ const PLACES: readonly {
     code: "INVALID_OPTION",
   },
   {
+    // One a part names: another is passed over, its out ref alone read
     name: "a UTxO of knownUtxos",
-    run: (text) => buildWith({ knownUtxos: [ownAt(text)] }),
+    run: (text) =>
+      offline().build(
+        [payment, referenceInput({ utxo: { txHash, outputIndex: 0 } })],
+        {
+          payer: { changeAddress: wallet, utxos: [funds] },
+          knownUtxos: [ownAt(text)],
+        },
+      ),
     code: "INVALID_OPTION",
   },
   {

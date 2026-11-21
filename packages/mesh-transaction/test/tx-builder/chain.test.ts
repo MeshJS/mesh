@@ -972,12 +972,13 @@ describe("TxBuilder: knownUtxos", () => {
     expect((error as TxPartError).label).toBe("key");
   });
 
-  it("checks the network of the known UTxOs", async () => {
+  it("checks the network of the known UTxOs the parts name, and passes over the others unread", async () => {
     const mainnet = serializeAddressObj(pubKeyAddress(keyHashHex(1)), 1);
+    const elsewhere = utxoAt(mainnet, ada(20));
     const error = await caught(
-      buildWith(pay(5), {
+      buildWith([spend.pubKey({ utxo: ref(elsewhere) }), pay(5)], {
         payer: snapshot(owned(100)),
-        knownUtxos: [utxoAt(mainnet, ada(20))],
+        knownUtxos: [elsewhere],
       }),
     );
     expect(error.code).toBe("NETWORK_MISMATCH");
@@ -985,6 +986,11 @@ describe("TxBuilder: knownUtxos", () => {
     expect(details.found.map((f) => [f.role, f.address])).toEqual([
       ["utxo", mainnet],
     ]);
+    const built = await buildWith(pay(5), {
+      payer: snapshot(owned(100)),
+      knownUtxos: [elsewhere],
+    });
+    expect(built.inputs).not.toContainEqual(elsewhere);
   });
 });
 

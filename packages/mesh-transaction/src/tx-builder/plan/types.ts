@@ -94,9 +94,9 @@ export type PlanSteps = Readonly<Record<string, PlanStep>>;
  * from parts, unless the step has its own; `sendAllTo` and `fee` describe one transaction, so
  * with named steps they are given in the step, and here are INVALID_OPTION. The deadlines and
  * the data options (`knownUtxos`, `registeredPools`, `extraKeyWitnesses`, `topUpCollateral`,
- * `collateralReturn`, `consolidate`, and the payer's change address) are written into the plan;
- * `payer`, `after`, `canSelect`, `coinSelection`, `signal` and `trace` are kept by the object
- * only, or not at all.
+ * `collateralReturn`, `consolidate`, and the payer's change address) are written into the plan,
+ * of `knownUtxos` only the entries for the out refs its steps name; `payer`, `after`,
+ * `canSelect`, `coinSelection`, `signal` and `trace` are kept by the object only, or not at all.
  */
 export type PlanOptions = Omit<BuildOptions, "after"> &
   PlanDeadlines & {

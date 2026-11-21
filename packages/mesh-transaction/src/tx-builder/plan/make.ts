@@ -963,10 +963,31 @@ const PLAN_DATA_OPTIONS = [
   "consolidate",
 ] as const;
 
-/** The data options of a plan, with its payer's change address, for its record */
+/**
+ * The out refs the transactions of these steps name, as `utxoKey` writes them: those they spend,
+ * put up as collateral and read
+ */
+export const namedBy = (
+  steps: readonly { readonly built: BuiltTxData }[],
+): Set<string> =>
+  new Set(
+    steps.flatMap(({ built }) =>
+      [
+        ...built.inputs,
+        ...built.referenceInputs,
+        ...(built.collateral?.inputs ?? []),
+      ].map(utxoKey),
+    ),
+  );
+
+/**
+ * The data options of a plan, with its payer's change address, for its record. Of `knownUtxos`
+ * only the entries for the out refs `named` are read and kept
+ */
 const planOptionsOf = (
   options: MakePlanOptions,
   changeAddress: string | undefined,
+  named: ReadonlySet<string>,
 ): Record<string, unknown> => {
   const out: Record<string, unknown> =
     changeAddress === undefined ? {} : { changeAddress };
@@ -976,7 +997,9 @@ const planOptionsOf = (
     // UTxOs in the builder's form, whatever form they were given in; `consolidate` checked
     out[key] =
       key === "knownUtxos"
-        ? toKnownUtxos(value as NonNullable<MakePlanOptions["knownUtxos"]>)
+        ? toKnownUtxos(value as NonNullable<MakePlanOptions["knownUtxos"]>, {
+            named,
+          })
         : key === "consolidate"
           ? consolidateOf(value)
           : value;
@@ -1181,6 +1204,8 @@ export const givenParts = (
 /**
  * The order these steps and options give, without building: what `makePlan` would record of
  * them. A wallet is asked for its change address alone, and no UTxO is read
+ * @param named The out refs whose entries of `knownUtxos` the order holds: those a record of the
+ *   same steps holds
  * @throws TxBuildError INVALID_OPTION (`steps`) as `makePlan`; MISSING_PAYER; INVALID_OPTION for
  *   a payer of no known form; NETWORK_MISMATCH for a payer given with another network's
  *   address; WALLET_FAILED
@@ -1188,7 +1213,8 @@ export const givenParts = (
 export const orderOf = async (
   builder: TxBuilder,
   steps: StepParts | PlanSteps,
-  options: MakePlanOptions = {},
+  options: MakePlanOptions,
+  named: ReadonlySet<string>,
 ): Promise<PlanOrder> => {
   const given = readSteps(builder, steps, options);
   const addressOf = addressBook(builder);
@@ -1220,6 +1246,7 @@ export const orderOf = async (
     options: planOptionsOf(
       options,
       options.payer === undefined ? undefined : await addressOf(options.payer),
+      named,
     ),
     steps: out,
   };
@@ -1758,7 +1785,11 @@ export const buildReplan = async (
       before: context.keep(steps),
       network: recordNetwork(builder),
       deadlines,
-      options: planOptionsOf(merged, planAddress),
+      options: planOptionsOf(
+        merged,
+        planAddress,
+        namedBy([...context.taken, ...steps]),
+      ),
     }),
     { type: "steps", steps: [...taken, ...steps.map(newStepOf)] },
   );
@@ -1862,7 +1893,7 @@ export const makePlan = async (
     (options.payer === undefined
       ? undefined
       : await abortable(addressBook(builder)(options.payer), signal, CALL));
-  const planOptions = planOptionsOf(options, planAddress);
+  const planOptions = planOptionsOf(options, planAddress, namedBy(made));
   const first = advancePlan(
     emptyPlan({
       ...(id !== undefined && { id }),

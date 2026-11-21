@@ -1,3 +1,4 @@
+import type { UTxO } from "@meshsdk/core";
 import { mConStr0 } from "@meshsdk/core";
 import { toTxUnspentOutput } from "@meshsdk/core-cst";
 
@@ -199,7 +200,14 @@ describe("A recorded id given to builder.plan", () => {
     for (const options of [
       { ...given, fee: 500_000n },
       { ...given, extraKeyWitnesses: 2 },
-      { ...given, knownUtxos: [...known].reverse() },
+      // An entry the step names with other contents
+      {
+        ...given,
+        knownUtxos: known.map((utxo) => ({
+          ...utxo,
+          value: { lovelace: utxo.value.lovelace + 1n },
+        })),
+      },
       // An option given where the record holds none
       { ...given, sendAllTo: address },
       { ...given, topUpCollateral: false },
@@ -220,6 +228,66 @@ describe("A recorded id given to builder.plan", () => {
     const other = instance();
     await other.builder.plan(pay(), { id: "order-1", payer: wallet, ...given });
     expect(other.store.saves()).toEqual([]);
+  });
+
+  it("compares of knownUtxos the entries for the out refs the recorded steps name: an entry for another may change or go", async () => {
+    const { builder, wallet, instance, funded } = await storeSetup();
+    const [, named] = funded as [UTxO, UTxO];
+    const steps = () => [
+      spend.pubKey({
+        utxo: {
+          txHash: named.input.txHash,
+          outputIndex: named.input.outputIndex,
+        },
+      }),
+      pay(),
+    ];
+    const elsewhere = (lovelace: string): UTxO => ({
+      input: { txHash: "dd".repeat(32), outputIndex: 0 },
+      output: {
+        address: baseAddress(3),
+        amount: [{ unit: "lovelace", quantity: lovelace }],
+      },
+    });
+    await builder.plan(steps(), {
+      id: "order-1",
+      payer: wallet,
+      knownUtxos: [named, elsewhere("5000000")],
+    });
+    for (const knownUtxos of [
+      [named, elsewhere("5000000")],
+      [named],
+      [elsewhere("6000000"), toUtxo(named)],
+    ]) {
+      const other = instance();
+      await other.builder.plan(steps(), {
+        id: "order-1",
+        payer: wallet,
+        knownUtxos,
+      });
+      expect(other.store.saves()).toEqual([]);
+    }
+    const changed: UTxO = {
+      ...named,
+      output: {
+        ...named.output,
+        amount: [{ unit: "lovelace", quantity: "1" }],
+      },
+    };
+    for (const knownUtxos of [[changed], [elsewhere("5000000")]]) {
+      const other = instance();
+      expectCode(
+        await caught(
+          other.builder.plan(steps(), {
+            id: "order-1",
+            payer: wallet,
+            knownUtxos,
+          }),
+        ),
+        "PLAN_EXISTS",
+      );
+      expect(other.store.saves()).toEqual([]);
+    }
   });
 
   it("takes the same knownUtxos in any form the builder takes as the same option", async () => {

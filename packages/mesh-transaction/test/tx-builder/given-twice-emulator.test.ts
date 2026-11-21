@@ -295,6 +295,60 @@ describe("UTxOs given for out refs, each out ref once", () => {
     expect(final.ms).toBeLessThan(AT_ONCE_MS);
   });
 
+  it("builds at once reading of knownUtxos and of the provider's answers only the entries its parts name: 235 heavy others passed over in each form, one that is no UTxO past its out ref among them", async () => {
+    const unnamed = items.map((it, i) => mesh(otherOf(i), `8200${it}`));
+    const notRead = unnamed.map((utxo) => ({
+      ...utxo,
+      output: { ...utxo.output, address: "not an address" },
+    }));
+    /** The same UTxO under index 1 of its transaction, which no part names */
+    const atOne = (utxo: UTxO): UTxO => ({
+      ...utxo,
+      input: { ...utxo.input, outputIndex: 1 },
+    });
+    const answers = new Map(
+      items.map((_, i) => [txOf(100 + i), [lights[i]!, atOne(heavies[i]!)]]),
+    );
+    const places: [string, () => Promise<{ referenceInputs: unknown[] }>][] = [
+      [
+        "knownUtxos",
+        () =>
+          offline().build([pay, ...byOutRef], {
+            payer,
+            knownUtxos: [
+              ...lights,
+              ...unnamed,
+              ...unnamed.map(cborOf),
+              ...notRead,
+            ],
+          }),
+      ],
+      [
+        "the provider's answers",
+        () => online(answers).build([pay, ...byOutRef], { payer }),
+      ],
+    ];
+    for (const [place, run] of places) {
+      let built: { referenceInputs: unknown[] } | undefined;
+      const { error, ms } = await timed(async () => {
+        built = await run();
+      });
+      expect([place, error]).toEqual([place, undefined]);
+      expect([place, ms < AT_ONCE_MS]).toEqual([place, true]);
+      expect(built!.referenceInputs).toHaveLength(235);
+    }
+    // Of the entries a part names, two that differ are still refused
+    const { error } = await timed(() =>
+      offline().build([pay, ...byOutRef], {
+        payer,
+        knownUtxos: [...lights, ...unnamed, heavies[7]!],
+      }),
+    );
+    expect(error.message).toBe(
+      `invalid knownUtxos: two entries name the output ${txOf(107)}#0 and differ`,
+    );
+  });
+
   it("refuses at its head an out ref whose transaction hash is not one byte string of definite length of 32 bytes, or whose index is no unsigned integer, as it refuses other out refs: 235 entries of 16 384 bytes, the hash in empty pieces, at once", async () => {
     const one = runs(items.slice(0, 1));
     const proto = transactionPrototypeFromHex(one);

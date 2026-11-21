@@ -160,6 +160,7 @@ import { checkPlanDefaults } from "./plan/deadlines";
 import { planFor, resumePlan, standingSteps, TxPlan } from "./plan/plan";
 import {
   fetchTxAnswer,
+  inputsOf,
   placeTxAnswer,
   readTxAnswer,
   resolveParts,
@@ -429,10 +430,12 @@ export type BuildOptions = {
   /**
    * Outputs the parts may name by out ref that the provider may not know yet; never selected.
    * Being listed here makes no UTxO selectable and takes none out of selection: one the payer
-   * also holds is still selected. They are used as given, and reach every evaluator with the
-   * transaction, as the outputs of `after` do; the payer's UTxOs reach only one that sets
-   * `acceptsKnownUtxos`. Each may be in any form the builder takes a UTxO in; two that name one
-   * output must hold the same, and two texts of CBOR for one output be one text (INVALID_OPTION).
+   * also holds is still selected. Only the entries for the out refs the parts name are read and
+   * used as given; another is passed over, its out ref alone read. They reach every evaluator
+   * with the transaction, as the outputs of `after` do, an out ref the build selects from the
+   * payer as the payer lists it; the payer's UTxOs reach only one that sets `acceptsKnownUtxos`.
+   * Each may be in any form the builder takes a UTxO in; two that name one output must hold the
+   * same, and two texts of CBOR for one output be one text (INVALID_OPTION).
    */
   knownUtxos?: readonly UtxoInput[];
   /**
@@ -1011,12 +1014,14 @@ const coinCbor = (lovelace: bigint) => {
 
 /**
  * Checks the type of every option of a build but `payer`, converts `sendAllTo` to bech32
- * (base58 for Byron), and copies the transactions of `after` and the UTxOs of `knownUtxos`
+ * (base58 for Byron), and copies the transactions of `after` and the UTxOs of `knownUtxos` for
+ * the out refs `named`, each other entry passed over
  * @throws TxBuildError INVALID_OPTION naming the first option that is not of its type
  */
 const checkBuildOptions = (
   options: BuildOptions,
   maxAfterBytes: number,
+  named: ReadonlySet<string>,
   placed?: (placed: PlacedUtxos) => void,
 ): { sendAllTo?: string; after: AfterTx[]; knownUtxos: Utxo[] } => {
   const { canSelect, coinSelection, sendAllTo, signal, trace } = options;
@@ -1080,6 +1085,7 @@ const checkBuildOptions = (
     );
   const after = toAfter(options.after, maxAfterBytes);
   const knownUtxos = toKnownUtxos(options.knownUtxos, {
+    named,
     ...(placed && { placed }),
   });
   if (sendAllTo === undefined) return { after, knownUtxos };
@@ -2763,10 +2769,21 @@ export class TxBuilder {
     for (const part of flat)
       for (const utxo of heldUtxos(part)) counter.add(utxoKey(utxo), utxo);
     refuseScripts();
+    // Of knownUtxos only the entries for the out refs the parts name are read; every evaluator is
+    // handed the UTxO the build knows of each out ref given there that the transaction names
+    const handed = new Set<string>();
     const { sendAllTo, after, knownUtxos } = checkBuildOptions(
       options ?? {},
       afterBound(this.params),
-      (placed) => refuseScripts([placed]),
+      new Set(
+        flat
+          .flatMap(inputsOf)
+          .map((input) => outRefString(input).toLowerCase()),
+      ),
+      (placed) => {
+        for (const key of placed.passed) handed.add(key);
+        refuseScripts([placed]);
+      },
     );
     const declared = (
       options as { [DECLARED_OUTPUTS]?: DeclaredOutputs } | undefined
@@ -2800,7 +2817,6 @@ export class TxBuilder {
       for (const utxo of source.snapshot.utxos) known.set(utxoKey(utxo), utxo);
     // So are the outputs of `after` and the UTxOs of `knownUtxos`, which the provider may not
     // know yet: every evaluator is handed those the transaction names
-    const handed = new Set<string>();
     for (const utxo of [
       ...after.flatMap((tx) => tx.outputs.map((output) => plainUtxo(output))),
       ...knownUtxos,

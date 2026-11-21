@@ -3,6 +3,7 @@ import { Crypto } from "@meshsdk/core-cst";
 
 import type { BuildEvent, BuiltTxData, TxBuilder } from "../builder";
 import type { TxPlanErrorCode, TxPlanErrorDetails } from "../errors";
+import type { Utxo } from "../parts/types";
 import type { Payer, PayerRead } from "../payer";
 import type { KeyWitness, Signer } from "../sign";
 import type { RequiredKey } from "../witnesses";
@@ -59,6 +60,7 @@ import {
 } from "../options";
 import { TxPartError } from "../parts/errors";
 import { isLinkedPart } from "../parts/unresolved";
+import { utxoKey } from "../parts/utxo";
 import { toPayerSource } from "../payer";
 import {
   countedWitnesses,
@@ -956,7 +958,8 @@ export class TxPlan {
    *
    * - A step is paid by its own payer (`{ parts, payer }`), else by the plan's payer, as it was
    *   given to `builder.plan` or `builder.resume`. The data options the plan records apply,
-   *   unless the step has its own; `canSelect` and `coinSelection` are given in the step.
+   *   unless the step has its own (of `knownUtxos`, the entries for the out refs its steps
+   *   named); `canSelect` and `coinSelection` are given in the step.
    * - A step may be a transaction built before, a `BuiltTx` or its CBOR hex, as in
    *   `builder.plan`: the UTxOs it names come from the plan's steps, its recorded `knownUtxos`
    *   or the provider. The same transaction under its name again is the same step.
@@ -4331,7 +4334,11 @@ export const planFor = async (
     const stored = await loadRecord(store, id);
     if (stored !== undefined) {
       checkRecordNetwork(builder, stored);
-      if (!isOrderOf(stored, await orderOf(builder, steps, given)))
+      // Of knownUtxos, the entries for the out refs the record holds: those its steps name
+      const named = new Set(
+        ((stored.options.knownUtxos ?? []) as readonly Utxo[]).map(utxoKey),
+      );
+      if (!isOrderOf(stored, await orderOf(builder, steps, given, named)))
         throw planError(
           "PLAN_EXISTS",
           planExists(id, "nothing was built or written"),

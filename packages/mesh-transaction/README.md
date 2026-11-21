@@ -1116,8 +1116,11 @@ are paid again.
 
 Recorded: the steps, the data options (`knownUtxos`, `registeredPools`, `extraKeyWitnesses`,
 `topUpCollateral`, `collateralReturn`, `consolidate`, and a step's `sendAllTo` and `fee`), each
-payer's change address and the three effective deadlines. Not recorded: wallets, signers, the
-submitter, functions (`canSelect`, `coinSelection`, `trace`) and `signal`. Every change is saved
+payer's change address and the three effective deadlines. Of `knownUtxos` the record holds only
+the entries for the out refs its steps' transactions spend, put up and read, and the same call
+again is compared on those: an entry for another out ref may change or go. A step `plan.add`
+builds later finds no other in it. Not recorded: wallets, signers, the submitter, functions
+(`canSelect`, `coinSelection`, `trace`) and `signal`. Every change is saved
 before the method returns: a new plan before it is returned, a delivery before the bytes leave.
 
 Two processes may hold one plan, and both send the same bytes. A write over a revision another
@@ -2268,7 +2271,12 @@ that grows with the square of its pieces. The first entry for an out ref is the 
 reference scripts counts and the one read. Where a transaction is read with the UTxOs given
 (`fromCbor`, `finalize`, `requiredSigners`), an entry for an out ref it does not name is passed
 over, only its out ref read: 235 such UTxOs that each hold a native script of 15 643 bytes are
-passed over in a few milliseconds, where reading them took 6 s.
+passed over in a few milliseconds, where reading them took 6 s. So it is where a transaction is
+built or planned: `build` reads an entry of `knownUtxos`, and an output of the provider's answer
+for a transaction, only for an out ref its parts name, and a plan the entries its steps name
+(`plan`, `plan.add`, `replan`); an entry for an out ref the build then selects from the payer
+reaches every evaluator as the payer lists it. 235 such UTxOs beside a build or a plan cost
+milliseconds, where reading them took 6 to 8 s, and a plan's record of 7.6 MB.
 
 **A payer's UTxOs.** The UTxOs of a payer (a snapshot's `utxos`, a wallet's `getUtxos` and
 `getCollateral`, the provider's answer for the payer's address) are taken by the same rule: two
@@ -2343,7 +2351,7 @@ for no time, where on a known network it keeps them until the epoch ends.
 | `coinSelection`               | a `SelectInputs` function that replaces the built-in selection of this build (each token from its largest holders, then lovelace), called `(need, candidates, context)`: `need` is an `Assets` (`lovelace` always there, a token only when short), the candidates are `Utxo`s; it returns out refs (the candidates themselves will do), and every one must name a candidate (`INVALID_SELECTION`); an entry without a string `txHash` and a number `outputIndex`, a Mesh `UTxO` among them, is `INVALID_OPTION`; the change stays with the built-in rule |
 | `sendAllTo`                   | spend every selectable UTxO and send what is left to this address                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `after`                       | `BuiltTxData` or `TxPlan` (its steps that are in a block and not final, or may still land), or a list: transactions not yet seen by the provider. Each is read from its own bytes (`tx`), up to the `maxTxSize` of the builder's `params`, else 65 536 bytes: what it spends and the outputs it makes are those of the bytes, never those an object states, and of the object only its change marks are taken. Their inputs are not selected, their change at this build's change address is, their outputs can be named by out ref without a lookup     |
-| `knownUtxos`                  | outputs the parts may name by out ref that the provider may not know yet, in any form of `UtxoInput`, handed to every evaluator; listing one makes it neither selectable nor unselectable (a payer UTxO listed here may still be selected). A plan checks them at `builder.plan()`, and records them as `Utxo`s                                                                                                                                                                                                                                          |
+| `knownUtxos`                  | outputs the parts may name by out ref that the provider may not know yet, in any form of `UtxoInput`, only the entries for the out refs the parts name read, each other passed over with its out ref alone read; handed to every evaluator; listing one makes it neither selectable nor unselectable (a payer UTxO listed here may still be selected, and reaches the evaluator as the payer lists it). A plan reads the entries its steps name at `builder.plan()`, and records those as `Utxo`s                                                        |
 | `fee`                         | goes into the body as given; `FEE_TOO_LOW { fee, minFee }` when the final transaction's minimum fee is higher; `FEE_ABOVE_MINIMUM` warns when it is above                                                                                                                                                                                                                                                                                                                                                                                                |
 | `registeredPools`             | operator key hashes of pools already registered                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `extraKeyWitnesses`           | key witnesses expected beyond those the parts call for                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |

@@ -243,16 +243,23 @@ const fetchMissing = async (
           },
         );
       return {
+        txHash,
         notFound,
         answer: await fetchTxAnswer(provider, txHash, notFound),
       };
     }),
   );
   // Every answer is placed by its out refs before any is read whole, and read one after another:
-  // the first refusal stops the reads
-  const placed = answers.map(({ notFound, answer }) => ({
+  // the first refusal stops the reads. Of an answer only the outputs the parts name are read
+  const placed = answers.map(({ txHash, notFound, answer }) => ({
     notFound,
-    placed: placeTxAnswer(answer, notFound),
+    placed: placeTxAnswer(
+      answer,
+      notFound,
+      new Set(
+        missing.get(txHash)!.map((input) => outRefString(input).toLowerCase()),
+      ),
+    ),
   }));
   ctx.onPlaced?.(placed.map((each) => each.placed));
   for (const each of placed)
