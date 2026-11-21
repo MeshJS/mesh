@@ -38,6 +38,7 @@ import {
 } from "@meshsdk/core-cst";
 
 import {
+  assembleTxPrototype,
   Assets,
   BuildEvent,
   BuildOptions,
@@ -4529,6 +4530,20 @@ describe("TxBuilder: a prototype", () => {
     expect("finalize" in builder).toBe(false);
     // @ts-expect-error: TxBuilder has no finalize
     expect(builder.finalize).toBeUndefined();
+  });
+
+  it("serializes inside: serialize is no public member of it", () => {
+    const builder = new TxBuilder({ network, params });
+    const { prototype } = assembleTxPrototype(
+      [
+        spend.pubKey({ utxo: utxo(lovelace(ada(10))) }),
+        output({ address: recipient, value: { lovelace: ada(9) } }),
+      ],
+      { fee: ada(1) },
+    );
+    // @ts-expect-error: serialize is not public
+    const tx: unknown = builder.serialize(prototype);
+    expect(tx).toBe(transactionPrototypeToHex(prototype));
   });
 });
 

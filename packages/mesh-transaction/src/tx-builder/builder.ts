@@ -1720,7 +1720,7 @@ export class TxBuilder {
    * @throws TxBuildError UNSUPPORTED_SERIALIZER when the serializer throws, with its error as
    *   `cause`, or answers with something that is not CBOR in hex
    */
-  serialize(prototype: TransactionPrototype): string {
+  private serialize(prototype: TransactionPrototype): string {
     if (!this.serializer) return transactionPrototypeToHex(prototype);
     let tx: unknown;
     try {

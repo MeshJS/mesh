@@ -93,12 +93,11 @@ Its options are listed in [Builder options](#builder-options). The builder also 
 network, parameters and cost models it builds on, as data: `new TxBuilder({ ...snapshot })` builds
 on them without reading; it throws `MISSING_PARAMETER` when there are no cost models),
 `slotAt(time)` and `timeAt(slot)` on its slot clock, `scriptAddress(script, stake?)` and
-`rewardAddress(credential)` on its network, `serialize(prototype)`, `restore(json)`,
-`fromCbor(txCbor, { knownUtxos? })`, `readPayer(payer)`, and its options as read-only fields
-(`builder.params` and `builder.costModels` are what was given, never what was read). `build()`
-returns a `BuiltTx`, `fromCbor(txCbor)` makes one of a transaction that exists only as CBOR, and
-`restore(json)` brings one back from its JSON; see
-[The path without a lifecycle](#the-path-without-a-lifecycle).
+`rewardAddress(credential)` on its network, `restore(json)`, `fromCbor(txCbor, { knownUtxos? })`,
+`readPayer(payer)`, and its options as read-only fields (`builder.params` and `builder.costModels`
+are what was given, never what was read). `build()` returns a `BuiltTx`, `fromCbor(txCbor)` makes
+one of a transaction that exists only as CBOR, and `restore(json)` brings one back from its JSON;
+see [The path without a lifecycle](#the-path-without-a-lifecycle).
 
 ### Accumulated parts
 
@@ -2362,8 +2361,9 @@ what it reads as, and `selectedInputs`, `change` and `parts` are empty; see
 [A transaction built elsewhere](#a-transaction-built-elsewhere).
 
 `outputOf(built, label)` is the output made by the output part with that label, as a `BuiltOutput`:
-a `Utxo` with `label` and `change` (`UNKNOWN_LABEL { label, labels }` when none has it).
-`builder.serialize(prototype)` serializes a prototype as the build does.
+a `Utxo` with `label` and `change` (`UNKNOWN_LABEL { label, labels }` when none has it). A
+prototype is turned into CBOR by the serializer, as the build does: `serializeTxPrototype` of the
+builder's `serializer`, else of the serializer of `@meshsdk/core-cst`.
 
 ## Builder options
 

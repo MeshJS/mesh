@@ -17,6 +17,7 @@ import {
 } from "@meshsdk/core";
 import {
   Address,
+  CardanoSDKSerializer,
   Crypto,
   HexBlob,
   keyHashToRewardAddress,
@@ -509,7 +510,9 @@ describe("TxBuilder.fromCbor: the object", () => {
     expect(made.txHash).toBe(given.txHash);
     expect(made.fee).toBe(170_000n);
     // The prototype serialized again is another encoding, with another hash
-    const again = b.serialize(made.prototype);
+    const again = new CardanoSDKSerializer().serializeTxPrototype(
+      made.prototype,
+    );
     expect(cbor.topItems(again)[0]).not.toBe(given.body);
     expect(Transaction.fromCbor(TxCBOR(again)).getId()).not.toBe(made.txHash);
   });
