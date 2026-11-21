@@ -90,7 +90,7 @@ const isUtxoShape = (value: unknown) =>
   typeof value.outputIndex === "number" &&
   isObject(value.value);
 
-const KNOWN_UTXOS_ALLOWED =
+export const KNOWN_UTXOS_ALLOWED =
   "a list of UTxOs: Utxo { txHash, outputIndex, address, value }, Mesh UTxO { input, output }, or the CBOR of a transaction unspent output";
 
 /** What `details.allowed` says of two entries of `knownUtxos` that name one output and differ */

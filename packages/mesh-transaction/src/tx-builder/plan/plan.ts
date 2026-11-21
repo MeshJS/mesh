@@ -3,7 +3,6 @@ import { Crypto } from "@meshsdk/core-cst";
 
 import type { BuildEvent, BuiltTxData, TxBuilder } from "../builder";
 import type { TxPlanErrorCode, TxPlanErrorDetails } from "../errors";
-import type { Utxo } from "../parts/types";
 import type { Payer, PayerRead } from "../payer";
 import type { KeyWitness, Signer } from "../sign";
 import type { RequiredKey } from "../witnesses";
@@ -51,6 +50,7 @@ import {
 } from "../abort";
 import { afterBound, checkAfterSize, readAfter } from "../builder";
 import { BuiltTx, makeBuiltTx } from "../built-tx";
+import { toKnownUtxos } from "../chain";
 import { NOT_UNPAID, TxBuildError, TxPlanError } from "../errors";
 import {
   invalidOption,
@@ -60,7 +60,6 @@ import {
 } from "../options";
 import { TxPartError } from "../parts/errors";
 import { isLinkedPart } from "../parts/unresolved";
-import { utxoKey } from "../parts/utxo";
 import { toPayerSource } from "../payer";
 import {
   countedWitnesses,
@@ -113,6 +112,7 @@ import {
   givenSteps,
   invalidAddedSteps,
   makePlan,
+  namedBy,
   orderOf,
   payerOfAdded,
   readAddedSteps,
@@ -958,8 +958,8 @@ export class TxPlan {
    *
    * - A step is paid by its own payer (`{ parts, payer }`), else by the plan's payer, as it was
    *   given to `builder.plan` or `builder.resume`. The data options the plan records apply,
-   *   unless the step has its own (of `knownUtxos`, the entries for the out refs its steps
-   *   named); `canSelect` and `coinSelection` are given in the step.
+   *   unless the step has its own; `knownUtxos` as the plan was given them, an entry read when
+   *   a step names it; `canSelect` and `coinSelection` are given in the step.
    * - A step may be a transaction built before, a `BuiltTx` or its CBOR hex, as in
    *   `builder.plan`: the UTxOs it names come from the plan's steps, its recorded `knownUtxos`
    *   or the provider. The same transaction under its name again is the same step.
@@ -4019,17 +4019,32 @@ const sameRecord = (a: PlanRecord, b: PlanRecord) =>
   );
 
 /**
- * What makes two records of one id the same plan: its network, deadlines, options and the steps
- * it was made with; steps added later are not of it unless `added` says so, nor ever the
- * consolidation steps the plan put in, which depend on the wallet as it was read, nor the steps
- * it took of the plan it was made in place of, which depend on what a look found
+ * The data options of a record or an order as two records of one id are compared on: of
+ * `knownUtxos`, the entries for the out refs `named`, read, none of them the same as the option
+ * left out
+ * @throws TxBuildError INVALID_OPTION as `toKnownUtxos`
+ */
+const comparedOptions = (
+  options: Readonly<Record<string, unknown>>,
+  named: ReadonlySet<string>,
+): unknown => {
+  const { knownUtxos, ...rest } = options;
+  const read =
+    knownUtxos === undefined ? [] : toKnownUtxos(knownUtxos, { named });
+  return encodeValue(read.length === 0 ? rest : { ...rest, knownUtxos: read });
+};
+
+/**
+ * What makes two records of one id the same plan, its options apart: its network, deadlines and
+ * the steps it was made with; steps added later are not of it unless `added` says so, nor ever
+ * the consolidation steps the plan put in, which depend on the wallet as it was read, nor the
+ * steps it took of the plan it was made in place of, which depend on what a look found
  */
 const shapeOf = (record: PlanRecord, added = false) => {
   const json = encodePlan(record);
   return {
     network: json.network,
     deadlines: json.deadlines,
-    options: json.options,
     steps: json.steps
       .filter(
         (step) =>
@@ -4051,7 +4066,6 @@ const shapeOf = (record: PlanRecord, added = false) => {
 const shapeOfOrder = (order: PlanOrder) => ({
   network: encodeValue(order.network),
   deadlines: order.deadlines,
-  options: encodeValue(order.options),
   steps: order.steps.map((step) =>
     "given" in step
       ? { name: step.name, given: encodeGiven(step.given) }
@@ -4060,8 +4074,9 @@ const shapeOfOrder = (order: PlanOrder) => ({
 });
 
 /**
- * Whether a record and a record, or an order not built, are the same plan. Of the deadlines of
- * an order only those it gives explicitly are compared: the builder's defaults may change
+ * Whether a record and a record, or an order not built, are the same plan, their options apart.
+ * Of the deadlines of an order only those it gives explicitly are compared: the builder's
+ * defaults may change
  * @param added Whether the steps added to `a` count among its steps
  */
 const sameOrder = (a: PlanRecord, b: PlanRecord | PlanOrder, added = false) => {
@@ -4086,10 +4101,22 @@ const sameOrder = (a: PlanRecord, b: PlanRecord | PlanOrder, added = false) => {
 
 /**
  * Whether a recorded plan is the plan of these steps and options: the steps given are those it
- * was made with, or all the steps it has, in order; its consolidation steps are left out of both
+ * was made with, or all the steps it has, in order, its consolidation steps left out of both;
+ * the options the same, of `knownUtxos` the entries for the out refs the transactions of the
+ * steps it was made with name (`comparedOptions`): an entry for another may change or go
+ * @throws TxBuildError INVALID_OPTION as `toKnownUtxos`, for an entry of either for those out
+ *   refs that is not a UTxO this library reads, or two that differ
  */
-const isOrderOf = (recorded: PlanRecord, given: PlanRecord | PlanOrder) =>
-  sameOrder(recorded, given) || sameOrder(recorded, given, true);
+const isOrderOf = (recorded: PlanRecord, given: PlanRecord | PlanOrder) => {
+  const named = namedBy(recorded.steps.filter((step) => step.added !== true));
+  return (
+    sameJson(
+      comparedOptions(recorded.options, named),
+      comparedOptions(given.options, named),
+    ) &&
+    (sameOrder(recorded, given) || sameOrder(recorded, given, true))
+  );
+};
 
 /**
  * The message of PLAN_EXISTS: the id names another plan, what was done, and where the recorded
@@ -4334,11 +4361,7 @@ export const planFor = async (
     const stored = await loadRecord(store, id);
     if (stored !== undefined) {
       checkRecordNetwork(builder, stored);
-      // Of knownUtxos, the entries for the out refs the record holds: those its steps name
-      const named = new Set(
-        ((stored.options.knownUtxos ?? []) as readonly Utxo[]).map(utxoKey),
-      );
-      if (!isOrderOf(stored, await orderOf(builder, steps, given, named)))
+      if (!isOrderOf(stored, await orderOf(builder, steps, given)))
         throw planError(
           "PLAN_EXISTS",
           planExists(id, "nothing was built or written"),

@@ -1116,6 +1116,32 @@ const exUnits = (value: unknown, path: string) => {
 export const utxos = (value: unknown, path: string) =>
   list(value, path).map((item, i) => utxoValue(item, `${path}[${i}]`));
 
+/**
+ * An entry of a plan's `knownUtxos` as the record holds it, as it was given and not read: its
+ * text, or its object with the members a UTxO is read from (`utxoMembers`); of a `Utxo`, its
+ * quantities back as `bigint`s
+ */
+export const givenUtxoValue = (value: unknown, path: string): unknown => {
+  if (typeof value === "string") return value;
+  const json = object(value, path);
+  if ("input" in json || "output" in json || !isPlainObject(json.value))
+    return json;
+  return {
+    ...json,
+    value: Object.fromEntries(
+      Object.entries(json.value).map(([unit, quantity]) => [
+        unit,
+        typeof quantity === "string" && DECIMAL.test(quantity)
+          ? BigInt(quantity)
+          : quantity,
+      ]),
+    ),
+  };
+};
+
+const givenUtxos = (value: unknown, path: string) =>
+  list(value, path).map((item, i) => givenUtxoValue(item, `${path}[${i}]`));
+
 const builtOutputs = (value: unknown, path: string) =>
   list(value, path).map((item, i) => builtOutputValue(item, `${path}[${i}]`));
 
@@ -1757,7 +1783,7 @@ const consolidation = (
 const PLAN_OPTIONS: Readonly<
   Record<string, (value: unknown, path: string) => unknown>
 > = {
-  knownUtxos: utxos,
+  knownUtxos: givenUtxos,
   registeredPools: texts,
   extraKeyWitnesses: count,
   topUpCollateral: flag,

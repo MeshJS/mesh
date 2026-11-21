@@ -230,7 +230,7 @@ describe("A recorded id given to builder.plan", () => {
     expect(other.store.saves()).toEqual([]);
   });
 
-  it("compares of knownUtxos the entries for the out refs the recorded steps name: an entry for another may change or go", async () => {
+  it("compares of knownUtxos the entries for the out refs the recorded steps name: an entry for another may change or go, and none is the option left out", async () => {
     const { builder, wallet, instance, funded } = await storeSetup();
     const [, named] = funded as [UTxO, UTxO];
     const steps = () => [
@@ -288,6 +288,35 @@ describe("A recorded id given to builder.plan", () => {
       );
       expect(other.store.saves()).toEqual([]);
     }
+    // A record whose steps name none of its knownUtxos: the option left out is the same as []
+    await builder.plan(steps(), {
+      id: "order-2",
+      payer: wallet,
+      knownUtxos: [elsewhere("5000000")],
+    });
+    for (const options of [
+      {},
+      { knownUtxos: [] },
+      { knownUtxos: [elsewhere("6000000")] },
+    ]) {
+      const other = instance();
+      await other.builder.plan(steps(), {
+        id: "order-2",
+        payer: wallet,
+        ...options,
+      });
+      expect(other.store.saves()).toEqual([]);
+    }
+    expectCode(
+      await caught(
+        instance().builder.plan(steps(), {
+          id: "order-2",
+          payer: wallet,
+          knownUtxos: [named],
+        }),
+      ),
+      "PLAN_EXISTS",
+    );
   });
 
   it("takes the same knownUtxos in any form the builder takes as the same option", async () => {

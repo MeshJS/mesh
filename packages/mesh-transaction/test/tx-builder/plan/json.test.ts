@@ -1067,8 +1067,45 @@ describe("readPlan", () => {
       expectUnread(() => readPlan(changed(change)), message);
   });
 
+  it("reads the knownUtxos of a record as given: a text, an object, a Utxo's quantities as bigints", () => {
+    const mesh = {
+      input: { txHash: hash(1), outputIndex: 0 },
+      output: {
+        address: wallet,
+        amount: [{ unit: "lovelace", quantity: "5000000" }],
+      },
+    };
+    const own = utxoAt(1, wallet, { value: { lovelace: 7n, [unit]: 2n } });
+    const text = "8282" + "5820" + hash(2) + "00a2005839" + "00".repeat(57);
+    const read = readPlan(
+      changed(
+        (json) =>
+          (json.options.knownUtxos = [mesh, own, text].map((entry) =>
+            JSON.parse(
+              JSON.stringify(entry, (_, v) =>
+                typeof v === "bigint" ? `${v}` : v,
+              ),
+            ),
+          )),
+      ),
+    );
+    expect(read.options.knownUtxos).toEqual([mesh, own, text]);
+    for (const [entry, shown] of [
+      [5, "5"],
+      [null, "null"],
+      [["a"], "a list"],
+    ] as const)
+      expectUnread(
+        () =>
+          readPlan(
+            changed((json) => (json.options.knownUtxos = [text, entry])),
+          ),
+        new RegExp(`options\\.knownUtxos\\[1\\] is ${shown}, not an object`),
+      );
+  });
+
   it("refuses a UTxO of another shape wherever the record holds one", () => {
-    // A UTxO in the Mesh form, which a record does not hold
+    // A UTxO in the Mesh form, which a record holds only among the knownUtxos given
     const mesh = {
       input: { txHash: hash(1), outputIndex: 0 },
       output: {
@@ -1078,10 +1115,6 @@ describe("readPlan", () => {
     };
     const built = "steps\\[0\\]\\.tx\\.built";
     const cases: [(json: any) => void, RegExp][] = [
-      [
-        (json) => (json.options.knownUtxos = [mesh]),
-        /options\.knownUtxos\[0\]\.input, a member this library does not know/,
-      ],
       [
         (json) => (json.steps[0].tx.built.inputs[0] = mesh),
         new RegExp(`${built}\\.inputs\\[0\\]\\.input, a member`),

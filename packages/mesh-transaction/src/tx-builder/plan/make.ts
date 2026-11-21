@@ -46,7 +46,7 @@ import {
   readAfter,
 } from "../builder";
 import { BuiltTx, isBuiltHere } from "../built-tx";
-import { toKnownUtxos } from "../chain";
+import { KNOWN_UTXOS_ALLOWED, toKnownUtxos } from "../chain";
 import { NOT_UNPAID, TxBuildError, TxError, TxPlanError } from "../errors";
 import { checkNetworks } from "../network";
 import { invalidOption, typeOf } from "../options";
@@ -59,7 +59,7 @@ import {
 import { fail, freeze, withKnownHash } from "../parts/normalize";
 import { validity } from "../parts/scalars";
 import { isLinkedPart } from "../parts/unresolved";
-import { plainUtxo, utxoKey } from "../parts/utxo";
+import { plainUtxo, utxoKey, utxoMembers } from "../parts/utxo";
 import { changeAddressOf, givenPayerEntries, toPayerSource } from "../payer";
 import { readTransactionItems } from "../sign";
 import { scanTransaction } from "../tx-scan";
@@ -80,7 +80,13 @@ import {
   standsOnOf,
 } from "./core";
 import { effectiveDeadlines, horizonSlot } from "./deadlines";
-import { decodeTx, unquoted, UnreadContent } from "./json";
+import {
+  decodeTx,
+  encodeValue,
+  givenUtxoValue,
+  unquoted,
+  UnreadContent,
+} from "./json";
 import { chainObserver } from "./observer";
 import { rootGuards } from "./replace";
 
@@ -980,26 +986,56 @@ export const namedBy = (
     ),
   );
 
+/** No out ref: `toKnownUtxos` given it reads of each entry its out ref alone */
+const NO_OUT_REFS: ReadonlySet<string> = new Set();
+
+/**
+ * The entries of `knownUtxos` as a plan's record keeps them: every one, as it was given and not
+ * read past its out ref, a copy as the record's JSON gives it back (`givenUtxoValue`). An entry
+ * is read when a step names it, whenever the step is built
+ * @throws TxBuildError INVALID_OPTION as `toKnownUtxos` for what is not a list, and an entry
+ *   whose out ref cannot be read; for an object holding what is no JSON data where a UTxO is
+ *   read from
+ */
+const recordedKnownUtxos = (knownUtxos: unknown): unknown[] => {
+  toKnownUtxos(knownUtxos, { named: NO_OUT_REFS });
+  return (knownUtxos as readonly unknown[]).map((entry, i) => {
+    try {
+      return givenUtxoValue(encodeValue(utxoMembers(entry)), "");
+    } catch (error) {
+      if (!(error instanceof TypeError)) throw error;
+      throw new TxBuildError(
+        "INVALID_OPTION",
+        `invalid knownUtxos: entry ${i} is not a UTxO: a member it is read from holds what is not data, which a plan's record cannot hold`,
+        {
+          details: {
+            option: "knownUtxos",
+            value: typeOf(entry),
+            allowed: KNOWN_UTXOS_ALLOWED,
+          },
+        },
+      );
+    }
+  });
+};
+
 /**
  * The data options of a plan, with its payer's change address, for its record. Of `knownUtxos`
- * only the entries for the out refs `named` are read and kept
+ * every entry, unread (`recordedKnownUtxos`)
  */
 const planOptionsOf = (
   options: MakePlanOptions,
   changeAddress: string | undefined,
-  named: ReadonlySet<string>,
 ): Record<string, unknown> => {
   const out: Record<string, unknown> =
     changeAddress === undefined ? {} : { changeAddress };
   for (const key of PLAN_DATA_OPTIONS) {
     const value = options[key];
     if (value === undefined) continue;
-    // UTxOs in the builder's form, whatever form they were given in; `consolidate` checked
+    // `consolidate` checked
     out[key] =
       key === "knownUtxos"
-        ? toKnownUtxos(value as NonNullable<MakePlanOptions["knownUtxos"]>, {
-            named,
-          })
+        ? recordedKnownUtxos(value)
         : key === "consolidate"
           ? consolidateOf(value)
           : value;
@@ -1204,8 +1240,6 @@ export const givenParts = (
 /**
  * The order these steps and options give, without building: what `makePlan` would record of
  * them. A wallet is asked for its change address alone, and no UTxO is read
- * @param named The out refs whose entries of `knownUtxos` the order holds: those a record of the
- *   same steps holds
  * @throws TxBuildError INVALID_OPTION (`steps`) as `makePlan`; MISSING_PAYER; INVALID_OPTION for
  *   a payer of no known form; NETWORK_MISMATCH for a payer given with another network's
  *   address; WALLET_FAILED
@@ -1213,8 +1247,7 @@ export const givenParts = (
 export const orderOf = async (
   builder: TxBuilder,
   steps: StepParts | PlanSteps,
-  options: MakePlanOptions,
-  named: ReadonlySet<string>,
+  options: MakePlanOptions = {},
 ): Promise<PlanOrder> => {
   const given = readSteps(builder, steps, options);
   const addressOf = addressBook(builder);
@@ -1246,7 +1279,6 @@ export const orderOf = async (
     options: planOptionsOf(
       options,
       options.payer === undefined ? undefined : await addressOf(options.payer),
-      named,
     ),
     steps: out,
   };
@@ -1785,11 +1817,7 @@ export const buildReplan = async (
       before: context.keep(steps),
       network: recordNetwork(builder),
       deadlines,
-      options: planOptionsOf(
-        merged,
-        planAddress,
-        namedBy([...context.taken, ...steps]),
-      ),
+      options: planOptionsOf(merged, planAddress),
     }),
     { type: "steps", steps: [...taken, ...steps.map(newStepOf)] },
   );
@@ -1893,7 +1921,7 @@ export const makePlan = async (
     (options.payer === undefined
       ? undefined
       : await abortable(addressBook(builder)(options.payer), signal, CALL));
-  const planOptions = planOptionsOf(options, planAddress, namedBy(made));
+  const planOptions = planOptionsOf(options, planAddress);
   const first = advancePlan(
     emptyPlan({
       ...(id !== undefined && { id }),
