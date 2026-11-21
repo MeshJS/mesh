@@ -14,7 +14,13 @@ import {
 import type { OutputPart, Utxo, UtxoInput } from "./parts/types";
 import { invalidArgument, TxBuildError } from "./errors";
 import { errorText, isObject, isWholeNumber } from "./parts/normalize";
-import { readUtxo, scriptSize, utxoKey } from "./parts/utxo";
+import {
+  placeUtxos,
+  readPlaced,
+  scriptSize,
+  utxoKey,
+  UtxoTwiceError,
+} from "./parts/utxo";
 import { placeholderWitnesses } from "./witnesses";
 
 /** A non-negative rational number */
@@ -288,11 +294,12 @@ export const prototypeExUnits = (
  * @param context.params The protocol parameters
  * @param context.vkeyWitnesses How many key witnesses the signed transaction carries
  * @param context.inputs UTxOs of the body's inputs and reference inputs, for their reference
- *   scripts, in any form the builder takes a UTxO in
+ *   scripts, in any form the builder takes a UTxO in; two entries for one out ref must hold the
+ *   same, and the same UTxO given again is one
  * @throws TxBuildError INVALID_OPTION for a prototype without `body` and `witness_set`, a
- *   `vkeyWitnesses` that is not a whole number of 0 or more, `inputs` that is not a list or holds
- *   an entry that is not a UTxO, and `params` lacking a field the fee is worked out from, or
- *   holding one that is not a number
+ *   `vkeyWitnesses` that is not a whole number of 0 or more, `inputs` that is not a list, holds
+ *   an entry that is not a UTxO or two that name one output and differ, the out ref named, and
+ *   `params` lacking a field the fee is worked out from, or holding one that is not a number
  */
 export const minFee = (
   prototype: TransactionPrototype,
@@ -328,24 +335,41 @@ export const minFee = (
     );
   if (!Array.isArray(inputs))
     throw invalidArgument("inputs", inputs, "a list of UTxOs");
-  const utxos = (inputs as unknown[]).map((entry, i) => {
-    try {
-      return readUtxo(entry);
-    } catch (error) {
-      throw new TxBuildError(
-        "INVALID_OPTION",
-        `invalid inputs: entry ${i} is not a UTxO: ${errorText(error)}`,
-        {
-          details: {
-            option: "inputs",
-            value: entry === null ? "null" : typeof entry,
-            allowed: "a UTxO",
-          },
-          cause: error,
+  const refused = (error: unknown, i: number, entry: unknown): never => {
+    throw new TxBuildError(
+      "INVALID_OPTION",
+      `invalid inputs: entry ${i} is not a UTxO: ${errorText(error)}`,
+      {
+        details: {
+          option: "inputs",
+          value: entry === null ? "null" : typeof entry,
+          allowed: "a UTxO",
         },
-      );
-    }
-  });
+        cause: error,
+      },
+    );
+  };
+  // Each out ref once: two entries for it must hold the same, and the first is the one priced
+  let utxos: Utxo[];
+  try {
+    utxos = Array.from(
+      readPlaced(placeUtxos(inputs as unknown[], refused), refused).values(),
+    );
+  } catch (error) {
+    if (!(error instanceof UtxoTwiceError)) throw error;
+    throw new TxBuildError(
+      "INVALID_OPTION",
+      `invalid inputs: ${error.message}`,
+      {
+        details: {
+          option: "inputs",
+          value: "object",
+          allowed:
+            "a list of UTxOs in which the entries that name one output are alike",
+        },
+      },
+    );
+  }
   const { vkeyWitnesses: vkeys } = placeholderWitnesses(
     { keyHashes: new Set(), byronAddresses: new Set() },
     vkeyWitnesses,

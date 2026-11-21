@@ -2284,8 +2284,8 @@ provider, `PROVIDER_FAILED` for the payer's UTxOs and `UTXO_NOT_FOUND` for an ou
 The reason is the `cause`.
 
 **Given for out refs.** Where UTxOs are given for the out refs a transaction names (`knownUtxos`,
-the provider's answer for a transaction, the `inputs` of `finalize`, the `spent` of
-`requiredSigners`), each entry is placed by its out ref before any is read whole. Two entries for
+the provider's answer for a transaction, the `inputs` of `finalize` and of `minFee`, the `spent`
+of `requiredSigners`), each entry is placed by its out ref before any is read whole. Two entries for
 one out ref must hold the same: the same UTxO in any form is one, and two that differ are refused,
 the out ref named (`INVALID_OPTION`, from the provider `UTXO_NOT_FOUND`), before the other entries
 are read. One UTxO given twice in CBOR is given in the same bytes (in the Mesh or the builder's

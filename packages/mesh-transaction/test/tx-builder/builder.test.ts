@@ -4510,6 +4510,41 @@ describe("minFee", () => {
     );
   });
 
+  it("takes one UTxO given again for its out ref, in any form, as one, and refuses two that differ, in either order", async () => {
+    const holder = utxo(lovelace(ada(20)), { script: plutusRef });
+    const { script: _script, ...bare } = holder;
+    const built = await new TxBuilder({ network, params }).build(
+      [
+        referenceInput({ utxo: holder }),
+        output({ address: recipient, value: { lovelace: ada(5) } }),
+      ],
+      { payer: { changeAddress: wallet, utxos: funds() } },
+    );
+    const context = { params, vkeyWitnesses: 1 };
+    const priced = minFee(built.prototype, { ...context, inputs: [holder] });
+    expect(
+      minFee(built.prototype, {
+        ...context,
+        inputs: [holder, asMesh(holder), asCbor(holder), { ...holder }],
+      }),
+    ).toBe(priced);
+    for (const inputs of [
+      [holder, bare],
+      [bare, holder],
+    ]) {
+      let error: unknown;
+      try {
+        minFee(built.prototype, { ...context, inputs });
+      } catch (caught) {
+        error = caught;
+      }
+      expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
+      expect((error as TxBuildError).message).toBe(
+        `invalid inputs: two entries name the output ${holder.txHash}#0 and differ`,
+      );
+    }
+  });
+
   it("prices the execution units of the redeemers", async () => {
     const built = await new TxBuilder({
       network,
