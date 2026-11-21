@@ -1104,98 +1104,81 @@ describe("readPlan", () => {
       );
   });
 
-  it("reads each value of an entry of knownUtxos of the type it was given: the places of a bigint and of a decimal text it would read otherwise are named", () => {
+  it("reads the knownUtxos of a record as the copies of the reader's first stage, as it wrote them: a Utxo in the builder's form as records held it before; a member or a type a copy does not hold is not read", () => {
     const mesh = {
       input: { txHash: hash(1), outputIndex: 0 },
       output: {
         address: wallet,
         amount: [
-          { unit: "lovelace", quantity: 5_000_000n },
-          { unit: "lovelace", quantity: "7" },
+          { unit: "", quantity: "5000000" },
+          { unit, quantity: "7" },
         ],
+        plutusData: "d87980",
+        scriptRef: "8203450102030405",
       },
     };
-    const own = {
-      ...utxoAt(2, wallet, { value: { lovelace: "7", [unit]: 2n } as never }),
-      datum: { type: "hash", hash: 12n },
-    };
-    const lawful = utxoAt(3, wallet, { value: { lovelace: 7n } });
-    const written = [
-      {
-        ...mesh,
-        output: {
-          ...mesh.output,
-          amount: [
-            { unit: "lovelace", quantity: "5000000" },
-            { unit: "lovelace", quantity: "7" },
-          ],
-        },
-        bigints: [["output", "amount", 0, "quantity"]],
-      },
-      {
-        ...own,
-        value: { lovelace: "7", [unit]: "2" },
-        datum: { type: "hash", hash: "12" },
-        bigints: [["datum", "hash"]],
-        texts: [["value", "lovelace"]],
-      },
-      { ...lawful, value: { lovelace: "7" } },
-    ];
-    const json = changed((json) => (json.options.knownUtxos = written));
+    // A Utxo in the builder's form: an inline datum and a script described with its hash
+    const own = utxoAt(2, wallet, {
+      value: { lovelace: 7n, [unit]: 2n },
+      datum: unitInline,
+      script: plutusRef,
+    });
+    const ownJson = {
+      ...own,
+      value: { lovelace: "7", [unit]: "2" },
+    } as Record<string, unknown>;
+    const json = changed((json) => (json.options.knownUtxos = [mesh, ownJson]));
     const read = readPlan(json);
-    expect(read.options.knownUtxos).toStrictEqual([mesh, own, lawful]);
+    expect(read.options.knownUtxos).toStrictEqual([mesh, own]);
     // Written again as it was read
     expect(JSON.parse(JSON.stringify(encodePlan(read)))).toStrictEqual(json);
-    for (const [marks, message] of [
+    const meshAmount = (amount: unknown) => ({
+      ...mesh,
+      output: { ...mesh.output, amount },
+    });
+    for (const [entry, message] of [
+      // The places of types of a record written since are no member of a copy
       [
-        { bigints: [["output", "address"]] },
-        /names a place that holds no decimal text/,
+        { ...ownJson, texts: [["value", "lovelace"]] },
+        /knownUtxos\[0\] holds a member that is not of the copy of a UTxO/,
       ],
       [
-        { bigints: [["output", "nothing"]] },
-        /names a place that holds no decimal text/,
+        { ...mesh, bigints: [["output", "amount", 0, "quantity"]] },
+        /knownUtxos\[0\] holds a member that is not of the copy of a UTxO/,
       ],
       [
-        { texts: [["output", "amount", 1, "quantity"]] },
-        /texts names a place that is no quantity/,
-      ],
-      [{ bigints: [[]] }, /bigints\[0\] is an empty list, not a place/],
-      [{ bigints: "output" }, /bigints is "output", not a list/],
-      [
-        { bigints: [["output", -1]] },
-        /bigints\[0\]\[1\] is -1, not a whole number/,
+        meshAmount([{ unit: "lovelace", quantity: "5", decimals: 6 }]),
+        /knownUtxos\[0\] holds a member that is not of the copy of a UTxO/,
       ],
       [
-        {
-          bigints: [["output", "amount", 0, "quantity"]],
-          texts: [["output", "amount", 0, "quantity"]],
-        },
-        /texts\[0\] names a place named before/,
+        { ...ownJson, label: "change" },
+        /knownUtxos\[0\] holds a member that is not of the copy of a UTxO/,
+      ],
+      [
+        meshAmount([{ unit: "lovelace", quantity: 5 }]),
+        /knownUtxos\[0\] is not a UTxO: .* invalid quantity 5 of lovelace: expected decimal digits/,
+      ],
+      [
+        { ...ownJson, value: { lovelace: "7n" } },
+        /knownUtxos\[0\]\.value\.lovelace is "7n", not a decimal integer/,
+      ],
+      [
+        { ...ownJson, datum: { type: "hash", hash: 12 } },
+        /knownUtxos\[0\] is not a UTxO: .* invalid datum hash/,
+      ],
+      [
+        { ...ownJson, script: { ...plutusRef, version: "V9" } },
+        /knownUtxos\[0\] is not a UTxO: .* unknown Plutus version/,
+      ],
+      [
+        { ...ownJson, input: mesh.input },
+        /knownUtxos\[0\] is not a UTxO: an object with the members of both/,
       ],
     ] as const)
       expectUnread(
-        () =>
-          readPlan(
-            changed(
-              (json) =>
-                (json.options.knownUtxos = [{ ...written[0], ...marks }]),
-            ),
-          ),
+        () => readPlan(changed((json) => (json.options.knownUtxos = [entry]))),
         message,
       );
-    // A quantity of a Utxo's value is a bigint without being named
-    expectUnread(
-      () =>
-        readPlan(
-          changed(
-            (json) =>
-              (json.options.knownUtxos = [
-                { ...written[2], bigints: [["value", "lovelace"]] },
-              ]),
-          ),
-        ),
-      /bigints names a quantity of a Utxo's value, a bigint without it/,
-    );
   });
 
   it("refuses a UTxO of another shape wherever the record holds one", () => {

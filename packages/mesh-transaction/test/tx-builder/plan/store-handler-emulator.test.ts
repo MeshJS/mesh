@@ -349,10 +349,11 @@ describe("A recorded id given to builder.plan", () => {
       knownUtxos: funded,
     });
     const value = { lovelace: 5_000_000n };
+    const thrown = new Error("cannot be read");
     Object.defineProperty(value, "lovelace", {
       enumerable: true,
       get() {
-        throw new Error("cannot be read");
+        throw thrown;
       },
     });
     const throwing = { ...toUtxo(funded[0]!), txHash: "ee".repeat(32), value };
@@ -367,8 +368,9 @@ describe("A recorded id given to builder.plan", () => {
       );
       expectCode(error, "INVALID_OPTION");
       expect(error.message).toContain(
-        `invalid knownUtxos: entry ${knownUtxos.length - 1} is not a UTxO: a member it is read from throws when read`,
+        `invalid knownUtxos: entry ${knownUtxos.length - 1} is not a UTxO: it throws when read`,
       );
+      expect(error.cause).toBe(thrown);
       expect(other.store.saves()).toEqual([]);
     }
   });

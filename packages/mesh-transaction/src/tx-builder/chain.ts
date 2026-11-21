@@ -98,28 +98,29 @@ export const KNOWN_UTXOS_ONCE =
   "a list of UTxOs in which the entries that name one output are alike";
 
 /**
- * The UTxOs of a `knownUtxos` option, checked and copied into the builder's form, each out ref
- * once. A private key may be given there by mistake, whole or inside an entry: a text is never
- * quoted, only its shape is told, and `details.value` names only the JavaScript type of a value
- * that is not a list and of an entry that is refused. The message tells which entry and what is
- * wrong with it, as the UTxO reader tells it; of a text, only once the reader has its out ref,
- * else its shape alone. Entries are placed by their out refs before any is read whole
- * (`placeUtxos`): two that name one output must hold the same
- * @param options.named The out refs taken: an entry for another is passed over, never read whole;
- *   every entry is taken without it
- * @param options.placed Told of the entries placed by their out refs before any is read whole
- * @throws TxBuildError INVALID_OPTION for what is not a list, an entry that is not a UTxO or not
- *   one this library reads, and two entries that name one output and differ
+ * The entries of a `knownUtxos` option in a list of their own: its length and each entry read
+ * once, by index, a hole as undefined. No entry is read
+ * @throws TxBuildError INVALID_OPTION for what is not a list, and for a list whose length or one
+ *   of its entries throws when read (a getter, a Proxy): the entry named, the error as `cause`
  */
-export const toKnownUtxos = (
-  knownUtxos: unknown,
-  options: {
-    named?: ReadonlySet<string>;
-    placed?: (placed: PlacedUtxos) => void;
-  } = {},
-): Utxo[] => {
-  if (knownUtxos === undefined) return [];
-  if (!Array.isArray(knownUtxos))
+export const knownEntries = (knownUtxos: unknown): unknown[] => {
+  const unread = (what: string, error: unknown) =>
+    new TxBuildError("INVALID_OPTION", `invalid knownUtxos: ${what}`, {
+      details: {
+        option: "knownUtxos",
+        value: typeOf(knownUtxos),
+        allowed: KNOWN_UTXOS_ALLOWED,
+      },
+      cause: error,
+    });
+  let listed: boolean;
+  try {
+    listed = Array.isArray(knownUtxos);
+  } catch (error) {
+    // A Proxy revoked
+    throw unread("the list throws when read", error);
+  }
+  if (!listed)
     throw new TxBuildError(
       "INVALID_OPTION",
       `invalid knownUtxos: expected ${KNOWN_UTXOS_ALLOWED}; got ${typeof knownUtxos === "string" ? textShape(knownUtxos) : `a value of type ${typeOf(knownUtxos)}`}`,
@@ -131,55 +132,108 @@ export const toKnownUtxos = (
         },
       },
     );
-  const refused = (error: unknown, i: number, entry: unknown): never => {
-    // The CBOR of a UTxO read as far as its out ref, with a member this library does not
-    // read: the reader's reason, which names the out ref and quotes none of the text
-    if (
-      typeof entry === "string" &&
-      error instanceof UtxoError &&
-      error.kind !== "outRef"
-    )
-      throw new TxBuildError(
-        "INVALID_OPTION",
-        `invalid knownUtxos: entry ${i} is the CBOR of a UTxO this library does not read: ${error.message}`,
-        {
-          details: {
-            option: "knownUtxos",
-            value: "string",
-            allowed: KNOWN_UTXOS_ALLOWED,
-          },
-        },
-      );
-    // A text that is not the CBOR of a UTxO: its shape alone, and no cause that could quote it
-    if (typeof entry === "string")
-      throw new TxBuildError(
-        "INVALID_OPTION",
-        `invalid knownUtxos: entry ${i} is ${textShape(entry)}, not the CBOR of a transaction unspent output`,
-        {
-          details: {
-            option: "knownUtxos",
-            value: "string",
-            allowed: KNOWN_UTXOS_ALLOWED,
-          },
-        },
-      );
+  const given = knownUtxos as readonly unknown[];
+  const entries: unknown[] = [];
+  let at = -1;
+  try {
+    const { length } = given;
+    for (at = 0; at < length; at++) entries.push(given[at]);
+  } catch (error) {
+    throw unread(
+      at < 0 ? "the list throws when read" : `entry ${at} throws when read`,
+      error,
+    );
+  }
+  return entries;
+};
+
+/**
+ * Refuses an entry of `knownUtxos`, the `i`-th, that is not a UTxO this library reads, with the
+ * reader's reason, the error as `cause`. A private key may be given there by mistake, whole or
+ * inside an entry: a text is never quoted, only its shape is told, and `details.value` names only
+ * the JavaScript type of the entry; an error a read of the entry throws (a getter, a Proxy) is not
+ * quoted either
+ * @throws TxBuildError INVALID_OPTION
+ */
+export const knownEntryRefused = (
+  error: unknown,
+  i: number,
+  entry: unknown,
+): never => {
+  // The CBOR of a UTxO read as far as its out ref, with a member this library does not
+  // read: the reader's reason, which names the out ref and quotes none of the text
+  if (
+    typeof entry === "string" &&
+    error instanceof UtxoError &&
+    error.kind !== "outRef"
+  )
     throw new TxBuildError(
       "INVALID_OPTION",
-      `invalid knownUtxos: entry ${i} is not a UTxO: ${errorText(error)}`,
+      `invalid knownUtxos: entry ${i} is the CBOR of a UTxO this library does not read: ${error.message}`,
       {
         details: {
           option: "knownUtxos",
-          value: typeOf(entry),
+          value: "string",
           allowed: KNOWN_UTXOS_ALLOWED,
         },
-        cause: error,
       },
     );
-  };
+  // A text that is not the CBOR of a UTxO: its shape alone, and no cause that could quote it
+  if (typeof entry === "string")
+    throw new TxBuildError(
+      "INVALID_OPTION",
+      `invalid knownUtxos: entry ${i} is ${textShape(entry)}, not the CBOR of a transaction unspent output`,
+      {
+        details: {
+          option: "knownUtxos",
+          value: "string",
+          allowed: KNOWN_UTXOS_ALLOWED,
+        },
+      },
+    );
+  throw new TxBuildError(
+    "INVALID_OPTION",
+    `invalid knownUtxos: entry ${i} is not a UTxO: ${
+      error instanceof UtxoError ? error.message : "it throws when read"
+    }`,
+    {
+      details: {
+        option: "knownUtxos",
+        value: typeOf(entry),
+        allowed: KNOWN_UTXOS_ALLOWED,
+      },
+      cause: error,
+    },
+  );
+};
+
+/**
+ * The UTxOs of a `knownUtxos` option, checked and copied into the builder's form, each out ref
+ * once. The list is read first (`knownEntries`), then each entry; every read of them is inside
+ * the conversion of errors (`knownEntryRefused`). The message tells which entry and what is
+ * wrong with it, as the UTxO reader tells it; of a text, only once the reader has its out ref,
+ * else its shape alone. Entries are placed by their out refs before any is read whole
+ * (`placeUtxos`): two that name one output must hold the same
+ * @param options.named The out refs taken: an entry for another is passed over, never read whole;
+ *   every entry is taken without it
+ * @param options.placed Told of the entries placed by their out refs before any is read whole
+ * @throws TxBuildError INVALID_OPTION for what is not a list, an entry that is not a UTxO or not
+ *   one this library reads, a list or an entry that throws when read, and two entries that name
+ *   one output and differ
+ */
+export const toKnownUtxos = (
+  knownUtxos: unknown,
+  options: {
+    named?: ReadonlySet<string>;
+    placed?: (placed: PlacedUtxos) => void;
+  } = {},
+): Utxo[] => {
+  if (knownUtxos === undefined) return [];
+  const entries = knownEntries(knownUtxos);
   try {
-    const placed = placeUtxos(knownUtxos, refused, options.named);
+    const placed = placeUtxos(entries, knownEntryRefused, options.named);
     options.placed?.(placed);
-    return Array.from(readPlaced(placed, refused).values());
+    return Array.from(readPlaced(placed, knownEntryRefused).values());
   } catch (error) {
     // One output, two views of it: neither can be shown as the truth
     if (!(error instanceof UtxoTwiceError)) throw error;

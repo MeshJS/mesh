@@ -171,6 +171,18 @@ const readAddress = (at: string, text: unknown): string => {
   return addressText(parsed);
 };
 
+const badQuantity = (at: string, unit: unknown, quantity: unknown): never =>
+  problem(
+    "value",
+    `${at}: invalid quantity ${shownValue(quantity)} of ${unitShown(unit)}`,
+  );
+
+const badUnit = (at: string, unit: unknown): never =>
+  problem(
+    "value",
+    `${at}: invalid unit ${shownValue(unit)}: expected lovelace or a policy id and an asset name in hex`,
+  );
+
 /**
  * Quantities by unit in normal form: lovelace first, tokens by unit, zero tokens left out. A
  * quantity, or the sum of a repeated unit, above what an output can hold is refused.
@@ -187,20 +199,14 @@ const normalValue = (
     );
   for (const [unit, quantity] of entries) {
     if (typeof quantity !== "bigint" || quantity < 0n)
-      return problem(
-        "value",
-        `${at}: invalid quantity ${shownValue(quantity)} of ${unitShown(unit)}`,
-      );
+      return badQuantity(at, unit, quantity);
     if (unit === "lovelace") {
       value.coin += quantity;
       if (value.coin > MAX_QUANTITY) return tooLarge(unit);
       continue;
     }
     if (typeof unit !== "string" || !TOKEN_UNIT.test(unit))
-      return problem(
-        "value",
-        `${at}: invalid unit ${shownValue(unit)}: expected lovelace or a policy id and an asset name in hex`,
-      );
+      return badUnit(at, unit);
     const token = unit.toLowerCase();
     const sum = (value.assets.get(token) ?? 0n) + quantity;
     if (sum > MAX_QUANTITY) return tooLarge(token);
@@ -238,23 +244,35 @@ const hashDatum = (at: string, hash: unknown): OutputDatum => {
   return { type: "hash", hash: hash.toLowerCase() };
 };
 
+/** The refusal of a Mesh `dataHash` beside a `plutusData` it is not the hash of */
+const notDataHash = (at: string, dataHash: unknown): never =>
+  problem(
+    "datum",
+    `${at}: its dataHash, ${shownValue(dataHash)}, is not the hash of its plutusData`,
+  );
+
+const notInline = (at: string): never =>
+  problem(
+    "datum",
+    `${at}: an inline datum is { type: "inline", data: { type: "CBOR", content } }`,
+  );
+
+const badDatumType = (at: string, type: unknown): never =>
+  problem(
+    "datum",
+    `${at}: a datum of the type ${shownValue(type)}: expected inline or hash`,
+  );
+
 const readDatum = (at: string, datum: unknown): OutputDatum => {
   if (!isObject(datum))
     return problem("datum", `${at}: invalid datum ${shownValue(datum)}`);
   if (datum.type === "hash") return hashDatum(at, datum.hash);
   if (datum.type === "inline") {
     const { data } = datum;
-    if (!isObject(data) || data.type !== "CBOR")
-      return problem(
-        "datum",
-        `${at}: an inline datum is { type: "inline", data: { type: "CBOR", content } }`,
-      );
+    if (!isObject(data) || data.type !== "CBOR") return notInline(at);
     return inlineDatum(readInlineData(at, "the datum", data.content));
   }
-  return problem(
-    "datum",
-    `${at}: a datum of the type ${shownValue(datum.type)}: expected inline or hash`,
-  );
+  return badDatumType(at, datum.type);
 };
 
 /** Language tags of the CBOR of `[language, script]` */
@@ -639,6 +657,25 @@ const plutusCode = (at: string, code: unknown): string => {
   return normalizePlutusScript(given, "DoubleCBOR");
 };
 
+/** The version of a Plutus script given in the builder's form: V1, V2 or V3 */
+const plutusVersion = (at: string, version: unknown): LanguageVersion => {
+  if (
+    typeof version !== "string" ||
+    !Object.prototype.hasOwnProperty.call(LANGUAGE_TAG, version)
+  )
+    return problem(
+      "script",
+      `${at}: unknown Plutus version ${shownValue(version)}: expected V1, V2 or V3`,
+    );
+  return version as LanguageVersion;
+};
+
+const badScriptType = (at: string, type: unknown): never =>
+  problem(
+    "script",
+    `${at}: a script of the type ${shownValue(type)}: expected plutus, native or unknown`,
+  );
+
 /** A reference script given in the builder's form, read again from its bytes */
 const readScript = (
   at: string,
@@ -657,24 +694,12 @@ const readScript = (
     );
   let scriptRef: string;
   if (script.type === "plutus") {
-    const version = script.version as LanguageVersion;
-    if (
-      typeof version !== "string" ||
-      !Object.prototype.hasOwnProperty.call(LANGUAGE_TAG, version)
-    )
-      return problem(
-        "script",
-        `${at}: unknown Plutus version ${shownValue(script.version)}: expected V1, V2 or V3`,
-      );
+    const version = plutusVersion(at, script.version);
     scriptRef = `82${LANGUAGE_TAG[version]}${plutusCode(at, script.code)}`;
   } else if (script.type === "native") {
     const cbor = readHex("script", at, "the native script", script.cbor);
     scriptRef = `8200${cbor}`;
-  } else
-    return problem(
-      "script",
-      `${at}: a script of the type ${shownValue(script.type)}: expected plutus, native or unknown`,
-    );
+  } else return badScriptType(at, script.type);
   const described = describedOnce(scriptRef, undefined, scripts);
   if (described.type === "unknown")
     return problem("script", `${at}: the ${script.type} script cannot be read`);
@@ -804,25 +829,99 @@ const fromOutput = (
   };
 };
 
+/** The refusal of a quantity of a Mesh `amount` that is not decimal digits */
+const notDigits = (at: string, unit: unknown, quantity: unknown): never =>
+  problem(
+    "value",
+    `${at}: invalid quantity ${shownValue(quantity)} of ${unitShown(unit)}: expected decimal digits`,
+  );
+
 /** A quantity of a Mesh `amount`: decimal digits */
 const meshQuantity = (at: string, unit: unknown, quantity: unknown) => {
   if (typeof quantity !== "string" || !/^\d+$/.test(quantity))
-    return problem(
-      "value",
-      `${at}: invalid quantity ${shownValue(quantity)} of ${unitShown(unit)}: expected decimal digits`,
-    );
+    return notDigits(at, unit, quantity);
   return BigInt(quantity);
 };
 
-const fromMesh = (
-  given: Record<string, unknown>,
-  scripts?: ScriptsRead,
-): Utxo => {
-  const { input, output } = given;
+/*
+ * A UTxO given as an object is read in two stages. The first reads the members its form names,
+ * each once, by property access, getters and prototypes included, checks their types and the
+ * shape of the value or the amount, and gives a copy of the same form that holds only texts,
+ * numbers and `bigint`s (`utxoCopy`). The second reads that copy: the out ref, the address, the
+ * value, the datum and its hash, the script and its hash. Nothing of the second is done in the
+ * first: no CBOR is read and no hash is taken there. A plan keeps the copy, and its steps read it.
+ */
+
+/** A Mesh `UTxO` as the first stage copies it */
+type MeshCopy = {
+  readonly input: { readonly txHash: string; readonly outputIndex: number };
+  readonly output: {
+    readonly address: string;
+    readonly amount: readonly {
+      readonly unit: string;
+      readonly quantity: string;
+    }[];
+    readonly dataHash?: string;
+    readonly plutusData?: string;
+    readonly scriptRef?: string;
+    readonly scriptHash?: string;
+  };
+};
+
+/** A `Utxo` as the first stage copies it */
+type OwnCopy = {
+  readonly txHash: string;
+  readonly outputIndex: number;
+  readonly address: string;
+  readonly value: Readonly<Record<string, bigint>>;
+  readonly datum?:
+    | { readonly type: "hash"; readonly hash: string }
+    | {
+        readonly type: "inline";
+        readonly data: { readonly type: "CBOR"; readonly content: string };
+      };
+  readonly script?:
+    | {
+        readonly type: "unknown";
+        readonly scriptRef: string;
+        readonly hash?: string;
+      }
+    | {
+        readonly type: "plutus";
+        readonly version: LanguageVersion;
+        readonly code: string;
+        readonly hash?: string;
+      }
+    | {
+        readonly type: "native";
+        readonly cbor: string;
+        readonly hash?: string;
+      };
+};
+
+/**
+ * A UTxO given as an object, as the first stage of the reader copies it: of the form it was given
+ * in, holding only texts, numbers and `bigint`s
+ */
+export type UtxoCopy = OwnCopy | MeshCopy;
+
+/**
+ * A member the first stage copies as a text: a text as it is; anything else is refused by
+ * `check`, the second stage's check of that member, which refuses what is no text
+ */
+const textOf = (value: unknown, check: (value: unknown) => unknown) => {
+  if (typeof value !== "string") check(value);
+  return value as string;
+};
+
+/** The first stage of a Mesh `UTxO`: its out ref, address, amount, datum and reference script */
+const meshCopy = (given: Record<string, unknown>): MeshCopy => {
+  const { input } = given;
   if (!isObject(input))
     return problem("outRef", "a Mesh UTxO is an object { input, output }");
-  const ref = readOutRefMembers(input.txHash, input.outputIndex);
-  const at = describe(ref);
+  const { txHash, outputIndex } = input;
+  const at = describe(readOutRefMembers(txHash, outputIndex));
+  const { output } = given;
   if (!isObject(output))
     return problem("value", `${at} has no output { address, amount }`);
   const { address, amount, dataHash, plutusData, scriptRef, scriptHash } =
@@ -830,36 +929,218 @@ const fromMesh = (
   if (!Array.isArray(amount))
     return problem("value", `${at}: the amount is not a list of assets`);
   // Array.from visits the holes of a sparse list, so a hole is refused as any bad asset is
-  const entries = Array.from(amount as unknown[], (asset) => {
+  const assets = Array.from(amount as unknown[], (asset) => {
     if (!isObject(asset))
       return problem(
         "value",
         `${at}: an asset of the amount is not an object { unit, quantity }: ${shownValue(asset)}`,
       );
-    // The empty unit is read as lovelace, as across the repository
-    const unit = asset.unit === "" ? "lovelace" : asset.unit;
-    return [unit, meshQuantity(at, asset.unit, asset.quantity)] as const;
+    const { unit, quantity } = asset;
+    return {
+      unit: unit as string,
+      quantity: textOf(quantity, (q) => notDigits(at, unit, q)),
+    };
   });
+  const set = (value: unknown, check: (value: unknown) => unknown) =>
+    isSet(value) ? textOf(value, check) : undefined;
+  const data = set(plutusData, (d) => readInlineData(at, "its plutusData", d));
+  const hash = set(dataHash, (h) =>
+    data === undefined ? hashDatum(at, h) : notDataHash(at, h),
+  );
+  const stated = set(scriptHash, (h) => readScriptHash(at, h));
+  const ref = set(scriptRef, (r) => readHex("script", at, "its scriptRef", r));
+  const text = textOf(address, (a) => readAddress(at, a));
+  for (const { unit } of assets)
+    if (typeof unit !== "string") badUnit(at, unit);
+  return {
+    input: { txHash: txHash as string, outputIndex: outputIndex as number },
+    output: {
+      address: text,
+      amount: assets,
+      ...(hash !== undefined && { dataHash: hash }),
+      ...(data !== undefined && { plutusData: data }),
+      ...(ref !== undefined && { scriptRef: ref }),
+      ...(stated !== undefined && { scriptHash: stated }),
+    },
+  };
+};
+
+const notPlainValue = (at: string): never =>
+  problem(
+    "value",
+    `${at}: its value is not a plain object of quantities by unit`,
+  );
+
+/**
+ * The first stage of the value of a `Utxo`: a plain object, its members in their order, each a
+ * `bigint` under a unit, lovelace among them
+ */
+const valueCopy = (at: string, value: unknown): Record<string, bigint> => {
+  if (!isObject(value) || Array.isArray(value))
+    return problem(
+      "value",
+      `${at}: its value is not an object of quantities by unit`,
+    );
+  // Its prototype first: an object of a class, a typed array among them, is refused before its
+  // members are listed
+  const proto: unknown = Object.getPrototypeOf(value);
+  if (proto !== null && Object.getPrototypeOf(proto) !== null)
+    return notPlainValue(at);
+  // Each member is read once, for the check and the sum alike. A member the reading would not see
+  // (not enumerable, a symbol) is refused, not dropped
+  const entries: [string, unknown][] = [];
+  for (const unit of Reflect.ownKeys(value)) {
+    if (
+      typeof unit !== "string" ||
+      Object.getOwnPropertyDescriptor(value, unit)?.enumerable !== true
+    )
+      return notPlainValue(at);
+    entries.push([unit, value[unit]]);
+  }
+  const lovelace = entries.find(([unit]) => unit === "lovelace")?.[1];
+  if (typeof lovelace !== "bigint")
+    return problem(
+      "value",
+      `${at}: its value has no lovelace as a bigint: ${shownValue(lovelace)}`,
+    );
+  // A unit is a key of the copy, and of the record of a plan: lovelace, or a policy id and an
+  // asset name in hex, as the second stage takes one
+  for (const [unit, quantity] of entries) {
+    if (typeof quantity !== "bigint") badQuantity(at, unit, quantity);
+    if (unit !== "lovelace" && !TOKEN_UNIT.test(unit)) badUnit(at, unit);
+  }
+  return Object.fromEntries(entries) as Record<string, bigint>;
+};
+
+/** The first stage of the datum of a `Utxo`: its type, and its hash or its data */
+const datumCopy = (at: string, datum: unknown): OwnCopy["datum"] => {
+  if (!isObject(datum))
+    return problem("datum", `${at}: invalid datum ${shownValue(datum)}`);
+  const { type } = datum;
+  if (type === "hash")
+    return { type, hash: textOf(datum.hash, (h) => hashDatum(at, h)) };
+  if (type === "inline") {
+    const { data } = datum;
+    if (!isObject(data) || data.type !== "CBOR") return notInline(at);
+    return {
+      type,
+      data: {
+        type: "CBOR",
+        content: textOf(data.content, (c) =>
+          readInlineData(at, "the datum", c),
+        ),
+      },
+    };
+  }
+  return badDatumType(at, type);
+};
+
+/** The first stage of the script of a `Utxo`: its type, the stated hash, and its bytes */
+const scriptCopy = (at: string, script: unknown): OwnCopy["script"] => {
+  if (!isObject(script))
+    return problem("script", `${at}: invalid script ${shownValue(script)}`);
+  const { hash, type } = script;
+  const stated =
+    hash === undefined
+      ? {}
+      : { hash: textOf(hash, (h) => readScriptHash(at, h)) };
+  if (type === "unknown") {
+    const scriptRef = textOf(script.scriptRef, (r) =>
+      readHex("script", at, "the reference script", r),
+    );
+    return { type, scriptRef, ...stated };
+  }
+  if (type === "plutus") {
+    const version = plutusVersion(at, script.version);
+    const code = textOf(script.code, (c) =>
+      readHex("script", at, "the code of the script", c),
+    );
+    return { type, version, code, ...stated };
+  }
+  if (type === "native") {
+    const cbor = textOf(script.cbor, (c) =>
+      readHex("script", at, "the native script", c),
+    );
+    return { type, cbor, ...stated };
+  }
+  return badScriptType(at, type);
+};
+
+/** The first stage of a `Utxo`: its out ref, address, value, datum and reference script */
+const ownCopy = (given: Record<string, unknown>): OwnCopy => {
+  const { txHash, outputIndex } = given;
+  const at = describe(readOutRefMembers(txHash, outputIndex));
+  const address = textOf(given.address, (a) => readAddress(at, a));
+  const value = valueCopy(at, given.value);
+  const { datum } = given;
+  const read = datum === undefined ? undefined : datumCopy(at, datum);
+  const { script } = given;
+  const described = script === undefined ? undefined : scriptCopy(at, script);
+  return {
+    txHash: txHash as string,
+    outputIndex: outputIndex as number,
+    address,
+    value,
+    ...(read !== undefined && { datum: read }),
+    ...(described !== undefined && { script: described }),
+  };
+};
+
+/**
+ * The first stage of the reader of a UTxO: of an object, the members its form names, each read
+ * once by property access, their types and the shape of its value or amount checked, copied into
+ * an object of the same form that holds only texts, numbers and `bigint`s, a member left
+ * undefined (and of a Mesh output one null or empty) left out; a text, the CBOR of a transaction
+ * unspent output, as it is. No CBOR is read and no hash is taken: the copy is read by `readUtxo`
+ * as the object would be
+ * @throws UtxoError for an object of no form, a member of another type, an out ref that cannot
+ *   be read, a value that is not a plain object of `bigint` quantities with lovelace, and an
+ *   amount that is not a list of objects `{ unit, quantity }`, both texts
+ * @throws what a read of the object throws: a getter, a Proxy
+ */
+export const utxoCopy = (given: unknown): UtxoCopy | string => {
+  switch (formOf(given)) {
+    case "cbor":
+      return given as string;
+    case "mesh":
+      return meshCopy(given as Record<string, unknown>);
+    case "own":
+      return ownCopy(given as Record<string, unknown>);
+  }
+};
+
+/** The second stage of a Mesh `UTxO`, from its copy */
+const fromMesh = (copy: MeshCopy, scripts?: ScriptsRead): Utxo => {
+  const { input, output } = copy;
+  const ref = readOutRefMembers(input.txHash, input.outputIndex);
+  const at = describe(ref);
+  const { address, amount, dataHash, plutusData, scriptRef, scriptHash } =
+    output;
+  const entries = amount.map(
+    // The empty unit is read as lovelace, as across the repository
+    ({ unit, quantity }) =>
+      [
+        unit === "" ? "lovelace" : unit,
+        meshQuantity(at, unit, quantity),
+      ] as const,
+  );
 
   let datum: OutputDatum | undefined;
-  if (isSet(plutusData)) {
+  if (plutusData !== undefined) {
     const content = readInlineData(at, "its plutusData", plutusData);
     // A wrong datum would reach the evaluator, and a script judged on it can cost collateral
     if (
-      isSet(dataHash) &&
-      (typeof dataHash !== "string" ||
-        dataHash.toLowerCase() !== dataHashOf(content))
+      dataHash !== undefined &&
+      dataHash.toLowerCase() !== dataHashOf(content)
     )
-      return problem(
-        "datum",
-        `${at}: its dataHash, ${shownValue(dataHash)}, is not the hash of its plutusData`,
-      );
+      return notDataHash(at, dataHash);
     datum = inlineDatum(content);
-  } else if (isSet(dataHash)) datum = hashDatum(at, dataHash);
+  } else if (dataHash !== undefined) datum = hashDatum(at, dataHash);
 
-  const stated = isSet(scriptHash) ? readScriptHash(at, scriptHash) : undefined;
+  const stated =
+    scriptHash === undefined ? undefined : readScriptHash(at, scriptHash);
   let script: OutputScript | undefined;
-  if (isSet(scriptRef))
+  if (scriptRef !== undefined)
     script = describedOnce(
       readHex("script", at, "its scriptRef", scriptRef),
       stated,
@@ -881,48 +1162,21 @@ const fromMesh = (
   };
 };
 
-const fromOwn = (
-  given: Record<string, unknown>,
-  scripts?: ScriptsRead,
-): Utxo => {
-  const ref = readOutRefMembers(given.txHash, given.outputIndex);
+/** The second stage of a `Utxo`, from its copy */
+const fromOwn = (copy: OwnCopy, scripts?: ScriptsRead): Utxo => {
+  const ref = readOutRefMembers(copy.txHash, copy.outputIndex);
   const at = describe(ref);
-  const address = readAddress(at, given.address);
-  const { value } = given;
-  if (!isObject(value) || Array.isArray(value))
-    return problem(
-      "value",
-      `${at}: its value is not an object of quantities by unit`,
-    );
-  // The members are read once, for the check and the sum alike. A member the reading would not
-  // see (inherited, from a class, not enumerable, a symbol) is refused, not dropped
-  const entries = Object.entries(value);
-  const proto: unknown = Object.getPrototypeOf(value);
-  if (
-    (proto !== null && Object.getPrototypeOf(proto) !== null) ||
-    Reflect.ownKeys(value).length !== entries.length
-  )
-    return problem(
-      "value",
-      `${at}: its value is not a plain object of quantities by unit`,
-    );
-  const lovelace = entries.find(([unit]) => unit === "lovelace")?.[1];
-  if (typeof lovelace !== "bigint")
-    return problem(
-      "value",
-      `${at}: its value has no lovelace as a bigint: ${shownValue(lovelace)}`,
-    );
   return {
     ...ref,
-    address,
-    value: normalValue(at, entries),
+    address: readAddress(at, copy.address),
+    value: normalValue(at, Object.entries(copy.value)),
     ...withDatum(
-      given.datum === undefined ? undefined : readDatum(at, given.datum),
+      copy.datum === undefined ? undefined : readDatum(at, copy.datum),
     ),
     ...withScript(
-      given.script === undefined
+      copy.script === undefined
         ? undefined
-        : readScript(at, given.script, scripts),
+        : readScript(at, copy.script, scripts),
     ),
   };
 };
@@ -963,17 +1217,13 @@ export const readUtxo = (given: unknown): Utxo => readScripted(given);
 
 /**
  * `readUtxo`, with the reference scripts described before by their bytes: one given again is
- * taken from there, not read again
+ * taken from there, not read again. An object is read in its two stages, the second on the copy
+ * the first gives (`utxoCopy`)
  */
 const readScripted = (given: unknown, scripts?: ScriptsRead): Utxo => {
-  switch (formOf(given)) {
-    case "cbor":
-      return fromCbor(given as string, scripts);
-    case "mesh":
-      return fromMesh(given as Record<string, unknown>, scripts);
-    case "own":
-      return fromOwn(given as Record<string, unknown>, scripts);
-  }
+  const copy = utxoCopy(given);
+  if (typeof copy === "string") return fromCbor(copy, scripts);
+  return "input" in copy ? fromMesh(copy, scripts) : fromOwn(copy, scripts);
 };
 
 /**

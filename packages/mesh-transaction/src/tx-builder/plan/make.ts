@@ -46,7 +46,7 @@ import {
   readAfter,
 } from "../builder";
 import { BuiltTx, isBuiltHere } from "../built-tx";
-import { KNOWN_UTXOS_ALLOWED, toKnownUtxos } from "../chain";
+import { knownEntries, knownEntryRefused, toKnownUtxos } from "../chain";
 import { NOT_UNPAID, TxBuildError, TxError, TxPlanError } from "../errors";
 import { checkNetworks } from "../network";
 import { invalidOption, typeOf } from "../options";
@@ -59,7 +59,7 @@ import {
 import { fail, freeze, withKnownHash } from "../parts/normalize";
 import { validity } from "../parts/scalars";
 import { isLinkedPart } from "../parts/unresolved";
-import { plainUtxo, utxoKey } from "../parts/utxo";
+import { plainUtxo, utxoCopy, utxoKey } from "../parts/utxo";
 import { changeAddressOf, givenPayerEntries, toPayerSource } from "../payer";
 import { readTransactionItems } from "../sign";
 import { scanTransaction } from "../tx-scan";
@@ -983,237 +983,29 @@ export const namedBy = (
 /** No out ref: `toKnownUtxos` given it reads of each entry its out ref alone */
 const NO_OUT_REFS: ReadonlySet<string> = new Set();
 
-/** Members nested deeper than this are no UTxO's: a UTxO in any form is a few levels deep */
-const MAX_UTXO_DEPTH = 16;
-
 /**
- * The members a UTxO is read from, of the objects that hold them by name: of an entry its out ref,
- * address, value, datum and script (a `Utxo`), and its input and output (a Mesh `UTxO`); of a Mesh
- * input its out ref; of a Mesh output the address, the amount, the datum and the reference script
- * with their hashes; of an asset of its amount the unit and the quantity. Their other members are
- * not copied. Of every other object, all its members are: the value, datum and script of a `Utxo`
- */
-const MEMBERS_READ = {
-  entry: [
-    "txHash",
-    "outputIndex",
-    "address",
-    "value",
-    "datum",
-    "script",
-    "input",
-    "output",
-  ],
-  input: ["txHash", "outputIndex"],
-  output: [
-    "address",
-    "amount",
-    "dataHash",
-    "plutusData",
-    "scriptRef",
-    "scriptHash",
-  ],
-  asset: ["unit", "quantity"],
-} as const;
-
-/** An object whose members a UTxO is read from by name, or `amount`, the list of assets */
-type Holder = keyof typeof MEMBERS_READ | "amount";
-
-/** The holder a member of a holder is, if any */
-const holderOf = (holder: Holder | undefined, name: string | number) =>
-  holder === "entry" && (name === "input" || name === "output")
-    ? name
-    : holder === "output" && name === "amount"
-      ? "amount"
-      : holder === "amount" && typeof name === "number"
-        ? "asset"
-        : undefined;
-
-/** Built-in objects a refusal names by their kind */
-const BUILT_INS: ReadonlySet<string> = new Set([
-  "Map",
-  "Set",
-  "WeakMap",
-  "WeakSet",
-  "WeakRef",
-  "Date",
-  "RegExp",
-  "Promise",
-  "Error",
-  "ArrayBuffer",
-  "SharedArrayBuffer",
-  "DataView",
-  "Int8Array",
-  "Uint8Array",
-  "Uint8ClampedArray",
-  "Int16Array",
-  "Uint16Array",
-  "Int32Array",
-  "Uint32Array",
-  "Float16Array",
-  "Float32Array",
-  "Float64Array",
-  "BigInt64Array",
-  "BigUint64Array",
-  "Boolean",
-  "Number",
-  "String",
-  "Symbol",
-  "BigInt",
-  "Arguments",
-]);
-
-/** A refusal of the copy of an entry: why it cannot be copied */
-class Uncopied extends Error {}
-
-const uncopied = (why: string) =>
-  new Uncopied(`${why}, which a plan's record cannot hold`);
-
-/**
- * The copy of an entry of `knownUtxos` as a plan's record holds it: of each object its own
- * enumerable members named by strings, whatever its prototype, of the objects that hold the
- * members a UTxO is read from by name only those (`MEMBERS_READ`); of each list its items by
- * index; a member left undefined left out; every value of its own type, a `bigint` as a `bigint`.
- * No method of the entry is called, and a getter is read once
- * @throws Uncopied for a member that holds itself, is held at two places of the entry, is nested
- *   deeper than `MAX_UTXO_DEPTH`, is not enumerable or is named by a symbol (the copy would leave
- *   it out), and for a value that is no text, number, `bigint`, boolean, `null`, list or object:
- *   a function or a built-in object, named at sight, its elements not walked
- * @throws what a getter of the entry throws
- */
-const copyEntry = (entry: unknown): unknown => {
-  const ancestors: object[] = [];
-  const held = new Set<object>();
-  const copy = (value: unknown, holder?: Holder): unknown => {
-    const what = ancestors.length === 0 ? "it" : "a member it is read from";
-    switch (typeof value) {
-      case "string":
-      case "boolean":
-      case "bigint":
-        return value;
-      case "number":
-        if (!Number.isFinite(value))
-          throw uncopied(`${what} is a number that is not finite`);
-        return value === 0 ? 0 : value;
-      case "symbol":
-      case "function":
-        throw uncopied(`${what} is a ${typeof value}`);
-      case "undefined":
-        return undefined;
-    }
-    if (value === null) return null;
-    const object = value as object;
-    const list = Array.isArray(object);
-    if (!list) {
-      const tag = Object.prototype.toString.call(object).slice(8, -1);
-      if (tag !== "Object")
-        throw uncopied(
-          `${what} is ${
-            BUILT_INS.has(tag)
-              ? `${/^[AEIO]/.test(tag) ? "an" : "a"} ${tag}`
-              : "an object that is neither a plain object nor a list"
-          }`,
-        );
-    }
-    if (ancestors.includes(object))
-      throw uncopied("a member it is read from holds itself");
-    if (held.has(object))
-      throw uncopied("a member it is read from is held at two places of it");
-    if (ancestors.length >= MAX_UTXO_DEPTH)
-      throw uncopied(
-        `a member it is read from is nested more than ${MAX_UTXO_DEPTH} levels deep, as no UTxO is`,
-      );
-    held.add(object);
-    ancestors.push(object);
-    try {
-      if (list) {
-        const items = object as readonly unknown[];
-        const out: unknown[] = [];
-        for (let i = 0; i < items.length; i++) {
-          const item = Object.prototype.hasOwnProperty.call(items, i)
-            ? items[i]
-            : undefined;
-          if (item === undefined)
-            throw uncopied(
-              "a list it is read from has an item that is undefined or a hole",
-            );
-          out.push(copy(item, holderOf(holder, i)));
-        }
-        return out;
-      }
-      const names =
-        holder === undefined || holder === "amount"
-          ? Reflect.ownKeys(object)
-          : MEMBERS_READ[holder];
-      const members: [string, unknown][] = [];
-      for (const name of names) {
-        if (typeof name === "symbol")
-          throw new Uncopied(
-            "a member it is read from is named by a symbol, which a plan's record would leave out",
-          );
-        const own = Object.getOwnPropertyDescriptor(object, name);
-        if (own === undefined) continue;
-        if (own.enumerable !== true)
-          throw new Uncopied(
-            "a member it is read from is not enumerable, which a plan's record would leave out",
-          );
-        const member: unknown = (object as Record<string, unknown>)[name];
-        if (member === undefined) continue;
-        members.push([name, copy(member, holderOf(holder, name))]);
-      }
-      return Object.fromEntries(members);
-    } finally {
-      ancestors.pop();
-    }
-  };
-  return copy(entry, "entry");
-};
-
-/**
- * The entries of `knownUtxos` as a plan's record holds them, copied once (`copyEntry`): a text as
- * it is, an object as its copy, the same object given twice as one copy. Every read of an entry
- * in the plan reads the copy, at the start and later, and nothing reads the entry given again.
- * Each entry's out ref is read of its copy; none is read as a UTxO
- * @throws TxBuildError INVALID_OPTION as `toKnownUtxos` for what is not a list, and an entry
- *   whose out ref cannot be read; for an entry `copyEntry` refuses, and one with a member that
- *   throws when read, the entry named, the error thrown as its `cause`
+ * The entries of `knownUtxos` as a plan's record holds them: a text as it is, an object as the
+ * first stage of the reader gives it (`utxoCopy`): the members its form names, each read once,
+ * copied into an object of the same form of texts, numbers and `bigint`s, as `build` reads them
+ * before it decodes anything. The same object given twice is copied once. Every read of an entry
+ * in the plan reads the copy, at the start and later, and nothing reads the object given again.
+ * Each entry's out ref is read of its copy; no copy is read further
+ * @throws TxBuildError INVALID_OPTION as `toKnownUtxos` for what is not a list, a list or an
+ *   entry that throws when read, an entry whose out ref cannot be read, and an entry the first
+ *   stage of the reader refuses, as `build` refuses it, the entry named
  */
 export const knownCopy = (knownUtxos: unknown): unknown[] => {
-  if (!Array.isArray(knownUtxos)) return toKnownUtxos(knownUtxos);
-  const given = knownUtxos as readonly unknown[];
   const copies = new Map<object, unknown>();
-  const out: unknown[] = [];
-  for (let i = 0; i < given.length; i++) {
-    const entry = Object.prototype.hasOwnProperty.call(given, i)
-      ? given[i]
-      : undefined;
-    if (typeof entry !== "object" || entry === null) {
-      out.push(entry);
-      continue;
-    }
+  const out = knownEntries(knownUtxos).map((entry, i) => {
+    if (typeof entry !== "object" || entry === null) return entry;
     if (!copies.has(entry))
       try {
-        copies.set(entry, copyEntry(entry));
+        copies.set(entry, utxoCopy(entry));
       } catch (error) {
-        throw new TxBuildError(
-          "INVALID_OPTION",
-          `invalid knownUtxos: entry ${i} is not a UTxO: ${
-            error instanceof Uncopied
-              ? error.message
-              : "a member it is read from throws when read, which a plan's record cannot hold"
-          }`,
-          {
-            details: {
-              option: "knownUtxos",
-              value: typeOf(entry),
-              allowed: KNOWN_UTXOS_ALLOWED,
-            },
-            ...(!(error instanceof Uncopied) && { cause: error }),
-          },
-        );
+        return knownEntryRefused(error, i, entry);
       }
-    out.push(copies.get(entry));
-  }
+    return copies.get(entry);
+  });
   toKnownUtxos(out, { named: NO_OUT_REFS });
   return out;
 };
@@ -1228,7 +1020,7 @@ export const withKnownCopy = <T extends { readonly knownUtxos?: unknown }>(
 
 /**
  * The data options of a plan, with its payer's change address, for its record. Of `knownUtxos`
- * every entry, unread, as the copy the options hold (`withKnownCopy`)
+ * every entry as the copy the options hold (`withKnownCopy`)
  */
 const planOptionsOf = (
   options: MakePlanOptions,

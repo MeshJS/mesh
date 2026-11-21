@@ -1118,23 +1118,25 @@ are paid again.
 Recorded: the steps, the data options (`knownUtxos`, `registeredPools`, `extraKeyWitnesses`,
 `topUpCollateral`, `collateralReturn`, `consolidate`, and a step's `sendAllTo` and `fee`), each
 payer's change address and the three effective deadlines. Of `knownUtxos` the record holds every
-entry: a text as it is, an object as a copy of the members a UTxO is read from, made once when the
-plan is made or `replan` is given it. The copy takes of each object its own enumerable members
-named by strings, whatever its prototype, and of each list its items by index; a member left
-undefined is left out; a `bigint` stays a `bigint` and a text a text, through the record's JSON
-too. Every read of the entry reads the copy, never the object again: a step at the start, a step
-`plan.add` builds later on the object or resumed, `replan` given no `knownUtxos` of its own. An
-entry is read only when a step names it, and two entries for one out ref that differ are refused
+entry: a text as it is, an object as the reader's copy of it, made once when the plan is made or
+`replan` is given it. The reader reads an object in two stages, in `build` as in a plan. The first
+reads the members its form names, each once, by property access (a getter or a member of a
+prototype among them), checks their types, that the value of a `Utxo` is a plain object of
+`bigint` quantities with lovelace and that a Mesh amount is a list of `{ unit, quantity }`, and
+copies them into an object of the same form that holds only texts, numbers and `bigint`s: this is
+the copy, and through the record's JSON a `bigint` stays a `bigint` and a text a text. The second
+reads the copy: the address, the datum and its hash, the script and its hash. Every read of the
+entry in the plan reads the copy, never the object again: a step at the start, a step `plan.add`
+builds later on the object or resumed, `replan` given no `knownUtxos` of its own. An entry is
+read further only when a step names it, and two entries for one out ref that differ are refused
 then. Refused when the plan is made (`INVALID_OPTION`, the entry named), whether a step names the
-entry or not: a member that throws when read, holds itself, is held at two places of the entry,
-is nested more than 16 levels deep, is not enumerable or is named by a symbol, and, at sight, a
-value other than a text, number, `bigint`, boolean, `null`, list or plain object (a function, a
-`Map`, a `Date`, a typed array). The same call again is compared on the entries for the out refs
-its steps' transactions spend, put up and read: an entry for another out ref may change or go, and
-where there is none of those, `knownUtxos` left out is the same as `[]`. Not recorded: wallets,
-signers, the submitter, functions (`canSelect`, `coinSelection`, `trace`) and `signal`. Every
-change is saved before the method returns: a new plan before it is returned, a delivery before the
-bytes leave.
+entry or not, as `build` refuses an entry it reads: what the first stage refuses, and an entry or
+a list that throws when read (a getter, a Proxy), its error the `cause`, never quoted. The same
+call again is compared on the entries for the out refs its steps' transactions spend, put up and
+read: an entry for another out ref may change or go, and where there is none of those,
+`knownUtxos` left out is the same as `[]`. Not recorded: wallets, signers, the submitter,
+functions (`canSelect`, `coinSelection`, `trace`) and `signal`. Every change is saved before the
+method returns: a new plan before it is returned, a delivery before the bytes leave.
 
 Two processes may hold one plan, and both send the same bytes. A write over a revision another
 writer changed reads the record again and applies the same fact, up to three times, then
@@ -2315,10 +2317,10 @@ passed over, only its out ref read: 235 such UTxOs that each hold a native scrip
 are passed over in a few milliseconds, where reading them took 6 s. So it is where a transaction is
 built or planned: `build` reads an entry of `knownUtxos`, and an output of the provider's answer
 for a transaction, only for an out ref its parts name, and a plan the entries its steps name
-(`plan`, `plan.add`, `replan`), keeping each other in its record as given; an entry for an out
-ref the build then selects from the payer reaches every evaluator as the payer lists it. 235 such
-UTxOs beside a build or a plan cost milliseconds, where reading them took 6 to 8 s; the record
-of the plan holds them as given, 7.4 MB.
+(`plan`, `plan.add`, `replan`), keeping each other in its record as the first stage of the reader
+copied it, which reads no script; an entry for an out ref the build then selects from the payer
+reaches every evaluator as the payer lists it. 235 such UTxOs beside a build or a plan cost
+milliseconds, where reading them took 6 to 8 s; the record of the plan holds their copies, 7.4 MB.
 
 **A payer's UTxOs.** The UTxOs of a payer (a snapshot's `utxos`, a wallet's `getUtxos` and
 `getCollateral`, the provider's answer for the payer's address) are taken by the same rule, as one
@@ -2395,7 +2397,7 @@ for no time, where on a known network it keeps them until the epoch ends.
 | `coinSelection`               | a `SelectInputs` function that replaces the built-in selection of this build (each token from its largest holders, then lovelace), called `(need, candidates, context)`: `need` is an `Assets` (`lovelace` always there, a token only when short), the candidates are `Utxo`s; it returns out refs (the candidates themselves will do), and every one must name a candidate (`INVALID_SELECTION`); an entry without a string `txHash` and a number `outputIndex`, a Mesh `UTxO` among them, is `INVALID_OPTION`; the change stays with the built-in rule |
 | `sendAllTo`                   | spend every selectable UTxO and send what is left to this address                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `after`                       | `BuiltTxData` or `TxPlan` (its steps that are in a block and not final, or may still land), or a list: transactions not yet seen by the provider. Each is read from its own bytes (`tx`), up to the `maxTxSize` of the builder's `params`, else 65 536 bytes: what it spends and the outputs it makes are those of the bytes, never those an object states, and of the object only its change marks are taken. Their inputs are not selected, their change at this build's change address is, their outputs can be named by out ref without a lookup     |
-| `knownUtxos`                  | outputs the parts may name by out ref that the provider may not know yet, in any form of `UtxoInput`, only the entries for the out refs the parts name read, each other passed over with its out ref alone read; handed to every evaluator; listing one makes it neither selectable nor unselectable (a payer UTxO listed here may still be selected, and reaches the evaluator as the payer lists it). A plan records a copy of every entry, unread, and reads it when a step names it, also a step added later (`plan.add`, `replan`)                  |
+| `knownUtxos`                  | outputs the parts may name by out ref that the provider may not know yet, in any form of `UtxoInput`, only the entries for the out refs the parts name read, each other passed over with its out ref alone read; handed to every evaluator; listing one makes it neither selectable nor unselectable (a payer UTxO listed here may still be selected, and reaches the evaluator as the payer lists it). A plan records the reader's copy of each entry and reads it when a step names it, a step added later too (`plan.add`, `replan`)                  |
 | `fee`                         | goes into the body as given; `FEE_TOO_LOW { fee, minFee }` when the final transaction's minimum fee is higher; `FEE_ABOVE_MINIMUM` warns when it is above                                                                                                                                                                                                                                                                                                                                                                                                |
 | `registeredPools`             | operator key hashes of pools already registered                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `extraKeyWitnesses`           | key witnesses expected beyond those the parts call for                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
