@@ -477,10 +477,11 @@ describe("TxBuilder: the collateral fallback", () => {
 
   it("is INSUFFICIENT_COLLATERAL for an answer that names one out ref with different contents, in either order; takes the same UTxO given again as one", async () => {
     const more = { ...reserve, value: { lovelace: ada(50) } };
-    for (const answer of [
-      [asCbor(reserve), asCbor(more)],
-      [asMesh(more), asCbor(reserve)],
-    ]) {
+    // Two texts of CBOR are not read to be compared: they name it in different bytes
+    for (const [answer, how] of [
+      [[asCbor(reserve), asCbor(more)], "in different bytes"],
+      [[asMesh(more), asCbor(reserve)], "and differ"],
+    ] as const) {
       const getCollateral = answering(answer);
       const error = await expectCode(
         () =>
@@ -490,7 +491,7 @@ describe("TxBuilder: the collateral fallback", () => {
         "INSUFFICIENT_COLLATERAL",
       );
       expect(error.message).toContain(
-        `two entries name the output ${keyOf(reserve)} and differ`,
+        `two entries name the output ${keyOf(reserve)} ${how}`,
       );
     }
     const getCollateral = answering([

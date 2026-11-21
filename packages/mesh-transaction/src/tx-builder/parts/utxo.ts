@@ -1063,16 +1063,24 @@ export const utxoText = (utxo: Utxo) =>
         : value,
   );
 
-/** Two entries given for one out ref that differ: `key` the out ref, `at` their places */
+/**
+ * Two entries given for one out ref that differ: `key` the out ref, `at` their places. Two texts
+ * of CBOR are not read to be compared: they name the output in different bytes, whatever they
+ * hold
+ */
 export class UtxoTwiceError extends Error {
   readonly key: string;
   readonly at: readonly [number, number];
+  /** How they differ, as the message ends: `and differ`, or `in different bytes` */
+  readonly how: string;
 
-  constructor(key: string, at: readonly [number, number]) {
-    super(`two entries name the output ${key} and differ`);
+  constructor(key: string, at: readonly [number, number], texts = false) {
+    const how = texts ? "in different bytes" : "and differ";
+    super(`two entries name the output ${key} ${how}`);
     this.name = "UtxoTwiceError";
     this.key = key;
     this.at = at;
+    this.how = how;
   }
 }
 
@@ -1106,11 +1114,12 @@ export type EntryRefused = (
  * Places UTxOs given in any form by their out refs, reading of each only its out ref
  * (`givenOutRef`): an entry for an out ref `named` does not take is passed over, never read
  * whole. Of the entries for one out ref, the first is the one counted and read; an object given
- * again, or the same text of CBOR, is the same entry. Two texts of CBOR for one out ref differ: a
- * text is read only once for it, as each is read in a time that grows with the square of its
- * pieces. The other entries are read with the first by `readPlaced`, and must be the same UTxO
+ * again, or the same text of CBOR, is the same entry. Two texts of CBOR for one out ref name it in
+ * different bytes, and are refused unread, though they may hold the same: a text is read only once
+ * for it, as each is read in a time that grows with the square of its pieces. The other entries
+ * are read with the first by `readPlaced`, and must be the same UTxO
  * @param named The out refs taken, as `utxoKey` writes them; every one without it
- * @throws UtxoTwiceError for two texts of CBOR that name one out ref and differ
+ * @throws UtxoTwiceError for two texts of CBOR that name one out ref in different bytes
  * @throws what `refused` throws for an entry whose out ref cannot be read
  */
 export const placeUtxos = (
@@ -1140,7 +1149,7 @@ export const placeUtxos = (
       const text = given.toLowerCase();
       const seen = texts.get(key);
       if (seen?.text === text) continue;
-      if (seen) throw new UtxoTwiceError(key, [seen.at, at]);
+      if (seen) throw new UtxoTwiceError(key, [seen.at, at], true);
       texts.set(key, { at, text });
     } else {
       const seen = objects.get(key) ?? new Set<unknown>();

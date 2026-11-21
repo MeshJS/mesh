@@ -202,23 +202,28 @@ describe("UTxOs given for out refs, each out ref once", () => {
       [held, cborOf(other)],
       [cborOf(held), cborOf(other)],
     ] as [UtxoInput, UtxoInput][]) {
+      // Two texts of CBOR are not read to be compared: they name it in different bytes
+      const how =
+        typeof a === "string" && typeof b === "string"
+          ? "in different bytes"
+          : "and differ";
       const signers = await timed(() => requiredSigners(one, [spent, a, b]));
       expect(TxError.is(signers.error, "INVALID_OPTION")).toBe(true);
       expect(signers.error.message).toBe(
-        `invalid spent: two entries name the output ${ref} and differ`,
+        `invalid spent: two entries name the output ${ref} ${how}`,
       );
       const known = await timed(() =>
         offline().fromCbor(one, { knownUtxos: [spent, a, b] }),
       );
       expect(known.error.message).toBe(
-        `invalid knownUtxos: two entries name the output ${ref} and differ`,
+        `invalid knownUtxos: two entries name the output ${ref} ${how}`,
       );
       const final = await timed(() =>
         offline().finalize(proto, { inputs: [spent, a, b] }),
       );
       expect(TxError.is(final.error, "INVALID_OPTION")).toBe(true);
       expect(final.error.message).toBe(
-        `invalid inputs: two entries name the output ${ref} and differ`,
+        `invalid inputs: two entries name the output ${ref} ${how}`,
       );
       const answered = await timed(() =>
         online(new Map([[txOf(100), [a, b]]])).fromCbor(one, {
@@ -227,7 +232,7 @@ describe("UTxOs given for out refs, each out ref once", () => {
       );
       expect(TxError.is(answered.error, "UTXO_NOT_FOUND")).toBe(true);
       expect(answered.error.message).toBe(
-        `fetching the outputs of ${txOf(100)} failed: entries 0 and 1 of the answer name the output ${ref} and differ`,
+        `fetching the outputs of ${txOf(100)} failed: entries 0 and 1 of the answer name the output ${ref} ${how}`,
       );
       const built = await timed(() =>
         offline().build([pay, byOutRef[0]!], {
@@ -237,7 +242,7 @@ describe("UTxOs given for out refs, each out ref once", () => {
       );
       expect(TxError.is(built.error, "INVALID_OPTION")).toBe(true);
       expect(built.error.message).toBe(
-        `invalid knownUtxos: two entries name the output ${ref} and differ`,
+        `invalid knownUtxos: two entries name the output ${ref} ${how}`,
       );
     }
     // The same UTxO in each form, and the same object or text twice, is one
@@ -251,7 +256,7 @@ describe("UTxOs given for out refs, each out ref once", () => {
       (await offline().finalize(proto, { inputs: same })).referenceInputs,
     ).toHaveLength(1);
     // A text of CBOR in capitals is the same text. Another text of the same UTxO, its index in a
-    // longer form, is not: a text is read once for an out ref
+    // longer form, names it in different bytes, and is refused: a text is read once for an out ref
     const text = cborOf(held);
     expect(
       requiredSigners(one, [spent, text, text.toUpperCase()]).keyHashes,
@@ -259,7 +264,7 @@ describe("UTxOs given for out refs, each out ref once", () => {
     const longer = `8282${bytes(txOf(100))}1800${text.slice(4 + 68 + 2)}`;
     expect(requiredSigners(one, [spent, longer]).nativeScripts).toHaveLength(1);
     expect(() => requiredSigners(one, [spent, text, longer])).toThrow(
-      `invalid spent: two entries name the output ${ref} and differ`,
+      `invalid spent: two entries name the output ${ref} in different bytes`,
     );
   });
 

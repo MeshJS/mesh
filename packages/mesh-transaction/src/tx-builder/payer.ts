@@ -215,7 +215,7 @@ export const toPayerSource = (payer: unknown): PayerSource => {
       if (!(error instanceof UtxoTwiceError)) throw error;
       throw invalidPayer(
         typeOf(payer.utxos),
-        `the snapshot's UTxOs ${error.at[0]} and ${error.at[1]} name the output ${error.key} and differ`,
+        `the snapshot's UTxOs ${error.at[0]} and ${error.at[1]} name the output ${error.key} ${error.how}`,
       );
     }
     return { form: "snapshot", snapshot: { changeAddress, utxos } };

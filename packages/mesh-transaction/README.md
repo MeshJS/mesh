@@ -2266,9 +2266,12 @@ the provider's answer for a transaction, the `inputs` of `finalize`, the `spent`
 `requiredSigners`), each entry is placed by its out ref before any is read whole. Two entries for
 one out ref must hold the same: the same UTxO in any form is one, and two that differ are refused,
 the out ref named (`INVALID_OPTION`, from the provider `UTXO_NOT_FOUND`), before the other entries
-are read. Two texts of CBOR for one out ref must be the same text, as each text is read in a time
-that grows with the square of its pieces. The first entry for an out ref is the one the bound on
-reference scripts counts and the one read. Where a transaction is read with the UTxOs given
+are read. One UTxO given twice in CBOR is given in the same bytes (in the Mesh or the builder's
+form it is compared by content): two texts of CBOR for one out ref are not read to be compared,
+as each is read in a time that grows with the square of its pieces, and are refused as naming the
+output in different bytes, though they may hold the same (an index in a longer form, the keys of
+the output in another order). The first entry for an out ref is the one the bound on reference
+scripts counts and the one read. Where a transaction is read with the UTxOs given
 (`fromCbor`, `finalize`, `requiredSigners`), an entry for an out ref it does not name is passed
 over, only its out ref read: 235 such UTxOs that each hold a native script of 15 643 bytes are
 passed over in a few milliseconds, where reading them took 6 s. So it is where a transaction is

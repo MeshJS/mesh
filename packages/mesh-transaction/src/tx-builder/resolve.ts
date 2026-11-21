@@ -172,7 +172,7 @@ const twiceRefused = <T>(
   } catch (error) {
     if (!(error instanceof UtxoTwiceError)) throw error;
     throw notFound(
-      `entries ${error.at[0]} and ${error.at[1]} of the answer name the output ${error.key} and differ`,
+      `entries ${error.at[0]} and ${error.at[1]} of the answer name the output ${error.key} ${error.how}`,
       error,
     );
   }

@@ -933,25 +933,31 @@ describe("TxBuilder: a payer's UTxOs that name one out ref twice", () => {
   it.each(Object.entries(orders))(
     "refuses at once a payer that lists one out ref with different contents, %s: a snapshot, a wallet's getUtxos in either form, the provider's answer for its address; the out ref named",
     async (_, utxos) => {
-      const snapshot = await timed(() =>
-        offline().build([payment], {
-          payer: { changeAddress: wallet, utxos },
-        }),
-      );
-      expect(TxError.is(snapshot, "INVALID_OPTION")).toBe(true);
-      expect(snapshot.message).toBe(
-        `invalid payer: the snapshot's UTxOs 0 and 1 name the output ${first} and differ`,
-      );
-      for (const payer of [
-        meshFormat({ utxos: utxos.map(asMesh) }).wallet,
-        cip30(utxos.map(cborOf)),
-      ]) {
+      // Two texts of CBOR are not read to be compared: they name it in different bytes
+      for (const [given, how] of [
+        [utxos, "and differ"],
+        [utxos.map(cborOf), "in different bytes"],
+      ] as const) {
+        const snapshot = await timed(() =>
+          offline().build([payment], {
+            payer: { changeAddress: wallet, utxos: given },
+          }),
+        );
+        expect(TxError.is(snapshot, "INVALID_OPTION")).toBe(true);
+        expect(snapshot.message).toBe(
+          `invalid payer: the snapshot's UTxOs 0 and 1 name the output ${first} ${how}`,
+        );
+      }
+      for (const [payer, how] of [
+        [meshFormat({ utxos: utxos.map(asMesh) }).wallet, "and differ"],
+        [cip30(utxos.map(cborOf)), "in different bytes"],
+      ] as const) {
         const fromWallet = await timed(() =>
           offline().build([payment], { payer }),
         );
         expect(TxError.is(fromWallet, "WALLET_FAILED")).toBe(true);
         expect(fromWallet.message).toBe(
-          `reading the payer wallet failed: its UTxOs: two entries name the output ${first} and differ`,
+          `reading the payer wallet failed: its UTxOs: two entries name the output ${first} ${how}`,
         );
       }
       const { provider } = fakeProvider(utxos);
