@@ -12,6 +12,7 @@ import {
 } from "@meshsdk/core-cst";
 
 import type { Utxo, UtxoInput } from "./parts/types";
+import type { PlacedUtxos } from "./parts/utxo";
 import type { RequiredKeys } from "./payer";
 import type { Collected, SignerRole, TxSigners } from "./witnesses";
 import { TxBuildError, TxPlanError } from "./errors";
@@ -1420,43 +1421,53 @@ export const namedOutRefs = (
 
 /**
  * Counts the reference scripts the UTxOs of a transaction's spent and reference inputs hold, `refs`
- * their out refs as `txHash#index` in lower case, from UTxOs given in any form, each out ref once,
- * the first UTxO given for it; no script is described, so a transaction past the bound is refused
- * before its UTxOs are read. Each call counts one more UTxO and gives the bytes counted so far
+ * their out refs as `txHash#index` in lower case, from the UTxO given first for each, in any form;
+ * no script is described, so a transaction past the bound is refused before its UTxOs are read
  */
 export const refScriptCounter = (refs: Iterable<string>) => {
   const wanted = new Set(refs);
-  const counted = new Set<string>();
-  let total = 0;
-  return (given: unknown): number => {
-    const held = heldScriptSize(given);
-    if (held && wanted.has(held.key) && !counted.has(held.key)) {
-      counted.add(held.key);
-      total += held.size;
-    }
-    return total;
+  const given = new Set<string>();
+  let size = 0;
+  return {
+    /** Counts `utxo`, the UTxO given first for the out ref `key`; another out ref is not counted */
+    add(key: string, utxo: unknown): void {
+      if (!wanted.has(key) || given.has(key)) return;
+      given.add(key);
+      size += heldScriptSize(utxo)?.size ?? 0;
+    },
+    /** Counts the first UTxO of each out ref placed */
+    addPlaced(placed: PlacedUtxos): void {
+      for (const [key, { given: utxo }] of placed.first) this.add(key, utxo);
+    },
+    /**
+     * Past `MAX_REF_SCRIPT_BYTES`, the bytes counted and why the transaction is refused, in the
+     * words of a node: their whole size where the UTxO of every out ref is counted, else that they
+     * are more than the bound; undefined within it
+     */
+    past(): { size: number; why: string } | undefined {
+      if (size <= MAX_REF_SCRIPT_BYTES) return undefined;
+      return {
+        size,
+        why: refScriptsBeyond(size, given.size === wanted.size)!,
+      };
+    },
   };
 };
 
-/** The bytes `refScriptCounter` counts in all of `given` */
-export const refScriptBytes = (
-  refs: Iterable<string>,
-  given: Iterable<unknown>,
-): number => {
-  const count = refScriptCounter(refs);
-  let total = 0;
-  for (const entry of given) total = count(entry);
-  return total;
-};
-
 /**
- * Why a transaction whose spent and reference inputs hold `total` bytes of reference scripts is
+ * Why a transaction whose spent and reference inputs hold `size` bytes of reference scripts is
  * refused, in the words of a node; undefined within `MAX_REF_SCRIPT_BYTES`
+ * @param whole Whether `size` is all they hold, else only what is known of it
  */
-export const refScriptsBeyond = (total: number): string | undefined =>
-  total > MAX_REF_SCRIPT_BYTES
-    ? `its spent and reference inputs hold ${total} bytes of reference scripts, more than the ${MAX_REF_SCRIPT_BYTES} a node takes in one transaction (ConwayTxRefScriptsSizeTooBig)`
-    : undefined;
+export const refScriptsBeyond = (
+  size: number,
+  whole = true,
+): string | undefined =>
+  size <= MAX_REF_SCRIPT_BYTES
+    ? undefined
+    : whole
+      ? `its spent and reference inputs hold ${size} bytes of reference scripts, more than the ${MAX_REF_SCRIPT_BYTES} a node takes in one transaction (ConwayTxRefScriptsSizeTooBig)`
+      : `its spent and reference inputs hold more than the ${MAX_REF_SCRIPT_BYTES} bytes of reference scripts a node takes in one transaction (ConwayTxRefScriptsSizeTooBig)`;
 
 /** The refusal of a transaction read whose reference scripts are past the bound */
 export const refScriptsRefused = (tx: unknown, past: string) =>
@@ -1523,13 +1534,10 @@ export function requiredSigners(
     // Only the entries for the out refs the body names are read, each out ref once
     const placed = placeUtxos(spent, refused, namedOutRefs(raw.body));
     // The reference scripts are bounded as a node bounds them, before a UTxO is read whole
-    const past = refScriptsBeyond(
-      refScriptBytes(
-        spentAndRead(raw.body),
-        Array.from(placed.first.values(), (each) => each.given),
-      ),
-    );
-    if (past) throw refScriptsRefused(tx, past);
+    const counter = refScriptCounter(spentAndRead(raw.body));
+    counter.addPlaced(placed);
+    const past = counter.past();
+    if (past) throw refScriptsRefused(tx, past.why);
     utxos = Array.from(readPlaced(placed, refused).values());
   } catch (error) {
     if (!(error instanceof UtxoTwiceError)) throw error;

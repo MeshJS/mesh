@@ -1774,9 +1774,15 @@ type, unless named otherwise:
 - spent and reference inputs whose UTxOs hold more than 204 800 bytes of reference scripts in all,
   as a node bounds them (`maxRefScriptSizePerTx`, `ConwayTxRefScriptsSizeTooBig`), each script
   counted as the ledger counts it: refused from the bytes of the UTxOs given or read through the
-  provider, before any of them is read whole. `requiredSigners` and a plan's step given built
-  refuse it the same way, and `build` and `finalize` make no such transaction (`TX_TOO_LARGE`,
-  `cause: "referenceScripts"`);
+  provider, before any of them is read whole, with their whole size where every one is given, else
+  saying that they hold more than the bound. `requiredSigners` and a plan's step given built refuse
+  it the same way, and `build` and `finalize` make no such transaction (`TX_TOO_LARGE`,
+  `cause: "referenceScripts"`): `build` refuses the UTxOs of its parts past the bound before it
+  selects an input or seeks a fee, counted from `knownUtxos` and the provider's answers before
+  they are read whole (235 such UTxOs named by out ref are refused in about 15 ms, where they were
+  read in 6 s); a UTxO given in a part is read when the part is made, before `build` sees it. A
+  reference script given as bytes that do not read as `[language, script]`, bytes after the byte
+  string of a Plutus script among them, counts all its bytes;
 - another network: `NETWORK_MISMATCH`, for its addresses, its UTxOs or the network id its body
   states (role `body`);
 - a signature that is not of the body: `INVALID_WITNESS` (`wrongBody`).
@@ -1795,8 +1801,8 @@ decoded, and that of their native scripts, read on a token reader whose time gro
 of a script's size. The bound on reference scripts keeps it within a transaction's worth: one that
 runs 13 distinct native scripts of 15 643 bytes from its reference inputs (203 359 bytes, the most
 the bound lets through) is read in about 0.7 s by `fromCbor` with them in `knownUtxos` and by
-`requiredSigners`, and planned as a step given built in about 1.5 s, its record 4.2 MB; one of 235
-is refused in about 20 ms by each, 50 ms by `plan`. `plan` decodes a step given built twice, so
+`requiredSigners`, and planned as a step given built in about 1.3 s, its record 4.2 MB; one of 235
+is refused in about 30 ms by each, 55 ms by `plan`. `plan` decodes a step given built twice, so
 one at the bound on nested data takes up to about two seconds there (1.6 to 2.1 s measured). That
 bound counts a big integer as a tag and one string, though its time grows with the square of its
 length: that matters only with a `maxTxSize` above 64 KB, where one integer of 128 KB takes 1 s in

@@ -531,8 +531,8 @@ export const scriptSize = (script: OutputScript): number =>
  * The size of a reference script as the ledger counts it toward `MAX_REF_SCRIPT_BYTES`, from the
  * CBOR of `[language, script]` in hex: of a native script the bytes after its language, of a
  * Plutus script the content of its byte string. Only the first items are read, with the token
- * reader, never the script. For what does not read so, the size of the whole, no less than the
- * ledger's
+ * reader, never the script. For what does not read so, bytes after the byte string of a Plutus
+ * script among them, the size of the whole as given, no less than the ledger's
  */
 export const countedScriptSize = (scriptRef: string): number => {
   const whole = scriptRef.length / 2;
@@ -542,7 +542,8 @@ export const countedScriptSize = (scriptRef: string): number => {
     const language = reader.readUInt();
     if (language === 0n) return reader.getBytesRemaining();
     if (language > 3n || reader.peekState() !== State.ByteString) return whole;
-    return reader.readByteString().length;
+    const content = reader.readByteString().length;
+    return reader.getBytesRemaining() === 0 ? content : whole;
   } catch {
     return whole;
   }

@@ -43,10 +43,10 @@ import { CborReader, HexBlob, Serialization } from "@meshsdk/core-cst";
  * where it is counted and then read, and one longer than `MAX_TX_BYTES` (64 KB, 256 KB, 1 MB) is
  * refused in less than 0.1 ms; a payment from a payer of 40 UTxOs that each hold such a script in
  * 1.0 s, from a provider, a wallet or a snapshot, and of 40 UTxOs in pieces in 2.0 to 4.8 s; a
- * transaction that runs 13 distinct native scripts of 15 643
- * bytes from its reference inputs (203 359 bytes, the most the bound lets through) in 0.67 s by
- * `requiredSigners`, 0.72 s by `fromCbor`, 1.5 s by `plan` as a step given built, its record
- * 4.2 MB; one that runs 235 is refused in 23, 21 and 46 ms. A UTxO in CBOR whose output has a
+ * transaction that runs 13 distinct native scripts of 15 643 bytes from its reference inputs
+ * (203 359 bytes, the most the bound lets through) in 0.68 s by `requiredSigners`, 0.73 s by
+ * `fromCbor`, 1.26 s by `plan` as a step given built, its record 4.2 MB; one that runs 235 is
+ * refused in 26, 32 and 56 ms. A UTxO in CBOR whose output has a
  * key other than 0 to 3 is refused before the decoder runs: the ledger takes no such output. So is
  * a transaction whose body, outputs or witness set hold a key the Conway ledger does not read
  * (`checkConwayKeys`), by every reader of a whole transaction.

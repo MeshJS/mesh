@@ -66,6 +66,8 @@ export type ResolveContext = {
    * stays as given
    */
   unread?: ReadonlySet<string>;
+  /** Told of the answers of the provider, placed by their out refs, before any is read whole */
+  onPlaced?: (placed: readonly PlacedUtxos[]) => void;
 };
 
 const ctxOf = (part: TxPart): PartContext => ({
@@ -182,7 +184,10 @@ const twiceRefused = <T>(
  */
 const fetchMissing = async (
   parts: readonly TxPart[],
-  ctx: Pick<ResolveContext, "known" | "provider" | "onFetch" | "unread">,
+  ctx: Pick<
+    ResolveContext,
+    "known" | "provider" | "onFetch" | "unread" | "onPlaced"
+  >,
 ) => {
   const missing = new Map<string, TransactionInputPrototype[]>();
   // The first part naming each missing out ref, which an error about that out ref is about
@@ -249,6 +254,7 @@ const fetchMissing = async (
     notFound,
     placed: placeTxAnswer(answer, notFound),
   }));
+  ctx.onPlaced?.(placed.map((each) => each.placed));
   for (const each of placed)
     for (const utxo of readTxAnswer(each.placed, each.notFound))
       ctx.known.set(utxoKey(utxo), utxo);

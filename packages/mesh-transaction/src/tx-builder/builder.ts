@@ -57,6 +57,7 @@ import type {
   Utxo,
   UtxoInput,
 } from "./parts/types";
+import type { PlacedUtxos } from "./parts/utxo";
 import type {
   GetCollateral,
   Payer,
@@ -90,6 +91,8 @@ import {
   countedRefScripts,
   isPoolShortfall,
   lovelaceOnly,
+  partsReadRefs,
+  partsRefScripts,
   paymentPool,
   refusedBy,
   totalExUnits,
@@ -118,6 +121,7 @@ import {
   checkNetworks,
   checkProviderNetwork,
   evaluatorNetwork,
+  heldUtxos,
   partEntries,
   resolveNetwork,
   rewardAddressOn,
@@ -168,7 +172,6 @@ import {
   payerSigner,
   readTransaction,
   readTransactionItems,
-  refScriptBytes,
   refScriptCounter,
   refScriptsBeyond,
   refScriptsRefused,
@@ -1013,6 +1016,7 @@ const coinCbor = (lovelace: bigint) => {
 const checkBuildOptions = (
   options: BuildOptions,
   maxAfterBytes: number,
+  placed?: (placed: PlacedUtxos) => void,
 ): { sendAllTo?: string; after: AfterTx[]; knownUtxos: Utxo[] } => {
   const { canSelect, coinSelection, sendAllTo, signal, trace } = options;
   const { fee, registeredPools, extraKeyWitnesses } = options;
@@ -1074,7 +1078,9 @@ const checkBuildOptions = (
       "a boolean",
     );
   const after = toAfter(options.after, maxAfterBytes);
-  const knownUtxos = toKnownUtxos(options.knownUtxos);
+  const knownUtxos = toKnownUtxos(options.knownUtxos, {
+    ...(placed && { placed }),
+  });
   if (sendAllTo === undefined) return { after, knownUtxos };
   if (typeof sendAllTo !== "string")
     throw invalidOption("sendAllTo", sendAllTo, SEND_ALL_TO_ALLOWED);
@@ -1816,11 +1822,10 @@ export class TxBuilder {
       const named = prototypeRefs(prototype);
       const placed = placeUtxos(inputs, refused, new Set(named.all));
       // The reference scripts are bounded as a node bounds them, before a UTxO is read whole
-      const before = refScriptBytes(
-        named.spentAndRead,
-        Array.from(placed.first.values(), (each) => each.given),
-      );
-      if (refScriptsBeyond(before)) throw refScriptsTooLarge(before);
+      const counter = refScriptCounter(named.spentAndRead);
+      counter.addPlaced(placed);
+      const past = counter.past();
+      if (past) throw refScriptsTooLarge(past.size, past.why);
       given = readPlaced(placed, refused);
     } catch (error) {
       if (!(error instanceof UtxoTwiceError)) throw error;
@@ -2111,7 +2116,9 @@ export class TxBuilder {
    *   (e.g. a reference output holding a different script), and INVALID_DATA for a validity
    *   part whose time bound is before the network's slot clock starts, or whose interval holds
    *   no slot once converted; TX_TOO_LARGE (`cause: "referenceScripts"`) when the UTxOs it would
-   *   spend and read hold more than `MAX_REF_SCRIPT_BYTES` of reference scripts
+   *   spend and read hold more than `MAX_REF_SCRIPT_BYTES` of reference scripts: those of its
+   *   parts alone before any input is selected, so that no fee is sought for them, counted from
+   *   `knownUtxos` and the provider's answers before these are read whole
    */
   async build(
     parts: PartsInput = [],
@@ -2348,12 +2355,10 @@ export class TxBuilder {
     // The reference scripts are bounded as a node bounds them, before a UTxO is read whole: those
     // of knownUtxos here, those of the provider's answers once all are in. Of knownUtxos only the
     // entries for the out refs the body names are read
-    const countRefScripts = refScriptCounter(spentAndRead(decodedBody));
-    const countScripts = (entries: readonly unknown[]) => {
-      for (const entry of entries) {
-        const past = refScriptsBeyond(countRefScripts(entry));
-        if (past) throw refScriptsRefused(txCbor, past);
-      }
+    const counter = refScriptCounter(spentAndRead(decodedBody));
+    const refuseScripts = () => {
+      const past = counter.past();
+      if (past) throw refScriptsRefused(txCbor, past.why);
     };
     // A plan's own UTxOs come first, read already: an entry of knownUtxos for one of their out refs
     // is passed over
@@ -2361,11 +2366,17 @@ export class TxBuilder {
     const known = new Map<string, Utxo>();
     for (const utxo of (options as PlanOwnUtxos | undefined)?.[PLAN_UTXOS] ??
       [])
-      if (unheld.delete(utxoKey(utxo))) known.set(utxoKey(utxo), utxo);
-    countScripts(Array.from(known.values()));
+      if (unheld.delete(utxoKey(utxo))) {
+        known.set(utxoKey(utxo), utxo);
+        counter.add(utxoKey(utxo), utxo);
+      }
+    refuseScripts();
     for (const utxo of toKnownUtxos(knownUtxos, {
       named: unheld,
-      placed: countScripts,
+      placed: (placed) => {
+        counter.addPlaced(placed);
+        refuseScripts();
+      },
     }))
       known.set(utxoKey(utxo), utxo);
     const { body } = prototype;
@@ -2473,8 +2484,8 @@ export class TxBuilder {
             placeTxAnswer(answer, notFound(hash, input), wanted(hash)),
           ] as const,
       );
-      for (const [, , { first }] of placed)
-        countScripts(Array.from(first.values(), (each) => each.given));
+      for (const [, , each] of placed) counter.addPlaced(each);
+      refuseScripts();
       for (const [input, hash, each] of placed)
         for (const utxo of readTxAnswer(each, notFound(hash, input)))
           read.set(utxoKey(utxo), utxo);
@@ -2734,9 +2745,27 @@ export class TxBuilder {
     flat: readonly TxPart[],
     options: BuildOptions | undefined,
   ): Promise<BuiltTxData> {
+    // The reference scripts the parts spend and read are counted from the UTxOs they hold, then
+    // from knownUtxos and from the provider's answers, each before it is read whole: past the
+    // bound, nothing more is read
+    const counter = refScriptCounter(partsReadRefs(flat));
+    const refuseScripts = (placed: readonly PlacedUtxos[] = []) => {
+      for (const each of placed) counter.addPlaced(each);
+      const past = counter.past();
+      if (past)
+        throw refScriptsTooLarge(
+          past.size,
+          past.why,
+          "the UTxOs its parts spend and read",
+        );
+    };
+    for (const part of flat)
+      for (const utxo of heldUtxos(part)) counter.add(utxoKey(utxo), utxo);
+    refuseScripts();
     const { sendAllTo, after, knownUtxos } = checkBuildOptions(
       options ?? {},
       afterBound(this.params),
+      (placed) => refuseScripts([placed]),
     );
     const declared = (
       options as { [DECLARED_OUTPUTS]?: DeclaredOutputs } | undefined
@@ -2800,6 +2829,7 @@ export class TxBuilder {
           onFetch: (outRefs) => {
             fetched = outRefs;
           },
+          onPlaced: refuseScripts,
           ...(declared && { unread: declared.unread }),
         }),
       ]),
@@ -2812,6 +2842,15 @@ export class TxBuilder {
     const filled = resolved.map((part) =>
       part.kind === "output" ? withMinCoin(part, params) : part,
     );
+    // The reference scripts the UTxOs of the parts hold are bounded before any input is selected:
+    // past the bound, no balance is sought for a transaction no node takes
+    const ofParts = partsRefScripts(resolved, known, declared?.scriptSizes);
+    if (refScriptsBeyond(ofParts))
+      throw refScriptsTooLarge(
+        ofParts,
+        undefined,
+        "the UTxOs its parts spend and read",
+      );
     // Each out ref once, as the payer first lists it: a repeated entry is not selected twice
     const listed = new Set<string>();
     const payerUtxos = payer.utxos.filter((utxo) => {
@@ -3866,12 +3905,18 @@ const SIGNER_IN_PLACE = {
 
 /**
  * TX_TOO_LARGE for a transaction whose spent and reference inputs hold more reference scripts than
- * a node takes in one, of `size` bytes
+ * a node takes in one, of `size` bytes, or more where not every UTxO is known
+ * @param why As `refScriptsBeyond` gives it of `size`
+ * @param whose What holds them, in place of the spent and reference inputs `why` names
  */
-const refScriptsTooLarge = (size: number) =>
+const refScriptsTooLarge = (
+  size: number,
+  why = refScriptsBeyond(size)!,
+  whose = "the transaction's spent and reference inputs",
+) =>
   new TxBuildError(
     "TX_TOO_LARGE",
-    `the transaction's spent and reference inputs hold ${size} bytes of reference scripts, more than the ${MAX_REF_SCRIPT_BYTES} a node takes in one transaction (ConwayTxRefScriptsSizeTooBig)`,
+    why.replace(/^its spent and reference inputs/, whose),
     {
       details: {
         size,

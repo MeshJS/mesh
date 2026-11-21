@@ -6,6 +6,7 @@ import { Address, plutusDataVariantToCardano } from "@meshsdk/core-cst";
 
 import type { BuiltOutput, BuiltTxData } from "./builder";
 import type { OutputDatum, TxPart, Utxo, UtxoInput } from "./parts/types";
+import type { PlacedUtxos } from "./parts/utxo";
 import { invalidArgument, TxBuildError } from "./errors";
 import { typeOf } from "./options";
 import {
@@ -106,7 +107,7 @@ export const KNOWN_UTXOS_ONCE =
  * (`placeUtxos`): two that name one output must hold the same
  * @param options.named The out refs taken: an entry for another is passed over, never read whole;
  *   every entry is taken without it
- * @param options.placed Told of the first entry for each out ref taken before any is read whole
+ * @param options.placed Told of the entries placed by their out refs before any is read whole
  * @throws TxBuildError INVALID_OPTION for what is not a list, an entry that is not a UTxO or not
  *   one this library reads, and two entries that name one output and differ
  */
@@ -114,7 +115,7 @@ export const toKnownUtxos = (
   knownUtxos: unknown,
   options: {
     named?: ReadonlySet<string>;
-    placed?: (first: readonly unknown[]) => void;
+    placed?: (placed: PlacedUtxos) => void;
   } = {},
 ): Utxo[] => {
   if (knownUtxos === undefined) return [];
@@ -177,7 +178,7 @@ export const toKnownUtxos = (
   };
   try {
     const placed = placeUtxos(knownUtxos, refused, options.named);
-    options.placed?.(Array.from(placed.first.values(), (each) => each.given));
+    options.placed?.(placed);
     return Array.from(readPlaced(placed, refused).values());
   } catch (error) {
     // One output, two views of it: neither can be shown as the truth

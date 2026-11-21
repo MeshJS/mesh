@@ -25,6 +25,7 @@ import {
   scriptSize,
   utxoKey,
 } from "./parts/utxo";
+import { inputsOf } from "./resolve";
 import {
   addValues,
   coinValue,
@@ -1383,6 +1384,40 @@ export const countedRefScripts = (
     const key = `${input.transaction_id}#${input.index}`;
     if (seen.has(key)) continue;
     seen.add(key);
+    const script = known.get(key)?.script;
+    size += script
+      ? countedScriptSize(scriptRefOf(script))
+      : (stated?.get(key) ?? 0);
+  }
+  return size;
+};
+
+/**
+ * The out refs the parts spend and read, as `txHash#index` in lower case, each once: the inputs
+ * and reference inputs they bring to a transaction, its collateral inputs left out
+ */
+export const partsReadRefs = (parts: readonly TxPart[]): Set<string> => {
+  const keys = new Set<string>();
+  for (const part of parts)
+    for (const input of inputsOf(part))
+      // A collateral input is not spent, and the ledger does not count what it holds
+      if (part.kind !== "collateral" || input !== part.input)
+        keys.add(`${input.transaction_id.toLowerCase()}#${input.index}`);
+  return keys;
+};
+
+/**
+ * The bytes of the reference scripts the UTxOs the parts spend and read hold, as
+ * `countedRefScripts` counts them, each out ref once: a part of what the transaction will hold,
+ * known before its inputs are selected
+ */
+export const partsRefScripts = (
+  parts: readonly TxPart[],
+  known: ReadonlyMap<string, Utxo>,
+  stated?: ReadonlyMap<string, number>,
+): number => {
+  let size = 0;
+  for (const key of partsReadRefs(parts)) {
     const script = known.get(key)?.script;
     size += script
       ? countedScriptSize(scriptRefOf(script))

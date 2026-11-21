@@ -227,7 +227,8 @@ export type TxBuildErrorDetails = {
    * `cause` is `"selection"` when the parts alone fit a transaction and the inputs selected for
    * them, with their change, do not; `"parts"` when the parts do not fit with one input;
    * `"referenceScripts"` when the UTxOs it spends and reads hold more reference scripts than a
-   * node takes in one transaction: `size` is their bytes, `maxTxSize` the ledger's 204 800
+   * node takes in one transaction: `size` is their bytes, as many as are known (the message says
+   * when there are more), `maxTxSize` the ledger's 204 800
    */
   TX_TOO_LARGE: {
     size: number;

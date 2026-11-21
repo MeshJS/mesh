@@ -130,7 +130,7 @@ describe("a plan of a step given built", () => {
     expect(performance.now() - started).toBeLessThan(1_500);
     expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
     expect((error as Error).message).toBe(
-      'step "given": invalid tx: its spent and reference inputs hold 215110 bytes of reference scripts, more than the 204800 a node takes in one transaction (ConwayTxRefScriptsSizeTooBig)',
+      'step "given": invalid tx: its spent and reference inputs hold more than the 204800 bytes of reference scripts a node takes in one transaction (ConwayTxRefScriptsSizeTooBig)',
     );
   }, 60_000);
 });

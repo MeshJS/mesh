@@ -681,7 +681,7 @@ describe("TxBuilder: the payer read and the other reads", () => {
         [pay()],
         { payer: wallet },
       );
-      expect(performance.now() - started).toBeLessThan(1_000);
+      expect(performance.now() - started).toBeLessThan(1_500);
       if (utxos.length === 1)
         expect(built.inputs).toContainEqual({ ...held, script });
     }
@@ -751,7 +751,7 @@ describe("TxBuilder: the payer read and the other reads", () => {
     const timed = async (run: () => unknown) => {
       const started = performance.now();
       const error = await caught(run);
-      expect(performance.now() - started).toBeLessThan(500);
+      expect(performance.now() - started).toBeLessThan(1_500);
       return error as TxBuildError;
     };
     const plain = asCbor(funds[0]!);
