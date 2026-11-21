@@ -830,15 +830,19 @@ describe("withoutKeyWitnesses", () => {
             ),
             cbor.mapIndef(...others),
           ],
-          // A key written in two bytes, and an empty bootstrap entry, are taken out too
+          // A key written in two bytes is taken out too; an empty bootstrap entry stays as it is
           [
             cbor.map(
               [cbor.uint(4), datums],
               ["1800", vkeyEntry],
-              [cbor.uint(2), cbor.arr()],
+              [cbor.uint(2), cbor.tag258(cbor.arr())],
               [cbor.uint(1), nativeScripts],
             ),
-            cbor.map(...others),
+            cbor.map(
+              [cbor.uint(4), datums],
+              [cbor.uint(2), cbor.tag258(cbor.arr())],
+              [cbor.uint(1), nativeScripts],
+            ),
           ],
           // Only key witnesses: an empty witness set is left
           [
@@ -866,8 +870,52 @@ describe("withoutKeyWitnesses", () => {
             const read = readTransaction(unsigned);
             expect(read.txId).toBe(raw.txId);
             expect(read.witnessSet.vkeys).toBeUndefined();
-            expect(read.witnessSet.bootstraps).toBeUndefined();
+            expect(read.witnessSet.bootstraps?.witnesses ?? []).toEqual([]);
           }
+      }
+    }
+  });
+});
+
+describe("an empty key witness entry a transaction holds", () => {
+  it("keeps its form when a witness is added: the object of fromCbor signs as a wallet signs, also restored and through addWitnesses", async () => {
+    await Crypto.ready();
+    const spent = utxo(lovelace(ada(100)));
+    const built = await builder().build(
+      [output({ address: recipient, value: { lovelace: ada(5) } })],
+      { payer: payer(spent) },
+    );
+    for (const taggedSets of [true, false]) {
+      const [body, , valid, aux] = topItems(
+        transactionPrototypeToHex(built.prototype, { taggedSets }),
+      );
+      // The empty vkey entry in either form, the other form than the body's among them
+      for (const empty of [cbor.arr(), cbor.tag258(cbor.arr())]) {
+        const tx = cbor.tx(body!, cbor.map([cbor.uint(0), empty]), {
+          valid: valid!,
+          aux: aux!,
+        });
+        const byWallet = await wallets.payment.signTx(tx, true);
+        // The wallet writes the witness into the entry, in its form
+        expect(entry(byWallet, 0)).toMatch(
+          empty === cbor.arr() ? /^81825820/ : /^d9010281825820/,
+        );
+        const read = await builder().fromCbor(tx, { knownUtxos: [spent] });
+        expect(entry(read.tx, 0)).toBe(empty);
+        const restored = await builder().restore(
+          JSON.parse(JSON.stringify(read)),
+        );
+        await read.sign({ signers: wallets.payment });
+        await restored.sign({ signers: wallets.payment });
+        const added = await (
+          await builder().fromCbor(tx, { knownUtxos: [spent] })
+        ).addWitnesses(await paymentWitnesses(tx));
+        for (const signed of [read, restored, added])
+          expect([taggedSets, empty, signed.signedTx]).toEqual([
+            taggedSets,
+            empty,
+            byWallet,
+          ]);
       }
     }
   });

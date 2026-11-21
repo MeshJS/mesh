@@ -2261,8 +2261,10 @@ export class TxBuilder {
    * run. These members are only as true as the provider's answers and as `knownUtxos`.
    *
    * `tx` is the transaction without its vkey and bootstrap witnesses, every other byte as
-   * given. The witnesses it came with are verified against the body and held: every vkey
-   * witness, each key once, and as many bootstrap witnesses as it spends from Byron addresses.
+   * given: an entry of them that holds none stays, and the witnesses added later go into it in
+   * its form, as the wallets of this library write them. The witnesses it came with are verified
+   * against the body and held: every vkey witness, each key once, and as many bootstrap
+   * witnesses as it spends from Byron addresses.
    * What is added later is kept as `sign()` keeps it: of the keys the transaction needs or its
    * native scripts name. A transaction that came with every signature it needs has nothing in
    * `missing`, and `submit()` sends it at once. `partialTx` and `signedTx` write the witnesses
@@ -2337,9 +2339,9 @@ export class TxBuilder {
     }
     // The bytes given are read as raw items only; hex stands in lower case, as everywhere
     const given = readTransactionItems(text);
-    // The unsigned transaction: the same bytes without the vkey and bootstrap entries. It is the
-    // one transaction decoded into values; every member below is read from it, and the object
-    // signs it
+    // The unsigned transaction: the same bytes without the vkey and bootstrap witnesses, an entry
+    // that holds none kept in its form. It is the one transaction decoded into values; every
+    // member below is read from it, and the object signs it
     const tx = withoutKeyWitnesses(given);
     const raw = readTransaction(tx);
     const txHash = raw.txId;

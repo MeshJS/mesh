@@ -1724,14 +1724,16 @@ most eight requests at a time; the call waits for the provider as long as it tak
 from them and the body; `fee`, `outputs`, `redeemers` and `validity` are the transaction's own.
 `selectedInputs`, `change` and `parts` are empty, outputs carry no `label` and redeemers no `part`,
 and `prototype` is the transaction read as a value, which need not serialize to the same bytes.
-`tx` is the transaction without its vkey and bootstrap witnesses; those it came with are verified
-and held, so one that came signed has nothing in `missing`. The object goes through JSON and
-`restore` as any other, and can be given as `after`: its inputs are not selected, its outputs can
-be named by out ref without a lookup, and it has no change to select. `knownUtxos`, in any form of
-`UtxoInput`, serves the outputs of a transaction not on chain yet, spent outputs a provider does
-not list, and a builder without a provider; a UTxO neither given nor found is `UTXO_NOT_FOUND`
-(`MISSING_FETCHER` without a provider). Of `knownUtxos`, only the entries for the out refs the body
-names are read, and two for one out ref must hold the same (see [UTxOs](#utxos)).
+`tx` is the transaction without its vkey and bootstrap witnesses (an entry that holds none stays,
+and the witnesses added later go into it in its form, as the wallets write them); those it came
+with are verified and held, so one that came signed has nothing in `missing`. The object goes
+through JSON and `restore` as any other, and can be given as `after`: its inputs are not
+selected, its outputs can be named by out ref without a lookup, and it has no change to select.
+`knownUtxos`, in any form of `UtxoInput`, serves the outputs of a transaction not on chain yet,
+spent outputs a provider does not list, and a builder without a provider; a UTxO neither given
+nor found is `UTXO_NOT_FOUND` (`MISSING_FETCHER` without a provider). Of `knownUtxos`, only the
+entries for the out refs the body names are read, and two for one out ref must hold the same (see
+[UTxOs](#utxos)).
 
 Before signing a transaction someone else built:
 

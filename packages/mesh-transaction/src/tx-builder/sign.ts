@@ -625,15 +625,21 @@ export const newWitnesses = (
 };
 
 /**
- * The transaction without its vkey and bootstrap entries: the unsigned transaction of a signed
- * one. Only the witness set changes: its other entries stay byte for byte and in their order,
- * and its header is written again when it states a length. The body and everything after the
- * witness set stay byte for byte. A transaction with neither entry is returned as it is.
+ * The transaction without its vkey and bootstrap witnesses: the unsigned transaction of a signed
+ * one. A vkey or bootstrap entry that holds a witness is taken out; one that holds none stays, so
+ * that a witness added later is written into it, in its form: one rule with the wallets of this
+ * library (`keyWitnessSetTags` of `@meshsdk/core-cst`), a set the transaction holds keeps its
+ * form, empty or not. Only the witness set changes: its other entries stay byte for byte and in
+ * their order, and its header is written again when it states a length. The body and everything
+ * after the witness set stay byte for byte. A transaction with no witness is returned as it is.
  */
 export const withoutKeyWitnesses = (raw: RawItems): string => {
   const { witnessSet, top } = raw;
   const kept = witnessSet.entries.filter(
-    (e) => e.key !== VKEYS && e.key !== BOOTSTRAPS,
+    (e) =>
+      (e.key !== VKEYS && e.key !== BOOTSTRAPS) ||
+      readWitnessEntry(e.value, e.key === VKEYS ? "vkey" : "bootstrap").items
+        .length === 0,
   );
   if (kept.length === witnessSet.entries.length) return raw.hex;
   const { map } = witnessSet;
