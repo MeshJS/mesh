@@ -320,14 +320,32 @@ const readWitnessSet = (bytes: Uint8Array): WitnessSet => {
 };
 
 /**
- * Whether a witness set repeats the key of its vkey or of its bootstrap witnesses: witnesses
- * written into it would stand in one of its entries, and which of them a reader takes is not
- * known to the writer
+ * Whether a witness set repeats a key, any key: witnesses written into it would stand in one of
+ * its entries, and which of them a reader takes is not known to the writer. One rule with the
+ * wallets of this library (`addVKeyWitnessesToTransaction` of `@meshsdk/core-cst`)
  */
-export const repeatsKeyWitnesses = (set: WitnessSet): boolean =>
-  [VKEYS, BOOTSTRAPS].some(
-    (key) => set.entries.filter((e) => e.key === key).length > 1,
+export const repeatsKey = (set: WitnessSet): boolean =>
+  new Set(set.entries.map((e) => e.key)).size !== set.entries.length;
+
+/**
+ * Refuses witnesses added to a witness set that repeats a key (`repeatsKey`), with the message of
+ * the wallets
+ * @throws TxBuildError INVALID_OPTION (`tx`)
+ */
+export const refuseRepeatedKey = (set: WitnessSet): void => {
+  if (!repeatsKey(set)) return;
+  throw new TxBuildError(
+    "INVALID_OPTION",
+    "the witness set of the transaction repeats a key, and a reader may take another entry than the one a witness is written into: none is written",
+    {
+      details: {
+        option: "tx",
+        value: "string",
+        allowed: "a transaction in CBOR hex",
+      },
+    },
   );
+};
 
 /** The witnesses of a set, vkey witnesses first */
 const witnessesOf = (set: WitnessSet) => [
@@ -631,10 +649,13 @@ export const newWitnesses = (
  * library (`keyWitnessSetTags` of `@meshsdk/core-cst`), a set the transaction holds keeps its
  * form, empty or not. Only the witness set changes: its other entries stay byte for byte and in
  * their order, and its header is written again when it states a length. The body and everything
- * after the witness set stay byte for byte. A transaction with no witness is returned as it is.
+ * after the witness set stay byte for byte. A transaction with no witness is returned as it is,
+ * and so is one whose witness set repeats a key (`repeatsKey`): no entry of it is taken out, and
+ * no witness is written into it
  */
 export const withoutKeyWitnesses = (raw: RawItems): string => {
   const { witnessSet, top } = raw;
+  if (repeatsKey(witnessSet)) return raw.hex;
   const kept = witnessSet.entries.filter(
     (e) =>
       (e.key !== VKEYS && e.key !== BOOTSTRAPS) ||
@@ -674,18 +695,7 @@ export const withWitnesses = (
   tagged: boolean | KeyWitnessTags = raw.taggedSets,
 ): string => {
   if (added.length === 0) return raw.hex;
-  if (repeatsKeyWitnesses(raw.witnessSet))
-    throw new TxBuildError(
-      "INVALID_OPTION",
-      "invalid tx: its witness set repeats the key of its vkey or bootstrap witnesses, and a reader may take another entry than the one a witness is written into: none is written",
-      {
-        details: {
-          option: "tx",
-          value: "string",
-          allowed: "a transaction in CBOR hex",
-        },
-      },
-    );
+  refuseRepeatedKey(raw.witnessSet);
   const tags = bothTags(tagged);
   const { witnessSet, top } = raw;
   const byKind = {
@@ -1369,8 +1379,8 @@ export const payerHasNothingLeft = (
  *   witness that does not verify against the body; `details.argument` is the index of that
  *   argument among `witnesses`, counted from 0
  * @throws TxBuildError INVALID_OPTION for a `tx` that is not a transaction, or whose witness set
- *   repeats the key of its vkey or bootstrap witnesses; `details.value` is only the JavaScript
- *   type of what was given
+ *   repeats a key (`refuseRepeatedKey`); `details.value` is only the JavaScript type of what was
+ *   given
  */
 export async function addWitnesses(
   tx: string,

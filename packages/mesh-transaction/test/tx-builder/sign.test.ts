@@ -919,6 +919,61 @@ describe("an empty key witness entry a transaction holds", () => {
       }
     }
   });
+
+  it("refuses a witness into a witness set that repeats a key, the key of the vkey or of the bootstrap witnesses, as the wallets refuse it, with one message", async () => {
+    await Crypto.ready();
+    const spent = utxo(lovelace(ada(100)));
+    const built = await builder().build(
+      [output({ address: recipient, value: { lovelace: ada(5) } })],
+      { payer: payer(spent) },
+    );
+    const message =
+      "the witness set of the transaction repeats a key, and a reader may take another entry than the one a witness is written into: none is written";
+    for (const taggedSets of [true, false]) {
+      const [body, , valid, aux] = topItems(
+        transactionPrototypeToHex(built.prototype, { taggedSets }),
+      );
+      const txOf = (...entries: [number, string][]) =>
+        cbor.tx(
+          body!,
+          cbor.map(
+            ...entries.map(([k, v]): [string, string] => [cbor.uint(k), v]),
+          ),
+          { valid: valid!, aux: aux! },
+        );
+      // A witness of another key than the wallet's, which the entry read last hides
+      const witness = entry(await wallets.stake.signTx(txOf(), true), 0)!;
+      const repeated: [string, string][] = [
+        [
+          "key 0: a witness, then an empty entry",
+          txOf([0, witness], [0, cbor.arr()]),
+        ],
+        ["key 0: two empty entries", txOf([0, cbor.arr()], [0, cbor.arr()])],
+        ["key 2: two empty entries", txOf([2, cbor.arr()], [2, cbor.arr()])],
+      ];
+      for (const [what, tx] of repeated) {
+        // A wallet
+        expect([
+          what,
+          ((await caught(() => wallets.payment.signTx(tx, true))) as Error)
+            .message,
+        ]).toEqual([what, message]);
+        // The object of fromCbor holds the witness set as given, and signs nothing into it
+        const read = await builder().fromCbor(tx, { knownUtxos: [spent] });
+        expect([what, read.tx]).toEqual([what, tx]);
+        const witnesses = await paymentWitnesses(tx);
+        for (const run of [
+          () => read.sign({ signers: wallets.payment }),
+          () => read.addWitnesses(witnesses),
+          () => addWitnesses(tx, witnesses),
+        ]) {
+          const error = await buildError(run, "INVALID_OPTION");
+          expect([what, error.message]).toEqual([what, message]);
+        }
+        expect(read.missing.map((m) => m.keyHash)).toEqual([paymentKey]);
+      }
+    }
+  });
 });
 
 describe("signedKeyHashes", () => {

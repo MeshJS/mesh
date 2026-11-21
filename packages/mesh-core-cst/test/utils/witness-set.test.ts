@@ -143,14 +143,18 @@ describe("the form of the vkey witnesses written into a transaction", () => {
     }
   });
 
-  it("refuses a witness set that repeats the key of its vkey witnesses", () => {
-    const repeated = tx(
-      body(false),
+  it("refuses a witness set that repeats a key, any key: of its vkey, of its bootstrap witnesses or another", () => {
+    for (const set of [
       `a200${"81" + written(1)}00${"81" + written(2)}`,
-    );
-    expect(() => addVKeyWitnessesToTransaction(repeated, [witness(3)])).toThrow(
-      "repeats the key of its vkey witnesses",
-    );
+      `a2008000${"81" + written(2)}`,
+      "a20280" + "0280",
+      "a30080" + "0480" + "0480",
+    ])
+      expect(() =>
+        addVKeyWitnessesToTransaction(tx(body(false), set), [witness(3)]),
+      ).toThrow(
+        "the witness set of the transaction repeats a key, and a reader may take another entry than the one a witness is written into: none is written",
+      );
   });
 
   it("signs with the serializer's keys in the form of the transaction", async () => {

@@ -3600,7 +3600,7 @@ describe("BuiltTx as JSON, and TxBuilder.restore", () => {
       }
     });
 
-    it("refuses a built.tx whose witness set repeats the key of its vkey or bootstrap witnesses, into which the witnesses it holds would be written: two empty entries, and a witness hidden in the first", async () => {
+    it("refuses a built.tx whose witness set repeats a key, into which the witnesses it holds would be written: two empty entries, a witness hidden in the first, and a key of other witnesses", async () => {
       const { built, payer } = await fixture();
       const json = throughText(built);
       const [body, , ...rest] = topItems(built.tx);
@@ -3612,6 +3612,7 @@ describe("BuiltTx as JSON, and TxBuilder.restore", () => {
         map([uint(0), arr()], [uint(0), arr()]),
         map([uint(0), vkeys], [uint(0), arr()]),
         map([uint(2), arr()], [uint(2), arr()]),
+        map([uint(4), arr()], [uint(4), arr()]),
       ]) {
         const error = await refusedRestore(builder(), {
           ...json,
@@ -3619,7 +3620,7 @@ describe("BuiltTx as JSON, and TxBuilder.restore", () => {
         });
         expect(TxBuildError.is(error, "INVALID_OPTION")).toBe(true);
         expect((error as Error).message).toBe(
-          "invalid json: the witness set of its transaction repeats the key of its vkey or bootstrap witnesses",
+          "invalid json: the witness set of its transaction repeats a key, and a reader may take another entry than the one a witness is written into",
         );
       }
     });

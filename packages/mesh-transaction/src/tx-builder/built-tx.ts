@@ -49,7 +49,8 @@ import {
   payerWitnesses,
   readTransaction,
   readWitnessArgument,
-  repeatsKeyWitnesses,
+  refuseRepeatedKey,
+  repeatsKey,
   signerWitnesses,
   toSigners,
   unreadableSigner,
@@ -560,12 +561,15 @@ export class BuiltTx implements BuiltTxData {
    * @throws TxBuildError INVALID_OPTION for options that are not an object (a signer given in
    *   their place among them: give it as `{ signers }`) or have a member other than these, a
    *   signer that cannot sign (a private key given as it is among them: `keySigner(key)` makes a
-   *   signer of it), a `partial` that is not a boolean, a `signal` that is not an AbortSignal;
-   *   `details.value` is only the JavaScript type of what was given; ABORTED
+   *   signer of it), a `partial` that is not a boolean, a `signal` that is not an AbortSignal,
+   *   and a transaction whose witness set repeats a key, which no signer is asked for, as the
+   *   wallets sign none; `details.value` is only the JavaScript type of what was given; ABORTED
    */
   async sign(options?: SignTxOptions): Promise<this> {
     const { signers: named, partial, signal } = checkSignOptions(options);
     throwIfAborted(signal, CALL);
+    // No witness goes into a witness set that repeats a key, as the wallets write none into it
+    refuseRepeatedKey(this.#raw.witnessSet);
     // Without signers named, the payer signs when it still can
     const payer = named === undefined ? this.#payerSigner() : undefined;
     const signers = named ?? (payer === undefined ? undefined : [payer]);
@@ -615,8 +619,10 @@ export class BuiltTx implements BuiltTxData {
    * @returns This object
    * @throws TxPlanError INVALID_WITNESS (`undecodable`, `wrongBody`) with the index of the
    *   argument, counted from 0; nothing of the call is kept then
+   * @throws TxBuildError INVALID_OPTION for a transaction whose witness set repeats a key
    */
   async addWitnesses(...witnesses: string[]): Promise<this> {
+    refuseRepeatedKey(this.#raw.witnessSet);
     this.#keep(await witnessesToAdd(this.#raw, witnesses));
     return this;
   }
@@ -1122,10 +1128,10 @@ export const restoreBuiltTx = async (
     );
   }
   // The witnesses it holds are written into its witness set
-  if (repeatsKeyWitnesses(raw.witnessSet))
+  if (repeatsKey(raw.witnessSet))
     throw invalidJson(
       json,
-      "the witness set of its transaction repeats the key of its vkey or bootstrap witnesses",
+      "the witness set of its transaction repeats a key, and a reader may take another entry than the one a witness is written into",
     );
   // The transaction of a JSON is the unsigned one, as toJSON writes it: a witness inside it
   // would be held unverified, and would hide that its key has not signed

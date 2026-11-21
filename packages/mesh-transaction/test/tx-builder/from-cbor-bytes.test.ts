@@ -458,8 +458,8 @@ describe("TxBuilder.fromCbor › a map that repeats a key, read as the decoder r
         addWitnesses(repeated, map([uint(0), arr(vkeyWitness(key, txHash))])),
       );
       expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
-      expect((error as Error).message).toContain(
-        "its witness set repeats the key of its vkey or bootstrap witnesses",
+      expect((error as Error).message).toBe(
+        "the witness set of the transaction repeats a key, and a reader may take another entry than the one a witness is written into: none is written",
       );
     }
   });

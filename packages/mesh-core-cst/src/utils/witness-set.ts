@@ -132,8 +132,8 @@ const writtenWithSetTag = (tagged: boolean, write: () => string): string => {
  * entries of the witness set, the validity flag and the auxiliary data keep their bytes, so the
  * transaction's hash does not change. The transaction is returned as it is when nothing is added
  * @param txHex A transaction in CBOR hex
- * @throws Error for what is not a transaction, and for a witness set that repeats the key of its
- *   vkey witnesses: a reader may take another entry than the one written into, and none is
+ * @throws Error for what is not a transaction, and for a witness set that repeats a key, any key:
+ *   a reader may take another entry than the one written into, and none is
  */
 export const addVKeyWitnessesToTransaction = (
   txHex: string,
@@ -142,9 +142,9 @@ export const addVKeyWitnessesToTransaction = (
   Transaction.fromCbor(TxCBOR(txHex));
   const tx = readTransactionItems(txHex);
   const at = tx.entries.findIndex((e) => e.key === VKEYS);
-  if (tx.entries.filter((e) => e.key === VKEYS).length > 1)
+  if (new Set(tx.entries.map((e) => e.key)).size !== tx.entries.length)
     throw new Error(
-      "the witness set of the transaction repeats the key of its vkey witnesses: none is added",
+      "the witness set of the transaction repeats a key, and a reader may take another entry than the one a witness is written into: none is written",
     );
   const held =
     at === -1

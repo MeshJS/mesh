@@ -1727,8 +1727,9 @@ from them and the body; `fee`, `outputs`, `redeemers` and `validity` are the tra
 `selectedInputs`, `change` and `parts` are empty, outputs carry no `label` and redeemers no `part`,
 and `prototype` is the transaction read as a value, which need not serialize to the same bytes.
 `tx` is the transaction without its vkey and bootstrap witnesses (an entry that holds none stays,
-and the witnesses added later go into it in its form, as the wallets write them); those it came
-with are verified and held, so one that came signed has nothing in `missing`. The object goes
+and the witnesses added later go into it in its form, as the wallets write them; a witness set that
+repeats a key stays as given, and is not signed); those it came with are verified and held, so one
+that came signed has nothing in `missing`. The object goes
 through JSON and `restore` as any other, and can be given as `after`: its inputs are not
 selected, its outputs can be named by out ref without a lookup, and it has no change to select.
 `knownUtxos`, in any form of `UtxoInput`, serves the outputs of a transaction not on chain yet,
@@ -1812,8 +1813,10 @@ the last value of a repeated key, or both output lists of a body joined. A node 
 transaction since protocol version 9. A validity flag of false is read as the bytes give it, and the
 transaction is shown as one marked valid: a node sets the flag itself. `builder.restore` reads
 the transaction and the witnesses of a JSON within the same bounds, before any of them is decoded,
-and refuses a transaction whose witness set repeats the key of its vkey or bootstrap witnesses.
-A witness set that repeats a key is read as the decoder reads it, the last entry.
+and refuses a transaction whose witness set repeats a key. A witness set that repeats a key is read
+as the decoder reads it, the last entry; `tx` holds it as given, and no witness is written into it:
+`sign` and `addWitnesses` refuse it (`INVALID_OPTION`), as the wallets of `@meshsdk/wallet` refuse
+to sign it, with the same message.
 
 Reading takes a time that grows with the data the transaction carries, up to about a second on a
 laptop, on the calling thread; the UTxOs add the time of their bytes, since their data is not
@@ -1876,8 +1879,8 @@ inputs with it. Added to the transaction, it leaves it the size its fee was pric
 of `@meshsdk/wallet` write their witnesses so too.
 
 `addWitnesses` and `signedKeyHashes` return promises. Bad arguments (a `tx` that is not a
-transaction, or whose witness set repeats the key of its vkey or bootstrap witnesses, as a witness
-would go into one entry and a reader may take another; a signer that cannot sign; a malformed
+transaction, or whose witness set repeats a key, any key, as a witness would go into one entry
+and a reader may take another; a signer that cannot sign; a malformed
 `spent`) are `TxBuildError` `INVALID_OPTION`, whose `details.value` is only the JavaScript type of
 a `tx` or a signer, since either may be a key; `SIGN_DECLINED`, `SIGNER_FAILED` and
 `INVALID_WITNESS` are `TxPlanError`: catch them with `TxError.is`.

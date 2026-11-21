@@ -2262,9 +2262,10 @@ export class TxBuilder {
    *
    * `tx` is the transaction without its vkey and bootstrap witnesses, every other byte as
    * given: an entry of them that holds none stays, and the witnesses added later go into it in
-   * its form, as the wallets of this library write them. The witnesses it came with are verified
-   * against the body and held: every vkey witness, each key once, and as many bootstrap
-   * witnesses as it spends from Byron addresses.
+   * its form, as the wallets of this library write them. A witness set that repeats a key stays
+   * as given, and no witness is written into it, as the wallets refuse to. The witnesses it came
+   * with are verified against the body and held: every vkey witness, each key once, and as many
+   * bootstrap witnesses as it spends from Byron addresses.
    * What is added later is kept as `sign()` keeps it: of the keys the transaction needs or its
    * native scripts name. A transaction that came with every signature it needs has nothing in
    * `missing`, and `submit()` sends it at once. `partialTx` and `signedTx` write the witnesses
