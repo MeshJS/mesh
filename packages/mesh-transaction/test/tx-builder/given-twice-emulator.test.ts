@@ -442,6 +442,78 @@ describe("UTxOs given for out refs, each out ref once", () => {
     ).toEqual([KEY_HASH]);
   });
 
+  it("refuses at its head a UTxO or an out ref that is no list of two items of definite length, before a piece of it is read, as it refuses other out refs", async () => {
+    const one = runs(items.slice(0, 1));
+    const proto = transactionPrototypeFromHex(one);
+    const held = map([uint(0), bytes(addressHex)], [uint(1), "1a02faf080"]);
+    /** The hash of the out ref `i` in 16 000 empty pieces, which a read joins */
+    const inPieces = (i: number) =>
+      `5f${"40".repeat(16_000)}${bytes(otherOf(i))}ff`;
+    const forms: [(hash: string) => string, string][] = [
+      [
+        (h) => `9f${arr(h, uint(0))}${held}ff`,
+        "the UTxO is a list of indefinite length",
+      ],
+      [(h) => `83${arr(h, uint(0))}${held}00`, "the UTxO is a list of 3 items"],
+      [(h) => `81${arr(h, uint(0))}`, "the UTxO is a list of 1 item"],
+      [(h) => `a1${arr(h, uint(0))}${held}`, "the UTxO is no list"],
+      [
+        (h) => `82${`9f${h}${uint(0)}ff`}${held}`,
+        "its out ref is a list of indefinite length",
+      ],
+      [
+        (h) => `82${`83${h}${uint(0)}00`}${held}`,
+        "its out ref is a list of 3 items",
+      ],
+      [(h) => `82${`81${h}`}${held}`, "its out ref is a list of 1 item"],
+      [(h) => `82${h}${held}`, "its out ref is no list"],
+    ];
+    const places: [string, (entries: UtxoInput[]) => unknown][] = [
+      ["requiredSigners", (entries) => requiredSigners(one, entries)],
+      [
+        "fromCbor",
+        (entries) => offline().fromCbor(one, { knownUtxos: entries }),
+      ],
+      ["finalize", (entries) => offline().finalize(proto, { inputs: entries })],
+      [
+        "a payer",
+        (entries) =>
+          offline().build([pay], {
+            payer: { changeAddress: address, utxos: entries },
+          }),
+      ],
+    ];
+    for (const [form, what] of forms) {
+      const reason = `not the CBOR of a transaction unspent output: ${what}, not a list of two items of definite length`;
+      for (const hash of [bytes(otherOf(0)), inPieces(0)])
+        expect(() => toUtxo(form(hash))).toThrow(`invalid utxo: ${reason}`);
+      // 235 such entries of about 16 KB, the out refs the transaction does not name
+      const entries = items.map((_, i) => form(inPieces(i)));
+      expect(entries[0]!.length / 2).toBeLessThan(16_384);
+      for (const [place, run] of places) {
+        const { error, ms } = await timed(() =>
+          run([spent, mesh(txOf(100), `8200${items[0]}`), ...entries]),
+        );
+        expect([what, place, ms < AT_ONCE_MS]).toEqual([what, place, true]);
+        expect([what, place, TxError.is(error, "INVALID_OPTION")]).toEqual([
+          what,
+          place,
+          true,
+        ]);
+        if (place === "a payer") expect(error.message).toContain(reason);
+      }
+    }
+    // Lists of two items with a longer head are of definite length: read
+    for (const longer of [
+      `9802${arr(bytes(otherOf(0)), uint(7))}${held}`,
+      `82${`9802${bytes(otherOf(0))}${uint(7)}`}${held}`,
+    ])
+      expect(toUtxo(longer)).toMatchObject({
+        txHash: otherOf(0),
+        outputIndex: 7,
+      });
+  });
+
   it("reads at once the same UTxO given many times as one, its script read once", async () => {
     const one = runs(items.slice(0, 1));
     const proto = transactionPrototypeFromHex(one);

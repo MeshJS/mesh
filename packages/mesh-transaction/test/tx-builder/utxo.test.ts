@@ -2059,8 +2059,8 @@ describe("the data and the reference script of a UTxO, read without being decode
       );
       expect(() => readOutRef(given)).toThrow(UtxoError);
     }
-    // Without an out ref the reader can tell (in a list of indefinite length, which the head of
-    // a UTxO is not read in), the refusal names none and quotes no byte
+    // An out ref in a list of indefinite length is refused at the head, before the output is
+    // looked at; the refusal names no out ref and quotes no byte
     const { thrown } = timed(() =>
       readUtxo(
         inCbor(
@@ -2070,7 +2070,7 @@ describe("the data and the reference script of a UTxO, read without being decode
       ),
     );
     expect((thrown as Error).message).toBe(
-      "not the CBOR of a transaction unspent output: its output has a key other than 0, 1, 2 and 3",
+      "not the CBOR of a transaction unspent output: its out ref is a list of indefinite length, not a list of two items of definite length",
     );
     // Key 3 in a longer form is key 3, as the decoder reads it
     for (const key of ["1803", "1b0000000000000003"])

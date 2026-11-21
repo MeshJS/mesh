@@ -2265,11 +2265,13 @@ an inline datum, `dataHash` without it a datum hash, and `scriptRef` the referen
   grows with the square of its pieces (a UTxO of 16 384 bytes in empty pieces takes up to about
   150 ms, one of 1 MB more than a minute);
 - the CBOR of a transaction unspent output whose out ref is not written as every writer writes
-  one: its transaction hash not one byte string of definite length of 32 bytes (one in pieces
-  among others), its index not an unsigned integer. It is refused at its head, before any piece
-  is read, with the error other out refs that cannot be read get: where UTxOs are given for out
-  refs, one the transaction does not name is read as far as its out ref only, and 235 of 16 384
-  bytes whose hash is in empty pieces took 6 s that way.
+  one: the UTxO or its out ref not a list of two items of definite length
+  (`[[id, index], output]`), its transaction hash not one byte string of definite length of 32
+  bytes (one in pieces among others), its index not an unsigned integer. It is refused at its
+  head, before any piece is read, with the error other out refs that cannot be read get: where
+  UTxOs are given for out refs, one the transaction does not name is read as far as its out ref
+  only, and 235 of 16 384 bytes whose hash is in empty pieces took 6 s that way; one whose lists
+  are of another form was read whole, in up to 77 ms.
 
 `output()` refuses an inline datum that is not exactly one item of Plutus data (`INVALID_DATA`), and
 every output the builder makes is a UTxO it takes back. The error names where the UTxO was given:

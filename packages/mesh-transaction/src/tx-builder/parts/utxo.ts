@@ -977,22 +977,47 @@ const readScripted = (given: unknown, scripts?: ScriptsRead): Utxo => {
 };
 
 /**
+ * Reads the start of `what`, the UTxO or its out ref, at the head of the CBOR of a transaction
+ * unspent output: a list of two items written with its length, as every writer writes it
+ * @throws UtxoError (`outRef`) for an item that is no list, a list of indefinite length, or one
+ *   of another length
+ */
+const pairAt = (reader: CborReader, what: string) => {
+  const items =
+    reader.peekState() === State.StartArray
+      ? reader.readStartArray()
+      : undefined;
+  if (items === 2) return;
+  problem(
+    "outRef",
+    `not the CBOR of a transaction unspent output: ${what} is ${
+      items === undefined
+        ? "no list"
+        : items === null
+          ? "a list of indefinite length"
+          : `a list of ${items} item${items === 1 ? "" : "s"}`
+    }, not a list of two items of definite length`,
+  );
+};
+
+/**
  * The out ref at the head of the CBOR of a transaction unspent output, `[[id, index], output]` in
- * hex, read from its first items on the token reader, the rest not read. The id is one byte
- * string of definite length, 32 bytes, and the index an unsigned integer, as every writer writes
- * them: any other is refused here, before a piece of it is read, as the reader joins a string
- * written in pieces in a time that grows with the square of their number. Undefined for what does
- * not start with two arrays of two items, which the value decoder refuses
- * @throws UtxoError (`outRef`) for an id or an index of another form, and as `readOutRefMembers`
- *   for one of another value
+ * hex, read from its first items on the token reader, the rest not read. The UTxO and its out ref
+ * are lists of two items of definite length, the id one byte string of definite length, 32 bytes,
+ * and the index an unsigned integer, as every writer writes them: any other is refused here,
+ * before a piece of it is read, as the reader joins a string written in pieces in a time that
+ * grows with the square of their number. Undefined only where its first items are not
+ * well-formed CBOR, which the read of the whole refuses
+ * @throws UtxoError (`outRef`) for lists, an id or an index of another form, and as
+ *   `readOutRefMembers` for an id or an index of another value
  */
 const outRefAtHead = (cbor: string): OutRef | undefined => {
   let txHash: string;
   let index: bigint;
   try {
     const reader = new CborReader(HexBlob(cbor));
-    if (reader.readStartArray() !== 2 || reader.readStartArray() !== 2)
-      return undefined;
+    pairAt(reader, "the UTxO");
+    pairAt(reader, "its out ref");
     const id = reader.peekState();
     if (id !== State.ByteString)
       return problem(
@@ -1020,8 +1045,8 @@ const outRefAtHead = (cbor: string): OutRef | undefined => {
 
 /**
  * The out ref of the CBOR of a transaction unspent output, read at its head (`outRefAtHead`);
- * undefined for a text longer than a transaction or not hex, and where it does not start with
- * two arrays of two items, which the read of the whole UTxO refuses
+ * undefined for a text longer than a transaction or not hex, and where its first items are not
+ * well-formed CBOR, which the read of the whole UTxO refuses
  * @throws UtxoError as `outRefAtHead`
  */
 const cborOutRef = (cbor: string): OutRef | undefined =>
