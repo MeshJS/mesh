@@ -29,9 +29,26 @@ import {
   MetadataValueInput,
   NativeScriptSource,
   NetworkIdPart,
+  PartParams,
   TreasuryValuePart,
   ValidityPart,
 } from "./types";
+
+/** What `guard.pubKey` takes: the key by its hash, or by an address whose payment key it is */
+export type GuardPubKeyParams = PartParams &
+  (
+    | {
+        /** Hash of the verification key, in hex */
+        keyHash: string;
+      }
+    | {
+        /**
+         * A payment address whose payment key must sign, in bech32 or hex; its stake part is
+         * not read
+         */
+        address: string;
+      }
+  );
 
 /**
  * Guards of the transaction. Today one form: a key that must sign (Conway's required_signers;
@@ -42,19 +59,13 @@ export const guard = {
    * A required signer: a key whose signature the transaction needs, given as its hash or as an
    * address whose payment key it is; the build rejects a hash that is one of the transaction's
    * script hashes (INVALID_GUARD)
-   * @param params.keyHash Hash of the verification key, in hex
-   * @param params.address A payment address whose payment key must sign, in bech32 or hex; its
-   *   stake part is not read
-   * @param params.label Name echoed in errors about this part
    * @throws TxPartError WITNESS_MISMATCH for a script address
    * @throws TxPartError INVALID_ADDRESS for a string that is no address, a reward address or a
    *   Byron address: neither has a payment key; name a stake key by `keyHash`
    * @throws TxPartError INVALID_DATA for a key hash that is not 28 bytes in hex, for `keyHash`
    *   and `address` given together and for neither
    */
-  pubKey: (
-    params: ({ keyHash: string } | { address: string }) & { label?: string },
-  ): GuardPart => {
+  pubKey: (params: GuardPubKeyParams): GuardPart => {
     const ctx = partContext("guard", params);
     const { keyHash, address } = params as {
       keyHash?: unknown;
@@ -150,6 +161,18 @@ const describeTime = (time: unknown) =>
     ? `Date ${Number.isNaN(time.getTime()) ? "(invalid)" : time.getTime()}`
     : shownValue(time);
 
+/** What `validity` takes: each bound in either form, or left open */
+export interface ValidityParams extends PartParams {
+  /** Earliest time the transaction is valid at */
+  from?: number | bigint | Date;
+  /** Latest time the transaction is valid at */
+  until?: number | bigint | Date;
+  /** First slot the transaction is valid in */
+  invalidBefore?: bigint | number;
+  /** First slot the transaction is no longer valid in */
+  invalidHereafter?: bigint | number;
+}
+
 /**
  * Limit when the transaction is valid, by POSIX time (`from`, `until`) or by slot
  * (`invalidBefore`, `invalidHereafter`); each bound in either form, or left open. Times are
@@ -161,24 +184,13 @@ const describeTime = (time: unknown) =>
  * `from: deadline + 1`. `until` becomes the slot containing it, so the script's (open) upper
  * bound is <= `until`. For "valid from now" leave `from` out: `from: Date.now()` is valid from
  * the next slot only (VALID_FROM_FUTURE), and nodes check it against their lagging tip.
- * @param params.from Earliest time the transaction is valid at
- * @param params.until Latest time the transaction is valid at
- * @param params.invalidBefore First slot the transaction is valid in
- * @param params.invalidHereafter First slot the transaction is no longer valid in
- * @param params.label Name echoed in errors about this part
  * @throws TxPartError INVALID_DATA for no bound given, a bound given both ways, a time that is
  *   not a whole number of milliseconds from 0 to 2^53 - 1, a slot that is not a whole number
  *   from 0 to 1e11 (above that it looks like POSIX milliseconds), or a lower bound not before
  *   the upper one
  * @example validity({ until: Date.now() + 10 * 60_000 })
  */
-export const validity = (params: {
-  from?: number | bigint | Date;
-  until?: number | bigint | Date;
-  invalidBefore?: bigint | number;
-  invalidHereafter?: bigint | number;
-  label?: string;
-}): ValidityPart => {
+export const validity = (params: ValidityParams): ValidityPart => {
   const ctx = partContext("validity", params);
   const before = toSlot(ctx, "invalidBefore", params.invalidBefore, "from");
   const hereafter = toSlot(
@@ -281,18 +293,19 @@ const toMetadatum = (
   return invalid(`unsupported value ${String(value)}`);
 };
 
-/**
- * Add a metadata entry.
- * @param params.metadataLabel The entry's metadata label, e.g. `721n` for token metadata
- * @param params.value The entry: integers, strings (at most 64 bytes each), byte arrays, lists,
- *   and maps or plain objects
- * @param params.label Name echoed in errors about this part
- */
-export const metadata = (params: {
+/** What `metadata` takes */
+export interface MetadataParams extends PartParams {
+  /** The entry's metadata label, e.g. `721n` for token metadata */
   metadataLabel: bigint | number;
+  /**
+   * The entry: integers, strings (at most 64 bytes each), byte arrays, lists, and maps or plain
+   * objects
+   */
   value: MetadataValueInput;
-  label?: string;
-}): MetadataPart => {
+}
+
+/** Add a metadata entry. */
+export const metadata = (params: MetadataParams): MetadataPart => {
   const ctx = partContext("metadata", params);
   const { metadataLabel } = params;
   if (
@@ -343,22 +356,23 @@ const messageLines = (text: string): string[] => {
   return lines;
 };
 
+/** What `message` takes */
+export interface MessageParams extends PartParams {
+  /** The message: one text, or a list of texts, each cut on its own */
+  text: string | readonly string[];
+}
+
 /**
  * A CIP-20 message (metadata label 674), each text split into lines of at most 64 bytes at
  * character boundaries. A character is a Unicode code point, so a cut never splits one; the
  * lines of a text put together give it back. Lines keep the order given, and nothing is trimmed.
  * An empty string is one empty line. A transaction holds one entry per metadata label: a second
  * message, or a `metadata` part with label 674, is DUPLICATE_PART when it is assembled.
- * @param params.text The message: one text, or a list of texts, each cut on its own
- * @param params.label Name echoed in errors about this part (not the metadata label)
  * @throws TxPartError INVALID_DATA for a `text` that is neither a string nor a list of strings,
  *   and for an empty list
  * @example message({ text: "Invoice #42 paid" })
  */
-export const message = (params: {
-  text: string | readonly string[];
-  label?: string;
-}): MetadataPart => {
+export const message = (params: MessageParams): MetadataPart => {
   const ctx = partContext("metadata", params);
   const { text } = params;
   const texts: unknown[] = typeof text === "string" ? [text] : [];
@@ -388,16 +402,19 @@ export const message = (params: {
   });
 };
 
-/**
- * Publish a script in the transaction's auxiliary data, alongside its metadata.
- * @param params.script A native script, or a Plutus script (`{ code, version }`, the code flat
- *   or in one or two CBOR wrappings)
- * @param params.label Name echoed in errors about this part
- */
-export const auxiliaryScript = (params: {
+/** What `auxiliaryScript` takes */
+export interface AuxiliaryScriptParams extends PartParams {
+  /**
+   * A native script, or a Plutus script (`{ code, version }`, the code flat or in one or two
+   * CBOR wrappings)
+   */
   script: NativeScript | PlutusScript;
-  label?: string;
-}): AuxiliaryScriptPart => {
+}
+
+/** Publish a script in the transaction's auxiliary data, alongside its metadata. */
+export const auxiliaryScript = (
+  params: AuxiliaryScriptParams,
+): AuxiliaryScriptPart => {
   const ctx = partContext("auxiliaryScript", params);
   const { script } = params;
   if (typeof script !== "object" || script === null)
@@ -443,15 +460,14 @@ const toCoin = (
   return amount.toString();
 };
 
-/**
- * Donate lovelace to the treasury.
- * @param params.amount Lovelace donated; more than zero
- * @param params.label Name echoed in errors about this part
- */
-export const donation = (params: {
+/** What `donation` takes */
+export interface DonationParams extends PartParams {
+  /** Lovelace donated; more than zero */
   amount: bigint;
-  label?: string;
-}): DonationPart => {
+}
+
+/** Donate lovelace to the treasury. */
+export const donation = (params: DonationParams): DonationPart => {
   const ctx = partContext("donation", params);
   return freeze({
     kind: "donation",
@@ -460,15 +476,16 @@ export const donation = (params: {
   });
 };
 
-/**
- * State the current treasury value. The ledger rejects the transaction unless it matches.
- * @param params.amount The treasury value in lovelace
- * @param params.label Name echoed in errors about this part
- */
-export const treasuryValue = (params: {
+/** What `treasuryValue` takes */
+export interface TreasuryValueParams extends PartParams {
+  /** The treasury value in lovelace */
   amount: bigint;
-  label?: string;
-}): TreasuryValuePart => {
+}
+
+/** State the current treasury value. The ledger rejects the transaction unless it matches. */
+export const treasuryValue = (
+  params: TreasuryValueParams,
+): TreasuryValuePart => {
   const ctx = partContext("treasuryValue", params);
   return freeze({
     kind: "treasuryValue",
@@ -477,15 +494,14 @@ export const treasuryValue = (params: {
   });
 };
 
-/**
- * Pin the network the transaction is meant for; the ledger rejects it on any other.
- * @param params.network `"mainnet"`, or `"testnet"` for every test network
- * @param params.label Name echoed in errors about this part
- */
-export const networkId = (params: {
+/** What `networkId` takes */
+export interface NetworkIdParams extends PartParams {
+  /** `"mainnet"`, or `"testnet"` for every test network */
   network: "mainnet" | "testnet";
-  label?: string;
-}): NetworkIdPart => {
+}
+
+/** Pin the network the transaction is meant for; the ledger rejects it on any other. */
+export const networkId = (params: NetworkIdParams): NetworkIdPart => {
   const ctx = partContext("networkId", params);
   if (params.network !== "mainnet" && params.network !== "testnet")
     fail(

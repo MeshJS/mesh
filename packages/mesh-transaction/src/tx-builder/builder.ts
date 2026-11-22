@@ -251,7 +251,18 @@ export type TxBuilderOptions = {
    * (at least `pollMs`; 120 000 when not given) how often the same bytes go again while a
    * plan is sent. Neither is written into a plan. Checked by the constructor.
    */
-  planDefaults?: PlanDeadlines & { pollMs?: number; resendMs?: number };
+  planDefaults?: PlanDeadlines & {
+    /**
+     * The pause between two looks at the chain while a call waits, where the call gives none, in
+     * ms; above 0; 5 000 when not given
+     */
+    pollMs?: number;
+    /**
+     * How often the same bytes go again while a plan is sent, in ms; at least `pollMs`;
+     * 120 000 when not given
+     */
+    resendMs?: number;
+  };
   /**
    * Where the records of this builder's plans are kept, so that they survive the process:
    * every change of a plan is written before the call returns, the first record before the plan
@@ -442,6 +453,22 @@ export type BuildOptions = {
    * Receives the steps of the build, for diagnostics; whatever it throws or rejects with is ignored
    */
   trace?: (event: BuildEvent) => void;
+};
+
+/** The options of `fromCbor` */
+export type FromCborOptions = {
+  /**
+   * UTxOs the transaction spends, reads or puts up as collateral, used as given and not looked
+   * up: the outputs of a transaction the provider has not seen yet, spent outputs a provider
+   * does not list, or all of them on a builder without a provider. Each in any form the builder
+   * takes a UTxO in. Only the entries for the out refs the body names are read, the others
+   * passed over with their out ref alone read; two that name one output must hold the same, and
+   * two texts of CBOR for one output be one text. They must be the caller's own data, never
+   * taken from the party that made the transaction: the object's view of the inputs, and of who
+   * must sign, is only as true as these UTxOs, and a wallet signs its own inputs whatever the
+   * object shows. The same holds for the provider: the view is only as true as its answers
+   */
+  knownUtxos?: readonly UtxoInput[];
 };
 
 /**
@@ -1981,16 +2008,6 @@ export class TxBuilder {
    * holder loses, the return's own holder too, however small the total collateral the body
    * states.
    * @param txCbor The transaction, in CBOR hex
-   * @param options.knownUtxos UTxOs the transaction spends, reads or puts up as collateral, used
-   *   as given and not looked up: the outputs of a transaction the provider has not seen yet,
-   *   spent outputs a provider does not list, or all of them on a builder without a provider.
-   *   Each in any form the builder takes a UTxO in. Only the entries for the out refs the body
-   *   names are read, the others passed over with their out ref alone read; two that name one
-   *   output must hold the same, and two texts of CBOR for one output be one text. They must
-   *   be the caller's own data, never taken from the party that made the transaction: the
-   *   object's view of the inputs, and of who must sign, is only as true as these UTxOs, and a
-   *   wallet signs its own inputs whatever the object shows. The same holds for the provider:
-   *   the view is only as true as its answers
    * @throws TxBuildError INVALID_OPTION (`tx`) for a value that is not a transaction in CBOR hex
    *   that this library reads: one the walk or the checks above refuse, or proposing a protocol
    *   parameter change, which this library does not read from CBOR. `details.value` is only the
@@ -2010,10 +2027,7 @@ export class TxBuilder {
    * @throws TxPlanError INVALID_WITNESS (`wrongBody`) `{ argument: 0, keyHash }` for a
    *   transaction that holds a signature that is not of its body
    */
-  async fromCbor(
-    txCbor: string,
-    options?: { knownUtxos?: readonly UtxoInput[] },
-  ): Promise<BuiltTx> {
+  async fromCbor(txCbor: string, options?: FromCborOptions): Promise<BuiltTx> {
     // What is given in place of the options may be or hold a key: only its type is named
     const { knownUtxos } = optionsObject(
       options,

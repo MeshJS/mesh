@@ -33,9 +33,10 @@ import {
   CertificateFragment,
   CertificatePart,
   CredentialInput,
-  CredentialWitnessInput,
+  CredentialWitnessParams,
   DRepCredentialInput,
   DRepInput,
+  PartParams,
   PoolInput,
 } from "./types";
 
@@ -56,11 +57,153 @@ const build = (
 const ctxOf = (params: unknown): PartContext =>
   partContext("certificate", params);
 
-type Labelled = { label?: string };
-type Witnessed = Labelled & {
-  /** Needed when the credential is a script */
-  witness?: CredentialWitnessInput;
-};
+/** What `certificate.stakeRegistration` takes */
+export interface StakeRegistrationParams extends CredentialWitnessParams {
+  /** A reward address, or the credential */
+  stake: CredentialInput;
+  /** Lovelace deposited; the `keyDeposit` protocol parameter when omitted */
+  deposit?: bigint;
+}
+
+/** What `certificate.stakeDeregistration` takes */
+export interface StakeDeregistrationParams extends CredentialWitnessParams {
+  /** A reward address, or the credential */
+  stake: CredentialInput;
+  /**
+   * Lovelace refunded, which must be the deposit paid; the `keyDeposit` protocol parameter
+   * when omitted
+   */
+  refund?: bigint;
+}
+
+/** What `certificate.legacyStakeRegistration` takes */
+export interface LegacyStakeRegistrationParams extends PartParams {
+  /** A reward address, or the credential */
+  stake: CredentialInput;
+}
+
+/** What `certificate.legacyStakeDeregistration` takes */
+export interface LegacyStakeDeregistrationParams extends CredentialWitnessParams {
+  /** A reward address, or the credential */
+  stake: CredentialInput;
+}
+
+/** What `certificate.stakeDelegation` takes */
+export interface StakeDelegationParams extends CredentialWitnessParams {
+  /** A reward address, or the credential */
+  stake: CredentialInput;
+  /** The pool id in bech32, or its key hash */
+  pool: PoolInput;
+}
+
+/** What `certificate.voteDelegation` takes */
+export interface VoteDelegationParams extends CredentialWitnessParams {
+  /** A reward address, or the credential */
+  stake: CredentialInput;
+  /** A DRep id, its credential, `"alwaysAbstain"` or `"alwaysNoConfidence"` */
+  drep: DRepInput;
+}
+
+/** What `certificate.stakeAndVoteDelegation` takes */
+export interface StakeAndVoteDelegationParams extends CredentialWitnessParams {
+  /** A reward address, or the credential */
+  stake: CredentialInput;
+  /** The pool id in bech32, or its key hash */
+  pool: PoolInput;
+  /** A DRep id, its credential, `"alwaysAbstain"` or `"alwaysNoConfidence"` */
+  drep: DRepInput;
+}
+
+/** What `certificate.stakeRegistrationAndDelegation` takes */
+export interface StakeRegistrationAndDelegationParams extends CredentialWitnessParams {
+  /** A reward address, or the credential */
+  stake: CredentialInput;
+  /** The pool id in bech32, or its key hash */
+  pool: PoolInput;
+  /** Lovelace deposited; the `keyDeposit` protocol parameter when omitted */
+  deposit?: bigint;
+}
+
+/** What `certificate.voteRegistrationAndDelegation` takes */
+export interface VoteRegistrationAndDelegationParams extends CredentialWitnessParams {
+  /** A reward address, or the credential */
+  stake: CredentialInput;
+  /** A DRep id, its credential, `"alwaysAbstain"` or `"alwaysNoConfidence"` */
+  drep: DRepInput;
+  /** Lovelace deposited; the `keyDeposit` protocol parameter when omitted */
+  deposit?: bigint;
+}
+
+/** What `certificate.stakeVoteRegistrationAndDelegation` takes */
+export interface StakeVoteRegistrationAndDelegationParams extends CredentialWitnessParams {
+  /** A reward address, or the credential */
+  stake: CredentialInput;
+  /** The pool id in bech32, or its key hash */
+  pool: PoolInput;
+  /** A DRep id, its credential, `"alwaysAbstain"` or `"alwaysNoConfidence"` */
+  drep: DRepInput;
+  /** Lovelace deposited; the `keyDeposit` protocol parameter when omitted */
+  deposit?: bigint;
+}
+
+/** What `certificate.poolRegistration` takes */
+export interface PoolRegistrationParams extends PartParams {
+  /** The pool's parameters; `rewardAddress` in bech32 or hex */
+  params: PoolParams;
+}
+
+/** What `certificate.poolRetirement` takes */
+export interface PoolRetirementParams extends PartParams {
+  /** The pool id in bech32, or its key hash */
+  pool: PoolInput;
+  /** The epoch the pool retires at */
+  epoch: bigint | number;
+}
+
+/** What `certificate.committeeHotAuth` takes */
+export interface CommitteeHotAuthParams extends CredentialWitnessParams {
+  /** The member's cold credential, or a reward address carrying it */
+  cold: CredentialInput;
+  /** The hot credential, or a reward address carrying it */
+  hot: CredentialInput;
+}
+
+/** What `certificate.committeeColdResign` takes */
+export interface CommitteeColdResignParams extends CredentialWitnessParams {
+  /** The member's cold credential, or a reward address carrying it */
+  cold: CredentialInput;
+  /** Where the reasons are published */
+  anchor?: AnchorInput;
+}
+
+/** What `certificate.drepRegistration` takes */
+export interface DRepRegistrationParams extends CredentialWitnessParams {
+  /** The DRep id, or its credential */
+  drep: DRepCredentialInput;
+  /** Lovelace deposited; the `drepDeposit` protocol parameter when omitted */
+  deposit?: bigint;
+  /** Where the DRep's metadata is published */
+  anchor?: AnchorInput;
+}
+
+/** What `certificate.drepDeregistration` takes */
+export interface DRepDeregistrationParams extends CredentialWitnessParams {
+  /** The DRep id, or its credential */
+  drep: DRepCredentialInput;
+  /**
+   * Lovelace refunded, which must be the deposit paid; the `drepDeposit` protocol parameter
+   * when omitted
+   */
+  refund?: bigint;
+}
+
+/** What `certificate.drepUpdate` takes */
+export interface DRepUpdateParams extends CredentialWitnessParams {
+  /** The DRep id, or its credential */
+  drep: DRepCredentialInput;
+  /** Where the DRep's metadata is published; left out to clear it */
+  anchor?: AnchorInput;
+}
 
 const toIpv4 = (ctx: PartContext, ip: string): Ipv4Prototype => {
   const octets = ip.split(".").map(Number);
@@ -256,13 +399,8 @@ export const certificate = {
   /**
    * Register a stake credential, stating its deposit (certificate 7). Like every other
    * certificate of the credential, it needs the credential's witness.
-   * @param params.stake A reward address, or the credential
-   * @param params.deposit Lovelace deposited; the `keyDeposit` protocol parameter when omitted
-   * @param params.witness The script authorising a script credential
    */
-  stakeRegistration: (
-    params: Witnessed & { stake: CredentialInput; deposit?: bigint },
-  ): CertificatePart => {
+  stakeRegistration: (params: StakeRegistrationParams): CertificatePart => {
     const ctx = ctxOf(params);
     const credential = toCredential(ctx, params.stake);
     const { coin, depositParameter } = toDeposit(
@@ -286,16 +424,8 @@ export const certificate = {
     );
   },
 
-  /**
-   * Deregister a stake credential, stating the refund (certificate 8).
-   * @param params.stake A reward address, or the credential
-   * @param params.refund Lovelace refunded, which must be the deposit paid; the `keyDeposit`
-   *   protocol parameter when omitted
-   * @param params.witness The script authorising a script credential
-   */
-  stakeDeregistration: (
-    params: Witnessed & { stake: CredentialInput; refund?: bigint },
-  ): CertificatePart => {
+  /** Deregister a stake credential, stating the refund (certificate 8). */
+  stakeDeregistration: (params: StakeDeregistrationParams): CertificatePart => {
     const ctx = ctxOf(params);
     const credential = toCredential(ctx, params.stake);
     const { coin, depositParameter } = toDeposit(
@@ -322,13 +452,12 @@ export const certificate = {
   /**
    * Register a stake credential without stating its deposit (certificate 0). It takes no
    * witness; the deposit is the `keyDeposit` protocol parameter.
-   * @param params.stake A reward address, or the credential
    * @deprecated The next ledger era does not decode certificate 0. Use
    *   `certificate.stakeRegistration`, which states the deposit; unlike this form it needs the
    *   credential's witness: its key's signature, or the script given as `witness`.
    */
   legacyStakeRegistration: (
-    params: Labelled & { stake: CredentialInput },
+    params: LegacyStakeRegistrationParams,
   ): CertificatePart => {
     const ctx = ctxOf(params);
     return build(
@@ -347,14 +476,12 @@ export const certificate = {
 
   /**
    * Deregister a stake credential without stating the refund (certificate 1).
-   * @param params.stake A reward address, or the credential
-   * @param params.witness The script authorising a script credential
    * @deprecated The next ledger era does not decode certificate 1. Use
    *   `certificate.stakeDeregistration`, which states the refund; a Plutus script credential is
    *   then witnessed by a V3 script only.
    */
   legacyStakeDeregistration: (
-    params: Witnessed & { stake: CredentialInput },
+    params: LegacyStakeDeregistrationParams,
   ): CertificatePart => {
     const ctx = ctxOf(params);
     const credential = toCredential(ctx, params.stake);
@@ -370,15 +497,8 @@ export const certificate = {
     );
   },
 
-  /**
-   * Delegate a stake credential to a pool.
-   * @param params.stake A reward address, or the credential
-   * @param params.pool The pool id in bech32, or its key hash
-   * @param params.witness The script authorising a script credential
-   */
-  stakeDelegation: (
-    params: Witnessed & { stake: CredentialInput; pool: PoolInput },
-  ): CertificatePart => {
+  /** Delegate a stake credential to a pool. */
+  stakeDelegation: (params: StakeDelegationParams): CertificatePart => {
     const ctx = ctxOf(params);
     const credential = toCredential(ctx, params.stake);
     return build(
@@ -396,15 +516,8 @@ export const certificate = {
     );
   },
 
-  /**
-   * Delegate a stake credential's vote.
-   * @param params.stake A reward address, or the credential
-   * @param params.drep A DRep id, its credential, `"alwaysAbstain"` or `"alwaysNoConfidence"`
-   * @param params.witness The script authorising a script credential
-   */
-  voteDelegation: (
-    params: Witnessed & { stake: CredentialInput; drep: DRepInput },
-  ): CertificatePart => {
+  /** Delegate a stake credential's vote. */
+  voteDelegation: (params: VoteDelegationParams): CertificatePart => {
     const ctx = ctxOf(params);
     const credential = toCredential(ctx, params.stake);
     return build(
@@ -422,19 +535,9 @@ export const certificate = {
     );
   },
 
-  /**
-   * Delegate a stake credential to a pool and its vote to a DRep.
-   * @param params.stake A reward address, or the credential
-   * @param params.pool The pool id in bech32, or its key hash
-   * @param params.drep A DRep id, its credential, `"alwaysAbstain"` or `"alwaysNoConfidence"`
-   * @param params.witness The script authorising a script credential
-   */
+  /** Delegate a stake credential to a pool and its vote to a DRep. */
   stakeAndVoteDelegation: (
-    params: Witnessed & {
-      stake: CredentialInput;
-      pool: PoolInput;
-      drep: DRepInput;
-    },
+    params: StakeAndVoteDelegationParams,
   ): CertificatePart => {
     const ctx = ctxOf(params);
     const credential = toCredential(ctx, params.stake);
@@ -454,19 +557,9 @@ export const certificate = {
     );
   },
 
-  /**
-   * Register a stake credential and delegate it to a pool.
-   * @param params.stake A reward address, or the credential
-   * @param params.pool The pool id in bech32, or its key hash
-   * @param params.deposit Lovelace deposited; the `keyDeposit` protocol parameter when omitted
-   * @param params.witness The script authorising a script credential
-   */
+  /** Register a stake credential and delegate it to a pool. */
   stakeRegistrationAndDelegation: (
-    params: Witnessed & {
-      stake: CredentialInput;
-      pool: PoolInput;
-      deposit?: bigint;
-    },
+    params: StakeRegistrationAndDelegationParams,
   ): CertificatePart => {
     const ctx = ctxOf(params);
     const credential = toCredential(ctx, params.stake);
@@ -492,19 +585,9 @@ export const certificate = {
     );
   },
 
-  /**
-   * Register a stake credential and delegate its vote.
-   * @param params.stake A reward address, or the credential
-   * @param params.drep A DRep id, its credential, `"alwaysAbstain"` or `"alwaysNoConfidence"`
-   * @param params.deposit Lovelace deposited; the `keyDeposit` protocol parameter when omitted
-   * @param params.witness The script authorising a script credential
-   */
+  /** Register a stake credential and delegate its vote. */
   voteRegistrationAndDelegation: (
-    params: Witnessed & {
-      stake: CredentialInput;
-      drep: DRepInput;
-      deposit?: bigint;
-    },
+    params: VoteRegistrationAndDelegationParams,
   ): CertificatePart => {
     const ctx = ctxOf(params);
     const credential = toCredential(ctx, params.stake);
@@ -530,21 +613,9 @@ export const certificate = {
     );
   },
 
-  /**
-   * Register a stake credential, delegate it to a pool and delegate its vote.
-   * @param params.stake A reward address, or the credential
-   * @param params.pool The pool id in bech32, or its key hash
-   * @param params.drep A DRep id, its credential, `"alwaysAbstain"` or `"alwaysNoConfidence"`
-   * @param params.deposit Lovelace deposited; the `keyDeposit` protocol parameter when omitted
-   * @param params.witness The script authorising a script credential
-   */
+  /** Register a stake credential, delegate it to a pool and delegate its vote. */
   stakeVoteRegistrationAndDelegation: (
-    params: Witnessed & {
-      stake: CredentialInput;
-      pool: PoolInput;
-      drep: DRepInput;
-      deposit?: bigint;
-    },
+    params: StakeVoteRegistrationAndDelegationParams,
   ): CertificatePart => {
     const ctx = ctxOf(params);
     const credential = toCredential(ctx, params.stake);
@@ -574,11 +645,8 @@ export const certificate = {
   /**
    * Register or update a stake pool. Signed by the operator and owner keys; the deposit is the
    * `poolDeposit` protocol parameter, owed only on first registration.
-   * @param params.params The pool's parameters; `rewardAddress` in bech32 or hex
    */
-  poolRegistration: (
-    params: Labelled & { params: PoolParams },
-  ): CertificatePart => {
+  poolRegistration: (params: PoolRegistrationParams): CertificatePart => {
     const ctx = ctxOf(params);
     return build(
       ctx,
@@ -590,14 +658,8 @@ export const certificate = {
     );
   },
 
-  /**
-   * Retire a stake pool at the start of an epoch. Signed by the operator key.
-   * @param params.pool The pool id in bech32, or its key hash
-   * @param params.epoch The epoch the pool retires at
-   */
-  poolRetirement: (
-    params: Labelled & { pool: PoolInput; epoch: bigint | number },
-  ): CertificatePart => {
+  /** Retire a stake pool at the start of an epoch. Signed by the operator key. */
+  poolRetirement: (params: PoolRetirementParams): CertificatePart => {
     const ctx = ctxOf(params);
     const { epoch } = params;
     if (
@@ -619,15 +681,8 @@ export const certificate = {
     );
   },
 
-  /**
-   * Authorise a hot credential to vote for a constitutional committee member.
-   * @param params.cold The member's cold credential, or a reward address carrying it
-   * @param params.hot The hot credential, or a reward address carrying it
-   * @param params.witness The script authorising a script cold credential
-   */
-  committeeHotAuth: (
-    params: Witnessed & { cold: CredentialInput; hot: CredentialInput },
-  ): CertificatePart => {
+  /** Authorise a hot credential to vote for a constitutional committee member. */
+  committeeHotAuth: (params: CommitteeHotAuthParams): CertificatePart => {
     const ctx = ctxOf(params);
     const cold = toCredential(ctx, params.cold);
     return build(
@@ -645,15 +700,8 @@ export const certificate = {
     );
   },
 
-  /**
-   * Resign from the constitutional committee.
-   * @param params.cold The member's cold credential, or a reward address carrying it
-   * @param params.anchor Where the reasons are published
-   * @param params.witness The script authorising a script cold credential
-   */
-  committeeColdResign: (
-    params: Witnessed & { cold: CredentialInput; anchor?: AnchorInput },
-  ): CertificatePart => {
+  /** Resign from the constitutional committee. */
+  committeeColdResign: (params: CommitteeColdResignParams): CertificatePart => {
     const ctx = ctxOf(params);
     const cold = toCredential(ctx, params.cold);
     const anchor = toAnchor(ctx, params.anchor);
@@ -670,20 +718,8 @@ export const certificate = {
     );
   },
 
-  /**
-   * Register a DRep.
-   * @param params.drep The DRep id, or its credential
-   * @param params.deposit Lovelace deposited; the `drepDeposit` protocol parameter when omitted
-   * @param params.anchor Where the DRep's metadata is published
-   * @param params.witness The script authorising a script credential
-   */
-  drepRegistration: (
-    params: Witnessed & {
-      drep: DRepCredentialInput;
-      deposit?: bigint;
-      anchor?: AnchorInput;
-    },
-  ): CertificatePart => {
+  /** Register a DRep. */
+  drepRegistration: (params: DRepRegistrationParams): CertificatePart => {
     const ctx = ctxOf(params);
     const credential = toDRepCredential(ctx, params.drep);
     const { coin, depositParameter } = toDeposit(
@@ -709,16 +745,8 @@ export const certificate = {
     );
   },
 
-  /**
-   * Deregister a DRep.
-   * @param params.drep The DRep id, or its credential
-   * @param params.refund Lovelace refunded, which must be the deposit paid; the `drepDeposit`
-   *   protocol parameter when omitted
-   * @param params.witness The script authorising a script credential
-   */
-  drepDeregistration: (
-    params: Witnessed & { drep: DRepCredentialInput; refund?: bigint },
-  ): CertificatePart => {
+  /** Deregister a DRep. */
+  drepDeregistration: (params: DRepDeregistrationParams): CertificatePart => {
     const ctx = ctxOf(params);
     const credential = toDRepCredential(ctx, params.drep);
     const { coin, depositParameter } = toDeposit(
@@ -742,15 +770,8 @@ export const certificate = {
     );
   },
 
-  /**
-   * Update a DRep's metadata anchor.
-   * @param params.drep The DRep id, or its credential
-   * @param params.anchor Where the DRep's metadata is published; left out to clear it
-   * @param params.witness The script authorising a script credential
-   */
-  drepUpdate: (
-    params: Witnessed & { drep: DRepCredentialInput; anchor?: AnchorInput },
-  ): CertificatePart => {
+  /** Update a DRep's metadata anchor. */
+  drepUpdate: (params: DRepUpdateParams): CertificatePart => {
     const ctx = ctxOf(params);
     const credential = toDRepCredential(ctx, params.drep);
     const anchor = toAnchor(ctx, params.anchor);

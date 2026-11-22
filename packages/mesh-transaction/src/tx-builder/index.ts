@@ -32,6 +32,7 @@ export {
   type Provider,
   type ChainSnapshot,
   type BuildOptions,
+  type FromCborOptions,
   type BuildEvent,
   type PartEntry,
   type PartsInput,
@@ -41,7 +42,7 @@ export {
   type BuildWarning,
 } from "./builder";
 export { outputOf, utxosAfter } from "./chain";
-export { minFee, minCoin } from "./fee";
+export { minFee, minCoin, type MinFeeContext } from "./fee";
 export {
   canSubmit,
   type MeshFormatWallet,
@@ -71,6 +72,7 @@ export { keySigner } from "./key-signer";
 export {
   BuiltTx,
   type SignTxOptions,
+  type AwaitInclusionOptions,
   type BuiltTxJSON,
   type TxInclusion,
 } from "./built-tx";

@@ -35,7 +35,9 @@ import {
   AnchorInput,
   CredentialInput,
   CredentialWitnessInput,
+  CredentialWitnessParams,
   GovActionIdInput,
+  PartParams,
   ProposalPart,
   VoteInput,
   VotePart,
@@ -67,22 +69,22 @@ const toGovActionId = (
 
 const VOTE_KINDS = { yes: "YES", no: "NO", abstain: "ABSTAIN" } as const;
 
+/** What `vote` takes */
+export interface VoteParams extends CredentialWitnessParams {
+  /**
+   * `{ drep }` (a DRep id or credential), `{ committee }` (a hot credential, or a reward address
+   * carrying it) or `{ pool }` (a pool id or key hash)
+   */
+  voter: VoterInput;
+  /** The governance actions voted on, each at most once */
+  votes: VoteInput[];
+}
+
 /**
  * Cast the votes of one voter. All of a voter's votes go in one part, as the ledger runs the
  * voter's script once for all of them.
- * @param params.voter `{ drep }` (a DRep id or credential), `{ committee }` (a hot credential,
- *   or a reward address carrying it) or `{ pool }` (a pool id or key hash)
- * @param params.votes The governance actions voted on, each at most once
- * @param params.witness The script authorising a script DRep or committee credential; pools
- *   vote with their key
- * @param params.label Name echoed in errors about this part, such as a script failure
  */
-export const vote = (params: {
-  voter: VoterInput;
-  votes: VoteInput[];
-  witness?: CredentialWitnessInput;
-  label?: string;
-}): VotePart => {
+export const vote = (params: VoteParams): VotePart => {
   const ctx = partContext("vote", params);
   const { voter: voterInput } = params;
 
@@ -159,36 +161,107 @@ export const vote = (params: {
  * Proposals
  * ------------------------------------------------------------------------------------------- */
 
-type ProposalParams = {
+/** What every proposal takes */
+export interface ProposalParams extends PartParams {
   /** The reward address the deposit is returned to, in bech32 or hex */
   rewardAccount: string;
   /** Where the proposal's rationale is published */
   anchor: AnchorInput;
   /** Lovelace deposited; the `govActionDeposit` protocol parameter when omitted */
   deposit?: bigint;
-  label?: string;
-};
+}
 
-type GuardedParams = {
+/** What a proposal takes that the constitution's guardrail script may have to authorise */
+export interface GuardrailParams {
   /**
-   * The constitution's guardrail script, run to authorise the proposal. Its hash goes in the
-   * action's policy hash.
+   * The constitution's guardrail script, when it has one, run to authorise the proposal. Its
+   * hash goes in the action's policy hash.
    */
   guardrail?: CredentialWitnessInput;
   /** The guardrail's hash; needed only for a guardrail referenced by out ref alone */
   policyHash?: string;
-};
+}
 
-type ChainedParams = {
+/** What a proposal takes that follows the last enacted action of its purpose */
+export interface PreviousActionParams {
   /** The last enacted action of the same purpose; left out if there is none yet */
   previous?: GovActionIdInput;
-};
+}
+
+/** What `proposal.parameterChange` takes */
+export interface ParameterChangeParams
+  extends ProposalParams, GuardrailParams, PreviousActionParams {
+  /** The new values, in the ledger's shape */
+  updates: ProtocolParamUpdatePrototype;
+}
+
+/** What `proposal.hardForkInitiation` takes */
+export interface HardForkInitiationParams
+  extends ProposalParams, PreviousActionParams {
+  /** The version to fork to */
+  protocolVersion: {
+    /** The major protocol version */
+    major: number;
+    /** The minor protocol version */
+    minor: number;
+  };
+}
+
+/** What `proposal.treasuryWithdrawals` takes */
+export interface TreasuryWithdrawalsParams
+  extends ProposalParams, GuardrailParams {
+  /**
+   * Lovelace by receiving reward address, in bech32 or hex; one account given twice, in two
+   * texts, is refused
+   */
+  withdrawals: Record<string, bigint>;
+}
+
+/** What `proposal.noConfidence` takes */
+export interface NoConfidenceParams
+  extends ProposalParams, PreviousActionParams {}
+
+/** What `proposal.updateCommittee` takes */
+export interface UpdateCommitteeParams
+  extends ProposalParams, PreviousActionParams {
+  /** Cold credentials of members to remove, or reward addresses carrying them */
+  remove?: CredentialInput[];
+  /** Members to add, with the epoch their term ends at */
+  add?: {
+    /** The member's cold credential, or a reward address carrying it */
+    credential: CredentialInput;
+    /** The epoch the member's term ends at */
+    termLimit: bigint | number;
+  }[];
+  /** The share of members whose votes are needed */
+  quorum: {
+    /** The numerator of the share */
+    numerator: bigint | number;
+    /** The denominator of the share; above 0 */
+    denominator: bigint | number;
+  };
+}
+
+/** What `proposal.newConstitution` takes */
+export interface NewConstitutionParams
+  extends ProposalParams, PreviousActionParams {
+  /** Where the constitution is published, and its guardrail script's hash, if any */
+  constitution: {
+    /** Where the constitution is published */
+    anchor: AnchorInput;
+    /** Hash of the constitution's guardrail script, 28 bytes in hex; left out if it has none */
+    scriptHash?: string;
+  };
+}
+
+/** What `proposal.info` takes */
+export interface InfoActionParams extends ProposalParams {}
 
 const ctxOf = (params: unknown): PartContext => partContext("proposal", params);
 
 const toGuardrail = (
   ctx: PartContext,
-  { guardrail, policyHash }: GuardedParams,
+  { guardrail, policyHash }: GuardrailParams,
 ): { policyHash?: string; witness: ProposalPart["witness"] } => {
   const given = policyHash?.toLowerCase();
   if (given !== undefined && !isHash28(given))
@@ -316,16 +389,8 @@ const checkParamUpdate = (
 };
 
 export const proposal = {
-  /**
-   * Propose changing protocol parameters.
-   * @param params.updates The new values, in the ledger's shape
-   * @param params.guardrail The constitution's guardrail script, when it has one
-   */
-  parameterChange: (
-    params: ProposalParams &
-      GuardedParams &
-      ChainedParams & { updates: ProtocolParamUpdatePrototype },
-  ): ProposalPart => {
+  /** Propose changing protocol parameters. */
+  parameterChange: (params: ParameterChangeParams): ProposalPart => {
     const ctx = ctxOf(params);
     checkParamUpdate(ctx, params.updates);
     const { policyHash, witness } = toGuardrail(ctx, params);
@@ -344,14 +409,8 @@ export const proposal = {
     );
   },
 
-  /**
-   * Propose a hard fork to a new protocol version.
-   * @param params.protocolVersion The version to fork to
-   */
-  hardForkInitiation: (
-    params: ProposalParams &
-      ChainedParams & { protocolVersion: { major: number; minor: number } },
-  ): ProposalPart => {
+  /** Propose a hard fork to a new protocol version. */
+  hardForkInitiation: (params: HardForkInitiationParams): ProposalPart => {
     const ctx = ctxOf(params);
     const { major, minor } = params.protocolVersion ?? {};
     for (const [name, value] of [
@@ -373,16 +432,8 @@ export const proposal = {
     });
   },
 
-  /**
-   * Propose withdrawing lovelace from the treasury.
-   * @param params.withdrawals Lovelace by receiving reward address, in bech32 or hex; one
-   *   account given twice, in two texts, is refused
-   * @param params.guardrail The constitution's guardrail script, when it has one
-   */
-  treasuryWithdrawals: (
-    params: ProposalParams &
-      GuardedParams & { withdrawals: Record<string, bigint> },
-  ): ProposalPart => {
+  /** Propose withdrawing lovelace from the treasury. */
+  treasuryWithdrawals: (params: TreasuryWithdrawalsParams): ProposalPart => {
     const ctx = ctxOf(params);
     const entries = Object.entries(params.withdrawals ?? {});
     if (entries.length === 0) fail(ctx, "INVALID_VALUE", "no withdrawals");
@@ -412,7 +463,7 @@ export const proposal = {
   },
 
   /** Propose a motion of no confidence in the constitutional committee. */
-  noConfidence: (params: ProposalParams & ChainedParams): ProposalPart => {
+  noConfidence: (params: NoConfidenceParams): ProposalPart => {
     const ctx = ctxOf(params);
     return build(ctx, params, {
       type: "NO_CONFIDENCE_ACTION",
@@ -420,20 +471,8 @@ export const proposal = {
     });
   },
 
-  /**
-   * Propose changing the constitutional committee.
-   * @param params.remove Cold credentials of members to remove
-   * @param params.add Members to add, with the epoch their term ends at
-   * @param params.quorum The share of members whose votes are needed
-   */
-  updateCommittee: (
-    params: ProposalParams &
-      ChainedParams & {
-        remove?: CredentialInput[];
-        add?: { credential: CredentialInput; termLimit: bigint | number }[];
-        quorum: { numerator: bigint | number; denominator: bigint | number };
-      },
-  ): ProposalPart => {
+  /** Propose changing the constitutional committee. */
+  updateCommittee: (params: UpdateCommitteeParams): ProposalPart => {
     const ctx = ctxOf(params);
     const quorum = toUnitInterval(ctx, "quorum", params.quorum);
     if (BigInt(quorum.numerator) > BigInt(quorum.denominator))
@@ -470,17 +509,8 @@ export const proposal = {
     });
   },
 
-  /**
-   * Propose a new constitution.
-   * @param params.constitution Where the constitution is published, and its guardrail script's
-   *   hash, if any
-   */
-  newConstitution: (
-    params: ProposalParams &
-      ChainedParams & {
-        constitution: { anchor: AnchorInput; scriptHash?: string };
-      },
-  ): ProposalPart => {
+  /** Propose a new constitution. */
+  newConstitution: (params: NewConstitutionParams): ProposalPart => {
     const ctx = ctxOf(params);
     const anchor = toAnchor(ctx, params.constitution?.anchor);
     if (!anchor)
@@ -505,6 +535,6 @@ export const proposal = {
   },
 
   /** Propose an info action, voted on but with no effect on the chain. */
-  info: (params: ProposalParams): ProposalPart =>
+  info: (params: InfoActionParams): ProposalPart =>
     build(ctxOf(params), params, { type: "INFO_ACTION" }),
 };

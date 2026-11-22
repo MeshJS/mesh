@@ -313,6 +313,20 @@ export const prototypeExUnits = (
     { mem: 0n, steps: 0n },
   );
 
+/** What `minFee` needs besides the prototype */
+export type MinFeeContext = {
+  /** The protocol parameters */
+  params: Protocol;
+  /** How many key witnesses the signed transaction carries */
+  vkeyWitnesses: number;
+  /**
+   * UTxOs of the body's inputs and reference inputs, for their reference scripts, in any form
+   * the builder takes a UTxO in; two entries for one out ref the body names must hold the same,
+   * and the same UTxO given again is one
+   */
+  inputs?: readonly UtxoInput[];
+};
+
 /**
  * The minimum fee of a prototype once signed: placeholder witnesses for `vkeyWitnesses` keys,
  * and the reference-script fee for the scripts `inputs` hold.
@@ -329,11 +343,6 @@ export const prototypeExUnits = (
  *
  * `minFeeA * size + minFeeB + referenceScriptFee + ceil(mem * priceMem + steps * priceStep)`,
  * in exact arithmetic, the reference scripts priced in 25 KiB tiers each 1.2 times the last.
- * @param context.params The protocol parameters
- * @param context.vkeyWitnesses How many key witnesses the signed transaction carries
- * @param context.inputs UTxOs of the body's inputs and reference inputs, for their reference
- *   scripts, in any form the builder takes a UTxO in; two entries for one out ref the body names
- *   must hold the same, and the same UTxO given again is one
  * @throws TxBuildError INVALID_OPTION for a prototype without `body` and `witness_set`, a
  *   `vkeyWitnesses` that is not a whole number of 0 or more, `inputs` that is not a list, holds
  *   an entry whose out ref cannot be read, or for an out ref the body names an entry that is not
@@ -342,11 +351,7 @@ export const prototypeExUnits = (
  */
 export const minFee = (
   prototype: TransactionPrototype,
-  context: {
-    params: Protocol;
-    vkeyWitnesses: number;
-    inputs?: readonly UtxoInput[];
-  },
+  context: MinFeeContext,
 ): bigint => {
   if (
     !isRecord(prototype) ||

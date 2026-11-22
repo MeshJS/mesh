@@ -1448,7 +1448,14 @@ export class TxPlan {
    *   address that fails; NOT_SERIALIZABLE; every error of building a step; ABORTED
    */
   replan(
-    options: PlanOptions & { id: string; steps?: StepParts | PlanSteps },
+    options: PlanOptions & {
+      id: string;
+      /**
+       * The steps of the new plan: one list of parts or named steps, as `builder.plan` takes
+       * them. Left out, the steps the look shows open, as `rest` gives a step
+       */
+      steps?: StepParts | PlanSteps;
+    },
   ): Promise<TxPlan> {
     return this.#call(async (state) => {
       const { signal } = optionsObject(

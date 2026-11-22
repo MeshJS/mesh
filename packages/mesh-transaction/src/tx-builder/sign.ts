@@ -106,6 +106,7 @@ export type TxHashSignature = {
  * `signTxWitnesses(tx, keyHashes?)` instead.
  */
 export type TxHashSigner = {
+  /** Signs the hash of a transaction with the keys asked for that it holds */
   signTxHash(request: TxHashRequest): Promise<readonly TxHashSignature[]>;
 };
 
@@ -129,10 +130,14 @@ export type SignTxHash = (
  * (`SignTxHash`). A private key is not a signer as it is: `keySigner(key)` makes one of it.
  */
 export type Signer =
-  | { signTxWitnesses(tx: string, keyHashes?: RequiredKeys): Promise<string> }
+  | {
+      /** Signs with the keys of the given hashes, answering with a CBOR witness set */
+      signTxWitnesses(tx: string, keyHashes?: RequiredKeys): Promise<string>;
+    }
   | TxHashSigner
   | SignTxHash
   | {
+      /** Signs a transaction, as a CIP-30 api or a Mesh 1.9 wallet does */
       signTx(
         tx: string,
         partialSign?: boolean,
@@ -1541,7 +1546,8 @@ export type RequiredSignersOptions = {
    * The largest transaction read, in bytes: the `maxTxSize` of the protocol parameters of the
    * application's network, as `fromCbor` reads up to the `maxTxSize` of the builder's `params`.
    * Absent, `MAX_TX_BYTES` (16 384), the value of mainnet, preprod and preview. A larger
-   * transaction is refused before it is decoded, as `fromCbor` refuses it
+   * transaction is refused before it is decoded, as `fromCbor` refuses it. It is read as an own
+   * member of the options alone: one inherited, as from `Object.prototype`, is absent
    */
   maxTxSize?: number;
 };
@@ -1584,10 +1590,6 @@ const maxTxSizeOf = (options: unknown): number => {
  *   transaction runs from one of them listed in `nativeScripts`, or refused. An entry for an out
  *   ref the transaction does not name is passed over, its out ref alone read; two that name one
  *   output must hold the same, and two texts of CBOR for one output be one text
- * @param options.maxTxSize The largest transaction read, in bytes: the `maxTxSize` of the
- *   protocol parameters of the application's network. Absent, `MAX_TX_BYTES` (16 384), the value
- *   of mainnet, preprod and preview, as `fromCbor` on a builder without `params`. It is read as
- *   an own member of `options` alone: one inherited, as from `Object.prototype`, is absent
  * @throws TxBuildError UTXO_NOT_FOUND for an input or collateral input whose UTxO is not in
  *   `spent`; INVALID_OPTION (`options`) for options that are not an object or hold a member other
  *   than `maxTxSize`, and (`maxTxSize`) for one that is not a whole number of bytes, 1 or more,

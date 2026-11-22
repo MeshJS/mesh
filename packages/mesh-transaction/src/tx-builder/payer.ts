@@ -23,6 +23,7 @@ export type RequiredKeys = readonly string[];
  * in any form the builder takes one.
  */
 export type MeshFormatWallet = {
+  /** The address the change of a build goes to, in bech32 or hex */
   getChangeAddress(): Promise<string>;
   /**
    * The wallet's own UTxO view. A wallet without it, or a `MeshWallet` made without a fetcher
@@ -59,7 +60,9 @@ export type PayerSnapshot = {
  * returns can be passed as it is.
  */
 export type PayerSnapshotInput = {
+  /** The address the change goes to, in bech32 or hex */
   readonly changeAddress: string;
+  /** The UTxOs the build may select from, each in any form the builder takes one */
   readonly utxos: readonly UtxoInput[];
 };
 

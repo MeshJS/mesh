@@ -7,6 +7,7 @@ import type {
   InputRef,
   Linked,
   NativeScriptInput,
+  PartParams,
   PlutusScriptInput,
   RedeemerInput,
   ReferenceInputPart,
@@ -162,24 +163,29 @@ const linkOf = (
     ? toStepLink(ctx, utxo as Record<string, unknown>, change)
     : undefined;
 
-/** Spend an output of an earlier step of a plan, or all its change, locked by a payment key */
-function pubKey(params: {
-  utxo: StepOutput | StepChange;
-  label?: string;
-}): Linked<SpendPart>;
 /**
- * Spend an output locked by a payment key.
- * @param params.utxo The output, by reference or in full; in a plan, an output of an earlier
- *   step (`{ step, output }`), or all the change of an earlier step (`{ step, change: true }`).
- *   A part linked to an earlier step holds the link in place of the input, and the lock of the
- *   output is checked when the plan builds the step, as for an output given by out ref
- * @param params.label Name echoed in errors about this part
+ * What `spend.pubKey` takes. `U` is how the output is given: a reference or a UTxO for a
+ * normal spend, a link to an earlier step for a spend in a plan.
  */
-function pubKey(params: { utxo: InputRef; label?: string }): SpendPart;
-function pubKey(params: {
-  utxo: InputRef | StepOutput | StepChange;
-  label?: string;
-}): SpendPart | Linked<SpendPart> {
+export interface SpendPubKeyParams<U = InputRef> extends PartParams {
+  /**
+   * The output, by reference or in full; in a plan, an output of an earlier step
+   * (`{ step, output }`), or all the change of an earlier step (`{ step, change: true }`).
+   * A part linked to an earlier step holds the link in place of the input, and the lock of
+   * the output is checked when the plan builds the step, as for an output given by out ref
+   */
+  utxo: U;
+}
+
+/** Spend an output of an earlier step of a plan, or all its change, locked by a payment key */
+function pubKey(
+  params: SpendPubKeyParams<StepOutput | StepChange>,
+): Linked<SpendPart>;
+/** Spend an output locked by a payment key. */
+function pubKey(params: SpendPubKeyParams): SpendPart;
+function pubKey(
+  params: SpendPubKeyParams<InputRef | StepOutput | StepChange>,
+): SpendPart | Linked<SpendPart> {
   const ctx = partContext("spend", params);
   const link = linkOf(ctx, params.utxo, true);
   if (link)
@@ -199,32 +205,31 @@ function pubKey(params: {
   });
 }
 
-/** Spend an output of an earlier step of a plan locked by a native script */
-function native(params: {
-  utxo: StepOutput;
-  script: NativeScriptInput;
-  label?: string;
-}): Linked<SpendPart>;
 /**
- * Spend an output locked by a native script.
- * @param params.utxo The output, by reference or in full; in a plan, an output of an earlier
- *   step (`{ step, output }`). A part linked to an earlier step holds the link in place of the
- *   input, and the lock of the output is checked against the script when the plan builds the
- *   step, as for an output given by out ref
- * @param params.script The script: attached as a `NativeScript` or its CBOR, or held in a
- *   reference output (`{ reference }`)
- * @param params.label Name echoed in errors about this part
+ * What `spend.native` takes. `U` is how the output is given, as for `SpendPubKeyParams`.
  */
-function native(params: {
-  utxo: InputRef;
+export interface SpendNativeParams<U = InputRef> extends PartParams {
+  /**
+   * The output, by reference or in full; in a plan, an output of an earlier step
+   * (`{ step, output }`). A part linked to an earlier step holds the link in place of the
+   * input, and the lock of the output is checked against the script when the plan builds the
+   * step, as for an output given by out ref
+   */
+  utxo: U;
+  /**
+   * The script: attached as a `NativeScript` or its CBOR, or held in a reference output
+   * (`{ reference }`)
+   */
   script: NativeScriptInput;
-  label?: string;
-}): SpendPart;
-function native(params: {
-  utxo: InputRef | StepOutput;
-  script: NativeScriptInput;
-  label?: string;
-}): SpendPart | Linked<SpendPart> {
+}
+
+/** Spend an output of an earlier step of a plan locked by a native script */
+function native(params: SpendNativeParams<StepOutput>): Linked<SpendPart>;
+/** Spend an output locked by a native script. */
+function native(params: SpendNativeParams): SpendPart;
+function native(
+  params: SpendNativeParams<InputRef | StepOutput>,
+): SpendPart | Linked<SpendPart> {
   const ctx = partContext("spend", params);
   const link = linkOf(ctx, params.utxo, false);
   const resolvable = link
@@ -246,43 +251,42 @@ function native(params: {
   });
 }
 
-/** Spend an output of an earlier step of a plan locked by a Plutus script */
-function plutus(params: {
-  utxo: StepOutput;
-  script: PlutusScriptInput;
-  redeemer: RedeemerInput;
-  datum?: SpendDatumInput;
-  label?: string;
-}): Linked<SpendPart>;
 /**
- * Spend an output locked by a Plutus script.
- * @param params.utxo The output, by reference or in full; in a plan, an output of an earlier
- *   step (`{ step, output }`). A part linked to an earlier step holds the link in place of the
- *   input; the lock of the output, and its datum when `datum` is omitted or given, are worked
- *   out and checked when the plan builds the step, as for an output given by out ref
- * @param params.script The script: attached (`{ code, version }`, the code flat or in one or
- *   two CBOR wrappings) or held in a reference output (`{ reference }`)
- * @param params.redeemer Data, or a function of the final transaction (`self`: this input's
- *   index), with execution units if already known
- * @param params.datum The datum of the output; worked out from the output when omitted. Data
- *   given for an output that holds its datum inline is checked to be that datum, byte for byte,
- *   and never goes into the witness set: the script is judged on the datum the output holds
- * @param params.label Name echoed in errors about this part, such as a script failure
+ * What `spend.plutus` takes. `U` is how the output is given, as for `SpendPubKeyParams`.
  */
-function plutus(params: {
-  utxo: InputRef;
+export interface SpendPlutusParams<U = InputRef> extends PartParams {
+  /**
+   * The output, by reference or in full; in a plan, an output of an earlier step
+   * (`{ step, output }`). A part linked to an earlier step holds the link in place of the
+   * input; the lock of the output, and its datum when `datum` is omitted or given, are worked
+   * out and checked when the plan builds the step, as for an output given by out ref
+   */
+  utxo: U;
+  /**
+   * The script: attached (`{ code, version }`, the code flat or in one or two CBOR
+   * wrappings) or held in a reference output (`{ reference }`)
+   */
   script: PlutusScriptInput;
+  /**
+   * Data, or a function of the final transaction (`self`: this input's index), with
+   * execution units if already known
+   */
   redeemer: RedeemerInput;
+  /**
+   * The datum of the output; worked out from the output when omitted. Data given for an
+   * output that holds its datum inline is checked to be that datum, byte for byte, and never
+   * goes into the witness set: the script is judged on the datum the output holds
+   */
   datum?: SpendDatumInput;
-  label?: string;
-}): SpendPart;
-function plutus(params: {
-  utxo: InputRef | StepOutput;
-  script: PlutusScriptInput;
-  redeemer: RedeemerInput;
-  datum?: SpendDatumInput;
-  label?: string;
-}): SpendPart | Linked<SpendPart> {
+}
+
+/** Spend an output of an earlier step of a plan locked by a Plutus script */
+function plutus(params: SpendPlutusParams<StepOutput>): Linked<SpendPart>;
+/** Spend an output locked by a Plutus script. */
+function plutus(params: SpendPlutusParams): SpendPart;
+function plutus(
+  params: SpendPlutusParams<InputRef | StepOutput>,
+): SpendPart | Linked<SpendPart> {
   const ctx = partContext("spend", params);
   const link = linkOf(ctx, params.utxo, false);
   const resolvable = link
@@ -318,11 +322,21 @@ function plutus(params: {
 /** Spend an existing output, or one of an earlier step of a plan */
 export const spend = { pubKey, native, plutus };
 
+/**
+ * What `referenceInput` takes. `U` is how the output is given, as for `SpendPubKeyParams`.
+ */
+export interface ReferenceInputParams<U = InputRef> extends PartParams {
+  /**
+   * The output, by reference or in full; in a plan, an output of an earlier step
+   * (`{ step, output }`), which the part holds as a link in place of the input
+   */
+  utxo: U;
+}
+
 /** Read an output of an earlier step of a plan without spending it */
-export function referenceInput(params: {
-  utxo: StepOutput;
-  label?: string;
-}): Linked<ReferenceInputPart>;
+export function referenceInput(
+  params: ReferenceInputParams<StepOutput>,
+): Linked<ReferenceInputPart>;
 /**
  * Read an output without spending it: its datum and reference script become visible to the
  * transaction's scripts. Given by out ref, the part assembles as it is, since only the out ref
@@ -330,18 +344,13 @@ export function referenceInput(params: {
  * reference input; an output the transaction also spends is not a reference input at all: its
  * datum and reference script are visible as those of a spent input. The part never makes its
  * output spent, and selection never takes it.
- * @param params.utxo The output, by reference or in full; in a plan, an output of an earlier
- *   step (`{ step, output }`), which the part holds as a link in place of the input
- * @param params.label Name echoed in errors about this part
  */
-export function referenceInput(params: {
-  utxo: InputRef;
-  label?: string;
-}): ReferenceInputPart;
-export function referenceInput(params: {
-  utxo: InputRef | StepOutput;
-  label?: string;
-}): ReferenceInputPart | Linked<ReferenceInputPart> {
+export function referenceInput(
+  params: ReferenceInputParams,
+): ReferenceInputPart;
+export function referenceInput(
+  params: ReferenceInputParams<InputRef | StepOutput>,
+): ReferenceInputPart | Linked<ReferenceInputPart> {
   const ctx = partContext("referenceInput", params);
   const link = linkOf(ctx, params.utxo, false);
   return freeze({
@@ -351,30 +360,33 @@ export function referenceInput(params: {
   });
 }
 
+/**
+ * What `collateral` takes. `U` is how the output is given, as for `SpendPubKeyParams`.
+ */
+export interface CollateralParams<U = InputRef> extends PartParams {
+  /**
+   * A key-locked output, by reference or in full; in a plan, an output of an earlier step
+   * (`{ step, output }`), which the part holds as a link in place of the input, its lock
+   * checked when the plan builds the step
+   */
+  utxo: U;
+}
+
 /** Put up an output of an earlier step of a plan as collateral */
-export function collateral(params: {
-  utxo: StepOutput;
-  label?: string;
-}): Linked<CollateralPart>;
+export function collateral(
+  params: CollateralParams<StepOutput>,
+): Linked<CollateralPart>;
 /**
  * Put up an output as collateral, forfeited only if a script of the transaction fails. When the
  * collateral inputs given this way do not cover the collateral, the build adds inputs from the
  * payer's UTxOs after them, unless its option `topUpCollateral` is false. A build with
  * `collateralReturn: false` forfeits all of its lovelace, and refuses one holding a token
  * (INVALID_COLLATERAL).
- * @param params.utxo A key-locked output, by reference or in full; in a plan, an output of an
- *   earlier step (`{ step, output }`), which the part holds as a link in place of the input,
- *   its lock checked when the plan builds the step
- * @param params.label Name echoed in errors about this part
  */
-export function collateral(params: {
-  utxo: InputRef;
-  label?: string;
-}): CollateralPart;
-export function collateral(params: {
-  utxo: InputRef | StepOutput;
-  label?: string;
-}): CollateralPart | Linked<CollateralPart> {
+export function collateral(params: CollateralParams): CollateralPart;
+export function collateral(
+  params: CollateralParams<InputRef | StepOutput>,
+): CollateralPart | Linked<CollateralPart> {
   const ctx = partContext("collateral", params);
   const link = linkOf(ctx, params.utxo, false);
   if (link)
@@ -388,20 +400,25 @@ export function collateral(params: {
   });
 }
 
+/** What `collateralReturn` takes */
+export interface CollateralReturnParams extends PartParams {
+  /** Where the rest of the collateral goes, in bech32, base58 (Byron) or hex */
+  address: string;
+  /**
+   * Lovelace forfeited on failure; worked out from the fee when omitted. Given collateral
+   * inputs that do not hold it are topped up as for the fee
+   */
+  totalCollateral?: bigint;
+}
+
 /**
  * Send what is left of the collateral after a script failure to an address, so that only the
  * required amount is forfeited rather than the whole of the collateral inputs. A build with
  * `collateralReturn: false` refuses this part (INVALID_OPTION).
- * @param params.address Where the rest of the collateral goes, in bech32, base58 (Byron) or hex
- * @param params.totalCollateral Lovelace forfeited on failure; worked out from the fee when
- *   omitted. Given collateral inputs that do not hold it are topped up as for the fee
- * @param params.label Name echoed in errors about this part
  */
-export const collateralReturn = (params: {
-  address: string;
-  totalCollateral?: bigint;
-  label?: string;
-}): CollateralReturnPart => {
+export const collateralReturn = (
+  params: CollateralReturnParams,
+): CollateralReturnPart => {
   const ctx = partContext("collateralReturn", params);
   const address = parseAddress(ctx, params.address);
   if (address.asReward())

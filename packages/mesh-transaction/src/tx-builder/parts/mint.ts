@@ -18,6 +18,7 @@ import {
   MintPart,
   NativeScriptInput,
   NativeScriptSource,
+  PartParams,
   PlutusScriptInput,
   PlutusScriptSource,
   RedeemerInput,
@@ -97,21 +98,40 @@ const toPolicyId = <T extends PlutusScriptSource | NativeScriptSource>(
   };
 };
 
-export const mint = {
+/** What `mint.native` takes */
+export interface MintNativeParams extends PartParams {
   /**
-   * Mint or burn tokens under a native script policy.
-   * @param params.script The policy script: attached as a `NativeScript` or its CBOR, or held
-   *   in a reference output (`{ reference }`)
-   * @param params.assets Quantities by asset name in hex; negative to burn
-   * @param params.policyId Needed only for a script referenced by out ref alone
-   * @param params.label Name echoed in errors about this part
+   * The policy script: attached as a `NativeScript` or its CBOR, or held in a reference
+   * output (`{ reference }`)
    */
-  native: (params: {
-    script: NativeScriptInput;
-    assets: MintAssetsInput;
-    policyId?: string;
-    label?: string;
-  }): MintPart => {
+  script: NativeScriptInput;
+  /** Quantities by asset name in hex; negative to burn */
+  assets: MintAssetsInput;
+  /** Needed only for a script referenced by out ref alone */
+  policyId?: string;
+}
+
+/** What `mint.plutus` takes */
+export interface MintPlutusParams extends PartParams {
+  /**
+   * The policy script: attached (`{ code, version }`, the code flat or in one or two CBOR
+   * wrappings) or held in a reference output (`{ reference }`)
+   */
+  script: PlutusScriptInput;
+  /**
+   * Data, or a function of the final transaction (`self`: this policy's index among the
+   * policies), with execution units if already known
+   */
+  redeemer: RedeemerInput;
+  /** Quantities by asset name in hex; negative to burn */
+  assets: MintAssetsInput;
+  /** Needed only for a script referenced by out ref alone */
+  policyId?: string;
+}
+
+export const mint = {
+  /** Mint or burn tokens under a native script policy. */
+  native: (params: MintNativeParams): MintPart => {
     const ctx = partContext("mint", params);
     const { policyId, script } = toPolicyId(
       ctx,
@@ -127,23 +147,8 @@ export const mint = {
     });
   },
 
-  /**
-   * Mint or burn tokens under a Plutus script policy.
-   * @param params.script The policy script: attached (`{ code, version }`, the code flat or in
-   *   one or two CBOR wrappings) or held in a reference output (`{ reference }`)
-   * @param params.redeemer Data, or a function of the final transaction (`self`: this policy's
-   *   index among the policies), with execution units if already known
-   * @param params.assets Quantities by asset name in hex; negative to burn
-   * @param params.policyId Needed only for a script referenced by out ref alone
-   * @param params.label Name echoed in errors about this part, such as a script failure
-   */
-  plutus: (params: {
-    script: PlutusScriptInput;
-    redeemer: RedeemerInput;
-    assets: MintAssetsInput;
-    policyId?: string;
-    label?: string;
-  }): MintPart => {
+  /** Mint or burn tokens under a Plutus script policy. */
+  plutus: (params: MintPlutusParams): MintPart => {
     const ctx = partContext("mint", params);
     const { policyId, script } = toPolicyId(
       ctx,

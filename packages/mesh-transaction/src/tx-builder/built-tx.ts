@@ -114,6 +114,22 @@ export type SignTxOptions = {
   signal?: AbortSignal;
 };
 
+/** The options of `awaitInclusion()` of a `BuiltTx` */
+export type AwaitInclusionOptions = {
+  /**
+   * How long to look, in ms, a look that has not answered by then included; above 0; 120 000
+   * by default
+   */
+  timeoutMs?: number;
+  /**
+   * The pause between two looks, in ms; above 0; the builder's `planDefaults.pollMs`, else
+   * 5 000
+   */
+  pollMs?: number;
+  /** Aborts the call with ABORTED */
+  signal?: AbortSignal;
+};
+
 /** Where `awaitInclusion()` found the transaction: what the provider's answer gave of its block */
 export type TxInclusion = {
   /** The hash of the transaction found: the object's `txHash` */
@@ -658,7 +674,12 @@ export class BuiltTx implements BuiltTxData {
    *   count as sent
    */
   async submit(options?: {
+    /** Takes the transaction in place of the builder's submitter and of its provider */
     submitter?: ISubmitter;
+    /**
+     * Stops the waiting for the submitter, for a delivery of this object under way and for the
+     * look, with ABORTED; bytes already handed to the submitter count as sent
+     */
     signal?: AbortSignal;
   }): Promise<this> {
     const call = checkSubmitOptions(options);
@@ -725,10 +746,6 @@ export class BuiltTx implements BuiltTxData {
    * and nothing after it: a rollback can undo it, and nothing here waits for depth or `final`.
    * It sends nothing and changes nothing; it can be called before `submit()`, after it, again,
    * and for a transaction that another process sent.
-   * @param options.timeoutMs How long to look, in ms, a look that has not answered by then
-   *   included; above 0; 120 000 by default
-   * @param options.pollMs The pause between two looks, in ms; above 0; the builder's
-   *   `planDefaults.pollMs`, else 5 000
    * @returns What the provider's answer gave of the block
    * @throws TxPlanError CONFIRM_TIMEOUT `{ waitedFor: "included", timeoutMs }` (retryable) when
    *   it is not found in time: this does not mean that it will not land. SCRIPT_FAILED when it
@@ -736,13 +753,10 @@ export class BuiltTx implements BuiltTxData {
    *   CANNOT_OBSERVE (`noSearch`) for a provider without `fetchTxInfo`, (`noValidity`) for a
    *   transaction that runs a Plutus script found without `validContract`
    * @throws TxBuildError MISSING_FETCHER when the builder has no provider; INVALID_OPTION for an
-   *   option out of range, and for options with a member other than these; ABORTED
+   *   option out of range, and for options with a member other than those of
+   *   `AwaitInclusionOptions`; ABORTED
    */
-  async awaitInclusion(options?: {
-    timeoutMs?: number;
-    pollMs?: number;
-    signal?: AbortSignal;
-  }): Promise<TxInclusion> {
+  async awaitInclusion(options?: AwaitInclusionOptions): Promise<TxInclusion> {
     const call = checkInclusionOptions(options);
     throwIfAborted(call.signal, CALL);
     const { provider, planDefaults } = this.#builder;

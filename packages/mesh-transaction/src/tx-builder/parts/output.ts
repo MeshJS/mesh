@@ -9,7 +9,12 @@ import type {
 import { toScriptRef } from "@meshsdk/core-cst";
 
 import type { PartContext } from "./normalize";
-import type { OutputDatumInput, OutputPart, ValueInput } from "./types";
+import type {
+  OutputDatumInput,
+  OutputPart,
+  PartParams,
+  ValueInput,
+} from "./types";
 import {
   addressText,
   errorText,
@@ -178,24 +183,31 @@ const toScriptReference = (
   }
 };
 
-/**
- * Create an output.
- * @param params.address The address receiving the output, in bech32, base58 (Byron) or hex
- * @param params.value Lovelace and assets; without lovelace, the output holds the minimum it
- *   needs
- * @param params.datum A datum held inline, or as a hash; an inline datum given as CBOR is one
- *   item of Plutus data, with no bytes after it
- * @param params.scriptRef A Plutus or native script made available as a reference script; a
- *   Plutus script's code flat or in one or two CBOR wrappings
- * @param params.label Name echoed in errors about this part
- */
-export const output = (params: {
+/** What `output` takes */
+export interface OutputParams extends PartParams {
+  /** The address receiving the output, in bech32, base58 (Byron) or hex */
   address: string;
+  /** Lovelace and assets; without lovelace, the output holds the minimum it needs */
   value: ValueInput;
+  /**
+   * A datum held inline, or as a hash; an inline datum given as CBOR is one item of Plutus
+   * data, with no bytes after it
+   */
   datum?: OutputDatumInput;
+  /**
+   * A Plutus or native script made available as a reference script; a Plutus script's code
+   * flat or in one or two CBOR wrappings
+   */
   scriptRef?: PlutusScript | NativeScript;
+  /**
+   * Free-form name, echoed in errors about this part; a redeemer function (`tx.output(label)`)
+   * and a later step of a plan (`{ step, output: label }`) find the output by it
+   */
   label?: string;
-}): OutputPart => {
+}
+
+/** Create an output. */
+export const output = (params: OutputParams): OutputPart => {
   const ctx = partContext("output", params);
   const address = parseAddress(ctx, params.address);
   if (address.asReward())

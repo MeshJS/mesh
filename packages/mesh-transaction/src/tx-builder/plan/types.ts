@@ -74,7 +74,13 @@ export type StepOptions = Pick<
  * (`builder.fromCbor`) before it is given
  */
 export type PlanStep =
-  StepParts | ({ readonly parts: StepParts } & StepOptions) | BuiltTx | string;
+  | StepParts
+  | ({
+      /** The parts of the step, which the plan builds into its transaction */
+      readonly parts: StepParts;
+    } & StepOptions)
+  | BuiltTx
+  | string;
 
 /**
  * The steps of a plan by name, in the order they are sent: a plain object, or one without a
@@ -128,7 +134,15 @@ export type PlanOptions = Omit<BuildOptions, "after"> &
      * The object is a plain one whose only own member may be `maxSteps`: any other value is
      * INVALID_OPTION (`consolidate`)
      */
-    consolidate?: boolean | { readonly maxSteps?: number };
+    consolidate?:
+      | boolean
+      | {
+          /**
+           * The most consolidation steps in the plan as a whole, those `plan.add` puts in
+           * counted: a whole number from 1 to 31; 4 by default
+           */
+          readonly maxSteps?: number;
+        };
   };
 
 /**
