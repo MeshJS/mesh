@@ -6,6 +6,7 @@ import type {
   CollateralReturnPart,
   InputRef,
   Linked,
+  LinkedWhen,
   NativeScriptInput,
   PartParams,
   PlutusScriptInput,
@@ -150,8 +151,8 @@ export const toSpendDatum = (
   return { type: "none" };
 };
 
-// Each builder below takes a link to an earlier step in its first overload, so that its last,
-// which `ReturnType` reads, is the part with its input
+// Each builder below has one generic signature: the part it returns depends on how `utxo` is
+// given (`LinkedWhen`)
 
 /** The value given as `utxo` read as a link to an earlier step, or undefined for a UTxO */
 const linkOf = (
@@ -177,12 +178,13 @@ export interface SpendPubKeyParams<U = InputRef> extends PartParams {
   utxo: U;
 }
 
-/** Spend an output of an earlier step of a plan, or all its change, locked by a payment key */
-function pubKey(
-  params: SpendPubKeyParams<StepOutput | StepChange>,
-): Linked<SpendPart>;
-/** Spend an output locked by a payment key. */
-function pubKey(params: SpendPubKeyParams): SpendPart;
+/**
+ * Spend an output locked by a payment key; in a plan, an output of an earlier step, or all its
+ * change, with the part linked to that step.
+ */
+function pubKey<U extends InputRef | StepOutput | StepChange>(
+  params: SpendPubKeyParams<U>,
+): LinkedWhen<U, SpendPart>;
 function pubKey(
   params: SpendPubKeyParams<InputRef | StepOutput | StepChange>,
 ): SpendPart | Linked<SpendPart> {
@@ -223,10 +225,13 @@ export interface SpendNativeParams<U = InputRef> extends PartParams {
   script: NativeScriptInput;
 }
 
-/** Spend an output of an earlier step of a plan locked by a native script */
-function native(params: SpendNativeParams<StepOutput>): Linked<SpendPart>;
-/** Spend an output locked by a native script. */
-function native(params: SpendNativeParams): SpendPart;
+/**
+ * Spend an output locked by a native script; in a plan, an output of an earlier step, with the
+ * part linked to that step.
+ */
+function native<U extends InputRef | StepOutput>(
+  params: SpendNativeParams<U>,
+): LinkedWhen<U, SpendPart>;
 function native(
   params: SpendNativeParams<InputRef | StepOutput>,
 ): SpendPart | Linked<SpendPart> {
@@ -280,10 +285,13 @@ export interface SpendPlutusParams<U = InputRef> extends PartParams {
   datum?: SpendDatumInput;
 }
 
-/** Spend an output of an earlier step of a plan locked by a Plutus script */
-function plutus(params: SpendPlutusParams<StepOutput>): Linked<SpendPart>;
-/** Spend an output locked by a Plutus script. */
-function plutus(params: SpendPlutusParams): SpendPart;
+/**
+ * Spend an output locked by a Plutus script; in a plan, an output of an earlier step, with the
+ * part linked to that step.
+ */
+function plutus<U extends InputRef | StepOutput>(
+  params: SpendPlutusParams<U>,
+): LinkedWhen<U, SpendPart>;
 function plutus(
   params: SpendPlutusParams<InputRef | StepOutput>,
 ): SpendPart | Linked<SpendPart> {
@@ -333,21 +341,18 @@ export interface ReferenceInputParams<U = InputRef> extends PartParams {
   utxo: U;
 }
 
-/** Read an output of an earlier step of a plan without spending it */
-export function referenceInput(
-  params: ReferenceInputParams<StepOutput>,
-): Linked<ReferenceInputPart>;
 /**
  * Read an output without spending it: its datum and reference script become visible to the
  * transaction's scripts. Given by out ref, the part assembles as it is, since only the out ref
  * goes into the body; `build()` still reads the output. One output read by several parts is one
  * reference input; an output the transaction also spends is not a reference input at all: its
  * datum and reference script are visible as those of a spent input. The part never makes its
- * output spent, and selection never takes it.
+ * output spent, and selection never takes it. In a plan, an output of an earlier step, with the
+ * part linked to that step.
  */
-export function referenceInput(
-  params: ReferenceInputParams,
-): ReferenceInputPart;
+export function referenceInput<U extends InputRef | StepOutput>(
+  params: ReferenceInputParams<U>,
+): LinkedWhen<U, ReferenceInputPart>;
 export function referenceInput(
   params: ReferenceInputParams<InputRef | StepOutput>,
 ): ReferenceInputPart | Linked<ReferenceInputPart> {
@@ -372,18 +377,17 @@ export interface CollateralParams<U = InputRef> extends PartParams {
   utxo: U;
 }
 
-/** Put up an output of an earlier step of a plan as collateral */
-export function collateral(
-  params: CollateralParams<StepOutput>,
-): Linked<CollateralPart>;
 /**
  * Put up an output as collateral, forfeited only if a script of the transaction fails. When the
  * collateral inputs given this way do not cover the collateral, the build adds inputs from the
  * payer's UTxOs after them, unless its option `topUpCollateral` is false. A build with
  * `collateralReturn: false` forfeits all of its lovelace, and refuses one holding a token
- * (INVALID_COLLATERAL).
+ * (INVALID_COLLATERAL). In a plan, an output of an earlier step, with the part linked to that
+ * step.
  */
-export function collateral(params: CollateralParams): CollateralPart;
+export function collateral<U extends InputRef | StepOutput>(
+  params: CollateralParams<U>,
+): LinkedWhen<U, CollateralPart>;
 export function collateral(
   params: CollateralParams<InputRef | StepOutput>,
 ): CollateralPart | Linked<CollateralPart> {

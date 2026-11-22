@@ -18,6 +18,7 @@ import {
   BuildOptions,
   BuiltTxData,
   collateral,
+  CollateralPart,
   collateralReturn,
   OutputDatum,
   PartsInput,
@@ -540,7 +541,7 @@ describe("TxBuilder: collateral without a return", () => {
       fee: bigint,
       options: {
         params?: Protocol;
-        parts?: ReturnType<typeof collateral>[];
+        parts?: CollateralPart[];
       } = {},
     ) => {
       const built = await build(

@@ -5,6 +5,8 @@ import {
   auxiliaryScript,
   certificate,
   collateral,
+  CollateralParams,
+  CollateralPart,
   collateralReturn,
   donation,
   guard,
@@ -15,6 +17,8 @@ import {
   output,
   proposal,
   referenceInput,
+  ReferenceInputParams,
+  ReferenceInputPart,
   spend,
   treasuryValue,
   TxBuilder,
@@ -41,11 +45,16 @@ const utxo: Utxo = {
   value: { lovelace: 5_000_000n },
 };
 
+/** `referenceInput` and `collateral` as they take a UTxO, never linked to a step of a plan */
+const read: (params: ReferenceInputParams) => ReferenceInputPart =
+  referenceInput;
+const putUp: (params: CollateralParams) => CollateralPart = collateral;
+
 /** Every part builder, by name */
 const builders: [string, (params: never) => TxPart][] = [
   ["output", output],
-  ["referenceInput", referenceInput],
-  ["collateral", collateral],
+  ["referenceInput", read],
+  ["collateral", putUp],
   ["collateralReturn", collateralReturn],
   ["validity", validity],
   ["metadata", metadata],

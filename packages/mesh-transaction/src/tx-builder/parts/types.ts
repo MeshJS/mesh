@@ -579,6 +579,15 @@ export type Linked<P extends SpendPart | ReferenceInputPart | CollateralPart> =
     readonly link: StepOutput | StepChange;
   };
 
+/**
+ * The part a builder makes when its output is given as `U`: a `Linked` part when `U` is a link to
+ * an earlier step, else the part itself. A `U` that is `any` gives the part itself.
+ */
+export type LinkedWhen<
+  U,
+  P extends SpendPart | ReferenceInputPart | CollateralPart,
+> = 0 extends 1 & U ? P : U extends StepOutput | StepChange ? Linked<P> : P;
+
 /** Every part that may be linked to an earlier step */
 export type LinkedPart =
   Linked<SpendPart> | Linked<ReferenceInputPart> | Linked<CollateralPart>;

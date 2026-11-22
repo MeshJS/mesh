@@ -2,7 +2,12 @@ import type { MeshWallet } from "@meshsdk/wallet";
 import { deserializeAddress, mConStr0 } from "@meshsdk/core";
 import { Crypto, resolvePlutusScriptAddress } from "@meshsdk/core-cst";
 
-import type { BuiltTx, PlanSteps, TxStep } from "../../../src/tx-builder";
+import type {
+  BuiltTx,
+  PlanSteps,
+  SpendPubKeyParams,
+  TxStep,
+} from "../../../src/tx-builder";
 import type { TxPlan } from "../../../src/tx-builder/plan/plan";
 import {
   collateral,
@@ -146,7 +151,7 @@ const partnerSwap = async (ctx: Ctx, fund: BuiltTx, lovelace = 12n * ADA) => {
 /** A transaction of the partner that spends a UTxO of the wallet and pays the partner */
 const takesFromWallet = async (
   ctx: Ctx,
-  utxo: Parameters<typeof spend.pubKey>[0]["utxo"],
+  utxo: SpendPubKeyParams["utxo"],
   lovelace = 15n * ADA,
 ) => {
   const swap = await ctx.partnerBuilder.build(
