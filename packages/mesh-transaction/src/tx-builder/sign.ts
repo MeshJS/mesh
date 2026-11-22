@@ -1549,17 +1549,18 @@ export type RequiredSignersOptions = {
 const REQUIRED_SIGNERS_ALLOWED = "an object { maxTxSize? }";
 
 /**
- * The largest transaction `requiredSigners` reads: its option `maxTxSize`, else `MAX_TX_BYTES`
+ * The largest transaction `requiredSigners` reads: its option `maxTxSize`, an own member of the
+ * options, else `MAX_TX_BYTES`. One inherited is not read: a `maxTxSize` set on
+ * `Object.prototype` would bound every call given no options
  * @throws TxBuildError INVALID_OPTION (`options`) for options that are not an object or hold a
  *   member other than `maxTxSize`; (`maxTxSize`) for one that is not a whole number of bytes, 1
  *   or more. Either names only the JavaScript type of what was given
  */
 const maxTxSizeOf = (options: unknown): number => {
-  const { maxTxSize } = optionsObject(
-    options,
-    ["maxTxSize"],
-    REQUIRED_SIGNERS_ALLOWED,
-  );
+  const given = optionsObject(options, ["maxTxSize"], REQUIRED_SIGNERS_ALLOWED);
+  const maxTxSize = Object.prototype.hasOwnProperty.call(given, "maxTxSize")
+    ? given.maxTxSize
+    : undefined;
   if (maxTxSize === undefined) return MAX_TX_BYTES;
   if (
     typeof maxTxSize !== "number" ||
@@ -1585,7 +1586,8 @@ const maxTxSizeOf = (options: unknown): number => {
  *   output must hold the same, and two texts of CBOR for one output be one text
  * @param options.maxTxSize The largest transaction read, in bytes: the `maxTxSize` of the
  *   protocol parameters of the application's network. Absent, `MAX_TX_BYTES` (16 384), the value
- *   of mainnet, preprod and preview, as `fromCbor` on a builder without `params`
+ *   of mainnet, preprod and preview, as `fromCbor` on a builder without `params`. It is read as
+ *   an own member of `options` alone: one inherited, as from `Object.prototype`, is absent
  * @throws TxBuildError UTXO_NOT_FOUND for an input or collateral input whose UTxO is not in
  *   `spent`; INVALID_OPTION (`options`) for options that are not an object or hold a member other
  *   than `maxTxSize`, and (`maxTxSize`) for one that is not a whole number of bytes, 1 or more,

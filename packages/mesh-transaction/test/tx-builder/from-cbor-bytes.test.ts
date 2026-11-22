@@ -1882,4 +1882,58 @@ describe("requiredSigners › the option maxTxSize, the largest transaction it r
       "options",
     );
   });
+
+  it("reads maxTxSize as an own member of the options alone: one set on Object.prototype, 1 048 576, 100 or a text, changes no call, with no option, {} or a maxTxSize of 32 768", () => {
+    const large = ofSize(20_000);
+    const small = ofSize(1_000);
+    const options: (RequiredSignersOptions | undefined)[] = [
+      undefined,
+      {},
+      { maxTxSize: 32_768 },
+    ];
+    /** What each call gives: its signers, or what its refusal says */
+    const outcomes = () =>
+      options.flatMap((each) =>
+        [large, small].map((given) => {
+          try {
+            return requiredSigners(given, knownUtxos(), each);
+          } catch (error) {
+            return said(error);
+          }
+        }),
+      );
+    const clean = outcomes();
+    const refusedLarge = {
+      code: "INVALID_OPTION",
+      message: tooLarge(16_384),
+      details: {
+        option: "tx",
+        value: "string",
+        allowed: "a transaction in CBOR hex",
+      },
+      cause: undefined,
+    };
+    const signers = requiredSigners(small, knownUtxos());
+    expect(signers.keyHashes).toEqual([key.keyHash, other.keyHash]);
+    expect(clean).toEqual([
+      refusedLarge,
+      signers,
+      refusedLarge,
+      signers,
+      requiredSigners(large, knownUtxos(), { maxTxSize: 20_000 }),
+      signers,
+    ]);
+    const prototype = Object.prototype as unknown as { maxTxSize?: unknown };
+    for (const polluted of [1_048_576, 100, "x"]) {
+      let got: unknown[];
+      try {
+        prototype.maxTxSize = polluted;
+        got = outcomes();
+      } finally {
+        delete prototype.maxTxSize;
+      }
+      expect(got).toEqual(clean);
+    }
+    expect("maxTxSize" in {}).toBe(false);
+  });
 });

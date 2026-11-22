@@ -526,6 +526,7 @@ functions below stay as the lower layer, for code without a builder:
 ```ts
 import type {
   RequiredKeys,
+  RequiredSignersOptions,
   Signer,
   TxSigners,
   UtxoInput,
@@ -544,6 +545,7 @@ declare function signedKeyHashes(tx: string): Promise<string[]>;
 declare function requiredSigners(
   tx: string,
   spent: readonly UtxoInput[],
+  options?: RequiredSignersOptions,
 ): TxSigners;
 ```
 
