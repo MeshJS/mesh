@@ -532,17 +532,14 @@ export const heldNativeScript = (
 /** Why the keys of a native script are not read: see `NATIVE_SCRIPT_UNREAD` */
 export type NativeScriptUnread = "depth" | "size" | "form";
 
-/** Why the keys of a native script are not read, in words, quoting none of its bytes */
-export const unreadNativeWords = (reason: NativeScriptUnread): string => {
-  switch (reason) {
-    case "depth":
-      return `it nests deeper than the ${MAX_NATIVE_DEPTH} levels to which this library reads the keys of a native script`;
-    case "size":
-      return `it is longer than the ${MAX_TX_BYTES} bytes of a transaction, the most this library reads of a native script`;
-    case "form":
-      return "it is in a form this library does not read (CBOR that is not well formed, a form the ledger does not read, or a key hash written in pieces)";
-  }
-};
+/**
+ * Why the keys of a native script nested too deep, or too long, are not read, in words, quoting
+ * none of its bytes; `unreadScriptWords` says why for one left `unknown`
+ */
+export const unreadNativeWords = (reason: "depth" | "size"): string =>
+  reason === "depth"
+    ? `it nests deeper than the ${MAX_NATIVE_DEPTH} levels to which this library reads the keys of a native script`
+    : `it is longer than the ${MAX_TX_BYTES} bytes of a transaction, the most this library reads of a native script`;
 
 /** The tag of a byte string that holds a CBOR item */
 const ENCODED_CBOR = 24;
@@ -551,6 +548,14 @@ const ENCODED_CBOR = 24;
 type NativeFraming = {
   /** The script: the bytes after the language, before the break of an array of indefinite length */
   readonly script: string;
+  /** Whether `[0, script]` is under tag 24, as a byte string */
+  readonly tag24: boolean;
+  /** Whether its array is of indefinite length */
+  readonly indefinite: boolean;
+  /** Whether the head of its array is written longer than needed */
+  readonly longHead: boolean;
+  /** Whether its language is written longer than needed */
+  readonly longLanguage: boolean;
 };
 
 /**
@@ -565,7 +570,8 @@ const nativeFraming = (scriptRef: string): NativeFraming | undefined => {
   try {
     let bytes = scriptRef.toLowerCase();
     let reader = new CborReader(HexBlob(bytes));
-    if (reader.peekState() === State.Tag) {
+    const tag24 = reader.peekState() === State.Tag;
+    if (tag24) {
       if (Number(reader.readTag()) !== ENCODED_CBOR) return undefined;
       const state = reader.peekState();
       if (
@@ -583,6 +589,7 @@ const nativeFraming = (scriptRef: string): NativeFraming | undefined => {
     if (reader.peekState() !== State.StartArray) return undefined;
     const length = reader.readStartArray();
     if (length !== 2 && length !== null) return undefined;
+    const head = offset();
     if (
       reader.peekState() !== State.UnsignedInteger ||
       reader.readUInt() !== 0n
@@ -592,7 +599,13 @@ const nativeFraming = (scriptRef: string): NativeFraming | undefined => {
     const end = length === null ? size - 1 : size;
     if (length === null && bytes.slice(2 * end) !== "ff") return undefined;
     if (end <= start) return undefined;
-    return { script: bytes.slice(2 * start, 2 * end) };
+    return {
+      script: bytes.slice(2 * start, 2 * end),
+      tag24,
+      indefinite: length === null,
+      longHead: head !== 1,
+      longLanguage: start !== head + 1,
+    };
   } catch {
     return undefined;
   }
@@ -637,17 +650,51 @@ export const scriptWorkedOut = (script: OutputScript): boolean => {
 };
 
 /**
- * Why the kind or the hash of a reference script is not worked out (`scriptWorkedOut`), in words
- * that quote none of its bytes
+ * Why a reference script left `unknown` is not read, in words true of what reading it found,
+ * quoting none of its bytes. Bytes that are `[0, script]` in no framing the ledger reads are said
+ * to be no `[language, script]` this library reads; a native script longer than `MAX_TX_BYTES`
+ * is said to be so. Of any other, each finding, joined: its framing other than `82 00` (under tag
+ * 24, an array of indefinite length, its head or its language written longer than needed), a hash
+ * given that is not that of its bytes, and what the script after the language is: not one
+ * well-formed CBOR item; not a native script as the ledger reads one, or one that names a key hash
+ * written in pieces; or one nested deeper than `MAX_NATIVE_DEPTH`. Its time is that of reading the
+ * script once
  */
-export const unworkedScriptWords = (script: OutputScript): string => {
-  const framing =
-    script.type === "unknown" ? nativeFraming(script.scriptRef) : undefined;
+export const unreadScriptWords = (
+  script: Extract<OutputScript, { type: "unknown" }>,
+): string => {
+  const framing = nativeFraming(script.scriptRef);
   if (framing === undefined)
     return "its bytes are not [language, script] in a form this library reads";
-  return framing.script.length / 2 > MAX_TX_BYTES
-    ? unreadNativeWords("size")
-    : "what follows its language 0 is not one well-formed CBOR item";
+  if (framing.script.length / 2 > MAX_TX_BYTES)
+    return unreadNativeWords("size");
+  const found: string[] = [];
+  if (framing.tag24) found.push("it is under tag 24, as a byte string");
+  if (framing.indefinite)
+    found.push("its array [0, script] is of indefinite length");
+  if (framing.longHead)
+    found.push(
+      "the head of its array [0, script] is written longer than needed",
+    );
+  if (framing.longLanguage)
+    found.push("its language 0 is written longer than needed");
+  const hash = blake2b.hash(HexBlob(`00${framing.script}`), 28).toString();
+  if (script.hash !== undefined && script.hash !== hash)
+    found.push("the hash given for it is not the hash of its bytes");
+  if (!isOneCborItem(Buffer.from(framing.script, "hex")))
+    found.push("what follows its language 0 is not one well-formed CBOR item");
+  else {
+    const read = readNative(framing.script);
+    if (read === undefined)
+      found.push(
+        "what follows its language 0 is not a native script as the ledger reads one, or names a key hash written in pieces",
+      );
+    else if (read.depth > MAX_NATIVE_DEPTH)
+      found.push(unreadNativeWords("depth"));
+  }
+  return found.length > 0
+    ? found.join("; ")
+    : "it is in a form this library does not read";
 };
 
 /** A reference script as the CBOR of `[language, script]` in hex, the form a Mesh `UTxO` holds */

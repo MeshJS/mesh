@@ -44,7 +44,9 @@ import {
   heldNativeScript,
   readUtxo,
   scriptSize,
+  unknownNativeScript,
   unreadNativeWords,
+  unreadScriptWords,
   UtxoError,
   utxoKey,
 } from "./utxo";
@@ -459,7 +461,7 @@ export const withKnownHash = <
 
 /**
  * The script a reference output holds, as the UTxO describes it; one this library cannot read
- * cannot be used as a script
+ * cannot be used as a script, and the refusal says why, in the words of `NATIVE_SCRIPT_UNREAD`
  */
 const readScriptReference = (
   ctx: PartContext,
@@ -476,7 +478,9 @@ const readScriptReference = (
     return fail(
       ctx,
       "INVALID_SCRIPT",
-      `${outRef} holds a reference script this library cannot read`,
+      unknownNativeScript(script)
+        ? `${outRef} holds a native script whose keys this library does not read: ${unreadScriptWords(script)}`
+        : `${outRef} holds a reference script this library cannot read: ${unreadScriptWords(script)}`,
     );
   return { script, scriptSize: scriptSize(script) };
 };

@@ -1615,8 +1615,8 @@ describe("requiredSigners", () => {
             ]);
             expect((error as Error).message).toContain(
               read === "deep"
-                ? `${holder.txHash}#0 holds a native script whose keys this library does not read`
-                : `${holder.txHash}#0 holds a reference script this library cannot read`,
+                ? `${holder.txHash}#0 holds a native script whose keys this library does not read: it nests deeper than the 512 levels`
+                : `${holder.txHash}#0 holds a native script whose keys this library does not read: what follows its language 0 is not a native script as the ledger reads one`,
             );
           }
         }

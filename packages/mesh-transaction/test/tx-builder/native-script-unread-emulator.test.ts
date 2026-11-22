@@ -1,15 +1,19 @@
 import { DEFAULT_PROTOCOL_PARAMETERS, UTxO } from "@meshsdk/core";
-import { Address } from "@meshsdk/core-cst";
+import { Address, scriptHashToRewardAddress } from "@meshsdk/core-cst";
 
 import type { TxSigners } from "../../src/tx-builder";
 import {
+  certificate,
   mint,
+  proposal,
   requiredSigners,
   spend,
   toUtxo,
   TxBuilder,
   TxBuildError,
   TxError,
+  vote,
+  withdrawal,
 } from "../../src/tx-builder";
 import {
   itemDepth,
@@ -51,29 +55,54 @@ const keysOf = (count: number) =>
 type Reason = "depth" | "size" | "form";
 /** `all` around a key 255 times: 512 levels as the walk counts `[0, script]` */
 const AT_BOUND = allAround(255, sig());
-/** Native scripts whose keys are not read, as the item after the language 0, and why */
-const UNREAD: [string, string, Reason][] = [
-  ["all around a key 511 times, 1 024 levels", allAround(511, sig()), "depth"],
-  ["all around a key 512 times, 1 026 levels", allAround(512, sig()), "depth"],
+/** What reading a native script found, in the words of a message */
+const WORDS = {
+  depth: `it nests deeper than the ${MAX_NATIVE_DEPTH} levels to which this library reads the keys of a native script`,
+  size: `it is longer than the ${MAX_TX_BYTES} bytes of a transaction, the most this library reads of a native script`,
+  notNative:
+    "what follows its language 0 is not a native script as the ledger reads one, or names a key hash written in pieces",
+  tag24: "it is under tag 24, as a byte string",
+  indefinite: "its array [0, script] is of indefinite length",
+  longHead: "the head of its array [0, script] is written longer than needed",
+  longLanguage: "its language 0 is written longer than needed",
+  stated: "the hash given for it is not the hash of its bytes",
+  notOneItem: "what follows its language 0 is not one well-formed CBOR item",
+  noScript: "its bytes are not [language, script] in a form this library reads",
+};
+
+/** Native scripts whose keys are not read, as the item after the language 0, why, and its words */
+const UNREAD: [string, string, Reason, string][] = [
+  [
+    "all around a key 511 times, 1 024 levels",
+    allAround(511, sig()),
+    "depth",
+    WORDS.depth,
+  ],
+  [
+    "all around a key 512 times, 1 026 levels",
+    allAround(512, sig()),
+    "depth",
+    WORDS.depth,
+  ],
   [
     "all of a key and of all around all [] 511 times, 1 027 levels",
     `820182${sig()}${allAround(511, "820180")}`,
     "depth",
+    WORDS.depth,
   ],
-  ["all of 520 keys, longer than a transaction", keysOf(520), "size"],
+  [
+    "all of 520 keys, longer than a transaction",
+    keysOf(520),
+    "size",
+    WORDS.size,
+  ],
   [
     "a key hash written in pieces",
     cbor.arr(cbor.uint(0), cbor.chunkedBytes(KEY, 14)),
     "form",
+    WORDS.notNative,
   ],
 ];
-
-/** The reason in the words of the message */
-const WORDS: Record<Reason, string> = {
-  depth: `it nests deeper than the ${MAX_NATIVE_DEPTH} levels`,
-  size: `it is longer than the ${MAX_TX_BYTES} bytes of a transaction`,
-  form: "it is in a form this library does not read",
-};
 
 /** The hash of a native script: blake2b-224 of its language 0 and its bytes */
 const hashOf = (native: string) => cbor.blake(`00${native}`, 28);
@@ -154,11 +183,15 @@ const minting = (
       : cbor.map(),
   );
 
-/** Checks a refusal: its code, its details, and a message that names them and quotes no byte */
+/**
+ * Checks a refusal: its code, its details, and a message that names them, ends with `words`, what
+ * reading the script found, and quotes no byte
+ */
 const expectUnread = (
   error: unknown,
   native: string,
   reason: Reason,
+  words: string,
   holder: UTxO,
   step?: string,
 ) => {
@@ -175,8 +208,9 @@ const expectUnread = (
     expect(message.startsWith(`step ${JSON.stringify(step)}: `)).toBe(true);
   expect(message).toContain(`the native script ${scriptHash}`);
   expect(message).toContain(`${holder.input.txHash}#0`);
-  expect(message).toContain("its keys cannot be listed");
-  expect(message).toContain(WORDS[reason]);
+  expect(message.endsWith(`, and its keys cannot be listed: ${words}`)).toBe(
+    true,
+  );
   // None of its bytes: neither the key it names nor a piece of the script
   expect(message).not.toContain(KEY.slice(0, 16));
   expect(message).not.toContain(native.slice(0, 24));
@@ -228,7 +262,7 @@ describe("a native script whose keys this library does not read, where the signe
 
   it.each(UNREAD)(
     "refuses one %s through requiredSigners and fromCbor, held by a reference input or by a spent input, its UTxO given in each form or read through the provider",
-    async (_, native, reason) => {
+    async (_, native, reason, words) => {
       const holder = holderOf(native, alice);
       const policy = hashOf(native);
       const reads = minting(policy, [SPENT], [holder]);
@@ -246,12 +280,14 @@ describe("a native script whose keys this library does not read, where the signe
             ),
             native,
             reason,
+            words,
             holder,
           );
           expectUnread(
             await caught(offline().fromCbor(tx, { knownUtxos: [SPENT, form] })),
             native,
             reason,
+            words,
             holder,
           );
         }
@@ -271,6 +307,7 @@ describe("a native script whose keys this library does not read, where the signe
           ),
           native,
           reason,
+          words,
           holder,
         );
       }
@@ -286,7 +323,7 @@ describe("a native script whose keys this library does not read, where the signe
 
   it.each(UNREAD)(
     "refuses one %s in a step given built, the step named first: builder.plan, plan.add, replan",
-    async (_, native, reason) => {
+    async (_, native, reason, words) => {
       const holder = holderOf(native, alice);
       const tx = minting(hashOf(native), [SPENT], [holder]);
       const knownUtxos = [SPENT, holder];
@@ -299,6 +336,7 @@ describe("a native script whose keys this library does not read, where the signe
         ),
         native,
         reason,
+        words,
         holder,
         "given",
       );
@@ -310,6 +348,7 @@ describe("a native script whose keys this library does not read, where the signe
         await caught(plan.add({ given: tx })),
         native,
         reason,
+        words,
         holder,
         "given",
       );
@@ -321,6 +360,7 @@ describe("a native script whose keys this library does not read, where the signe
         ),
         native,
         reason,
+        words,
         holder,
         "given",
       );
@@ -376,6 +416,7 @@ describe("a native script whose keys this library does not read, where the signe
       ),
       AT_BOUND,
       "form",
+      WORDS.longHead,
       framed,
     );
   });
@@ -423,7 +464,7 @@ describe("a native script whose keys this library does not read, where the signe
   }, 60_000);
 
   it("names the reason in the refusal of a build that names one nested past the bound as a { reference }: its UTxO, or its out ref with knownUtxos", async () => {
-    for (const [name, native, reason] of UNREAD) {
+    for (const [name, native, , words] of UNREAD) {
       const holder = holderOf(native, alice);
       const payer = { changeAddress: alice, utxos: [SPENT] };
       for (const [how, part, options] of [
@@ -453,9 +494,7 @@ describe("a native script whose keys this library does not read, where the signe
           "INVALID_SCRIPT",
         ]);
         expect((error as TxError).message).toContain(
-          reason === "depth"
-            ? `${holder.input.txHash}#0 holds a native script whose keys this library does not read: ${WORDS.depth}`
-            : `${holder.input.txHash}#0 holds a reference script this library cannot read`,
+          `${holder.input.txHash}#0 holds a native script whose keys this library does not read: ${words}`,
         );
       }
     }
@@ -467,33 +506,52 @@ const READ = allAround(3, sig());
 /** A native script whose keys are not read in any framing: a key hash written in pieces */
 const PIECES = cbor.arr(cbor.uint(0), cbor.chunkedBytes(KEY, 14));
 
-/** The CBOR of a reference script, its native script framed as the ledger reads it, and why */
-const FRAMINGS: [string, string, string, Reason][] = [
-  ["[_ 0, script] of a readable script", `9f00${READ}ff`, READ, "form"],
-  ["[_ 0, script] of an unreadable script", `9f00${PIECES}ff`, PIECES, "form"],
+/**
+ * The CBOR of a reference script, its native script framed as the ledger reads it, why, and what
+ * reading it found
+ */
+const FRAMINGS: [string, string, string, Reason, string][] = [
+  [
+    "[_ 0, script] of a readable script",
+    `9f00${READ}ff`,
+    READ,
+    "form",
+    WORDS.indefinite,
+  ],
+  [
+    "[_ 0, script] of an unreadable script",
+    `9f00${PIECES}ff`,
+    PIECES,
+    "form",
+    `${WORDS.indefinite}; ${WORDS.notNative}`,
+  ],
   [
     "[_ 0, script] of one longer than a transaction",
     `9f00${keysOf(520)}ff`,
     keysOf(520),
     "size",
+    WORDS.size,
   ],
   [
     "tag 24 around [0, script]",
     `d818${cbor.bytes(`8200${READ}`)}`,
     READ,
     "form",
+    WORDS.tag24,
   ],
   [
     "tag 24 around [_ 0, script], the bytes in pieces",
     `d818${cbor.chunkedBytes(`9f00${READ}ff`, 16)}`,
     READ,
     "form",
+    `${WORDS.tag24}; ${WORDS.indefinite}`,
   ],
   [
     "[0, script], its head and its language in 8 bytes",
     `9b0000000000000002${cbor.uint64(0)}${READ}`,
     READ,
     "form",
+    `${WORDS.longHead}; ${WORDS.longLanguage}`,
   ],
 ];
 
@@ -502,6 +560,7 @@ const expectUnfound = (
   error: unknown,
   scriptHash: string,
   holder: UTxO,
+  words: string,
   more = 0,
   step?: string,
 ) => {
@@ -516,9 +575,8 @@ const expectUnfound = (
   if (step !== undefined)
     expect(message.startsWith(`step ${JSON.stringify(step)}: `)).toBe(true);
   expect(message).toContain(
-    `the transaction runs the script ${scriptHash}, which this library finds neither in its witness set nor among the reference scripts it reads, and the UTxO ${holder.input.txHash}#0 holds a reference script whose kind or hash it cannot work out (`,
+    `the transaction runs the script ${scriptHash}, which this library finds neither in its witness set nor among the reference scripts it reads, and the UTxO ${holder.input.txHash}#0 holds a reference script whose kind or hash it cannot work out (${words}): if that is the script, and a native one, who must sign cannot be listed`,
   );
-  expect(message).toContain("who must sign cannot be listed");
   if (more > 0)
     expect(message).toContain(
       `; ${more} more UTxO${more === 1 ? "" : "s"} it spends or reads hold`,
@@ -560,7 +618,7 @@ const readings = async (tx: string, known: (UTxO | string)[]) => {
 describe("every framing of a native reference script the ledger reads, and a reference script whose kind or hash this library cannot work out", () => {
   it.each(FRAMINGS)(
     "refuses one in %s that the transaction runs, held by a reference input or a spent input, its UTxO in each form: requiredSigners, fromCbor, a step given built",
-    async (_, scriptRef, native, reason) => {
+    async (_, scriptRef, native, reason, words) => {
       const holder = holderOf(native, alice, 1, scriptRef);
       expect(toUtxo(holder).script!.type).toBe("unknown");
       const policy = hashOf(native);
@@ -574,9 +632,9 @@ describe("every framing of a native reference script the ledger reads, and a ref
             : [holder, cborOf(holder), toUtxo(holder)];
         for (const form of forms) {
           const read = await readings(tx, [SPENT, form as UTxO]);
-          expectUnread(read.requiredSigners, native, reason, holder);
-          expectUnread(read.fromCbor, native, reason, holder);
-          expectUnread(read.step, native, reason, holder, "given");
+          expectUnread(read.requiredSigners, native, reason, words, holder);
+          expectUnread(read.fromCbor, native, reason, words, holder);
+          expectUnread(read.step, native, reason, words, holder, "given");
         }
       }
       // A transaction that does not run it, whose script is in its witness set, reads nothing of
@@ -617,9 +675,9 @@ describe("every framing of a native reference script the ledger reads, and a ref
       [minting(runs, [SPENT, junk], []), [SPENT, cborOf(junk)]],
     ] as const) {
       const read = await readings(tx, [...known] as UTxO[]);
-      expectUnfound(read.requiredSigners, runs, junk);
-      expectUnfound(read.fromCbor, runs, junk);
-      expectUnfound(read.step, runs, junk, 0, "given");
+      expectUnfound(read.requiredSigners, runs, junk, WORDS.noScript);
+      expectUnfound(read.fromCbor, runs, junk, WORDS.noScript);
+      expectUnfound(read.step, runs, junk, WORDS.noScript, 0, "given");
     }
     // Three more: a map, `[0, script, 0]`, which is not `[0, script]`, and `[0, script]` with a
     // byte after it, whose bytes after the language are not one item
@@ -630,9 +688,9 @@ describe("every framing of a native reference script the ledger reads, and a ref
       minting(runs, [SPENT, three, map], [junk, after]),
       [SPENT, junk, map, three, after],
     );
-    expectUnfound(read.requiredSigners, runs, three, 3);
-    expectUnfound(read.fromCbor, runs, three, 3);
-    expectUnfound(read.step, runs, three, 3, "given");
+    expectUnfound(read.requiredSigners, runs, three, WORDS.noScript, 3);
+    expectUnfound(read.fromCbor, runs, three, WORDS.noScript, 3);
+    expectUnfound(read.step, runs, three, WORDS.noScript, 3, "given");
     // Alone, the last is named, and so is the hash of the script it holds when the transaction
     // runs it
     for (const policy of [runs, hashOf(READ)]) {
@@ -640,9 +698,9 @@ describe("every framing of a native reference script the ledger reads, and a ref
         SPENT,
         after,
       ]);
-      expectUnfound(alone.requiredSigners, policy, after);
-      expectUnfound(alone.fromCbor, policy, after);
-      expectUnfound(alone.step, policy, after, 0, "given");
+      expectUnfound(alone.requiredSigners, policy, after, WORDS.notOneItem);
+      expectUnfound(alone.fromCbor, policy, after, WORDS.notOneItem);
+      expectUnfound(alone.step, policy, after, WORDS.notOneItem, 0, "given");
     }
     // A native script longer than a transaction is not walked: its hash is not known to be that
     // of the script alone, so it may be the one the transaction runs
@@ -651,12 +709,9 @@ describe("every framing of a native reference script the ledger reads, and a ref
       SPENT,
       long,
     ]);
-    expectUnfound(bySize.requiredSigners, runs, long);
-    expectUnfound(bySize.fromCbor, runs, long);
-    expectUnfound(bySize.step, runs, long, 0, "given");
-    expect((bySize.requiredSigners as TxError).message).toContain(
-      `(${WORDS.size}`,
-    );
+    expectUnfound(bySize.requiredSigners, runs, long, WORDS.size);
+    expectUnfound(bySize.fromCbor, runs, long, WORDS.size);
+    expectUnfound(bySize.step, runs, long, WORDS.size, 0, "given");
   }, 60_000);
 
   it("reads as now a transaction whose scripts are each found, or that holds no reference script it cannot work out", async () => {
@@ -696,4 +751,259 @@ describe("every framing of a native reference script the ledger reads, and a ref
       step: [0, false],
     });
   }, 60_000);
+});
+
+/** `all` around a key 300 times: 602 levels as the walk counts `[0, script]` */
+const DEEP = allAround(300, sig());
+
+describe("the words of each reason a native script is not read: what reading it found", () => {
+  it.each([
+    [
+      "an array head in two bytes",
+      `980200${READ}`,
+      READ,
+      "form",
+      WORDS.longHead,
+    ],
+    [
+      "the language in two bytes",
+      `821800${READ}`,
+      READ,
+      "form",
+      WORDS.longLanguage,
+    ],
+    [
+      "an array of indefinite length",
+      `9f00${READ}ff`,
+      READ,
+      "form",
+      WORDS.indefinite,
+    ],
+    ["tag 24", `d818${cbor.bytes(`8200${READ}`)}`, READ, "form", WORDS.tag24],
+    [
+      "a key hash written in pieces",
+      `8200${PIECES}`,
+      PIECES,
+      "form",
+      WORDS.notNative,
+    ],
+    [
+      "a kind of script the ledger does not read",
+      `8200${cbor.arr(cbor.uint(6), cbor.uint(0))}`,
+      cbor.arr(cbor.uint(6), cbor.uint(0)),
+      "form",
+      WORDS.notNative,
+    ],
+    [
+      "CBOR that is not well formed",
+      "82009f00",
+      "9f00",
+      "form",
+      WORDS.notOneItem,
+    ],
+    [
+      "an array head in two bytes around one nested past the bound",
+      `980200${DEEP}`,
+      DEEP,
+      "form",
+      `${WORDS.longHead}; ${WORDS.depth}`,
+    ],
+    ["one nested past the bound", `8200${DEEP}`, DEEP, "depth", WORDS.depth],
+    [
+      "one longer than a transaction",
+      `8200${keysOf(520)}`,
+      keysOf(520),
+      "size",
+      WORDS.size,
+    ],
+  ] as [string, string, string, Reason, string][])(
+    "says so of %s, in requiredSigners and fromCbor",
+    async (_, scriptRef, native, reason, words) => {
+      const holder = holderOf(native, alice, 1, scriptRef);
+      const tx = minting(hashOf(native), [SPENT], [holder]);
+      expectUnread(
+        await caught(
+          Promise.resolve().then(() => requiredSigners(tx, [SPENT, holder])),
+        ),
+        native,
+        reason,
+        words,
+        holder,
+      );
+      expectUnread(
+        await caught(offline().fromCbor(tx, { knownUtxos: [SPENT, holder] })),
+        native,
+        reason,
+        words,
+        holder,
+      );
+    },
+  );
+
+  it("says so of a script hash given that is not the hash of its bytes", async () => {
+    const holder = holderOf(READ, alice);
+    const stated = {
+      ...holder,
+      output: { ...holder.output, scriptHash: "cd".repeat(28) },
+    };
+    const tx = minting(hashOf(READ), [SPENT], [stated]);
+    expectUnread(
+      await caught(
+        Promise.resolve().then(() => requiredSigners(tx, [SPENT, stated])),
+      ),
+      READ,
+      "form",
+      WORDS.stated,
+      holder,
+    );
+    expectUnread(
+      await caught(offline().fromCbor(tx, { knownUtxos: [SPENT, stated] })),
+      READ,
+      "form",
+      WORDS.stated,
+      holder,
+    );
+  });
+});
+
+describe("the reason a build refuses a script named as a { reference }, in the same words", () => {
+  const payer = { changeAddress: alice, utxos: [SPENT] };
+  /** The parts that take a native witness, each naming `source` for the script hash `hash` */
+  const parts = (hash: string, source: unknown): [string, () => unknown][] => {
+    const locked: UTxO = {
+      input: { txHash: txOf(7), outputIndex: 0 },
+      output: {
+        address: Address.fromBytes(`70${hash}` as never).toBech32(),
+        amount: [{ unit: "lovelace", quantity: "9000000" }],
+      },
+    };
+    return [
+      [
+        "mint",
+        () =>
+          mint.native({
+            script: source as never,
+            policyId: hash,
+            assets: { "": 1n },
+          }),
+      ],
+      ["spend", () => spend.native({ utxo: locked, script: source as never })],
+      [
+        "withdrawal",
+        () =>
+          withdrawal.native({
+            rewardAddress: scriptHashToRewardAddress(hash, 0),
+            amount: 0n,
+            script: source as never,
+          }),
+      ],
+      [
+        "certificate",
+        () =>
+          certificate.stakeDelegation({
+            stake: { type: "SCRIPT", value: hash },
+            pool: "17".repeat(28),
+            witness: { native: source as never },
+          }),
+      ],
+      [
+        "vote",
+        () =>
+          vote({
+            voter: { drep: { type: "SCRIPT", value: hash } },
+            votes: [
+              { action: { txHash: "c".repeat(64), index: 1 }, vote: "abstain" },
+            ],
+            witness: { native: source as never },
+          }),
+      ],
+      [
+        "proposal",
+        () =>
+          proposal.parameterChange({
+            rewardAccount: scriptHashToRewardAddress("55".repeat(28), 0),
+            anchor: { url: "https://example.com/p", dataHash: "d".repeat(64) },
+            updates: { max_tx_size: 16384 },
+            policyHash: hash,
+            guardrail: { native: source as never },
+          } as never),
+      ],
+    ];
+  };
+
+  it.each([
+    ["depth", `8200${DEEP}`, hashOf(DEEP), true, WORDS.depth],
+    ["size", `8200${keysOf(520)}`, hashOf(keysOf(520)), true, WORDS.size],
+    ["form", `9f00${READ}ff`, hashOf(READ), true, WORDS.indefinite],
+    [
+      "a kind or a hash not worked out",
+      "deadbeef",
+      "ab".repeat(28),
+      false,
+      WORDS.noScript,
+    ],
+  ] as [string, string, string, boolean, string][])(
+    "names %s in every part, its UTxO given in the part, by out ref with knownUtxos and through the provider, and in a plan's step",
+    async (_, scriptRef, hash, native, words) => {
+      const holder = holderOf(KEY, alice, 1, scriptRef);
+      const said = `${holder.input.txHash}#0 holds ${native ? "a native script whose keys this library does not read" : "a reference script this library cannot read"}: ${words}`;
+      const provider = {
+        fetchUTxOs: async (txHash: string) =>
+          txHash === holder.input.txHash ? [holder] : [],
+        fetchProtocolParameters: async () => params,
+      };
+      const sources: [string, unknown, () => TxBuilder, UTxO[]][] = [
+        ["a UTxO", { reference: holder }, offline, []],
+        ["an out ref", { reference: holder.input }, offline, [holder]],
+        [
+          "an out ref read through the provider",
+          {
+            reference: holder.input,
+            scriptHash: hash,
+            scriptSize: scriptRef.length / 2,
+          },
+          () =>
+            new TxBuilder({
+              network: "preprod",
+              params,
+              provider: provider as never,
+            }),
+          [],
+        ],
+      ];
+      for (const [how, source, builder, knownUtxos] of sources)
+        for (const [part, make] of parts(hash, source)) {
+          const error = await caught(
+            Promise.resolve().then(() =>
+              builder().build([make() as never], { payer, knownUtxos }),
+            ),
+          );
+          expect([how, part, (error as TxError).code]).toEqual([
+            how,
+            part,
+            "INVALID_SCRIPT",
+          ]);
+          expect([how, part, (error as TxError).message]).toEqual([
+            how,
+            part,
+            `${part}: ${said}`,
+          ]);
+        }
+      const { builder, wallet } = await stepSetup("scalus", {
+        funds: [100n * ADA],
+      });
+      const [, make] = parts(hash, { reference: holder.input })[0]!;
+      const error = await caught(
+        Promise.resolve().then(() =>
+          builder.plan(
+            { s: [make() as never] },
+            { payer: wallet, knownUtxos: [holder] },
+          ),
+        ),
+      );
+      expect((error as TxError).code).toBe("INVALID_SCRIPT");
+      expect((error as TxError).message).toBe(`step "s": mint: ${said}`);
+    },
+    60_000,
+  );
 });

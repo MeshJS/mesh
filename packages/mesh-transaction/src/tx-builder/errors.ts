@@ -265,11 +265,14 @@ export type TxBuildErrorDetails = {
    * The native script the transaction runs whose keys are not read: its hash, the out ref of the
    * UTxO that holds it, and why. `"depth"`: nested deeper than `MAX_NATIVE_DEPTH`, 512 levels as
    * the walk of a transaction counts them; `"size"`: longer than `MAX_TX_BYTES`, 16 384 bytes, the
-   * most the reader holds to; `"form"`: a form this library does not read (CBOR that is not well
-   * formed, a form the ledger does not read, a key hash written in pieces). Also `"form"` for a
-   * script the transaction runs that is found nowhere this library reads, while a UTxO it spends
-   * or reads holds a reference script whose kind or hash this library cannot work out: the hash
-   * it runs, and the out ref of the first such UTxO
+   * most the reader holds to; `"form"`: a form this library does not read, the message saying what
+   * reading it found (`unreadScriptWords`): under tag 24, an array of indefinite length, a head or
+   * the language written longer than needed, a hash given that is not that of its bytes, what
+   * follows the language not one well-formed item, not a native script as the ledger reads one or
+   * one that names a key hash in pieces. Also `"form"` for a script the transaction runs that is
+   * found nowhere this library reads, while a UTxO it spends or reads holds a reference script
+   * whose kind or hash this library cannot work out: the hash it runs, and the out ref of the
+   * first such UTxO
    */
   NATIVE_SCRIPT_UNREAD: {
     scriptHash: string;

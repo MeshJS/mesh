@@ -26,7 +26,7 @@ import {
   scriptWorkedOut,
   unknownNativeScript,
   unreadNativeWords,
-  unworkedScriptWords,
+  unreadScriptWords,
   UtxoTwiceError,
 } from "./parts/utxo";
 import { walletCodeOf } from "./payer";
@@ -1801,11 +1801,11 @@ const refuseUnfound = (
   if (missing === undefined) return;
   const unworked = unknown.filter((utxo) => !scriptWorkedOut(utxo.script!));
   const [holder] = unworked;
-  if (holder === undefined) return;
+  if (holder?.script?.type !== "unknown") return;
   const more = unworked.length - 1;
   throw new TxBuildError(
     "NATIVE_SCRIPT_UNREAD",
-    `the transaction runs the script ${missing}, which this library finds neither in its witness set nor among the reference scripts it reads, and the UTxO ${outRefKey(holder.txHash, holder.outputIndex)} holds a reference script whose kind or hash it cannot work out (${unworkedScriptWords(holder.script!)}): if that is the script, and a native one, who must sign cannot be listed${more > 0 ? `; ${more} more UTxO${more === 1 ? "" : "s"} it spends or reads hold${more === 1 ? "s" : ""} such a script` : ""}`,
+    `the transaction runs the script ${missing}, which this library finds neither in its witness set nor among the reference scripts it reads, and the UTxO ${outRefKey(holder.txHash, holder.outputIndex)} holds a reference script whose kind or hash it cannot work out (${unreadScriptWords(holder.script)}): if that is the script, and a native one, who must sign cannot be listed${more > 0 ? `; ${more} more UTxO${more === 1 ? "" : "s"} it spends or reads hold${more === 1 ? "s" : ""} such a script` : ""}`,
     {
       details: {
         scriptHash: missing,
@@ -1827,7 +1827,7 @@ const nativeScriptUnread = (
 ) =>
   new TxBuildError(
     "NATIVE_SCRIPT_UNREAD",
-    `the transaction runs the native script ${scriptHash}, which the UTxO ${outRefKey(holder.txHash, holder.outputIndex)} holds, and its keys cannot be listed: ${unreadNativeWords(reason)}`,
+    `the transaction runs the native script ${scriptHash}, which the UTxO ${outRefKey(holder.txHash, holder.outputIndex)} holds, and its keys cannot be listed: ${holder.script?.type === "unknown" ? unreadScriptWords(holder.script) : unreadNativeWords("depth")}`,
     {
       details: {
         scriptHash,
