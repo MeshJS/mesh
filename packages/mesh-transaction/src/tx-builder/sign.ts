@@ -17,6 +17,7 @@ import type { NativeScriptUnread, PlacedUtxos } from "./parts/utxo";
 import type { RequiredKeys } from "./payer";
 import type { Collected, SignerRole, TxSigners } from "./witnesses";
 import { TxBuildError, TxPlanError } from "./errors";
+import { invalidOption, optionsObject } from "./options";
 import { errorText } from "./parts/normalize";
 import { heldValue } from "./parts/shape";
 import {
@@ -32,6 +33,7 @@ import { walletCodeOf } from "./payer";
 import {
   checkConwayKeys,
   MAX_REF_SCRIPT_BYTES,
+  MAX_TX_BYTES,
   scanTransaction,
   TxScanError,
 } from "./tx-scan";
@@ -472,15 +474,15 @@ const scanRefused = (error: TxScanError) =>
 /**
  * Reads `tx` as a transaction, its parts decoded once. A key the Conway ledger does not read, of
  * its body, an output or its witness set, is refused before they are decoded (`checkConwayKeys`)
- * @param bounded Whether the transaction is walked first, as `fromCbor` walks one when the builder
- *   holds no parameters (`scanTransaction` within `MAX_TX_BYTES`), before a value decoder reads it
+ * @param maxBytes When given, the transaction is walked first, as `fromCbor` walks one
+ *   (`scanTransaction` within these bytes, the largest it reads), before a value decoder reads it
  * @throws TxBuildError INVALID_OPTION for a value that is not the CBOR of a transaction whose
- *   vkey and bootstrap witnesses can be read, for one with such a key, and with `bounded` for one
- *   the walk refuses, in its words
+ *   vkey and bootstrap witnesses can be read, for one with such a key, and with `maxBytes` for
+ *   one the walk refuses, in its words
  */
-export const readTransaction = (tx: unknown, bounded = false): RawTx => {
+export const readTransaction = (tx: unknown, maxBytes?: number): RawTx => {
   try {
-    if (bounded) scanTransaction(tx);
+    if (maxBytes !== undefined) scanTransaction(tx, maxBytes);
   } catch (error) {
     if (error instanceof TxScanError) throw scanRefused(error);
     throw error;
@@ -1533,6 +1535,45 @@ export const refScriptsRefused = (tx: unknown, past: string) =>
     },
   });
 
+/** The options of `requiredSigners` */
+export type RequiredSignersOptions = {
+  /**
+   * The largest transaction read, in bytes: the `maxTxSize` of the protocol parameters of the
+   * application's network, as `fromCbor` reads up to the `maxTxSize` of the builder's `params`.
+   * Absent, `MAX_TX_BYTES` (16 384), the value of mainnet, preprod and preview. A larger
+   * transaction is refused before it is decoded, as `fromCbor` refuses it
+   */
+  maxTxSize?: number;
+};
+
+const REQUIRED_SIGNERS_ALLOWED = "an object { maxTxSize? }";
+
+/**
+ * The largest transaction `requiredSigners` reads: its option `maxTxSize`, else `MAX_TX_BYTES`
+ * @throws TxBuildError INVALID_OPTION (`options`) for options that are not an object or hold a
+ *   member other than `maxTxSize`; (`maxTxSize`) for one that is not a whole number of bytes, 1
+ *   or more. Either names only the JavaScript type of what was given
+ */
+const maxTxSizeOf = (options: unknown): number => {
+  const { maxTxSize } = optionsObject(
+    options,
+    ["maxTxSize"],
+    REQUIRED_SIGNERS_ALLOWED,
+  );
+  if (maxTxSize === undefined) return MAX_TX_BYTES;
+  if (
+    typeof maxTxSize !== "number" ||
+    !Number.isSafeInteger(maxTxSize) ||
+    maxTxSize < 1
+  )
+    throw invalidOption(
+      "maxTxSize",
+      maxTxSize,
+      "a whole number of bytes, 1 or more",
+    );
+  return maxTxSize;
+};
+
 /**
  * The signatures a serialized transaction needs, given the UTxOs it spends: for a co-signer or a
  * server checking a transaction it did not build. Each key comes with the roles it is needed in,
@@ -1542,11 +1583,17 @@ export const refScriptsRefused = (tx: unknown, past: string) =>
  *   transaction runs from one of them listed in `nativeScripts`, or refused. An entry for an out
  *   ref the transaction does not name is passed over, its out ref alone read; two that name one
  *   output must hold the same, and two texts of CBOR for one output be one text
+ * @param options.maxTxSize The largest transaction read, in bytes: the `maxTxSize` of the
+ *   protocol parameters of the application's network. Absent, `MAX_TX_BYTES` (16 384), the value
+ *   of mainnet, preprod and preview, as `fromCbor` on a builder without `params`
  * @throws TxBuildError UTXO_NOT_FOUND for an input or collateral input whose UTxO is not in
- *   `spent`; INVALID_OPTION for a `tx` that is not a transaction, or holds a key of its body, an
- *   output or its witness set the Conway ledger does not read, for one larger than `MAX_TX_BYTES`,
- *   not well-formed CBOR, not an array of four items, nested deeper than `MAX_TX_DEPTH`, more work
- *   for the value decoder than `MAX_TX_WORK` or paying an address longer than `MAX_ADDRESS_BYTES`,
+ *   `spent`; INVALID_OPTION (`options`) for options that are not an object or hold a member other
+ *   than `maxTxSize`, and (`maxTxSize`) for one that is not a whole number of bytes, 1 or more,
+ *   each with the JavaScript type alone, before `tx` is read; INVALID_OPTION for a `tx` that is
+ *   not a transaction, or holds a key of its body, an output or its witness set the Conway ledger
+ *   does not read, for one larger than `maxTxSize`, else `MAX_TX_BYTES`, not well-formed CBOR,
+ *   not an array of four items, nested deeper than `MAX_TX_DEPTH`, more work for the value
+ *   decoder than `MAX_TX_WORK` or paying an address longer than `MAX_ADDRESS_BYTES`,
  *   refused before it is decoded as `fromCbor` refuses it, for one whose spent and reference
  *   inputs hold more than `MAX_REF_SCRIPT_BYTES` of reference scripts in the UTxOs of `spent`,
  *   counted before they are read whole, and for a `spent` that is not a list or holds an entry
@@ -1562,10 +1609,14 @@ export const refScriptsRefused = (tx: unknown, past: string) =>
 export function requiredSigners(
   tx: string,
   spent: readonly UtxoInput[],
+  options?: RequiredSignersOptions,
 ): TxSigners {
+  // The largest transaction read: the option, else MAX_TX_BYTES, as fromCbor reads up to the
+  // maxTxSize of the builder's params, else MAX_TX_BYTES
+  const maxTxSize = maxTxSizeOf(options);
   // Walked as fromCbor walks it, before the value decoder and the read of the keys of a native
   // script call themselves: past its depth, a stack of a browser's size overflows
-  const raw = readTransaction(tx, true);
+  const raw = readTransaction(tx, maxTxSize);
   if (!Array.isArray(spent))
     throw new TxBuildError(
       "INVALID_OPTION",

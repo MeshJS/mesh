@@ -4,6 +4,7 @@ import { Address, Crypto, HexBlob, Serialization } from "@meshsdk/core-cst";
 import {
   addWitnesses,
   requiredSigners,
+  RequiredSignersOptions,
   TxBuilder,
   TxBuildError,
   TxError,
@@ -1675,6 +1676,210 @@ describe("TxBuilder.fromCbor › forms a decoder takes and a ledger does not", (
     });
     expect(made.outputs[0]!.address).toBe(
       Address.fromBytes(HexBlob(byronAddress(205))).toBase58(),
+    );
+  });
+});
+
+describe("requiredSigners › the option maxTxSize, the largest transaction it reads", () => {
+  /**
+   * A transaction of exactly `size` bytes: `IN#0` spent and `other` a guard, padded with metadata
+   * of byte strings of 64 bytes and two shorter ones for the rest
+   */
+  const ofSize = (size: number) => {
+    const body = bodyWith([uint(14), tag258(arr(bytes(other.keyHash)))]);
+    const made = (pieces: string[]) =>
+      tx(body, map(), { aux: map([uint(674), arr(...pieces)]) });
+    /** The bytes of a byte string of `n` bytes, its head with it */
+    const written = (n: number) => n + (n < 24 ? 1 : 2);
+    const full = bytes("00".repeat(64));
+    for (let count = Math.floor(size / 66); count >= 0; count--) {
+      const pieces = Array<string>(count).fill(full);
+      // The two empty strings take a byte each
+      const rest = size - made([...pieces, bytes(""), bytes("")]).length / 2;
+      for (let a = 0; a <= 64; a++)
+        for (let b = 0; b <= 64; b++)
+          if (written(a) + written(b) === rest + 2) {
+            const given = made([
+              ...pieces,
+              bytes("00".repeat(a)),
+              bytes("00".repeat(b)),
+            ]);
+            expect(given.length / 2).toBe(size);
+            return given;
+          }
+    }
+    throw new Error(`no transaction of ${size} bytes`);
+  };
+  const builderOf = (maxTxSize: number) =>
+    new TxBuilder({ network: "preprod", params: { ...params, maxTxSize } });
+  /** What a refusal says: its code, message, details and cause */
+  const said = (error: unknown) => ({
+    code: (error as TxBuildError).code,
+    message: (error as Error).message,
+    details: (error as TxBuildError).details,
+    cause: (error as Error).cause,
+  });
+  const tooLarge = (size: number) =>
+    `invalid tx: the transaction is more than the ${size} bytes of the protocol's maximum transaction size`;
+
+  it("refuses a transaction of 24 000 bytes with no option, {} and a maxTxSize of 16 384, as fromCbor refuses it, and lists its signers with a maxTxSize of 32 768, as fromCbor on a builder whose params.maxTxSize is 32 768", async () => {
+    expect(params.maxTxSize).toBe(16_384);
+    const given = ofSize(24_000);
+    const provider = {
+      fetchUTxOs: async () => {
+        throw new Error("not asked");
+      },
+      fetchProtocolParameters: async () => {
+        throw new Error("not asked");
+      },
+    } as unknown as IFetcher;
+    const byBuilders = [
+      await caught(() =>
+        new TxBuilder({ network: "preprod", provider }).fromCbor(given, {
+          knownUtxos: knownUtxos(),
+        }),
+      ),
+      await caught(() =>
+        builderOf(16_384).fromCbor(given, { knownUtxos: knownUtxos() }),
+      ),
+    ];
+    for (const error of byBuilders)
+      expectRefused(error, given, tooLarge(16_384));
+    const options: (RequiredSignersOptions | undefined)[] = [
+      undefined,
+      {},
+      { maxTxSize: undefined },
+      { maxTxSize: 16_384 },
+    ];
+    for (const each of options) {
+      const error = await caught(() =>
+        requiredSigners(given, knownUtxos(), each),
+      );
+      expectRefused(error, given, tooLarge(16_384));
+      for (const byBuilder of byBuilders)
+        expect(said(error)).toEqual(said(byBuilder));
+    }
+    const made = await builderOf(32_768).fromCbor(given, {
+      knownUtxos: knownUtxos(),
+    });
+    const signers = requiredSigners(given, knownUtxos(), { maxTxSize: 32_768 });
+    expect(signers).toEqual(made.signers);
+    expect(signers.keys).toEqual([
+      { keyHash: key.keyHash, roles: ["input"] },
+      { keyHash: other.keyHash, roles: ["guard"] },
+    ]);
+  });
+
+  it("reads a transaction of exactly maxTxSize bytes and refuses one of a byte more, as fromCbor with that params.maxTxSize: 16 384 with no option and {}, 20 000 and 32 768", async () => {
+    const cases: [number, RequiredSignersOptions | undefined][] = [
+      [16_384, undefined],
+      [16_384, {}],
+      [16_384, { maxTxSize: 16_384 }],
+      [20_000, { maxTxSize: 20_000 }],
+      [32_768, { maxTxSize: 32_768 }],
+    ];
+    for (const [size, options] of cases) {
+      const builder = builderOf(size);
+      const exact = ofSize(size);
+      const made = await builder.fromCbor(exact, { knownUtxos: knownUtxos() });
+      const signers = requiredSigners(exact, knownUtxos(), options);
+      expect(signers).toEqual(made.signers);
+      expect(signers.keyHashes).toEqual([key.keyHash, other.keyHash]);
+      const over = ofSize(size + 1);
+      const byBuilder = await caught(() =>
+        builder.fromCbor(over, { knownUtxos: knownUtxos() }),
+      );
+      const error = await caught(() =>
+        requiredSigners(over, knownUtxos(), options),
+      );
+      expectRefused(error, over, tooLarge(size));
+      expect(said(error)).toEqual(said(byBuilder));
+    }
+    // No bound but the option's: the largest whole number of bytes reads what 16 384 reads
+    const small = ofSize(1_000);
+    expect(
+      requiredSigners(small, knownUtxos(), {
+        maxTxSize: Number.MAX_SAFE_INTEGER,
+      }),
+    ).toEqual(requiredSigners(small, knownUtxos()));
+  });
+
+  it("refuses options that are not an object or hold another member, and a maxTxSize that is not a whole number of bytes, 1 or more, naming the option and the type alone, before the transaction is read", async () => {
+    const given = ofSize(1_000);
+    const OPTIONS = "an object { maxTxSize? }";
+    const BYTES = "a whole number of bytes, 1 or more";
+    const refused = async (options: unknown, tx = given) => {
+      const error = await caught(() =>
+        requiredSigners(tx, knownUtxos(), options as RequiredSignersOptions),
+      );
+      expect(error).toBeInstanceOf(TxBuildError);
+      expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
+      expect((error as Error).cause).toBeUndefined();
+      return error as TxBuildError<"INVALID_OPTION">;
+    };
+    const notObjects: [unknown, string][] = [
+      [null, "null"],
+      [32_768, "number"],
+      ["32768", "string"],
+      [[], "object"],
+      [true, "boolean"],
+    ];
+    for (const [options, type] of notObjects) {
+      const error = await refused(options);
+      expect(error.details).toEqual({
+        option: "options",
+        value: type,
+        allowed: OPTIONS,
+      });
+      expect(error.message).toBe(
+        `invalid options: expected ${OPTIONS}; got a value of type ${type}`,
+      );
+    }
+    const unknown: [object, string][] = [
+      [{ maxTxBytes: 32_768 }, "the unknown member maxTxBytes"],
+      [{ maxTxSize: 32_768, size: 1 }, "the unknown member size"],
+      [{ [Symbol("maxTxSize")]: 32_768 }, "an unknown member"],
+    ];
+    for (const [options, member] of unknown) {
+      const error = await refused(options);
+      expect(error.details).toEqual({
+        option: "options",
+        value: "object",
+        allowed: OPTIONS,
+      });
+      expect(error.message).toBe(
+        `invalid options: expected ${OPTIONS}; got an object with ${member}`,
+      );
+    }
+    const notBytes: [unknown, string][] = [
+      [0, "number"],
+      [-1, "number"],
+      [1.5, "number"],
+      [Number.NaN, "number"],
+      [Number.POSITIVE_INFINITY, "number"],
+      [Number.NEGATIVE_INFINITY, "number"],
+      [2 ** 53, "number"],
+      ["32768", "string"],
+      [32_768n, "bigint"],
+      [null, "null"],
+    ];
+    for (const [maxTxSize, type] of notBytes) {
+      const error = await refused({ maxTxSize });
+      expect(error.details).toEqual({
+        option: "maxTxSize",
+        value: type,
+        allowed: BYTES,
+      });
+      expect(error.message).toBe(
+        `invalid maxTxSize: expected ${BYTES}; got a value of type ${type}`,
+      );
+    }
+    // The options are read before the transaction, which they bound
+    expect((await refused({ maxTxSize: 0 }, "zz")).details.option).toBe(
+      "maxTxSize",
+    );
+    expect((await refused(32_768, ofSize(24_000))).details.option).toBe(
+      "options",
     );
   });
 });

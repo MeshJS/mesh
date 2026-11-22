@@ -60,6 +60,7 @@ export {
   signedKeyHashes,
   signWitnesses,
   type AskedKey,
+  type RequiredSignersOptions,
   type Signer,
   type SignTxHash,
   type TxHashRequest,

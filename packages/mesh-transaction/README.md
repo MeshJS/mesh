@@ -1777,7 +1777,8 @@ type, unless named otherwise:
 - an output, or the collateral return, that pays an address longer than 256 bytes, before any of
   it is read: a Byron address is written in base58, whose time grows with the square of its
   length, and since Allegra the ledger takes none longer than about 110 bytes. `requiredSigners`
-  walks a transaction within these bounds, 16 384 bytes the largest, and one larger, not
+  walks a transaction within these bounds, the largest its option `maxTxSize`, the `maxTxSize` of
+  the protocol parameters of the application's network, else 16 384 bytes, and one larger, not
   well-formed, not of four items, nested deeper, more work or paying a longer address is refused
   before it is decoded as `fromCbor` refuses it;
 - a negative fee, a token quantity of zero, an out ref named twice among the inputs, collateral
@@ -1893,7 +1894,12 @@ it did not build. Code that has a builder makes the object of such a transaction
 | `await signWitnesses(signer, tx, keyHashes?)` | the signer's witness set: `signTxWitnesses(tx, keyHashes)` when it has it, else `signTxHash` (an object with it, or a function), whose signatures are verified, else `signTx`. A signer of hashes gets `keys` with empty `roles`, and no `keys` without `keyHashes`. The answer is returned whole, not filtered by `keyHashes`: a wallet that signs with an extra key gives an extra witness, which can put the fee below the minimum (a `BuiltTx` and a plan drop it) |
 | `await addWitnesses(tx, ...witnessSets)`      | `tx` with the vkey and bootstrap witnesses of each witness set or full transaction added; only the witness set changes. `INVALID_WITNESS` with `details.argument`, counted from 0; an empty string is `undecodable`                                                                                                                                                                                                                                                    |
 | `await signedKeyHashes(tx)`                   | the key hashes whose vkey witness in `tx` verifies against its body                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `requiredSigners(tx, spent)`                  | who must sign a transaction built elsewhere, given the UTxO of every input and collateral input (`UTXO_NOT_FOUND` for a missing one), and of reference inputs for the native scripts they hold, in any form of `UtxoInput`; each key with its roles, as the build gives them; `NATIVE_SCRIPT_UNREAD` for a native script it runs whose keys are not read. `builder.fromCbor(tx)` reads those UTxOs itself and gives the same as `signers`                              |
+| `requiredSigners(tx, spent, options?)`        | who must sign a transaction built elsewhere, given the UTxO of every input and collateral input (`UTXO_NOT_FOUND` for a missing one), and of reference inputs for the native scripts they hold, in any form of `UtxoInput`; each key with its roles, as the build gives them; `NATIVE_SCRIPT_UNREAD` for a native script it runs whose keys are not read. `builder.fromCbor(tx)` reads those UTxOs itself and gives the same as `signers`                              |
+
+`requiredSigners` reads a transaction of at most `options.maxTxSize` bytes, the `maxTxSize` of the
+protocol parameters of the application's network, as `fromCbor` reads up to the `maxTxSize` of
+the builder's `params`; without it, 16 384 bytes, the value of mainnet, preprod and preview. A
+larger transaction is refused before it is decoded, as `fromCbor` refuses it.
 
 The witness set `signWitnesses` returns is written in the form of the transaction, whatever form
 the signer answers in: its vkey and its bootstrap entries with the set tag 258 where the
@@ -1904,8 +1910,10 @@ of `@meshsdk/wallet` write their witnesses so too.
 `addWitnesses` and `signedKeyHashes` return promises. Bad arguments (a `tx` that is not a
 transaction, or whose witness set repeats a key, any key, as a witness would go into one entry
 and a reader may take another; a signer that cannot sign; a malformed
-`spent`) are `TxBuildError` `INVALID_OPTION`, whose `details.value` is only the JavaScript type of
-a `tx` or a signer, since either may be a key; `SIGN_DECLINED`, `SIGNER_FAILED` and
+`spent`; options of `requiredSigners` that are not an object, hold a member other than
+`maxTxSize` or a `maxTxSize` that is not a whole number of bytes, 1 or more) are `TxBuildError`
+`INVALID_OPTION`, whose `details.value` is only the JavaScript type of a `tx`, a signer or those
+options, since a `tx` or a signer may be a key; `SIGN_DECLINED`, `SIGNER_FAILED` and
 `INVALID_WITNESS` are `TxPlanError`: catch them with `TxError.is`.
 
 ```ts
