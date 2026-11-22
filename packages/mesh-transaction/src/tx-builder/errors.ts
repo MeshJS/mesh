@@ -83,8 +83,9 @@ export type TxBuildErrorCode =
   | "UNKNOWN_LABEL"
   /**
    * Of a transaction read whole (`requiredSigners`, `fromCbor`, a step given built): it runs a
-   * native script, held by a UTxO it spends or reads, whose keys this library does not read, so
-   * who must sign cannot be listed
+   * native script, held by a UTxO it spends or reads, whose keys this library does not read, or a
+   * script found nowhere this library reads while such a UTxO holds a reference script whose kind
+   * or hash it cannot work out, so who must sign cannot be listed
    */
   | "NATIVE_SCRIPT_UNREAD";
 
@@ -265,7 +266,10 @@ export type TxBuildErrorDetails = {
    * UTxO that holds it, and why. `"depth"`: nested deeper than `MAX_NATIVE_DEPTH`, 512 levels as
    * the walk of a transaction counts them; `"size"`: longer than `MAX_TX_BYTES`, 16 384 bytes, the
    * most the reader holds to; `"form"`: a form this library does not read (CBOR that is not well
-   * formed, a form the ledger does not read, a key hash written in pieces)
+   * formed, a form the ledger does not read, a key hash written in pieces). Also `"form"` for a
+   * script the transaction runs that is found nowhere this library reads, while a UTxO it spends
+   * or reads holds a reference script whose kind or hash this library cannot work out: the hash
+   * it runs, and the out ref of the first such UTxO
    */
   NATIVE_SCRIPT_UNREAD: {
     scriptHash: string;

@@ -23,8 +23,10 @@ import {
   heldScriptSize,
   placeUtxos,
   readPlaced,
+  scriptWorkedOut,
   unknownNativeScript,
   unreadNativeWords,
+  unworkedScriptWords,
   UtxoTwiceError,
 } from "./parts/utxo";
 import { walletCodeOf } from "./payer";
@@ -1544,7 +1546,9 @@ export const refScriptsRefused = (tx: unknown, past: string) =>
  *   NATIVE_SCRIPT_UNREAD `{ scriptHash, outRef, reason }` for a transaction that runs a native
  *   script, held by a UTxO of `spent` it spends or reads, whose keys this library does not read:
  *   nested deeper than `MAX_NATIVE_DEPTH` (`"depth"`), longer than `MAX_TX_BYTES` (`"size"`), or
- *   in a form it does not read (`"form"`)
+ *   in a form it does not read (`"form"`); and (`"form"`) for one that runs a script found
+ *   nowhere this library reads, while such a UTxO holds a reference script whose kind or hash
+ *   this library cannot work out
  */
 export function requiredSigners(
   tx: string,
@@ -1639,7 +1643,9 @@ const bodyToSign = (raw: RawTx): TransactionPrototype["body"] => {
  * @throws TxBuildError UTXO_NOT_FOUND for an input or collateral input whose UTxO is not in
  *   `spent`; INVALID_OPTION for a body that cannot be read; NATIVE_SCRIPT_UNREAD for a native
  *   script the transaction runs, held by a UTxO of `spent` it spends or reads, whose keys are
- *   not read, unless it holds the same script where they are
+ *   not read, unless it holds the same script where they are, and (`"form"`) for a script it runs
+ *   that is found nowhere this library reads, while such a UTxO holds a reference script whose
+ *   kind or hash is not worked out (`scriptWorkedOut`): it may be that script
  */
 export const bodySigners = (
   raw: RawTx,
@@ -1725,10 +1731,14 @@ export const bodySigners = (
   // the keys of one are read only where the transaction runs it, known by its hash
   for (const native of raw.witnesses.nativeScripts()?.values() ?? [])
     addNativeScript(collected, nativeScriptEntry(native));
-  // A native script it runs whose keys are not read, in the order of its inputs
+  // A native script it runs whose keys are not read, in the order of its inputs, and the UTxOs
+  // that hold a reference script left `unknown`
   const unread: { utxo: Utxo; hash: string; reason: NativeScriptUnread }[] = [];
-  for (const input of [...body.inputs, ...(body.reference_inputs ?? [])]) {
-    const utxo = given.get(outRefKey(input.transaction_id, input.index));
+  const unknown: Utxo[] = [];
+  const holders = [...body.inputs, ...(body.reference_inputs ?? [])].map(
+    (input) => given.get(outRefKey(input.transaction_id, input.index)),
+  );
+  for (const utxo of holders) {
     if (utxo?.script?.type === "native") {
       if (!scripts.has(utxo.script.hash)) continue;
       const native = nativeScriptRef(utxo);
@@ -1736,14 +1746,74 @@ export const bodySigners = (
       else unread.push({ utxo, hash: utxo.script.hash, reason: "depth" });
       continue;
     }
-    const held = unknownNativeScript(utxo?.script);
-    if (held && scripts.has(held.hash)) unread.push({ utxo: utxo!, ...held });
+    if (utxo?.script?.type !== "unknown") continue;
+    unknown.push(utxo);
+    const held = unknownNativeScript(utxo.script);
+    if (held && scripts.has(held.hash)) unread.push({ utxo, ...held });
   }
   // Refused unless its keys are read where the transaction holds it again: who must sign would
   // be short of them
   const first = unread.find(({ hash }) => !collected.nativeScripts.has(hash));
   if (first) throw nativeScriptUnread(first.hash, first.reason, first.utxo);
+  // Closed by default: a script it runs that is found nowhere this library reads may be one a
+  // UTxO holds in a form whose kind or hash is not worked out
+  if (unknown.length > 0) refuseUnfound(raw, holders, scripts, unknown);
   return { collected, scripts };
+};
+
+/**
+ * Refuses a transaction that runs a script found nowhere this library reads, in its witness set
+ * or among the reference scripts of `holders` described or identified, while a UTxO of `unknown`
+ * holds a reference script whose kind or hash is not worked out: the first such hash, of its
+ * spent inputs, withdrawals, certificates, votes, proposals and mint in that order, and the first
+ * such UTxO, of its inputs, then its reference inputs. Nothing is refused when every hash it runs
+ * is found
+ * @param holders The UTxOs given for its inputs and reference inputs, in that order
+ * @param scripts The hashes of the scripts it runs
+ * @param unknown The UTxOs of `holders` whose reference script is `unknown`, in that order
+ * @throws TxBuildError NATIVE_SCRIPT_UNREAD (`"form"`)
+ */
+const refuseUnfound = (
+  raw: RawTx,
+  holders: readonly (Utxo | undefined)[],
+  scripts: ReadonlySet<string>,
+  unknown: readonly Utxo[],
+) => {
+  const { witnesses } = raw;
+  const found = new Set<string>();
+  for (const held of [
+    ...(witnesses.nativeScripts()?.values() ?? []),
+    ...(witnesses.plutusV1Scripts()?.values() ?? []),
+    ...(witnesses.plutusV2Scripts()?.values() ?? []),
+    ...(witnesses.plutusV3Scripts()?.values() ?? []),
+  ])
+    found.add(held.hash().toString());
+  for (const utxo of holders) {
+    const script = utxo?.script;
+    if (script?.type === "native" || script?.type === "plutus")
+      found.add(script.hash);
+    else {
+      const held = unknownNativeScript(script);
+      if (held) found.add(held.hash);
+    }
+  }
+  const missing = [...scripts].find((hash) => !found.has(hash));
+  if (missing === undefined) return;
+  const unworked = unknown.filter((utxo) => !scriptWorkedOut(utxo.script!));
+  const [holder] = unworked;
+  if (holder === undefined) return;
+  const more = unworked.length - 1;
+  throw new TxBuildError(
+    "NATIVE_SCRIPT_UNREAD",
+    `the transaction runs the script ${missing}, which this library finds neither in its witness set nor among the reference scripts it reads, and the UTxO ${outRefKey(holder.txHash, holder.outputIndex)} holds a reference script whose kind or hash it cannot work out (${unworkedScriptWords(holder.script!)}): if that is the script, and a native one, who must sign cannot be listed${more > 0 ? `; ${more} more UTxO${more === 1 ? "" : "s"} it spends or reads hold${more === 1 ? "s" : ""} such a script` : ""}`,
+    {
+      details: {
+        scriptHash: missing,
+        outRef: { txHash: holder.txHash, outputIndex: holder.outputIndex },
+        reason: "form",
+      },
+    },
+  );
 };
 
 /**

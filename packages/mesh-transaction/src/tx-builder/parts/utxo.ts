@@ -544,43 +544,110 @@ export const unreadNativeWords = (reason: NativeScriptUnread): string => {
   }
 };
 
+/** The tag of a byte string that holds a CBOR item */
+const ENCODED_CBOR = 24;
+
+/** What the framing of a native reference script is, as `nativeFraming` reads it */
+type NativeFraming = {
+  /** The script: the bytes after the language, before the break of an array of indefinite length */
+  readonly script: string;
+};
+
 /**
- * The native script a reference script left `unknown` holds, with its hash, and why its keys are
- * not read, from what describing it found: its bytes are `[0, script]`, so it is a native script,
- * and `describeScriptRef` did not read it. `"size"` for a script longer than `MAX_TX_BYTES`,
- * which is not read; `"form"` for any other: one read and found no native script as the ledger
- * reads one, one in bytes it would not write back the same, or one stated with another hash. Only
- * the array and the language are read, with the token reader, as `countedScriptSize` reads them;
- * the hash is taken over the bytes after the language, as the ledger takes it. Undefined for
- * anything that is not `[0, script]`
+ * The framing of a native script in the CBOR of a reference script, in every form of `[0, script]`
+ * the ledger reads: an array of two items of definite length, its head in any width, or of
+ * indefinite length, and the language 0 in any width; and such bytes under tag 24, as a byte
+ * string, the form a provider may give for a Mesh `scriptRef`. Only the heads are read, with the
+ * token reader of `@cardano-sdk/core`; the script is never read. Undefined for anything else,
+ * and for an array of indefinite length that does not end in a break
  */
-export const unknownNativeScript = (
-  script: OutputScript | undefined,
-): { hash: string; reason: "size" | "form" } | undefined => {
-  if (script?.type !== "unknown") return undefined;
+const nativeFraming = (scriptRef: string): NativeFraming | undefined => {
   try {
-    const { scriptRef } = script;
-    const reader = new CborReader(HexBlob(scriptRef));
-    if (
-      reader.peekState() !== State.StartArray ||
-      reader.readStartArray() !== 2
-    )
-      return undefined;
+    let bytes = scriptRef.toLowerCase();
+    let reader = new CborReader(HexBlob(bytes));
+    if (reader.peekState() === State.Tag) {
+      if (Number(reader.readTag()) !== ENCODED_CBOR) return undefined;
+      const state = reader.peekState();
+      if (
+        state !== State.ByteString &&
+        state !== State.StartIndefiniteLengthByteString
+      )
+        return undefined;
+      const content = reader.readByteString();
+      if (reader.getBytesRemaining() !== 0) return undefined;
+      bytes = hexOf(content);
+      reader = new CborReader(HexBlob(bytes));
+    }
+    const size = bytes.length / 2;
+    const offset = () => size - reader.getBytesRemaining();
+    if (reader.peekState() !== State.StartArray) return undefined;
+    const length = reader.readStartArray();
+    if (length !== 2 && length !== null) return undefined;
     if (
       reader.peekState() !== State.UnsignedInteger ||
       reader.readUInt() !== 0n
     )
       return undefined;
-    const size = reader.getBytesRemaining();
-    if (size === 0) return undefined;
-    const native = scriptRef.slice(scriptRef.length - 2 * size);
-    return {
-      hash: blake2b.hash(HexBlob(`00${native}`), 28).toString(),
-      reason: size > MAX_TX_BYTES ? "size" : "form",
-    };
+    const start = offset();
+    const end = length === null ? size - 1 : size;
+    if (length === null && bytes.slice(2 * end) !== "ff") return undefined;
+    if (end <= start) return undefined;
+    return { script: bytes.slice(2 * start, 2 * end) };
   } catch {
     return undefined;
   }
+};
+
+/**
+ * The native script a reference script left `unknown` holds, with its hash, and why its keys are
+ * not read: its bytes are `[0, script]` in a framing the ledger reads (`nativeFraming`), so it is
+ * a native script, and `describeScriptRef` did not read it. `"size"` for a script longer than
+ * `MAX_TX_BYTES`, which is not read; `"form"` for any other: one in another framing than
+ * `82 00`, one read and found no native script as the ledger reads one, one in bytes it would not
+ * write back the same, or one stated with another hash. Only the framing is read, with the token
+ * reader; the hash is taken over the bytes of the script as written, as the ledger takes it.
+ * Undefined for anything that is not `[0, script]`
+ */
+export const unknownNativeScript = (
+  script: OutputScript | undefined,
+): { hash: string; reason: "size" | "form" } | undefined => {
+  if (script?.type !== "unknown") return undefined;
+  const framing = nativeFraming(script.scriptRef);
+  if (framing === undefined) return undefined;
+  return {
+    hash: blake2b.hash(HexBlob(`00${framing.script}`), 28).toString(),
+    reason: framing.script.length / 2 > MAX_TX_BYTES ? "size" : "form",
+  };
+};
+
+/**
+ * Whether the kind and the hash of a reference script are worked out from its bytes: one
+ * described, and one `unknownNativeScript` identifies whose script, of no more than
+ * `MAX_TX_BYTES`, is one well-formed CBOR item, walked on the token reader. One longer is not
+ * walked, so its hash is not known to be that of the script alone
+ */
+export const scriptWorkedOut = (script: OutputScript): boolean => {
+  if (script.type !== "unknown") return true;
+  const framing = nativeFraming(script.scriptRef);
+  return (
+    framing !== undefined &&
+    framing.script.length / 2 <= MAX_TX_BYTES &&
+    isOneCborItem(Buffer.from(framing.script, "hex"))
+  );
+};
+
+/**
+ * Why the kind or the hash of a reference script is not worked out (`scriptWorkedOut`), in words
+ * that quote none of its bytes
+ */
+export const unworkedScriptWords = (script: OutputScript): string => {
+  const framing =
+    script.type === "unknown" ? nativeFraming(script.scriptRef) : undefined;
+  if (framing === undefined)
+    return "its bytes are not [language, script] in a form this library reads";
+  return framing.script.length / 2 > MAX_TX_BYTES
+    ? unreadNativeWords("size")
+    : "what follows its language 0 is not one well-formed CBOR item";
 };
 
 /** A reference script as the CBOR of `[language, script]` in hex, the form a Mesh `UTxO` holds */
