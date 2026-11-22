@@ -634,22 +634,6 @@ export const unknownNativeScript = (
 };
 
 /**
- * Whether the kind and the hash of a reference script are worked out from its bytes: one
- * described, and one `unknownNativeScript` identifies whose script, of no more than
- * `MAX_TX_BYTES`, is one well-formed CBOR item, walked on the token reader. One longer is not
- * walked, so its hash is not known to be that of the script alone
- */
-export const scriptWorkedOut = (script: OutputScript): boolean => {
-  if (script.type !== "unknown") return true;
-  const framing = nativeFraming(script.scriptRef);
-  return (
-    framing !== undefined &&
-    framing.script.length / 2 <= MAX_TX_BYTES &&
-    isOneCborItem(Buffer.from(framing.script, "hex"))
-  );
-};
-
-/**
  * Why a reference script left `unknown` is not read, in words true of what reading it found,
  * quoting none of its bytes. Bytes that are `[0, script]` in no framing the ledger reads are said
  * to be no `[language, script]` this library reads; a native script longer than `MAX_TX_BYTES`

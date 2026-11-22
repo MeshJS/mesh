@@ -1997,8 +1997,7 @@ export class TxBuilder {
    *   whose keys this library does not read, so that `signers` would be short of them: nested
    *   deeper than `MAX_NATIVE_DEPTH` (`"depth"`), longer than `MAX_TX_BYTES` (`"size"`), or in a
    *   form it does not read (`"form"`); and (`"form"`) for one that runs a script found nowhere
-   *   this library reads, while such a UTxO holds a reference script whose kind or hash this
-   *   library cannot work out
+   *   this library reads, while such a UTxO holds a reference script this library does not read
    * @throws TxPlanError INVALID_WITNESS (`wrongBody`) `{ argument: 0, keyHash }` for a
    *   transaction that holds a signature that is not of its body
    */
