@@ -1900,7 +1900,10 @@ export class TxBuilder {
    *   UNSUPPORTED_SERIALIZER when the builder's serializer throws, or answers with something
    *   that is not a transaction in CBOR hex, and
    *   MISSING_PARAMETER when the provider's protocol parameters lack a field a build reads, or
-   *   hold one that is not a number; TxPartError when what is looked up does not fit a part
+   *   hold one that is not a number, and before any input is selected for a certificate whose
+   *   amount the parameters give when they lack it (`keyDeposit` of a legacy stake registration
+   *   or deregistration, `poolDeposit` of a pool's first registration); TxPartError when what is
+   *   looked up does not fit a part
    *   (e.g. a reference output holding a different script), and INVALID_DATA for a validity
    *   part whose time bound is before the network's slot clock starts, or whose interval holds
    *   no slot once converted; TX_TOO_LARGE (`cause: "referenceScripts"`) when the UTxOs it would
@@ -2714,6 +2717,13 @@ export class TxBuilder {
     const filled = resolved.map((part) =>
       part.kind === "output" ? withMinCoin(part, params) : part,
     );
+    // A deposit the parameters give is in them before anything is selected or priced
+    refuseMissingDeposits(
+      filled,
+      params,
+      new Set(registeredPools ?? []),
+      this.params === undefined,
+    );
     // The reference scripts the UTxOs of the parts hold are bounded before any input is selected:
     // past the bound, no balance is sought for a transaction no node takes
     const ofParts = partsRefScripts(resolved, known, declared?.scriptSizes);
@@ -3414,6 +3424,60 @@ const placeholderUnits = (
     mem: (mem / BigInt(count)).toString(),
     steps: (steps / BigInt(count)).toString(),
   };
+};
+
+/**
+ * Refuses a certificate whose amount the protocol parameters give when they lack it: a stake
+ * registration or deregistration that states no amount (`legacyStakeRegistration`,
+ * `legacyStakeDeregistration`) takes `keyDeposit`, the first registration of a pool `poolDeposit`
+ * @param registeredPools The operators of pools already registered, which owe no deposit
+ * @param read Whether the parameters were read from the provider, not given as `params`
+ * @throws TxBuildError MISSING_PARAMETER (`params`), the field named in the message
+ */
+const refuseMissingDeposits = (
+  parts: readonly TxPart[],
+  params: Protocol,
+  registeredPools: ReadonlySet<string>,
+  read: boolean,
+): void => {
+  for (const part of parts) {
+    if (part.kind !== "certificate") continue;
+    const { certificate } = part;
+    let field: "keyDeposit" | "poolDeposit";
+    let what: string;
+    if (
+      (certificate.type === "STAKE_REGISTRATION" ||
+        certificate.type === "STAKE_DEREGISTRATION") &&
+      (certificate.value.coin === undefined || certificate.value.coin === null)
+    ) {
+      field = "keyDeposit";
+      what =
+        certificate.type === "STAKE_REGISTRATION"
+          ? "a stake registration that states no deposit"
+          : "a stake deregistration that states no refund";
+    } else if (
+      certificate.type === "POOL_REGISTRATION" &&
+      !registeredPools.has(certificate.value.pool_params.operator)
+    ) {
+      field = "poolDeposit";
+      what = `the first registration of pool ${certificate.value.pool_params.operator}`;
+    } else continue;
+    const value: unknown = params[field];
+    if (value !== undefined && value !== null) continue;
+    throw new TxBuildError(
+      "MISSING_PARAMETER",
+      `the ${field} protocol parameter is needed for ${what}, and ${
+        read
+          ? "the provider's protocol parameters have none: give the builder params that have it"
+          : "the builder's params have none: give it there"
+      }`,
+      {
+        part: part.kind,
+        ...(part.label !== undefined && { label: part.label }),
+        details: { parameter: "params" },
+      },
+    );
+  }
 };
 
 /** An output with the lovelace it needs filled in, checked against the ledger's limits */

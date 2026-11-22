@@ -2187,7 +2187,10 @@ await plan.run();
 ```
 
 Deposits and refunds are counted in the balance. A pool registration takes `poolDeposit` unless
-its operator is listed in `registeredPools`, which marks it as an update. A `MeshWallet` of this
+its operator is listed in `registeredPools`, which marks it as an update. An amount the protocol
+parameters give that they lack (`keyDeposit` of a legacy stake registration or deregistration,
+`poolDeposit` of a pool's first registration) is `MISSING_PARAMETER` before anything is selected,
+whether the parameters are the builder's `params` or the provider's. A `MeshWallet` of this
 release signs with each of its payment, stake and DRep keys the transaction needs.
 
 ## Time
