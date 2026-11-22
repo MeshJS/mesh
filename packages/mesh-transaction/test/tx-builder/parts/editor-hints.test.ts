@@ -13,7 +13,17 @@ const PROBE = join(__dirname, "editor-probe.ts");
 
 // Each line of the probe that is asked for its errors ends with a comment naming it
 const PROBE_TEXT = `import type { SpendPart, TxBuilder } from "../../../src";
-import { certificate, collateral, output, referenceInput, spend } from "../../../src";
+import {
+  certificate,
+  collateral,
+  guard,
+  mint,
+  output,
+  proposal,
+  referenceInput,
+  spend,
+  withdrawal,
+} from "../../../src";
 declare const address: string;
 declare const stake: string;
 declare const hash: string;
@@ -29,6 +39,12 @@ void builder.build(spend.pubKey({ utxo: { step: "a", output: 0 } })); // link
 spend.plutus();
 referenceInput();
 collateral();
+spend.mint(); // spend name
+mint.nope(); // mint name
+withdrawal.nope(); // withdrawal name
+certificate.stakeDelegate(); // certificate name
+proposal.nope(); // proposal name
+guard.nope(); // guard name
 `;
 
 /** The package's compiler options, as its tsconfig gives them */
@@ -154,6 +170,29 @@ describe("the parts in an editor", () => {
         {},
       );
       expect(help?.items).toHaveLength(1);
+    },
+    60_000,
+  );
+
+  it.each([
+    ["spend", "Property 'mint' does not exist on type 'SpendBuilders'."],
+    ["mint", "Property 'nope' does not exist on type 'MintBuilders'."],
+    [
+      "withdrawal",
+      "Property 'nope' does not exist on type 'WithdrawalBuilders'.",
+    ],
+    [
+      "certificate",
+      "Property 'stakeDelegate' does not exist on type 'CertificateBuilders'. Did you mean 'stakeDelegation'?",
+    ],
+    ["proposal", "Property 'nope' does not exist on type 'ProposalBuilders'."],
+    ["guard", "Property 'nope' does not exist on type 'GuardBuilders'."],
+  ])(
+    "names the type of %s for a part it does not have",
+    (name, text) => {
+      expect(errorsOn(`${name} name`).map((error) => error.text)).toEqual([
+        text,
+      ]);
     },
     60_000,
   );

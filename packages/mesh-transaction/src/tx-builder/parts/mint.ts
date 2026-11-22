@@ -129,8 +129,16 @@ export interface MintPlutusParams extends PartParams {
   policyId?: string;
 }
 
-export const mint = {
+/** The builders of mint parts, by the kind of the policy script */
+export interface MintBuilders {
   /** Mint or burn tokens under a native script policy. */
+  native(params: MintNativeParams): MintPart;
+
+  /** Mint or burn tokens under a Plutus script policy. */
+  plutus(params: MintPlutusParams): MintPart;
+}
+
+export const mint: MintBuilders = {
   native: (params: MintNativeParams): MintPart => {
     const ctx = partContext("mint", params);
     const { policyId, script } = toPolicyId(
@@ -147,7 +155,6 @@ export const mint = {
     });
   },
 
-  /** Mint or burn tokens under a Plutus script policy. */
   plutus: (params: MintPlutusParams): MintPart => {
     const ctx = partContext("mint", params);
     const { policyId, script } = toPolicyId(

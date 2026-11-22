@@ -5,6 +5,7 @@ export {
   referenceInput,
   collateral,
   collateralReturn,
+  type SpendBuilders,
   type SpendPubKeyParams,
   type SpendNativeParams,
   type SpendPlutusParams,
@@ -13,9 +14,15 @@ export {
   type CollateralReturnParams,
 } from "./inputs";
 export { output, type OutputParams } from "./output";
-export { mint, type MintNativeParams, type MintPlutusParams } from "./mint";
+export {
+  mint,
+  type MintBuilders,
+  type MintNativeParams,
+  type MintPlutusParams,
+} from "./mint";
 export {
   withdrawal,
+  type WithdrawalBuilders,
   type WithdrawalParams,
   type WithdrawalPubKeyParams,
   type ScriptWithdrawalParams,
@@ -24,6 +31,7 @@ export {
 } from "./withdrawal";
 export {
   certificate,
+  type CertificateBuilders,
   type StakeRegistrationParams,
   type StakeDeregistrationParams,
   type LegacyStakeRegistrationParams,
@@ -45,6 +53,7 @@ export {
 export {
   vote,
   proposal,
+  type ProposalBuilders,
   type VoteParams,
   type ProposalParams,
   type GuardrailParams,
@@ -66,6 +75,7 @@ export {
   donation,
   treasuryValue,
   networkId,
+  type GuardBuilders,
   type GuardPubKeyParams,
   type ValidityParams,
   type MetadataParams,

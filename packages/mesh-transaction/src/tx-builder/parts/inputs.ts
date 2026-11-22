@@ -178,10 +178,6 @@ export interface SpendPubKeyParams<U = InputRef> extends PartParams {
   utxo: U;
 }
 
-/**
- * Spend an output locked by a payment key; in a plan, an output of an earlier step, or all its
- * change, with the part linked to that step.
- */
 function pubKey<U extends InputRef | StepOutput | StepChange>(
   params: SpendPubKeyParams<U>,
 ): LinkedWhen<U, SpendPart>;
@@ -225,10 +221,6 @@ export interface SpendNativeParams<U = InputRef> extends PartParams {
   script: NativeScriptInput;
 }
 
-/**
- * Spend an output locked by a native script; in a plan, an output of an earlier step, with the
- * part linked to that step.
- */
 function native<U extends InputRef | StepOutput>(
   params: SpendNativeParams<U>,
 ): LinkedWhen<U, SpendPart>;
@@ -285,10 +277,6 @@ export interface SpendPlutusParams<U = InputRef> extends PartParams {
   datum?: SpendDatumInput;
 }
 
-/**
- * Spend an output locked by a Plutus script; in a plan, an output of an earlier step, with the
- * part linked to that step.
- */
 function plutus<U extends InputRef | StepOutput>(
   params: SpendPlutusParams<U>,
 ): LinkedWhen<U, SpendPart>;
@@ -327,8 +315,35 @@ function plutus(
   });
 }
 
+/** The builders of spend parts, by how the spent output is locked */
+export interface SpendBuilders {
+  /**
+   * Spend an output locked by a payment key; in a plan, an output of an earlier step, or all its
+   * change, with the part linked to that step.
+   */
+  pubKey<U extends InputRef | StepOutput | StepChange>(
+    params: SpendPubKeyParams<U>,
+  ): LinkedWhen<U, SpendPart>;
+
+  /**
+   * Spend an output locked by a native script; in a plan, an output of an earlier step, with the
+   * part linked to that step.
+   */
+  native<U extends InputRef | StepOutput>(
+    params: SpendNativeParams<U>,
+  ): LinkedWhen<U, SpendPart>;
+
+  /**
+   * Spend an output locked by a Plutus script; in a plan, an output of an earlier step, with the
+   * part linked to that step.
+   */
+  plutus<U extends InputRef | StepOutput>(
+    params: SpendPlutusParams<U>,
+  ): LinkedWhen<U, SpendPart>;
+}
+
 /** Spend an existing output, or one of an earlier step of a plan */
-export const spend = { pubKey, native, plutus };
+export const spend: SpendBuilders = { pubKey, native, plutus };
 
 /**
  * What `referenceInput` takes. `U` is how the output is given, as for `SpendPubKeyParams`.

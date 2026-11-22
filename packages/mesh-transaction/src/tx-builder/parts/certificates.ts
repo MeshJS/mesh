@@ -395,11 +395,88 @@ const toPoolParams = (
   };
 };
 
-export const certificate = {
+/** The builders of certificate parts, one for each kind of certificate */
+export interface CertificateBuilders {
   /**
    * Register a stake credential, stating its deposit (certificate 7). Like every other
    * certificate of the credential, it needs the credential's witness.
    */
+  stakeRegistration(params: StakeRegistrationParams): CertificatePart;
+
+  /** Deregister a stake credential, stating the refund (certificate 8). */
+  stakeDeregistration(params: StakeDeregistrationParams): CertificatePart;
+
+  /**
+   * Register a stake credential without stating its deposit (certificate 0). It takes no
+   * witness; the deposit is the `keyDeposit` protocol parameter.
+   * @deprecated The next ledger era does not decode certificate 0. Use
+   *   `certificate.stakeRegistration`, which states the deposit; unlike this form it needs the
+   *   credential's witness: its key's signature, or the script given as `witness`.
+   */
+  legacyStakeRegistration(
+    params: LegacyStakeRegistrationParams,
+  ): CertificatePart;
+
+  /**
+   * Deregister a stake credential without stating the refund (certificate 1).
+   * @deprecated The next ledger era does not decode certificate 1. Use
+   *   `certificate.stakeDeregistration`, which states the refund; a Plutus script credential is
+   *   then witnessed by a V3 script only.
+   */
+  legacyStakeDeregistration(
+    params: LegacyStakeDeregistrationParams,
+  ): CertificatePart;
+
+  /** Delegate a stake credential to a pool. */
+  stakeDelegation(params: StakeDelegationParams): CertificatePart;
+
+  /** Delegate a stake credential's vote. */
+  voteDelegation(params: VoteDelegationParams): CertificatePart;
+
+  /** Delegate a stake credential to a pool and its vote to a DRep. */
+  stakeAndVoteDelegation(params: StakeAndVoteDelegationParams): CertificatePart;
+
+  /** Register a stake credential and delegate it to a pool. */
+  stakeRegistrationAndDelegation(
+    params: StakeRegistrationAndDelegationParams,
+  ): CertificatePart;
+
+  /** Register a stake credential and delegate its vote. */
+  voteRegistrationAndDelegation(
+    params: VoteRegistrationAndDelegationParams,
+  ): CertificatePart;
+
+  /** Register a stake credential, delegate it to a pool and delegate its vote. */
+  stakeVoteRegistrationAndDelegation(
+    params: StakeVoteRegistrationAndDelegationParams,
+  ): CertificatePart;
+
+  /**
+   * Register or update a stake pool. Signed by the operator and owner keys; the deposit is the
+   * `poolDeposit` protocol parameter, owed only on first registration.
+   */
+  poolRegistration(params: PoolRegistrationParams): CertificatePart;
+
+  /** Retire a stake pool at the start of an epoch. Signed by the operator key. */
+  poolRetirement(params: PoolRetirementParams): CertificatePart;
+
+  /** Authorise a hot credential to vote for a constitutional committee member. */
+  committeeHotAuth(params: CommitteeHotAuthParams): CertificatePart;
+
+  /** Resign from the constitutional committee. */
+  committeeColdResign(params: CommitteeColdResignParams): CertificatePart;
+
+  /** Register a DRep. */
+  drepRegistration(params: DRepRegistrationParams): CertificatePart;
+
+  /** Deregister a DRep. */
+  drepDeregistration(params: DRepDeregistrationParams): CertificatePart;
+
+  /** Update a DRep's metadata anchor. */
+  drepUpdate(params: DRepUpdateParams): CertificatePart;
+}
+
+export const certificate: CertificateBuilders = {
   stakeRegistration: (params: StakeRegistrationParams): CertificatePart => {
     const ctx = ctxOf(params);
     const credential = toCredential(ctx, params.stake);
@@ -424,7 +501,6 @@ export const certificate = {
     );
   },
 
-  /** Deregister a stake credential, stating the refund (certificate 8). */
   stakeDeregistration: (params: StakeDeregistrationParams): CertificatePart => {
     const ctx = ctxOf(params);
     const credential = toCredential(ctx, params.stake);
@@ -449,13 +525,6 @@ export const certificate = {
     );
   },
 
-  /**
-   * Register a stake credential without stating its deposit (certificate 0). It takes no
-   * witness; the deposit is the `keyDeposit` protocol parameter.
-   * @deprecated The next ledger era does not decode certificate 0. Use
-   *   `certificate.stakeRegistration`, which states the deposit; unlike this form it needs the
-   *   credential's witness: its key's signature, or the script given as `witness`.
-   */
   legacyStakeRegistration: (
     params: LegacyStakeRegistrationParams,
   ): CertificatePart => {
@@ -474,12 +543,6 @@ export const certificate = {
     );
   },
 
-  /**
-   * Deregister a stake credential without stating the refund (certificate 1).
-   * @deprecated The next ledger era does not decode certificate 1. Use
-   *   `certificate.stakeDeregistration`, which states the refund; a Plutus script credential is
-   *   then witnessed by a V3 script only.
-   */
   legacyStakeDeregistration: (
     params: LegacyStakeDeregistrationParams,
   ): CertificatePart => {
@@ -497,7 +560,6 @@ export const certificate = {
     );
   },
 
-  /** Delegate a stake credential to a pool. */
   stakeDelegation: (params: StakeDelegationParams): CertificatePart => {
     const ctx = ctxOf(params);
     const credential = toCredential(ctx, params.stake);
@@ -516,7 +578,6 @@ export const certificate = {
     );
   },
 
-  /** Delegate a stake credential's vote. */
   voteDelegation: (params: VoteDelegationParams): CertificatePart => {
     const ctx = ctxOf(params);
     const credential = toCredential(ctx, params.stake);
@@ -535,7 +596,6 @@ export const certificate = {
     );
   },
 
-  /** Delegate a stake credential to a pool and its vote to a DRep. */
   stakeAndVoteDelegation: (
     params: StakeAndVoteDelegationParams,
   ): CertificatePart => {
@@ -557,7 +617,6 @@ export const certificate = {
     );
   },
 
-  /** Register a stake credential and delegate it to a pool. */
   stakeRegistrationAndDelegation: (
     params: StakeRegistrationAndDelegationParams,
   ): CertificatePart => {
@@ -585,7 +644,6 @@ export const certificate = {
     );
   },
 
-  /** Register a stake credential and delegate its vote. */
   voteRegistrationAndDelegation: (
     params: VoteRegistrationAndDelegationParams,
   ): CertificatePart => {
@@ -613,7 +671,6 @@ export const certificate = {
     );
   },
 
-  /** Register a stake credential, delegate it to a pool and delegate its vote. */
   stakeVoteRegistrationAndDelegation: (
     params: StakeVoteRegistrationAndDelegationParams,
   ): CertificatePart => {
@@ -642,10 +699,6 @@ export const certificate = {
     );
   },
 
-  /**
-   * Register or update a stake pool. Signed by the operator and owner keys; the deposit is the
-   * `poolDeposit` protocol parameter, owed only on first registration.
-   */
   poolRegistration: (params: PoolRegistrationParams): CertificatePart => {
     const ctx = ctxOf(params);
     return build(
@@ -658,7 +711,6 @@ export const certificate = {
     );
   },
 
-  /** Retire a stake pool at the start of an epoch. Signed by the operator key. */
   poolRetirement: (params: PoolRetirementParams): CertificatePart => {
     const ctx = ctxOf(params);
     const { epoch } = params;
@@ -681,7 +733,6 @@ export const certificate = {
     );
   },
 
-  /** Authorise a hot credential to vote for a constitutional committee member. */
   committeeHotAuth: (params: CommitteeHotAuthParams): CertificatePart => {
     const ctx = ctxOf(params);
     const cold = toCredential(ctx, params.cold);
@@ -700,7 +751,6 @@ export const certificate = {
     );
   },
 
-  /** Resign from the constitutional committee. */
   committeeColdResign: (params: CommitteeColdResignParams): CertificatePart => {
     const ctx = ctxOf(params);
     const cold = toCredential(ctx, params.cold);
@@ -718,7 +768,6 @@ export const certificate = {
     );
   },
 
-  /** Register a DRep. */
   drepRegistration: (params: DRepRegistrationParams): CertificatePart => {
     const ctx = ctxOf(params);
     const credential = toDRepCredential(ctx, params.drep);
@@ -745,7 +794,6 @@ export const certificate = {
     );
   },
 
-  /** Deregister a DRep. */
   drepDeregistration: (params: DRepDeregistrationParams): CertificatePart => {
     const ctx = ctxOf(params);
     const credential = toDRepCredential(ctx, params.drep);
@@ -770,7 +818,6 @@ export const certificate = {
     );
   },
 
-  /** Update a DRep's metadata anchor. */
   drepUpdate: (params: DRepUpdateParams): CertificatePart => {
     const ctx = ctxOf(params);
     const credential = toDRepCredential(ctx, params.drep);

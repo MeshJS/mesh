@@ -388,8 +388,31 @@ const checkParamUpdate = (
   for (const [key, value] of present) check(key, value, key === "cost_models");
 };
 
-export const proposal = {
+/** The builders of proposal parts, one for each kind of governance action */
+export interface ProposalBuilders {
   /** Propose changing protocol parameters. */
+  parameterChange(params: ParameterChangeParams): ProposalPart;
+
+  /** Propose a hard fork to a new protocol version. */
+  hardForkInitiation(params: HardForkInitiationParams): ProposalPart;
+
+  /** Propose withdrawing lovelace from the treasury. */
+  treasuryWithdrawals(params: TreasuryWithdrawalsParams): ProposalPart;
+
+  /** Propose a motion of no confidence in the constitutional committee. */
+  noConfidence(params: NoConfidenceParams): ProposalPart;
+
+  /** Propose changing the constitutional committee. */
+  updateCommittee(params: UpdateCommitteeParams): ProposalPart;
+
+  /** Propose a new constitution. */
+  newConstitution(params: NewConstitutionParams): ProposalPart;
+
+  /** Propose an info action, voted on but with no effect on the chain. */
+  info(params: InfoActionParams): ProposalPart;
+}
+
+export const proposal: ProposalBuilders = {
   parameterChange: (params: ParameterChangeParams): ProposalPart => {
     const ctx = ctxOf(params);
     checkParamUpdate(ctx, params.updates);
@@ -409,7 +432,6 @@ export const proposal = {
     );
   },
 
-  /** Propose a hard fork to a new protocol version. */
   hardForkInitiation: (params: HardForkInitiationParams): ProposalPart => {
     const ctx = ctxOf(params);
     const { major, minor } = params.protocolVersion ?? {};
@@ -432,7 +454,6 @@ export const proposal = {
     });
   },
 
-  /** Propose withdrawing lovelace from the treasury. */
   treasuryWithdrawals: (params: TreasuryWithdrawalsParams): ProposalPart => {
     const ctx = ctxOf(params);
     const entries = Object.entries(params.withdrawals ?? {});
@@ -462,7 +483,6 @@ export const proposal = {
     );
   },
 
-  /** Propose a motion of no confidence in the constitutional committee. */
   noConfidence: (params: NoConfidenceParams): ProposalPart => {
     const ctx = ctxOf(params);
     return build(ctx, params, {
@@ -471,7 +491,6 @@ export const proposal = {
     });
   },
 
-  /** Propose changing the constitutional committee. */
   updateCommittee: (params: UpdateCommitteeParams): ProposalPart => {
     const ctx = ctxOf(params);
     const quorum = toUnitInterval(ctx, "quorum", params.quorum);
@@ -509,7 +528,6 @@ export const proposal = {
     });
   },
 
-  /** Propose a new constitution. */
   newConstitution: (params: NewConstitutionParams): ProposalPart => {
     const ctx = ctxOf(params);
     const anchor = toAnchor(ctx, params.constitution?.anchor);
@@ -534,7 +552,6 @@ export const proposal = {
     });
   },
 
-  /** Propose an info action, voted on but with no effect on the chain. */
   info: (params: InfoActionParams): ProposalPart =>
     build(ctxOf(params), params, { type: "INFO_ACTION" }),
 };

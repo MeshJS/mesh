@@ -122,16 +122,26 @@ const build = (
   });
 };
 
+/** The builders of withdrawal parts, by the kind of the stake credential */
+export interface WithdrawalBuilders {
+  /** Withdraw rewards from a stake address with a key stake credential. */
+  pubKey(params: WithdrawalPubKeyParams): WithdrawalPart;
+
+  /** Withdraw rewards from a stake address with a native script stake credential. */
+  native(params: WithdrawalNativeParams): WithdrawalPart;
+
+  /** Withdraw rewards from a stake address with a Plutus script stake credential. */
+  plutus(params: WithdrawalPlutusParams): WithdrawalPart;
+}
+
 /**
  * Withdrawal parts. A script's reward address may be left out: the part keeps the script's
  * credential and the build derives the address on its network.
  */
-export const withdrawal = {
-  /** Withdraw rewards from a stake address with a key stake credential. */
+export const withdrawal: WithdrawalBuilders = {
   pubKey: (params: WithdrawalPubKeyParams): WithdrawalPart =>
     build(params, () => ({ type: "key" }), true),
 
-  /** Withdraw rewards from a stake address with a native script stake credential. */
   native: (params: WithdrawalNativeParams): WithdrawalPart =>
     build(params, (ctx, credential) => ({
       type: "native",
@@ -141,7 +151,6 @@ export const withdrawal = {
       ),
     })),
 
-  /** Withdraw rewards from a stake address with a Plutus script stake credential. */
   plutus: (params: WithdrawalPlutusParams): WithdrawalPart =>
     build(params, (ctx, credential) => ({
       type: "plutus",

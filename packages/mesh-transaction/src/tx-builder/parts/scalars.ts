@@ -50,11 +50,8 @@ export type GuardPubKeyParams = PartParams &
       }
   );
 
-/**
- * Guards of the transaction. Today one form: a key that must sign (Conway's required_signers;
- * scripts read it among the signatories)
- */
-export const guard = {
+/** The builders of guard parts, by the kind of the credential */
+export interface GuardBuilders {
   /**
    * A required signer: a key whose signature the transaction needs, given as its hash or as an
    * address whose payment key it is; the build rejects a hash that is one of the transaction's
@@ -65,6 +62,14 @@ export const guard = {
    * @throws TxPartError INVALID_DATA for a key hash that is not 28 bytes in hex, for `keyHash`
    *   and `address` given together and for neither
    */
+  pubKey(params: GuardPubKeyParams): GuardPart;
+}
+
+/**
+ * Guards of the transaction. Today one form: a key that must sign (Conway's required_signers;
+ * scripts read it among the signatories)
+ */
+export const guard: GuardBuilders = {
   pubKey: (params: GuardPubKeyParams): GuardPart => {
     const ctx = partContext("guard", params);
     const { keyHash, address } = params as {
