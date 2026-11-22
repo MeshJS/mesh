@@ -1822,12 +1822,13 @@ type, unless named otherwise:
   `scriptRef`. A script it runs that is found nowhere this library reads (its witness set, a
   reference script it reads), while a UTxO it spends or reads holds a reference script this
   library does not read, in whatever framing and whatever its bytes, is refused the same way, the
-  message saying what reading that script found: `reason` `"form"`, `scriptHash` the hash it runs
-  and `outRef` the first such UTxO, of its inputs, then its reference inputs, the others counted
-  in the message. `requiredSigners` refuses it the same way, and a plan a step
-  given built, the step named first. A build from parts refuses such a script named as a
-  `{ reference }` (`INVALID_SCRIPT`) in the same words. A native script of the witness set is read
-  at any depth the bounds above admit;
+  message saying what reading that script found (of `[language, script]` of a Plutus language
+  given with a hash that is not that of its bytes, that the hash given for it is not the hash of
+  its bytes): `reason` `"form"`, `scriptHash` the hash it runs and `outRef` the first such UTxO,
+  of its inputs, then its reference inputs, the others counted in the message. `requiredSigners`
+  refuses it the same way, and a plan a step given built, the step named first. A build from parts
+  refuses such a script named as a `{ reference }` (`INVALID_SCRIPT`) in the same words. A native
+  script of the witness set is read at any depth the bounds above admit;
 - a signature that is not of the body: `INVALID_WITNESS` (`wrongBody`).
 
 A map that repeats a key is read as the value decoder reads it, and the members show that reading:

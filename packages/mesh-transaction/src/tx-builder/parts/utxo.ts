@@ -635,21 +635,29 @@ export const unknownNativeScript = (
 
 /**
  * Why a reference script left `unknown` is not read, in words true of what reading it found,
- * quoting none of its bytes. Bytes that are `[0, script]` in no framing the ledger reads are said
- * to be no `[language, script]` this library reads; a native script longer than `MAX_TX_BYTES`
- * is said to be so. Of any other, each finding, joined: its framing other than `82 00` (under tag
- * 24, an array of indefinite length, its head or its language written longer than needed), a hash
- * given that is not that of its bytes, and what the script after the language is: not one
- * well-formed CBOR item; not a native script as the ledger reads one, or one that names a key hash
- * written in pieces; or one nested deeper than `MAX_NATIVE_DEPTH`. Its time is that of reading the
- * script once
+ * quoting none of its bytes. Bytes of a Plutus script this library reads, `[language, script]`,
+ * given with a hash that is not theirs, are said to be so; other bytes that are `[0, script]` in
+ * no framing the ledger reads are said to be no `[language, script]` this library reads; a native
+ * script longer than `MAX_TX_BYTES` is said to be so. Of any other, each finding, joined: its
+ * framing other than `82 00` (under tag 24, an array of indefinite length, its head or its
+ * language written longer than needed), a hash given that is not that of its bytes, and what the
+ * script after the language is: not one well-formed CBOR item; not a native script as the ledger
+ * reads one, or one that names a key hash written in pieces; or one nested deeper than
+ * `MAX_NATIVE_DEPTH`. Its time is that of reading the script once
  */
 export const unreadScriptWords = (
   script: Extract<OutputScript, { type: "unknown" }>,
 ): string => {
   const framing = nativeFraming(script.scriptRef);
-  if (framing === undefined)
-    return "its bytes are not [language, script] in a form this library reads";
+  if (framing === undefined) {
+    // Read without the hash given, the bytes may be a script this library reads
+    const read = describeScriptRef(script.scriptRef);
+    return read.type !== "unknown" &&
+      script.hash !== undefined &&
+      script.hash !== read.hash
+      ? "the hash given for it is not the hash of its bytes"
+      : "its bytes are not [language, script] in a form this library reads";
+  }
   if (framing.script.length / 2 > MAX_TX_BYTES)
     return unreadNativeWords("size");
   const found: string[] = [];

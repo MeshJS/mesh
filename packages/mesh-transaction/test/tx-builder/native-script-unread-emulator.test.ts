@@ -1036,6 +1036,55 @@ describe("the words of each reason a native script is not read: what reading it 
       holder,
     );
   });
+
+  it.each([1, 2, 3])(
+    "says so of a Plutus script of language %d given with a hash that is not the hash of its bytes: requiredSigners, fromCbor, a step given built, a build of mint.plutus with { reference }",
+    async (version) => {
+      const code = "4d01000033222220051200120011";
+      const given = holderOf(
+        KEY,
+        alice,
+        1,
+        cbor.arr(cbor.uint(version), cbor.bytes(code)),
+      );
+      const own = cbor.blake(`0${version}${code}`, 28);
+      expect(toUtxo(given).script).toMatchObject({ type: "plutus", hash: own });
+      const holder = {
+        ...given,
+        output: { ...given.output, scriptHash: "cd".repeat(28) },
+      };
+      expect(toUtxo(holder).script!.type).toBe("unknown");
+      // A transaction that runs the hash of its bytes, or the hash given: found nowhere
+      for (const runs of [own, "cd".repeat(28)]) {
+        const read = await readings(minting(runs, [SPENT], [holder]), [
+          SPENT,
+          holder,
+        ]);
+        expectUnfound(read.requiredSigners, runs, holder, WORDS.stated);
+        expectUnfound(read.fromCbor, runs, holder, WORDS.stated);
+        expectUnfound(read.step, runs, holder, WORDS.stated, 0, "given");
+      }
+      const error = await caught(
+        Promise.resolve().then(() =>
+          offline().build(
+            [
+              mint.plutus({
+                script: { reference: holder },
+                redeemer: { data: 0 },
+                assets: { "": 1n },
+              }),
+            ],
+            { payer: { changeAddress: alice, utxos: [SPENT] } },
+          ),
+        ),
+      );
+      expect([(error as TxError).code, (error as TxError).message]).toEqual([
+        "INVALID_SCRIPT",
+        `mint: ${holder.input.txHash}#0 holds a reference script this library cannot read: ${WORDS.stated}`,
+      ]);
+    },
+    60_000,
+  );
 });
 
 describe("the reason a build refuses a script named as a { reference }, in the same words", () => {
