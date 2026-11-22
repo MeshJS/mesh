@@ -29,21 +29,27 @@ import { MeshWallet } from "@meshsdk/wallet";
 
 import type { AskedKey } from "../../src/tx-builder";
 import {
+  addWitnesses as addWitnessSets,
+  BlindTx,
   BuiltTx,
   BuiltTxData,
   BuiltTxJSON,
   certificate,
   collateral,
   collateralReturn,
+  FromCborOptions,
   guard,
   keySigner,
   mint,
   output,
   OutputScript,
   Signer,
+  signWitnesses,
   spend,
   TxBuilder,
   TxBuilderOptions,
+  TxBuildError,
+  TxError,
   TxPlanError,
   Utxo,
   UtxoInput,
@@ -1838,7 +1844,7 @@ describe("TxBuilder.fromCbor: as JSON, and as a built transaction elsewhere", ()
     expect(next.inputs.some((u) => u.txHash === cbor.TX_IN)).toBe(false);
   });
 
-  it("types: fromCbor gives Promise<BuiltTx>, and its options take knownUtxos alone", async () => {
+  it("types: fromCbor gives Promise<BuiltTx>, and its options take knownUtxos, and blind: false", async () => {
     type Equal<A, B> =
       (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
         ? true
@@ -1849,13 +1855,17 @@ describe("TxBuilder.fromCbor: as JSON, and as a built transaction elsewhere", ()
     > = true;
     const options: Equal<
       Parameters<TxBuilder["fromCbor"]>[1],
-      { knownUtxos?: readonly UtxoInput[] } | undefined
+      FromCborOptions | undefined
+    > = true;
+    const known: Equal<
+      FromCborOptions,
+      { knownUtxos?: readonly UtxoInput[]; blind?: false }
     > = true;
     const first: Equal<Parameters<TxBuilder["fromCbor"]>[0], string> = true;
-    expect([returns, options, first]).toEqual([true, true, true]);
+    expect([returns, options, known, first]).toEqual([true, true, true, true]);
     const b = offline();
     const unused = async () => {
-      // @ts-expect-error: no option but knownUtxos
+      // @ts-expect-error: no option but knownUtxos and blind
       await b.fromCbor("", { after: [] });
       // @ts-expect-error: the transaction is text
       await b.fromCbor(new Uint8Array());
@@ -1946,5 +1956,385 @@ describe("TxBuilder.fromCbor: as JSON, and as a built transaction elsewhere", ()
         blockHeight: 1200,
       });
     });
+  });
+});
+
+describe("TxBuilder.fromCbor with blind: a BlindTx", () => {
+  /** The members a BlindTx holds of the bytes */
+  const BLIND_MEMBERS = [
+    "tx",
+    "txHash",
+    "network",
+    "fee",
+    "outputs",
+    "validity",
+    "redeemers",
+  ] as const;
+
+  /** Checks a TxBuildError of this code, and returns it */
+  const refusedAs = (error: unknown, code: string) => {
+    expect(error).toBeInstanceOf(TxBuildError);
+    expect(TxError.is(error, code as never)).toBe(true);
+    return error as TxBuildError<"INVALID_OPTION">;
+  };
+
+  /** The key hash of a private key in hex */
+  const hashOfKey = (key: string) =>
+    Crypto.Ed25519PrivateKey.fromNormalBytes(Buffer.from(key, "hex"))
+      .toPublic()
+      .hash()
+      .hex() as string;
+
+  /** What the bytes show of a transaction, as a BuiltTx or a BlindTx holds it */
+  const fromBytes = (made: BlindTx | BuiltTxData) => ({
+    tx: made.tx,
+    txHash: made.txHash,
+    network: made.network,
+    fee: made.fee,
+    outputs: made.outputs,
+    validity: made.validity,
+    redeemers: made.redeemers,
+  });
+
+  it.each(BUILDS)(
+    "asks no provider, reads no UTxO, and shows what fromCbor with knownUtxos shows of the bytes: %s",
+    async (_, make) => {
+      const { built, builder: b } = await make();
+      const { provider, calls } = recordingProvider();
+      const network = b.network.name as "preprod" | "mainnet";
+      const blind = await offline(network, { provider }).fromCbor(built.tx, {
+        blind: true,
+      });
+      expect(calls).toEqual([]);
+      expect(blind).toBeInstanceOf(BlindTx);
+      expect(blind).not.toBeInstanceOf(BuiltTx);
+      const read = await fromBuild(built, b);
+      expect(fromBytes(blind)).toEqual(fromBytes(read));
+      expect(Reflect.ownKeys(blind)).toEqual(
+        BLIND_MEMBERS.filter((key) => key in read),
+      );
+      expect(Object.isFrozen(blind)).toBe(true);
+      // Nothing that needs the UTxOs of the inputs, or a build
+      for (const member of [
+        "inputs",
+        "referenceInputs",
+        "selectedInputs",
+        "missing",
+        "signers",
+        "signedTx",
+        "collateral",
+        "change",
+        "parts",
+        "prototype",
+        "warnings",
+        "exUnits",
+        "toJSON",
+      ])
+        expect(member in blind).toBe(false);
+      expect(blind.signedKeyHashes).toEqual([]);
+      expect(blind.partialTx).toBe(built.tx);
+    },
+  );
+
+  it("is read by a builder of its network alone, and the same with a transaction that came signed", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const given = handPayment("tagged", key, (txHash) =>
+      cbor.map([
+        cbor.uint(0),
+        cbor.tag258(cbor.arr(cbor.vkeyWitness(key, txHash))),
+      ]),
+    );
+    const cold = new TxBuilder({ network: "preprod" });
+    const blind = await cold.fromCbor(given.tx, { blind: true });
+    const read = await offline().fromCbor(given.tx, {
+      knownUtxos: given.knownUtxos,
+    });
+    expect(fromBytes(blind)).toEqual(fromBytes(read));
+    expect(blind.tx).toBe(given.unsigned);
+    expect(blind.signedKeyHashes).toEqual([key.keyHash]);
+    expect(blind.partialTx).toBe(read.partialTx);
+    expect(blind.partialTx).toBe(given.tx);
+  });
+
+  it("signs with keySigner a key the body needs and one it does not, asked with no list of keys, and keeps both", async () => {
+    await Crypto.ready();
+    const needed = randomBytes(32);
+    const neededHash = hashOfKey(needed.toString("hex"));
+    const stranger = testKey();
+    const given = handPayment("plain", testKey());
+    const blind = await new TxBuilder({ network: "preprod" }).fromCbor(
+      given.tx,
+      { blind: true },
+    );
+    const asked = keysSigner("object", stranger);
+    await blind.sign({
+      signers: [keySigner(needed.toString("hex")), asked.signer],
+    });
+    // The signer of hashes is asked with no keys, and handed the unsigned transaction
+    expect(asked.requests).toHaveLength(1);
+    expect(asked.requests[0]!.keys).toBeUndefined();
+    expect(asked.requests[0]!.tx).toBe(given.unsigned);
+    expect(asked.requests[0]!.txHash).toBe(given.txHash);
+    expect(blind.signedKeyHashes).toEqual([neededHash, stranger.keyHash]);
+    expect(keysOf(blind.partialTx).vkeys).toHaveLength(2);
+    expect(allVerify(blind.partialTx, given.txHash)).toBe(true);
+    expect(cbor.topItems(blind.partialTx)[0]).toBe(given.body);
+    // Asked again, a key that has signed adds nothing
+    await blind.sign({ signers: keySigner(needed.toString("hex")) });
+    expect(blind.signedKeyHashes).toEqual([neededHash, stranger.keyHash]);
+    // The object of fromCbor keeps the witness of the key the body needs alone
+    const read = await offline().fromCbor(given.tx, {
+      knownUtxos: [handUtxo(addressOf({ keyHash: neededHash }))],
+    });
+    await read.sign({
+      signers: [keySigner(needed.toString("hex")), asked.signer],
+    });
+    expect(keysOf(read.partialTx).vkeys).toHaveLength(1);
+  });
+
+  it("signs with a wallet: a Mesh wallet by signTxWitnesses with no key hashes, a CIP-30 api by signTx(tx, true); every witness kept", async () => {
+    await Crypto.ready();
+    const wallet = new MeshWallet({
+      networkId: 0,
+      key: { type: "mnemonic", words: Array(24).fill("solution") },
+    });
+    await wallet.init();
+    const walletKey = deserializeAddress(
+      (await wallet.getChangeAddress())!,
+    ).pubKeyHash;
+    const given = handPayment("tagged", testKey());
+    const asked: unknown[][] = [];
+    const meshWallet = {
+      signTxWitnesses: (...args: [string, string[]?]) => {
+        asked.push(["signTxWitnesses", ...args]);
+        return wallet.signTxWitnesses(...args);
+      },
+    };
+    const cip30 = {
+      signTx: (tx: string, partial?: boolean) => {
+        asked.push(["signTx", tx, partial]);
+        return wallet.signTx(tx, partial);
+      },
+    };
+    for (const signer of [wallet, meshWallet, cip30] as Signer[]) {
+      const blind = await offline().fromCbor(given.tx, { blind: true });
+      await blind.sign({ signers: signer });
+      expect(blind.signedKeyHashes).toEqual([walletKey]);
+      expect(allVerify(blind.partialTx, given.txHash)).toBe(true);
+    }
+    expect(asked).toEqual([
+      ["signTxWitnesses", given.unsigned],
+      ["signTx", given.unsigned, true],
+    ]);
+  });
+
+  it("adds a witness set and a full transaction, each checked against the body; refuses a witness of another body, keeping nothing of the call", async () => {
+    await Crypto.ready();
+    const first = randomBytes(32).toString("hex");
+    const second = testKey();
+    const given = handPayment("tagged", testKey());
+    const blind = await offline().fromCbor(given.tx, { blind: true });
+    const set = await signWitnesses(keySigner(first), given.unsigned);
+    await blind.addWitnesses(set);
+    expect(blind.signedKeyHashes).toEqual([hashOfKey(first)]);
+    const full = await addWitnessSets(
+      given.unsigned,
+      cbor.map([
+        cbor.uint(0),
+        cbor.tag258(cbor.arr(cbor.vkeyWitness(second, given.txHash))),
+      ]),
+    );
+    await blind.addWitnesses(full);
+    expect(blind.signedKeyHashes).toEqual([hashOfKey(first), second.keyHash]);
+    const before = blind.partialTx;
+    // A witness of another body: INVALID_WITNESS, nothing of the call kept
+    const other = handPayment("plain", testKey());
+    const stranger = testKey();
+    const error = await caught(() =>
+      blind.addWitnesses(
+        cbor.map([
+          cbor.uint(0),
+          cbor.tag258(cbor.arr(cbor.vkeyWitness(testKey(), given.txHash))),
+        ]),
+        cbor.map([
+          cbor.uint(0),
+          cbor.tag258(cbor.arr(cbor.vkeyWitness(stranger, other.txHash))),
+        ]),
+      ),
+    );
+    expect(TxPlanError.is(error, "INVALID_WITNESS")).toBe(true);
+    expect(error.details).toEqual({
+      reason: "wrongBody",
+      argument: 1,
+      keyHash: stranger.keyHash,
+    });
+    expect(blind.partialTx).toBe(before);
+    // A signer answering with a witness of another body fails, and nothing of it is kept
+    const wrong = hashSigner("callback", () => [stranger.answer(other.txHash)]);
+    const failed = await caught(() => blind.sign({ signers: wrong.signer }));
+    expect(TxPlanError.is(failed, "SIGNER_FAILED")).toBe(true);
+    expect(blind.partialTx).toBe(before);
+    // A transaction that came with a signature of another body is refused as fromCbor refuses it
+    const forged = handPayment("tagged", testKey(), () =>
+      cbor.map([
+        cbor.uint(0),
+        cbor.tag258(cbor.arr(cbor.vkeyWitness(stranger, other.txHash))),
+      ]),
+    );
+    const refused = await caught(() =>
+      offline().fromCbor(forged.tx, { blind: true }),
+    );
+    expect(TxPlanError.is(refused, "INVALID_WITNESS")).toBe(true);
+    expect(refused.details).toEqual({
+      reason: "wrongBody",
+      argument: 0,
+      keyHash: stranger.keyHash,
+    });
+  });
+
+  it("refuses blind beside knownUtxos, a blind that is not a boolean, and a sign without signers, naming types alone", async () => {
+    await Crypto.ready();
+    const given = handPayment("tagged", testKey());
+    const secret = randomBytes(32).toString("hex");
+    const both = await caught(() =>
+      offline().fromCbor(given.tx, {
+        blind: true,
+        knownUtxos: given.knownUtxos,
+      } as never),
+    );
+    refusedAs(both, "INVALID_OPTION");
+    expect(both.details).toEqual({
+      option: "options",
+      value: "object",
+      allowed: "an object { knownUtxos?, blind? }",
+    });
+    expect(both.message).toContain("one or the other");
+    // An empty list too: blind takes no knownUtxos
+    refusedAs(
+      await caught(() =>
+        offline().fromCbor(given.tx, { blind: true, knownUtxos: [] } as never),
+      ),
+      "INVALID_OPTION",
+    );
+    const notBoolean = await caught(() =>
+      offline().fromCbor(given.tx, { blind: secret } as never),
+    );
+    refusedAs(notBoolean, "INVALID_OPTION");
+    expect(notBoolean.details).toEqual({
+      option: "blind",
+      value: "string",
+      allowed: "a boolean",
+    });
+    expect(notBoolean.message).not.toContain(secret);
+    // blind: false is fromCbor without it
+    const read = await offline().fromCbor(given.tx, {
+      blind: false,
+      knownUtxos: given.knownUtxos,
+    });
+    expect(read).toBeInstanceOf(BuiltTx);
+
+    const blind = await offline().fromCbor(given.tx, { blind: true });
+    const asked = keysSigner("callback", testKey());
+    for (const options of [undefined, {}, { signers: [] }])
+      expect(
+        refusedAs(
+          await caught(() => blind.sign(options as never)),
+          "INVALID_OPTION",
+        ).details.option,
+      ).toBe("signers");
+    for (const options of [secret, keySigner(secret), asked.signer]) {
+      const error = refusedAs(
+        await caught(() => blind.sign(options as never)),
+        "INVALID_OPTION",
+      );
+      expect(error.details.option).toBe("options");
+      expect(error.message).not.toContain(secret);
+    }
+    expect(asked.requests).toEqual([]);
+    expect(blind.signedKeyHashes).toEqual([]);
+  });
+
+  it("submits partialTx through the call's submitter, else the builder's; without one nothing is sent, and it looks for none without a provider", async () => {
+    await Crypto.ready();
+    const key = randomBytes(32).toString("hex");
+    const given = handPayment("tagged", testKey());
+    const sent: [string, string][] = [];
+    const submitter = (name: string) => ({
+      submitTx: async (tx: string) => {
+        sent.push([name, tx]);
+        return given.txHash;
+      },
+    });
+    const bare = await new TxBuilder({ network: "preprod" }).fromCbor(
+      given.tx,
+      { blind: true },
+    );
+    expect(
+      TxPlanError.is(await caught(() => bare.submit()), "MISSING_SUBMITTER"),
+    ).toBe(true);
+    expect(
+      TxError.is(await caught(() => bare.awaitInclusion()), "MISSING_FETCHER"),
+    ).toBe(true);
+    const blind = await new TxBuilder({
+      network: "preprod",
+      submitter: submitter("builder"),
+    }).fromCbor(given.tx, { blind: true });
+    await blind.submit();
+    await blind.sign({ signers: keySigner(key) });
+    await blind.submit({ submitter: submitter("call") });
+    await blind.submit();
+    expect(sent).toEqual([
+      ["builder", given.unsigned],
+      ["call", blind.partialTx],
+      ["builder", blind.partialTx],
+    ]);
+    expect(blind.partialTx).not.toBe(given.unsigned);
+  });
+
+  it("is refused by after, by a plan as its steps or a step, and by restore, as INVALID_OPTION", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const given = handPayment("tagged", key);
+    const b = offline();
+    const blind = await b.fromCbor(given.tx, { blind: true });
+    const payer = {
+      changeAddress: key.address,
+      utxos: [utxoAt(key.address)],
+    };
+    const pay = output({ address: recipient, value: { lovelace: ada(2) } });
+    for (const after of [blind, [blind]]) {
+      const error = await caught(() =>
+        b.build(pay, { payer, after: after as never }),
+      );
+      refusedAs(error, "INVALID_OPTION");
+      expect(error.details.option).toBe("after");
+      expect(error.message).toContain("BlindTx");
+    }
+    for (const steps of [blind, { first: blind }, { first: [pay], blind }]) {
+      const error = await caught(() =>
+        b.plan(steps as never, { payer, after: [] }),
+      );
+      refusedAs(error, "INVALID_OPTION");
+      expect(error.details.option).toBe("steps");
+      expect(error.message).toContain("BlindTx");
+    }
+    const restored = await caught(() => b.restore(blind as never));
+    refusedAs(restored, "INVALID_OPTION");
+    expect(restored.details).toEqual({
+      option: "json",
+      value: "object",
+      allowed: "the JSON of a BuiltTx, as its toJSON() writes it",
+    });
+    expect(restored.message).toContain("BlindTx");
+  });
+
+  it("refuses a transaction of another network, as fromCbor does", async () => {
+    await Crypto.ready();
+    const given = handPayment("tagged", testKey());
+    const error = await caught(() =>
+      offline("mainnet").fromCbor(given.tx, { blind: true }),
+    );
+    refusedAs(error, "NETWORK_MISMATCH");
   });
 });

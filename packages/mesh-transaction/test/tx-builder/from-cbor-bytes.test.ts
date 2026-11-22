@@ -654,6 +654,38 @@ describe("TxBuilder.fromCbor › the size and the depth it reads", () => {
     );
   });
 
+  it("refuses with blind as without it, on a builder of its network alone: larger than the maximum, nested too deep, more work than the decoder is let do, text no transaction is read from, and what a ledger does not take", async () => {
+    const cold = new TxBuilder({ network: "preprod" });
+    const cases = [
+      padded(16_500),
+      encodedInside(1020),
+      nestedDatum(1000),
+      "zz",
+      "84a0",
+      tx(bodyWith()).slice(0, -2),
+      arr(bodyWith(), map(), "f5"),
+      // A body key the Conway ledger does not read, and a negative fee
+      tx(bodyWith([uint(500), uint(77)])),
+      tx(
+        map(
+          [uint(0), inputs()],
+          [uint(1), arr(pay(key, 10_200_000))],
+          [uint(2), "3a00030d40"],
+        ),
+      ),
+    ];
+    for (const given of cases) {
+      const blind = await caught(() => cold.fromCbor(given, { blind: true }));
+      const read = await caught(() =>
+        offline().fromCbor(given, { knownUtxos: knownUtxos() }),
+      );
+      expect(blind).toBeInstanceOf(TxBuildError);
+      expect(TxError.is(blind, "INVALID_OPTION")).toBe(true);
+      expect(blind.message).toBe(read.message);
+      expect(blind.details).toEqual(read.details);
+    }
+  });
+
   it("reads at most eight transactions at a time, and every one of them", async () => {
     let open = 0;
     let mostOpen = 0;

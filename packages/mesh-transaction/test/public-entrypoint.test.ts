@@ -1,7 +1,10 @@
 import type {
   Assets,
+  BlindTx,
   BuiltTx,
   BuiltTxJSON,
+  FromCborBlindOptions,
+  FromCborOptions,
   Linked,
   LinkedPart,
   OutputDatum,
@@ -13,6 +16,7 @@ import type {
   RedeemerContext,
   ResumeOptions,
   RunOptions,
+  SignBlindTxOptions,
   SignOptions,
   SignTxOptions,
   SpendPart,
@@ -23,6 +27,7 @@ import type {
   StepParts,
   StoredTxPlanJSON,
   SubmitFailureReason,
+  SubmitTxOptions,
   TxInclusion,
   TxPlan,
   TxPlanJSON,
@@ -57,6 +62,7 @@ describe("public entrypoint", () => {
     "signWitnesses",
     "keySigner",
     "BuiltTx",
+    "BlindTx",
     "addWitnesses",
     "signedKeyHashes",
     "requiredSigners",
@@ -303,6 +309,34 @@ describe("public entrypoint", () => {
         )[method],
       ).toBe("function");
     for (const name of ["makeBuiltTx", "NO_REBUILD", "isWallet"])
+      expect(publicApi).not.toHaveProperty(name);
+  });
+
+  it("exports the class of a transaction read blind, its options and fromCbor's, and not its factory or the sender", () => {
+    const blind: FromCborBlindOptions = { blind: true };
+    const read: FromCborOptions = { blind: false, knownUtxos: [] };
+    const sign: SignBlindTxOptions = { signers: [] };
+    const submit: SubmitTxOptions = {};
+    expect([blind.blind, read.blind, sign.signers, submit]).toEqual([
+      true,
+      false,
+      [],
+      {},
+    ]);
+    expect(typeof publicApi.BlindTx).toBe("function");
+    const unseen: Partial<BlindTx> = {};
+    expect(unseen).toEqual({});
+    for (const method of ["sign", "addWitnesses", "submit", "awaitInclusion"])
+      expect(
+        typeof (
+          publicApi.BlindTx.prototype as unknown as Record<string, unknown>
+        )[method],
+      ).toBe("function");
+    expect(
+      (publicApi.BlindTx.prototype as unknown as Record<string, unknown>)
+        .toJSON,
+    ).toBeUndefined();
+    for (const name of ["makeBlindTx", "TxSender", "invalidJson"])
       expect(publicApi).not.toHaveProperty(name);
   });
 

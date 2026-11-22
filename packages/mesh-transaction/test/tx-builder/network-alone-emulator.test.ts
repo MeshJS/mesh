@@ -123,6 +123,35 @@ describe("TxBuilder with a network alone", () => {
     expect(again.signedTx).toBe(made.signedTx);
   });
 
+  it("reads a transaction blind, signs it with keySigner, and submits partialTx through a submitter", async () => {
+    const key = keyOf();
+    const built = await new TxBuilder({ network: "preprod", params }).build(
+      output({ address: recipient, value: { lovelace: 5_000_000n } }),
+      { payer: { changeAddress: key.address, utxos: [key.utxo] } },
+    );
+    const sent: string[] = [];
+    const cold = new TxBuilder({
+      network: "preprod",
+      submitter: {
+        submitTx: async (tx: string) => {
+          sent.push(tx);
+          return built.txHash;
+        },
+      },
+    });
+    const blind = await cold.fromCbor(built.tx, { blind: true });
+    expect(blind.txHash).toBe(built.txHash);
+    expect(blind.outputs).toEqual(
+      built.outputs.map(({ label: _, change: __, ...output }) => output),
+    );
+    await blind.sign({ signers: keySigner(key.secret) });
+    expect(blind.signedKeyHashes).toEqual([key.keyHash]);
+    await blind.submit();
+    const read = await cold.fromCbor(built.tx, { knownUtxos: [key.utxo] });
+    await read.sign({ signers: keySigner(key.secret) });
+    expect(sent).toEqual([read.signedTx]);
+  });
+
   it("submits a signed transaction through a submitter, and looks for none without a provider", async () => {
     const key = keyOf();
     const built = await new TxBuilder({ network: "preprod", params }).build(

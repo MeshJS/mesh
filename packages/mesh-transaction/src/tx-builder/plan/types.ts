@@ -68,10 +68,10 @@ export type StepOptions = Pick<
  * One step of a plan, as `builder.plan` and `plan.add` take it: its parts, which the plan builds
  * into a transaction; its parts with options of their own, `{ parts, payer?, ... }`; or a
  * transaction built before, as the object `build`, `fromCbor` or `restore` returns or as CBOR
- * hex. Such a transaction is taken as it is, with the witnesses it holds, and read from its own
- * bytes as `fromCbor` reads them. `sign()` and `run()` hand it to signers as a step
- * the plan built, for the keys that have not signed it yet: read a transaction of another party
- * (`builder.fromCbor`) before it is given
+ * hex; a `BlindTx` is none. Such a transaction is taken as it is, with the witnesses it holds, and
+ * read from its own bytes as `fromCbor` reads them. `sign()` and `run()` hand it to signers as a
+ * step the plan built, for the keys that have not signed it yet: read a transaction of another
+ * party (`builder.fromCbor`) before it is given
  */
 export type PlanStep =
   | StepParts

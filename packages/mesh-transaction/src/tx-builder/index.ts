@@ -33,6 +33,7 @@ export {
   type ChainSnapshot,
   type BuildOptions,
   type FromCborOptions,
+  type FromCborBlindOptions,
   type BuildEvent,
   type PartEntry,
   type PartsInput,
@@ -72,10 +73,12 @@ export { keySigner } from "./key-signer";
 export {
   BuiltTx,
   type SignTxOptions,
+  type SubmitTxOptions,
   type AwaitInclusionOptions,
   type BuiltTxJSON,
   type TxInclusion,
 } from "./built-tx";
+export { BlindTx, type SignBlindTxOptions } from "./blind-tx";
 export { TxPlan } from "./plan/plan";
 export { checkPlanStore, memoryPlanStore } from "./plan/store";
 export type {

@@ -470,7 +470,10 @@ another process.
 `builder.fromCbor(txCbor, { knownUtxos? })` makes the same object of a transaction that exists only
 as CBOR: its body is taken as given, byte for byte, and its members are read from those bytes and
 from the UTxOs of its inputs, collateral inputs and reference inputs, given in `knownUtxos` or read
-through the provider's cache. The object is one body: its bytes and hash are fixed when it is
+through the provider's cache. With `{ blind: true }` it reads the bytes alone, asks no provider and
+gives a `BlindTx`: what the bytes show, `sign` with signers asked without keys, every witness of the
+body kept, `addWitnesses`, `submit`, `awaitInclusion`, and no JSON. The object is one body: its
+bytes and hash are fixed when it is
 made, no call builds or edits a transaction, a repeated `submit()` sends the same bytes, and
 `awaitInclusion()` promises one sighting in a block and no more, each look bounded by the time
 left. It is not a second lifecycle: no deadline, no statuses and no store; those are a plan's,

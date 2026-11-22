@@ -94,11 +94,12 @@ Its options are listed in [Builder options](#builder-options). The builder also 
 network, parameters and cost models it builds on, as data: `new TxBuilder({ ...snapshot })` builds
 on them without reading; it throws `MISSING_PARAMETER` when there are no cost models),
 `slotAt(time)` and `timeAt(slot)` on its slot clock, `scriptAddress(script, stake?)` and
-`rewardAddress(credential)` on its network, `restore(json)`, `fromCbor(txCbor, { knownUtxos? })`,
-`readPayer(payer)`, and its options as read-only fields (`builder.params` and `builder.costModels`
-are what was given, never what was read). `build()` returns a `BuiltTx`, `fromCbor(txCbor)` makes
-one of a transaction that exists only as CBOR, and `restore(json)` brings one back from its JSON;
-see [The path without a lifecycle](#the-path-without-a-lifecycle).
+`rewardAddress(credential)` on its network, `restore(json)`,
+`fromCbor(txCbor, { knownUtxos?, blind? })`, `readPayer(payer)`, and its options as read-only
+fields (`builder.params` and `builder.costModels` are what was given, never what was read).
+`build()` returns a `BuiltTx`, `fromCbor(txCbor)` makes one of a transaction that exists only as
+CBOR (`{ blind: true }`: a `BlindTx` of its bytes alone), and `restore(json)` brings one back from
+its JSON; see [The path without a lifecycle](#the-path-without-a-lifecycle).
 
 ### Accumulated parts
 
@@ -993,7 +994,10 @@ Without a plan the same goes through the transaction of `build()`: `built.tx` ou
 the object of them: [`builder.fromCbor(tx)`](#a-transaction-built-elsewhere), with the UTxOs of the
 inputs in `knownUtxos`. A cold machine's builder needs its network alone,
 `new TxBuilder({ network: "preprod" })`: no provider and no parameters; a build or a plan there
-throws `MISSING_PARAMETER`.
+throws `MISSING_PARAMETER`. Without the UTxOs of the inputs it signs blind,
+[`fromCbor(tx, { blind: true })`](#a-transaction-built-elsewhere): the `BlindTx` shows what the
+bytes show and nothing of what the inputs hold or who must sign, and keeps every witness given to
+it, so a key the fee was not priced for can make the node refuse the transaction.
 
 A body that already went to a signer or to the network is never turned into a plan: a plan
 with the same parts is another transaction, and both could land.
@@ -1756,6 +1760,29 @@ Before signing a transaction someone else built:
 - The view of the inputs, and of who must sign, is only as true as their UTxOs. `knownUtxos` is the
   application's own data, never taken from the party that made the transaction, and the provider
   is believed as much; a wallet signs its own inputs whatever the object shows.
+
+A machine that only signs, a cold one or a key service, may read the transaction blind:
+`fromCbor(tx, { blind: true })` reads its bytes alone, within the bounds and refusals below, asks
+no provider, reads no UTxO, and returns a `BlindTx`, not a `BuiltTx`.
+
+```ts
+import { keySigner, TxBuilder } from "@meshsdk/transaction";
+
+const cold = new TxBuilder({ network: "preprod" }); // no provider, no parameters
+const unseen = await cold.fromCbor(tx, { blind: true }); // with knownUtxos: INVALID_OPTION
+const { outputs, fee, validity } = unseen; // what the bytes show; nothing of the inputs
+await unseen.sign({ signers: keySigner(coldKey) }); // signers required: it has no payer
+const next = unseen.partialTx; // to the next party, or unseen.submit() through a submitter
+```
+
+It shows `tx`, `txHash`, `network`, `fee`, `outputs`, `validity`, `redeemers`, the keys that signed
+(`signedKeyHashes`) and `partialTx`, and none of what needs the UTxOs: what the inputs hold and
+whose they are, who must sign, what collateral is at stake. Its signers are asked with no list of
+keys (a signer of hashes gets `{ txHash, tx }`, a wallet `signTx(tx, true)`), and every witness of
+the body is kept, of a key the transaction does not need too: a witness the fee was not priced for
+can make the node refuse the transaction. `addWitnesses`, `submit` and `awaitInclusion` work as on
+a `BuiltTx`; it has no `toJSON`, `restore` does not read it, and neither `after` nor a plan takes it
+(`INVALID_OPTION`).
 
 The library judges whether its own process can read the transaction safely and in reasonable
 time; the fee, the balance, the scripts, the validity interval and whether the inputs are unspent

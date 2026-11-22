@@ -1302,7 +1302,8 @@ export const witnessesToAdd = async (
  * Asks one signer for its witnesses of a transaction, as a plan and a `BuiltTx` do: the
  * keys not signed yet are handed to it as `askSigner` hands them, and a signer of hashes is not
  * asked when none is left
- * @param keys The keys asked for, without those that have signed
+ * @param keys The keys asked for, without those that have signed; none: the signer chooses its
+ *   keys itself, as `signWitnesses` without key hashes asks it
  * @param body The body as the error of a witness that is not of it names it
  * @returns The witnesses of its answer that `raw` does not hold, each verified against the body;
  *   which of them to keep is `countedWitnesses`'s
@@ -1312,7 +1313,7 @@ export const witnessesToAdd = async (
 export const signerWitnesses = async (
   signer: Signer,
   raw: RawTx,
-  { keys, signal }: { keys: readonly AskedKey[]; signal?: AbortSignal },
+  { keys, signal }: { keys?: readonly AskedKey[]; signal?: AbortSignal },
   body = "the transaction's body",
 ): Promise<KeyWitness[]> => {
   const answer = await askSigner(signer, raw, { keys, signal });

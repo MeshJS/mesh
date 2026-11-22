@@ -37,6 +37,7 @@ import type {
 } from "./types";
 import { abortable } from "../abort";
 import { isKeyLocked } from "../balance";
+import { BlindTx } from "../blind-tx";
 import {
   afterBound,
   flattenParts,
@@ -316,6 +317,17 @@ export type StepInput = {
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+/**
+ * INVALID_OPTION (`steps`) for a `BlindTx` given as the steps or as a step: it shows nothing of
+ * what its inputs hold, and a plan reads every transaction it takes with its UTxOs
+ * @param name The step's name, when it is given as a step
+ */
+const blindStep = (blind: BlindTx, name?: string) =>
+  invalidSteps(
+    `${name === undefined ? "the steps are" : `step ${JSON.stringify(name)} is`} a BlindTx, read from its bytes alone, which a plan does not take: give its partialTx as CBOR hex, which the plan reads with the UTxOs of its inputs`,
+    { value: blind },
+  );
+
 /** Whether a value is one part, of any kind, linked or not */
 const isOnePart = (value: unknown) =>
   isObject(value) && typeof value.kind === "string";
@@ -338,6 +350,7 @@ const stepsAreOnePart = (steps: unknown) =>
  * @throws TxBuildError INVALID_OPTION (`steps`)
  */
 const refusePrototype = (steps: unknown, allowed: string) => {
+  if (steps instanceof BlindTx) throw blindStep(steps);
   if (!isObject(steps) || steps instanceof BuiltTx) return;
   const prototype: unknown = Object.getPrototypeOf(steps);
   if (prototype === Object.prototype || prototype === null) return;
@@ -496,6 +509,7 @@ const readStepForms = (
         `the step name ${JSON.stringify(name)} is the name of an object's prototype, which an object of steps cannot hold as a step: give the step another name`,
       );
     const step = steps[name];
+    if (step instanceof BlindTx) throw blindStep(step, name);
     // A transaction built before is taken as it is, read later from its own bytes
     if (step instanceof BuiltTx || typeof step === "string") {
       let text: string;

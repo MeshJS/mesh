@@ -74,7 +74,7 @@ import type {
   TxPlanStore,
 } from "./plan/types";
 import type { GovernanceDeposits } from "./resolve";
-import type { RawTx, Signer } from "./sign";
+import type { KeyWitness, RawItems, RawTx, Signer } from "./sign";
 import type { TxSigners } from "./witnesses";
 import { abortable, throwIfAborted } from "./abort";
 import { checkPartRepeats, incomplete, unresolvedError } from "./assemble";
@@ -91,7 +91,8 @@ import {
   refusedBy,
   totalExUnits,
 } from "./balance";
-import { makeBuiltTx, restoreBuiltTx } from "./built-tx";
+import { BlindTx, makeBlindTx } from "./blind-tx";
+import { invalidJson, makeBuiltTx, restoreBuiltTx } from "./built-tx";
 import {
   bodyOutputs,
   foldTransactions,
@@ -457,7 +458,7 @@ export type BuildOptions = {
   trace?: (event: BuildEvent) => void;
 };
 
-/** The options of `fromCbor` */
+/** The options of `fromCbor` that read the UTxOs of the transaction's inputs: a `BuiltTx` */
 export type FromCborOptions = {
   /**
    * UTxOs the transaction spends, reads or puts up as collateral, used as given and not looked
@@ -471,6 +472,21 @@ export type FromCborOptions = {
    * object shows. The same holds for the provider: the view is only as true as its answers
    */
   knownUtxos?: readonly UtxoInput[];
+  /**
+   * `false` or left out: the transaction is read with the UTxOs of its inputs, and `fromCbor`
+   * returns a `BuiltTx`. `true` is `FromCborBlindOptions`
+   */
+  blind?: false;
+};
+
+/** The options of `fromCbor` that read the transaction from its bytes alone: a `BlindTx` */
+export type FromCborBlindOptions = {
+  /**
+   * `true`: the transaction is read from its bytes alone, within the bounds and refusals of
+   * `fromCbor`, no provider asked and no UTxO read, and `fromCbor` returns a `BlindTx`, which
+   * signs without showing what the inputs hold or who must sign. It takes no `knownUtxos`
+   */
+  blind: true;
 };
 
 /**
@@ -859,9 +875,10 @@ export const readTxBytes = (
 };
 
 /**
- * Refuses a transaction of `after` larger than `maxBytes`, before any of them is read. The
- * library's own entries are not read again, and not bound
- * @throws TxBuildError INVALID_OPTION (`after`) for a transaction larger than `maxBytes`
+ * Refuses a transaction of `after` larger than `maxBytes`, and a `BlindTx`, before any of them is
+ * read. The library's own entries are not read again, and not bound
+ * @throws TxBuildError INVALID_OPTION (`after`) for a transaction larger than `maxBytes`, and for
+ *   a `BlindTx`, which shows nothing of what its inputs hold
  */
 export const checkAfterSize = (after: unknown, maxBytes: number): void => {
   if (typeof after !== "object" || after === null) return;
@@ -869,9 +886,16 @@ export const checkAfterSize = (after: unknown, maxBytes: number): void => {
   given.forEach((entry, i) => {
     if (typeof entry !== "object" || entry === null) return;
     if (entry instanceof TxPlan || OWN_ENTRIES.has(entry)) return;
+    const where = Array.isArray(after) ? `entry ${i}` : "the transaction";
+    if (entry instanceof BlindTx)
+      throw invalidEntry(
+        "after",
+        kindOf(entry),
+        AFTER_ALLOWED,
+        `${where} is a BlindTx, read from its bytes alone, which after does not take: read the transaction with fromCbor and knownUtxos`,
+      );
     const tx = (entry as { tx?: unknown }).tx;
     if (typeof tx !== "string" || tx.length <= 2 * maxBytes) return;
-    const where = Array.isArray(after) ? `entry ${i}` : "the transaction";
     throw invalidEntry(
       "after",
       kindOf(entry),
@@ -1563,8 +1587,8 @@ export class TxBuilder {
   /**
    * Reads nothing, and checks every option it is given. `network` alone makes a builder that
    * reads and signs, as a cold machine does: `fromCbor` (with the UTxOs of the inputs in
-   * `knownUtxos`), `restore`, `resume`, and the calls of the objects they make that need no
-   * chain; `submit` of such an object goes through a `submitter`. A call that needs
+   * `knownUtxos`, or `blind`), `restore`, `resume`, and the calls of the objects they make that
+   * need no chain; `submit` of such an object goes through a `submitter`. A call that needs
    * protocol parameters throws MISSING_PARAMETER (`params`) there: `build`, `plan`, `chain`, and
    * `add` and `replan` of a plan.
    * @throws TxBuildError INVALID_OPTION for a missing or unacceptable `network`;
@@ -1934,10 +1958,11 @@ export class TxBuilder {
    * looks through its provider. It holds the witnesses of the JSON, and a delivery the JSON marks
    * as taken or of unknown outcome counts as on its way, as it did for the object that wrote it.
    * An error quotes nothing of the JSON but its network, in the `details` of NETWORK_MISMATCH. A
-   * plan's JSON is not read here: `resume` reads it.
+   * plan's JSON is not read here: `resume` reads it. A `BlindTx` has no JSON, and is refused.
    * @throws TxPlanError INVALID_STATE (`recordVersion`) for a record of another kind, a newer
    *   version, or with content this library does not read
-   * @throws TxBuildError INVALID_OPTION (`json`) for a value that is no record, a record whose
+   * @throws TxBuildError INVALID_OPTION (`json`) for a `BlindTx`, a value that is no record, a
+   *   record whose
    *   transaction or witnesses are past those bounds, whose transaction holds a vkey or bootstrap
    *   witness (signatures go in its `witnesses`), whose `txHash` is not the hash of its
    *   transaction, or that holds a witness that is not of its body; `details.value` is only the
@@ -1945,9 +1970,45 @@ export class TxBuilder {
    *   network
    */
   restore(json: BuiltTxJSON): Promise<BuiltTx> {
+    if ((json as unknown) instanceof BlindTx)
+      return Promise.reject(
+        invalidJson(
+          json,
+          "a BlindTx has no JSON and is not restored: read its partialTx again with fromCbor",
+        ),
+      );
     return restoreBuiltTx(this, json);
   }
 
+  /**
+   * A `BlindTx` of a transaction read from its bytes alone, to be signed without looking at the
+   * UTxOs of its inputs: no provider is asked and no UTxO is read, so a builder given its
+   * network alone reads it. The bytes are walked and read within the bounds of `fromCbor`
+   * without `blind`, and refused the same, a signature that is not of the body among them; what
+   * needs the UTxOs is not checked: the reference scripts they hold, the native scripts they run.
+   *
+   * ```ts
+   * const unseen = await cold.fromCbor(tx, { blind: true });
+   * await unseen.sign({ signers: keySigner(key) });
+   * ```
+   *
+   * The object shows what the bytes show (`tx`, `txHash`, `network`, `fee`, `outputs`,
+   * `validity`, `redeemers`) and the witnesses it holds (`signedKeyHashes`, `partialTx`), and
+   * none of what the inputs hold, who must sign or what collateral is at stake. Its `sign()`
+   * keeps every witness of the body it is given, of a key the transaction does not need too: a
+   * witness the fee was not priced for can make the node refuse the transaction. It is not a
+   * `BuiltTx`: it has no `toJSON`, `restore` does not read it, and neither `after` nor a plan
+   * takes it.
+   * @param txCbor The transaction, in CBOR hex
+   * @throws TxBuildError INVALID_OPTION (`tx`) for a value that is not a transaction in CBOR hex
+   *   that this library reads, as without `blind`; INVALID_OPTION (`options`) for options with a
+   *   member other than `knownUtxos` and `blind`, and for `knownUtxos` beside `blind: true`,
+   *   with the JavaScript type alone; NETWORK_MISMATCH for a transaction of another network than
+   *   the builder's: its addresses, or the network id its body states
+   * @throws TxPlanError INVALID_WITNESS (`wrongBody`) `{ argument: 0, keyHash }` for a
+   *   transaction that holds a signature that is not of its body
+   */
+  fromCbor(txCbor: string, options: FromCborBlindOptions): Promise<BlindTx>;
   /**
    * A `BuiltTx` of a transaction that exists only as CBOR: one built elsewhere, or built here
    * and kept as its bytes alone. Nothing is built or balanced: the object is that transaction,
@@ -2026,7 +2087,8 @@ export class TxBuilder {
    * COLLATERAL_RETURN_ELSEWHERE when they apply. The object has no payer: `sign()` is given
    * `signers`. It does not know whether the transaction was sent already: `awaitInclusion()`
    * looks for it, and `submit()` returns when the ledger refuses bytes the provider already
-   * finds. The parts this builder holds from `add` are not read.
+   * finds. The parts this builder holds from `add` are not read. `{ blind: true }` reads the
+   * bytes alone and gives a `BlindTx`, which shows none of what needs the UTxOs (see that form).
    *
    * The validity flag is outside the signed body: whoever submits the transaction can mark it
    * as failing, and a node that takes it so spends its collateral inputs and pays only the
@@ -2041,7 +2103,8 @@ export class TxBuilder {
    *   that this library reads: one the walk or the checks above refuse, or proposing a protocol
    *   parameter change, which this library does not read from CBOR. `details.value` is only the
    *   JavaScript type of what was given. INVALID_OPTION (`options`) for options that are not
-   *   an object or hold a member other than `knownUtxos`, with the JavaScript type alone;
+   *   an object or hold a member other than `knownUtxos` and `blind`, with the JavaScript type
+   *   alone; (`blind`) for one that is not a boolean, with its type alone;
    *   (`knownUtxos`) for what is not a list of UTxOs, and for two entries that name one output
    *   and differ. NETWORK_MISMATCH for a transaction, or a UTxO, of another network than the
    *   builder's. UTXO_NOT_FOUND `{ input }` for an input, collateral input or reference input
@@ -2056,14 +2119,43 @@ export class TxBuilder {
    * @throws TxPlanError INVALID_WITNESS (`wrongBody`) `{ argument: 0, keyHash }` for a
    *   transaction that holds a signature that is not of its body
    */
-  async fromCbor(txCbor: string, options?: FromCborOptions): Promise<BuiltTx> {
+  fromCbor(txCbor: string, options?: FromCborOptions): Promise<BuiltTx>;
+  async fromCbor(
+    txCbor: string,
+    options?: FromCborOptions | FromCborBlindOptions,
+  ): Promise<BuiltTx | BlindTx> {
     // What is given in place of the options may be or hold a key: only its type is named
-    const { knownUtxos } = optionsObject(
+    const { knownUtxos, blind } = optionsObject(
       options,
-      ["knownUtxos"],
+      ["knownUtxos", "blind"],
       FROM_CBOR_OPTIONS_ALLOWED,
       [SIGNER_IN_PLACE],
     );
+    if (blind !== undefined && typeof blind !== "boolean")
+      throw new TxBuildError(
+        "INVALID_OPTION",
+        `invalid blind: expected a boolean; got a value of type ${typeOf(blind)}`,
+        {
+          details: {
+            option: "blind",
+            value: typeOf(blind),
+            allowed: "a boolean",
+          },
+        },
+      );
+    // The bytes alone, or the bytes with the UTxOs of the inputs: one or the other
+    if (blind === true && knownUtxos !== undefined)
+      throw new TxBuildError(
+        "INVALID_OPTION",
+        `invalid options: expected ${FROM_CBOR_OPTIONS_ALLOWED}; got knownUtxos beside blind: true, which reads the bytes alone: give one or the other`,
+        {
+          details: {
+            option: "options",
+            value: typeOf(options),
+            allowed: FROM_CBOR_OPTIONS_ALLOWED,
+          },
+        },
+      );
     // The bytes are walked once before any of them is decoded into a value: their size, their
     // depth and the decoder's work are bounded. The size is the protocol's maximum where the
     // builder holds parameters; none are asked for
@@ -2113,6 +2205,41 @@ export class TxBuilder {
         error,
       );
     }
+    const { body } = prototype;
+    // Read from the decoded body: the prototype holds every id but 1 as the same value
+    const networkId = decodedBody.networkId();
+    const addresses = bodyEntries(
+      body,
+      outputs,
+      collateralReturn,
+      networkId === undefined ? undefined : Number(networkId),
+    );
+    const network = {
+      name: this.network.name,
+      networkId: this.network.networkId,
+    };
+    if (blind === true) {
+      // The bytes alone: what needs the UTxOs of the inputs is neither read nor shown
+      checkNetworks(this.network, addresses);
+      const validity = validityOf(body, this.network);
+      return makeBlindTx(
+        this,
+        {
+          tx,
+          txHash,
+          network,
+          fee: BigInt(body.fee),
+          outputs,
+          ...(validity && { validity }),
+          redeemers: redeemersOf(prototype, raw),
+        },
+        {
+          raw,
+          held: await verifiedWitnesses(given),
+          tags: keyWitnessTags(given.witnessSet),
+        },
+      );
+    }
     // The reference scripts are bounded as a node bounds them, before a UTxO is read whole: those
     // of knownUtxos here, those of the provider's answers once all are in. Of knownUtxos only the
     // entries for the out refs the body names are read
@@ -2140,30 +2267,13 @@ export class TxBuilder {
       },
     }))
       known.set(utxoKey(utxo), utxo);
-    const { body } = prototype;
-    // Read from the decoded body: the prototype holds every id but 1 as the same value
-    const networkId = decodedBody.networkId();
     checkNetworks(this.network, [
-      ...bodyEntries(
-        body,
-        outputs,
-        collateralReturn,
-        networkId === undefined ? undefined : Number(networkId),
-      ),
+      ...addresses,
       ...Array.from(known.values(), (utxo) => utxoEntry(utxo)),
     ]);
 
-    // The witnesses the transaction came with, each verified against the body from the witness
-    // set read above, before any request, as everything that needs none. A key whose witness
-    // stands twice is held once: every copy verifies, whatever its place
-    await Crypto.ready();
-    const came = [
-      ...(given.witnessSet.vkeys?.witnesses ?? []),
-      ...(given.witnessSet.bootstraps?.witnesses ?? []),
-    ];
-    for (const witness of came)
-      if (!verifies(witness, txHash)) throw notOfBody(witness.keyHash);
-    const held = newWitnesses(came);
+    // The witnesses the transaction came with, before any request, as everything that needs none
+    const held = await verifiedWitnesses(given);
 
     // The UTxO of every out ref the body names: given, else read through the shared cache,
     // which answers from what it holds, once per transaction hash and all at once
@@ -2289,7 +2399,6 @@ export class TxBuilder {
       (w) => w.kind === "vkey" && !counted.has(w.keyHash),
     ).length;
 
-    const decodedRedeemers = raw.witnesses.redeemers()?.values() ?? [];
     const validity = validityOf(body, this.network);
     const future =
       validity?.invalidBefore === undefined
@@ -2305,17 +2414,7 @@ export class TxBuilder {
         prototype,
         fee: BigInt(body.fee),
         exUnits: prototypeExUnits(prototype),
-        // The data of each redeemer as the transaction carries it; the prototype lists them in
-        // the same order
-        redeemers: (prototype.witness_set.redeemers ?? []).map((r, i) => ({
-          tag: r.tag.type,
-          index: Number(r.index),
-          exUnits: {
-            mem: BigInt(r.ex_units.mem),
-            steps: BigInt(r.ex_units.steps),
-          },
-          data: decodedRedeemers[i]!.data().toCbor().toString(),
-        })),
+        redeemers: redeemersOf(prototype, raw),
         inputs: spent,
         selectedInputs: [],
         referenceInputs: references,
@@ -2330,7 +2429,7 @@ export class TxBuilder {
         }),
         signers,
         ...(validity && { validity }),
-        network: { name: this.network.name, networkId: this.network.networkId },
+        network,
         warnings: [
           ...(future ? [future] : []),
           ...(forfeited ? [forfeited] : []),
@@ -2394,7 +2493,7 @@ export class TxBuilder {
    * @throws TxBuildError MISSING_PARAMETER (`params`) at once, before the steps are read, on a
    *   builder given neither a provider nor `params`; every error of building a transaction, with
    *   the step's name at the start of its message; INVALID_OPTION (`steps`) for a step that is
-   *   none of the forms, a
+   *   none of the forms (a `BlindTx` among them, and as the steps), a
    *   name that is taken, empty, a whole number or starts with `consolidate-`, more than 32
    *   steps, a link to a step that is not before it, named steps on a builder that holds parts
    *   from `add`, and a step that stands on the step before it of its payer neither by its change
@@ -3523,7 +3622,7 @@ const unreadForm = (
   return undefined;
 };
 
-const FROM_CBOR_OPTIONS_ALLOWED = "an object { knownUtxos? }";
+const FROM_CBOR_OPTIONS_ALLOWED = "an object { knownUtxos?, blind? }";
 
 /** The reads of `fromCbor` that run at the same time, at most */
 const READS_AT_ONCE = 8;
@@ -3541,6 +3640,42 @@ const notOfBody = (keyHash: string | undefined) =>
       },
     },
   );
+
+/**
+ * The vkey and bootstrap witnesses a transaction came with, each verified against its body, a key
+ * whose witness stands twice held once: every copy verifies, whatever its place
+ * @throws TxPlanError INVALID_WITNESS (`wrongBody`) for one that is not of the body
+ */
+const verifiedWitnesses = async (given: RawItems): Promise<KeyWitness[]> => {
+  await Crypto.ready();
+  const came = [
+    ...(given.witnessSet.vkeys?.witnesses ?? []),
+    ...(given.witnessSet.bootstraps?.witnesses ?? []),
+  ];
+  for (const witness of came)
+    if (!verifies(witness, given.txId)) throw notOfBody(witness.keyHash);
+  return newWitnesses(came);
+};
+
+/**
+ * The redeemers of a transaction read from its bytes, the data of each as the transaction carries
+ * it; the prototype lists them in the order of the decoded witness set
+ */
+const redeemersOf = (
+  prototype: TransactionPrototype,
+  raw: RawTx,
+): BuiltRedeemer[] => {
+  const decoded = raw.witnesses.redeemers()?.values() ?? [];
+  return (prototype.witness_set.redeemers ?? []).map((r, i) => ({
+    tag: r.tag.type,
+    index: Number(r.index),
+    exUnits: {
+      mem: BigInt(r.ex_units.mem),
+      steps: BigInt(r.ex_units.steps),
+    },
+    data: decoded[i]!.data().toCbor().toString(),
+  }));
+};
 
 /** An address the value decoder reads, standing in for a Byron address while it reads an output */
 const STAND_IN = Address.fromBytes(HexBlob(`60${"00".repeat(28)}`));

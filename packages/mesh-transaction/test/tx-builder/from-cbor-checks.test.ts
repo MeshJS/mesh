@@ -962,7 +962,7 @@ describe("TxBuilder.fromCbor › what it refuses, and what it does not judge", (
       expect(error.details).toEqual({
         option: "options",
         value,
-        allowed: "an object { knownUtxos? }",
+        allowed: "an object { knownUtxos?, blind? }",
       });
       expect(everything(error)).not.toContain(secret);
       // A signer given in place of the options is told where a signer goes
