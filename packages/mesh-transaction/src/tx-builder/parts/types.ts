@@ -268,8 +268,16 @@ export type SpendDatumInput =
       data: PlutusDataInput;
     };
 
-/** Lovelace and assets: Mesh `Asset[]`, or quantities keyed by unit (`"lovelace"` for ADA) */
-export type ValueInput = Asset[] | Record<string, bigint>;
+/**
+ * Lovelace and assets: Mesh `Asset[]`, or quantities keyed by unit (`"lovelace"` for ADA, else a
+ * policy id followed by an asset name in hex)
+ */
+export type ValueInput =
+  | Asset[]
+  | ({
+      /** Lovelace; left out, the output holds the minimum it needs */
+      lovelace?: bigint;
+    } & Record<string, bigint>);
 
 /**
  * The datum of a new output:
@@ -328,9 +336,18 @@ export type CredentialInput = string | CredTypePrototype;
 /** A DRep: its id in bech32 (CIP-105 or CIP-129), or its credential */
 export type DRepCredentialInput = string | CredTypePrototype;
 
-/** Whom a stake credential delegates its vote to */
+/**
+ * Whom a stake credential delegates its vote to: `"alwaysAbstain"`, `"alwaysNoConfidence"`, a
+ * DRep id, or a credential
+ */
 export type DRepInput =
-  DRepCredentialInput | "alwaysAbstain" | "alwaysNoConfidence" | DRepPrototype;
+  | "alwaysAbstain"
+  | "alwaysNoConfidence"
+  // Any other string, a DRep id. `string & Record<never, never>` is the same set of values as
+  // `string`, and it keeps the two words above in the suggestions of an editor
+  | (string & Record<never, never>)
+  | CredTypePrototype
+  | DRepPrototype;
 
 /** A stake pool: its id in bech32, or its operator key hash in hex */
 export type PoolInput = string;
