@@ -76,7 +76,7 @@ state of a payment lives in its `TxPlan`, and with a `store` in the store's reco
   builder's, else the provider. `build` returns an unsigned transaction: signing, submission and
   waiting are steps of a `TxPlan`, or of the `BuiltTx` a build returns.
 - **No built-in protocol parameters.** `params` is used whole, else the provider is read; with
-  neither, the constructor throws `MISSING_PARAMETER`.
+  neither, the builder reads and signs only, and a call that builds throws `MISSING_PARAMETER`.
 - **No second builder beside `MeshTxBuilder`.** `MeshTxBuilder` is `@deprecated` and keeps its
   fluent methods, its `complete…` methods and its queries; its own build steps (selection,
   ordering, evaluation) are gone. `complete()` builds with `TxBuilder.build(parts, options)` and
@@ -177,9 +177,10 @@ is `INVALID_REDEEMER`.
 | `collateralReturn?`  | `true` by default; `false`: lovelace-only collateral inputs forfeited whole, no return, no total                                              |
 | `signal?`, `trace?`  | abort the build (`ABORTED`); receive its steps, for diagnostics                                                                               |
 
-The constructor reads nothing and checks every option at once (`MISSING_PARAMETER` with neither
-`provider` nor `params`). The README details the options under [Builder options][r-builder-options]
-and [Build options][r-build-options].
+The constructor reads nothing and checks every option at once. With neither `provider` nor
+`params` the builder reads and signs (`fromCbor`, `restore`, `resume`), and `build`, `plan`,
+`chain()` and a plan's `add` and `replan` throw `MISSING_PARAMETER`. The README details the options
+under [Builder options][r-builder-options] and [Build options][r-build-options].
 
 ### The payer
 

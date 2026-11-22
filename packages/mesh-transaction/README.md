@@ -73,6 +73,7 @@ import { TxBuilder } from "@meshsdk/transaction";
 
 const online = new TxBuilder({ network: "preprod", provider });
 const offline = new TxBuilder({ network: "preprod", params, costModels }); // reads nothing
+const cold = new TxBuilder({ network: "preprod" }); // reads and signs, builds nothing
 const server = new TxBuilder({ network: "mainnet", provider, store }); // plans survive a restart
 const tests = new TxBuilder({
   network: "preprod",
@@ -989,8 +990,10 @@ await plan.run();
 
 Without a plan the same goes through the transaction of `build()`: `built.tx` out,
 `built.addWitnesses(witnessSet)` back, `built.submit()`. A machine that has only the bytes makes
-the object of them: [`builder.fromCbor(tx)`](#a-transaction-built-elsewhere), on a builder without
-a provider with the UTxOs of the inputs in `knownUtxos`.
+the object of them: [`builder.fromCbor(tx)`](#a-transaction-built-elsewhere), with the UTxOs of the
+inputs in `knownUtxos`. A cold machine's builder needs its network alone,
+`new TxBuilder({ network: "preprod" })`: no provider and no parameters; a build or a plan there
+throws `MISSING_PARAMETER`.
 
 A body that already went to a signer or to the network is never turned into a plan: a plan
 with the same parts is another transaction, and both could land.
@@ -1690,7 +1693,10 @@ With a payer given as a snapshot, explicit `params` and `costModels` (for exampl
 lookups its parts ask for, and the same arguments give the same bytes and `txHash`. A builder
 without a provider signs and writes the transaction; there `submit()` needs a `submitter`, in the
 call or the builder's (`MISSING_SUBMITTER` without one), and `awaitInclusion()` a provider
-(`MISSING_FETCHER`).
+(`MISSING_FETCHER`). One given its network alone, `new TxBuilder({ network })`, reads and signs:
+`fromCbor` (the UTxOs of the inputs in `knownUtxos`), `restore`, `resume` and the calls of their
+objects that need no chain work on it, and `build`, `plan`, `chain()` and a plan's `add` and
+`replan` throw `MISSING_PARAMETER` (`params`) at the call.
 
 The JSON holds the data of the build, the signatures and the number of the build's
 `extraKeyWitnesses`, and marks a delivery that may have gone through (taken, of unknown outcome,
@@ -2409,7 +2415,7 @@ builder's `serializer`, else of the serializer of `@meshsdk/core-cst`.
 | `submitter`            | submits in place of the provider: after the call's `submitter`, before the provider                                                                                                                                                                                 |
 | `evaluator`            | works out execution units; by default a local `OfflineEvaluatorScalus` made for this builder. `null` turns evaluation off: every redeemer then needs its units, taken unchecked. `evaluator: provider` evaluates with the provider (`evaluateTx`) instead           |
 | `serializer`           | an `IMeshTxSerializer` with `serializeTxPrototype`; the `@meshsdk/core-cst` encoder by default                                                                                                                                                                      |
-| `params`               | protocol parameters, a whole `Protocol`, used instead of reading them from the provider. With neither `params` nor a provider the constructor throws `MISSING_PARAMETER`. There are no built-in values                                                              |
+| `params`               | protocol parameters, a whole `Protocol`, used instead of reading them from the provider; no built-in values. With neither, the builder reads and signs only, and `build`, `plan`, `chain()` and a plan's `add` and `replan` throw `MISSING_PARAMETER`               |
 | `costModels`           | cost models by Plutus language number, V1 first, used instead of reading them from the provider. With neither, a build that runs a Plutus script throws `MISSING_PARAMETER { parameter: "costModels" }`, and so does one whose models lack the language it runs     |
 | `deposits`             | `drepDeposit`, `govActionDeposit`: not part of Mesh's `Protocol`; give them to take governance deposits from them                                                                                                                                                   |
 | `planDefaults`         | `ttlMs`, `expiryMarginMs`, `confirmations` (copied into each plan when it is made), `pollMs`, `resendMs`: see [Deadlines and waiting](#deadlines-and-waiting)                                                                                                       |

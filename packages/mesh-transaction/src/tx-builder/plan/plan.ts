@@ -48,7 +48,12 @@ import {
   TIMED_OUT,
   within,
 } from "../abort";
-import { afterBound, checkAfterSize, readAfter } from "../builder";
+import {
+  afterBound,
+  checkAfterSize,
+  readAfter,
+  refuseWithoutParams,
+} from "../builder";
 import { BuiltTx, makeBuiltTx } from "../built-tx";
 import { toKnownUtxos } from "../chain";
 import { NOT_UNPAID, TxBuildError, TxPlanError } from "../errors";
@@ -1013,7 +1018,9 @@ export class TxPlan {
    *   INVALID_STATE (`recordVersion`) for a stored record this library does not read;
    *   INVALID_WITNESS (`wrongBody`) of `fromCbor`, for a step given built that holds a signature
    *   that is not of its body
-   * @throws TxBuildError INVALID_OPTION (`steps`) for steps that are not named steps, for all
+   * @throws TxBuildError MISSING_PARAMETER (`params`) at once on a builder given neither a
+   *   provider nor `params`, a repeat of the call too; INVALID_OPTION (`steps`) for steps that are
+   *   not named steps, for all
    *   that `builder.plan` refuses of named steps, on a builder that holds parts from `add`, for
    *   more than 32 steps in the plan, for a name the plan has with other parts or options or with
    *   another transaction, for a transaction given built that the plan holds under another name,
@@ -1035,6 +1042,8 @@ export class TxPlan {
    */
   add(steps: PlanSteps, options?: Pick<RunOptions, "signal">): Promise<this> {
     return this.#call(async (state) => {
+      // A builder without parameters builds no step: nothing is read
+      refuseWithoutParams(state.builder, "plan.add");
       const opts: Pick<RunOptions, "signal"> = optionsObject(
         options,
         ADD_MEMBERS,
@@ -1432,7 +1441,9 @@ export class TxPlan {
    *   record this library does not read; MISSING_ID; PLAN_EXISTS for an id the store holds
    *   otherwise; PLAN_NOT_FOUND when the record is gone from the store; VERSION_CONFLICT;
    *   STORE_FAILED
-   * @throws TxBuildError INVALID_OPTION for options that are not an object or have a member other
+   * @throws TxBuildError MISSING_PARAMETER (`params`) at once on a builder given neither a
+   *   provider nor `params`, a repeat of the call too; INVALID_OPTION for options that are not an
+   *   object or have a member other
    *   than those of `builder.plan` and `steps`, (`id`) for an id that is not a string or is this
    *   plan's, (`payer`) for a payer of no known form or one that answered two change addresses,
    *   (`trace`) for a trace that is not a function, (`signal`), (`steps`) when nothing is left and
@@ -1458,6 +1469,8 @@ export class TxPlan {
     },
   ): Promise<TxPlan> {
     return this.#call(async (state) => {
+      // A builder without parameters builds no step: nothing is read
+      refuseWithoutParams(state.builder, "plan.replan");
       const { signal } = optionsObject(
         options,
         REPLAN_MEMBERS,
@@ -4339,6 +4352,8 @@ export const planFor = async (
   steps: StepParts | PlanSteps,
   options: PlanOptions = {},
 ): Promise<TxPlan> => {
+  // A builder without parameters builds nothing: the steps are not read
+  refuseWithoutParams(builder, "plan");
   const { id, payer, trace } = options;
   if (id !== undefined && typeof id !== "string")
     throw invalidOption("id", id, "a non-empty string");

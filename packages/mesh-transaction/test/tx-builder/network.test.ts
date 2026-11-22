@@ -199,18 +199,23 @@ const buildWith = (
   });
 
 describe("TxBuilder: construction", () => {
-  it("needs a provider or params", () => {
+  it("is made with a network alone, and needs a provider or params to build or for chain()", async () => {
     for (const options of [
       { network: "preprod" as const },
       { network: "preprod" as const, costModels },
     ]) {
-      const error = expectCode(
-        caughtSync(() => new TxBuilder(options)),
-        "MISSING_PARAMETER",
-      );
-      expect(error.details).toEqual({ parameter: "params" });
-      expect(error.message).toContain("provider");
-      expect(error.message).toContain("params");
+      const builder = new TxBuilder(options);
+      expect(builder.provider).toBeUndefined();
+      expect(builder.params).toBeUndefined();
+      for (const call of [
+        () => buildWith(builder, [pay()]),
+        () => builder.chain(),
+      ]) {
+        const error = expectCode(await caught(call), "MISSING_PARAMETER");
+        expect(error.details).toEqual({ parameter: "params" });
+        expect(error.message).toContain("provider");
+        expect(error.message).toContain("params");
+      }
     }
   });
 
@@ -240,11 +245,10 @@ describe("TxBuilder: construction", () => {
     void [fromEmulator, fromFetcher];
 
     const { provider, calls } = fakeProvider();
-    const error = caughtSync(
-      () =>
-        // @ts-expect-error the builder has no fetcher option
-        new TxBuilder({ network: "preprod", fetcher: provider }),
-    );
+    // @ts-expect-error the builder has no fetcher option
+    const builder = new TxBuilder({ network: "preprod", fetcher: provider });
+    expect(builder.provider).toBeUndefined();
+    const error = await caught(() => buildWith(builder, [pay()]));
     expect(expectCode(error, "MISSING_PARAMETER").details).toEqual({
       parameter: "params",
     });

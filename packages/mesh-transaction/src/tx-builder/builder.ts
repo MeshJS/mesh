@@ -233,7 +233,9 @@ export type TxBuilderOptions = {
   serializer?: IMeshTxSerializer;
   /**
    * Protocol parameters, used whole instead of reading them from the provider. With neither a
-   * provider nor `params`, the constructor throws MISSING_PARAMETER.
+   * provider nor `params` the builder reads and signs: `fromCbor`, `restore`, `resume` and the
+   * objects they make work, and a call that needs parameters (`build`, `plan`, `chain`, a plan's
+   * `add` and `replan`) throws MISSING_PARAMETER.
    */
   params?: Protocol;
   /**
@@ -1485,6 +1487,29 @@ const maxUnits = (
 });
 
 /**
+ * MISSING_PARAMETER (`params`) of a call that needs protocol parameters on a builder given neither
+ * a provider nor `params`
+ * @param call The call, as the message names it
+ */
+const noParams = (call: string) =>
+  new TxBuildError(
+    "MISSING_PARAMETER",
+    `${call} needs protocol parameters, and the builder has neither a provider to read them from nor params: give it one of them`,
+    { details: { parameter: "params" } },
+  );
+
+/**
+ * Refuses a call that needs protocol parameters on a builder given neither a provider nor
+ * `params`, which reads and signs and builds nothing
+ * @param call The call, as the message names it
+ * @throws TxBuildError MISSING_PARAMETER (`params`)
+ */
+export const refuseWithoutParams = (builder: TxBuilder, call: string) => {
+  if (builder.params === undefined && builder.provider === undefined)
+    throw noParams(call);
+};
+
+/**
  * Builds transactions from parts: looks up what they leave open, balances them, works out the
  * execution units of their scripts, and serializes the result.
  *
@@ -1536,9 +1561,14 @@ export class TxBuilder {
   private readonly added: readonly TxPart[] = EMPTY_PARTS;
 
   /**
+   * Reads nothing, and checks every option it is given. `network` alone makes a builder that
+   * reads and signs, as a cold machine does: `fromCbor` (with the UTxOs of the inputs in
+   * `knownUtxos`), `restore`, `resume`, and the calls of the objects they make that need no
+   * chain; `submit` of such an object goes through a `submitter`. A call that needs
+   * protocol parameters throws MISSING_PARAMETER (`params`) there: `build`, `plan`, `chain`, and
+   * `add` and `replan` of a plan.
    * @throws TxBuildError INVALID_OPTION for a missing or unacceptable `network`;
    *   UNSUPPORTED_SERIALIZER for a serializer without `serializeTxPrototype`;
-   *   MISSING_PARAMETER with neither a provider nor `params`;
    *   INVALID_OPTION for `params` that lack a field a build reads, or hold one that is not a
    *   number (`keyDeposit` and `poolDeposit` may be missing);
    *   NETWORK_MISMATCH when the provider states another network;
@@ -1587,12 +1617,6 @@ export class TxBuilder {
         );
       this.serializer = options.serializer;
     }
-    if (!options.provider && !options.params)
-      throw new TxBuildError(
-        "MISSING_PARAMETER",
-        "the builder needs protocol parameters: give it a provider to read them from, or params",
-        { details: { parameter: "params" } },
-      );
     if (options.params)
       try {
         checkProtocol(options.params);
@@ -1630,9 +1654,11 @@ export class TxBuilder {
   /**
    * The network, parameters and cost models this builder builds on now, as data: the options
    * where given, else read from the provider
-   * @throws TxBuildError MISSING_PARAMETER when the parameters or the cost models cannot be had
+   * @throws TxBuildError MISSING_PARAMETER when the parameters or the cost models cannot be had:
+   *   (`params`) at once on a builder given neither a provider nor `params`
    */
   async chain(): Promise<ChainSnapshot> {
+    refuseWithoutParams(this, "chain()");
     const [params, costModels] = await Promise.all([
       this.loadParams(),
       this.loadCostModels(),
@@ -1844,10 +1870,11 @@ export class TxBuilder {
    * Redeemer indices follow from where each item ends up in the ledger's order, assigned once
    * by `assembleTxPrototype`; evaluation results are matched back to their parts through them.
    *
-   * @throws TxBuildError with a `code`, among them UNRESOLVED (the gap `link`) for a part
-   *   linked to an earlier step of a plan, which only that plan fills in; UNSUPPORTED_SERIALIZER
-   *   when the builder's serializer throws, or answers with something that is not a
-   *   transaction in CBOR hex, and
+   * @throws TxBuildError with a `code`, among them MISSING_PARAMETER (`params`) at once, before
+   *   the payer is read, on a builder given neither a provider nor `params`; UNRESOLVED (the gap
+   *   `link`) for a part linked to an earlier step of a plan, which only that plan fills in;
+   *   UNSUPPORTED_SERIALIZER when the builder's serializer throws, or answers with something
+   *   that is not a transaction in CBOR hex, and
    *   MISSING_PARAMETER when the provider's protocol parameters lack a field a build reads, or
    *   hold one that is not a number; TxPartError when what is looked up does not fit a part
    *   (e.g. a reference output holding a different script), and INVALID_DATA for a validity
@@ -1861,6 +1888,8 @@ export class TxBuilder {
     parts: PartsInput = [],
     options?: BuildOptions,
   ): Promise<BuiltTx> {
+    // A builder without parameters builds nothing: no payer is read
+    refuseWithoutParams(this, "build");
     // Nothing can be read without a payer: that comes first, then the parts, then the options'
     // types, then the network of what the build is given, all before any request
     // The payer is read once: what is built from is what signs
@@ -2362,8 +2391,10 @@ export class TxBuilder {
    * steps and options (those it was made with, or all it has after `plan.add`) is the recorded
    * plan, returned as recorded, and nothing is built, so a repeated request handler is safe;
    * other steps or options are PLAN_EXISTS. A new plan is recorded before it is returned.
-   * @throws TxBuildError every error of building a transaction, with the step's name at the
-   *   start of its message; INVALID_OPTION (`steps`) for a step that is none of the forms, a
+   * @throws TxBuildError MISSING_PARAMETER (`params`) at once, before the steps are read, on a
+   *   builder given neither a provider nor `params`; every error of building a transaction, with
+   *   the step's name at the start of its message; INVALID_OPTION (`steps`) for a step that is
+   *   none of the forms, a
    *   name that is taken, empty, a whole number or starts with `consolidate-`, more than 32
    *   steps, a link to a step that is not before it, named steps on a builder that holds parts
    *   from `add`, and a step that stands on the step before it of its payer neither by its change
@@ -2937,11 +2968,12 @@ export class TxBuilder {
   /** The `params` option, else the provider's parameters */
   private async loadParams(): Promise<Protocol> {
     if (this.params) return this.params;
-    // The constructor makes sure there is a provider without `params`
+    const { cache } = this;
+    if (!cache) throw noParams("a build");
     let params: Protocol | null | undefined;
     try {
       // NaN asks providers for the latest epoch's parameters
-      params = await this.cache!.fetchProtocolParameters(Number.NaN);
+      params = await cache.fetchProtocolParameters(Number.NaN);
     } catch (error) {
       throw new TxBuildError(
         "MISSING_PARAMETER",
