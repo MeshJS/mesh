@@ -530,6 +530,45 @@ describe("TxBuilder: balancing", () => {
     expect(three.fee - one.fee).toBe(2n * 101n * 44n);
   });
 
+  it("prices the bootstrap witness of an input at a Byron address: the fee is the minimum with that witness, and above the minimum without it", async () => {
+    // A Byron address of mainnet, and the wallet and the recipient on mainnet beside it
+    const byron = "Ae2tdPwUPEZ4YjgvykNpoFeYUxoyhNj2kg8KfKWN2FizsSpLUPv68MpTVDo";
+    const onMainnet = (address: string) => {
+      const bytes = bech32.fromWords(bech32.decode(address, 200).words);
+      bytes[0] = bytes[0]! | 0x01;
+      return bech32.encode("addr", bech32.toWords(bytes), 200);
+    };
+    const changeAddress = onMainnet(wallet);
+    const built = await new TxBuilder({ network: "mainnet", params }).build(
+      [
+        spend.pubKey({ utxo: utxo(lovelace(ada(5)), {}, byron) }),
+        output({ address: onMainnet(recipient), value: { lovelace: ada(10) } }),
+      ],
+      {
+        payer: {
+          changeAddress,
+          utxos: [utxo(lovelace(ada(50)), {}, changeAddress)],
+        },
+      },
+    );
+    expect(built.signers.byronAddresses).toEqual([byron]);
+    // The same transaction signed: one bootstrap witness, the address's attributes an empty map
+    const signed = structuredClone(built.prototype);
+    signed.witness_set.bootstraps = [
+      {
+        vkey: "33".repeat(32),
+        signature: "44".repeat(64),
+        chain_code: Array(32).fill(0),
+        attributes: [0xa0],
+      },
+    ];
+    const vkeyWitnesses = built.signers.keyHashes.length;
+    expect(built.fee).toBe(minFee(signed, { params, vkeyWitnesses }));
+    expect(built.fee).toBeGreaterThan(
+      minFee(built.prototype, { params, vkeyWitnesses }),
+    );
+  });
+
   it("donates to the treasury out of the inputs", async () => {
     const built = await new TxBuilder({ network, params }).build(
       [donation({ amount: ada(7) })],
