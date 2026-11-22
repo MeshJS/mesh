@@ -150,4 +150,56 @@ describe("TxBuilder: why a transaction is too large", () => {
     // The rounds, and the one trial that tells the cause
     expect(failed.counted.calls).toBe(rounds(failedEvents) + 1);
   });
+
+  it("is the same, its maxTxSize the number 32 768, for params.maxTxSize given as 32 768, a string of digits or a bigint: of cause parts and of cause selection", async () => {
+    const said = (error: TxBuildError<"TX_TOO_LARGE">) => ({
+      message: error.message,
+      details: error.details,
+    });
+    const outputs = Array.from({ length: 1_000 }, () => pay(ada(2)));
+    const funds = utxo(ada(10_000));
+    const small = utxos(1_200, ada(2));
+    for (const [run, cause] of [
+      [
+        (builder: TxBuilder) =>
+          builder.build(outputs, {
+            payer: { changeAddress: wallet, utxos: [funds] },
+          }),
+        "parts",
+      ],
+      [
+        (builder: TxBuilder) =>
+          builder.build(pay(ada(2_000)), {
+            payer: { changeAddress: wallet, utxos: small },
+          }),
+        "selection",
+      ],
+    ] as const) {
+      const errors = [];
+      for (const maxTxSize of [32_768, "32768", 32_768n])
+        errors.push(
+          said(
+            await tooLarge(() =>
+              run(
+                new TxBuilder({
+                  network,
+                  params: { ...params, maxTxSize } as unknown as Protocol,
+                }),
+              ),
+            ),
+          ),
+        );
+      const [first] = errors;
+      expect(first!.details).toEqual({
+        size: expect.any(Number),
+        maxTxSize: 32_768,
+        cause,
+      });
+      expect(first!.details.size).toBeGreaterThan(32_768);
+      expect(first!.message).toBe(
+        `the transaction takes ${first!.details.size} bytes, more than the 32768 allowed`,
+      );
+      expect(errors).toEqual([first, first, first]);
+    }
+  });
 });

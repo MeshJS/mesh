@@ -112,6 +112,19 @@ export const checkProtocol = (
   }
 };
 
+/**
+ * The `maxTxSize` of protocol parameters as a number of bytes, in every form `checkProtocol`
+ * takes it: a number, a string of digits or a bigint. `absent` when there are no parameters, or
+ * their `maxTxSize` is none of these
+ */
+export const maxTxBytesOf = (
+  params: { readonly maxTxSize?: unknown } | undefined,
+  absent: number,
+): number => {
+  const value = params?.maxTxSize;
+  return isWholeNumber(value) ? Number(value) : absent;
+};
+
 /** Whether a value is an object that is not a list */
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   isObject(value) && !Array.isArray(value);

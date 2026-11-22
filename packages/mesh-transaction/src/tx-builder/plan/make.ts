@@ -48,6 +48,7 @@ import {
 import { BuiltTx, isBuiltHere } from "../built-tx";
 import { knownEntries, knownEntryRefused, toKnownUtxos } from "../chain";
 import { NOT_UNPAID, TxBuildError, TxError, TxPlanError } from "../errors";
+import { maxTxBytesOf } from "../fee";
 import { checkNetworks } from "../network";
 import { invalidOption, typeOf } from "../options";
 import {
@@ -62,7 +63,7 @@ import { isLinkedPart } from "../parts/unresolved";
 import { plainUtxo, utxoCopy, utxoKey } from "../parts/utxo";
 import { changeAddressOf, givenPayerEntries, toPayerSource } from "../payer";
 import { readTransactionItems } from "../sign";
-import { scanTransaction } from "../tx-scan";
+import { MAX_TX_BYTES, scanTransaction } from "../tx-scan";
 import { addValues, fromMultiAsset, negate, valueOf } from "../value";
 import {
   buildConsolidation,
@@ -377,7 +378,7 @@ const prebuiltHash = (
 ): string | undefined => {
   try {
     const text = bytes.toLowerCase();
-    scanTransaction(text, builder.params?.maxTxSize);
+    scanTransaction(text, maxTxBytesOf(builder.params, MAX_TX_BYTES));
     return readTransactionItems(text).txId.toLowerCase();
   } catch {
     return undefined;

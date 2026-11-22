@@ -3,14 +3,17 @@ import { Address, Crypto, HexBlob, Serialization } from "@meshsdk/core-cst";
 
 import {
   addWitnesses,
+  output,
   requiredSigners,
   RequiredSignersOptions,
+  spend,
   TxBuilder,
   TxBuildError,
   TxError,
   Utxo,
 } from "../../src/tx-builder";
 import { readTxBytes } from "../../src/tx-builder/builder";
+import { orderOf } from "../../src/tx-builder/plan/make";
 import { scanTransaction } from "../../src/tx-builder/tx-scan";
 import {
   arr,
@@ -1680,47 +1683,51 @@ describe("TxBuilder.fromCbor › forms a decoder takes and a ledger does not", (
   });
 });
 
+/**
+ * A transaction of exactly `size` bytes: `IN#0` spent and `other` a guard, padded with metadata
+ * of byte strings of 64 bytes and two shorter ones for the rest
+ */
+const ofSize = (size: number) => {
+  const body = bodyWith([uint(14), tag258(arr(bytes(other.keyHash)))]);
+  const made = (pieces: string[]) =>
+    tx(body, map(), { aux: map([uint(674), arr(...pieces)]) });
+  /** The bytes of a byte string of `n` bytes, its head with it */
+  const written = (n: number) => n + (n < 24 ? 1 : 2);
+  const full = bytes("00".repeat(64));
+  for (let count = Math.floor(size / 66); count >= 0; count--) {
+    const pieces = Array<string>(count).fill(full);
+    // The two empty strings take a byte each
+    const rest = size - made([...pieces, bytes(""), bytes("")]).length / 2;
+    for (let a = 0; a <= 64; a++)
+      for (let b = 0; b <= 64; b++)
+        if (written(a) + written(b) === rest + 2) {
+          const given = made([
+            ...pieces,
+            bytes("00".repeat(a)),
+            bytes("00".repeat(b)),
+          ]);
+          expect(given.length / 2).toBe(size);
+          return given;
+        }
+  }
+  throw new Error(`no transaction of ${size} bytes`);
+};
+
+/** What a refusal says: its code, message, details and cause */
+const said = (error: unknown) => ({
+  code: (error as TxBuildError).code,
+  message: (error as Error).message,
+  details: (error as TxBuildError).details,
+  cause: (error as Error).cause,
+});
+
+/** The refusal of a transaction larger than `size` bytes */
+const tooLarge = (size: number) =>
+  `invalid tx: the transaction is more than the ${size} bytes of the protocol's maximum transaction size`;
+
 describe("requiredSigners › the option maxTxSize, the largest transaction it reads", () => {
-  /**
-   * A transaction of exactly `size` bytes: `IN#0` spent and `other` a guard, padded with metadata
-   * of byte strings of 64 bytes and two shorter ones for the rest
-   */
-  const ofSize = (size: number) => {
-    const body = bodyWith([uint(14), tag258(arr(bytes(other.keyHash)))]);
-    const made = (pieces: string[]) =>
-      tx(body, map(), { aux: map([uint(674), arr(...pieces)]) });
-    /** The bytes of a byte string of `n` bytes, its head with it */
-    const written = (n: number) => n + (n < 24 ? 1 : 2);
-    const full = bytes("00".repeat(64));
-    for (let count = Math.floor(size / 66); count >= 0; count--) {
-      const pieces = Array<string>(count).fill(full);
-      // The two empty strings take a byte each
-      const rest = size - made([...pieces, bytes(""), bytes("")]).length / 2;
-      for (let a = 0; a <= 64; a++)
-        for (let b = 0; b <= 64; b++)
-          if (written(a) + written(b) === rest + 2) {
-            const given = made([
-              ...pieces,
-              bytes("00".repeat(a)),
-              bytes("00".repeat(b)),
-            ]);
-            expect(given.length / 2).toBe(size);
-            return given;
-          }
-    }
-    throw new Error(`no transaction of ${size} bytes`);
-  };
   const builderOf = (maxTxSize: number) =>
     new TxBuilder({ network: "preprod", params: { ...params, maxTxSize } });
-  /** What a refusal says: its code, message, details and cause */
-  const said = (error: unknown) => ({
-    code: (error as TxBuildError).code,
-    message: (error as Error).message,
-    details: (error as TxBuildError).details,
-    cause: (error as Error).cause,
-  });
-  const tooLarge = (size: number) =>
-    `invalid tx: the transaction is more than the ${size} bytes of the protocol's maximum transaction size`;
 
   it("refuses a transaction of 24 000 bytes with no option, {} and a maxTxSize of 16 384, as fromCbor refuses it, and lists its signers with a maxTxSize of 32 768, as fromCbor on a builder whose params.maxTxSize is 32 768", async () => {
     expect(params.maxTxSize).toBe(16_384);
@@ -1935,5 +1942,166 @@ describe("requiredSigners › the option maxTxSize, the largest transaction it r
       expect(got).toEqual(clean);
     }
     expect("maxTxSize" in {}).toBe(false);
+  });
+});
+
+describe("params.maxTxSize given as a number, a string of digits or a bigint: one bound wherever the builder walks a transaction", () => {
+  /** 32 768 in each form a builder takes a whole protocol parameter in */
+  const FORMS: readonly unknown[] = [32_768, "32768", 32_768n];
+  const builderOf = (maxTxSize: unknown) =>
+    new TxBuilder({
+      network: "preprod",
+      params: { ...params, maxTxSize } as unknown as Protocol,
+    });
+  /** The JSON of the object `fromCbor` makes of a transaction, as text read back */
+  const jsonOf = async (given: string) =>
+    JSON.parse(
+      JSON.stringify(
+        (
+          await builderOf(65_536).fromCbor(given, { knownUtxos: knownUtxos() })
+        ).toJSON(),
+      ),
+    );
+  /** A witness set of exactly `size` bytes: one Plutus V1 script of zeros */
+  const witnessesOf = (size: number) => {
+    for (let n = size - 10; n <= size; n++) {
+      const set = map([uint(3), arr(bytes("00".repeat(n)))]);
+      if (set.length / 2 === size) return set;
+    }
+    throw new Error(`no witness set of ${size} bytes`);
+  };
+  const OVER = 32_769;
+
+  it("fromCbor reads a transaction of 24 000 bytes and refuses one of 32 769 in the same words", async () => {
+    const read = ofSize(24_000);
+    const over = ofSize(OVER);
+    const made = await builderOf(32_768).fromCbor(read, {
+      knownUtxos: knownUtxos(),
+    });
+    const refusal = said(
+      await caught(() =>
+        builderOf(32_768).fromCbor(over, { knownUtxos: knownUtxos() }),
+      ),
+    );
+    expect(refusal.message).toBe(tooLarge(32_768));
+    for (const maxTxSize of FORMS) {
+      const builder = builderOf(maxTxSize);
+      const again = await builder.fromCbor(read, { knownUtxos: knownUtxos() });
+      expect(again.txHash).toBe(made.txHash);
+      expect(again.signers).toEqual(made.signers);
+      const error = await caught(() =>
+        builder.fromCbor(over, { knownUtxos: knownUtxos() }),
+      );
+      expectRefused(error, over, tooLarge(32_768));
+      expect(said(error)).toEqual(refusal);
+    }
+  });
+
+  it("a step given built: the hash of a transaction of 24 000 bytes is read from its bytes, and a plan refuses one of 32 769 in the words of fromCbor", async () => {
+    const read = ofSize(24_000);
+    const over = ofSize(OVER);
+    const { txHash } = await builderOf(32_768).fromCbor(read, {
+      knownUtxos: knownUtxos(),
+    });
+    for (const maxTxSize of FORMS) {
+      const builder = builderOf(maxTxSize);
+      expect((await orderOf(builder, { x: read })).steps).toEqual([
+        { name: "x", kind: "prebuilt", txHash },
+      ]);
+      expect((await orderOf(builder, { x: over })).steps).toEqual([
+        { name: "x", kind: "prebuilt" },
+      ]);
+      const error = await caught(() =>
+        builder.plan({ x: over }, { knownUtxos: knownUtxos() }),
+      );
+      expectRefused(error, over, tooLarge(32_768));
+      expect((error as Error).message).toBe(`step "x": ${tooLarge(32_768)}`);
+    }
+  });
+
+  it("restore reads the JSON of a transaction of 24 000 bytes, with witnesses of 24 000 bytes, and refuses 32 769 bytes of either in the same words", async () => {
+    const read = await jsonOf(ofSize(24_000));
+    const over = await jsonOf(ofSize(OVER));
+    const json = (message: string) => ({
+      code: "INVALID_OPTION",
+      message: `invalid json: ${message}`,
+      details: {
+        option: "json",
+        value: "object",
+        allowed: "the JSON of a BuiltTx, as its toJSON() writes it",
+      },
+      cause: undefined,
+    });
+    for (const maxTxSize of FORMS) {
+      const builder = builderOf(maxTxSize);
+      expect((await builder.restore(read)).txHash).toBe(read.txHash);
+      expect(
+        (await builder.restore({ ...read, witnesses: witnessesOf(24_000) }))
+          .txHash,
+      ).toBe(read.txHash);
+      expect(said(await caught(() => builder.restore(over)))).toEqual(
+        json(
+          "its transaction is not read: the transaction is more than the 32768 bytes of the protocol's maximum transaction size",
+        ),
+      );
+      expect(
+        said(
+          await caught(() =>
+            builder.restore({ ...read, witnesses: witnessesOf(OVER) }),
+          ),
+        ),
+      ).toEqual(
+        json(
+          "its witnesses are not read: the witness set is more than the 32768 bytes of the protocol's maximum transaction size",
+        ),
+      );
+    }
+  });
+
+  it("a build spends an output of a transaction of after of 24 000 bytes, and refuses one of 32 769 in the same words", async () => {
+    const read = ofSize(24_000);
+    const over = ofSize(OVER);
+    const { txHash } = await builderOf(32_768).fromCbor(read, {
+      knownUtxos: knownUtxos(),
+    });
+    const funds: Utxo = {
+      txHash: "aa".repeat(32),
+      outputIndex: 0,
+      address: key.address,
+      value: { lovelace: 100_000_000n },
+    };
+    const buildAfter = (builder: TxBuilder, given: string) =>
+      builder.build(
+        [
+          spend.pubKey({ utxo: { txHash, outputIndex: 0 } }),
+          output({ address: other.address, value: { lovelace: 2_000_000n } }),
+        ],
+        {
+          payer: { changeAddress: key.address, utxos: [funds] },
+          after: { tx: given, outputs: [{}] } as never,
+        },
+      );
+    const built = await buildAfter(builderOf(32_768), read);
+    expect(built.inputs.map((u) => `${u.txHash}#${u.outputIndex}`)).toContain(
+      `${txHash}#0`,
+    );
+    const refusal = {
+      code: "INVALID_OPTION",
+      message:
+        "invalid after: the transaction is more than the 32768 bytes this library reads of a transaction of after: a builder given params reads up to their maxTxSize, else 65536",
+      details: {
+        option: "after",
+        value: "object",
+        allowed: expect.any(String),
+      },
+      cause: undefined,
+    };
+    for (const maxTxSize of FORMS) {
+      const builder = builderOf(maxTxSize);
+      expect((await buildAfter(builder, read)).txHash).toBe(built.txHash);
+      expect(said(await caught(() => buildAfter(builder, over)))).toEqual(
+        refusal,
+      );
+    }
   });
 });

@@ -16,7 +16,13 @@ import type {
 import type { Value } from "./value";
 import { assembleTxPrototype, atMostOne } from "./assemble";
 import { TxBuildError } from "./errors";
-import { coversMinCoin, feeForSize, outputMinCoin, valueSize } from "./fee";
+import {
+  coversMinCoin,
+  feeForSize,
+  maxTxBytesOf,
+  outputMinCoin,
+  valueSize,
+} from "./fee";
 import { compareInputs } from "./ordering";
 import { outRefString } from "./parts/normalize";
 import {
@@ -26,6 +32,7 @@ import {
   utxoKey,
 } from "./parts/utxo";
 import { inputsOf } from "./resolve";
+import { MAX_TX_BYTES } from "./tx-scan";
 import {
   addValues,
   coinValue,
@@ -1275,13 +1282,15 @@ export const balance = (
     const size = ctx.serialize(sized.prototype).length / 2;
     ctx.onRound?.({ round, fee, size, selected: selected.length });
     if (size > params.maxTxSize) {
+      // The bound as a number, in whichever form the parameters give it
+      const maxTxSize = maxTxBytesOf(params, MAX_TX_BYTES);
       const tooLarge = new TxBuildError(
         "TX_TOO_LARGE",
-        `the transaction takes ${size} bytes, more than the ${params.maxTxSize} allowed`,
+        `the transaction takes ${size} bytes, more than the ${maxTxSize} allowed`,
         {
           details: {
             size,
-            maxTxSize: params.maxTxSize,
+            maxTxSize,
             cause: causeOfSize(fee, collateral),
           },
         },

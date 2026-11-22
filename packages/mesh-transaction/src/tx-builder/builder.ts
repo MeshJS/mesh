@@ -104,6 +104,7 @@ import { TxBuildError, TxPlanError } from "./errors";
 import {
   checkProtocol,
   coversMinCoin,
+  maxTxBytesOf,
   outputMinCoin,
   prototypeExUnits,
   valueSize,
@@ -171,7 +172,12 @@ import {
   verifies,
   withoutKeyWitnesses,
 } from "./sign";
-import { MAX_REF_SCRIPT_BYTES, scanTransaction, TxScanError } from "./tx-scan";
+import {
+  MAX_REF_SCRIPT_BYTES,
+  MAX_TX_BYTES,
+  scanTransaction,
+  TxScanError,
+} from "./tx-scan";
 import { countedKeys, signersOf, txSigners } from "./witnesses";
 
 /**
@@ -777,9 +783,12 @@ export const ownAfterEntry = <T extends object>(entry: T): T => {
  */
 export const MAX_AFTER_BYTES = 65_536;
 
-/** The largest transaction of `after` a builder with these parameters reads, in bytes */
+/**
+ * The largest transaction of `after` a builder with these parameters reads, in bytes: their
+ * `maxTxSize` in any form the builder takes it, else `MAX_AFTER_BYTES`
+ */
 export const afterBound = (params?: { maxTxSize?: unknown }): number =>
-  typeof params?.maxTxSize === "number" ? params.maxTxSize : MAX_AFTER_BYTES;
+  maxTxBytesOf(params, MAX_AFTER_BYTES);
 
 /**
  * What a transaction's own bytes say of what it spends and makes: the hash of its body, the out
@@ -2017,7 +2026,7 @@ export class TxBuilder {
     // builder holds parameters; none are asked for
     const text = typeof txCbor === "string" ? txCbor.toLowerCase() : txCbor;
     try {
-      scanTransaction(text, this.params?.maxTxSize);
+      scanTransaction(text, maxTxBytesOf(this.params, MAX_TX_BYTES));
     } catch (error) {
       if (!(error instanceof TxScanError)) throw error;
       throw refusedTx(txCbor, `invalid tx: ${error.message}`);

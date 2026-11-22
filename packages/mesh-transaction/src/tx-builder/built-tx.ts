@@ -18,6 +18,7 @@ import {
   within,
 } from "./abort";
 import { NO_REBUILD, TxBuildError, TxPlanError } from "./errors";
+import { maxTxBytesOf } from "./fee";
 import {
   hasMethod,
   invalidOption,
@@ -58,7 +59,12 @@ import {
   witnessesToAdd,
   writeWitnessSet,
 } from "./sign";
-import { scanTransaction, scanWitnessSet, TxScanError } from "./tx-scan";
+import {
+  MAX_TX_BYTES,
+  scanTransaction,
+  scanWitnessSet,
+  TxScanError,
+} from "./tx-scan";
 import { askedKeys } from "./witnesses";
 
 // The object of one built transaction: the data of the build as its own members, and the calls
@@ -1102,15 +1108,16 @@ export const restoreBuiltTx = async (
     );
   // A JSON may come from another party: its transaction is bounded as `fromCbor` bounds one,
   // before any of it is decoded
+  const maxBytes = maxTxBytesOf(builder.params, MAX_TX_BYTES);
   try {
-    scanTransaction(built.tx, builder.params?.maxTxSize);
+    scanTransaction(built.tx, maxBytes);
   } catch (error) {
     if (!(error instanceof TxScanError)) throw error;
     throw invalidJson(json, `its transaction is not read: ${error.message}`);
   }
   // So are its witnesses
   try {
-    scanWitnessSet(record.witnesses, builder.params?.maxTxSize);
+    scanWitnessSet(record.witnesses, maxBytes);
   } catch (error) {
     if (!(error instanceof TxScanError)) throw error;
     throw invalidJson(json, `its witnesses are not read: ${error.message}`);
