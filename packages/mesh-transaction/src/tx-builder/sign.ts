@@ -33,7 +33,7 @@ import { walletCodeOf } from "./payer";
 import {
   checkConwayKeys,
   MAX_REF_SCRIPT_BYTES,
-  scanDepth,
+  scanTransaction,
   TxScanError,
 } from "./tx-scan";
 import {
@@ -460,29 +460,37 @@ const invalidTx = (tx: unknown, cause?: unknown) =>
     },
   );
 
+/** The refusal of a transaction the walk refuses, in its words, as `fromCbor` refuses it */
+const scanRefused = (error: TxScanError) =>
+  new TxBuildError("INVALID_OPTION", `invalid tx: ${error.message}`, {
+    details: {
+      option: "tx",
+      value: "string",
+      allowed: "a transaction in CBOR hex",
+    },
+  });
+
 /**
  * Reads `tx` as a transaction, its parts decoded once. A key the Conway ledger does not read, of
  * its body, an output or its witness set, is refused before they are decoded (`checkConwayKeys`)
- * @param depthBound Whether a transaction nested deeper than `MAX_TX_DEPTH` is refused first, as
- *   the walk of `fromCbor` refuses it, before a value decoder reads it
+ * @param bounded Whether the transaction is walked first, as `fromCbor` walks one when the builder
+ *   holds no parameters (`scanTransaction` within `MAX_TX_BYTES`), before a value decoder reads it
  * @throws TxBuildError INVALID_OPTION for a value that is not the CBOR of a transaction whose
- *   vkey and bootstrap witnesses can be read, for one with such a key, and with `depthBound`
- *   for one nested deeper
+ *   vkey and bootstrap witnesses can be read, for one with such a key, and with `bounded` for one
+ *   the walk refuses, in its words
  */
-export const readTransaction = (tx: unknown, depthBound = false): RawTx => {
+export const readTransaction = (tx: unknown, bounded = false): RawTx => {
+  try {
+    if (bounded) scanTransaction(tx);
+  } catch (error) {
+    if (error instanceof TxScanError) throw scanRefused(error);
+    throw error;
+  }
   if (!isHex(tx)) throw invalidTx(tx);
   try {
-    if (depthBound) scanDepth(tx);
     return readRawTx(tx);
   } catch (error) {
-    if (error instanceof TxScanError)
-      throw new TxBuildError("INVALID_OPTION", `invalid tx: ${error.message}`, {
-        details: {
-          option: "tx",
-          value: "string",
-          allowed: "a transaction in CBOR hex",
-        },
-      });
+    if (error instanceof TxScanError) throw scanRefused(error);
     throw invalidTx(tx, error);
   }
 };
@@ -1537,12 +1545,14 @@ export const refScriptsRefused = (tx: unknown, past: string) =>
  *   output must hold the same, and two texts of CBOR for one output be one text
  * @throws TxBuildError UTXO_NOT_FOUND for an input or collateral input whose UTxO is not in
  *   `spent`; INVALID_OPTION for a `tx` that is not a transaction, or holds a key of its body, an
- *   output or its witness set the Conway ledger does not read, for one nested deeper than
- *   `MAX_TX_DEPTH` (a native script of its witness set too), refused before it is decoded as
- *   `fromCbor` refuses it, for one whose spent and reference inputs hold more than
- *   `MAX_REF_SCRIPT_BYTES` of reference scripts in the UTxOs of `spent`, counted before they are
- *   read whole, and for a `spent` that is not a list or holds an entry that is not a UTxO (an
- *   address that does not parse among them), or two entries that name one output and differ;
+ *   output or its witness set the Conway ledger does not read, for one larger than `MAX_TX_BYTES`,
+ *   not well-formed CBOR, not an array of four items, nested deeper than `MAX_TX_DEPTH`, more work
+ *   for the value decoder than `MAX_TX_WORK` or paying an address longer than `MAX_ADDRESS_BYTES`,
+ *   refused before it is decoded as `fromCbor` refuses it, for one whose spent and reference
+ *   inputs hold more than `MAX_REF_SCRIPT_BYTES` of reference scripts in the UTxOs of `spent`,
+ *   counted before they are read whole, and for a `spent` that is not a list or holds an entry
+ *   that is not a UTxO (an address that does not parse among them), or two entries that name one
+ *   output and differ;
  *   NATIVE_SCRIPT_UNREAD `{ scriptHash, outRef, reason }` for a transaction that runs a native
  *   script, held by a UTxO of `spent` it spends or reads, whose keys this library does not read:
  *   nested deeper than `MAX_NATIVE_DEPTH` (`"depth"`), longer than `MAX_TX_BYTES` (`"size"`), or
@@ -1554,8 +1564,8 @@ export function requiredSigners(
   tx: string,
   spent: readonly UtxoInput[],
 ): TxSigners {
-  // Walked to the depth fromCbor reads, before the value decoder and the read of the keys of a
-  // native script call themselves that deep: past it, a stack of a browser's size overflows
+  // Walked as fromCbor walks it, before the value decoder and the read of the keys of a native
+  // script call themselves: past its depth, a stack of a browser's size overflows
   const raw = readTransaction(tx, true);
   if (!Array.isArray(spent))
     throw new TxBuildError(

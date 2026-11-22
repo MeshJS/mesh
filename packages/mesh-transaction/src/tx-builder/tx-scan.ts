@@ -746,24 +746,6 @@ export const scanTransaction = (
 };
 
 /**
- * Walks a transaction given as CBOR hex to `MAX_TX_DEPTH`, as `scanTransaction` walks it, and
- * refuses one nested deeper in the same words; its size and the work of its decoder are not
- * bounded here. What is not well-formed is left to the reader, which refuses it
- * @throws TxScanError past the depth
- */
-export const scanDepth = (text: string): void => {
-  try {
-    walk(Buffer.from(text, "hex"), {
-      depth: MAX_TX_DEPTH,
-      work: Infinity,
-      what: "the transaction",
-    });
-  } catch (error) {
-    if (error instanceof TxScanError) throw error;
-  }
-};
-
-/**
  * Walks the witnesses of the JSON of a `BuiltTx`, a witness set in CBOR hex, within the bounds of
  * a transaction, before any of it is decoded: larger than `maxBytes`, nested deeper than
  * `MAX_TX_DEPTH`, or more work for the value decoder than `MAX_TX_WORK`. Text that is not hex, or

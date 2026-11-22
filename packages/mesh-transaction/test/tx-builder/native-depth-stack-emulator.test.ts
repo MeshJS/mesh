@@ -3,7 +3,17 @@ import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join, resolve } from "path";
 
-import { itemDepth, MAX_NATIVE_DEPTH } from "../../src/tx-builder/tx-scan";
+import { DEFAULT_PROTOCOL_PARAMETERS } from "@meshsdk/common";
+import { Address, HexBlob } from "@meshsdk/core-cst";
+
+import type { TxBuildError } from "../../src/tx-builder";
+import { requiredSigners, TxBuilder } from "../../src/tx-builder";
+import {
+  itemDepth,
+  MAX_NATIVE_DEPTH,
+  MAX_TX_BYTES,
+} from "../../src/tx-builder/tx-scan";
+import * as cbor from "./cbor-util";
 
 /*
  * The keys of a native reference script are read to the depth a small stack holds: on
@@ -194,6 +204,8 @@ const outcome = async (f: () => Promise<mt.TxSigners> | mt.TxSigners) => {
 
 (async () => {
   const levels = Number(process.argv[2]);
+  // An entry the output holds beside its address and its coin, if any
+  const entry = process.argv[3] ?? "";
   const address = Address.fromBytes(HexBlob("60" + "ab".repeat(28))).toBech32();
   const item = "820181".repeat(levels) + "8200581c" + KEY;
   const policy = Crypto.blake2b.hash(HexBlob("00" + item), 28).toString();
@@ -203,7 +215,7 @@ const outcome = async (f: () => Promise<mt.TxSigners> | mt.TxSigners) => {
   };
   const body = [
     "0081825820" + spent.input.txHash + "00",
-    "0181a200" + bytes("60" + "ab".repeat(28)) + "011a002dc6c0",
+    "0181" + (entry === "" ? "a2" : "a3") + "00" + bytes("60" + "ab".repeat(28)) + "011a002dc6c0" + entry,
     "021a000f4240",
     "09a1581c" + policy + "a14001",
   ];
@@ -241,8 +253,11 @@ describe("a native script of the witness set, read by requiredSigners to the dep
   });
   afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
-  /** requiredSigners and fromCbor for `all` around a key `levels` times, in a fresh process */
-  const inChild = (levels: number, stack: "default" | "small") =>
+  /**
+   * requiredSigners and fromCbor for `all` around a key `levels` times, in a fresh process; the
+   * output holds `entry` too, if given
+   */
+  const inChild = (levels: number, stack: "default" | "small", entry = "") =>
     JSON.parse(
       execFileSync(
         process.execPath,
@@ -250,6 +265,7 @@ describe("a native script of the witness set, read by requiredSigners to the dep
           ...(stack === "small" ? ["--stack-size=400"] : []),
           bundle,
           String(levels),
+          entry,
         ],
         {
           env: {
@@ -265,6 +281,17 @@ describe("a native script of the witness set, read by requiredSigners to the dep
       ),
     ) as Record<string, Record<string, unknown>>;
 
+  /** The refusal of fromCbor, in these words */
+  const refusal = (message: string) => ({
+    threw: "INVALID_OPTION",
+    message,
+    details: {
+      option: "tx",
+      value: "string",
+      allowed: "a transaction in CBOR hex",
+    },
+  });
+
   it.each([
     [1_100, "default"],
     [1_100, "small"],
@@ -274,31 +301,152 @@ describe("a native script of the witness set, read by requiredSigners to the dep
     "refuses one of `all` around a key %d times, on the %s stack, as fromCbor refuses the transaction: the same code, details and words, never the runtime's error",
     (levels, stack) => {
       const { requiredSigners, fromCbor } = inChild(levels, stack);
-      expect(fromCbor).toEqual({
-        threw: "INVALID_OPTION",
-        message:
+      expect(fromCbor).toEqual(
+        refusal(
           "invalid tx: the transaction nests its items deeper than the 1024 levels this library reads",
-        details: {
-          option: "tx",
-          value: "string",
-          allowed: "a transaction in CBOR hex",
-        },
-      });
+        ),
+      );
+      expect(requiredSigners).toEqual(fromCbor);
+    },
+    180_000,
+  );
+
+  // An entry of an output whose item under tag 24 is followed by bytes the value decoder passes
+  // over: not well-formed where the walk reads them, before the witness set
+  const FOLLOWED: [string, string][] = [
+    [
+      "an inline datum 0 followed by a break",
+      `028201d818${cbor.bytes("00ff")}`,
+    ],
+    [
+      "an inline datum 0 followed by a simple value in two bytes",
+      `028201d818${cbor.bytes("00f800")}`,
+    ],
+    [
+      "an inline datum 0 followed by a reserved head",
+      `028201d818${cbor.bytes("001c")}`,
+    ],
+    [
+      "a reference script [2, h'00'] followed by a break",
+      `03d818${cbor.bytes("82024100ff")}`,
+    ],
+  ];
+
+  it.each(
+    FOLLOWED.flatMap(([name, entry]) =>
+      (
+        [
+          [2_600, "default"],
+          [2_950, "default"],
+          [1_100, "small"],
+        ] as const
+      ).map(([levels, stack]) => [levels, stack, name, entry] as const),
+    ),
+  )(
+    "refuses one of `all` around a key %d times, on the %s stack, beside %s, as fromCbor refuses the transaction: not well-formed, never the runtime's error",
+    (levels, stack, _, entry) => {
+      const { requiredSigners, fromCbor } = inChild(levels, stack, entry);
+      expect(fromCbor).toEqual(
+        refusal(
+          "invalid tx: expected a transaction in CBOR hex: it is not well-formed CBOR",
+        ),
+      );
       expect(requiredSigners).toEqual(fromCbor);
     },
     180_000,
   );
 
   it.each(["default", "small"] as const)(
-    "lists the keys of one of `all` around a key 303 times, the deepest fromCbor reads, on the %s stack",
+    "lists the keys of one of `all` around a key 303 times, the deepest fromCbor reads, on the %s stack; one of 304 is refused by both, as fromCbor refuses it",
     (stack) => {
       expect(inChild(303, stack)).toEqual({
         requiredSigners: { listed: 1, key: true },
         fromCbor: { listed: 1, key: true },
       });
-      // A level deeper, fromCbor refuses the work its decoder would have
-      expect(inChild(304, stack).fromCbor!.threw).toBe("INVALID_OPTION");
+      // A level deeper, the work its decoder would have
+      const deeper = inChild(304, stack);
+      expect(deeper.fromCbor).toEqual(
+        refusal(
+          "invalid tx: the transaction carries more nested data than this library reads",
+        ),
+      );
+      expect(deeper.requiredSigners).toEqual(deeper.fromCbor);
     },
     180_000,
+  );
+});
+
+describe("requiredSigners refuses a transaction larger than fromCbor reads, before it is read", () => {
+  const spent = {
+    input: { txHash: `ee${"00".repeat(30)}09`, outputIndex: 0 },
+    output: {
+      address: Address.fromBytes(HexBlob(`60${"ab".repeat(28)}`)).toBech32(),
+      amount: [{ unit: "lovelace", quantity: "50000000" }],
+    },
+  };
+  /**
+   * A transaction whose output holds an inline datum 0 followed, in its byte string, by tag 24
+   * nested 1 000 times around `pad` zeros: well formed, and as deep as a transaction is read
+   */
+  const nested = (pad: number) => {
+    let inner = "00".repeat(pad);
+    for (let i = 0; i < 1_000; i++) inner = `d818${cbor.bytes(inner)}`;
+    const output = cbor.map(
+      [cbor.uint(0), cbor.bytes(`60${"ab".repeat(28)}`)],
+      [cbor.uint(1), cbor.uint(3_000_000)],
+      [cbor.uint(2), cbor.arr(cbor.uint(1), `d818${cbor.bytes(`00${inner}`)}`)],
+    );
+    return cbor.arr(
+      cbor.map(
+        [
+          cbor.uint(0),
+          cbor.arr(cbor.arr(cbor.bytes(spent.input.txHash), cbor.uint(0))),
+        ],
+        [cbor.uint(1), cbor.arr(output)],
+        [cbor.uint(2), cbor.uint(1_000_000)],
+      ),
+      cbor.map(),
+      "f5",
+      "f6",
+    );
+  };
+
+  it.each([
+    [60_000, 65_000],
+    [250_000, 257_000],
+  ])(
+    "refuses one of tag 24 nested around %d zeros, about %d bytes, for its size, as fromCbor refuses it",
+    async (pad, about) => {
+      const tx = nested(pad);
+      expect(Math.abs(tx.length / 2 - about)).toBeLessThan(1_000);
+      const refused = async (read: () => unknown) => {
+        try {
+          await read();
+        } catch (error) {
+          const { code, message, details } =
+            error as TxBuildError<"INVALID_OPTION">;
+          return { code, message, details };
+        }
+        return "read";
+      };
+      const fromCbor = await refused(() =>
+        new TxBuilder({
+          network: "preprod",
+          params: { ...DEFAULT_PROTOCOL_PARAMETERS },
+        }).fromCbor(tx, { knownUtxos: [spent] }),
+      );
+      expect(fromCbor).toEqual({
+        code: "INVALID_OPTION",
+        message: `invalid tx: the transaction is more than the ${MAX_TX_BYTES} bytes of the protocol's maximum transaction size`,
+        details: {
+          option: "tx",
+          value: "string",
+          allowed: "a transaction in CBOR hex",
+        },
+      });
+      expect(await refused(() => requiredSigners(tx, [spent]))).toEqual(
+        fromCbor,
+      );
+    },
   );
 });

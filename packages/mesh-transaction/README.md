@@ -1764,9 +1764,7 @@ type, unless named otherwise:
 - nested deeper than 1 024 levels, the CBOR inside a byte string under tag 24 counted on: the value
   decoder calls itself once a level, reads that depth on a stack of about a browser's, and
   overflows it at 2 048. Data meets the next bound long before: these levels are reached by byte
-  strings under tag 24 nested in each other. `requiredSigners` refuses such a transaction the same
-  way before it decodes it (a native script of the witness set nested past 1 024 levels among
-  them), and bounds neither its size nor the work of its decoder;
+  strings under tag 24 nested in each other;
 - carrying more nested data (Plutus data, metadata, scripts) than the value decoder reads in about a
   second: its time grows with the square of the depth of data, and with the bytes of each list and
   map times the items inside it, each piece of a string written in pieces counted. One datum of
@@ -1778,7 +1776,10 @@ type, unless named otherwise:
   witness set);
 - an output, or the collateral return, that pays an address longer than 256 bytes, before any of
   it is read: a Byron address is written in base58, whose time grows with the square of its
-  length, and since Allegra the ledger takes none longer than about 110 bytes;
+  length, and since Allegra the ledger takes none longer than about 110 bytes. `requiredSigners`
+  walks a transaction within these bounds, 16 384 bytes the largest, and one larger, not
+  well-formed, not of four items, nested deeper, more work or paying a longer address is refused
+  before it is decoded as `fromCbor` refuses it;
 - a negative fee, a token quantity of zero, an out ref named twice among the inputs, collateral
   inputs or reference inputs, an output address with bytes after the address;
 - a protocol parameter change proposal, which this library does not read from CBOR (the
