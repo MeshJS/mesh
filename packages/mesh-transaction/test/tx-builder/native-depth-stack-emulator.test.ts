@@ -166,3 +166,139 @@ describe("the keys of a native reference script, read to the depth a small stack
     });
   }, 180_000);
 });
+
+/** The child: requiredSigners and fromCbor of a transaction whose witness set holds a script */
+const WITNESS_CHILD = `
+import { DEFAULT_PROTOCOL_PARAMETERS } from "@meshsdk/common";
+import { Address, Crypto, HexBlob } from "@meshsdk/core-cst";
+import * as mt from ${JSON.stringify(SRC)};
+import { countedKeys } from ${JSON.stringify(resolve(__dirname, "../../src/tx-builder/witnesses.ts"))};
+
+const KEY = "5a".repeat(28);
+const head = (major: number, n: number) => {
+  const m = major << 5;
+  if (n < 24) return (m | n).toString(16).padStart(2, "0");
+  if (n < 0x100) return (m | 24).toString(16) + n.toString(16).padStart(2, "0");
+  return (m | 25).toString(16) + n.toString(16).padStart(4, "0");
+};
+const bytes = (t: string) => head(2, t.length / 2) + t;
+const outcome = async (f: () => Promise<mt.TxSigners> | mt.TxSigners) => {
+  try {
+    const signers = await f();
+    return { listed: signers.nativeScripts.length, key: countedKeys(signers).includes(KEY) };
+  } catch (e) {
+    const { code, message, details } = e as mt.TxError;
+    return { threw: code ?? (e as Error).constructor.name, message, details };
+  }
+};
+
+(async () => {
+  const levels = Number(process.argv[2]);
+  const address = Address.fromBytes(HexBlob("60" + "ab".repeat(28))).toBech32();
+  const item = "820181".repeat(levels) + "8200581c" + KEY;
+  const policy = Crypto.blake2b.hash(HexBlob("00" + item), 28).toString();
+  const spent = {
+    input: { txHash: "ee" + "00".repeat(30) + "09", outputIndex: 0 },
+    output: { address, amount: [{ unit: "lovelace", quantity: "50000000" }] },
+  };
+  const body = [
+    "0081825820" + spent.input.txHash + "00",
+    "0181a200" + bytes("60" + "ab".repeat(28)) + "011a002dc6c0",
+    "021a000f4240",
+    "09a1581c" + policy + "a14001",
+  ];
+  const tx = "84" + head(5, body.length) + body.join("") + "a10181" + item + "f5f6";
+  const params = { ...DEFAULT_PROTOCOL_PARAMETERS };
+  const results = {
+    requiredSigners: await outcome(() => mt.requiredSigners(tx, [spent])),
+    fromCbor: await outcome(async () =>
+      (await new mt.TxBuilder({ network: "preprod", params }).fromCbor(tx, { knownUtxos: [spent] })).signers,
+    ),
+  };
+  process.stdout.write(JSON.stringify(results));
+})();
+`;
+
+describe("a native script of the witness set, read by requiredSigners to the depth fromCbor reads", () => {
+  let dir: string;
+  let bundle: string;
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), "witness-depth-"));
+    const entry = join(dir, "child.ts");
+    writeFileSync(entry, WITNESS_CHILD);
+    bundle = join(dir, "child.cjs");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const esbuild = require("esbuild") as typeof import("esbuild");
+    esbuild.buildSync({
+      entryPoints: [entry],
+      bundle: true,
+      platform: "node",
+      format: "cjs",
+      packages: "external",
+      outfile: bundle,
+      logLevel: "error",
+    });
+  });
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  /** requiredSigners and fromCbor for `all` around a key `levels` times, in a fresh process */
+  const inChild = (levels: number, stack: "default" | "small") =>
+    JSON.parse(
+      execFileSync(
+        process.execPath,
+        [
+          ...(stack === "small" ? ["--stack-size=400"] : []),
+          bundle,
+          String(levels),
+        ],
+        {
+          env: {
+            ...process.env,
+            NODE_PATH: [
+              join(PACKAGE, "node_modules"),
+              resolve(PACKAGE, "../../node_modules"),
+            ].join(":"),
+          },
+          encoding: "utf8",
+          timeout: 120_000,
+        },
+      ),
+    ) as Record<string, Record<string, unknown>>;
+
+  it.each([
+    [1_100, "default"],
+    [1_100, "small"],
+    [2_950, "default"],
+    [2_950, "small"],
+  ] as const)(
+    "refuses one of `all` around a key %d times, on the %s stack, as fromCbor refuses the transaction: the same code, details and words, never the runtime's error",
+    (levels, stack) => {
+      const { requiredSigners, fromCbor } = inChild(levels, stack);
+      expect(fromCbor).toEqual({
+        threw: "INVALID_OPTION",
+        message:
+          "invalid tx: the transaction nests its items deeper than the 1024 levels this library reads",
+        details: {
+          option: "tx",
+          value: "string",
+          allowed: "a transaction in CBOR hex",
+        },
+      });
+      expect(requiredSigners).toEqual(fromCbor);
+    },
+    180_000,
+  );
+
+  it.each(["default", "small"] as const)(
+    "lists the keys of one of `all` around a key 303 times, the deepest fromCbor reads, on the %s stack",
+    (stack) => {
+      expect(inChild(303, stack)).toEqual({
+        requiredSigners: { listed: 1, key: true },
+        fromCbor: { listed: 1, key: true },
+      });
+      // A level deeper, fromCbor refuses the work its decoder would have
+      expect(inChild(304, stack).fromCbor!.threw).toBe("INVALID_OPTION");
+    },
+    180_000,
+  );
+});

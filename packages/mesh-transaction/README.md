@@ -1764,7 +1764,9 @@ type, unless named otherwise:
 - nested deeper than 1 024 levels, the CBOR inside a byte string under tag 24 counted on: the value
   decoder calls itself once a level, reads that depth on a stack of about a browser's, and
   overflows it at 2 048. Data meets the next bound long before: these levels are reached by byte
-  strings under tag 24 nested in each other;
+  strings under tag 24 nested in each other. `requiredSigners` refuses such a transaction the same
+  way before it decodes it (a native script of the witness set nested past 1 024 levels among
+  them), and bounds neither its size nor the work of its decoder;
 - carrying more nested data (Plutus data, metadata, scripts) than the value decoder reads in about a
   second: its time grows with the square of the depth of data, and with the bytes of each list and
   map times the items inside it, each piece of a string written in pieces counted. One datum of

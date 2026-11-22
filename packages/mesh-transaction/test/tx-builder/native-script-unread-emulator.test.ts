@@ -374,7 +374,7 @@ describe("a native script whose keys this library does not read, where the signe
     );
   });
 
-  it("reads a native script of the witness set past the bound, its keys listed, as the value decoder reads it; one past the bounds of a transaction refuses the transaction", async () => {
+  it("reads a native script of the witness set past the bound, its keys listed, as the value decoder reads it; one past the depth of a transaction refuses the transaction, in requiredSigners too", async () => {
     // `all` around a key 256 times: 514 levels as `[0, script]` would count them
     const deeper = allAround(256, sig());
     expect(itemDepth(Buffer.from(`8200${deeper}`, "hex"))).toBeGreaterThan(
@@ -393,16 +393,27 @@ describe("a native script whose keys this library does not read, where the signe
       { payer: wallet, knownUtxos: [SPENT] },
     );
     expect(listed(plan.step("given").signers)).toEqual([1, true]);
-    // Past the bounds within which a transaction is read: fromCbor refuses the transaction, as
-    // a plan does; requiredSigners reads it, the script's keys listed
+    // Past the depth within which a transaction is read: fromCbor refuses the transaction, as a
+    // plan does, and requiredSigners refuses it the same way
     const past = allAround(511, sig());
     const refused = minting(hashOf(past), [SPENT], [], [past]);
     const error = await caught(
       offline().fromCbor(refused, { knownUtxos: [SPENT] }),
     );
     expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
-    expect((error as TxError).message).toMatch(/^invalid tx: /);
-    expect(listed(requiredSigners(refused, [SPENT]))).toEqual([1, true]);
+    expect((error as TxError).message).toBe(
+      "invalid tx: the transaction nests its items deeper than the 1024 levels this library reads",
+    );
+    const again = await caught(
+      Promise.resolve().then(() => requiredSigners(refused, [SPENT])),
+    );
+    expect([(again as TxError).code, (again as TxError).message]).toEqual([
+      "INVALID_OPTION",
+      (error as TxError).message,
+    ]);
+    expect((again as TxBuildError<"INVALID_OPTION">).details).toEqual(
+      (error as TxBuildError<"INVALID_OPTION">).details,
+    );
   }, 60_000);
 
   it("names the reason in the refusal of a build that names one nested past the bound as a { reference }: its UTxO, or its out ref with knownUtxos", async () => {
