@@ -6,7 +6,7 @@ import type {
   PlutusDataVariant,
   PlutusScript,
 } from "@meshsdk/common";
-import { toScriptRef } from "@meshsdk/core-cst";
+import { Script, toScriptRef } from "@meshsdk/core-cst";
 
 import type { PartContext } from "./normalize";
 import type {
@@ -24,6 +24,7 @@ import {
   isHash32,
   isHex,
   labelOf,
+  nativeScriptOf,
   parseAddress,
   partContext,
   toPlutusData,
@@ -165,12 +166,19 @@ const toScriptReference = (
   script: PlutusScript | NativeScript,
 ): string => {
   const what = "invalid reference script";
-  const normalised =
+  const plutus =
     "code" in script
       ? { ...script, code: toPlutusScriptCode(ctx, script.code, what) }
-      : script;
+      : undefined;
   try {
-    return toScriptRef(normalised).toCbor().toString();
+    // A native script written from its structure, its slots exact
+    return (
+      plutus
+        ? toScriptRef(plutus)
+        : Script.newNativeScript(nativeScriptOf(script as NativeScript).native)
+    )
+      .toCbor()
+      .toString();
   } catch (error) {
     return fail(ctx, "INVALID_SCRIPT", `${what}: ${errorText(error)}`, error);
   }

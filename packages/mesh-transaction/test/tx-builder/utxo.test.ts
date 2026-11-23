@@ -1289,7 +1289,7 @@ describe("Utxo scripts", () => {
       expect(decoded.hash).toBe(cbor.blake(`00${native}`, 28));
     }
     // Where they differ: a list of indefinite length around the script itself, which the decoder
-    // refuses; an n or a slot of more than 53 bits, which it reads through a number
+    // refuses. An n or a slot of more than 53 bits both read exactly, from the bytes
     const own = cbor.arrIndef(
       cbor.uint(1),
       cbor.arr(key(1), cbor.arrIndef(cbor.uint(5), cbor.uint(9))),
@@ -1312,12 +1312,13 @@ describe("Utxo scripts", () => {
       type: "SCRIPT_N_OF_K",
       value: { n: -(2n ** 63n) + 1n, native_scripts: [] },
     });
+    expect(entryOf(most)).toStrictEqual(keysOf(most));
     const slot = cbor.arr(cbor.uint(5), "1bffffffffffffffff");
     expect(keysOf(slot)!.script).toEqual({
       type: "TIMELOCK_EXPIRY",
       value: { slot: "18446744073709551615" },
     });
-    expect(entryOf(slot).script).not.toEqual(keysOf(slot)!.script);
+    expect(entryOf(slot)).toStrictEqual(keysOf(slot));
   });
 
   it("is unknown, as given, for an item after the language 0 that is not a native script as the ledger reads one, and refused in the builder's form: a byte string, a number, a map, null, a tag, a key hash of 27 bytes or in pieces, a list of the wrong length, a kind past 5, a slot below 0 or of more than 8 bytes, an n past 64 bits", () => {

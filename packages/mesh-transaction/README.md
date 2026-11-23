@@ -2142,6 +2142,12 @@ built.redeemers; // [{ tag: "SPEND", index, exUnits, data, label: "unlock", part
   quoting none of its bytes. Hex of an odd number of digits is refused wherever CBOR is given
   (data, a native script, a Plutus script's code, a UTxO, a transaction, a witness set), with
   the code of that place, never read with its last digit dropped.
+- The slot of a native script's time lock (`after`, `before`) is one the ledger reads, from 0 to
+  2^64 - 1, and is taken exactly, never through a JavaScript number: of a script given as CBOR its
+  bytes are kept, of one given as an object `slot` is decimal digits (or a whole number) and is
+  written in its shortest form. A negative slot, one past 2^64 - 1, or an `atLeast` whose `n` is
+  not an integer of 64 bits is `INVALID_SCRIPT` at the part call. The slots and keys read from a
+  script (`signers.nativeScripts`, the keys asked for, the `prototype` of `fromCbor`) are exact.
 - Redeemer indices are assigned once, from where each item ends up in the ledger's order: sorted
   inputs, policies, reward accounts and voters; certificates and proposals as given.
 - A redeemer's data may be a function of the final transaction:

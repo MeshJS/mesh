@@ -1,7 +1,6 @@
 import type {
   BootstrapWitnessPrototype,
   CredTypePrototype,
-  NativeScript,
   NativeScriptPrototype,
   VkeywitnessPrototype,
 } from "@meshsdk/common";
@@ -9,7 +8,7 @@ import {
   Address,
   CborWriter,
   CredentialType,
-  fromNativeScript,
+  nativeScriptPrototypeFromCardano,
   Serialization,
 } from "@meshsdk/core-cst";
 
@@ -23,7 +22,6 @@ import type {
   Utxo,
 } from "./parts/types";
 import type { AskedKey } from "./sign";
-import { nativeScriptToPrototype } from "./parts/normalize";
 import { heldNativeScript } from "./parts/utxo";
 
 /** Who has to sign a transaction: key hashes, and Byron addresses spent from */
@@ -159,11 +157,14 @@ const addNativeScriptKeys = (
   }
 };
 
-/** A native script in the form `TxSigners.nativeScripts` lists it, with its hash */
+/**
+ * A native script in the form `TxSigners.nativeScripts` lists it, with its hash; its slots and
+ * the `n` of an n-of-k script as its bytes write them
+ */
 export const nativeScriptEntry = (
   native: Serialization.NativeScript,
 ): { script: NativeScriptPrototype; hash: string } => ({
-  script: nativeScriptToPrototype(fromNativeScript(native) as NativeScript),
+  script: nativeScriptPrototypeFromCardano(native),
   hash: native.hash().toString(),
 });
 

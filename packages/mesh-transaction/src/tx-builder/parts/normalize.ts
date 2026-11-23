@@ -12,10 +12,10 @@ import {
   NativeScript as CstNativeScript,
   deserializePlutusScript,
   fromBuilderToPlutusData,
-  fromNativeScript,
   HexBlob,
+  nativeScriptPrototypeFromCardano,
+  nativeScriptPrototypeToCardano,
   normalizePlutusScript,
-  toNativeScript,
   toScriptRef,
 } from "@meshsdk/core-cst";
 
@@ -687,18 +687,21 @@ export const toNativeScriptSource = (
     );
   if (typeof script === "string" || "type" in script) {
     let nativeScript: CstNativeScript;
+    let structure: NativeScriptPrototype;
     try {
-      // Its bytes are kept as given (below): bytes after its item would reach the witness set
-      if (typeof script === "string") checkGivenCbor(script);
-      nativeScript =
-        typeof script === "string"
-          ? CstNativeScript.fromCbor(HexBlob(script))
-          : toNativeScript(script);
-      // A script of no known type converts to nothing
-      if (!nativeScript)
-        throw new Error(
-          `unknown script type ${shownValue((script as { type?: unknown }).type)}`,
-        );
+      if (typeof script === "string") {
+        // Its bytes are kept as given (below): bytes after its item would reach the witness set
+        checkGivenCbor(script);
+        nativeScript = CstNativeScript.fromCbor(HexBlob(script));
+        // Read from its bytes, its slots exact; the decoder also reads a guard, of a later era
+        structure = structureOf(nativeScript);
+        checkLedgerReads(structure);
+        // Given as CBOR its structure is not written as, the script keeps the bytes given: its
+        // hash is theirs
+        const given = nativeScript.toCbor().toString().toLowerCase();
+        if (nativeScriptPrototypeToCardano(structure).toCbor() !== given)
+          structure = { ...structure, cbor: given };
+      } else ({ structure, native: nativeScript } = nativeScriptOf(script));
     } catch (error) {
       return fail(
         ctx,
@@ -707,25 +710,10 @@ export const toNativeScriptSource = (
         error,
       );
     }
-    const structure = nativeScriptToPrototype(
-      typeof script === "string"
-        ? (fromNativeScript(nativeScript) as NativeScript)
-        : script,
-    );
-    const cbor = nativeScript.toCbor().toString();
-    const given = cbor.toLowerCase();
     return {
       type: "attached",
-      // Given as CBOR its structure is not written as, the script keeps the bytes given: its
-      // hash is theirs
-      script:
-        typeof script === "string" &&
-        toNativeScript(fromNativeScript(nativeScript) as NativeScript)
-          .toCbor()
-          .toString() !== given
-          ? { ...structure, cbor: given }
-          : structure,
-      cbor,
+      script: structure,
+      cbor: nativeScript.toCbor().toString(),
       scriptHash: nativeScript.hash().toString(),
     };
   }
@@ -762,35 +750,154 @@ export const toNativeScriptSource = (
   };
 };
 
+/** The last slot: the ledger reads a slot as an unsigned integer of 64 bits */
+const MAX_SLOT = 2n ** 64n - 1n;
+/** The largest `n` of an n-of-k script, an integer of 64 bits as the ledger reads it */
+const MAX_INT64 = 2n ** 63n - 1n;
+
+/** A whole number given in a native script: decimal digits, a safe integer or a bigint, exact */
+const wholeNumberOf = (value: unknown, what: string): bigint => {
+  if (typeof value === "string" && /^-?\d+$/.test(value)) return BigInt(value);
+  if (typeof value === "number" && Number.isSafeInteger(value))
+    return BigInt(value);
+  if (typeof value === "bigint") return value;
+  throw new Error(`${what} is not a whole number`);
+};
+
+/** The scripts of an `all`, `any` or `atLeast` script, each as a prototype */
+const scriptsOf = (scripts: unknown): NativeScriptPrototype[] => {
+  if (!Array.isArray(scripts))
+    throw new Error(
+      "the scripts of an all, any or atLeast script are not a list",
+    );
+  return scripts.map(nativeScriptToPrototype);
+};
+
+/**
+ * The structure of a native script given as an object, checked: a key hash of 28 bytes in hex, a
+ * slot and the `required` of `atLeast` whole numbers, taken exactly (a slot in decimal digits
+ * may be past 2^53), the slot written in its decimal digits
+ * @throws Error for anything else, quoting none of it
+ */
 export const nativeScriptToPrototype = (
   script: NativeScript,
 ): NativeScriptPrototype => {
+  if (!isObject(script))
+    throw new Error(`invalid native script ${shownValue(script)}`);
   switch (script.type) {
     case "sig":
+      if (
+        typeof script.keyHash !== "string" ||
+        !/^[0-9a-f]{56}$/i.test(script.keyHash)
+      )
+        throw new Error(
+          "the key hash of a sig script is not a 28-byte hash in hex",
+        );
       return { type: "SCRIPT_PUBKEY", value: { addr_keyhash: script.keyHash } };
     case "all":
       return {
         type: "SCRIPT_ALL",
-        value: { native_scripts: script.scripts.map(nativeScriptToPrototype) },
+        value: { native_scripts: scriptsOf(script.scripts) },
       };
     case "any":
       return {
         type: "SCRIPT_ANY",
-        value: { native_scripts: script.scripts.map(nativeScriptToPrototype) },
+        value: { native_scripts: scriptsOf(script.scripts) },
       };
     case "atLeast":
       return {
         type: "SCRIPT_N_OF_K",
         value: {
-          n: BigInt(script.required),
-          native_scripts: script.scripts.map(nativeScriptToPrototype),
+          n: wholeNumberOf(
+            script.required,
+            "the required count of an atLeast script",
+          ),
+          native_scripts: scriptsOf(script.scripts),
         },
       };
     case "after":
-      return { type: "TIMELOCK_START", value: { slot: script.slot } };
     case "before":
-      return { type: "TIMELOCK_EXPIRY", value: { slot: script.slot } };
+      return {
+        type: script.type === "after" ? "TIMELOCK_START" : "TIMELOCK_EXPIRY",
+        value: {
+          slot: wholeNumberOf(
+            script.slot,
+            "the slot of a time lock",
+          ).toString(),
+        },
+      };
+    default:
+      throw new Error(
+        `unknown script type ${shownValue((script as { type?: unknown }).type)}`,
+      );
   }
+};
+
+/**
+ * The structure of a native script the decoder read, its slots and `n` as its bytes write them
+ * @throws Error for a script that holds a kind the ledger of this era does not read, quoting none
+ *   of it
+ */
+const structureOf = (script: CstNativeScript): NativeScriptPrototype => {
+  try {
+    return nativeScriptPrototypeFromCardano(script);
+  } catch {
+    throw new Error(
+      "it holds a kind of native script the ledger does not read in this era",
+    );
+  }
+};
+
+/**
+ * Checks that the ledger reads a native script's structure: each slot from 0 to 2^64 - 1, an
+ * unsigned integer of 64 bits, and the `n` of each n-of-k script an integer of 64 bits. A node
+ * does not decode a transaction that holds any other
+ * @throws Error for one it does not read, quoting none of it
+ */
+const checkLedgerReads = (script: NativeScriptPrototype): void => {
+  switch (script.type) {
+    case "TIMELOCK_START":
+    case "TIMELOCK_EXPIRY": {
+      const slot = BigInt(script.value.slot);
+      if (slot < 0n)
+        throw new Error(
+          "the slot of a time lock is negative: the ledger reads a slot from 0 to 2^64 - 1",
+        );
+      if (slot > MAX_SLOT)
+        throw new Error(
+          "the slot of a time lock is past 2^64 - 1, the last slot the ledger reads",
+        );
+      return;
+    }
+    case "SCRIPT_N_OF_K": {
+      const n = BigInt(script.value.n);
+      if (n > MAX_INT64 || n < -1n - MAX_INT64)
+        throw new Error(
+          "the n of an atLeast script is not an integer of 64 bits, as the ledger reads it",
+        );
+      script.value.native_scripts.forEach(checkLedgerReads);
+      return;
+    }
+    case "SCRIPT_ALL":
+    case "SCRIPT_ANY":
+      script.value.native_scripts.forEach(checkLedgerReads);
+      return;
+    default:
+      return;
+  }
+};
+
+/**
+ * A native script given as an object: its structure (`nativeScriptToPrototype`), checked as the
+ * ledger reads it, and the script written from that structure, its slots exact
+ * @throws Error for one that is not a script the ledger reads, quoting none of it
+ */
+export const nativeScriptOf = (
+  script: NativeScript,
+): { structure: NativeScriptPrototype; native: CstNativeScript } => {
+  const structure = nativeScriptToPrototype(script);
+  checkLedgerReads(structure);
+  return { structure, native: nativeScriptPrototypeToCardano(structure) };
 };
 
 /**
