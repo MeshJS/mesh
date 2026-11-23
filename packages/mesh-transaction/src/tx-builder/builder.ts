@@ -170,6 +170,7 @@ import {
   refScriptsBeyond,
   refScriptsRefused,
   spentAndRead,
+  unreadTx,
   verifies,
   withoutKeyWitnesses,
 } from "./sign";
@@ -2204,11 +2205,8 @@ export class TxBuilder {
     try {
       ({ prototype, outputs, collateralReturn } = readTxValue(raw));
     } catch (error) {
-      throw refusedTx(
-        txCbor,
-        `invalid tx: the transaction holds what this library does not read: ${errorText(error)}`,
-        error,
-      );
+      // In the words `requiredSigners` refuses it in; `txCbor` is a text here
+      throw unreadTx(error);
     }
     const { body } = prototype;
     // Read from the decoded body: the prototype holds every id but 1 as the same value

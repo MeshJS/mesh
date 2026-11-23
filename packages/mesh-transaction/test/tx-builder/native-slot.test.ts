@@ -21,6 +21,7 @@ import {
   requiredSigners,
   spend,
   TxBuilder,
+  TxBuildError,
   TxError,
   TxHashRequest,
   Utxo,
@@ -396,5 +397,57 @@ describe("A native script of a kind the ledger does not read in this era", () =>
           "invalid native script: it holds a kind of native script the ledger does not read in this era",
         );
       }
+  });
+
+  it("in a transaction's witness set, alone and nested in all, is refused by requiredSigners as fromCbor refuses it, before spent is read", async () => {
+    const guard = `8206${sig}`;
+    const refusal = async (run: () => unknown) => {
+      try {
+        await run();
+      } catch (error) {
+        return error as TxBuildError;
+      }
+      throw new Error("expected a refusal");
+    };
+    for (const script of [sig, `820181${sig}`]) {
+      const built = await builder.build(
+        [mint.native({ script, assets: { "41": 1n } })],
+        { payer: { changeAddress: payerAddress, utxos: [funds] } },
+      );
+      // The key of the witness set's script in a guard; the body is the same
+      const at = built.tx.lastIndexOf(sig);
+      const tx = `${built.tx.slice(0, at)}${guard}${built.tx.slice(at + sig.length)}`;
+      expect(
+        Transaction.fromCbor(TxCBOR(tx)).witnessSet().nativeScripts()?.values()
+          .length,
+      ).toBe(1);
+      const read = await refusal(() =>
+        builder.fromCbor(tx, { knownUtxos: [funds] }),
+      );
+      expect(TxError.is(read, "INVALID_OPTION")).toBe(true);
+      expect(read.message).toBe(
+        "invalid tx: the transaction holds what this library does not read: Unsupported native script kind: 6",
+      );
+      expect(read.details).toEqual({
+        option: "tx",
+        value: "string",
+        allowed: "a transaction in CBOR hex",
+      });
+      // The UTxOs given, none, and a spent that is no list
+      for (const spent of [[funds], [], "spent"]) {
+        const error = await refusal(() => requiredSigners(tx, spent as Utxo[]));
+        expect([script, spent, TxError.is(error, "INVALID_OPTION")]).toEqual([
+          script,
+          spent,
+          true,
+        ]);
+        expect([script, spent, error.message, error.details]).toEqual([
+          script,
+          spent,
+          read.message,
+          read.details,
+        ]);
+      }
+    }
   });
 });

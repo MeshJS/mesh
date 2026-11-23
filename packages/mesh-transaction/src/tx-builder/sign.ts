@@ -487,6 +487,24 @@ const invalidTx = (tx: unknown, cause?: unknown) =>
     },
   );
 
+/**
+ * The refusal of a transaction that holds what the value decoder reads and this library does not,
+ * as `fromCbor` refuses it: a native script of a kind of an era after Conway among them
+ */
+export const unreadTx = (cause: unknown) =>
+  new TxBuildError(
+    "INVALID_OPTION",
+    `invalid tx: the transaction holds what this library does not read: ${errorText(cause)}`,
+    {
+      details: {
+        option: "tx",
+        value: "string",
+        allowed: "a transaction in CBOR hex",
+      },
+      cause,
+    },
+  );
+
 /** The refusal of a transaction the walk refuses, in its words, as `fromCbor` refuses it */
 const scanRefused = (error: TxScanError) =>
   new TxBuildError("INVALID_OPTION", `invalid tx: ${error.message}`, {
@@ -1653,11 +1671,13 @@ const maxTxSizeOf = (options: unknown): number => {
  *   does not read, for one larger than `maxTxSize`, else `MAX_TX_BYTES`, not well-formed CBOR,
  *   not an array of four items, nested deeper than `MAX_TX_DEPTH`, more work for the value
  *   decoder than `MAX_TX_WORK` or paying an address longer than `MAX_ADDRESS_BYTES`,
- *   refused before it is decoded as `fromCbor` refuses it, for one whose spent and reference
- *   inputs hold more than `MAX_REF_SCRIPT_BYTES` of reference scripts in the UTxOs of `spent`,
- *   counted before they are read whole, and for a `spent` that is not a list or holds an entry
- *   that is not a UTxO (an address that does not parse among them), or two entries that name one
- *   output and differ;
+ *   refused before it is decoded as `fromCbor` refuses it, for one whose witness set holds a
+ *   native script of a kind this library does not read, alone or nested (the guard, kind 6, of
+ *   an era after Conway), before `spent` is read, in the words of `fromCbor`, for one whose spent
+ *   and reference inputs hold more than `MAX_REF_SCRIPT_BYTES` of reference scripts in the UTxOs
+ *   of `spent`, counted before they are read whole, and for a `spent` that is not a list or
+ *   holds an entry that is not a UTxO (an address that does not parse among them), or two
+ *   entries that name one output and differ;
  *   NATIVE_SCRIPT_UNREAD `{ scriptHash, outRef, reason }` for a transaction that runs a native
  *   script, held by a UTxO of `spent` it spends or reads, whose keys this library does not read:
  *   nested deeper than `MAX_NATIVE_DEPTH` (`"depth"`), longer than `MAX_TX_BYTES` (`"size"`), or
@@ -1676,6 +1696,8 @@ export function requiredSigners(
   // Walked as fromCbor walks it, before the value decoder and the read of the keys of a native
   // script call themselves: past its depth, a stack of a browser's size overflows
   const raw = readTransaction(tx, maxTxSize);
+  // Read before `spent`, as fromCbor reads them before the UTxOs
+  const natives = witnessNativeScripts(raw);
   if (!Array.isArray(spent))
     throw new TxBuildError(
       "INVALID_OPTION",
@@ -1729,8 +1751,27 @@ export function requiredSigners(
       },
     );
   }
-  return signersOf(bodySigners(raw, utxos).collected);
+  return signersOf(bodySigners(raw, utxos, bodyToSign(raw), natives).collected);
 }
+
+/** A native script as `TxSigners.nativeScripts` lists it, with its hash */
+type NativeEntry = ReturnType<typeof nativeScriptEntry>;
+
+/**
+ * The native scripts of a transaction's witness set, each as `TxSigners.nativeScripts` lists it
+ * @throws TxBuildError INVALID_OPTION, as `fromCbor` refuses it, for one of a kind this library
+ *   does not read, alone or nested: the guard (kind 6) of an era after Conway, which the value
+ *   decoder reads
+ */
+const witnessNativeScripts = (raw: RawTx): NativeEntry[] => {
+  try {
+    return (raw.witnesses.nativeScripts()?.values() ?? []).map(
+      nativeScriptEntry,
+    );
+  } catch (error) {
+    throw unreadTx(error);
+  }
+};
 
 /**
  * The body of a transaction as a value, without its proposals, its outputs and its collateral
@@ -1759,17 +1800,22 @@ const bodyToSign = (raw: RawTx): TransactionPrototype["body"] => {
  * policies, the script credentials of its withdrawals, certificates and voters, and the policy
  * hashes of its proposals
  * @param body The body as a value, when the caller has read it already; else it is read here
+ * @param natives The native scripts of its witness set, when the caller has read them already;
+ *   else they are read here
  * @throws TxBuildError UTXO_NOT_FOUND for an input or collateral input whose UTxO is not in
- *   `spent`; INVALID_OPTION for a body that cannot be read; NATIVE_SCRIPT_UNREAD for a native
- *   script the transaction runs, held by a UTxO of `spent` it spends or reads, whose keys are
- *   not read, unless it holds the same script where they are, and (`"form"`) for a script it runs
- *   that is found nowhere this library reads, while such a UTxO holds a reference script left
- *   `unknown`, one this library does not read: it may be that script
+ *   `spent`; INVALID_OPTION for a body that cannot be read, and for a native script of its
+ *   witness set of a kind this library does not read, as `fromCbor` refuses it;
+ *   NATIVE_SCRIPT_UNREAD for a native script the transaction runs, held by a UTxO of `spent` it
+ *   spends or reads, whose keys are not read, unless it holds the same script where they are,
+ *   and (`"form"`) for a script it runs that is found nowhere this library reads, while such a
+ *   UTxO holds a reference script left `unknown`, one this library does not read: it may be that
+ *   script
  */
 export const bodySigners = (
   raw: RawTx,
   spent: readonly Utxo[],
   body: TransactionPrototype["body"] = bodyToSign(raw),
+  natives: readonly NativeEntry[] = witnessNativeScripts(raw),
 ): { collected: Collected; scripts: Set<string> } => {
   const proposals = raw.body.proposalProcedures()?.values() ?? [];
   const given = new Map<string, Utxo>();
@@ -1848,8 +1894,7 @@ export const bodySigners = (
 
   // Native scripts the witness set holds, then those held by given UTxOs the transaction reads:
   // the keys of one are read only where the transaction runs it, known by its hash
-  for (const native of raw.witnesses.nativeScripts()?.values() ?? [])
-    addNativeScript(collected, nativeScriptEntry(native));
+  for (const native of natives) addNativeScript(collected, native);
   // A native script it runs whose keys are not read, in the order of its inputs, and the UTxOs
   // that hold a reference script left `unknown`
   const unread: { utxo: Utxo; hash: string; reason: NativeScriptUnread }[] = [];

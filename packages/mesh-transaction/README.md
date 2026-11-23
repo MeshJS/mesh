@@ -1826,6 +1826,9 @@ type, unless named otherwise:
   transaction itself may be valid);
 - required signers written as credentials, the guards of an era after Conway, which the value
   decoder reads into no signer (`requiredSigners` refuses them too);
+- a native script in its witness set that holds the guard of an era after Conway
+  (`[6, credential]`), alone or nested, which the value decoder reads (`requiredSigners` refuses it
+  too, in the same words and `details`, before it reads `spent`);
 - a key the Conway ledger does not read, of the body (0 to 22 but 6, 10 and 12), of an output or the
   collateral return (0 to 3) or of the witness set (0 to 7), before any of it is decoded, with a
   message that quotes none of the bytes: the fields of a later era (sub-transactions with their
