@@ -57,6 +57,9 @@ export { textShape } from "./shape";
 /** Hex of whole bytes, one or more */
 const HEX_BYTES = /^(?:[0-9a-f]{2})+$/i;
 
+/** Hex of an odd number of digits: read as bytes, its last digit would be dropped */
+const ODD_HEX = /^[0-9a-f](?:[0-9a-f]{2})*$/i;
+
 /** Reports problems found while building one part */
 export type PartContext = {
   readonly part: TxPart["kind"];
@@ -333,9 +336,24 @@ const checkOneItem = (content: string) => {
 };
 
 /**
+ * Plutus data or a native script given as CBOR in hex: hex of an odd number of digits is refused,
+ * never read with its last digit dropped, and hex of whole bytes is one item (`checkOneItem`);
+ * any other text is left to the decoder, which refuses it
+ * @throws Error for hex of an odd number of digits, or bytes that are not one item, quoting none
+ *   of it
+ */
+const checkGivenCbor = (content: string) => {
+  if (ODD_HEX.test(content))
+    throw new Error(
+      "the CBOR given is not hex of whole bytes: it has an odd number of digits",
+    );
+  if (HEX_BYTES.test(content)) checkOneItem(content);
+};
+
+/**
  * Plutus data in its CBOR form, with its hash; throws the converter's own error for anything
  * that is not Plutus data. Plutus data given as CBOR is kept byte for byte, and is one
- * well-formed item with nothing after it (`checkOneItem`)
+ * well-formed item with nothing after it, in hex of whole bytes (`checkGivenCbor`)
  */
 export const encodePlutusData = (
   data: PlutusDataInput,
@@ -343,10 +361,9 @@ export const encodePlutusData = (
   if (
     isBuilderData(data) &&
     data.type === "CBOR" &&
-    typeof data.content === "string" &&
-    HEX_BYTES.test(data.content)
+    typeof data.content === "string"
   )
-    checkOneItem(data.content);
+    checkGivenCbor(data.content);
   const plutusData = fromBuilderToPlutusData(
     isBuilderData(data) ? data : { type: "Mesh", content: data },
   );
@@ -672,8 +689,7 @@ export const toNativeScriptSource = (
     let nativeScript: CstNativeScript;
     try {
       // Its bytes are kept as given (below): bytes after its item would reach the witness set
-      if (typeof script === "string" && HEX_BYTES.test(script))
-        checkOneItem(script);
+      if (typeof script === "string") checkGivenCbor(script);
       nativeScript =
         typeof script === "string"
           ? CstNativeScript.fromCbor(HexBlob(script))

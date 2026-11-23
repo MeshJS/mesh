@@ -2139,7 +2139,9 @@ built.redeemers; // [{ tag: "SPEND", index, exUnits, data, label: "unlock", part
   function, `INVALID_REDEEMER` at the build), the message quoting none of its bytes. A native
   script given as its CBOR is written in those bytes too, and its hash is theirs; it must be one
   well-formed item with nothing after it, else `INVALID_SCRIPT` at the part call, the message
-  quoting none of its bytes.
+  quoting none of its bytes. Hex of an odd number of digits is refused wherever CBOR is given
+  (data, a native script, a Plutus script's code, a UTxO, a transaction, a witness set), with
+  the code of that place, never read with its last digit dropped.
 - Redeemer indices are assigned once, from where each item ends up in the ledger's order: sorted
   inputs, policies, reward accounts and voters; certificates and proposals as given.
 - A redeemer's data may be a function of the final transaction:
