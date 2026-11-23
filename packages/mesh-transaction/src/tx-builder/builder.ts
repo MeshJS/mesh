@@ -3,6 +3,7 @@ import type {
   ExUnitsPrototype,
   IEvaluator,
   IFetcher,
+  IGovernanceFetcher,
   IMeshTxSerializer,
   ISubmitter,
   NativeScript,
@@ -102,6 +103,7 @@ import {
   toKnownUtxos,
 } from "./chain";
 import { TxBuildError, TxPlanError } from "./errors";
+import { withDefaultGuardrails } from "./guardrails";
 import {
   checkProtocol,
   coversMinCoin,
@@ -149,6 +151,7 @@ import {
   toPayerSource,
 } from "./payer";
 import { checkPlanDefaults } from "./plan/deadlines";
+import { unwrapProvider } from "./plan/observer";
 import { planFor, resumePlan, standingSteps, TxPlan } from "./plan/plan";
 import {
   fetchTxAnswer,
@@ -186,7 +189,8 @@ import { countedKeys, signersOf, txSigners } from "./witnesses";
  * What the builder reads the chain through: every read, the tip and the search; submits when it
  * can
  */
-export type Provider = IFetcher & Partial<ISubmitter>;
+export type Provider = IFetcher &
+  Partial<ISubmitter & Pick<IGovernanceFetcher, "fetchConstitution">>;
 
 /**
  * Everything a build reads from the chain, as plain JSON-safe data. `builder.chain()` returns
@@ -2690,9 +2694,15 @@ export class TxBuilder {
       handed.add(key);
       if (!known.has(key)) known.set(key, utxo);
     }
-    const plutus = timed.some(runsPlutus);
+    const governanceProvider =
+      this.provider && (unwrapProvider(this.provider) as Provider);
+    const prepared = await abortable(
+      withDefaultGuardrails(timed, this.network, governanceProvider),
+      signal,
+    );
+    const plutus = prepared.some(runsPlutus);
 
-    // Every read starts at once, and none waits for another
+    // The remaining reads start together.
     const paramsRead = this.loadParams();
     let fetched: string[] = [];
     const [params, costModels, payerRead, resolved] = await abortable(
@@ -2702,7 +2712,7 @@ export class TxBuilder {
           ? this.loadCostModels().then((models) => models ?? [])
           : Promise.resolve([]),
         this.readSource(source, signal),
-        resolveParts(timed, {
+        resolveParts(prepared, {
           network: this.network,
           ...(this.cache && { provider: this.cache }),
           params: paramsRead,
