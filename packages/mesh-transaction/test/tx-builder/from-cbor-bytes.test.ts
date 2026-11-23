@@ -553,11 +553,39 @@ describe("TxBuilder.fromCbor › the size and the depth it reads", () => {
   it("walks 1024 levels, the CBOR inside byte strings counted on, and refuses 1025 at once", async () => {
     expect(scanTransaction(encodedInside(1019))).toBeLessThan(100_000_000);
     const given = encodedInside(1020);
-    const started = performance.now();
-    const error = await caught(() =>
-      offline().fromCbor(given, { knownUtxos: knownUtxos() }),
-    );
-    expect(performance.now() - started).toBeLessThan(200);
+    // The refusal comes before any value decoder reads the bytes: none is called
+    const decoders = [
+      jest.spyOn(Serialization.TransactionBody, "fromCbor"),
+      jest.spyOn(Serialization.TransactionOutput, "fromCbor"),
+      jest.spyOn(Serialization.PlutusData, "fromCbor"),
+    ];
+    /** The least time of three runs: a run slowed by other work on the machine counts least */
+    const least = async (run: () => unknown) => {
+      let best = Infinity;
+      for (let i = 0; i < 3; i++) {
+        const started = performance.now();
+        await run();
+        best = Math.min(best, performance.now() - started);
+      }
+      return best;
+    };
+    let error: unknown;
+    const refusal = await least(async () => {
+      error = await caught(() =>
+        offline().fromCbor(given, { knownUtxos: knownUtxos() }),
+      );
+    });
+    // Timed against the walk of 1019 levels in the same test, which the machine slows alike: the
+    // refusal is one walk of the bytes, and the value decoder would take a second or more
+    const walk = await least(() => scanTransaction(encodedInside(1019)));
+    try {
+      expect(decoders.map((decoder) => decoder.mock.calls.length)).toEqual([
+        0, 0, 0,
+      ]);
+    } finally {
+      decoders.forEach((decoder) => decoder.mockRestore());
+    }
+    expect(refusal).toBeLessThan(4 * walk);
     expectRefused(
       error,
       given,
