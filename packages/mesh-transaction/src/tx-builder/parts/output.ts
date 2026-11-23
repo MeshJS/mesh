@@ -23,6 +23,7 @@ import {
   isHash28,
   isHash32,
   isHex,
+  isObject,
   labelOf,
   nativeScriptOf,
   parseAddress,
@@ -161,11 +162,22 @@ const toDatum = (
   };
 };
 
+/**
+ * The bytes of a reference script given as a `PlutusScript` or a `NativeScript`; a text, its
+ * CBOR among them, or any other value that is not an object is refused, its JavaScript type alone
+ * named
+ */
 const toScriptReference = (
   ctx: PartContext,
   script: PlutusScript | NativeScript,
 ): string => {
   const what = "invalid reference script";
+  if (!isObject(script))
+    fail(
+      ctx,
+      "INVALID_SCRIPT",
+      `${what}: expected a PlutusScript { code, version } or a NativeScript object, not the CBOR of a script; got a value of type ${script === null ? "null" : typeof script}`,
+    );
   const plutus =
     "code" in script
       ? { ...script, code: toPlutusScriptCode(ctx, script.code, what) }
@@ -197,7 +209,8 @@ export interface OutputParams extends PartParams {
   datum?: OutputDatumInput;
   /**
    * A Plutus or native script made available as a reference script; a Plutus script's code
-   * flat or in one or two CBOR wrappings
+   * flat or in one or two CBOR wrappings. An object: the CBOR of a script given as a text, or
+   * any other value, is INVALID_SCRIPT
    */
   scriptRef?: PlutusScript | NativeScript;
   /**
@@ -224,7 +237,8 @@ export const output = (params: OutputParams): OutputPart => {
       address: addressText(address),
       amount: toValue(ctx, params.value),
       ...(datum && { plutus_data: datum.plutus_data }),
-      ...(params.scriptRef && {
+      // Left out only when it is not given: an empty text, 0, false or null is refused
+      ...(params.scriptRef !== undefined && {
         script_ref: toScriptReference(ctx, params.scriptRef),
       }),
     },

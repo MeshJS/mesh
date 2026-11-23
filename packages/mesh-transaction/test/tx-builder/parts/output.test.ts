@@ -286,4 +286,47 @@ describe("output", () => {
       "INVALID_SCRIPT",
     );
   });
+
+  it("refuses a scriptRef that is not a script object, its CBOR among them, naming its JavaScript type alone", () => {
+    const plutus = resolveScriptRef({ code: alwaysSucceedCbor, version: "V3" });
+    const native = resolveScriptRef({ type: "all", scripts: [] });
+    const symbol = Symbol("script");
+    const cases: [unknown, string][] = [
+      [plutus, "string"],
+      [plutus.toUpperCase(), "string"],
+      [native, "string"],
+      [alwaysSucceedCbor, "string"],
+      ["", "string"],
+      [5, "number"],
+      [0, "number"],
+      [12345678901n, "bigint"],
+      [true, "boolean"],
+      [false, "boolean"],
+      [null, "null"],
+      [symbol, "symbol"],
+      [() => native, "function"],
+    ];
+    for (const [scriptRef, type] of cases) {
+      let error: unknown;
+      try {
+        output({ address, value: [], scriptRef: scriptRef as never });
+      } catch (e) {
+        error = e;
+      }
+      expect([type, error]).toEqual([type, expect.any(TxPartError)]);
+      expect([type, (error as TxPartError).code]).toEqual([
+        type,
+        "INVALID_SCRIPT",
+      ]);
+      const message = (error as TxPartError).message;
+      expect([type, message]).toEqual([
+        type,
+        `output: invalid reference script: expected a PlutusScript { code, version } or a NativeScript object, not the CBOR of a script; got a value of type ${type}`,
+      ]);
+    }
+    // Left out only when not given
+    expect(
+      output({ address, value: [], scriptRef: undefined }).output,
+    ).not.toHaveProperty("script_ref");
+  });
 });
