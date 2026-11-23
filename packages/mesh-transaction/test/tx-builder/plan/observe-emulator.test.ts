@@ -16,6 +16,7 @@ import {
   setup,
   submitterOf,
   swallowing,
+  VALIDATORS,
   walletOf,
   wrap,
 } from "./plan-emulator-util";
@@ -74,9 +75,9 @@ const findWithoutValidity = async (
 const unlock = (utxo: Parameters<typeof spend.plutus>[0]["utxo"]) =>
   spend.plutus({ utxo, script: plutus, redeemer: { data: mConStr0([]) } });
 
-describe("TxPlan observation on TxEmulator", () => {
+describe.each(VALIDATORS)("TxPlan observation on TxEmulator (%s)", (v) => {
   it("is final only once the step's block is confirmations deep", async () => {
-    const { emulator, builder, wallet } = await setup({
+    const { emulator, builder, wallet } = await setup(v, {
       builder: {
         planDefaults: { confirmations: 30, expiryMarginMs: 0, pollMs: 10 },
       },
@@ -97,7 +98,7 @@ describe("TxPlan observation on TxEmulator", () => {
   });
 
   it("declares no final while the tip's height stands still", async () => {
-    const { emulator, builder, wallet, provider } = await setup({
+    const { emulator, builder, wallet, provider } = await setup(v, {
       builder: {
         planDefaults: { confirmations: 3, expiryMarginMs: 0, pollMs: 10 },
       },
@@ -116,7 +117,7 @@ describe("TxPlan observation on TxEmulator", () => {
 
   it("declares no final when the heights do not agree with the slots", async () => {
     for (const confirmations of [0, 3]) {
-      const { emulator, builder, wallet } = await setup({
+      const { emulator, builder, wallet } = await setup(v, {
         hooks: {
           fetchLatestBlock: async (forward) => {
             const tip = await forward();
@@ -136,7 +137,7 @@ describe("TxPlan observation on TxEmulator", () => {
   });
 
   it("is CANNOT_OBSERVE (noDepth) from builder.plan on a provider whose finds have no block height", async () => {
-    const { builder, wallet, provider } = await setup({
+    const { builder, wallet, provider } = await setup(v, {
       hooks: { fetchTxInfo: findWithoutHeight },
     });
     const error = await caught(builder.plan(pay(), { payer: wallet }));
@@ -148,7 +149,7 @@ describe("TxPlan observation on TxEmulator", () => {
 
   it("is CANNOT_OBSERVE (noDepth) from run() for a step found without heights; refresh() shows it", async () => {
     for (const drop of ["tip", "find"] as const) {
-      const { builder, wallet, provider } = await setup({
+      const { builder, wallet, provider } = await setup(v, {
         builder: {
           planDefaults: { confirmations: 3, expiryMarginMs: 0, pollMs: 10 },
         },
@@ -170,7 +171,7 @@ describe("TxPlan observation on TxEmulator", () => {
   });
 
   it("probes before the first delivery of a plan it did not make", async () => {
-    const emulator = await emulatorOf();
+    const emulator = await emulatorOf(v);
     const wallet = await walletOf();
     emulator.fund((await wallet.getChangeAddress())!, {
       lovelace: 100_000_000n,
@@ -192,7 +193,7 @@ describe("TxPlan observation on TxEmulator", () => {
   it("makes the plan when the probe gets no answer, and probes again before the first delivery", async () => {
     let failures = 1;
     const searched: string[] = [];
-    const { builder, wallet, provider } = await setup({
+    const { builder, wallet, provider } = await setup(v, {
       hooks: {
         fetchTxInfo: async (forward, hash: string) => {
           searched.push(hash);
@@ -214,7 +215,9 @@ describe("TxPlan observation on TxEmulator", () => {
   it("is CANNOT_OBSERVE (noValidity) for a Plutus step the provider cannot judge", async () => {
     // When the plan is made: nothing is built into a plan, and a plan without a Plutus step is
     // not concerned
-    const first = await setup({ hooks: { fetchTxInfo: findWithoutValidity } });
+    const first = await setup(v, {
+      hooks: { fetchTxInfo: findWithoutValidity },
+    });
     const locked = first.emulator.fund(first.builder.scriptAddress(plutus), {
       lovelace: 10_000_000n,
     });
@@ -228,7 +231,7 @@ describe("TxPlan observation on TxEmulator", () => {
     await first.builder.plan(pay(), { payer: first.wallet });
 
     // After the plan was sent: run() throws, refresh() keeps the status it had
-    const later = await setup();
+    const later = await setup(v);
     const lockedLater = later.emulator.fund(
       later.builder.scriptAddress(plutus),
       { lovelace: 10_000_000n },
@@ -250,7 +253,7 @@ describe("TxPlan observation on TxEmulator", () => {
   });
 
   it("is CANNOT_OBSERVE (noValidity) from the wait of run() once the provider stops giving the validity", async () => {
-    const { emulator, builder, wallet, provider } = await setup();
+    const { emulator, builder, wallet, provider } = await setup(v);
     const locked = emulator.fund(builder.scriptAddress(plutus), {
       lovelace: 10_000_000n,
     });
@@ -270,7 +273,9 @@ describe("TxPlan observation on TxEmulator", () => {
   });
 
   it("is expired past the margin only when the search answers that it is not found and finds a source of it", async () => {
-    const { emulator, builder, wallet, provider } = await setup({ slot: PAST });
+    const { emulator, builder, wallet, provider } = await setup(v, {
+      slot: PAST,
+    });
     const plan = await builder.plan(pay(), { payer: wallet });
     await plan.run({ submitter: swallowing(), waitFor: "sent" });
     const { txHash, inputs } = plan.step("main");
@@ -297,7 +302,9 @@ describe("TxPlan observation on TxEmulator", () => {
   });
 
   it("never expires a step the search found without a slot", async () => {
-    const { emulator, builder, wallet, provider } = await setup({ slot: PAST });
+    const { emulator, builder, wallet, provider } = await setup(v, {
+      slot: PAST,
+    });
     const locked = emulator.fund(builder.scriptAddress(plutus), {
       lovelace: 10_000_000n,
     });
@@ -341,7 +348,9 @@ describe("TxPlan observation on TxEmulator", () => {
   });
 
   it("reads no address in a look", async () => {
-    const { emulator, builder, wallet, provider } = await setup({ slot: PAST });
+    const { emulator, builder, wallet, provider } = await setup(v, {
+      slot: PAST,
+    });
     const plan = await builder.plan(pay(), { payer: wallet });
     await plan.run({ submitter: swallowing(), waitFor: "sent" });
     emulator.advanceTo({ time: plan.until! + 1_000 });
@@ -356,7 +365,7 @@ describe("TxPlan observation on TxEmulator", () => {
   it("moves final by confirmations only, and expired by the margin only", async () => {
     const finalAt: number[] = [];
     for (const expiryMarginMs of [0, 600_000]) {
-      const { emulator, builder, wallet } = await setup({
+      const { emulator, builder, wallet } = await setup(v, {
         builder: {
           planDefaults: { confirmations: 3, expiryMarginMs, pollMs: 10 },
         },
@@ -374,7 +383,7 @@ describe("TxPlan observation on TxEmulator", () => {
 
     const expiredAt: number[] = [];
     for (const confirmations of [0, 30]) {
-      const { emulator, builder, wallet } = await setup({
+      const { emulator, builder, wallet } = await setup(v, {
         slot: PAST,
         builder: {
           planDefaults: { confirmations, expiryMarginMs: 5_000, pollMs: 10 },
@@ -397,7 +406,7 @@ describe("TxPlan observation on TxEmulator", () => {
   });
 
   it("makes no request on a final plan", async () => {
-    const { builder, wallet, provider } = await setup();
+    const { builder, wallet, provider } = await setup(v);
     const reads = () =>
       provider.control.count(
         "fetchLatestBlock",
@@ -424,7 +433,7 @@ describe("TxPlan observation on TxEmulator", () => {
 
   it("waits 120 s by default, and confirmations × 30 s + 120 s for final", async () => {
     // The builder's confirmations differ from each plan's: the plan's recorded value counts
-    const { builder, wallet } = await setup({
+    const { builder, wallet } = await setup(v, {
       builder: { planDefaults: { confirmations: 10, expiryMarginMs: 0 } },
     });
     const plan = await builder.plan(pay(), {
@@ -468,7 +477,7 @@ describe("TxPlan observation on TxEmulator", () => {
   });
 
   it("keeps the deadlines it was made with when its builder's defaults change", async () => {
-    const { emulator, builder, wallet } = await setup({
+    const { emulator, builder, wallet } = await setup(v, {
       slot: PAST,
       builder: { planDefaults: { ...FAST, ttlMs: 120_000 } },
     });

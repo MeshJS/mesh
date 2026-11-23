@@ -8,7 +8,7 @@ import type {
   TxPlan,
   TxPlanStore,
 } from "../../../src/tx-builder";
-import type { Hooks } from "./plan-emulator-util";
+import type { Hooks, Validator } from "./plan-emulator-util";
 import { memoryPlanStore, TxError } from "../../../src/tx-builder";
 import {
   builderOf,
@@ -252,16 +252,17 @@ export class World {
   }
 
   /**
-   * A world with a funded payer and a second key holder; with `confirmations`, every process's
-   * builder has that depth of final
+   * A world on an emulator of this validator, with a funded payer and a second key holder; with
+   * `confirmations`, every process's builder has that depth of final
    */
   static async create(
+    validator: Validator,
     funds: bigint[] = [100_000_000n, 20_000_000n],
     confirmations?: number,
   ) {
     // A slot whose time is behind the clock: a step expires only when the tip and the clock
     // have both passed its deadline, and the tip is not far ahead of the clock
-    const emulator = await emulatorOf(100_000_000);
+    const emulator = await emulatorOf(validator, 100_000_000);
     const wallet = await walletOf(0);
     const other = await walletOf(1);
     const address = (await wallet.getChangeAddress())!;

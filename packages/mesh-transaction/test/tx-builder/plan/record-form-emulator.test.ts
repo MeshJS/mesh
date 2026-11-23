@@ -10,6 +10,7 @@ import type {
   TxPlanJSON,
   TxStep,
 } from "../../../src/tx-builder";
+import type { Validator } from "./plan-emulator-util";
 import {
   certificate,
   mint,
@@ -22,7 +23,7 @@ import {
 import { encodeBuilt, readPlan } from "../../../src/tx-builder/plan/json";
 import { alwaysSucceedCbor, alwaysSucceedHash } from "../../test-util";
 import { coins, fragmented, pay } from "./consolidate-util";
-import { builderOf, walletOf, wrap } from "./plan-emulator-util";
+import { builderOf, VALIDATORS, walletOf, wrap } from "./plan-emulator-util";
 import { ADA, alice, bob, carol, dave, payTo, stepSetup } from "./run-util";
 import { watchStore } from "./store-util";
 
@@ -134,8 +135,8 @@ const notRead = (json: unknown): TxPlanError => {
  * An emulator with the wallet funded, a UTxO to read at alice's, and a partner wallet with a
  * builder of its own, funded twice, whose two payments to the wallet are steps given built
  */
-const setup = async () => {
-  const ctx = await stepSetup("scalus", {
+const setup = async (v: Validator) => {
+  const ctx = await stepSetup(v, {
     funds: [1000n * ADA, 300n * ADA],
   });
   const read = ctx.emulator.fund(alice, { lovelace: 5n * ADA });
@@ -226,11 +227,11 @@ const everyKind = async (ctx: Ctx) => {
   );
 };
 
-describe("the record of a step's transaction", () => {
+describe.each(VALIDATORS)("the record of a step's transaction (%s)", (v) => {
   it(
     "holds no prototype its bytes give and no UTxO a part repeats; read back, every step is the same, and so is its record",
     async () => {
-      const ctx = await setup();
+      const ctx = await setup(v);
       const plan = await everyKind(ctx);
       expect(plan.steps.map((step) => [step.name, step.kind])).toEqual([
         ["minted", undefined],
@@ -316,7 +317,7 @@ describe("the record of a step's transaction", () => {
   it(
     "gives the same rest after a stop, and a plan read back is taken in after as the plan itself",
     async () => {
-      const ctx = await setup();
+      const ctx = await setup(v);
       const plan = await everyKind(ctx);
       const { read: again } = await throughRecord(ctx.builder, plan);
       const after = await ctx.builder.plan(payTo(dave, 2n * ADA), {
@@ -352,7 +353,7 @@ describe("the record of a step's transaction", () => {
   it(
     "reads a record written whole, with prototypes and every UTxO, and writes it in the smaller form",
     async () => {
-      const ctx = await setup();
+      const ctx = await setup(v);
       const plan = await everyKind(ctx);
       const whole = wholeForm(plan) as any;
       expect(whole.steps[0].tx.built.prototype.body.inputs.length).toBe(
@@ -370,7 +371,7 @@ describe("the record of a step's transaction", () => {
   it(
     "refuses a record whose inputs are not those of the bytes, bytes that are no transaction, and a place that names no entry",
     async () => {
-      const ctx = await setup();
+      const ctx = await setup(v);
       const plan = await everyKind(ctx);
       const base = recordOf(plan) as any;
       const unlock = base.steps.findIndex(
@@ -512,11 +513,11 @@ describe("the record of a step's transaction", () => {
   );
 });
 
-describe("the size of a plan's record", () => {
+describe.each(VALIDATORS)("the size of a plan's record (%s)", (v) => {
   it(
     "is a small part of the whole form: a plain step, and consolidation steps of several hundred inputs",
     async () => {
-      const ctx = await setup();
+      const ctx = await setup(v);
       const plain = await ctx.builder.plan(payTo(bob, 5n * ADA), {
         payer: ctx.wallet,
       });
@@ -532,7 +533,7 @@ describe("the size of a plan's record", () => {
       expect(plainNow).toBeLessThan(2800);
 
       // Four consolidation steps of about 450 inputs each
-      const { builder, wallet } = await fragmented(coins(2250, 2n * ADA));
+      const { builder, wallet } = await fragmented(v, coins(2250, 2n * ADA));
       const made = Date.now();
       const plan = await builder.plan(pay({ lovelace: 4400n * ADA }), {
         payer: wallet,
@@ -580,42 +581,46 @@ describe("the size of a plan's record", () => {
   );
 });
 
-describe("a plan read from a store in the middle of a run", () => {
-  it(
-    "shows the same steps, and run() finishes it",
-    async () => {
-      const store = watchStore();
-      const { emulator, builder, builderFor, wallet } = await fragmented(
-        coins(300, 2n * ADA),
-        { maxTxSize: 4096 },
-      );
-      const stored = builderFor({ store });
-      const plan = await stored.plan(pay({ lovelace: 500n * ADA }), {
-        payer: wallet,
-        id: "middle",
-      });
-      expect(
-        plan.steps.filter((step) => step.kind === "consolidation").length,
-      ).toBeGreaterThanOrEqual(2);
-      await plan.sign();
-      // The first step lands; the process stops
-      await emulator.submitTx(plan.step("consolidate-1").signedTx!);
+describe.each(VALIDATORS)(
+  "a plan read from a store in the middle of a run (%s)",
+  (v) => {
+    it(
+      "shows the same steps, and run() finishes it",
+      async () => {
+        const store = watchStore();
+        const { emulator, builder, builderFor, wallet } = await fragmented(
+          v,
+          coins(300, 2n * ADA),
+          { maxTxSize: 4096 },
+        );
+        const stored = builderFor({ store });
+        const plan = await stored.plan(pay({ lovelace: 500n * ADA }), {
+          payer: wallet,
+          id: "middle",
+        });
+        expect(
+          plan.steps.filter((step) => step.kind === "consolidation").length,
+        ).toBeGreaterThanOrEqual(2);
+        await plan.sign();
+        // The first step lands; the process stops
+        await emulator.submitTx(plan.step("consolidate-1").signedTx!);
 
-      const resumed = await builderFor({ store }).resume("middle", {
-        payer: wallet,
-      });
-      expectSameSteps(resumed, plan);
-      expect(resumed.toJSON()).toEqual(
-        JSON.parse(JSON.stringify(await store.inner.load("middle"))),
-      );
-      await resumed.run();
-      expect(resumed.status).toBe("final");
-      // The plan read by a builder without the store goes on from the stored record alike
-      const done = await builder.resume(
-        JSON.parse(JSON.stringify(resumed.toJSON())),
-      );
-      expectSameSteps(done, resumed);
-    },
-    LONG,
-  );
-});
+        const resumed = await builderFor({ store }).resume("middle", {
+          payer: wallet,
+        });
+        expectSameSteps(resumed, plan);
+        expect(resumed.toJSON()).toEqual(
+          JSON.parse(JSON.stringify(await store.inner.load("middle"))),
+        );
+        await resumed.run();
+        expect(resumed.status).toBe("final");
+        // The plan read by a builder without the store goes on from the stored record alike
+        const done = await builder.resume(
+          JSON.parse(JSON.stringify(resumed.toJSON())),
+        );
+        expectSameSteps(done, resumed);
+      },
+      LONG,
+    );
+  },
+);

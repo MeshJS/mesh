@@ -2,6 +2,7 @@ import type { MeshWallet } from "@meshsdk/wallet";
 import { Crypto } from "@meshsdk/core-cst";
 
 import type { BuiltTx } from "../../../src/tx-builder";
+import type { Validator } from "./plan-emulator-util";
 import {
   output,
   spend,
@@ -15,6 +16,7 @@ import {
   builderOf,
   caught,
   hashOf,
+  VALIDATORS,
   walletOf,
   wrap,
 } from "./plan-emulator-util";
@@ -50,8 +52,8 @@ const recording = (wallet: MeshWallet) => {
 };
 
 /** An emulator, the plan's builder and wallet, and a funded partner with a builder of its own */
-const setup = async () => {
-  const ctx = await stepSetup("scalus", { funds: [1000n * ADA, 20n * ADA] });
+const setup = async (v: Validator) => {
+  const ctx = await stepSetup(v, { funds: [1000n * ADA, 20n * ADA] });
   const partner = await walletOf(1);
   const partnerAddress = (await partner.getChangeAddress())!;
   const partnerFunds = ctx.emulator.fund(partnerAddress, {
@@ -88,11 +90,11 @@ const partnerPays = async (ctx: Ctx, address: string, lovelace: bigint) => {
   return built;
 };
 
-describe("rules of steps given built", () => {
+describe.each(VALIDATORS)("rules of steps given built (%s)", (v) => {
   it(
     "a step stands on the step before it of its payer through a step of another payer",
     async () => {
-      const ctx = await setup();
+      const ctx = await setup(v);
       const plan = await ctx.builder.plan(
         {
           a: payTo(alice, 5n * ADA),
@@ -120,7 +122,7 @@ describe("rules of steps given built", () => {
   it(
     "asks the call's signers once for a step given built that another party sent without every witness",
     async () => {
-      const ctx = await setup();
+      const ctx = await setup(v);
       const cbor = await takesFromWallet(ctx);
       const swapHash = await hashOf(cbor);
       const plan = await ctx.builder.plan(
@@ -150,7 +152,7 @@ describe("rules of steps given built", () => {
   it(
     "knows an output of a transaction of after before the call's knownUtxos",
     async () => {
-      const ctx = await setup();
+      const ctx = await setup(v);
       const fund = await ctx.builder.build(
         output({ address: ctx.address, value: { lovelace: 10n * ADA } }),
         { payer: ctx.wallet },
@@ -182,7 +184,7 @@ describe("rules of steps given built", () => {
   it(
     "refuses an object that lists another number of outputs than its transaction",
     async () => {
-      const ctx = await setup();
+      const ctx = await setup(v);
       const fund = await ctx.builder.build(payTo(alice, 3n * ADA), {
         payer: ctx.wallet,
       });
@@ -207,7 +209,7 @@ describe("rules of steps given built", () => {
   it(
     "add: a recorded step given built is of no payer, and has no change to link to",
     async () => {
-      const ctx = await setup();
+      const ctx = await setup(v);
       // The partner pays the wallet: an output at the wallet's address, not marked change
       const swap = await partnerPays(ctx, ctx.address, 30n * ADA);
       const plan = await ctx.builder.plan(
@@ -237,7 +239,7 @@ describe("rules of steps given built", () => {
   it(
     "the call's signal ends the wait for what a step given built names",
     async () => {
-      const ctx = await setup();
+      const ctx = await setup(v);
       const swap = await partnerPays(ctx, alice, 5n * ADA);
       const held = gate();
       const source = ctx.partnerFunds.input.txHash;
@@ -268,7 +270,7 @@ describe("rules of steps given built", () => {
   it(
     "records the plan payer's change address when every step has a payer of its own",
     async () => {
-      const ctx = await storeSetup();
+      const ctx = await storeSetup(v);
       const other = await walletOf(1);
       const otherAddress = (await other.getChangeAddress())!;
       ctx.emulator.fund(otherAddress, { lovelace: 100n * ADA });
@@ -292,7 +294,7 @@ describe("rules of steps given built", () => {
   it(
     "rest gives a step given built back with its witness set in the form it came in",
     async () => {
-      const ctx = await setup();
+      const ctx = await setup(v);
       const signed = (await partnerPays(ctx, alice, 7n * ADA)).signedTx!;
       // The vkey witnesses without the set tag, over a body whose sets are tagged
       const [body, ws, valid, aux] = topItems(signed);
@@ -318,7 +320,7 @@ describe("rules of steps given built", () => {
   it(
     "sign() with no signer is MISSING_SIGNATURES for a step given built, as for any step",
     async () => {
-      const ctx = await setup();
+      const ctx = await setup(v);
       const cbor = await takesFromWallet(ctx);
       // A payer that is an address: the plan holds no signer
       const plan = await ctx.builder.plan(
@@ -341,7 +343,7 @@ describe("rules of steps given built", () => {
     "refuses a witness for a step given built that does not verify, and keeps none of a key it does not need",
     async () => {
       await Crypto.ready();
-      const ctx = await setup();
+      const ctx = await setup(v);
       const cbor = await takesFromWallet(ctx);
       const plan = await ctx.builder.plan(
         { swap: cbor },

@@ -13,6 +13,7 @@ import {
   txHashOf,
   uint,
 } from "../cbor-util";
+import { VALIDATORS } from "./plan-emulator-util";
 
 /*
  * A step given built is decoded by its reader, `fromCbor`, and once more by the reader of the
@@ -21,10 +22,10 @@ import {
  * `plan` is these decodes.
  */
 
-describe("a plan of a step given built", () => {
+describe.each(VALIDATORS)("a plan of a step given built (%s)", (v) => {
   it("decodes the step's body twice: in its reader, which counts its reference scripts, and in the reader of its record", async () => {
     const emulator = await TxEmulator.create({
-      validator: "scalus",
+      validator: v,
       network: "preprod",
       slot: 100_000_000,
     });
@@ -59,7 +60,7 @@ describe("a plan of a step given built", () => {
 
   it("counts the reference scripts of the outputs of the plan's own transactions the step reads: refused at once past the bound", async () => {
     const emulator = await TxEmulator.create({
-      validator: "scalus",
+      validator: v,
       network: "preprod",
       slot: 100_000_000,
     });

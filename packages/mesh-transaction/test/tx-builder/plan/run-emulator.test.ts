@@ -544,10 +544,10 @@ describe.each(VALIDATORS)("a plan run on TxEmulator (%s)", (v) => {
   });
 });
 
-describe("a plan made on a provider", () => {
+describe.each(VALIDATORS)("a plan made on a provider (%s)", (v) => {
   it("probes the provider when it is made: a search, block heights, and validity for a Plutus step", async () => {
     const make = async (hooks: Hooks) => {
-      const { builder, wallet } = await stepSetup("scalus", { hooks });
+      const { builder, wallet } = await stepSetup(v, { hooks });
       const vault = builder.scriptAddress(script);
       return caught(
         builder.plan(
@@ -596,7 +596,7 @@ describe("a plan made on a provider", () => {
 
   it("refuses a recorded id with other steps, and gives the recorded plan for the same steps", async () => {
     const store = memoryPlanStore();
-    const { builder, provider, wallet } = await stepSetup("scalus", {
+    const { builder, provider, wallet } = await stepSetup(v, {
       builder: { store },
     });
     const first = await builder.plan(payTo(alice, 5n * ADA), {

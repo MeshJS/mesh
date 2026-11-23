@@ -9,6 +9,7 @@ import type {
   Utxo,
 } from "../../../src/tx-builder";
 import type { MadePlan } from "../../../src/tx-builder/plan/make";
+import type { Validator } from "./plan-emulator-util";
 import {
   output,
   spend,
@@ -21,7 +22,7 @@ import { encodePlan, readPlan } from "../../../src/tx-builder/plan/json";
 import { makePlan } from "../../../src/tx-builder/plan/make";
 import { alwaysSucceedCbor, baseAddress } from "../../test-util";
 import { mapPairs, topItems } from "../cbor-util";
-import { caught, walletOf } from "./plan-emulator-util";
+import { caught, VALIDATORS, walletOf } from "./plan-emulator-util";
 
 // A plan built on the emulator: every body at once, threaded through the payer's
 // UTxOs, links filled in from the earlier steps' transactions, one deadline. The tests sign and
@@ -48,10 +49,7 @@ const outRefs = (utxos: readonly (Utxo | UTxO)[]) =>
   });
 
 /** An emulator of preprod with a builder on it and a wallet funded with these UTxOs */
-const setup = async (
-  validator: "scalus" | "cquisitor",
-  funds: bigint[] = [1000n * ADA],
-) => {
+const setup = async (validator: Validator, funds: bigint[] = [1000n * ADA]) => {
   const emulator = await TxEmulator.create({
     validator,
     network: "preprod",
@@ -309,9 +307,9 @@ describe.each(["scalus", "cquisitor"] as const)(
   },
 );
 
-describe("a plan", () => {
+describe.each(VALIDATORS)("a plan (%s)", (v) => {
   it("gives every step it builds the plan's deadline, and keeps an end its parts give", async () => {
-    const { emulator, builder, wallet } = await setup("scalus");
+    const { emulator, builder, wallet } = await setup(v);
     const tipTime = builder.timeAt(emulator.slot);
     const own = tipTime + 60_000;
     const plan = await makePlan(
@@ -345,7 +343,7 @@ describe("a plan", () => {
   });
 
   it("is the step main for one list of parts, with the parts the builder holds first, and gives its first record", async () => {
-    const { builder, wallet } = await setup("scalus");
+    const { builder, wallet } = await setup(v);
     const plan = await makePlan(
       builder.add(pay(bob, 2n * ADA, "fee")),
       pay(alice, 10n * ADA),
@@ -372,7 +370,7 @@ describe("a plan", () => {
   });
 
   it("puts the step's name at the start of an error of building it", async () => {
-    const { builder, wallet } = await setup("scalus");
+    const { builder, wallet } = await setup(v);
     const error = await caught(
       makePlan(
         builder,
@@ -390,7 +388,7 @@ describe("a plan", () => {
       options: Record<string, unknown> = {},
       builderOf?: (builder: TxBuilder) => TxBuilder,
     ) => {
-      const { builder, wallet } = await setup("scalus");
+      const { builder, wallet } = await setup(v);
       return caught(
         makePlan(builderOf ? builderOf(builder) : builder, steps, {
           payer: wallet,
@@ -460,7 +458,7 @@ describe("a plan", () => {
     });
 
     it("a filled link the part cannot take: a key spend of a script output, a datum the output does not hold", async () => {
-      const { builder } = await setup("scalus");
+      const { builder } = await setup(v);
       const vault = builder.scriptAddress(script);
       const lock = output({
         address: vault,
@@ -507,7 +505,7 @@ describe("a plan", () => {
     });
 
     it("a step of no known form: the data or the JSON of a built transaction, an object without parts or with a member it does not know", async () => {
-      const { builder, wallet } = await setup("scalus");
+      const { builder, wallet } = await setup(v);
       const built = await builder.build(pay(alice, 1n * ADA), {
         payer: wallet,
       });

@@ -11,7 +11,7 @@ import {
   wanted,
   withWanted,
 } from "./consolidate-util";
-import { builderOf, caught, walletOf } from "./plan-emulator-util";
+import { builderOf, caught, VALIDATORS, walletOf } from "./plan-emulator-util";
 import { ADA, alice, bob, paidTo, payTo } from "./run-util";
 
 // A step with sendAllTo after consolidation steps of its payer: it takes every output they
@@ -27,12 +27,13 @@ const parkedKeys = (plan: TxPlan) => parkedOf(plan).map(keyOf);
 const inputKeys = (plan: TxPlan, name: string) =>
   plan.step(name).inputs.map(keyOf);
 
-describe("a sweep after consolidation steps", () => {
+describe.each(VALIDATORS)("a sweep after consolidation steps (%s)", (v) => {
   it(
     "takes every output the plan parked: the payer is left with nothing",
     async () => {
       for (const parts of [[pay({ lovelace: 1n * ADA }, alice)], []]) {
         const { emulator, builder, wallet, address } = await fragmented(
+          v,
           withWanted(250),
           { maxTxSize: 4096 },
         );
@@ -66,6 +67,7 @@ describe("a sweep after consolidation steps", () => {
     "an added sweep takes the parked outputs of a final consolidation step from the payer's read",
     async () => {
       const { emulator, builder, wallet, address } = await fragmented(
+        v,
         withWanted(250),
         { maxTxSize: 4096 },
       );
@@ -103,6 +105,7 @@ describe("a sweep after consolidation steps", () => {
     "an added sweep takes the parked outputs of a consolidation step in a block and not final, each once",
     async () => {
       const { emulator, builder, wallet, address } = await fragmented(
+        v,
         withWanted(250),
         { maxTxSize: 4096, confirmations: 3 },
       );
@@ -133,6 +136,7 @@ describe("a sweep after consolidation steps", () => {
     "takes the parked outputs under a canSelect that allows only what the wallet held, and nothing else it refuses",
     async () => {
       const { emulator, provider, builder, wallet, address } = await fragmented(
+        v,
         withWanted(250),
         { maxTxSize: 4096 },
       );
@@ -172,7 +176,7 @@ describe("a sweep after consolidation steps", () => {
     async () => {
       for (const allowParked of [false, true]) {
         const { emulator, provider, builder, wallet, address } =
-          await fragmented(withWanted(250), { maxTxSize: 4096 });
+          await fragmented(v, withWanted(250), { maxTxSize: 4096 });
         const known = new Set(
           (await provider.fetchAddressUTxOs(address)).map((u) =>
             keyOf(u.input),
@@ -236,6 +240,7 @@ describe("a sweep after consolidation steps", () => {
     "a sweep never takes what a step given built reads, under a canSelect that allows it",
     async () => {
       const { emulator, provider, builder, wallet, address } = await fragmented(
+        v,
         withWanted(250),
         { maxTxSize: 4096 },
       );
@@ -288,6 +293,7 @@ describe("a sweep after consolidation steps", () => {
     "the sweep of each payer takes the outputs its own consolidation steps parked, never another payer's",
     async () => {
       const { emulator, builder, wallet, address } = await fragmented(
+        v,
         withWanted(250),
         { maxTxSize: 4096 },
       );
@@ -342,6 +348,7 @@ describe("a sweep after consolidation steps", () => {
     "a sweep asks canSelect about outputs another payer's consolidation steps parked, though its payer's UTxOs hold them",
     async () => {
       const { emulator, builder, wallet, address } = await fragmented(
+        v,
         withWanted(250),
         { maxTxSize: 4096, confirmations: 3 },
       );

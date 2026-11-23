@@ -277,7 +277,7 @@ describe("a text given as an address that is none", () => {
 
 describe("a text given as an address of a step that is none", () => {
   it("stays out of the error of plan and of add", async () => {
-    const { builder, wallet: payer } = await setup();
+    const { builder, wallet: payer } = await setup("scalus");
     for (const marker of MARKERS) {
       const made = await caught(() =>
         builder.plan(

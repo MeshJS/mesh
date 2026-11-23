@@ -1,5 +1,5 @@
 import { output, spend, TxBuildError } from "../../../src/tx-builder";
-import { caught, FAST, forwarding } from "./plan-emulator-util";
+import { caught, FAST, forwarding, VALIDATORS } from "./plan-emulator-util";
 import { ADA, alice, bob, carol, payTo, stepSetup } from "./run-util";
 
 // What plan.add says when it refuses steps: the forms it takes, and what is true of a payer that
@@ -12,9 +12,9 @@ const ADDED =
 const names = (plan: { steps: readonly { name: string }[] }) =>
   plan.steps.map((step) => step.name);
 
-describe("plan.add refusing steps", () => {
+describe.each(VALIDATORS)("plan.add refusing steps (%s)", (v) => {
   it("names the forms add takes in every refusal of steps", async () => {
-    const { builder, wallet, address } = await stepSetup("scalus");
+    const { builder, wallet, address } = await stepSetup(v);
     const plan = await builder.plan(
       {
         a: [
@@ -46,7 +46,7 @@ describe("plan.add refusing steps", () => {
   });
 
   it("tells a wallet that the same call later tells, and a snapshot that a new snapshot is the way", async () => {
-    const { emulator, builder, wallet, address } = await stepSetup("scalus", {
+    const { emulator, builder, wallet, address } = await stepSetup(v, {
       builder: { planDefaults: { ...FAST, confirmations: 3 } },
       funds: [1000n * ADA, 300n * ADA],
     });

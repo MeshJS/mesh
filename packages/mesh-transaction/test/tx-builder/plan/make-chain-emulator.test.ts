@@ -10,7 +10,7 @@ import {
 import { makePlan } from "../../../src/tx-builder/plan/make";
 import { recordOf } from "../../../src/tx-builder/plan/plan";
 import { alwaysSucceedCbor } from "../../test-util";
-import { caught } from "./plan-emulator-util";
+import { caught, VALIDATORS } from "./plan-emulator-util";
 import { ADA, alice, bob, carol, paidTo, payTo, stepSetup } from "./run-util";
 
 // A group as it is built: the steps of one payer stand on each other always, the transactions
@@ -19,9 +19,9 @@ import { ADA, alice, bob, carol, paidTo, payTo, stepSetup } from "./run-util";
 
 const script = { code: alwaysSucceedCbor, version: "V3" as const };
 
-describe("the steps of one payer", () => {
+describe.each(VALIDATORS)("the steps of one payer (%s)", (v) => {
   it("stand on each other: a step that can spend no change of the step before it of its payer is refused, whatever canSelect lets through", async () => {
-    const { builder, wallet } = await stepSetup("scalus", {
+    const { builder, wallet } = await stepSetup(v, {
       funds: [100n * ADA, 100n * ADA, 100n * ADA],
     });
     const error = await caught(
@@ -41,7 +41,7 @@ describe("the steps of one payer", () => {
   });
 
   it("spend the change of the step before when canSelect lets it through", async () => {
-    const { builder, wallet } = await stepSetup("scalus", {
+    const { builder, wallet } = await stepSetup(v, {
       funds: [100n * ADA, 100n * ADA, 100n * ADA],
     });
     const made = await makePlan(
@@ -57,7 +57,7 @@ describe("the steps of one payer", () => {
   });
 
   it("stand on each other: a step after one that leaves no change at the payer's address is refused", async () => {
-    const { builder, wallet } = await stepSetup("scalus", {
+    const { builder, wallet } = await stepSetup(v, {
       funds: [100n * ADA, 100n * ADA],
     });
     const error = await caught(
@@ -79,7 +79,7 @@ describe("the steps of one payer", () => {
   });
 
   it("may link an output of the step before in place of its change", async () => {
-    const { builder, wallet } = await stepSetup("scalus", {
+    const { builder, wallet } = await stepSetup(v, {
       funds: [100n * ADA, 100n * ADA],
     });
     const made = await makePlan(
@@ -97,9 +97,9 @@ describe("the steps of one payer", () => {
   });
 });
 
-describe("a link", () => {
+describe.each(VALIDATORS)("a link (%s)", (v) => {
   it("to the change of a step that is not the one before names the step that spends it", async () => {
-    const { builder, wallet } = await stepSetup("scalus");
+    const { builder, wallet } = await stepSetup(v);
     const error = await caught(
       makePlan(
         builder,
@@ -124,7 +124,7 @@ describe("a link", () => {
 
   describe("in a part not made by the part builders", () => {
     const made = async (part: unknown) => {
-      const { builder, wallet } = await stepSetup("scalus");
+      const { builder, wallet } = await stepSetup(v);
       return caught(
         makePlan(
           builder,
@@ -177,7 +177,7 @@ describe("a link", () => {
     });
 
     it("is read as strictly when it comes from JSON", async () => {
-      const { builder, wallet } = await stepSetup("scalus");
+      const { builder, wallet } = await stepSetup(v);
       const plan = await builder.plan(
         {
           a: payTo(alice, 5n * ADA),
@@ -208,9 +208,9 @@ describe("a link", () => {
   });
 });
 
-describe("a transaction of after", () => {
+describe.each(VALIDATORS)("a transaction of after (%s)", (v) => {
   it("that a step spends from is recorded with it: a refusal while it is not in a block proves nothing", async () => {
-    const { emulator, builder, wallet } = await stepSetup("scalus");
+    const { emulator, builder, wallet } = await stepSetup(v);
     const pre = await builder.build(payTo(carol, 2n * ADA), { payer: wallet });
     const plan = await builder.plan(payTo(alice, 5n * ADA), {
       payer: wallet,
@@ -235,9 +235,9 @@ describe("a transaction of after", () => {
   });
 });
 
-describe("a Plutus step", () => {
+describe.each(VALIDATORS)("a Plutus step (%s)", (v) => {
   it("that would end past the forecast horizon is refused when the plan is made", async () => {
-    const { builder, wallet } = await stepSetup("scalus");
+    const { builder, wallet } = await stepSetup(v);
     const vault = builder.scriptAddress(script);
     const error = await caught(
       makePlan(

@@ -7,6 +7,7 @@ import type {
   TxBuildError,
   TxPlanError,
 } from "../../../src/tx-builder";
+import type { Validator } from "./plan-emulator-util";
 import { output, spend, toUtxo, TxError } from "../../../src/tx-builder";
 import { alwaysSucceedCbor, baseAddress } from "../../test-util";
 import {
@@ -16,6 +17,7 @@ import {
   pay,
   setup,
   swallowing,
+  VALIDATORS,
   walletOf,
   wrap,
 } from "./plan-emulator-util";
@@ -33,9 +35,12 @@ const expectCode = (error: unknown, code: string) => {
 };
 
 /** An emulator, a wallet and a builder over a watched store; `instance()` is another process */
-const storeSetup = async (options: Parameters<typeof setup>[0] = {}) => {
+const storeSetup = async (
+  v: Validator,
+  options: Parameters<typeof setup>[1] = {},
+) => {
   const store = watchStore();
-  const ctx = await setup({
+  const ctx = await setup(v, {
     ...options,
     builder: { store, ...options.builder },
   });
@@ -74,9 +79,9 @@ const counted = <T extends object>(wallet: T) => {
 /** Two payments, the second standing on the first */
 const twoSteps = () => ({ a: pay(), b: pay(2_000_000n, baseAddress(3)) });
 
-describe("A recorded id given to builder.plan", () => {
+describe.each(VALIDATORS)("A recorded id given to builder.plan (%s)", (v) => {
   it("is the recorded plan for the same steps and options: nothing is built or written", async () => {
-    const { builder, wallet, instance, store } = await storeSetup();
+    const { builder, wallet, instance, store } = await storeSetup(v);
     const first = await builder.plan(twoSteps(), {
       id: "order-1",
       payer: wallet,
@@ -97,7 +102,8 @@ describe("A recorded id given to builder.plan", () => {
   });
 
   it("is the recorded plan, as it stands, after the payer's UTxOs are gone: no error and no read of them", async () => {
-    const { builder, wallet, instance, emulator, address } = await storeSetup();
+    const { builder, wallet, instance, emulator, address } =
+      await storeSetup(v);
     const first = await builder.plan(pay(), { id: "order-1", payer: wallet });
     await first.run();
     expect(first.status).toBe("final");
@@ -121,7 +127,7 @@ describe("A recorded id given to builder.plan", () => {
   });
 
   it("is PLAN_EXISTS for other steps, also the same steps in another order or under other names; nothing built or written", async () => {
-    const { builder, wallet, instance, store } = await storeSetup();
+    const { builder, wallet, instance, store } = await storeSetup(v);
     await builder.plan(twoSteps(), { id: "order-1", payer: wallet });
     const before = await stored(store, "order-1");
     const { a, b } = twoSteps();
@@ -148,7 +154,7 @@ describe("A recorded id given to builder.plan", () => {
   });
 
   it("is PLAN_EXISTS for an explicit deadline other than the recorded one; the builder's defaults are not compared", async () => {
-    const { builder, wallet, instance } = await storeSetup();
+    const { builder, wallet, instance } = await storeSetup(v);
     await builder.plan(pay(), {
       id: "order-1",
       payer: wallet,
@@ -187,7 +193,7 @@ describe("A recorded id given to builder.plan", () => {
   });
 
   it("compares the data options with the recorded ones", async () => {
-    const { builder, wallet, instance, funded, address } = await storeSetup();
+    const { builder, wallet, instance, funded, address } = await storeSetup(v);
     const known = funded.map((utxo) => toUtxo(utxo));
     await builder.plan(pay(), {
       id: "order-1",
@@ -231,7 +237,7 @@ describe("A recorded id given to builder.plan", () => {
   });
 
   it("compares of knownUtxos the entries for the out refs the recorded steps name: an entry for another may change or go, and none is the option left out", async () => {
-    const { builder, wallet, instance, funded } = await storeSetup();
+    const { builder, wallet, instance, funded } = await storeSetup(v);
     const [, named] = funded as [UTxO, UTxO];
     const steps = () => [
       spend.pubKey({
@@ -320,7 +326,7 @@ describe("A recorded id given to builder.plan", () => {
   });
 
   it("takes the same knownUtxos in any form the builder takes as the same option", async () => {
-    const { builder, wallet, instance, funded } = await storeSetup();
+    const { builder, wallet, instance, funded } = await storeSetup(v);
     await builder.plan(pay(), {
       id: "order-1",
       payer: wallet,
@@ -342,7 +348,7 @@ describe("A recorded id given to builder.plan", () => {
   });
 
   it("copies knownUtxos for the same call again as for the first: an entry the copy refuses is refused before the record is compared", async () => {
-    const { builder, wallet, instance, funded } = await storeSetup();
+    const { builder, wallet, instance, funded } = await storeSetup(v);
     await builder.plan(pay(), {
       id: "order-1",
       payer: wallet,
@@ -376,7 +382,7 @@ describe("A recorded id given to builder.plan", () => {
   });
 
   it("is PLAN_EXISTS for another sendAllTo than the recorded one; the same one passes", async () => {
-    const { builder, wallet, instance } = await storeSetup();
+    const { builder, wallet, instance } = await storeSetup(v);
     await builder.plan([], {
       id: "order-1",
       payer: wallet,
@@ -401,7 +407,7 @@ describe("A recorded id given to builder.plan", () => {
   });
 
   it("is PLAN_EXISTS for a payer of another change address, of the plan or of a step", async () => {
-    const { builder, wallet, instance } = await storeSetup();
+    const { builder, wallet, instance } = await storeSetup(v);
     const foreign = await walletOf(1);
     await builder.plan(pay(), { id: "plain", payer: wallet });
     await builder.plan(
@@ -422,7 +428,7 @@ describe("A recorded id given to builder.plan", () => {
   });
 
   it("is STORE_FAILED when the read throws: nothing built or written; the next call reads again", async () => {
-    const { builder, wallet, instance } = await storeSetup();
+    const { builder, wallet, instance } = await storeSetup(v);
     const first = await builder.plan(pay(), { id: "order-1", payer: wallet });
     const other = instance();
     other.store.hooks.load = async () => {
@@ -446,7 +452,7 @@ describe("A recorded id given to builder.plan", () => {
   });
 
   it("is NOT_SERIALIZABLE for a redeemer function with a store, before any request; nothing written; without one it works in memory", async () => {
-    const { builder, wallet, emulator, provider, store } = await storeSetup();
+    const { builder, wallet, emulator, provider, store } = await storeSetup(v);
     const locked = emulator.fund(builder.scriptAddress(plutus), {
       lovelace: 10_000_000n,
     });
@@ -471,7 +477,7 @@ describe("A recorded id given to builder.plan", () => {
   });
 
   it("is NETWORK_MISMATCH from resume and from builder.plan for a record of another network", async () => {
-    const { builder, wallet, store, emulator } = await storeSetup();
+    const { builder, wallet, store, emulator } = await storeSetup(v);
     await builder.plan(pay(), { id: "order-1", payer: wallet });
     // A provider that reads a tip and states no network
     const tipOnly = {
@@ -499,7 +505,7 @@ describe("A recorded id given to builder.plan", () => {
   });
 });
 
-describe("A record this library does not read", () => {
+describe.each(VALIDATORS)("A record this library does not read (%s)", (v) => {
   const MUTATIONS: [string, (json: StoredTxPlanJSON) => object, RegExp][] = [
     ["a newer version", (json) => ({ ...json, version: 3 }), /version 3/],
     ["another kind", (json) => ({ ...json, kind: "Other" }), /"Other"/],
@@ -528,7 +534,7 @@ describe("A record this library does not read", () => {
   ];
 
   const stage = async (mutate: (json: StoredTxPlanJSON) => object) => {
-    const ctx = await storeSetup();
+    const ctx = await storeSetup(v);
     await ctx.builder.plan(pay(), { id: "order-1", payer: ctx.wallet });
     const now = (await ctx.store.inner.load("order-1"))!;
     await ctx.store.inner.save(
@@ -578,9 +584,9 @@ describe("A record this library does not read", () => {
   );
 });
 
-describe("The payer after resume", () => {
+describe.each(VALIDATORS)("The payer after resume (%s)", (v) => {
   it("is not needed to send the recorded bytes again", async () => {
-    const { builder, wallet, instance } = await storeSetup();
+    const { builder, wallet, instance } = await storeSetup(v);
     const plan = await builder.plan(pay(), { id: "pay", payer: wallet });
     const submitter = swallowing();
     await plan.run({ waitFor: "sent", submitter });
@@ -592,7 +598,7 @@ describe("The payer after resume", () => {
   });
 
   it("is never called at resume and at a resend, and never compared with the record", async () => {
-    const { builder, wallet, instance, store } = await storeSetup();
+    const { builder, wallet, instance, store } = await storeSetup(v);
     const plan = await builder.plan(pay(), { id: "pay", payer: wallet });
     const submitter = swallowing();
     await plan.run({ waitFor: "sent", submitter });
@@ -610,7 +616,7 @@ describe("The payer after resume", () => {
   });
 
   it("restores the recorded steps only: the parts the builder holds from add are not read", async () => {
-    const { builder, wallet, instance, store } = await storeSetup();
+    const { builder, wallet, instance, store } = await storeSetup(v);
     await builder.plan(pay(), { id: "pay", payer: wallet });
     const holding = instance().builder.add(
       output({

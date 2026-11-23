@@ -14,6 +14,7 @@ import type {
   Utxo,
 } from "../../../src/tx-builder";
 import type { Value } from "../../../src/tx-builder/value";
+import type { Validator } from "./plan-emulator-util";
 import {
   collateral,
   output,
@@ -36,7 +37,7 @@ import {
   valueOf,
 } from "../../../src/tx-builder/value";
 import { alwaysSucceedCbor, baseAddress } from "../../test-util";
-import { caught, recipient, walletOf } from "./plan-emulator-util";
+import { caught, recipient, VALIDATORS, walletOf } from "./plan-emulator-util";
 
 // The steps that consolidate a fragmented wallet, made one at a time and driven by hand as a
 // plan drives them: the served step is built; when it does not fit because of what it selected,
@@ -77,6 +78,7 @@ type World = {
  * UTxOs fragment the wallet
  */
 const world = async (
+  v: Validator,
   values: Record<string, bigint>[],
   options: {
     serializer?: (prototype: TransactionPrototype) => string;
@@ -85,7 +87,7 @@ const world = async (
   } = {},
 ): Promise<World> => {
   const emulator = await TxEmulator.create({
-    validator: "scalus",
+    validator: v,
     network: "preprod",
   });
   const wallet = await walletOf();
@@ -248,11 +250,12 @@ const spentBy = (steps: readonly BuiltTxData[]) =>
 const parkedOf = (step: BuiltTxData) =>
   step.outputs.filter((each) => each.change !== true);
 
-describe("consolidation steps on the emulator", () => {
+describe.each(VALIDATORS)("consolidation steps on the emulator (%s)", (v) => {
   it(
     "puts consolidation steps before a step that does not fit: 1000 UTxOs of 2 ada and a payment of 1900 ada",
     async () => {
       const w = await world(
+        v,
         Array.from({ length: 1000 }, () => ({ lovelace: 2n * ADA })),
       );
       const deadline = until(w);
@@ -318,7 +321,7 @@ describe("consolidation steps on the emulator", () => {
           ]),
         ),
       }));
-      const w = await world(values);
+      const w = await world(v, values);
       const parts = [pay({ lovelace: 1000n * ADA }), until(w)];
       const alone = await caught(w.builder.build(parts, { payer: w.payer }));
       expect(isConsolidable(alone)).toBe(true);
@@ -388,7 +391,7 @@ describe("consolidation steps on the emulator", () => {
         [wanted]: 5n,
         [other(i)]: 7n,
       }));
-      const w = await world(values);
+      const w = await world(v, values);
       const parts = [pay({ [wanted]: 1500n }), until(w)];
       const alone = await caught(w.builder.build(parts, { payer: w.payer }));
       expect(isConsolidable(alone)).toBe(true);
@@ -422,6 +425,7 @@ describe("consolidation steps on the emulator", () => {
     "leaves a step with a Plutus part the collateral it needs",
     async () => {
       const w = await world(
+        v,
         Array.from({ length: 500 }, () => ({ lovelace: 1_900_000n })),
         { plutus: true },
       );
@@ -476,6 +480,7 @@ describe("consolidation steps on the emulator", () => {
       // The change the step stands on holds the token it pays, so the change of a consolidation
       // step holds it too, and without a collateral return no change can be collateral
       const w = await world(
+        v,
         [
           { lovelace: 5n * ADA, [token]: 1000n },
           ...Array.from({ length: 100 }, () => ({ lovelace: 900_000n })),
@@ -541,6 +546,7 @@ describe("consolidation steps on the emulator", () => {
     "never spends a UTxO canSelect refuses, also one it refuses after the step's build",
     async () => {
       const w = await world(
+        v,
         Array.from({ length: 900 }, () => ({ lovelace: 2n * ADA })),
       );
       const refused = new Set(
@@ -574,6 +580,7 @@ describe("consolidation steps on the emulator", () => {
     "never spends a UTxO the served step's parts name",
     async () => {
       const w = await world(
+        v,
         Array.from({ length: 600 }, () => ({ lovelace: 2n * ADA })),
       );
       const [read, spent] = [w.funded[5]!, w.funded[6]!];
@@ -616,6 +623,7 @@ describe("consolidation steps on the emulator", () => {
         return hex + "00".repeat(Math.max(1, pad));
       };
       const w = await world(
+        v,
         Array.from({ length: 800 }, () => ({ lovelace: 2n * ADA })),
         { serializer },
       );
@@ -666,6 +674,7 @@ describe("consolidation steps on the emulator", () => {
         );
       };
       const w = await world(
+        v,
         Array.from({ length: 600 }, () => ({ lovelace: 2n * ADA })),
         { serializer },
       );
@@ -716,7 +725,7 @@ describe("consolidation steps on the emulator", () => {
             value[wanted] = BigInt(1 + Math.floor(random() * 5));
           return value;
         });
-        const w = await world(values);
+        const w = await world(v, values);
         // A filter that refuses about a tenth of the wallet
         const refused = new Set<string>();
         if (random() < 0.5)

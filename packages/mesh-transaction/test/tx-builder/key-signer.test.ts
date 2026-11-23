@@ -728,7 +728,7 @@ describe("keySigner", () => {
       expect(error.message.includes(hint)).toBe(true);
       expect(error.message.includes(key)).toBe(false);
 
-      const emulator = await emulatorOf();
+      const emulator = await emulatorOf("scalus");
       emulator.fund(baseAddress(1), { lovelace: 10_000_000n });
       const builder = builderOf(emulator);
       const plan = await builder.plan(

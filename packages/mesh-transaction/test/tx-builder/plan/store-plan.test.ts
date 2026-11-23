@@ -6,6 +6,7 @@ import type {
   TxBuildError,
   TxPlanError,
 } from "../../../src/tx-builder";
+import type { Validator } from "./plan-emulator-util";
 import { spend, TxBuilder, TxError } from "../../../src/tx-builder";
 import { NOT_UNPAID } from "../../../src/tx-builder/errors";
 import { alwaysSucceedCbor } from "../../test-util";
@@ -15,6 +16,7 @@ import {
   pay,
   setup,
   submitterOf,
+  VALIDATORS,
   wrap,
 } from "./plan-emulator-util";
 import { watchStore } from "./store-util";
@@ -63,9 +65,9 @@ const requests = (provider: { control: { calls: Record<string, number> } }) =>
   Object.values(provider.control.calls).reduce((a, b) => a + b, 0);
 
 /** A plan of one payment recorded under `order-1` on an emulator, and a watched store */
-const recorded = async () => {
+const recorded = async (v: Validator) => {
   const store = watchStore();
-  const ctx = await setup({ builder: { store } });
+  const ctx = await setup(v, { builder: { store } });
   const plan = await ctx.builder.plan(pay(), {
     id: "order-1",
     payer: ctx.wallet,
@@ -74,7 +76,7 @@ const recorded = async () => {
   return { ...ctx, store, plan };
 };
 
-describe("TxBuilder with a store", () => {
+describe.each(VALIDATORS)("TxBuilder with a store (%s)", (v) => {
   it("is INVALID_OPTION (store) from the constructor for a store without load and save, never holding the value", () => {
     const { provider } = countingProvider();
     const handle = { secret: "database password" };
@@ -136,14 +138,14 @@ describe("TxBuilder with a store", () => {
   });
 
   it("needs no id without a store, and records nothing", async () => {
-    const { builder, wallet } = await setup();
+    const { builder, wallet } = await setup(v);
     const plan = await builder.plan(pay(), { payer: wallet });
     expect(plan.id).toBeUndefined();
     expect(plan.toJSON()).not.toHaveProperty("id");
   });
 });
 
-describe("TxBuilder.resume", () => {
+describe.each(VALIDATORS)("TxBuilder.resume (%s)", (v) => {
   it("is MISSING_STORE without a store, and MISSING_ID for an id that is not a non-empty string", async () => {
     const { provider } = countingProvider();
     const error = (await caught(
@@ -176,7 +178,7 @@ describe("TxBuilder.resume", () => {
   });
 
   it("makes no request, whatever the provider; the provider is probed before the first delivery, and nothing is sent", async () => {
-    const { emulator, store, plan, wallet } = await recorded();
+    const { emulator, store, plan, wallet } = await recorded(v);
     // A provider that cannot search for a transaction
     const blind = wrap(emulator, { fetchTxInfo: null });
     const again = await builderOf(blind, { store }).resume("order-1", {
@@ -197,7 +199,7 @@ describe("TxBuilder.resume", () => {
   });
 
   it("is NETWORK_MISMATCH for a record of a network with another slot clock, from resume and from builder.plan; the same network restores it", async () => {
-    const { store, plan } = await recorded();
+    const { store, plan } = await recorded(v);
     const devnet = (zeroTime: number) =>
       customNetwork({
         name: "devnet",

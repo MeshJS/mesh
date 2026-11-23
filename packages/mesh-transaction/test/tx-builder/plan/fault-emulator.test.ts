@@ -3,10 +3,11 @@ import { deserializeAddress } from "@meshsdk/core";
 
 import type { PlanSteps, TxBuilder, TxPlan } from "../../../src/tx-builder";
 import type { Fault, StoreFault } from "./fault-util";
+import type { Validator } from "./plan-emulator-util";
 import { guard } from "../../../src/tx-builder";
 import { ref } from "../utxo-util";
 import { codeOf, DEAD, Process, runStep, sleep, World } from "./fault-util";
-import { advance } from "./plan-emulator-util";
+import { advance, VALIDATORS } from "./plan-emulator-util";
 import { seeded } from "./plan-util";
 import { ADA, alice, bob, carol, dave, payTo } from "./run-util";
 
@@ -697,8 +698,12 @@ const finish = async (
 };
 
 /** Runs a journey with the fault of `kase`, carries it on after the fault, and checks the end */
-const runJourney = async (journey: Journey, kase: Case): Promise<Result> => {
-  const world = await World.create();
+const runJourney = async (
+  v: Validator,
+  journey: Journey,
+  kase: Case,
+): Promise<Result> => {
+  const world = await World.create(v);
   const proc = new Process(kase.fault);
   const builder = world.builder(proc);
   const plans: Record<string, TxPlan> = {};
@@ -837,46 +842,53 @@ const sample = (cases: Case[], count: number, seed: number) => {
   );
 };
 
-describe("Plans with a store under a fault at one call", () => {
-  const names = Object.keys(JOURNEYS);
-  it.each(names)(
-    "%s: pays at most once, records each action first, and ends as meant",
-    async (name) => {
-      const journey = JOURNEYS[name]!;
-      const clean = await runJourney(journey, {});
-      expect(clean.violations).toEqual([]);
-      const cases = sample(
-        casesOf(clean),
-        CASES,
-        SEED * 1_000 + names.indexOf(name),
-      );
-      const failures: string[] = [];
-      for (const kase of cases) {
-        const { violations, log, errors } = await runJourney(journey, kase);
-        if (violations.length > 0)
-          failures.push(
-            `${labelOf(kase)}: ${violations.join("; ")}\n  calls: ${log.join(" | ")}\n  errors: ${errors.join(" | ")}`,
-          );
-      }
-      if (failures.length > 0)
-        throw new Error(
-          `${name} (PLAN_FAULT_SEED=${SEED}, PLAN_FAULT_CASES=${CASES_ENV ?? 4}):\n${failures.join("\n")}`,
+describe.each(VALIDATORS)(
+  "Plans with a store under a fault at one call (%s)",
+  (v) => {
+    const names = Object.keys(JOURNEYS);
+    it.each(names)(
+      "%s: pays at most once, records each action first, and ends as meant",
+      async (name) => {
+        const journey = JOURNEYS[name]!;
+        const clean = await runJourney(v, journey, {});
+        expect(clean.violations).toEqual([]);
+        const cases = sample(
+          casesOf(clean),
+          CASES,
+          SEED * 1_000 + names.indexOf(name),
         );
-    },
-    CASES === Infinity ? 3_600_000 : 120_000,
-  );
+        const failures: string[] = [];
+        for (const kase of cases) {
+          const { violations, log, errors } = await runJourney(
+            v,
+            journey,
+            kase,
+          );
+          if (violations.length > 0)
+            failures.push(
+              `${labelOf(kase)}: ${violations.join("; ")}\n  calls: ${log.join(" | ")}\n  errors: ${errors.join(" | ")}`,
+            );
+        }
+        if (failures.length > 0)
+          throw new Error(
+            `${name} (PLAN_FAULT_SEED=${SEED}, PLAN_FAULT_CASES=${CASES_ENV ?? 4}):\n${failures.join("\n")}`,
+          );
+      },
+      CASES === Infinity ? 3_600_000 : 120_000,
+    );
 
-  it("catches a store that answers true to a save it did not write", async () => {
-    const clean = await runJourney(pays, {});
-    let saves = 0;
-    for (let k = 1; k <= clean.storeCalls; k++) {
-      const run = await runJourney(pays, {
-        fault: { where: "store", k, kind: "liar" },
-      });
-      if (!run.log.some((line) => / save .*-> liar$/.test(line))) continue;
-      saves += 1;
-      expect(run.violations).not.toEqual([]);
-    }
-    expect(saves).toBeGreaterThan(0);
-  });
-});
+    it("catches a store that answers true to a save it did not write", async () => {
+      const clean = await runJourney(v, pays, {});
+      let saves = 0;
+      for (let k = 1; k <= clean.storeCalls; k++) {
+        const run = await runJourney(v, pays, {
+          fault: { where: "store", k, kind: "liar" },
+        });
+        if (!run.log.some((line) => / save .*-> liar$/.test(line))) continue;
+        saves += 1;
+        expect(run.violations).not.toEqual([]);
+      }
+      expect(saves).toBeGreaterThan(0);
+    });
+  },
+);

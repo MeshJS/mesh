@@ -14,6 +14,7 @@ import type {
   Utxo,
 } from "../../../src/tx-builder";
 import type { Value } from "../../../src/tx-builder/value";
+import type { Validator } from "./plan-emulator-util";
 import {
   output,
   spend,
@@ -28,6 +29,7 @@ import {
   caught,
   emulatorOf,
   recipient,
+  VALIDATORS,
   walletOf,
   wrap,
 } from "./plan-emulator-util";
@@ -58,6 +60,7 @@ const seeded = (seed: number) => () => {
  * smaller limit, so that fewer UTxOs fragment the wallet
  */
 const fragmented = async (
+  v: Validator,
   values: readonly Record<string, bigint>[],
   options: {
     maxTxSize?: number;
@@ -65,7 +68,7 @@ const fragmented = async (
     plutus?: boolean;
   } = {},
 ) => {
-  const emulator = await emulatorOf(100_000_000);
+  const emulator = await emulatorOf(v, 100_000_000);
   const provider = wrap(emulator);
   const params = await emulator.fetchProtocolParameters();
   const builderFor = (store = options.store) =>
@@ -182,12 +185,12 @@ const expectTooLarge = (error: unknown, cause: "selection" | "parts") => {
   expect((error as Error).message.startsWith('step "main": ')).toBe(true);
 };
 
-describe("a plan for a fragmented wallet", () => {
+describe.each(VALIDATORS)("a plan for a fragmented wallet (%s)", (v) => {
   it(
     "puts consolidation steps before a step that does not fit: 1000 UTxOs of 2 ada and a payment of 1900 ada",
     async () => {
       const { emulator, builder, wallet, address, maxTxSize } =
-        await fragmented(coins(1000, 2n * ADA));
+        await fragmented(v, coins(1000, 2n * ADA));
       const payment = pay({ lovelace: 1900n * ADA });
       const alone = await caught(builder.build(payment, { payer: wallet }));
       expect(TxBuildError.is(alone, "TX_TOO_LARGE")).toBe(true);
@@ -257,7 +260,10 @@ describe("a plan for a fragmented wallet", () => {
           ]),
         ),
       }));
-      const { emulator, builder, wallet, address } = await fragmented(values);
+      const { emulator, builder, wallet, address } = await fragmented(
+        v,
+        values,
+      );
       const plan = await builder.plan(pay({ lovelace: 1000n * ADA }), {
         payer: wallet,
       });
@@ -305,7 +311,7 @@ describe("a plan for a fragmented wallet", () => {
     "consolidate: false leaves the error, and nothing is recorded",
     async () => {
       const store = watchStore();
-      const { builder, wallet } = await fragmented(coins(300, 2n * ADA), {
+      const { builder, wallet } = await fragmented(v, coins(300, 2n * ADA), {
         maxTxSize: 4096,
         store,
       });
@@ -327,7 +333,7 @@ describe("a plan for a fragmented wallet", () => {
     "maxSteps reached is TX_TOO_LARGE saying how many the plan allows, and nothing is recorded",
     async () => {
       const store = watchStore();
-      const { builder, wallet } = await fragmented(coins(300, 2n * ADA), {
+      const { builder, wallet } = await fragmented(v, coins(300, 2n * ADA), {
         maxTxSize: 4096,
         store,
       });
@@ -360,7 +366,7 @@ describe("a plan for a fragmented wallet", () => {
   it(
     "counts consolidation steps among the 32 steps a plan may have",
     async () => {
-      const { builder, wallet } = await fragmented(coins(300, 2n * ADA), {
+      const { builder, wallet } = await fragmented(v, coins(300, 2n * ADA), {
         maxTxSize: 4096,
       });
       // 30 small steps and one that needs two consolidation steps: room for one
@@ -386,6 +392,7 @@ describe("a plan for a fragmented wallet", () => {
     "refuses a consolidate option of another form, naming its type alone",
     async () => {
       const { builder, wallet, provider } = await fragmented(
+        v,
         coins(2, 5n * ADA),
       );
       const calls = provider.control.count("fetchAddressUTxOs");
@@ -421,7 +428,7 @@ describe("a plan for a fragmented wallet", () => {
   it(
     "does not consolidate a step with sendAllTo: its error stands",
     async () => {
-      const { builder, wallet } = await fragmented(coins(300, 2n * ADA), {
+      const { builder, wallet } = await fragmented(v, coins(300, 2n * ADA), {
         maxTxSize: 4096,
       });
       const error = await caught(
@@ -440,7 +447,7 @@ describe("a plan for a fragmented wallet", () => {
   it(
     'does not consolidate a step too large by its parts (cause: "parts")',
     async () => {
-      const { builder, wallet } = await fragmented(coins(300, 2n * ADA), {
+      const { builder, wallet } = await fragmented(v, coins(300, 2n * ADA), {
         maxTxSize: 4096,
       });
       const outputs = Array.from({ length: 100 }, () =>
@@ -461,6 +468,7 @@ describe("a plan for a fragmented wallet", () => {
     "gives an added step consolidation steps too, named and counted through the plan",
     async () => {
       const { emulator, builder, wallet, address } = await fragmented(
+        v,
         coins(900, 2n * ADA),
         { maxTxSize: 4096 },
       );
@@ -526,6 +534,7 @@ describe("a plan for a fragmented wallet", () => {
     async () => {
       const store = watchStore();
       const { builder, builderFor, wallet } = await fragmented(
+        v,
         coins(300, 2n * ADA),
         { maxTxSize: 4096, store },
       );
@@ -562,6 +571,7 @@ describe("a plan for a fragmented wallet", () => {
     async () => {
       const store = watchStore();
       const { builder, builderFor, wallet, provider } = await fragmented(
+        v,
         coins(300, 2n * ADA),
         { maxTxSize: 4096, store },
       );
@@ -604,6 +614,7 @@ describe("a plan for a fragmented wallet", () => {
     "leaves consolidation steps out of rest, and the record reads them back with their kind and no given",
     async () => {
       const { builder, wallet, address } = await fragmented(
+        v,
         coins(300, 2n * ADA),
         { maxTxSize: 4096 },
       );
@@ -644,6 +655,7 @@ describe("a plan for a fragmented wallet", () => {
     async () => {
       const store = watchStore();
       const { emulator, builder, builderFor, wallet } = await fragmented(
+        v,
         coins(300, 2n * ADA),
         { maxTxSize: 4096, store },
       );
@@ -672,6 +684,7 @@ describe("a plan for a fragmented wallet", () => {
     "builds a step with a Plutus part after its consolidation steps, with collateral",
     async () => {
       const { emulator, builder, wallet, address } = await fragmented(
+        v,
         coins(500, 1_900_000n),
         { plutus: true },
       );
@@ -714,6 +727,7 @@ describe("a plan for a fragmented wallet", () => {
     "tells a consolidation step that cannot be built as the served step's TX_TOO_LARGE, its error as the cause; an abort stays ABORTED",
     async () => {
       const { emulator, provider, wallet, address } = await fragmented(
+        v,
         coins(300, 2n * ADA),
       );
       // A builder whose serializer judges every transaction that pays the wallet alone too large
@@ -777,6 +791,7 @@ describe("a plan for a fragmented wallet", () => {
         );
         const store = watchStore();
         const { emulator, builder, wallet, address } = await fragmented(
+          v,
           values,
           { maxTxSize: 4096, store },
         );

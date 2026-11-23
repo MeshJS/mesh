@@ -1,6 +1,6 @@
 import { TxBuildError } from "../../../src/tx-builder";
 import { coins, consolidationsOf, fragmented, pay } from "./consolidate-util";
-import { caught } from "./plan-emulator-util";
+import { caught, VALIDATORS } from "./plan-emulator-util";
 import { ADA, alice, bob } from "./run-util";
 
 // The option `consolidate` read strictly, the names of consolidation steps after a record with a
@@ -12,11 +12,12 @@ const LONG = 300_000;
 const names = (plan: { steps: readonly { name: string }[] }) =>
   plan.steps.map((step) => step.name);
 
-describe("consolidation steps, in detail", () => {
+describe.each(VALIDATORS)("consolidation steps, in detail (%s)", (v) => {
   it(
     "takes consolidate only as a flag or a plain object whose one own member may be maxSteps",
     async () => {
       const { builder, wallet, provider } = await fragmented(
+        v,
         coins(2, 5n * ADA),
       );
       const calls = provider.control.count("fetchAddressUTxOs");
@@ -60,7 +61,7 @@ describe("consolidation steps, in detail", () => {
   it(
     "numbers a new consolidation step one above the highest the plan has",
     async () => {
-      const { builder, wallet } = await fragmented(coins(900, 2n * ADA), {
+      const { builder, wallet } = await fragmented(v, coins(900, 2n * ADA), {
         maxTxSize: 4096,
       });
       const plan = await builder.plan(
@@ -89,7 +90,7 @@ describe("consolidation steps, in detail", () => {
   it(
     "says how many consolidation steps a step short of funds got, and their fees",
     async () => {
-      const { builder, wallet } = await fragmented(coins(300, 2n * ADA), {
+      const { builder, wallet } = await fragmented(v, coins(300, 2n * ADA), {
         maxTxSize: 4096,
       });
       // Enough for the step on the wallet as it is, not after the fees of its consolidation

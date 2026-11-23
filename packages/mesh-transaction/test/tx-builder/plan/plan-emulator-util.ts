@@ -35,10 +35,14 @@ export const walletOf = async (accountIndex = 0) => {
   return wallet;
 };
 
-/** A preprod emulator validating with Scalus */
-export const emulatorOf = (slot?: number) =>
+/** The two validators of TxEmulator: a test on the emulator runs its cases on each */
+export const VALIDATORS = ["scalus", "cquisitor"] as const;
+export type Validator = (typeof VALIDATORS)[number];
+
+/** A preprod emulator validating with this validator */
+export const emulatorOf = (validator: Validator, slot?: number) =>
   TxEmulator.create({
-    validator: "scalus",
+    validator,
     network: "preprod",
     ...(slot !== undefined && { slot }),
   });
@@ -120,8 +124,9 @@ export const builderOf = (
     ...options,
   });
 
-/** An emulator, a wrapped provider over it, a builder and a funded wallet */
+/** An emulator of this validator, a wrapped provider over it, a builder and a funded wallet */
 export const setup = async (
+  validator: Validator,
   options: {
     hooks?: Hooks;
     builder?: Partial<TxBuilderOptions>;
@@ -129,7 +134,7 @@ export const setup = async (
     slot?: number;
   } = {},
 ) => {
-  const emulator = await emulatorOf(options.slot);
+  const emulator = await emulatorOf(validator, options.slot);
   const provider = wrap(emulator, options.hooks);
   const builder = builderOf(provider, options.builder);
   const wallet = await walletOf();

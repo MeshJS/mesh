@@ -300,7 +300,7 @@ describe("BuiltTx: the object", () => {
   });
 
   it("returns plain data from what is not a build of the builder: a step of a plan", async () => {
-    const { builder: planBuilder, address } = await setup();
+    const { builder: planBuilder, address } = await setup("scalus");
     const plan = await planBuilder.plan(pay(), { payer: address });
     const data = plan.step("main");
     expect(data).not.toBeInstanceOf(BuiltTx);
@@ -357,7 +357,7 @@ describe("BuiltTx: the object", () => {
     const { built } = await fixture();
     const data: BuiltTxData = built;
     expect(data).toBe(built);
-    const { builder: planBuilder, address } = await setup();
+    const { builder: planBuilder, address } = await setup("scalus");
     const step = (await planBuilder.plan(pay(), { payer: address })).step(
       "main",
     );
@@ -4262,7 +4262,7 @@ describe("BuiltTx as JSON, and TxBuilder.restore", () => {
       load: async () => store.json,
       save: async () => true,
     };
-    const { builder: b, address } = await setup({
+    const { builder: b, address } = await setup("scalus", {
       builder: { store: store as never },
     });
     const plan = await b.plan(pay(), { payer: address, id: "pay-1" });

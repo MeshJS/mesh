@@ -15,6 +15,7 @@ import {
   hashOf,
   submitterOf,
   swallowing,
+  VALIDATORS,
   walletOf,
 } from "./plan-emulator-util";
 import {
@@ -69,12 +70,12 @@ const clockOnChain = (
 
 afterEach(() => jest.restoreAllMocks());
 
-describe("a call of run() that cannot send", () => {
+describe.each(VALIDATORS)("a call of run() that cannot send (%s)", (v) => {
   beforeAll(() => Crypto.ready());
 
   it("waits and looks for a step another party sent without a witness the plan holds, and never spins", async () => {
     const co = testKey();
-    const { emulator, provider, builder, wallet } = await stepSetup("scalus", {
+    const { emulator, provider, builder, wallet } = await stepSetup(v, {
       builder: { planDefaults: { ...FAST, confirmations: 3 } },
     });
     const plan = await builder.plan(
@@ -126,7 +127,7 @@ describe("a call of run() that cannot send", () => {
 
   it("asks a signer once a call for a step: MISSING_SIGNATURES, nothing sent, before the call's time is up", async () => {
     const co = testKey();
-    const { provider, builder, wallet } = await stepSetup("scalus");
+    const { provider, builder, wallet } = await stepSetup(v);
     const plan = await builder.plan(
       { a: [payTo(alice, 5n * ADA), guard.pubKey({ keyHash: co.keyHash })] },
       { payer: wallet },
@@ -137,11 +138,11 @@ describe("a call of run() that cannot send", () => {
   });
 });
 
-describe("a step called dead", () => {
+describe.each(VALIDATORS)("a step called dead (%s)", (v) => {
   it("is looked for again; found in a block it is included, the plan leaves stopped, and trace is told", async () => {
     const hidden = new Set<string>();
     const events: BuildEvent[] = [];
-    const { emulator, builder, wallet } = await stepSetup("scalus", {
+    const { emulator, builder, wallet } = await stepSetup(v, {
       hooks: hiding(hidden),
     });
     const plan = await builder.plan(payTo(alice, 5n * ADA), {
@@ -174,7 +175,7 @@ describe("a step called dead", () => {
   });
 
   it("is looked for by run() on a stopped plan, which looks first and then refuses to send", async () => {
-    const { emulator, provider, builder, wallet } = await stepSetup("scalus");
+    const { emulator, provider, builder, wallet } = await stepSetup(v);
     const plan = await builder.plan(payTo(alice, 5n * ADA), {
       payer: wallet,
       ttlMs: 60_000,
@@ -197,7 +198,7 @@ describe("a step called dead", () => {
   });
 
   it("stops the plan; a step of another payer that was sent goes again, the same bytes, and nothing goes for the first time", async () => {
-    const { emulator, provider, builder, wallet } = await stepSetup("scalus", {
+    const { emulator, provider, builder, wallet } = await stepSetup(v, {
       builder: { planDefaults: { ...FAST, confirmations: 3 } },
     });
     const other = await walletOf(1);
@@ -248,10 +249,10 @@ describe("a step called dead", () => {
   });
 });
 
-describe("an orphaned step", () => {
+describe.each(VALIDATORS)("an orphaned step (%s)", (v) => {
   it("comes back when the step it stands on is found after all: the same bytes go again and land, the recipient is paid once, and nothing goes for the first time", async () => {
     const hidden = new Set<string>();
-    const { emulator, builder, wallet } = await stepSetup("scalus", {
+    const { emulator, builder, wallet } = await stepSetup(v, {
       hooks: hiding(hidden),
       builder: { planDefaults: { ...FAST, confirmations: 3 } },
       funds: [1000n * ADA, 1000n * ADA, 1000n * ADA],
@@ -324,7 +325,7 @@ describe("an orphaned step", () => {
 
   it("comes back for run() on the object that saw it orphaned, and the plan is final with the recipient paid once", async () => {
     const hidden = new Set<string>();
-    const { emulator, builder, wallet } = await stepSetup("scalus", {
+    const { emulator, builder, wallet } = await stepSetup(v, {
       hooks: hiding(hidden),
       builder: { planDefaults: { ...FAST, confirmations: 3 } },
       funds: [1000n * ADA, 1000n * ADA, 1000n * ADA],
@@ -374,11 +375,11 @@ describe("an orphaned step", () => {
   });
 });
 
-describe("the time of a plan", () => {
+describe.each(VALIDATORS)("the time of a plan (%s)", (v) => {
   it("expires nothing by a tip from the future, and tells trace; the step that was on its way lands", async () => {
     let lie = 0;
     const events: BuildEvent[] = [];
-    const { emulator, builder, wallet } = await stepSetup("scalus", {
+    const { emulator, builder, wallet } = await stepSetup(v, {
       hooks: {
         fetchLatestBlock: async (forward: () => Promise<{ slot: number }>) => {
           const block = await forward();
@@ -412,7 +413,7 @@ describe("the time of a plan", () => {
   });
 
   it("expires a step only when both the tip and the local clock are past its end of validity and the margin", async () => {
-    const { emulator, builder, wallet } = await stepSetup("scalus");
+    const { emulator, builder, wallet } = await stepSetup(v);
     const offset = { ms: 0 };
     clockOnChain(builder, () => emulator.slot, offset);
     const plan = await builder.plan(payTo(alice, 5n * ADA), {
@@ -433,7 +434,7 @@ describe("the time of a plan", () => {
   });
 
   it("is CONFIRM_TIMEOUT, not EXPIRED, while a step past its end of validity may still land; EXPIRED once it is dead", async () => {
-    const { emulator, provider, builder, wallet } = await stepSetup("scalus", {
+    const { emulator, provider, builder, wallet } = await stepSetup(v, {
       builder: { planDefaults: { ...FAST, expiryMarginMs: 120_000 } },
     });
     const plan = await builder.plan(
@@ -472,7 +473,7 @@ describe("the time of a plan", () => {
   it("counts timeoutMs anew after each delivery", async () => {
     const hidden = new Set<string>();
     const shown = new Map<string, number>();
-    const { emulator, builder, wallet } = await stepSetup("scalus", {
+    const { emulator, builder, wallet } = await stepSetup(v, {
       hooks: {
         fetchTxInfo: (forward: (hash: string) => unknown, hash: string) => {
           const at = shown.get(hash.toLowerCase());
@@ -502,7 +503,7 @@ describe("the time of a plan", () => {
   });
 
   it("is NOT_YET_VALID before a step's lower bound, and sends nothing", async () => {
-    const { emulator, provider, builder, wallet } = await stepSetup("scalus");
+    const { emulator, provider, builder, wallet } = await stepSetup(v);
     const from = builder.timeAt(emulator.slot) + 300_000;
     const plan = await builder.plan(
       [payTo(alice, 5n * ADA), validity({ from })],
@@ -522,9 +523,9 @@ describe("the time of a plan", () => {
   });
 });
 
-describe("the bytes of a step", () => {
+describe.each(VALIDATORS)("the bytes of a step (%s)", (v) => {
   it("are fixed by its first delivery: a witness added later changes nothing and is no error", async () => {
-    const { builder, wallet } = await stepSetup("scalus");
+    const { builder, wallet } = await stepSetup(v);
     const other = await walletOf(2);
     const plan = await builder.plan(payTo(alice, 5n * ADA), {
       payer: wallet,
@@ -542,10 +543,10 @@ describe("the bytes of a step", () => {
   });
 });
 
-describe("a look", () => {
+describe.each(VALIDATORS)("a look (%s)", (v) => {
   it("leaves out a step never sent that stands on a step not in a block, and searches it once that step is", async () => {
     const searched: string[] = [];
-    const { emulator, builder, wallet } = await stepSetup("scalus", {
+    const { emulator, builder, wallet } = await stepSetup(v, {
       hooks: {
         fetchTxInfo: (forward: (hash: string) => unknown, hash: string) => {
           searched.push(hash.toLowerCase());
@@ -574,11 +575,11 @@ describe("a look", () => {
   });
 });
 
-describe("a call that waits", () => {
+describe.each(VALIDATORS)("a call that waits (%s)", (v) => {
   it("reads the store again before each pause: a stop written by another process ends it", async () => {
     const store = memoryPlanStore();
     // No resend while it waits: the object writes nothing, and only a read shows the mark
-    const { emulator, provider, builder, wallet } = await stepSetup("scalus", {
+    const { emulator, provider, builder, wallet } = await stepSetup(v, {
       builder: { store, planDefaults: { ...FAST, resendMs: 60_000 } },
     });
     const plan = await builder.plan(payTo(alice, 5n * ADA), {
@@ -605,9 +606,9 @@ describe("a call that waits", () => {
   });
 });
 
-describe("a plan built after another plan", () => {
+describe.each(VALIDATORS)("a plan built after another plan (%s)", (v) => {
   it("expires a step every input of which comes from that plan when that plan does not land: a look finds the transaction before them", async () => {
-    const { emulator, builder, wallet, funded } = await stepSetup("scalus");
+    const { emulator, builder, wallet, funded } = await stepSetup(v);
     const first = await builder.plan(
       { a: payTo(alice, 5n * ADA), b: payTo(carol, 2n * ADA) },
       { payer: wallet, ttlMs: 60_000 },
@@ -645,7 +646,7 @@ describe("a plan built after another plan", () => {
   });
 
   it("never expires such a step by a search that finds nothing", async () => {
-    const { emulator, builder, wallet } = await stepSetup("scalus", {
+    const { emulator, builder, wallet } = await stepSetup(v, {
       hooks: { fetchTxInfo: async () => Promise.reject(new Error("404")) },
     });
     const first = await builder.plan(payTo(alice, 5n * ADA), {

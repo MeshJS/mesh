@@ -1,6 +1,7 @@
 import type { TxEmulator } from "@meshsdk/tx-emulator";
 
 import type { TxBuilderOptions, TxPlan, Utxo } from "../../../src/tx-builder";
+import type { Validator } from "./plan-emulator-util";
 import { output } from "../../../src/tx-builder";
 import {
   builderOf,
@@ -22,12 +23,14 @@ export const keyOf = (ref: { txHash: string; outputIndex: number }) =>
   `${ref.txHash}#${ref.outputIndex}`;
 
 /**
- * An emulator holding the wallet's UTxOs with these values, a provider over it and a builder
- * with the fast defaults; with `maxTxSize` the builder takes the emulator's parameters with a
- * smaller limit, so that fewer UTxOs fragment the wallet; with `plutus` it evaluates scripts on
- * the emulator; with `confirmations` a step is final that many blocks after its own
+ * An emulator of this validator holding the wallet's UTxOs with these values, a provider over it
+ * and a builder with the fast defaults; with `maxTxSize` the builder takes the emulator's
+ * parameters with a smaller limit, so that fewer UTxOs fragment the wallet; with `plutus` it
+ * evaluates scripts on the emulator; with `confirmations` a step is final that many blocks after
+ * its own
  */
 export const fragmented = async (
+  validator: Validator,
   values: readonly Record<string, bigint>[],
   options: {
     maxTxSize?: number;
@@ -35,7 +38,7 @@ export const fragmented = async (
     confirmations?: number;
   } = {},
 ) => {
-  const emulator = await emulatorOf(100_000_000);
+  const emulator = await emulatorOf(validator, 100_000_000);
   const provider = wrap(emulator);
   const params = await emulator.fetchProtocolParameters();
   const builderFor = (more: Partial<TxBuilderOptions> = {}) =>

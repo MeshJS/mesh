@@ -10,6 +10,7 @@ import type {
   TxPlanStore,
   Utxo,
 } from "../../../src/tx-builder";
+import type { Validator } from "./plan-emulator-util";
 import { memoryPlanStore } from "../../../src/tx-builder";
 import { ref } from "../utxo-util";
 import {
@@ -17,6 +18,7 @@ import {
   emulatorOf,
   hashOf,
   submitterOf,
+  VALIDATORS,
   walletOf,
   wrap,
 } from "./plan-emulator-util";
@@ -178,7 +180,7 @@ type Move =
     };
 
 /** What the runs of the seeds reached, so that the coverage of the default run is checked */
-const reached = {
+const nothingReached = () => ({
   rollbacks: 0,
   /** Saves the store refused: two objects wrote over one revision */
   refusedSaves: 0,
@@ -205,6 +207,11 @@ const reached = {
   takenRolledBackInRounds: 0,
   /** Steps that landed by the move that lands the first step not in a block */
   landed: 0,
+});
+/** What the runs reached on each validator */
+const reachedOn: Record<Validator, ReturnType<typeof nothingReached>> = {
+  scalus: nothingReached(),
+  cquisitor: nothingReached(),
 };
 
 /** One plan of a run: its id, its order, its two objects, and what the checks saw of it */
@@ -221,7 +228,8 @@ type Life = {
 };
 
 /** One run of a seed: its findings and its trace */
-const run = async (seed: number) => {
+const run = async (v: Validator, seed: number) => {
+  const reached = reachedOn[v];
   const random = seeded(seed);
   // The first numbers of nearby seeds are alike
   for (let i = 0; i < 8; i++) random.next();
@@ -236,7 +244,7 @@ const run = async (seed: number) => {
   const short = (hash: string) => hash.slice(0, 8);
 
   // The chain everyone reads and submits to, and forks kept for rollbacks
-  let main: TxEmulator = await emulatorOf(START_SLOT);
+  let main: TxEmulator = await emulatorOf(v, START_SLOT);
   let maxSlot = main.slot;
   const forks: { chain: TxEmulator; slot: number }[] = [];
   /** Hashes a search hides, with the looks left; every hash a search ever hid */
@@ -1154,39 +1162,43 @@ const run = async (seed: number) => {
   return { findings, trace };
 };
 
-describe("Two objects on one record, with a moving chain and a replayer", () => {
-  const seeds =
-    ONLY_SEED !== undefined
-      ? [Number(ONLY_SEED)]
-      : Array.from({ length: SEEDS }, (_, i) => i + 1);
-  it.each(seeds)(
-    "pays at most once, keeps final and stopped, and hands out only recorded bodies: seed %i",
-    async (seed) => {
-      const { findings, trace } = await run(seed);
-      if (findings.length > 0)
-        throw new Error(
-          `seed ${seed} (PLAN_RACE_SEED=${seed}): ${findings.join("; ")}\n${trace.join("\n")}`,
-        );
-    },
-    ROUNDS * 20_000,
-  );
+describe.each(VALIDATORS)(
+  "Two objects on one record, with a moving chain and a replayer (%s)",
+  (v) => {
+    const seeds =
+      ONLY_SEED !== undefined
+        ? [Number(ONLY_SEED)]
+        : Array.from({ length: SEEDS }, (_, i) => i + 1);
+    it.each(seeds)(
+      "pays at most once, keeps final and stopped, and hands out only recorded bodies: seed %i",
+      async (seed) => {
+        const { findings, trace } = await run(v, seed);
+        if (findings.length > 0)
+          throw new Error(
+            `seed ${seed} (PLAN_RACE_SEED=${seed}): ${findings.join("; ")}\n${trace.join("\n")}`,
+          );
+      },
+      ROUNDS * 20_000,
+    );
 
-  // The runs above are only worth something if they reach these moves
-  (ONLY_SEED === undefined ? it : it.skip)(
-    "reached two writers on one revision, foreign spends, rollbacks, hidden searches, plans stopped short and plans in place of others",
-    () => {
-      expect(reached.refusedSaves).toBeGreaterThan(0);
-      expect(reached.rollbacks).toBeGreaterThan(0);
-      expect(reached.foreignSpends).toBeGreaterThan(0);
-      expect(reached.stoppedShort).toBeGreaterThan(0);
-      expect(reached.replaced).toBeGreaterThan(0);
-      expect(reached.hiddenLooks).toBeGreaterThan(0);
-      expect(reached.plans).toBeGreaterThan(0);
-      expect(reached.takenPlans).toBeGreaterThan(0);
-      expect(reached.takenRolledBack).toBeGreaterThan(0);
-      expect(reached.takenPlansInRounds).toBeGreaterThan(0);
-      expect(reached.takenRolledBackInRounds).toBeGreaterThan(0);
-      console.log(`reached: ${JSON.stringify(reached)}`);
-    },
-  );
-});
+    // The runs above are only worth something if they reach these moves
+    (ONLY_SEED === undefined ? it : it.skip)(
+      "reached two writers on one revision, foreign spends, rollbacks, hidden searches, plans stopped short and plans in place of others",
+      () => {
+        const reached = reachedOn[v];
+        expect(reached.refusedSaves).toBeGreaterThan(0);
+        expect(reached.rollbacks).toBeGreaterThan(0);
+        expect(reached.foreignSpends).toBeGreaterThan(0);
+        expect(reached.stoppedShort).toBeGreaterThan(0);
+        expect(reached.replaced).toBeGreaterThan(0);
+        expect(reached.hiddenLooks).toBeGreaterThan(0);
+        expect(reached.plans).toBeGreaterThan(0);
+        expect(reached.takenPlans).toBeGreaterThan(0);
+        expect(reached.takenRolledBack).toBeGreaterThan(0);
+        expect(reached.takenPlansInRounds).toBeGreaterThan(0);
+        expect(reached.takenRolledBackInRounds).toBeGreaterThan(0);
+        console.log(`reached on ${v}: ${JSON.stringify(reached)}`);
+      },
+    );
+  },
+);

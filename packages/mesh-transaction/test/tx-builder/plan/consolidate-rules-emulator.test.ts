@@ -8,6 +8,7 @@ import type {
   TxPlan,
   Utxo,
 } from "../../../src/tx-builder";
+import type { Validator } from "./plan-emulator-util";
 import {
   mint,
   output,
@@ -20,6 +21,7 @@ import {
   caught,
   emulatorOf,
   recipient,
+  VALIDATORS,
   walletOf,
   wrap,
 } from "./plan-emulator-util";
@@ -53,10 +55,11 @@ const seeded = (seed: number) => () => {
  * and a token of it
  */
 const fragmented = async (
+  v: Validator,
   values: (unit: string) => readonly Record<string, bigint>[],
   options: { store?: ReturnType<typeof watchStore> } = {},
 ) => {
-  const emulator = await emulatorOf(100_000_000);
+  const emulator = await emulatorOf(v, 100_000_000);
   const provider = wrap(emulator);
   const params = await emulator.fetchProtocolParameters();
   const builderFor = (store = options.store) =>
@@ -186,12 +189,12 @@ const failingConsolidation = (
   };
 };
 
-describe("the token units a later step needs", () => {
+describe.each(VALIDATORS)("the token units a later step needs (%s)", (v) => {
   it(
     "a later step that mints the token it pays is given no parked output of it",
     async () => {
       const { emulator, builder, wallet, policy, name, unit } =
-        await fragmented(withToken(250));
+        await fragmented(v, withToken(250));
       const { asked, canSelect } = askedFilter();
       const plan = await builder.plan(
         {
@@ -224,7 +227,7 @@ describe("the token units a later step needs", () => {
     "a later step that burns a parked token is given the parked outputs, and the plan is made and runs",
     async () => {
       const { emulator, builder, wallet, address, policy, name, unit } =
-        await fragmented(withToken(250));
+        await fragmented(v, withToken(250));
       const first = pay({ lovelace: 450n * ADA });
       // What the step alone parks: more than the wallet holds outside the parked outputs
       const parked = sumOf(
@@ -256,11 +259,11 @@ describe("the token units a later step needs", () => {
   );
 });
 
-describe("errors of a step consolidation serves", () => {
+describe.each(VALIDATORS)("errors of a step consolidation serves (%s)", (v) => {
   it(
     "the served step's own error stands when consolidation has nothing it may spend",
     async () => {
-      const { builder, wallet } = await fragmented(coins(300, 2n * ADA));
+      const { builder, wallet } = await fragmented(v, coins(300, 2n * ADA));
       // A filter that lets each UTxO through once: the step's selection takes what it lets
       // through, and a consolidation step may spend none of it
       const once = () => {
@@ -302,7 +305,7 @@ describe("errors of a step consolidation serves", () => {
   it(
     "a provider failure and an abort inside a consolidation step's build pass as they are",
     async () => {
-      const { builder, wallet } = await fragmented(coins(300, 2n * ADA));
+      const { builder, wallet } = await fragmented(v, coins(300, 2n * ADA));
       const payment = pay({ lovelace: 400n * ADA });
       // No provider call is made by such a build today: the failure is put in its place
       const failure = new TxBuildError(
@@ -317,7 +320,7 @@ describe("errors of a step consolidation serves", () => {
       expect(failed.details).toEqual({ operation: "fetchUTxOs" });
       expect(failed.message).toBe('step "main": fetching the UTxOs failed');
 
-      const other = (await fragmented(coins(300, 2n * ADA))).builder;
+      const other = (await fragmented(v, coins(300, 2n * ADA))).builder;
       const abort = new TxBuildError("ABORTED", "the call was aborted");
       failingConsolidation(other, () => abort);
       const aborted = await caught(other.plan(payment, { payer: wallet }));
@@ -326,7 +329,7 @@ describe("errors of a step consolidation serves", () => {
       expect(aborted.message).toBe('step "main": the call was aborted');
 
       // Any other failure is told as the served step's error, with it as the cause
-      const third = (await fragmented(coins(300, 2n * ADA))).builder;
+      const third = (await fragmented(v, coins(300, 2n * ADA))).builder;
       const short = new TxBuildError("FEE_NOT_CONVERGED", "no fee");
       failingConsolidation(third, () => short);
       const told = await caught(third.plan(payment, { payer: wallet }));
@@ -337,11 +340,12 @@ describe("errors of a step consolidation serves", () => {
   );
 });
 
-describe("what a final consolidation step left", () => {
+describe.each(VALIDATORS)("what a final consolidation step left (%s)", (v) => {
   it(
     "an added step takes it from the payer's read: a parked output spent outside the plan is never given to it",
     async () => {
       const { emulator, builder, wallet, address, unit } = await fragmented(
+        v,
         withToken(250),
       );
       // A step of a second payer, left unsigned, keeps the plan going once the others are final
@@ -394,12 +398,12 @@ describe("what a final consolidation step left", () => {
   );
 });
 
-describe("a step with sendAllTo", () => {
+describe.each(VALIDATORS)("a step with sendAllTo (%s)", (v) => {
   it(
     "is never consolidated, after other steps too, and nothing is recorded",
     async () => {
       const store = watchStore();
-      const { builder, wallet } = await fragmented(coins(300, 2n * ADA), {
+      const { builder, wallet } = await fragmented(v, coins(300, 2n * ADA), {
         store,
       });
       const { trace, events, consolidationBuilds } = tracer();
@@ -427,11 +431,12 @@ describe("a step with sendAllTo", () => {
 /** 700 UTxOs of 2 ada, and a payment that takes five consolidation steps */
 const FIVE_STEPS = { utxos: 700, lovelace: 1190n * ADA };
 
-describe("the option consolidate", () => {
+describe.each(VALIDATORS)("the option consolidate (%s)", (v) => {
   it(
     "true and {} allow four consolidation steps, { maxSteps } as many as it says; each is recorded as given",
     async () => {
       const { builder, wallet } = await fragmented(
+        v,
         coins(FIVE_STEPS.utxos, 2n * ADA),
       );
       const payment = pay({ lovelace: FIVE_STEPS.lovelace });
@@ -481,6 +486,7 @@ describe("the option consolidate", () => {
     async () => {
       const store = watchStore();
       const { builder, builderFor, wallet } = await fragmented(
+        v,
         coins(FIVE_STEPS.utxos, 2n * ADA),
         { store },
       );
@@ -528,7 +534,7 @@ describe("the option consolidate", () => {
   );
 });
 
-describe("consolidation steps are built once", () => {
+describe.each(VALIDATORS)("consolidation steps are built once (%s)", (v) => {
   it(
     "one build per consolidation step, with tokens parked or not",
     async () => {
@@ -536,7 +542,7 @@ describe("consolidation steps are built once", () => {
         coins(FIVE_STEPS.utxos, 2n * ADA),
         withToken(400),
       ]) {
-        const { builder, wallet } = await fragmented(values);
+        const { builder, wallet } = await fragmented(v, values);
         const { trace, consolidationBuilds } = tracer();
         const plan = await builder.plan(pay({ lovelace: 700n * ADA }), {
           payer: wallet,
@@ -551,7 +557,7 @@ describe("consolidation steps are built once", () => {
   );
 });
 
-describe("a plan for random fragmented wallets", () => {
+describe.each(VALIDATORS)("a plan for random fragmented wallets (%s)", (v) => {
   it(
     "is made and runs, or throws the served step's TX_TOO_LARGE and records nothing",
     async () => {
@@ -573,6 +579,7 @@ describe("a plan for random fragmented wallets", () => {
         let wantedUnit = "";
         const store = watchStore();
         const { emulator, builder, wallet, address } = await fragmented(
+          v,
           (unit) => {
             wantedUnit = unit;
             return Array.from(

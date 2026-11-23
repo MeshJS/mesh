@@ -5,6 +5,7 @@ import type {
   TxPlan,
   TxStepStatus,
 } from "../../../src/tx-builder";
+import type { Validator } from "./plan-emulator-util";
 import { spend, TxError } from "../../../src/tx-builder";
 import { alwaysSucceedCbor } from "../../test-util";
 import {
@@ -15,6 +16,7 @@ import {
   setup,
   submitterOf,
   swallowing,
+  VALIDATORS,
 } from "./plan-emulator-util";
 import { refusal } from "./run-util";
 import { watchStore } from "./store-util";
@@ -36,10 +38,10 @@ const refusing = () =>
   });
 
 /** An emulator, a wallet and a builder over a watched store; `restart` is a new builder */
-const storeSetup = async () => {
+const storeSetup = async (v: Validator) => {
   const store = watchStore();
   // A chain behind the local clock: a step past its end of validity is past it by both
-  const ctx = await setup({ builder: { store }, slot: 100_000_000 });
+  const ctx = await setup(v, { builder: { store }, slot: 100_000_000 });
   const restart = (extra: Partial<TxBuilderOptions> = {}) =>
     builderOf(ctx.provider, { store, ...extra });
   return { ...ctx, store, restart };
@@ -67,9 +69,10 @@ const statuses = (plan: TxPlan) => plan.steps.map((step) => step.status);
 
 /** A plan with the id "pay" brought to the case's statuses on a store */
 const reach = async (
+  v: Validator,
   which: Case,
 ): Promise<{ ctx: Ctx; plan: TxPlan; id: string }> => {
-  const ctx = await storeSetup();
+  const ctx = await storeSetup(v);
   const { builder, wallet, address, emulator, provider } = ctx;
   const id = "pay";
   const made = (options: Parameters<typeof builder.plan>[1] = {}) =>
@@ -179,9 +182,9 @@ const shown = (plan: TxPlan) => ({
   replacedBy: plan.replacedBy,
 });
 
-describe("builder.resume on TxEmulator", () => {
+describe.each(VALIDATORS)("builder.resume on TxEmulator (%s)", (v) => {
   it.each(CASES)("gives the same plan after a restart: %s", async (which) => {
-    const { ctx, plan, id } = await reach(which);
+    const { ctx, plan, id } = await reach(v, which);
     const record = await ctx.store.load(id);
     // The object is neither ahead of the store nor behind it
     expect(plan.toJSON()).toStrictEqual(record);
@@ -196,7 +199,7 @@ describe("builder.resume on TxEmulator", () => {
   it.each(CASES)(
     "takes the reconcile step with resume(id, { payer }) and run(): %s",
     async (which) => {
-      const { ctx, plan, id } = await reach(which);
+      const { ctx, plan, id } = await reach(v, which);
       const { provider, wallet, emulator } = ctx;
       const again = await ctx.restart().resume(id, { payer: wallet });
       const requests = () =>

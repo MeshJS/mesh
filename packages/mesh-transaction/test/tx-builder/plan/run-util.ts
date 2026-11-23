@@ -3,6 +3,7 @@ import { CborWriter } from "@meshsdk/core-cst";
 import { TxEmulator } from "@meshsdk/tx-emulator";
 
 import type { TxBuilderOptions } from "../../../src/tx-builder";
+import type { Validator } from "./plan-emulator-util";
 import { output } from "../../../src/tx-builder";
 import { baseAddress } from "../../test-util";
 import { builderOf, Hooks, walletOf, wrap } from "./plan-emulator-util";
@@ -10,8 +11,8 @@ import { builderOf, Hooks, walletOf, wrap } from "./plan-emulator-util";
 // Helpers of the tests that run plans on TxEmulator: an emulator of either validator behind a
 // wrapped provider, a builder with the fast defaults, and a funded wallet.
 
-export const VALIDATORS = ["scalus", "cquisitor"] as const;
-export type Validator = (typeof VALIDATORS)[number];
+export { VALIDATORS } from "./plan-emulator-util";
+export type { Validator } from "./plan-emulator-util";
 
 export const ADA = 1_000_000n;
 export const alice = baseAddress(3);

@@ -1,6 +1,7 @@
 import { inspect } from "node:util";
 
 import type { TxBuildError } from "../../../src/tx-builder";
+import type { Validator } from "./plan-emulator-util";
 import { TxBuildError as TxBuildErrorClass } from "../../../src/tx-builder";
 import { cip30Wallet } from "../../cip30-wallet";
 import {
@@ -9,6 +10,7 @@ import {
   pay,
   setup,
   submitterOf,
+  VALIDATORS,
   words,
 } from "./plan-emulator-util";
 import { watchStore } from "./store-util";
@@ -25,12 +27,12 @@ const RUN_ALLOWED =
 const LONG_NAME = "ab".repeat(32);
 
 /** A plan over a store, with a payer, signers and submitters that count their requests */
-const builtPlan = async () => {
+const builtPlan = async (v: Validator) => {
   const store = watchStore();
   // The builder's submitter passes the bytes on to the emulator, made after it
   const chain: { submitTx?: (tx: string) => Promise<string> } = {};
   const own = submitterOf((tx) => chain.submitTx!(tx));
-  const { builder, emulator, provider } = await setup({
+  const { builder, emulator, provider } = await setup(v, {
     builder: { store, submitter: own },
   });
   chain.submitTx = (tx) => emulator.submitTx(tx);
@@ -189,34 +191,37 @@ const expectRefused = (
   ).toBe(false);
 };
 
-describe("TxPlan on TxEmulator: options a call does not take", () => {
-  describe.each([
-    ["sign", SIGN_ALLOWED, SIGN_CASES],
-    ["run", RUN_ALLOWED, RUN_CASES],
-  ] as const)("%s()", (call, allowed, cases) => {
-    it.each(cases)(
-      "refuses %s: the payer is not asked, nothing is written or sent",
-      async (_, options, type, says) => {
-        const fixture = await builtPlan();
-        const { plan, untouched, asked, own } = fixture;
-        const method = plan[call].bind(plan) as (
-          o: unknown,
-        ) => Promise<unknown>;
-        expectRefused(
-          await caught(method(options(fixture))),
-          allowed,
-          type,
-          says,
-        );
-        untouched();
-        // Without options the payer signs, and run() sends and waits for a block
-        await method(undefined);
-        expect(asked.payer).toBe(1);
-        expect(plan.step("main").status).toBe(
-          call === "sign" ? "signed" : "final",
-        );
-        expect(own.calls).toHaveLength(call === "sign" ? 0 : 1);
-      },
-    );
-  });
-});
+describe.each(VALIDATORS)(
+  "TxPlan on TxEmulator: options a call does not take (%s)",
+  (v) => {
+    describe.each([
+      ["sign", SIGN_ALLOWED, SIGN_CASES],
+      ["run", RUN_ALLOWED, RUN_CASES],
+    ] as const)("%s()", (call, allowed, cases) => {
+      it.each(cases)(
+        "refuses %s: the payer is not asked, nothing is written or sent",
+        async (_, options, type, says) => {
+          const fixture = await builtPlan(v);
+          const { plan, untouched, asked, own } = fixture;
+          const method = plan[call].bind(plan) as (
+            o: unknown,
+          ) => Promise<unknown>;
+          expectRefused(
+            await caught(method(options(fixture))),
+            allowed,
+            type,
+            says,
+          );
+          untouched();
+          // Without options the payer signs, and run() sends and waits for a block
+          await method(undefined);
+          expect(asked.payer).toBe(1);
+          expect(plan.step("main").status).toBe(
+            call === "sign" ? "signed" : "final",
+          );
+          expect(own.calls).toHaveLength(call === "sign" ? 0 : 1);
+        },
+      );
+    });
+  },
+);

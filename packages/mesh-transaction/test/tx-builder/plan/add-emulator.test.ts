@@ -18,6 +18,7 @@ import {
   hashOf,
   reasonOf,
   swallowing,
+  VALIDATORS,
   walletOf,
 } from "./plan-emulator-util";
 import {
@@ -86,9 +87,9 @@ const expectSteps = (error: unknown) => {
   expect((error as TxBuildError).details).toMatchObject({ option: "steps" });
 };
 
-describe("an added step", () => {
+describe.each(VALIDATORS)("an added step (%s)", (v) => {
   it("adds a step on a step that was sent and is not in a block", async () => {
-    const { emulator, builder, wallet, address } = await stepSetup("scalus");
+    const { emulator, builder, wallet, address } = await stepSetup(v);
     const plan = await builder.plan(
       { a: payTo(alice, 5n * ADA) },
       { payer: wallet },
@@ -121,7 +122,7 @@ describe("an added step", () => {
 
     // A payment the change of a does not cover: the step selects, and never what a spends
     {
-      const { builder, wallet, address } = await stepSetup("scalus", {
+      const { builder, wallet, address } = await stepSetup(v, {
         funds: [1000n * ADA, 30n * ADA],
       });
       const plan = await builder.plan(
@@ -149,7 +150,7 @@ describe("an added step", () => {
   it("does not spend twice an output of a landed step that the payer's read and the plan both show", async () => {
     // a and b in a block, not final
     {
-      const { emulator, builder, wallet } = await stepSetup("scalus", {
+      const { emulator, builder, wallet } = await stepSetup(v, {
         builder: { planDefaults: { ...FAST, confirmations: 3 } },
       });
       const plan = await builder.plan(
@@ -174,7 +175,7 @@ describe("an added step", () => {
     }
     // a and b final, the plan pending by a step of a second payer left unsigned
     {
-      const ctx = await stepSetup("scalus");
+      const ctx = await stepSetup(v);
       const { emulator, builder, wallet } = ctx;
       const { other } = await secondPayer(emulator);
       const plan = await builder.plan(
@@ -205,7 +206,7 @@ describe("an added step", () => {
   it("takes of a final step what the payer's read shows, and never what it spent", async () => {
     // A read that lags behind the chain still lists what a spent
     {
-      const ctx = await stepSetup("scalus");
+      const ctx = await stepSetup(v);
       const { emulator, provider } = ctx;
       const before = emulator.fork();
       const { plan } = await pendingAfterFinal(ctx, payTo(alice, 5n * ADA));
@@ -227,7 +228,7 @@ describe("an added step", () => {
     }
     // The change of a spent outside the plan: what that left
     {
-      const ctx = await stepSetup("scalus");
+      const ctx = await stepSetup(v);
       const { emulator, builder, wallet, address } = ctx;
       const { plan } = await pendingAfterFinal(ctx, payTo(alice, 5n * ADA));
       const outside = await builder.build(payTo(bob, 10n * ADA), {
@@ -245,7 +246,7 @@ describe("an added step", () => {
   });
 
   it("ends an added step at the tip of the call plus the plan's ttlMs, and keeps an end its parts give", async () => {
-    const { emulator, builder, wallet } = await stepSetup("scalus");
+    const { emulator, builder, wallet } = await stepSetup(v);
     const plan = await builder.plan(
       { a: payTo(alice, 5n * ADA) },
       { payer: wallet },
@@ -267,7 +268,7 @@ describe("an added step", () => {
 
   it("fills a link to a recorded step from its transaction, final or not", async () => {
     for (const status of ["sent", "final"] as const) {
-      const ctx = await stepSetup("scalus");
+      const ctx = await stepSetup(v);
       const { builder, wallet, address } = ctx;
       const a = payTo(address, 5n * ADA, "x");
       let plan: TxPlan;
@@ -288,7 +289,7 @@ describe("an added step", () => {
       expect(plan.step("b").standsOn).toEqual(["a"]);
     }
 
-    const { builder, wallet, provider } = await stepSetup("scalus");
+    const { builder, wallet, provider } = await stepSetup(v);
     const plan = await builder.plan(
       { a: payTo(alice, 5n * ADA), b: payTo(bob, 3n * ADA) },
       { payer: wallet },
@@ -322,7 +323,7 @@ describe("an added step", () => {
   });
 
   it("refuses a step that cannot stand on the last step of its payer, and takes it once that step is final", async () => {
-    const ctx = await stepSetup("scalus");
+    const ctx = await stepSetup(v);
     const { emulator, builder, wallet, address } = ctx;
     const { other } = await secondPayer(emulator);
     const plan = await builder.plan(
@@ -348,7 +349,7 @@ describe("an added step", () => {
   });
 
   it("is paid by the plan's payer the object holds, else by the step's own", async () => {
-    const { emulator, provider, builder, wallet } = await stepSetup("scalus", {
+    const { emulator, provider, builder, wallet } = await stepSetup(v, {
       funds: [1000n * ADA, 20n * ADA],
     });
     const { other, address: otherAddress } = await secondPayer(emulator);
@@ -404,7 +405,7 @@ describe("an added step", () => {
   });
 
   it("refuses a step on the change of a step in a block that the payer's read does not list", async () => {
-    const { emulator, builder, wallet } = await stepSetup("scalus", {
+    const { emulator, builder, wallet } = await stepSetup(v, {
       builder: { planDefaults: { ...FAST, confirmations: 3 } },
     });
     const plan = await builder.plan(
@@ -438,7 +439,7 @@ describe("an added step", () => {
 
   it("refuses a payer that answers two change addresses in one call, and builds nothing", async () => {
     for (const step of ["sent", "included"] as const) {
-      const { emulator, builder, wallet, address } = await stepSetup("scalus", {
+      const { emulator, builder, wallet, address } = await stepSetup(v, {
         builder: { planDefaults: { ...FAST, confirmations: 3 } },
       });
       const plan = await builder.plan(
@@ -499,7 +500,7 @@ describe("an added step", () => {
   it("looks first, and is refused on a plan that does not go on", async () => {
     // A step past its end and the margin, which the look of add shows expired
     {
-      const { emulator, provider, builder, wallet } = await stepSetup("scalus");
+      const { emulator, provider, builder, wallet } = await stepSetup(v);
       const plan = await builder.plan(
         { a: payTo(alice, 5n * ADA) },
         { payer: wallet, ttlMs: 60_000 },
@@ -516,7 +517,7 @@ describe("an added step", () => {
     }
     // Stopped, and final
     {
-      const { provider, builder, wallet } = await stepSetup("scalus");
+      const { provider, builder, wallet } = await stepSetup(v);
       // Another transaction than that of the final plan, which is built on the same UTxO
       const stopped = await builder.plan(
         { a: payTo(alice, 6n * ADA) },
@@ -544,7 +545,7 @@ describe("an added step", () => {
   });
 
   it("the same call again builds nothing", async () => {
-    const { provider, builder, wallet } = await stepSetup("scalus");
+    const { provider, builder, wallet } = await stepSetup(v);
     const plan = await builder.plan(
       { a: payTo(alice, 5n * ADA) },
       { payer: wallet },
@@ -594,7 +595,7 @@ describe("an added step", () => {
   });
 
   it("is refused on a builder that holds parts from add, which resuming on one that holds none mends", async () => {
-    const { builder, wallet } = await stepSetup("scalus");
+    const { builder, wallet } = await stepSetup(v);
     const holding = builder.add(payTo(carol, 1n * ADA));
     const plan = await holding.plan([payTo(alice, 5n * ADA)], {
       payer: wallet,
@@ -620,7 +621,7 @@ describe("an added step", () => {
   });
 
   it("refuses with no request to the provider", async () => {
-    const { provider, builder, wallet } = await stepSetup("scalus");
+    const { provider, builder, wallet } = await stepSetup(v);
     const plan = await builder.plan(
       { a: payTo(alice, 5n * ADA) },
       { payer: wallet },
@@ -674,9 +675,9 @@ describe("an added step", () => {
   });
 });
 
-describe("a plan that takes steps", () => {
+describe.each(VALIDATORS)("a plan that takes steps (%s)", (v) => {
   it("a run() that is going sends an added step in its turn", async () => {
-    const { emulator, builder, wallet } = await stepSetup("scalus", {
+    const { emulator, builder, wallet } = await stepSetup(v, {
       builder: { planDefaults: { ...FAST, confirmations: 3 } },
     });
     const plan = await builder.plan(
@@ -710,7 +711,7 @@ describe("a plan that takes steps", () => {
   });
 
   it("owes the probe again after an add", async () => {
-    const { emulator, provider, builder, wallet } = await stepSetup("scalus", {
+    const { emulator, provider, builder, wallet } = await stepSetup(v, {
       builder: { planDefaults: { ...FAST, confirmations: 3 } },
       hooks: {
         fetchTxInfo: async (forward, hash: string) => {

@@ -193,7 +193,7 @@ describe("TxBuilder with a network alone", () => {
   });
 
   it("resumes a plan, whose add and replan are refused at the call with MISSING_PARAMETER (params)", async () => {
-    const { builder, wallet } = await setup();
+    const { builder, wallet } = await setup("scalus");
     const plan = await builder.plan(pay(), { payer: wallet });
     const cold = new TxBuilder({ network: "preprod" });
     const resumed = await cold.resume(plan.toJSON());
@@ -222,7 +222,7 @@ describe("TxBuilder with a network alone", () => {
       payer: { changeAddress: key.address, utxos: [key.utxo] },
     });
     expect(withParams.inputs).toEqual([key.utxo]);
-    const { builder, wallet } = await setup();
+    const { builder, wallet } = await setup("scalus");
     const withProvider = await builder.build(pay(), { payer: wallet });
     expect(withProvider.outputs.some((o) => o.address === recipient)).toBe(
       true,

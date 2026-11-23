@@ -7,6 +7,7 @@ import { DEFAULT_PROTOCOL_PARAMETERS } from "@meshsdk/core";
 
 import type { TxPlanError } from "../../../src/tx-builder";
 import type { TxPlan } from "../../../src/tx-builder/plan/plan";
+import type { Validator } from "./plan-emulator-util";
 import {
   output,
   TxBuilder,
@@ -14,7 +15,7 @@ import {
   TxError,
 } from "../../../src/tx-builder";
 import { baseAddress } from "../../test-util";
-import { caught, FAST, pay, setup } from "./plan-emulator-util";
+import { caught, FAST, pay, setup, VALIDATORS } from "./plan-emulator-util";
 
 const A = output({
   label: "A",
@@ -78,8 +79,8 @@ const labelsOf = (plan: TxPlan) =>
     .map((o) => o.label);
 
 /** A plan of one payment on the emulator, with the count of every request made after it */
-const madePlan = async () => {
-  const { provider, builder, wallet } = await setup();
+const madePlan = async (v: Validator) => {
+  const { provider, builder, wallet } = await setup(v);
   const plan = await builder.plan(pay(), { payer: wallet });
   const all = () =>
     Object.values(provider.control.calls).reduce((sum, n) => sum + n, 0);
@@ -87,9 +88,9 @@ const madePlan = async () => {
   return { plan, wallet, requests: () => all() - before };
 };
 
-describe("TxBuilder.plan", () => {
+describe.each(VALIDATORS)("TxBuilder.plan (%s)", (v) => {
   it("takes the parts the builder holds first, in their order, and skips false, null and nesting", async () => {
-    const { builder, wallet } = await setup();
+    const { builder, wallet } = await setup(v);
     const held = builder.add(A);
     const plan = await held.plan([[B, false], null], { payer: wallet });
     expect(labelsOf(plan)).toEqual(["A", "B"]);
@@ -158,7 +159,7 @@ describe("TxBuilder.plan", () => {
   });
 
   it("works out its deadlines once: its own, else the builder's, else the built-in values", async () => {
-    const { provider, builder: fast, wallet } = await setup();
+    const { provider, builder: fast, wallet } = await setup(v);
     const plain = new TxBuilder({ network: "preprod", provider });
     expect(
       (await plain.plan(pay(), { payer: wallet })).toJSON().deadlines,
@@ -208,7 +209,7 @@ describe("TxBuilder.plan", () => {
   });
 
   it("writes the data options, the network and the id into its record, and never a live object", async () => {
-    const { builder, wallet, address } = await setup();
+    const { builder, wallet, address } = await setup(v);
     const canSelect = () => true;
     const trace = () => undefined;
     const plan = await builder.plan(pay(), {
@@ -240,7 +241,7 @@ describe("TxBuilder.plan", () => {
   });
 
   it("checks the wait options of run() before any request", async () => {
-    const { plan, requests } = await madePlan();
+    const { plan, requests } = await madePlan(v);
     for (const [options, option] of [
       [{ waitFor: "landed" }, "waitFor"],
       [{ timeoutMs: 0 }, "timeoutMs"],
@@ -283,7 +284,7 @@ describe("TxBuilder.plan", () => {
     it.each(cases)(
       "refuses %s in sign() and run(), naming only its type",
       async (_, signers, type, secrets) => {
-        const { plan, requests } = await madePlan();
+        const { plan, requests } = await madePlan(v);
         for (const method of ["sign", "run"] as const) {
           const error = await invalidOption(() =>
             plan[method]({ signers } as never),
@@ -306,7 +307,7 @@ describe("TxBuilder.plan", () => {
     );
 
     it("names the type of the entry of a list that cannot sign", async () => {
-      const { plan } = await madePlan();
+      const { plan } = await madePlan(v);
       const wallet = { signTxWitnesses: async () => "a0" };
       const error = await invalidOption(() =>
         plan.sign({ signers: [wallet, key] as never }),
@@ -319,7 +320,7 @@ describe("TxBuilder.plan", () => {
     });
 
     it("takes a function that has a wallet method as a wallet", async () => {
-      const { plan, wallet } = await madePlan();
+      const { plan, wallet } = await madePlan(v);
       let asked = 0;
       const signer = Object.assign(() => undefined, {
         signTx: async (tx: string) => {
@@ -333,7 +334,7 @@ describe("TxBuilder.plan", () => {
     });
 
     it("takes a bare function as a signer of transaction hashes", async () => {
-      const { plan, requests } = await madePlan();
+      const { plan, requests } = await madePlan(v);
       let called = 0;
       const signer = async () => {
         called++;
@@ -354,7 +355,7 @@ describe("TxBuilder.plan", () => {
   });
 
   it("stops a plan nothing of which was signed without a request, and signs nothing after", async () => {
-    const { plan, requests, wallet } = await madePlan();
+    const { plan, requests, wallet } = await madePlan(v);
     expect(await plan.stop()).toBe(plan);
     expect(plan.status).toBe("stopping");
     expect(plan.toJSON().stopped).toBe(true);

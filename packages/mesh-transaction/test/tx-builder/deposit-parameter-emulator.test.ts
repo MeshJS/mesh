@@ -215,7 +215,7 @@ describe("a deposit the parameters lack, named", () => {
   it.each(CASES)(
     "%s: a plan whose provider's parameters lack the field is MISSING_PARAMETER, the step named",
     async (_, field, part) => {
-      const { builder, wallet: payer } = await setup({
+      const { builder, wallet: payer } = await setup("scalus", {
         hooks: {
           fetchProtocolParameters: async (forward, ...args) => {
             const { [field]: _, ...rest } = await forward(...args);

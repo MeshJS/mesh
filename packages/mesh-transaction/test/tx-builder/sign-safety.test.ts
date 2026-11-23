@@ -487,7 +487,7 @@ const planOf = async (
   guardKeyHash: string,
   options: { store?: TxPlanStore; id?: string } = {},
 ) => {
-  const ctx = await setup({
+  const ctx = await setup("scalus", {
     builder: options.store === undefined ? {} : { store: options.store },
   });
   const plan = await ctx.builder.plan(
@@ -1426,7 +1426,7 @@ describe("R1, added: the object keeps no signer, and the payer of its build only
   it(
     "keeps a wallet that paid while the object lives, and lets it go with the object",
     async () => {
-      const { builder } = await setup();
+      const { builder } = await setup("scalus");
       const holder: { built?: BuiltTx } = {};
       const make = async () => {
         const wallet = await walletOf();

@@ -5,7 +5,7 @@ import {
   TxBuildError,
   TxPlanError,
 } from "../../../src/tx-builder";
-import { caught } from "./plan-emulator-util";
+import { caught, VALIDATORS } from "./plan-emulator-util";
 import { ADA, alice, bob, payTo, stepSetup } from "./run-util";
 import { storeSetup } from "./store-util";
 
@@ -21,11 +21,11 @@ const allCalls = (calls: Record<string, number>) =>
 /** Texts no transaction is read from: empty, not hex, and refused by the walk of the bytes */
 const UNREAD = ["", "hello", "84", "a0"];
 
-describe("a step given built, by its form", () => {
+describe.each(VALIDATORS)("a step given built, by its form (%s)", (v) => {
   it(
     "refuses a text no transaction is read from before any request, as fromCbor does",
     async () => {
-      const ctx = await storeSetup();
+      const ctx = await storeSetup(v);
       const plan = await ctx.builder.plan(
         { a: payTo(alice, 2n * ADA) },
         { payer: ctx.wallet, id: "forms" },
@@ -59,7 +59,7 @@ describe("a step given built, by its form", () => {
   it(
     "rest gives a step given built back with its witnesses, labels and change marks, and no payer",
     async () => {
-      const ctx = await stepSetup("scalus", {
+      const ctx = await stepSetup(v, {
         funds: [1000n * ADA, 20n * ADA],
       });
       // Built here, not signed: its labels and change come with the object

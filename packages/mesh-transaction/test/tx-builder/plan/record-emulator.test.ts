@@ -23,6 +23,7 @@ import {
   recipient,
   setup,
   swallowing,
+  VALIDATORS,
 } from "./plan-emulator-util";
 
 // The record of a plan as `toJSON()` gives it, on the emulator: plain JSON data in every status
@@ -97,10 +98,10 @@ const expectPlainRecord = (plan: TxPlan) => {
   return json;
 };
 
-describe("TxPlan.toJSON", () => {
+describe.each(VALIDATORS)("TxPlan.toJSON (%s)", (v) => {
   it("writes the plan in every status, with the stop mark, as plain JSON data", async () => {
     // A chain behind the local clock: a step past its end of validity is past it by both
-    const { emulator, builder, wallet } = await setup({ slot: 100_000_000 });
+    const { emulator, builder, wallet } = await setup(v, { slot: 100_000_000 });
     const seen: Record<string, TxPlanJSON> = {};
     const steps = () => ({ a: pay(), b: pay(3_000_000n) });
 
@@ -145,7 +146,7 @@ describe("TxPlan.toJSON", () => {
   });
 
   it("has no id when the plan was given none, and makes no request", async () => {
-    const { builder, provider, wallet } = await setup();
+    const { builder, provider, wallet } = await setup(v);
     const plan = await builder.plan(pay(), { payer: wallet });
     const requests = () =>
       Object.values(provider.control.calls).reduce((a, b) => a + b, 0);
@@ -164,7 +165,7 @@ describe("TxPlan.toJSON", () => {
   });
 
   it("is NOT_SERIALIZABLE for a redeemer function, with the part and its label", async () => {
-    const { builder, emulator, wallet } = await setup();
+    const { builder, emulator, wallet } = await setup(v);
     const locked = emulator.fund(builder.scriptAddress(plutus), {
       lovelace: 10_000_000n,
     });
@@ -190,7 +191,7 @@ describe("TxPlan.toJSON", () => {
   });
 
   it("writes the network by name for a public one and as its configuration for another", async () => {
-    const { builder, provider, wallet } = await setup();
+    const { builder, provider, wallet } = await setup(v);
     const json = (await builder.plan(pay(), { payer: wallet })).toJSON();
     expect(json.network).toBe("preprod");
 
@@ -217,9 +218,9 @@ describe("TxPlan.toJSON", () => {
   });
 });
 
-describe("The record of a plan on TxEmulator", () => {
+describe.each(VALIDATORS)("The record of a plan on TxEmulator (%s)", (v) => {
   it("holds the data options and the payer's change address, and nothing live", async () => {
-    const { builder, emulator, wallet, address, funded } = await setup();
+    const { builder, emulator, wallet, address, funded } = await setup(v);
     const known = funded.map((utxo) => toUtxo(utxo));
     const trace = () => {};
     // Every live object a plan and its calls take is given, so that each could leak; the
@@ -278,7 +279,9 @@ describe("The record of a plan on TxEmulator", () => {
   });
 
   it("holds sendAllTo with the step it describes", async () => {
-    const { builder, wallet, address } = await setup({ funds: [30_000_000n] });
+    const { builder, wallet, address } = await setup(v, {
+      funds: [30_000_000n],
+    });
     const all = await builder.plan([], {
       id: "all",
       payer: wallet,
@@ -294,7 +297,7 @@ describe("The record of a plan on TxEmulator", () => {
   });
 
   it("records every entry of knownUtxos, in any form the builder takes, as the reader copies it, and reads them back", async () => {
-    const { builder, wallet, funded } = await setup();
+    const { builder, wallet, funded } = await setup(v);
     const known = funded.map((utxo) => toUtxo(utxo));
     const texts = funded.map((utxo) =>
       toTxUnspentOutput(utxo).toCbor().toString(),
@@ -337,7 +340,7 @@ describe("The record of a plan on TxEmulator", () => {
   });
 });
 
-describe("The knownUtxos of a plan", () => {
+describe.each(VALIDATORS)("The knownUtxos of a plan (%s)", (v) => {
   // 235 UTxOs of out refs no step names, each holding a native script of 15 643 bytes: an all of
   // 20, each nested 250 deep. Reading them whole took seconds; one of them is not a UTxO past
   // its out ref, and is never read
@@ -361,7 +364,7 @@ describe("The knownUtxos of a plan", () => {
   const AT_ONCE_MS = 3_000;
 
   it("plans at once beside 235 heavy entries no step names, a step of parts or a step given built; records the copy of every entry, no script read, and runs from its record", async () => {
-    const { builder, emulator, wallet, address, funded } = await setup({
+    const { builder, emulator, wallet, address, funded } = await setup(v, {
       funds: [100_000_000n, 20_000_000n, 30_000_000n],
     });
     const [, named, other] = funded as [UTxO, UTxO, UTxO];
@@ -445,7 +448,7 @@ describe("The knownUtxos of a plan", () => {
   };
 
   it("finds the entries given at the start in a step plan.add builds later, on the object and resumed from its record", async () => {
-    const { builder, wallet, funded } = await setup();
+    const { builder, wallet, funded } = await setup(v);
     const [, named] = funded as [UTxO, UTxO];
     // Entries no step of the plan names, of outputs the provider does not know, in each form
     const forms: Record<string, UTxO | Utxo | string> = {
@@ -487,7 +490,7 @@ describe("The knownUtxos of a plan", () => {
   });
 
   it("reads an entry when a step names it: one not a UTxO past its out ref, or given twice with other contents, is refused then", async () => {
-    const { builder, wallet } = await setup();
+    const { builder, wallet } = await setup(v);
     const twice = offChain(4);
     const unread = {
       ...offChain(5),
@@ -634,7 +637,7 @@ describe("The knownUtxos of a plan", () => {
   };
 
   it("reads an entry as build reads it, the first stage of the reader when the plan is made: a form build takes plans with the bytes of build, one build refuses is refused alike, at the start, by plan.add on the object and resumed and by replan, in milliseconds", async () => {
-    const { builder, wallet } = await setup({ slot: 100_000_000 });
+    const { builder, wallet } = await setup(v, { slot: 100_000_000 });
     const hash = "a1".repeat(32);
     const native = `8201818200581c${"12".repeat(28)}`;
     const script = { ...plutus, type: "plutus" };
@@ -874,7 +877,7 @@ describe("The knownUtxos of a plan", () => {
     );
 
   it("answers an entry nested deeply, holding itself, of getters or a Proxy that give a new object at each read, or of a typed array behind a Proxy as build answers it, in milliseconds, never a raw error", async () => {
-    const { builder, wallet } = await setup();
+    const { builder, wallet } = await setup(v);
     /** Lists nested `depth` deep, made without recursion */
     const lists = (depth: number) => {
       let value: unknown = [];
@@ -996,7 +999,7 @@ describe("The knownUtxos of a plan", () => {
   });
 
   it("reads each member of an entry once, when the plan is made or replan is given it, and never after: a step at the start, plan.add on the object and resumed, replan given no knownUtxos of its own; a value of a class not at all", async () => {
-    const { builder, wallet } = await setup();
+    const { builder, wallet } = await setup(v);
     const reads = new Map<string, number>();
     /** An object whose members are getters that count their reads under `name` */
     const counted = (name: string, members: Record<string, unknown>) => {
@@ -1120,7 +1123,7 @@ describe("The knownUtxos of a plan", () => {
   });
 
   it("reads the list of knownUtxos once, each read inside the conversion of errors: an entry or a list that throws when read is INVALID_OPTION, its error the cause, in build and a plan alike", async () => {
-    const { builder, wallet } = await setup();
+    const { builder, wallet } = await setup(v);
     const error = new TypeError("cannot be read");
     const throwingEntry = new Proxy([offChain(6), offChain(7)], {
       get: (target, key) => {

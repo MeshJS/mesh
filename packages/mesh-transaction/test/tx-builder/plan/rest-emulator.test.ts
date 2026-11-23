@@ -14,6 +14,7 @@ import {
   FAST,
   submitterOf,
   swallowing,
+  VALIDATORS,
   walletOf,
 } from "./plan-emulator-util";
 import { ADA, alice, bob, paidTo, payTo, stepSetup } from "./run-util";
@@ -22,9 +23,9 @@ import { ADA, alice, bob, paidTo, payTo, stepSetup } from "./run-util";
 // payer and leaves out every step that is or was found in a block; a record resumed from its
 // JSON on a builder with a store never undoes what the store holds.
 
-describe("rest", () => {
+describe.each(VALIDATORS)("rest (%s)", (v) => {
   it("gives a step of its own payer back with that payer's change address, and a plan built from it pays from there", async () => {
-    const { emulator, builder, wallet, address } = await stepSetup("scalus");
+    const { emulator, builder, wallet, address } = await stepSetup(v);
     const treasury = await walletOf(1);
     const treasuryAddress = (await treasury.getChangeAddress())!;
     emulator.fund(treasuryAddress, { lovelace: 500n * ADA });
@@ -58,7 +59,7 @@ describe("rest", () => {
 
   it("leaves out a step found in a block after it was called dead: the recipient is paid once", async () => {
     const hidden = new Set<string>();
-    const { emulator, builder, wallet } = await stepSetup("scalus", {
+    const { emulator, builder, wallet } = await stepSetup(v, {
       hooks: {
         fetchTxInfo: (forward: (hash: string) => unknown, hash: string) => {
           if (hidden.has(hash.toLowerCase()))
@@ -94,7 +95,7 @@ describe("rest", () => {
   });
 
   it("leaves out a step that was found in a block and rolled back", async () => {
-    const { emulator, provider, builder, wallet } = await stepSetup("scalus", {
+    const { emulator, provider, builder, wallet } = await stepSetup(v, {
       builder: { planDefaults: { ...FAST, confirmations: 3 } },
     });
     const plan = await builder.plan(payTo(alice, 5n * ADA), {
@@ -111,93 +112,96 @@ describe("rest", () => {
   });
 });
 
-describe("a record resumed from its JSON on a builder with a store", () => {
-  it("takes the stored record at the same or a later revision, refuses a JSON ahead of the store, and never undoes a stop", async () => {
-    const store = memoryPlanStore();
-    const { emulator, provider, builder, wallet } = await stepSetup("scalus", {
-      builder: { store },
-    });
-    const plan = await builder.plan(
-      { a: payTo(alice, 5n * ADA), b: payTo(bob, 3n * ADA) },
-      { payer: wallet, id: "e1" },
-    );
-    await plan.sign();
-    const snapshot = plan.toJSON();
-    // A copy run without a store goes one step on
-    const storeless = await builderOf(provider, { evaluator: emulator }).resume(
-      snapshot,
-    );
-    const held = swallowing();
-    await storeless.run({ waitFor: "sent", submitter: held });
-    const forked = storeless.toJSON();
-    // Meanwhile the stored plan is stopped, at the same revision
-    await plan.stop();
-    expect(plan.toJSON().rev).toBe(forked.rev);
+describe.each(VALIDATORS)(
+  "a record resumed from its JSON on a builder with a store (%s)",
+  (v) => {
+    it("takes the stored record at the same or a later revision, refuses a JSON ahead of the store, and never undoes a stop", async () => {
+      const store = memoryPlanStore();
+      const { emulator, provider, builder, wallet } = await stepSetup(v, {
+        builder: { store },
+      });
+      const plan = await builder.plan(
+        { a: payTo(alice, 5n * ADA), b: payTo(bob, 3n * ADA) },
+        { payer: wallet, id: "e1" },
+      );
+      await plan.sign();
+      const snapshot = plan.toJSON();
+      // A copy run without a store goes one step on
+      const storeless = await builderOf(provider, {
+        evaluator: emulator,
+      }).resume(snapshot);
+      const held = swallowing();
+      await storeless.run({ waitFor: "sent", submitter: held });
+      const forked = storeless.toJSON();
+      // Meanwhile the stored plan is stopped, at the same revision
+      await plan.stop();
+      expect(plan.toJSON().rev).toBe(forked.rev);
 
-    const withStore = builderOf(provider, { store, evaluator: emulator });
-    const resumed = await withStore.resume(forked);
-    expect(resumed.toJSON().stopped).toBe(true);
-    expect(resumed.toJSON()).toEqual(plan.toJSON());
-    const ran = await caught(
-      resumed.run({ submitter: submitterOf((tx) => emulator.submitTx(tx)) }),
-    );
-    expect([ran.code, ran.details.reason]).toEqual([
-      "INVALID_STATE",
-      "stopped",
-    ]);
-    // An older JSON gives the stored record too
-    const older = await withStore.resume(snapshot);
-    expect(older.toJSON().stopped).toBe(true);
+      const withStore = builderOf(provider, { store, evaluator: emulator });
+      const resumed = await withStore.resume(forked);
+      expect(resumed.toJSON().stopped).toBe(true);
+      expect(resumed.toJSON()).toEqual(plan.toJSON());
+      const ran = await caught(
+        resumed.run({ submitter: submitterOf((tx) => emulator.submitTx(tx)) }),
+      );
+      expect([ran.code, ran.details.reason]).toEqual([
+        "INVALID_STATE",
+        "stopped",
+      ]);
+      // An older JSON gives the stored record too
+      const older = await withStore.resume(snapshot);
+      expect(older.toJSON().stopped).toBe(true);
 
-    // The copy goes further: its JSON is ahead of the store, and is refused
-    await storeless.run({ waitFor: "sent", submitter: held });
-    const ahead = storeless.toJSON();
-    expect(ahead.rev).toBeGreaterThan(plan.toJSON().rev);
-    const refused = await caught(withStore.resume(ahead));
-    expect(refused.code).toBe("VERSION_CONFLICT");
-    const stored = (await store.load("e1")) as StoredTxPlanJSON & {
-      stopped?: true;
-    };
-    expect(stored.stopped).toBe(true);
-    expect(paidTo(emulator, bob)).toEqual([]);
-  });
+      // The copy goes further: its JSON is ahead of the store, and is refused
+      await storeless.run({ waitFor: "sent", submitter: held });
+      const ahead = storeless.toJSON();
+      expect(ahead.rev).toBeGreaterThan(plan.toJSON().rev);
+      const refused = await caught(withStore.resume(ahead));
+      expect(refused.code).toBe("VERSION_CONFLICT");
+      const stored = (await store.load("e1")) as StoredTxPlanJSON & {
+        stopped?: true;
+      };
+      expect(stored.stopped).toBe(true);
+      expect(paidTo(emulator, bob)).toEqual([]);
+    });
 
-  it("is replaced by a stored record of the same revision that differs from it", async () => {
-    const records = new Map<string, StoredTxPlanJSON>();
-    const store: TxPlanStore & { put(json: StoredTxPlanJSON): void } = {
-      load: async (id) => records.get(id),
-      save: async (json, expectedRev) => {
-        if ((records.get(json.id!)?.rev ?? 0) !== expectedRev) return false;
-        records.set(json.id!, JSON.parse(JSON.stringify(json)));
-        return true;
-      },
-      put: (json) => records.set(json.id!, json),
-    };
-    const { emulator, provider, builder, wallet } = await stepSetup("scalus", {
-      builder: { store },
+    it("is replaced by a stored record of the same revision that differs from it", async () => {
+      const records = new Map<string, StoredTxPlanJSON>();
+      const store: TxPlanStore & { put(json: StoredTxPlanJSON): void } = {
+        load: async (id) => records.get(id),
+        save: async (json, expectedRev) => {
+          if ((records.get(json.id!)?.rev ?? 0) !== expectedRev) return false;
+          records.set(json.id!, JSON.parse(JSON.stringify(json)));
+          return true;
+        },
+        put: (json) => records.set(json.id!, json),
+      };
+      const { emulator, provider, builder, wallet } = await stepSetup(v, {
+        builder: { store },
+      });
+      const plan = await builder.plan(payTo(alice, 5n * ADA), {
+        payer: wallet,
+        id: "e2",
+      });
+      await plan.sign();
+      // Another copy of the same revision, with the mark, lands in the store by another route
+      const copy = await builderOf(provider, { evaluator: emulator }).resume(
+        plan.toJSON(),
+      );
+      await copy.stop();
+      const marked = copy.toJSON();
+      store.put({
+        ...marked,
+        rev: plan.toJSON().rev,
+      } as unknown as StoredTxPlanJSON);
+      await plan.refresh();
+      expect(recordOf(plan).stopped).toBe(true);
+      const ran = await caught(plan.run());
+      expect([ran.code, ran.details.reason]).toEqual([
+        "INVALID_STATE",
+        "stopped",
+      ]);
+      expect(paidTo(emulator, alice)).toEqual([]);
     });
-    const plan = await builder.plan(payTo(alice, 5n * ADA), {
-      payer: wallet,
-      id: "e2",
-    });
-    await plan.sign();
-    // Another copy of the same revision, with the mark, lands in the store by another route
-    const copy = await builderOf(provider, { evaluator: emulator }).resume(
-      plan.toJSON(),
-    );
-    await copy.stop();
-    const marked = copy.toJSON();
-    store.put({
-      ...marked,
-      rev: plan.toJSON().rev,
-    } as unknown as StoredTxPlanJSON);
-    await plan.refresh();
-    expect(recordOf(plan).stopped).toBe(true);
-    const ran = await caught(plan.run());
-    expect([ran.code, ran.details.reason]).toEqual([
-      "INVALID_STATE",
-      "stopped",
-    ]);
-    expect(paidTo(emulator, alice)).toEqual([]);
-  });
-});
+  },
+);

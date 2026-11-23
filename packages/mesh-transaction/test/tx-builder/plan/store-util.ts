@@ -3,6 +3,7 @@ import type {
   TxBuilderOptions,
   TxPlanStore,
 } from "../../../src/tx-builder";
+import type { Validator } from "./plan-emulator-util";
 import { memoryPlanStore } from "../../../src/tx-builder";
 import { builderOf, FAST, setup, wrap } from "./plan-emulator-util";
 
@@ -124,8 +125,9 @@ export const stored = async (store: TxPlanStore, id: string) =>
 export const answers = (store: WatchedStore) =>
   store.saves().map((c) => c.op === "save" && c.answer);
 
-/** An emulator, a wallet and a builder over a watched store */
+/** An emulator of this validator, a wallet and a builder over a watched store */
 export const storeSetup = async (
+  validator: Validator,
   options: {
     funds?: bigint[];
     planDefaults?: TxBuilderOptions["planDefaults"];
@@ -134,7 +136,7 @@ export const storeSetup = async (
   const store = watchStore();
   const planDefaults = options.planDefaults ?? FAST;
   // A chain behind the local clock: a step past its end of validity is past it by both
-  const ctx = await setup({
+  const ctx = await setup(validator, {
     builder: { store, planDefaults },
     slot: 100_000_000,
     ...(options.funds && { funds: options.funds }),

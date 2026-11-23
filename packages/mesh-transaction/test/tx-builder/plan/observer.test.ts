@@ -10,6 +10,7 @@ import {
 } from "@meshsdk/core";
 import { TxEmulator } from "@meshsdk/tx-emulator";
 
+import type { Validator } from "./plan-emulator-util";
 import { output, TxBuilder } from "../../../src/tx-builder";
 import {
   chainObserver,
@@ -22,6 +23,7 @@ import {
   submitFailureText,
 } from "../../../src/tx-builder/plan/observer";
 import { baseAddress } from "../../test-util";
+import { VALIDATORS } from "./plan-emulator-util";
 import { hash, utxo } from "./plan-util";
 
 /** An output of `txHash` as a provider answers with it, a Mesh UTxO */
@@ -61,8 +63,8 @@ const fakeProvider = (overrides: Partial<Record<string, unknown>> = {}) => {
   return provider as typeof provider & IFetcher;
 };
 
-const preprodEmulator = () =>
-  TxEmulator.create({ validator: "scalus", network: "preprod", slot: 1_000 });
+const preprodEmulator = (validator: Validator) =>
+  TxEmulator.create({ validator, network: "preprod", slot: 1_000 });
 
 describe("ChainObserver", () => {
   describe("an error of any read is unknown, never no", () => {
@@ -443,9 +445,9 @@ describe("ChainObserver", () => {
     });
   });
 
-  describe("on TxEmulator", () => {
+  describe.each(VALIDATORS)("on TxEmulator (%s)", (v) => {
     it("finds a transaction with its block, height and validity, and reads the tip", async () => {
-      const emulator = await preprodEmulator();
+      const emulator = await preprodEmulator(v);
       const funded = emulator.fund(ADDRESS, { lovelace: 10_000_000n });
       await emulator.advanceTo({ slot: 1_010 });
       const observer = chainObserver(emulator);
@@ -475,26 +477,33 @@ describe("ChainObserver", () => {
 });
 
 describe("what a thrown value says", () => {
-  it("reads the emulator's not found and refusal", async () => {
-    const emulator = await preprodEmulator();
-    const notFound = await emulator.fetchTxInfo(HASH).catch((e: unknown) => e);
-    expect(errorFact(notFound)).toBe("notFound");
+  it.each(VALIDATORS)(
+    "reads the emulator's not found and refusal (%s)",
+    async (v) => {
+      const emulator = await preprodEmulator(v);
+      const notFound = await emulator
+        .fetchTxInfo(HASH)
+        .catch((e: unknown) => e);
+      expect(errorFact(notFound)).toBe("notFound");
 
-    // An unsigned transaction: the ledger refuses it for its missing witness
-    const payer = {
-      changeAddress: ADDRESS,
-      utxos: [emulator.fund(ADDRESS, { lovelace: 10_000_000n })],
-    };
-    const builder = new TxBuilder({ network: "preprod", provider: emulator });
-    const built = await builder.build(
-      output({ address: baseAddress(2), value: { lovelace: 2_000_000n } }),
-      { payer },
-    );
-    const refused = await emulator.submitTx(built.tx).catch((e: unknown) => e);
-    expect(errorFact(refused)).toBe("rejected");
-    expect(isRefusal(refused)).toBe(true);
-    expect(isRefusal(notFound)).toBe(false);
-  });
+      // An unsigned transaction: the ledger refuses it for its missing witness
+      const payer = {
+        changeAddress: ADDRESS,
+        utxos: [emulator.fund(ADDRESS, { lovelace: 10_000_000n })],
+      };
+      const builder = new TxBuilder({ network: "preprod", provider: emulator });
+      const built = await builder.build(
+        output({ address: baseAddress(2), value: { lovelace: 2_000_000n } }),
+        { payer },
+      );
+      const refused = await emulator
+        .submitTx(built.tx)
+        .catch((e: unknown) => e);
+      expect(errorFact(refused)).toBe("rejected");
+      expect(isRefusal(refused)).toBe(true);
+      expect(isRefusal(notFound)).toBe(false);
+    },
+  );
 
   it.each<[unknown, ReturnType<typeof errorFact>]>([
     // kind first
@@ -970,20 +979,28 @@ describe("what a failed submission says", () => {
     expect(submitFailure(thrown)).toEqual(answer);
   });
 
-  it("reads the emulator's refusal as refused, with the status it carries", async () => {
-    const emulator = await preprodEmulator();
-    const payer = {
-      changeAddress: ADDRESS,
-      utxos: [emulator.fund(ADDRESS, { lovelace: 10_000_000n })],
-    };
-    const builder = new TxBuilder({ network: "preprod", provider: emulator });
-    const built = await builder.build(
-      output({ address: baseAddress(2), value: { lovelace: 2_000_000n } }),
-      { payer },
-    );
-    const refused = await emulator.submitTx(built.tx).catch((e: unknown) => e);
-    expect(submitFailure(refused)).toEqual({ reason: "refused", status: 400 });
-  });
+  it.each(VALIDATORS)(
+    "reads the emulator's refusal as refused, with the status it carries (%s)",
+    async (v) => {
+      const emulator = await preprodEmulator(v);
+      const payer = {
+        changeAddress: ADDRESS,
+        utxos: [emulator.fund(ADDRESS, { lovelace: 10_000_000n })],
+      };
+      const builder = new TxBuilder({ network: "preprod", provider: emulator });
+      const built = await builder.build(
+        output({ address: baseAddress(2), value: { lovelace: 2_000_000n } }),
+        { payer },
+      );
+      const refused = await emulator
+        .submitTx(built.tx)
+        .catch((e: unknown) => e);
+      expect(submitFailure(refused)).toEqual({
+        reason: "refused",
+        status: 400,
+      });
+    },
+  );
 });
 
 describe("what a failed submission says: statuses, transport codes and gRPC", () => {
@@ -1217,9 +1234,12 @@ describe("numericCodeOf", () => {
 });
 
 describe("keepsAddressCache", () => {
-  it("is false for a provider without the method, such as TxEmulator", async () => {
-    expect(keepsAddressCache(await preprodEmulator())).toBe(false);
-    const plain: Partial<IFetcher> & { utxos?: UTxO[] } = {};
-    expect(keepsAddressCache(plain as IFetcher)).toBe(false);
-  });
+  it.each(VALIDATORS)(
+    "is false for a provider without the method, such as TxEmulator (%s)",
+    async (v) => {
+      expect(keepsAddressCache(await preprodEmulator(v))).toBe(false);
+      const plain: Partial<IFetcher> & { utxos?: UTxO[] } = {};
+      expect(keepsAddressCache(plain as IFetcher)).toBe(false);
+    },
+  );
 });

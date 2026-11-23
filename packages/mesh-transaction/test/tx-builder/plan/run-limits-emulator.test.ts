@@ -11,6 +11,7 @@ import {
   caught,
   submitterOf,
   swallowing,
+  VALIDATORS,
 } from "./plan-emulator-util";
 import { ADA, alice, bob, carol, paidTo, payTo, stepSetup } from "./run-util";
 
@@ -38,11 +39,11 @@ const never = () => new Promise<never>(() => undefined);
 
 afterEach(() => jest.restoreAllMocks());
 
-describe("a tip from the future", () => {
+describe.each(VALIDATORS)("a tip from the future (%s)", (v) => {
   it("is taken by no look and kept by none: the honest tips after it are taken, and run() goes on to the end", async () => {
     let lie = 0;
     const events: BuildEvent[] = [];
-    const { emulator, provider, builder, wallet } = await stepSetup("scalus", {
+    const { emulator, provider, builder, wallet } = await stepSetup(v, {
       hooks: {
         fetchLatestBlock: async (forward: () => Promise<{ slot: number }>) => {
           const block = await forward();
@@ -70,13 +71,13 @@ describe("a tip from the future", () => {
   });
 });
 
-describe("a call with timeoutMs", () => {
+describe.each(VALIDATORS)("a call with timeoutMs (%s)", (v) => {
   /** A plan of one step sent and not found, and a hook that hangs once `hang.on` is set */
   const sentPlan = async (
     hooks: (hang: { on: boolean }) => Parameters<typeof stepSetup>[1],
   ) => {
     const hang = { on: false };
-    const made = await stepSetup("scalus", hooks(hang));
+    const made = await stepSetup(v, hooks(hang));
     const plan = await made.builder.plan(payTo(alice, 5n * ADA), {
       payer: made.wallet,
       ...(made.builder.store !== undefined && { id: "limits" }),
@@ -145,7 +146,7 @@ describe("a call with timeoutMs", () => {
       load: (id) => base.load(id),
       save: (json, rev) => (hang.on ? never() : base.save(json, rev)),
     };
-    const { builder, wallet } = await stepSetup("scalus", {
+    const { builder, wallet } = await stepSetup(v, {
       builder: { store },
     });
     const plan = await builder.plan(payTo(alice, 5n * ADA), {
@@ -161,7 +162,7 @@ describe("a call with timeoutMs", () => {
   });
 
   it("ends by then when the submitter never answers: the delivery stays recorded and its outcome unknown", async () => {
-    const { emulator, builder, wallet } = await stepSetup("scalus");
+    const { emulator, builder, wallet } = await stepSetup(v);
     const plan = await builder.plan(payTo(alice, 5n * ADA), {
       payer: wallet,
     });
@@ -181,7 +182,7 @@ describe("a call with timeoutMs", () => {
   });
 });
 
-describe("a read of the store", () => {
+describe.each(VALIDATORS)("a read of the store (%s)", (v) => {
   it("of a lower revision than the object holds is not taken: a stopped plan stays stopped", async () => {
     const base = memoryPlanStore();
     let stale: unknown;
@@ -192,7 +193,7 @@ describe("a read of the store", () => {
         >,
       save: (json, rev) => base.save(json, rev),
     };
-    const { emulator, provider, builder, wallet } = await stepSetup("scalus", {
+    const { emulator, provider, builder, wallet } = await stepSetup(v, {
       builder: { store },
     });
     const plan = await builder.plan(payTo(alice, 5n * ADA), {
@@ -235,10 +236,10 @@ describe("a read of the store", () => {
   });
 });
 
-describe("a refusal", () => {
+describe.each(VALIDATORS)("a refusal (%s)", (v) => {
   it("counts a transaction of after as in a block only when the search gives it a block: one found in a mempool does not count", async () => {
     let pending = "";
-    const { emulator, builder, wallet } = await stepSetup("scalus", {
+    const { emulator, builder, wallet } = await stepSetup(v, {
       hooks: {
         // The provider answers a transaction of its mempool as found, without a block
         fetchTxInfo: (forward: (hash: string) => unknown, hash: string) =>

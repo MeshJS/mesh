@@ -120,7 +120,7 @@ describe("a token quantity no output can hold", () => {
 describe("a token quantity no output can hold, in a plan", () => {
   /** An emulator holding the wallet's UTxOs: three of a token at 2^63 - 1 and many of lovelace */
   const fragmented = async (store: ReturnType<typeof watchStore>) => {
-    const emulator = await emulatorOf(100_000_000);
+    const emulator = await emulatorOf("scalus", 100_000_000);
     const provider = wrap(emulator);
     const read = await emulator.fetchProtocolParameters();
     const builder = builderOf(provider, {

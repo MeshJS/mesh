@@ -27,6 +27,7 @@ import {
   setup,
   submitterOf,
   swallowing,
+  VALIDATORS,
   walletOf,
 } from "./plan-emulator-util";
 import {
@@ -59,9 +60,9 @@ const secondKey = async () => {
 /** The statuses of a plan's steps */
 const statuses = (plan: TxPlan) => plan.steps.map((step) => step.status);
 
-describe("Two objects on one record", () => {
+describe.each(VALIDATORS)("Two objects on one record (%s)", (v) => {
   it("sends nothing once the other object wrote the stop mark", async () => {
-    const { builder, wallet, instance, store, provider } = await storeSetup();
+    const { builder, wallet, instance, store, provider } = await storeSetup(v);
     const a = await builder.plan(pay(), { id: "pay", payer: wallet });
     await a.sign();
     const other = instance();
@@ -83,7 +84,7 @@ describe("Two objects on one record", () => {
   });
 
   it("writes the stop mark over a delivery the other object recorded first", async () => {
-    const { builder, wallet, instance, store } = await storeSetup();
+    const { builder, wallet, instance, store } = await storeSetup(v);
     const a = await builder.plan(pay(), { id: "pay", payer: wallet });
     await a.sign();
     const b = await instance().builder.resume("pay");
@@ -104,7 +105,7 @@ describe("Two objects on one record", () => {
 
   it("records one of two first writes of one id made at once; the other returns that record for the same steps, whatever it went through, and is PLAN_EXISTS for others", async () => {
     for (const then of ["built", "final", "other steps"] as const) {
-      const { wallet, instance, store, emulator } = await storeSetup();
+      const { wallet, instance, store, emulator } = await storeSetup(v);
       const a = instance();
       const b = instance();
       // a reads the store, finds no record and builds; its first write waits
@@ -153,7 +154,7 @@ describe("Two objects on one record", () => {
   });
 
   it("applies a first delivery that lost to the other object's signature to the fresh record", async () => {
-    const { builder, wallet, instance, store, emulator } = await storeSetup();
+    const { builder, wallet, instance, store, emulator } = await storeSetup(v);
     const other = await walletOf(1);
     const a = await builder.plan(pay(), {
       id: "pay",
@@ -187,7 +188,7 @@ describe("Two objects on one record", () => {
   });
 
   it("answers a signature by the other object's record read again: a stopped plan takes none", async () => {
-    const { builder, wallet, address, instance, store } = await storeSetup();
+    const { builder, wallet, address, instance, store } = await storeSetup(v);
     const second = await secondKey();
     // Two keys sign: the payer's and the guard's
     const a = await builder.plan([pay(), second.part], {
@@ -209,7 +210,7 @@ describe("Two objects on one record", () => {
   });
 
   it("returns from stop() whose mark meets a final record, and writes nothing", async () => {
-    const { builder, wallet, emulator, instance } = await storeSetup();
+    const { builder, wallet, emulator, instance } = await storeSetup(v);
     const a = await builder.plan(pay(), { id: "pay", payer: wallet });
     await a.run({ waitFor: "sent", submitter: swallowing() });
     const other = instance();
@@ -229,7 +230,7 @@ describe("Two objects on one record", () => {
   });
 
   it("sends nothing when a first delivery's write meets a stopped record", async () => {
-    const { builder, wallet, instance } = await storeSetup();
+    const { builder, wallet, instance } = await storeSetup(v);
     const a = await builder.plan(pay(), { id: "pay", payer: wallet });
     await a.sign();
     const other = instance();
@@ -252,7 +253,7 @@ describe("Two objects on one record", () => {
   });
 
   it("returns from a first delivery refused after the other object carried the plan to final; nothing written", async () => {
-    const { builder, wallet, emulator, instance, store } = await storeSetup();
+    const { builder, wallet, emulator, instance, store } = await storeSetup(v);
     const held = gate();
     // The bytes reach the node only after the other object made them land: it refuses them
     const submitter = submitterOf(async (tx) => {
@@ -279,7 +280,7 @@ describe("Two objects on one record", () => {
   });
 
   it("stops at a first delivery refused after the other object found the step dead; nothing written", async () => {
-    const { builder, wallet, emulator, instance, store } = await storeSetup();
+    const { builder, wallet, emulator, instance, store } = await storeSetup(v);
     const held = gate();
     // The bytes reach the node only past their end of validity: it refuses them
     const submitter = submitterOf(async (tx) => {
@@ -309,7 +310,7 @@ describe("Two objects on one record", () => {
 
   it("goes on from included after a first delivery refused once the other object saw the step in a block; nothing written", async () => {
     const planDefaults = { ...FAST, confirmations: 2 };
-    const { builder, wallet, emulator, instance, store } = await storeSetup({
+    const { builder, wallet, emulator, instance, store } = await storeSetup(v, {
       planDefaults,
     });
     const held = gate();
@@ -339,7 +340,7 @@ describe("Two objects on one record", () => {
   });
 
   it("sends the same bytes when two calls of run() on one object decide on the same signed step", async () => {
-    const { builder, wallet, store } = await storeSetup();
+    const { builder, wallet, store } = await storeSetup(v);
     const a = await builder.plan(pay(), { id: "pay", payer: wallet });
     await a.sign();
     store.reset();
@@ -360,7 +361,7 @@ describe("Two objects on one record", () => {
 
   it("writes the mark once when two calls on one object stop the plan at once", async () => {
     for (const second of ["stop", "refresh"] as const) {
-      const { builder, wallet, emulator, store } = await storeSetup();
+      const { builder, wallet, emulator, store } = await storeSetup(v);
       const a = await builder.plan(pay(), { id: "pay", payer: wallet });
       await a.sign();
       advance(emulator, 700);
@@ -387,9 +388,9 @@ describe("Two objects on one record", () => {
   });
 });
 
-describe("Refused and failed writes", () => {
+describe.each(VALIDATORS)("Refused and failed writes (%s)", (v) => {
   it("is VERSION_CONFLICT after four refused writes of a first delivery; nothing is sent", async () => {
-    const { builder, wallet, store, provider } = await storeSetup();
+    const { builder, wallet, store, provider } = await storeSetup(v);
     const a = await builder.plan(pay(), { id: "pay", payer: wallet });
     await a.sign();
     store.hooks.save = async (forward, json, rev) =>
@@ -414,7 +415,7 @@ describe("Refused and failed writes", () => {
 
   it("takes a save answering anything but true as another revision: a first delivery is not sent", async () => {
     for (const answer of [undefined, 1, "ok"]) {
-      const { builder, wallet, store, provider } = await storeSetup();
+      const { builder, wallet, store, provider } = await storeSetup(v);
       const a = await builder.plan(pay(), { id: "pay", payer: wallet });
       await a.sign();
       store.hooks.save = async (forward, json, rev) =>
@@ -430,7 +431,7 @@ describe("Refused and failed writes", () => {
   it("takes a save answering anything but true as another revision: a first record is not handed out", async () => {
     for (const answer of [undefined, 1, "ok"]) {
       const store = watchStore();
-      const { builder, wallet } = await setup({ builder: { store } });
+      const { builder, wallet } = await setup(v, { builder: { store } });
       store.hooks.save = async () => answer as unknown as boolean;
       const error = (await caught(
         builder.plan(pay(), { id: "pay", payer: wallet }),
@@ -444,7 +445,7 @@ describe("Refused and failed writes", () => {
   it("is STORE_FAILED when the first write throws; the next builder.plan goes on by what the store holds", async () => {
     for (const writes of [true, false]) {
       const store = watchStore();
-      const { builder, wallet } = await setup({ builder: { store } });
+      const { builder, wallet } = await setup(v, { builder: { store } });
       store.hooks.save = async (forward, json, rev) => {
         delete store.hooks.save;
         if (writes) await forward(json, rev);
@@ -476,7 +477,7 @@ describe("Refused and failed writes", () => {
 
   it("is STORE_FAILED when the write of a first delivery throws; nothing is sent, and resume goes on by what the store holds", async () => {
     for (const writes of [true, false]) {
-      const { builder, wallet, store, provider } = await storeSetup();
+      const { builder, wallet, store, provider } = await storeSetup(v);
       const a = await builder.plan(pay(), { id: "pay", payer: wallet });
       await a.sign();
       const bytes = a.step("main").signedTx!;
@@ -508,7 +509,7 @@ describe("Refused and failed writes", () => {
   });
 
   it("is PLAN_NOT_FOUND when the record is gone at the read after a refused write; never written anew", async () => {
-    const { builder, wallet, store, provider } = await storeSetup();
+    const { builder, wallet, store, provider } = await storeSetup(v);
     const a = await builder.plan(pay(), { id: "pay", payer: wallet });
     await a.sign();
     store.hooks.save = async () => false;
@@ -528,10 +529,10 @@ describe("Refused and failed writes", () => {
   });
 });
 
-describe("The read before a pause", () => {
+describe.each(VALIDATORS)("The read before a pause (%s)", (v) => {
   /** A plan sent through a submitter that passes nothing on */
   const waiting = async () => {
-    const ctx = await storeSetup();
+    const ctx = await storeSetup(v);
     const a = await ctx.builder.plan(pay(), {
       id: "pay",
       payer: ctx.wallet,
@@ -625,271 +626,291 @@ describe("The read before a pause", () => {
   });
 });
 
-describe("A rollback of a step another object saw in a block", () => {
-  /**
-   * The first object sends through a submitter that passes nothing on; the other sends the same
-   * bytes for real and records them included; then the chain rolls back to before them. The
-   * first object still holds its record of `sent`
-   */
-  const rolledBack = async () => {
-    const planDefaults = { ...FAST, confirmations: 2 };
-    const ctx = await storeSetup({ planDefaults });
-    const a = await ctx.builder.plan(pay(), {
-      id: "pay",
-      payer: ctx.wallet,
-    });
-    await a.run({ waitFor: "sent", submitter: swallowing() });
-    const before = ctx.emulator.fork();
-    const b = await ctx.instance().builder.resume("pay");
-    await b.run({ waitFor: "included", submitter: forwarding(ctx.emulator) });
-    expect(statuses(b)).toEqual(["included"]);
-    ctx.provider.control.target = before;
-    await expect(
-      before.fetchTxInfo(a.step("main").txHash),
-    ).rejects.toBeDefined();
-    expect(statuses(a)).toEqual(["sent"]);
-    expect((await stored(ctx.store, "pay")).steps[0]!.status).toBe("included");
-    return { ...ctx, a, before };
-  };
-
-  it("stops with the mark written over what the record holds; after a look the step is sent and nothing landed", async () => {
-    for (const refreshFirst of [false, true]) {
-      const { a, store } = await rolledBack();
-      if (refreshFirst) await a.refresh();
-      await a.stop();
-      expect(a.status).toBe("stopping");
-      expect(a.toJSON().stopped).toBe(true);
-      const record = await stored(store, "pay");
-      expect(record.stopped).toBe(true);
-      expect(record).toStrictEqual(a.toJSON());
-      await a.refresh();
+describe.each(VALIDATORS)(
+  "A rollback of a step another object saw in a block (%s)",
+  (v) => {
+    /**
+     * The first object sends through a submitter that passes nothing on; the other sends the same
+     * bytes for real and records them included; then the chain rolls back to before them. The
+     * first object still holds its record of `sent`
+     */
+    const rolledBack = async () => {
+      const planDefaults = { ...FAST, confirmations: 2 };
+      const ctx = await storeSetup(v, { planDefaults });
+      const a = await ctx.builder.plan(pay(), {
+        id: "pay",
+        payer: ctx.wallet,
+      });
+      await a.run({ waitFor: "sent", submitter: swallowing() });
+      const before = ctx.emulator.fork();
+      const b = await ctx.instance().builder.resume("pay");
+      await b.run({ waitFor: "included", submitter: forwarding(ctx.emulator) });
+      expect(statuses(b)).toEqual(["included"]);
+      ctx.provider.control.target = before;
+      await expect(
+        before.fetchTxInfo(a.step("main").txHash),
+      ).rejects.toBeDefined();
       expect(statuses(a)).toEqual(["sent"]);
-      expect(a.landed).toEqual([]);
-      expect(a.live.map((step) => step.name)).toEqual(["main"]);
-    }
-  });
+      expect((await stored(ctx.store, "pay")).steps[0]!.status).toBe(
+        "included",
+      );
+      return { ...ctx, a, before };
+    };
 
-  it("sends the bytes again from run() waiting for included, instead of returning", async () => {
-    const failing = await rolledBack();
-    const down = submitterOf(async () => {
-      throw new Error("the network is down");
+    it("stops with the mark written over what the record holds; after a look the step is sent and nothing landed", async () => {
+      for (const refreshFirst of [false, true]) {
+        const { a, store } = await rolledBack();
+        if (refreshFirst) await a.refresh();
+        await a.stop();
+        expect(a.status).toBe("stopping");
+        expect(a.toJSON().stopped).toBe(true);
+        const record = await stored(store, "pay");
+        expect(record.stopped).toBe(true);
+        expect(record).toStrictEqual(a.toJSON());
+        await a.refresh();
+        expect(statuses(a)).toEqual(["sent"]);
+        expect(a.landed).toEqual([]);
+        expect(a.live.map((step) => step.name)).toEqual(["main"]);
+      }
     });
-    const error = await caught(
-      failing.a.run({ waitFor: "included", timeoutMs: 100, submitter: down }),
+
+    it("sends the bytes again from run() waiting for included, instead of returning", async () => {
+      const failing = await rolledBack();
+      const down = submitterOf(async () => {
+        throw new Error("the network is down");
+      });
+      const error = await caught(
+        failing.a.run({ waitFor: "included", timeoutMs: 100, submitter: down }),
+      );
+      expectCode(error, "CONFIRM_TIMEOUT");
+      expect(down.calls.length).toBeGreaterThan(0);
+      expect(statuses(failing.a)).toEqual(["sent"]);
+      expect(failing.a.landed).toEqual([]);
+      expect((await stored(failing.store, "pay")).steps[0]!.status).toBe(
+        "sent",
+      );
+
+      const { a, before } = await rolledBack();
+      const resent = forwarding(before);
+      await a.run({ waitFor: "included", submitter: resent });
+      expect(resent.calls).toEqual([a.step("main").signedTx]);
+      expect(statuses(a)).toEqual(["included"]);
+      const txHash = a.step("main").txHash;
+      expect((await before.fetchTxInfo(txHash)).hash).toBe(txHash);
+    });
+  },
+);
+
+describe.each(VALIDATORS)(
+  "A record this library does not read, read again (%s)",
+  (v) => {
+    const MUTATIONS: [string, (json: StoredTxPlanJSON) => object, RegExp][] = [
+      ["a newer version", (json) => ({ ...json, version: 3 }), /version 3/],
+      ["another kind", (json) => ({ ...json, kind: "Other" }), /"Other"/],
+      [
+        "an unknown part kind",
+        (json) => ({
+          ...json,
+          steps: json.steps.map((step) => ({
+            ...step,
+            given: {
+              ...step.given,
+              parts: [
+                { ...(step.given!.parts[0] as object), kind: "teleport" },
+              ],
+            },
+          })),
+        }),
+        /teleport/,
+      ],
+      [
+        "an unknown step status",
+        (json) => ({
+          ...json,
+          steps: json.steps.map((step) => ({ ...step, status: "levitating" })),
+        }),
+        /levitating/,
+      ],
+    ];
+
+    /** Puts the mutated record over the stored one, as a newer instance would */
+    const newer = async (
+      store: WatchedStore,
+      mutate: (json: StoredTxPlanJSON) => object,
+    ) => {
+      const now = (await store.inner.load("pay"))!;
+      await store.inner.save(
+        { ...mutate(now), rev: now.rev + 1 } as StoredTxPlanJSON,
+        now.rev,
+      );
+    };
+
+    const expectUnread = (error: unknown, named: RegExp) => {
+      const failure = error as TxPlanError<"INVALID_STATE">;
+      expectCode(failure, "INVALID_STATE");
+      expect(failure.details.reason).toBe("recordVersion");
+      expect(failure.retryable).toBe(false);
+      expect(failure.message).toMatch(named);
+    };
+
+    it.each(MUTATIONS)(
+      "is recordVersion at the read after a refused write: %s",
+      async (_, mutate, named) => {
+        const { builder, wallet, store, provider } = await storeSetup(v);
+        const a = await builder.plan(pay(), { id: "pay", payer: wallet });
+        await a.sign();
+        store.hooks.save = async () => {
+          delete store.hooks.save;
+          await newer(store, mutate);
+          return false;
+        };
+        store.reset();
+        expectUnread(await caught(a.run()), named);
+        expect(provider.control.count("submitTx")).toBe(0);
+        expect(store.written()).toEqual([]);
+      },
     );
-    expectCode(error, "CONFIRM_TIMEOUT");
-    expect(down.calls.length).toBeGreaterThan(0);
-    expect(statuses(failing.a)).toEqual(["sent"]);
-    expect(failing.a.landed).toEqual([]);
-    expect((await stored(failing.store, "pay")).steps[0]!.status).toBe("sent");
 
-    const { a, before } = await rolledBack();
-    const resent = forwarding(before);
-    await a.run({ waitFor: "included", submitter: resent });
-    expect(resent.calls).toEqual([a.step("main").signedTx]);
-    expect(statuses(a)).toEqual(["included"]);
-    const txHash = a.step("main").txHash;
-    expect((await before.fetchTxInfo(txHash)).hash).toBe(txHash);
-  });
-});
-
-describe("A record this library does not read, read again", () => {
-  const MUTATIONS: [string, (json: StoredTxPlanJSON) => object, RegExp][] = [
-    ["a newer version", (json) => ({ ...json, version: 3 }), /version 3/],
-    ["another kind", (json) => ({ ...json, kind: "Other" }), /"Other"/],
-    [
-      "an unknown part kind",
-      (json) => ({
-        ...json,
-        steps: json.steps.map((step) => ({
-          ...step,
-          given: {
-            ...step.given,
-            parts: [{ ...(step.given!.parts[0] as object), kind: "teleport" }],
-          },
-        })),
-      }),
-      /teleport/,
-    ],
-    [
-      "an unknown step status",
-      (json) => ({
-        ...json,
-        steps: json.steps.map((step) => ({ ...step, status: "levitating" })),
-      }),
-      /levitating/,
-    ],
-  ];
-
-  /** Puts the mutated record over the stored one, as a newer instance would */
-  const newer = async (
-    store: WatchedStore,
-    mutate: (json: StoredTxPlanJSON) => object,
-  ) => {
-    const now = (await store.inner.load("pay"))!;
-    await store.inner.save(
-      { ...mutate(now), rev: now.rev + 1 } as StoredTxPlanJSON,
-      now.rev,
+    it.each(MUTATIONS)(
+      "is recordVersion at the read before a pause: %s",
+      async (_, mutate, named) => {
+        const { builder, wallet, store } = await storeSetup(v);
+        const a = await builder.plan(pay(), { id: "pay", payer: wallet });
+        await a.run({ waitFor: "sent", submitter: swallowing() });
+        let written = -1;
+        const submitter = submitterOf(async (tx) => {
+          // The resend's delivery is recorded; then a newer instance writes over it
+          written = store.written().length;
+          await newer(store, mutate);
+          return hashOf(tx);
+        });
+        expectUnread(
+          await caught(a.run({ waitFor: "included", submitter })),
+          named,
+        );
+        expect(submitter.calls).toHaveLength(1);
+        expect(store.written()).toHaveLength(written);
+      },
     );
-  };
+  },
+);
 
-  const expectUnread = (error: unknown, named: RegExp) => {
-    const failure = error as TxPlanError<"INVALID_STATE">;
-    expectCode(failure, "INVALID_STATE");
-    expect(failure.details.reason).toBe("recordVersion");
-    expect(failure.retryable).toBe(false);
-    expect(failure.message).toMatch(named);
-  };
-
-  it.each(MUTATIONS)(
-    "is recordVersion at the read after a refused write: %s",
-    async (_, mutate, named) => {
-      const { builder, wallet, store, provider } = await storeSetup();
+describe.each(VALIDATORS)(
+  "The crash table, after a restart on the same store (%s)",
+  (v) => {
+    it("delivers a stored signed step, and sends the same bytes of a stored sent one", async () => {
+      const { builder, wallet, store, provider } = await storeSetup(v);
+      const restart = () => builderOf(provider, { store, planDefaults: FAST });
       const a = await builder.plan(pay(), { id: "pay", payer: wallet });
       await a.sign();
-      store.hooks.save = async () => {
-        delete store.hooks.save;
-        await newer(store, mutate);
-        return false;
-      };
-      store.reset();
-      expectUnread(await caught(a.run()), named);
-      expect(provider.control.count("submitTx")).toBe(0);
-      expect(store.written()).toEqual([]);
-    },
-  );
+      // A crash before the delivery is written: the store holds signed
+      const first = await restart().resume("pay");
+      const sends = provider.control.count("submitTx");
+      await first.run({ waitFor: "sent" });
+      expect(provider.control.count("submitTx")).toBe(sends + 1);
+      expect(first.toJSON().steps[0]!.sends).toBe(1);
 
-  it.each(MUTATIONS)(
-    "is recordVersion at the read before a pause: %s",
-    async (_, mutate, named) => {
-      const { builder, wallet, store } = await storeSetup();
+      // A crash after the delivery is written, before its answer
+      const b = await builder.plan(pay(4_000_000n), {
+        id: "pay-2",
+        payer: wallet,
+      });
+      await b.sign();
+      const hanging = submitterOf(() => new Promise<string>(() => undefined));
+      // The call of the object that crashed never gets its answer: the test ends it by its signal
+      const crash = new AbortController();
+      const crashed = caught(
+        b.run({ submitter: hanging, signal: crash.signal }),
+      );
+      try {
+        while (!delivered((await store.load("pay-2"))!))
+          await new Promise((resolve) => setTimeout(resolve, 5));
+        const after = await restart().resume("pay-2");
+        expect(statuses(after)).toEqual(["sent"]);
+        const resent = swallowing();
+        await after.run({ waitFor: "sent", submitter: resent });
+        expect(resent.calls).toEqual([hanging.calls[0]]);
+      } finally {
+        crash.abort();
+      }
+      expectCode(await crashed, "ABORTED");
+    });
+
+    it("collects the other signatures with addWitnesses after a crash between them", async () => {
+      const { builder, wallet, address, store, provider } = await storeSetup(v);
+      const second = await secondKey();
+      const a = await builder.plan([pay(), second.part], {
+        id: "pay",
+        payer: address,
+      });
+      const { tx } = a.step("main");
+      await a.addWitnesses(await wallet.signTx(tx, true));
+      expect(a.step("main").missing).toHaveLength(1);
+      const again = await builderOf(provider, { store }).resume("pay");
+      expect(again.step("main").missing).toEqual(a.step("main").missing);
+      await again.addWitnesses(await second.other.signTx(tx, true));
+      expect(statuses(again)).toEqual(["signed"]);
+      await again.run();
+      expect(again.status).toBe("final");
+    });
+
+    it("refuses run() after a crash between the stop mark and stopped; a look then stops it", async () => {
+      const { builder, wallet, store, provider, emulator } =
+        await storeSetup(v);
       const a = await builder.plan(pay(), { id: "pay", payer: wallet });
       await a.run({ waitFor: "sent", submitter: swallowing() });
-      let written = -1;
-      const submitter = submitterOf(async (tx) => {
-        // The resend's delivery is recorded; then a newer instance writes over it
-        written = store.written().length;
-        await newer(store, mutate);
-        return hashOf(tx);
+      await a.stop();
+      const again = await builderOf(provider, { store }).resume("pay", {
+        payer: wallet,
       });
-      expectUnread(
-        await caught(a.run({ waitFor: "included", submitter })),
-        named,
+      expect(again.status).toBe("stopping");
+      const sends = provider.control.count("submitTx");
+      const error = await caught(again.run());
+      expectCode(error, "INVALID_STATE");
+      expect(reasonOf(error)).toBe("stopped");
+      expect(provider.control.count("submitTx")).toBe(sends);
+      advance(emulator, 700);
+      await again.refresh();
+      expect(again.status).toBe("stopped");
+      expect((await stored(store, "pay")).status).toBe("stopped");
+    });
+
+    it("takes signatures over two restarts, and sends once both are in", async () => {
+      const { emulator, provider, store } = await storeSetup(v);
+      const alice = await walletOf(0);
+      const bob = await walletOf(1);
+      const keyOf = async (wallet: typeof alice) =>
+        deserializeAddress((await wallet.getChangeAddress())!).pubKeyHash;
+      const vault: NativeScript = {
+        type: "all",
+        scripts: [
+          { type: "sig", keyHash: await keyOf(alice) },
+          { type: "sig", keyHash: await keyOf(bob) },
+        ],
+      };
+      const builder = builderOf(provider, { store });
+      const vaultAddress = builder.scriptAddress(vault);
+      const vaultUtxo = emulator.fund(vaultAddress, { lovelace: 80_000_000n });
+      const plan = await builder.plan(
+        [
+          spend.native({ utxo: vaultUtxo, script: vault }),
+          output({ address: recipient, value: { lovelace: 50_000_000n } }),
+          guard.pubKey({ keyHash: await keyOf(alice) }),
+          guard.pubKey({ keyHash: await keyOf(bob) }),
+        ],
+        { id: "payout-17", payer: vaultAddress, ttlMs: 3 * 86_400_000 },
       );
-      expect(submitter.calls).toHaveLength(1);
-      expect(store.written()).toHaveLength(written);
-    },
-  );
-});
-
-describe("The crash table, after a restart on the same store", () => {
-  it("delivers a stored signed step, and sends the same bytes of a stored sent one", async () => {
-    const { builder, wallet, store, provider } = await storeSetup();
-    const restart = () => builderOf(provider, { store, planDefaults: FAST });
-    const a = await builder.plan(pay(), { id: "pay", payer: wallet });
-    await a.sign();
-    // A crash before the delivery is written: the store holds signed
-    const first = await restart().resume("pay");
-    const sends = provider.control.count("submitTx");
-    await first.run({ waitFor: "sent" });
-    expect(provider.control.count("submitTx")).toBe(sends + 1);
-    expect(first.toJSON().steps[0]!.sends).toBe(1);
-
-    // A crash after the delivery is written, before its answer
-    const b = await builder.plan(pay(4_000_000n), {
-      id: "pay-2",
-      payer: wallet,
+      const { tx } = plan.step("main");
+      const monday = await builderOf(provider, { store }).resume("payout-17");
+      await monday.addWitnesses(await alice.signTx(tx, true));
+      expect(monday.step("main").missing).toHaveLength(1);
+      const wednesday = await builderOf(provider, { store }).resume(
+        "payout-17",
+      );
+      await wednesday.addWitnesses(await bob.signTx(tx, true));
+      expect(statuses(wednesday)).toEqual(["signed"]);
+      await wednesday.run();
+      expect(wednesday.status).toBe("final");
     });
-    await b.sign();
-    const hanging = submitterOf(() => new Promise<string>(() => undefined));
-    // The call of the object that crashed never gets its answer: the test ends it by its signal
-    const crash = new AbortController();
-    const crashed = caught(b.run({ submitter: hanging, signal: crash.signal }));
-    try {
-      while (!delivered((await store.load("pay-2"))!))
-        await new Promise((resolve) => setTimeout(resolve, 5));
-      const after = await restart().resume("pay-2");
-      expect(statuses(after)).toEqual(["sent"]);
-      const resent = swallowing();
-      await after.run({ waitFor: "sent", submitter: resent });
-      expect(resent.calls).toEqual([hanging.calls[0]]);
-    } finally {
-      crash.abort();
-    }
-    expectCode(await crashed, "ABORTED");
-  });
-
-  it("collects the other signatures with addWitnesses after a crash between them", async () => {
-    const { builder, wallet, address, store, provider } = await storeSetup();
-    const second = await secondKey();
-    const a = await builder.plan([pay(), second.part], {
-      id: "pay",
-      payer: address,
-    });
-    const { tx } = a.step("main");
-    await a.addWitnesses(await wallet.signTx(tx, true));
-    expect(a.step("main").missing).toHaveLength(1);
-    const again = await builderOf(provider, { store }).resume("pay");
-    expect(again.step("main").missing).toEqual(a.step("main").missing);
-    await again.addWitnesses(await second.other.signTx(tx, true));
-    expect(statuses(again)).toEqual(["signed"]);
-    await again.run();
-    expect(again.status).toBe("final");
-  });
-
-  it("refuses run() after a crash between the stop mark and stopped; a look then stops it", async () => {
-    const { builder, wallet, store, provider, emulator } = await storeSetup();
-    const a = await builder.plan(pay(), { id: "pay", payer: wallet });
-    await a.run({ waitFor: "sent", submitter: swallowing() });
-    await a.stop();
-    const again = await builderOf(provider, { store }).resume("pay", {
-      payer: wallet,
-    });
-    expect(again.status).toBe("stopping");
-    const sends = provider.control.count("submitTx");
-    const error = await caught(again.run());
-    expectCode(error, "INVALID_STATE");
-    expect(reasonOf(error)).toBe("stopped");
-    expect(provider.control.count("submitTx")).toBe(sends);
-    advance(emulator, 700);
-    await again.refresh();
-    expect(again.status).toBe("stopped");
-    expect((await stored(store, "pay")).status).toBe("stopped");
-  });
-
-  it("takes signatures over two restarts, and sends once both are in", async () => {
-    const { emulator, provider, store } = await storeSetup();
-    const alice = await walletOf(0);
-    const bob = await walletOf(1);
-    const keyOf = async (wallet: typeof alice) =>
-      deserializeAddress((await wallet.getChangeAddress())!).pubKeyHash;
-    const vault: NativeScript = {
-      type: "all",
-      scripts: [
-        { type: "sig", keyHash: await keyOf(alice) },
-        { type: "sig", keyHash: await keyOf(bob) },
-      ],
-    };
-    const builder = builderOf(provider, { store });
-    const vaultAddress = builder.scriptAddress(vault);
-    const vaultUtxo = emulator.fund(vaultAddress, { lovelace: 80_000_000n });
-    const plan = await builder.plan(
-      [
-        spend.native({ utxo: vaultUtxo, script: vault }),
-        output({ address: recipient, value: { lovelace: 50_000_000n } }),
-        guard.pubKey({ keyHash: await keyOf(alice) }),
-        guard.pubKey({ keyHash: await keyOf(bob) }),
-      ],
-      { id: "payout-17", payer: vaultAddress, ttlMs: 3 * 86_400_000 },
-    );
-    const { tx } = plan.step("main");
-    const monday = await builderOf(provider, { store }).resume("payout-17");
-    await monday.addWitnesses(await alice.signTx(tx, true));
-    expect(monday.step("main").missing).toHaveLength(1);
-    const wednesday = await builderOf(provider, { store }).resume("payout-17");
-    await wednesday.addWitnesses(await bob.signTx(tx, true));
-    expect(statuses(wednesday)).toEqual(["signed"]);
-    await wednesday.run();
-    expect(wednesday.status).toBe("final");
-  });
-});
+  },
+);
