@@ -7,6 +7,7 @@ import {
   Address,
   blake2b,
   CborReader,
+  CborWriter,
   deserializeTxUnspentOutput,
   HexBlob,
   normalizePlutusScript,
@@ -275,12 +276,23 @@ const readDatum = (at: string, datum: unknown): OutputDatum => {
   return badDatumType(at, datum.type);
 };
 
-/** Language tags of the CBOR of `[language, script]` */
-const LANGUAGE_TAG: Record<LanguageVersion, string> = {
-  V1: "01",
-  V2: "02",
-  V3: "03",
+/** Language tags of the CBOR of `[language, script]`; 0 is a native script */
+const LANGUAGE_TAG: Record<LanguageVersion, number> = {
+  V1: 1,
+  V2: 2,
+  V3: 3,
 };
+
+/**
+ * The CBOR of `[language, script]` in hex, written by the writer of `@cardano-sdk/core`: an array
+ * of two items, the language, and the script item as given, byte for byte
+ */
+const scriptRefCbor = (language: number, script: string): string =>
+  new CborWriter()
+    .writeStartArray(2)
+    .writeInt(language)
+    .writeEncodedValue(Buffer.from(script, "hex"))
+    .encodeAsHex();
 
 /** The Plutus versions by their tag in `[language, script]`; 0 is a native script */
 const VERSION_OF_TAG: readonly (LanguageVersion | undefined)[] = [
@@ -559,12 +571,33 @@ type NativeFraming = {
 };
 
 /**
+ * Whether a byte, in hex, is the break that ends an array of indefinite length, as the token
+ * reader reads it after the head of such an array, written by the writer
+ */
+const isBreak = (byte: string): boolean => {
+  try {
+    const reader = new CborReader(
+      new CborWriter()
+        .writeStartArray()
+        .writeEncodedValue(Buffer.from(byte, "hex"))
+        .encodeAsHex(),
+    );
+    reader.readStartArray();
+    return reader.peekState() === State.EndArray;
+  } catch {
+    return false;
+  }
+};
+
+/**
  * The framing of a native script in the CBOR of a reference script, in every form of `[0, script]`
  * the ledger reads: an array of two items of definite length, its head in any width, or of
  * indefinite length, and the language 0 in any width; and such bytes under tag 24, as a byte
  * string, the form a provider may give for a Mesh `scriptRef`. Only the heads are read, with the
- * token reader of `@cardano-sdk/core`; the script is never read. Undefined for anything else,
- * and for an array of indefinite length that does not end in a break
+ * token reader of `@cardano-sdk/core`, and the last byte of an array of indefinite length, which
+ * the reader must read as its break; the script is never read: it is every byte after the
+ * language, and before the break. Undefined for anything else, and for an array of indefinite
+ * length that does not end in a break
  */
 const nativeFraming = (scriptRef: string): NativeFraming | undefined => {
   try {
@@ -596,8 +629,10 @@ const nativeFraming = (scriptRef: string): NativeFraming | undefined => {
     )
       return undefined;
     const start = offset();
+    // The break that ends an array of indefinite length is its last byte, read by the reader; the
+    // script before it is not read
     const end = length === null ? size - 1 : size;
-    if (length === null && bytes.slice(2 * end) !== "ff") return undefined;
+    if (length === null && !isBreak(bytes.slice(2 * end))) return undefined;
     if (end <= start) return undefined;
     return {
       script: bytes.slice(2 * start, 2 * end),
@@ -695,9 +730,9 @@ export const scriptRefOf = (script: OutputScript): string => {
     case "unknown":
       return script.scriptRef;
     case "native":
-      return `8200${script.cbor}`;
+      return scriptRefCbor(0, script.cbor);
     case "plutus":
-      return `82${LANGUAGE_TAG[script.version]}${script.code}`;
+      return scriptRefCbor(LANGUAGE_TAG[script.version], script.code);
   }
 };
 
@@ -773,9 +808,7 @@ export const heldScriptSize = (
     }
     if (script.type === "plutus") {
       const code = text(script.code);
-      return code === undefined
-        ? undefined
-        : { key, size: countedScriptSize(`8201${code}`) };
+      return code === undefined ? undefined : { key, size: codeSize(code) };
     }
     const scriptRef = text(script.scriptRef);
     return scriptRef === undefined
@@ -784,6 +817,25 @@ export const heldScriptSize = (
   } catch {
     return undefined;
   }
+};
+
+/**
+ * The size of the code of a Plutus script given in the builder's form, as `countedScriptSize`
+ * counts it in `[language, code]`: the content of its byte string, read with the token reader,
+ * when the code is one byte string of definite length and nothing after; else the size of the
+ * whole as the ledger would hold it, the code and the two bytes of the array and the language
+ */
+const codeSize = (code: string): number => {
+  try {
+    const reader = new CborReader(HexBlob(code));
+    if (reader.peekState() === State.ByteString) {
+      const content = reader.readByteString().length;
+      if (reader.getBytesRemaining() === 0) return content;
+    }
+  } catch {
+    // Not CBOR this reader reads: counted whole
+  }
+  return code.length / 2 + 2;
 };
 
 /** The content of one CBOR byte string that is the whole of `hex`; undefined for anything else */
@@ -855,10 +907,13 @@ const readScript = (
   let scriptRef: string;
   if (script.type === "plutus") {
     const version = plutusVersion(at, script.version);
-    scriptRef = `82${LANGUAGE_TAG[version]}${plutusCode(at, script.code)}`;
+    scriptRef = scriptRefCbor(
+      LANGUAGE_TAG[version],
+      plutusCode(at, script.code),
+    );
   } else if (script.type === "native") {
     const cbor = readHex("script", at, "the native script", script.cbor);
-    scriptRef = `8200${cbor}`;
+    scriptRef = scriptRefCbor(0, cbor);
   } else return badScriptType(at, script.type);
   const described = describedOnce(scriptRef, undefined, scripts);
   if (described.type === "unknown")

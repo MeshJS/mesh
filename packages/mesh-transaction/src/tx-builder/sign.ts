@@ -153,8 +153,6 @@ const State = Serialization.CborReaderState;
 /** Witness-set keys of vkey and bootstrap witnesses */
 const VKEYS = 0;
 const BOOTSTRAPS = 2;
-/** The first byte of CBOR null */
-const NULL = 0xf6;
 /** The CBOR tag of a set */
 const SET_TAG = 258;
 
@@ -430,7 +428,8 @@ const readRawTx = (hex: string): RawTx => {
     isValid = reader.readBoolean();
     expectFinished(reader);
   }
-  const auxiliaryData = rest[0]![0] === NULL ? undefined : rest[0]!;
+  const auxiliaryData =
+    readerOf(rest[0]!).peekState() === State.Null ? undefined : rest[0]!;
   // A key of a later era, or of none, is refused before a value decoder reads its value
   checkConwayKeys(body!, witnessSet!);
   return {
@@ -1012,7 +1011,7 @@ const callSigner = (
 
 /** A signer's answer as a witness set of its vkey and bootstrap witnesses */
 const answerWitnessSet = (answer: unknown, raw: RawTx): string => {
-  if (answer === "") return "a0";
+  if (answer === "") return writeWitnessSet([], false);
   const { witnessSet, witnesses, isTransaction } = readWitnessArgument(answer);
   if (!isTransaction) {
     // The vkey and bootstrap entries as the signer wrote them, nothing else
@@ -1111,7 +1110,8 @@ const askHashSigner = async (
   signal: AbortSignal | undefined,
 ): Promise<string> => {
   // Nothing is left to sign: the signer is not asked
-  if (keys !== undefined && keys.length === 0) return "a0";
+  if (keys !== undefined && keys.length === 0)
+    return writeWitnessSet([], false);
   // A copy frozen at every level: the signer can change nothing the caller holds
   const request: TxHashRequest = Object.freeze({
     txHash: raw.txId,

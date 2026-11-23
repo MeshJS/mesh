@@ -1,6 +1,6 @@
 import { bech32 } from "bech32";
 
-import { Crypto, HexBlob } from "@meshsdk/core-cst";
+import { CborReader, Crypto, HexBlob, Serialization } from "@meshsdk/core-cst";
 
 import type { TxHashRequest, TxHashSignature, TxHashSigner } from "./sign";
 import { TxBuildError } from "./errors";
@@ -104,21 +104,40 @@ const clamped = (bytes: Uint8Array) =>
 const plural = (count: number, noun: string) =>
   `${count} ${noun}${count === 1 ? "" : "s"}`;
 
+/**
+ * The content of the CBOR byte string that is the whole of `text`, read with the token reader of
+ * `@cardano-sdk/core`, when it is of `size` bytes; undefined for anything else
+ */
+const byteStringOf = (text: string, size: number): Uint8Array | undefined => {
+  try {
+    const reader = new CborReader(HexBlob(text));
+    if (reader.peekState() !== Serialization.CborReaderState.ByteString)
+      return undefined;
+    const content = reader.readByteString();
+    return reader.getBytesRemaining() === 0 && content.length === size
+      ? new Uint8Array(content)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 /** Reads a key in hex: plain, or the cborHex of a cardano-cli signing key file */
 const readHexKey = (text: string): ReadKey => {
   if (text.length % 2 !== 0)
     throw invalidKey(`hex of ${plural(text.length, "digit")}, an odd number`);
   const bytes = new Uint8Array(Buffer.from(text, "hex"));
-  const head = text.slice(0, 4).toLowerCase();
   if (bytes.length === 32) return { kind: "normal", bytes };
   if (bytes.length === 64) return { kind: "extended", bytes };
-  if (bytes.length === 34 && head === "5820")
-    return { kind: "normal", bytes: bytes.slice(2) };
-  if (bytes.length === 130 && head === "5880")
+  // The cborHex of a key file: a byte string of 32 or 128 bytes, its head in two bytes
+  const normal = bytes.length === 34 ? byteStringOf(text, 32) : undefined;
+  if (normal) return { kind: "normal", bytes: normal };
+  const extended = bytes.length === 130 ? byteStringOf(text, 128) : undefined;
+  if (extended)
     return {
       kind: "extended",
-      bytes: bytes.slice(2, 66),
-      publicKey: bytes.slice(66, 98),
+      bytes: extended.slice(0, 64),
+      publicKey: extended.slice(64, 96),
     };
   if (bytes.length === 96)
     throw invalidKey(

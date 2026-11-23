@@ -346,20 +346,19 @@ const walk = (bytes: Uint8Array, bounds?: Bounds): Walked => {
         pieces(level, state === State.StartIndefiniteLengthTextString);
         read(level);
         break;
-      default: {
+      case State.SimpleValue: {
         // A simple value below 32 written in two bytes is not well formed (RFC 8949, 3.3), and
         // the reader takes it: refused as the reader refuses what is not well formed
-        const at = offset(level);
-        if (
-          state === State.SimpleValue &&
-          level.bytes[at] === 0xf8 &&
-          level.bytes[at + 1]! < 0x20
-        )
+        const before = offset(level);
+        if (reader.readSimpleValue() < 32 && offset(level) - before === 2)
           throw new Error("a simple value below 32 in two bytes");
+        read(level);
+        break;
+      }
+      default:
         // A scalar or a string of one piece: the reader passes it in one call
         reader.skipValue();
         read(level);
-      }
     }
   }
 };

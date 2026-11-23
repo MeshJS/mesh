@@ -216,6 +216,7 @@ describe("keySigner", () => {
         hex: rfc.key,
         "hex in upper case, with spaces around": ` ${rfc.key.toUpperCase()}\n`,
         "cborHex 5820": `5820${rfc.key}`,
+        "cborHex 5820 in upper case": `5820${rfc.key}`.toUpperCase(),
         "bech32 in upper case": toBech32("ed25519_sk", rfc.key).toUpperCase(),
       };
       for (const prefix of [
@@ -250,6 +251,7 @@ describe("keySigner", () => {
       const encodings: Record<string, string> = {
         "hex of 64 bytes": f.extended,
         "cborHex 5880": `5880${f.full}`,
+        "cborHex 5880 in upper case": `5880${f.full}`.toUpperCase(),
         "bech32 ed25519e_sk": toBech32("ed25519e_sk", f.extended),
       };
       for (const prefix of [
@@ -351,6 +353,43 @@ describe("keySigner", () => {
         (f) => `5880${f.full.slice(2)}`,
         "string",
         "hex of 129 bytes",
+      ],
+      // A key file writes the head of its byte string in two bytes, as cardano-cli does
+      [
+        "cborHex of 32 bytes, its head in three bytes",
+        () => `590020${rfc.key}`,
+        "string",
+        "hex of 35 bytes",
+      ],
+      [
+        "cborHex of 128 bytes, its head in three bytes",
+        (f) => `590080${f.full}`,
+        "string",
+        "hex of 131 bytes",
+      ],
+      [
+        "34 bytes whose head states 33",
+        () => `5821${rfc.key}`,
+        "string",
+        "hex of 34 bytes",
+      ],
+      [
+        "34 bytes of a byte string in pieces",
+        () => `5f581e${rfc.key.slice(0, 60)}ff`,
+        "string",
+        "hex of 34 bytes",
+      ],
+      [
+        "34 bytes of a text string",
+        () => `7820${rfc.key}`,
+        "string",
+        "hex of 34 bytes",
+      ],
+      [
+        "130 bytes whose head is that of 128 bytes in pieces",
+        (f) => `5f5880${f.full}`.slice(0, 260),
+        "string",
+        "hex of 130 bytes",
       ],
       [
         "hex of 128 bytes without its CBOR head",
