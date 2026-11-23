@@ -3,7 +3,7 @@ import type {
   NativeScriptPrototype,
 } from "@meshsdk/common";
 
-import type { NativeScript as CstNativeScript } from "../types";
+import { HexBlob, NativeScript as CstNativeScript } from "../types";
 import { toNativeScript } from "../utils";
 
 const meshNativeScript = (proto: NativeScriptPrototype): NativeScript => {
@@ -30,6 +30,11 @@ const meshNativeScript = (proto: NativeScriptPrototype): NativeScript => {
   }
 };
 
+/** A native script of a prototype: from the CBOR it was given in, when it holds that, so that it
+ * keeps those bytes and the hash taken over them; else written from its structure */
 export const nativeScriptPrototypeToCardano = (
   proto: NativeScriptPrototype,
-): CstNativeScript => toNativeScript(meshNativeScript(proto));
+): CstNativeScript =>
+  proto.cbor !== undefined
+    ? CstNativeScript.fromCbor(HexBlob(proto.cbor))
+    : toNativeScript(meshNativeScript(proto));

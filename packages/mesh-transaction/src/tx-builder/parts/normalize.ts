@@ -686,14 +686,25 @@ export const toNativeScriptSource = (
         error,
       );
     }
+    const structure = nativeScriptToPrototype(
+      typeof script === "string"
+        ? (fromNativeScript(nativeScript) as NativeScript)
+        : script,
+    );
+    const cbor = nativeScript.toCbor().toString();
+    const given = cbor.toLowerCase();
     return {
       type: "attached",
-      script: nativeScriptToPrototype(
-        typeof script === "string"
-          ? (fromNativeScript(nativeScript) as NativeScript)
-          : script,
-      ),
-      cbor: nativeScript.toCbor().toString(),
+      // Given as CBOR its structure is not written as, the script keeps the bytes given: its
+      // hash is theirs
+      script:
+        typeof script === "string" &&
+        toNativeScript(fromNativeScript(nativeScript) as NativeScript)
+          .toCbor()
+          .toString() !== given
+          ? { ...structure, cbor: given }
+          : structure,
+      cbor,
       scriptHash: nativeScript.hash().toString(),
     };
   }

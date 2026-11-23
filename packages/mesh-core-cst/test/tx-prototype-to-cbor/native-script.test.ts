@@ -1,4 +1,7 @@
+import * as Crypto from "@cardano-sdk/crypto";
+
 import { nativeScriptPrototypeToCardano } from "../../src/tx-prototype-to-cbor/native-script";
+import { HexBlob } from "../../src/types";
 
 const KEY_HASH = "aa".repeat(28);
 
@@ -63,5 +66,26 @@ describe("nativeScriptPrototypeToCardano", () => {
       value: { slot: "200" },
     });
     expect(script.asTimelockExpiry()!.slot().toString()).toEqual("200");
+  });
+});
+
+describe("a native script given in CBOR its structure is not written as", () => {
+  it("is written in the bytes it holds, and hashed over them; without them, from its structure", () => {
+    // `all` of none, its list of indefinite length
+    const structure = {
+      type: "SCRIPT_ALL" as const,
+      value: { native_scripts: [] },
+    };
+    const given = nativeScriptPrototypeToCardano({
+      ...structure,
+      cbor: "82019fff",
+    });
+    expect(given.toCbor().toString()).toBe("82019fff");
+    expect(given.hash().toString()).toBe(
+      Crypto.blake2b.hash(HexBlob("0082019fff"), 28).toString(),
+    );
+    expect(nativeScriptPrototypeToCardano(structure).toCbor().toString()).toBe(
+      "820180",
+    );
   });
 });

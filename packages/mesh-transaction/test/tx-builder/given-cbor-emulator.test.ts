@@ -9,6 +9,7 @@ import {
 import {
   Crypto,
   HexBlob,
+  scriptHashToBech32,
   scriptHashToRewardAddress,
   Transaction,
   TxCBOR,
@@ -44,9 +45,26 @@ const scriptAddress = resolvePlutusScriptAddress(script, 0);
 const scriptStake = scriptHashToRewardAddress(alwaysSucceedHash, 0);
 const cbor = (content: string) => ({ type: "CBOR" as const, content });
 const blake = (hex: string) => Crypto.blake2b.hash(HexBlob(hex), 32).toString();
+/** The hash of a native script: blake2b-224 of its language 0 and its bytes */
+const nativeHash = (hex: string) =>
+  Crypto.blake2b.hash(HexBlob(`00${hex}`), 28).toString();
 
-/** A list and a constructor of indefinite length */
-const KEPT = ["9f0102ff", "d8799f0102ff"];
+/**
+ * A list and a constructor of indefinite length; the integer 1 in one, two, three, five and nine
+ * bytes, and in a constructor of indefinite length
+ */
+const KEPT = [
+  "9f0102ff",
+  "d8799f0102ff",
+  "01",
+  "1801",
+  "190001",
+  "1a00000001",
+  "1b0000000000000001",
+  "d8799f1a00000001ff",
+];
+/** A native script that always passes, `all` of none, in three longer forms than the shortest */
+const NATIVE = ["82019fff", "82019800", "82180180"];
 /** Not one item: a byte after it, an item cut short, nothing */
 const NOT_ONE = ["d8798000", "9f01", ""];
 
@@ -158,6 +176,69 @@ describe.each(["scalus", "cquisitor"] as const)(
           ],
         ]);
         expect(await emulator.submitTx(signed)).toBe(built.txHash);
+      }
+    }, 120_000);
+
+    it("keeps a native script given as CBOR in a longer form byte for byte, its hash the hash of those bytes, as a spend, a mint and a withdrawal; Scalus takes it", async () => {
+      const locked = NATIVE.map((script, i): Utxo => ({
+        txHash: (i + 1).toString(16).repeat(64),
+        outputIndex: 0,
+        address: scriptHashToBech32(nativeHash(script), undefined, 0),
+        value: { lovelace: 10_000_000n },
+      }));
+      const funds: Utxo = {
+        txHash: "f".repeat(64),
+        outputIndex: 0,
+        address,
+        value: { lovelace: 1_000_000_000n },
+      };
+      const emulator = await TxEmulator.create({
+        validator,
+        network: "preprod",
+        utxos: [...locked, funds].map(asMesh),
+        accounts: NATIVE.map((script) => ({
+          rewardAddress: scriptHashToRewardAddress(nativeHash(script), 0),
+        })),
+      });
+      const builder = new TxBuilder({ network: "preprod", provider: emulator });
+      for (const [i, script] of NATIVE.entries()) {
+        const hash = nativeHash(script);
+        const built = await builder.build(
+          [
+            spend.native({ utxo: locked[i]!, script }),
+            mint.native({ script, assets: { "01": 1n } }),
+            withdrawal.native({
+              rewardAddress: scriptHashToRewardAddress(hash, 0),
+              amount: 0n,
+              script,
+            }),
+          ],
+          {
+            payer: {
+              changeAddress: address,
+              utxos: emulator.utxos({ address }),
+            },
+          },
+        );
+        await built.sign({ signers: wallet });
+        const read = Transaction.fromCbor(TxCBOR(built.signedTx!));
+        expect([
+          script,
+          (read.witnessSet().nativeScripts()?.values() ?? []).map((n) =>
+            n.toCbor().toString(),
+          ),
+          [...(read.body().mint()?.keys() ?? [])].map((unit) =>
+            unit.slice(0, 56),
+          ),
+        ]).toEqual([script, [script], [hash]]);
+        if (validator === "scalus")
+          expect(await emulator.submitTx(built.signedTx!)).toBe(built.txHash);
+        // cquisitor takes the hash of a native script over the form it writes it in again, not
+        // over its bytes as the ledger does, and finds the script missing
+        else
+          await expect(emulator.submitTx(built.signedTx!)).rejects.toThrow(
+            `MissingScriptWitnesses: Missing required script witnesses: "${hash}"`,
+          );
       }
     }, 120_000);
   },

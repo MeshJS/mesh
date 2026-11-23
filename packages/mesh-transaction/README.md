@@ -2124,11 +2124,15 @@ built.redeemers; // [{ tag: "SPEND", index, exUnits, data, label: "unlock", part
   upper estimate of the fee, so a payer short by less than that estimate can get
   `INSUFFICIENT_FUNDS`; stating the units avoids it.
 - Script `code` is taken flat or in one or two CBOR wrappings (a blueprint's `compiledCode` as it
-  is), and `builder.scriptAddress(script)` gives the same address the parts check against.
+  is), and `builder.scriptAddress(script)` gives the same address the parts check against. It is
+  written in two wrappings, each in its shortest form, the one the ledger hashes: the hash and the
+  address are those of that form.
 - Plutus data given as CBOR (`{ type: "CBOR", content }`, as a redeemer, a datum or an inline
-  datum) must be one well-formed item with nothing after it, else `INVALID_DATA` at the part call
-  (from a redeemer function, `INVALID_REDEEMER` at the build), the message quoting none of its
-  bytes.
+  datum) goes into the transaction byte for byte, an integer written longer than needed or a list
+  of indefinite length included, and a datum hash is the hash of those bytes. It must be one
+  well-formed item with nothing after it, else `INVALID_DATA` at the part call (from a redeemer
+  function, `INVALID_REDEEMER` at the build), the message quoting none of its bytes. A native
+  script given as its CBOR is written in those bytes too, and its hash is theirs.
 - Redeemer indices are assigned once, from where each item ends up in the ledger's order: sorted
   inputs, policies, reward accounts and voters; certificates and proposals as given.
 - A redeemer's data may be a function of the final transaction:
