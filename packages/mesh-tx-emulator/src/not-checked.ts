@@ -91,6 +91,13 @@ export const notCheckedIssues = (
       continue;
     }
     const known = state.govActions.get(action);
+    if (known?.openUnknown)
+      issues.push(
+        notChecked(
+          `Whether governance action ${action} is still open to votes`,
+          "the provider reports none of its epochs",
+        ),
+      );
     if (
       known?.kind === GovernanceActionKind.ParameterChangeAction &&
       !known.changedParameters
@@ -105,11 +112,19 @@ export const notCheckedIssues = (
   for (const proposal of refs.proposals) {
     const purpose = purposeOf(proposal.kind);
     if (!purpose) continue;
-    if (proposal.previous)
+    if (proposal.previous) {
       check(
         item.govAction(proposal.previous),
         `Governance action ${proposal.previous}`,
       );
+      if (state.govActions.get(proposal.previous)?.openUnknown)
+        issues.push(
+          notChecked(
+            `Whether governance action ${proposal.previous} is still pending`,
+            "the provider reports none of its epochs",
+          ),
+        );
+    }
     check(
       item.lastEnacted(purpose),
       `The last enacted ${PURPOSE_NAMES[purpose]} action`,

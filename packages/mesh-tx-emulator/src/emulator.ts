@@ -350,6 +350,23 @@ const producedBy = (
     : [];
 };
 
+/**
+ * Certificates Scalus applies to the stake registrations it holds as the state does: a ledger
+ * rebuilt from the state after them would hold the same
+ */
+const SCALUS_IN_STEP = new Set<string>([
+  Cardano.CertificateType.StakeRegistration,
+  Cardano.CertificateType.StakeDeregistration,
+  Cardano.CertificateType.Registration,
+  Cardano.CertificateType.Unregistration,
+  Cardano.CertificateType.StakeDelegation,
+  Cardano.CertificateType.VoteDelegation,
+  Cardano.CertificateType.StakeVoteDelegation,
+  Cardano.CertificateType.StakeRegistrationDelegation,
+  Cardano.CertificateType.VoteRegistrationDelegation,
+  Cardano.CertificateType.StakeVoteRegistrationDelegation,
+]);
+
 const scalusCredential = (credential: CredentialRef) => ({
   credentialType: credential.type,
   credentialHash: credential.hash,
@@ -509,8 +526,9 @@ const unsupported = (method: string) =>
  *   are not paid, governance outcomes, which are not enacted, funds, parameters.
  *
  * Time moves forward only when told to. An epoch boundary retires pools due to retire, adds the
- * epoch's donations to the treasury and removes expired governance actions, returning their
- * deposits; no rewards are paid and no governance actions are ratified or enacted.
+ * epoch's donations to the treasury, removes expired governance actions, returning their
+ * deposits, and clears the hot credentials and resignations of committee members only proposed;
+ * no rewards are paid and no governance actions are ratified or enacted.
  */
 export class TxEmulator
   implements
@@ -533,6 +551,12 @@ export class TxEmulator
    * before it is next used.
    */
   private stale = false;
+  /**
+   * Stake addresses withdrawn from since Scalus's ledger was last built, whose rewards it holds
+   * too high, as it does not take withdrawals off them. Its ledger is rebuilt before it checks a
+   * transaction reading one of them, rather than after every withdrawal.
+   */
+  private withdrawn = new Set<string>();
 
   private constructor(
     readonly validator: TxValidator,
@@ -685,6 +709,7 @@ export class TxEmulator
     if (this.stale) {
       this.current = this.rebuild();
       this.stale = false;
+      this.withdrawn.clear();
     }
     return this.current;
   }
@@ -706,7 +731,7 @@ export class TxEmulator
    * state and the clock. The copy and this ledger evolve separately from then on.
    */
   fork(): TxEmulator {
-    return new TxEmulator(
+    const copy = new TxEmulator(
       this.validator,
       this.network,
       this.lib,
@@ -714,6 +739,8 @@ export class TxEmulator
       cloneLedgerState(this.state),
       this.seed,
     );
+    copy.withdrawn = new Set(this.withdrawn);
+    return copy;
   }
 
   /** Check a transaction against the current state, changing nothing */
@@ -1247,6 +1274,8 @@ export class TxEmulator
         [...refs.dreps].some(
           (drepId) => !isKnown(this.state, item.drep(drepId)),
         );
+      if ([...refs.accounts].some((account) => this.withdrawn.has(account)))
+        this.stale = true;
       const target = assuming
         ? this.rebuild({ refs, assumed })
         : apply
@@ -1273,14 +1302,23 @@ export class TxEmulator
       }
       warnings = notChecked;
       if (apply) this.current = target;
-      // Scalus applies some transactions in its own way: it does not take withdrawals off the
-      // rewards it holds, and applies the certificates of a transaction marked invalid. Nor must
+      // Scalus applies some transactions in its own way: it applies the certificates of a
+      // transaction marked invalid, and some certificates otherwise than the state. Nor must
       // what was assumed for this one outlive it. Its ledger is rebuilt from the state then.
+      // It does not take withdrawals off the rewards it holds either, which matters only to a
+      // later transaction reading the stake address.
       resync =
         assuming ||
         !isValid ||
-        refs.withdrawals.size > 0 ||
-        (body.certs()?.size() ?? 0) > 0;
+        (body.certs()?.values() ?? []).some(
+          (certificate) =>
+            !SCALUS_IN_STEP.has(
+              (certificate.toCore() as { __typename: string }).__typename,
+            ),
+        );
+      if (apply && !resync)
+        for (const rewardAddress of refs.withdrawals.keys())
+          this.withdrawn.add(rewardAddress);
     } else {
       const report = await validateWithCquisitor({
         txHex,

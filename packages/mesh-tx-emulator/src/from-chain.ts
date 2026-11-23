@@ -334,6 +334,13 @@ export const fetchChainSnapshot = async (
           // Enacted and dropped actions have left the ledger
           if (isSet(proposal.enactedEpoch) || isSet(proposal.droppedEpoch))
             return undefined;
+          // A provider that sets none of the epochs, not even the expiration every action has,
+          // cannot tell an open action from a closed one, and reports no status besides them
+          const reportsEpochs = [
+            proposal.ratifiedEpoch,
+            proposal.expiredEpoch,
+            proposal.expiration,
+          ].some(isSet);
           const changed =
             kind === GovernanceActionKind.ParameterChangeAction
               ? changedParametersOf(proposal)
@@ -345,6 +352,7 @@ export const fetchChainSnapshot = async (
             }),
             // An expired action is no longer open to votes, but stays until the ledger removes it
             ...(isSet(proposal.expiredEpoch) && { closed: true }),
+            ...(!reportsEpochs && { openUnknown: true }),
             ...(proposal.deposit !== undefined &&
               proposal.deposit !== null && {
                 deposit: BigInt(proposal.deposit),

@@ -39,6 +39,12 @@ export type LedgerGovAction = {
   expiresAfter?: number;
   /** No longer open to votes, whatever the epoch */
   closed?: boolean;
+  /**
+   * Whether it is still pending, and open to votes, is not known: it was read from a provider
+   * that reports none of its epochs, so it may have been enacted, dropped or expired. It is
+   * taken to be open.
+   */
+  openUnknown?: boolean;
   deposit?: bigint;
   returnAddress?: string;
   /**
@@ -363,8 +369,9 @@ export const applyTransaction = (
 /**
  * What happens when the clock enters `epoch`: pools due to retire retire, their deposits going
  * back and the stake delegated to them undelegated; the epoch's donations join the treasury;
- * governance actions past their lifetime are removed and their deposits returned. Rewards,
- * ratification and enactment are not computed.
+ * governance actions past their lifetime are removed and their deposits returned; committee
+ * members only proposed lose their hot credentials and resignations. Rewards, ratification and
+ * enactment are not computed.
  */
 export const enterEpoch = (state: LedgerState, epoch: number): void => {
   for (const [poolId, pool] of state.pools) {
@@ -406,6 +413,14 @@ export const enterEpoch = (state: LedgerState, epoch: number): void => {
     if (action.deposit !== undefined)
       payBack(state, action.returnAddress, action.deposit);
   }
+
+  // The ledger keeps hot credentials and resignations only for the members of the enacted
+  // committee: a member only proposed loses them, and may authorise a hot credential again
+  for (const member of state.committee.values())
+    if (member.potential) {
+      delete member.hot;
+      member.resigned = false;
+    }
 };
 
 export const isOpenToVotes = (action: LedgerGovAction, epoch: number) =>

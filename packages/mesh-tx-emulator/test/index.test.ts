@@ -790,6 +790,69 @@ describe.each(["scalus", "cquisitor"] as const)(
       );
     });
 
+    it("clears the hot credentials and resignations of members only proposed at the epoch boundary", async () => {
+      const sitting = { type: "KeyHash" as const, keyHash: "c0".repeat(28) };
+      const sittingHot = { type: "KeyHash" as const, keyHash: "a0".repeat(28) };
+      const proposed = { type: "ScriptHash" as const, scriptHash: openHash };
+      const { emulator } = await setup(validator, {
+        governance: {
+          committee: [
+            { cold: sitting, hot: sittingHot },
+            { cold: proposed, potential: true },
+          ],
+        },
+      });
+      const certify = (cert: Record<string, unknown>) =>
+        rawTx({ ...nextOpen(emulator), body: { certs: [cert] } });
+      const authorise = () =>
+        certify({
+          type: "COMMITTEE_HOT_AUTH",
+          value: {
+            committee_cold_credential: openCredential,
+            committee_hot_credential: { type: "KEY", value: "12".repeat(28) },
+          },
+        });
+      const member = async (cold: { type: string }) =>
+        (await emulator.fetchCommitteeState()).find(
+          (state) => JSON.stringify(state.cold) === JSON.stringify(cold),
+        );
+
+      expectAccepted(await emulator.submit(authorise()));
+      expectAccepted(
+        await emulator.submit(
+          certify({
+            type: "COMMITTEE_COLD_RESIGN",
+            value: { committee_cold_credential: openCredential },
+          }),
+        ),
+      );
+      expect(await member(proposed)).toEqual({
+        cold: proposed,
+        hot: { type: "KeyHash", keyHash: "12".repeat(28) },
+        resigned: true,
+        potential: true,
+      });
+      // Scalus does not check governance
+      if (validator === "cquisitor")
+        expect(rules(await emulator.simulate(authorise()))).toEqual([
+          "CommitteeHasPreviouslyResigned",
+        ]);
+
+      // The ledger keeps them for the sitting committee only
+      emulator.advanceTo({ epoch: emulator.epoch + 1 });
+      expect(await member(proposed)).toEqual({
+        cold: proposed,
+        resigned: false,
+        potential: true,
+      });
+      expect(await member(sitting)).toEqual({
+        cold: sitting,
+        hot: sittingHot,
+        resigned: false,
+      });
+      expectAccepted(await emulator.simulate(authorise()));
+    });
+
     it("adds donations to the treasury at the epoch boundary", async () => {
       const { emulator } = await setup(validator, {
         governance: { treasury: "1000000000" },
@@ -910,6 +973,13 @@ describe.each(["scalus", "cquisitor"] as const)(
 
       expectAccepted(await emulator.submit(withdraw(5_000_000n)));
       expect((await emulator.fetchAccountInfo(openStake)).rewards).toBe("0");
+      // Through transactions not reading the stake address, and in a fork
+      expectAccepted(await emulator.submit(rawTx(nextOpen(emulator))));
+      const branch = emulator.fork();
+      expect((await branch.simulate(withdraw(5_000_000n))).accepted).toBe(
+        false,
+      );
+      expectAccepted(await branch.simulate(withdraw(0n)));
       expect((await emulator.submit(withdraw(5_000_000n))).accepted).toBe(
         false,
       );
@@ -2604,14 +2674,15 @@ describe.each(["scalus", "cquisitor"] as const)(
         expect(rules(vote)).toContain("DisallowedVoters");
     });
 
-    it("reads an epoch a provider gives as 0 as not set", async () => {
+    it("takes an action a provider gives no epoch of as open, and says so", async () => {
       const live = "e".repeat(64);
       const pending = "f".repeat(64);
       const { emulator: chain } = await setup(validator, {
         accounts: [{ rewardAddress: openStake }],
         dreps: [{ drepId: openDRep }],
       });
-      // Some providers write 0 for every epoch of an action, however far it got
+      // Some providers write 0 for every epoch of an action, however far it got, so whether it
+      // is still open is not known
       const fetcher = view(chain, {
         fetchGovernanceProposal: async (txHash: string, certIndex: number) => ({
           txHash,
@@ -2664,11 +2735,76 @@ describe.each(["scalus", "cquisitor"] as const)(
         },
       });
 
-      for (const tx of [vote, following])
-        expectAccepted(
-          await (
-            await TxEmulator.fromChain(tx, { validator, fetcher })
-          ).simulate(tx),
+      const voted = expectAccepted(
+        await (
+          await TxEmulator.fromChain(vote, { validator, fetcher })
+        ).simulate(vote),
+      );
+      expect(voted.warnings).toContainEqual(
+        notChecked(`Whether governance action ${live}#0 is still open`),
+      );
+      const followed = expectAccepted(
+        await (
+          await TxEmulator.fromChain(following, { validator, fetcher })
+        ).simulate(following),
+      );
+      expect(followed.warnings).toContainEqual(
+        notChecked(`Whether governance action ${pending}#0 is still pending`),
+      );
+    });
+
+    it("reads the epochs of a provider that reports them, 0 standing for a step not taken", async () => {
+      const live = "e".repeat(64);
+      const expired = "f".repeat(64);
+      const { emulator: chain } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake }],
+        dreps: [{ drepId: openDRep }],
+      });
+      // The expiration every action has, and 0 for the steps it has not taken
+      const fetcher = view(chain, {
+        fetchGovernanceProposal: async (txHash: string, certIndex: number) => ({
+          txHash,
+          certIndex,
+          governanceType: "INFO_ACTION",
+          deposit: Number(GOV_DEPOSIT),
+          returnAddress: openStake,
+          governanceDescription: "",
+          ratifiedEpoch: 0,
+          enactedEpoch: 0,
+          droppedEpoch: 0,
+          expiredEpoch: txHash === expired ? chain.epoch - 1 : 0,
+          expiration: txHash === expired ? chain.epoch - 1 : chain.epoch + 6,
+          metadata: {},
+        }),
+      });
+      const voteOn = (txHash: string) =>
+        rawTx({
+          body: {
+            voting_procedures: [
+              {
+                voter: { type: "DREP", value: openCredential },
+                votes: [
+                  {
+                    action_id: { transaction_id: txHash, index: 0 },
+                    voting_procedure: { vote: { type: "YES" } },
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      const check = async (tx: string) =>
+        (await TxEmulator.fromChain(tx, { validator, fetcher })).simulate(tx);
+
+      const open = expectAccepted(await check(voteOn(live)));
+      expect(warningRules(open)).not.toContain("NotChecked");
+      // Scalus does not check governance
+      const closed = await check(voteOn(expired));
+      if (validator === "cquisitor")
+        expect(rules(closed)).toEqual(["VotingOnExpiredGovAction"]);
+      else
+        expect(warningRules(expectAccepted(closed))).not.toContain(
+          "NotChecked",
         );
     });
 

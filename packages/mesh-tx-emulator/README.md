@@ -225,7 +225,10 @@ State no provider reports is taken to be as the transaction needs it, so it cann
 transaction, and is listed in the result's warnings with the rule `NotChecked`. So is what a
 provider leaves out of an answer, such as a deposit, a pool's reward address or a stake
 address's DRep delegation (`drep` in `AccountInfo`, `null` when it delegates to none), and an
-answer that cannot be read. Each transaction checked on the ledger is taken at its own needs.
+answer that cannot be read. So is whether a governance action is still pending, and open to
+votes, when the provider reports none of its epochs, as some write 0 for all of them: a vote on
+it, or a proposal following it, is not refused for it. Each transaction checked on the ledger
+is taken at its own needs.
 
 ## Time
 
@@ -238,8 +241,10 @@ emulator.advanceTo({ epoch: emulator.epoch + 1 }); // the epoch's first slot
 The clock only moves forward. Entering an epoch retires the pools due to retire, paying their
 deposits back and undelegating their stake, adds the previous epoch's donations to the treasury,
 and removes the governance actions past their lifetime, returning their deposits, with the
-committee members only they proposed. No rewards are paid, and no governance actions are
-ratified or enacted.
+committee members only they proposed. Committee members proposed but not sitting lose their hot
+credentials and resignations, as the ledger keeps those only for the sitting committee: such a
+member authorises its hot credential again in each epoch until it is elected. No rewards are
+paid, and no governance actions are ratified or enacted.
 
 ## Limits
 
@@ -258,5 +263,19 @@ ratified or enacted.
 - Protocol parameters default to the values Scalus ships for each network. The `params` option,
   `setProtocolParameters` and `fromChain` replace only those a Mesh `Protocol` carries; governance
   deposits and lifetimes, thresholds and the protocol version keep the network's values.
+- With `"scalus"`, Scalus's ledger is rebuilt from the emulator's state, copying every UTxO,
+  before the next transaction after one Scalus applies otherwise than the state: one with pool,
+  DRep or committee certificates, one marked invalid, one needing state `fromChain` did not
+  read; after a change made without a transaction or an epoch boundary; and before a
+  transaction reading a stake address withdrawn from since, as Scalus does not take withdrawals
+  off its rewards. Stake address registrations and delegations need none. On an Apple M3 Max,
+  chains of 50 transactions took per transaction:
+
+  | UTxOs  | payments | registering and deregistering a stake address | withdrawing from one stake address |
+  | ------ | -------- | --------------------------------------------- | ---------------------------------- |
+  | 1,000  | 1.3 ms   | 1.9 ms                                        | 2.0 ms                             |
+  | 10,000 | 2.9 ms   | 4.0 ms                                        | 9.3 ms                             |
+  | 50,000 | 16 ms    | 21 ms                                         | 71 ms                              |
+
 - Scalus is ESM-only and cquisitor-lib is WebAssembly, both loaded with a dynamic `import()`, so
   `create` is asynchronous; it works from both ESM and CommonJS.

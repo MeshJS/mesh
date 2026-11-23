@@ -187,6 +187,8 @@ export const putGovernanceAction = (
   };
   if (action.active === false) next.closed = true;
   if (action.active === true) delete next.closed;
+  // Whether it is open is known once set
+  delete next.openUnknown;
   if (action.changedParameters)
     next.changedParameters = [...action.changedParameters];
   state.govActions.set(key, next);
