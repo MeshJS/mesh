@@ -2146,7 +2146,11 @@ built.redeemers; // [{ tag: "SPEND", index, exUnits, data, label: "unlock", part
   (data, a native script, a Plutus script's code, a UTxO, a transaction, a witness set), with
   the code of that place, never read with its last digit dropped. An output's `scriptRef` is not
   taken as CBOR: it is a `PlutusScript` or a `NativeScript` object, and a text, or any other value,
-  is `INVALID_SCRIPT` at the part call, the message naming its JavaScript type alone.
+  is `INVALID_SCRIPT` at the part call, the message naming its JavaScript type alone. Plutus data
+  in the JSON form (`{ type: "JSON", content }`) holds each `bytes` in hex of whole bytes, in
+  either case: an odd number of digits or a character outside hex is `INVALID_DATA` at the part
+  call (from a redeemer function, `INVALID_REDEEMER` at the build), the message quoting none of
+  it, never read up to its first bad digit or with its last digit dropped.
 - The slot of a native script's time lock (`after`, `before`) is one the ledger reads, from 0 to
   2^64 - 1, and is taken exactly, never through a JavaScript number: of a script given as CBOR its
   bytes are kept, of one given as an object `slot` is decimal digits (or a whole number) and is
