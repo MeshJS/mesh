@@ -8,13 +8,12 @@ import {
   blake2b,
   CborReader,
   CborWriter,
-  deserializeTxUnspentOutput,
   HexBlob,
   normalizePlutusScript,
   Serialization,
 } from "@meshsdk/core-cst";
 
-import type { UtxoBytes } from "../tx-scan";
+import type { UtxoBytes, UtxoFields } from "../tx-scan";
 import type {
   Assets,
   OutputDatum,
@@ -29,7 +28,8 @@ import {
   MAX_ADDRESS_BYTES,
   MAX_NATIVE_DEPTH,
   MAX_TX_BYTES,
-  splitUtxoBytes,
+  readUtxoFields,
+  scanUtxoBytes,
 } from "../tx-scan";
 import { emptyValue, toAssets } from "../value";
 import { givenShape, shownValue } from "./shape";
@@ -776,7 +776,7 @@ export const heldScriptSize = (
     if (typeof given === "string") {
       if (given.length > 2 * MAX_TX_BYTES || !HEX_BYTES.test(given))
         return undefined;
-      const split = splitUtxoBytes(Buffer.from(given, "hex"));
+      const split = scanUtxoBytes(Buffer.from(given, "hex"));
       if (!split?.outRef || !split.scriptRef || split.otherKey)
         return undefined;
       const { txHash, outputIndex } = split.outRef;
@@ -933,13 +933,13 @@ const withScript = (script: OutputScript | undefined) =>
   script === undefined ? {} : { script };
 
 /**
- * A UTxO from the CBOR of a transaction unspent output. Its inline datum and its reference script
- * are found by the token reader and kept as the bytes hold them; the decoder reads the rest with
- * stand-ins in their place, and the script is described as `describeScriptRef` describes one. A
- * UTxO of more than `MAX_TX_BYTES` is refused before it is read, and one whose out ref is of
- * another form than every writer's at its head (`outRefAtHead`); an output with a key other than
- * 0 to 3, which the ledger takes in no output, before the decoder runs, its out ref named where
- * the reader finds it
+ * A UTxO from the CBOR of a transaction unspent output, read by its fields (`readUtxoFields`): its
+ * input, address and value by the classes of `@cardano-sdk/core`, its inline datum and its
+ * reference script kept as the bytes hold them and never decoded; the script is described as
+ * `describeScriptRef` describes one. A UTxO of more than `MAX_TX_BYTES` is refused before it is
+ * read, and one whose out ref is of another form than every writer's at its head
+ * (`outRefAtHead`); an output with a key other than 0 to 3, which the ledger takes in no output,
+ * before its fields are read, its out ref named where the reader finds it
  */
 const fromCbor = (cbor: string, scripts?: ScriptsRead): Utxo => {
   // Its output is part of a transaction: one longer than a transaction is refused before it is
@@ -954,7 +954,7 @@ const fromCbor = (cbor: string, scripts?: ScriptsRead): Utxo => {
   let split: UtxoBytes | undefined;
   try {
     if (!HEX_BYTES.test(cbor)) throw new Error("the text is not hex");
-    split = splitUtxoBytes(Buffer.from(cbor, "hex"));
+    split = scanUtxoBytes(Buffer.from(cbor, "hex"));
     if (!split) throw new Error("it is not well-formed CBOR");
   } catch (error) {
     return problem(
@@ -963,7 +963,7 @@ const fromCbor = (cbor: string, scripts?: ScriptsRead): Utxo => {
       error,
     );
   }
-  const { standIn, inlineDatum, scriptRef, outRef, otherKey } = split;
+  const { outRef, otherKey } = split;
   // The ledger takes no output with such a key, and the decoder passes over its value: refused
   // before the decoder runs
   if (otherKey) {
@@ -978,9 +978,9 @@ const fromCbor = (cbor: string, scripts?: ScriptsRead): Utxo => {
       `${named}not the CBOR of a transaction unspent output: its output has a key other than 0, 1, 2 and 3`,
     );
   }
-  let unspent: ReturnType<typeof deserializeTxUnspentOutput>;
+  let fields: UtxoFields;
   try {
-    unspent = deserializeTxUnspentOutput(hexOf(standIn));
+    fields = readUtxoFields(cbor);
   } catch (error) {
     return problem(
       "outRef",
@@ -988,14 +988,14 @@ const fromCbor = (cbor: string, scripts?: ScriptsRead): Utxo => {
       error,
     );
   }
+  const { input, address, value, dataHash, inlineDatum, scriptRef } = fields;
   return fromOutput(
-    readOutRefMembers(
-      unspent.input().transactionId().toString(),
-      Number(unspent.input().index()),
-    ),
-    unspent.output(),
+    readOutRefMembers(input.transactionId().toString(), Number(input.index())),
     {
-      ...(inlineDatum && { datum: hexOf(inlineDatum) }),
+      address,
+      amount: value,
+      ...(dataHash !== undefined && { dataHash }),
+      ...(inlineDatum && { inline: hexOf(inlineDatum) }),
       ...(scriptRef && { script: hexOf(scriptRef) }),
     },
     scripts,
@@ -1003,28 +1003,46 @@ const fromCbor = (cbor: string, scripts?: ScriptsRead): Utxo => {
 };
 
 /**
- * A UTxO from its out ref and its output as decoded: what the output holds, byte for byte
- * @param held The CBOR of the inline datum and of the reference script, where the output was
- *   decoded with stand-ins in their place
+ * What an output holds, as `fromOutput` reads it: its address and value as decoded, its datum
+ * hash, and its inline datum and its reference script as their CBOR, byte for byte
  */
+type OutputFields = {
+  readonly address: Address;
+  readonly amount: Serialization.Value;
+  readonly dataHash?: string;
+  readonly inline?: string;
+  readonly script?: string;
+};
+
+/** The fields of an output a transaction holds, decoded with it */
+const fieldsOf = (output: Serialization.TransactionOutput): OutputFields => {
+  const datum = output.datum();
+  const dataHash = datum?.asDataHash()?.toString();
+  const inline = datum?.asInlineData()?.toCbor().toString();
+  const script = output.scriptRef()?.toCbor().toString();
+  return {
+    address: output.address(),
+    amount: output.amount(),
+    ...(dataHash !== undefined && { dataHash }),
+    ...(inline !== undefined && { inline }),
+    ...(script !== undefined && { script }),
+  };
+};
+
+/** A UTxO from its out ref and what its output holds, byte for byte */
 const fromOutput = (
   ref: OutRef,
-  output: Serialization.TransactionOutput,
-  held: { readonly datum?: string; readonly script?: string } = {},
+  output: OutputFields,
   scripts?: ScriptsRead,
 ): Utxo => {
   const at = describe(ref);
   // Bounded before its text is written: base58 takes a time that grows with the square of it
-  if (output.address().toBytes().length > 2 * MAX_ADDRESS_BYTES)
+  if (output.address.toBytes().length > 2 * MAX_ADDRESS_BYTES)
     return tooLong(at);
-  const amount = output.amount();
-  const datum = output.datum();
-  const inline = held.datum ?? datum?.asInlineData()?.toCbor().toString();
-  const dataHash = datum?.asDataHash()?.toString();
-  const scriptRef = held.script ?? output.scriptRef()?.toCbor().toString();
+  const { amount, inline, dataHash, script: scriptRef } = output;
   return {
     ...ref,
-    address: readAddress(at, addressText(output.address())),
+    address: readAddress(at, addressText(output.address)),
     value: normalValue(at, [
       ["lovelace", amount.coin()],
       ...(amount.multiasset() ?? new Map<string, bigint>()),
@@ -1721,7 +1739,7 @@ export const outputAsUtxo = (
   txHash: string,
   outputIndex: number,
   output: Serialization.TransactionOutput,
-): Utxo => fromOutput(readOutRefMembers(txHash, outputIndex), output);
+): Utxo => fromOutput(readOutRefMembers(txHash, outputIndex), fieldsOf(output));
 
 /** The out ref of an output, with exactly the members `txHash` and `outputIndex` */
 export const outRefOf = (ref: Readonly<OutRef>): OutRef => ({

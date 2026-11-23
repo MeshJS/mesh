@@ -1,4 +1,10 @@
-import { CborReader, HexBlob, Serialization } from "@meshsdk/core-cst";
+import {
+  Address,
+  CardanoSDKUtil,
+  CborReader,
+  HexBlob,
+  Serialization,
+} from "@meshsdk/core-cst";
 
 /*
  * The bounds within which a transaction this library did not build is read, before any of it is
@@ -387,15 +393,8 @@ export const itemDepth = (bytes: Uint8Array): number | undefined => {
     : undefined;
 };
 
-/** A transaction unspent output in CBOR, with the CBOR its output holds apart */
+/** What a scan of a transaction unspent output in CBOR finds, before it is read */
 export type UtxoBytes = {
-  /**
-   * The same bytes with stand-ins in place of each inline datum and reference script written,
-   * which a value decoder reads at no cost: the integer 0, and a Plutus script of no bytes
-   */
-  standIn: Uint8Array;
-  /** The CBOR of the inline datum, as the output holds it, its chunks joined */
-  inlineDatum?: Uint8Array;
   /** The CBOR of the reference script, `[language, script]`, its chunks joined */
   scriptRef?: Uint8Array;
   /** The out ref, `[transaction id, index]`, where the token reader finds one */
@@ -408,14 +407,8 @@ export type UtxoBytes = {
   otherKey?: true;
 };
 
-/** What stands in for the byte string of an inline datum: `h'00'`, which holds the integer 0 */
-const STAND_IN_DATUM = Uint8Array.of(0x41, 0x00);
-
-/** What stands in for the byte string of a reference script: `h'820140'`, `[1, h'']` */
-const STAND_IN_SCRIPT = Uint8Array.of(0x43, 0x82, 0x01, 0x40);
-
-/** The byte string under tag 24 the reader is at, if it is at one: its content and offsets */
-const encodedAt = (reader: CborReader, offset: () => number) => {
+/** The content of the byte string under tag 24 the reader is at, if it is at one */
+const encodedAt = (reader: CborReader) => {
   if (
     reader.peekState() !== State.Tag ||
     Number(reader.peekTag()) !== ENCODED_CBOR
@@ -428,28 +421,21 @@ const encodedAt = (reader: CborReader, offset: () => number) => {
     next !== State.StartIndefiniteLengthByteString
   )
     return undefined;
-  const start = offset();
-  const content = reader.readByteString();
-  return { start, end: offset(), content };
+  return reader.readByteString();
 };
 
 /**
- * Finds the inline datum and the reference script of a transaction unspent output
- * `[input, output]` in CBOR, from the offsets of the token reader, and writes the same bytes with
- * a stand-in for each, so that a value decoder reads the rest without reading data or a script
- * of any depth or work; neither is decoded. Of a key the map repeats, the last is found, as the
- * decoder reads it, and each has its stand-in. An output in the array form holds neither. A key
- * other than 0 to 3 is marked, and the output read no further. Undefined where the bytes do not
- * start with one well-formed item; an output of a shape the reader does not find is left as
- * written, for the decoder to judge
+ * Scans a transaction unspent output `[input, output]` in CBOR on the token reader, reading
+ * nothing of it into a value: its out ref, its reference script, and whether its output has a key
+ * the ledger does not take. Of a key the map repeats, the last is found, as the decoder reads it.
+ * An output in the array form holds no script. A key other than 0 to 3 is marked, and the output
+ * read no further. Undefined where the bytes do not start with one well-formed item; what the
+ * reader does not find in an output of another shape is left for `readUtxoFields` to judge
  */
-export const splitUtxoBytes = (bytes: Uint8Array): UtxoBytes | undefined => {
+export const scanUtxoBytes = (bytes: Uint8Array): UtxoBytes | undefined => {
   if (walked(bytes) === undefined) return undefined;
   const reader = new CborReader(HexBlob(hexOf(bytes)));
-  const offset = () => bytes.length - reader.getBytesRemaining();
-  const found: Omit<UtxoBytes, "standIn"> = {};
-  // The byte strings of inline datums and reference scripts, each replaced by its stand-in
-  const replaced: { start: number; end: number; by: Uint8Array }[] = [];
+  const found: UtxoBytes = {};
   /** The out ref `[transaction id, index]` the reader is at, kept where it reads as one */
   const readInput = () => {
     if (reader.peekState() !== State.StartArray) {
@@ -471,11 +457,11 @@ export const splitUtxoBytes = (bytes: Uint8Array): UtxoBytes | undefined => {
     reader.readEndArray();
   };
   try {
-    if (reader.peekState() !== State.StartArray) return { standIn: bytes };
+    if (reader.peekState() !== State.StartArray) return found;
     const items = reader.readStartArray();
-    if (items !== 2 && items !== null) return { standIn: bytes };
+    if (items !== 2 && items !== null) return found;
     readInput();
-    if (reader.peekState() !== State.StartMap) return { standIn: bytes };
+    if (reader.peekState() !== State.StartMap) return found;
     const pairs = reader.readStartMap();
     for (let pair = 0; pairs === null || pair < pairs; pair++) {
       if (reader.peekState() === State.EndMap) break;
@@ -483,45 +469,125 @@ export const splitUtxoBytes = (bytes: Uint8Array): UtxoBytes | undefined => {
         reader.peekState() === State.UnsignedInteger
           ? reader.readUInt()
           : undefined;
-      if (key === undefined || key > 3n)
-        return { standIn: bytes, ...found, otherKey: true };
+      if (key === undefined || key > 3n) return { ...found, otherKey: true };
       if (key === 3n) {
-        const script = encodedAt(reader, offset);
-        if (script) {
-          found.scriptRef = script.content;
-          replaced.push({ ...script, by: STAND_IN_SCRIPT });
-        } else {
+        const script = encodedAt(reader);
+        if (script) found.scriptRef = script;
+        else {
           delete found.scriptRef;
           reader.skipValue();
         }
-      } else if (key === 2n && reader.peekState() === State.StartArray) {
-        // [1, 24(h'…')], in a list of either kind of length; a datum hash after it is the datum
-        delete found.inlineDatum;
-        reader.readStartArray();
-        const inline =
-          reader.peekState() === State.UnsignedInteger &&
-          reader.readUInt() === 1n
-            ? encodedAt(reader, offset)
-            : undefined;
-        if (inline) {
-          found.inlineDatum = inline.content;
-          replaced.push({ ...inline, by: STAND_IN_DATUM });
-        }
-        while (reader.peekState() !== State.EndArray) reader.skipValue();
-        reader.readEndArray();
       } else reader.skipValue();
     }
   } catch {
-    return { standIn: bytes };
+    return found;
   }
-  const pieces: Uint8Array[] = [];
-  let from = 0;
-  for (const { start, end, by } of replaced) {
-    pieces.push(bytes.subarray(from, start), by);
-    from = end;
+  return found;
+};
+
+/** A transaction unspent output read by its fields, its datum and its script kept as bytes */
+export type UtxoFields = {
+  input: Serialization.TransactionInput;
+  address: Address;
+  value: Serialization.Value;
+  /** The datum hash, in hex */
+  dataHash?: string;
+  /** The CBOR of the inline datum, the content of its byte string under tag 24 */
+  inlineDatum?: Uint8Array;
+  /** The CBOR of the reference script, `[language, script]`, the content of its byte string */
+  scriptRef?: Uint8Array;
+};
+
+/** The error of the value decoder of `@cardano-sdk/core` for CBOR it does not read */
+const notRead = (message: string) =>
+  new CardanoSDKUtil.InvalidArgumentError("cbor", message);
+
+/** The tag 24 of a datum or a script, as the value decoder requires it */
+const readEncodedTag = (reader: CborReader) => {
+  const tag = reader.readTag();
+  if (tag !== ENCODED_CBOR)
+    throw notRead(`Expected tag ${ENCODED_CBOR} but got ${tag}`);
+};
+
+/**
+ * A transaction unspent output `[input, output]` in CBOR hex read by its fields on one reader, as
+ * the value decoder of `@cardano-sdk/core` reads one, in the same steps and with the same errors:
+ * the input, the address and the value by its classes, in the map form or the array form; the
+ * inline datum and the reference script only to their byte strings under tag 24, kept as their
+ * bytes and never decoded. Of a key the map repeats, the last is read. Its out ref is read at its
+ * head and its keys are scanned first (`outRefAtHead`, `scanUtxoBytes`)
+ * @throws Error as the value decoder throws for what it does not read
+ */
+export const readUtxoFields = (hex: string): UtxoFields => {
+  const reader = new CborReader(HexBlob(hex));
+  const length = reader.readStartArray();
+  if (length !== 2)
+    throw notRead(
+      `Expected an array of 2 elements, but got an array of ${length} elements`,
+    );
+  const input = Serialization.TransactionInput.fromCbor(
+    HexBlob.fromBytes(reader.readEncodedValue()),
+  );
+  // The output, read in place, as the decoder reads it on a reader of its own
+  let address: Address | undefined;
+  let value: Serialization.Value | undefined;
+  let datum: Pick<UtxoFields, "dataHash" | "inlineDatum"> = {};
+  let scriptRef: Uint8Array | undefined;
+  const readAddress = () =>
+    Address.fromBytes(HexBlob.fromBytes(reader.readByteString()));
+  const readValue = () =>
+    Serialization.Value.fromCbor(HexBlob.fromBytes(reader.readEncodedValue()));
+  if (reader.peekState() === State.StartMap) {
+    reader.readStartMap();
+    while (reader.peekState() !== State.EndMap) {
+      switch (reader.readInt()) {
+        case 0n:
+          address = readAddress();
+          break;
+        case 1n:
+          value = readValue();
+          break;
+        case 2n: {
+          reader.readStartArray();
+          const kind = Number(reader.readInt());
+          if (kind !== 0 && kind !== 1)
+            throw notRead(`Unexpected datum kind ${kind}`);
+          if (kind === 1) readEncodedTag(reader);
+          const content = reader.readByteString();
+          datum =
+            kind === 0
+              ? { dataHash: hexOf(content) }
+              : { inlineDatum: content };
+          // What follows in the option, which the decoder passes over
+          while (reader.peekState() !== State.EndArray) reader.skipValue();
+          reader.readEndArray();
+          break;
+        }
+        case 3n:
+          readEncodedTag(reader);
+          scriptRef = reader.readByteString();
+          break;
+        default:
+          reader.skipValue();
+      }
+    }
+    reader.readEndMap();
+  } else {
+    const items = reader.readStartArray();
+    address = readAddress();
+    value = readValue();
+    if (items === 3) datum = { dataHash: hexOf(reader.readByteString()) };
   }
-  pieces.push(bytes.subarray(from));
-  return { standIn: Buffer.concat(pieces), ...found };
+  if (!address)
+    throw notRead("Transaction output does not contain an address.");
+  if (!value) throw notRead("Transaction output does not contain a value.");
+  return {
+    input,
+    address,
+    value,
+    ...datum,
+    ...(scriptRef && { scriptRef }),
+  };
 };
 
 /** The length of the byte string the reader is at, read piece by piece; 0 for anything else */
