@@ -15,37 +15,47 @@ const { CborReaderState, CborTag } = Serialization;
 /** The tag of a constructor in the general form, `102([alternative, fields])` */
 const GENERAL_FORM_TAG = 102;
 
-/** The alternatives of the first tags read, up to `REMEMBERED` of them */
-const ALTERNATIVES = new Map<number, bigint>();
+/** The alternatives of the first tag heads read, up to `REMEMBERED` of them */
+const ALTERNATIVES = new Map<string, bigint>();
 const REMEMBERED = 256;
 
+/** An empty list, as the writer of `@cardano-sdk/core` writes it */
+const EMPTY_LIST = new CborWriter().writeStartArray(0).encodeAsHex();
+
 /** The alternative of a constructor written with a tag other than the general form's, as the
- * value decoder of `@cardano-sdk/core` reads it: asked of its constructor class for the tag
- * before an empty list, written by its writer, so that the fields are not decoded again */
-const compactAlternative = (tag: number): bigint => {
-  let alternative = ALTERNATIVES.get(tag);
+ * value decoder of `@cardano-sdk/core` reads it: asked of its constructor class for the tag's
+ * head as given (`head`, hex) before an empty list, so that the fields are not decoded again and
+ * the tag is never written anew, whatever its value up to 2^64-1 */
+const compactAlternative = (head: string): bigint => {
+  let alternative = ALTERNATIVES.get(head);
   if (alternative === undefined) {
     alternative = ConstrPlutusData.fromCbor(
-      new CborWriter().writeTag(tag).writeStartArray(0).encodeAsHex(),
+      HexBlob(`${head}${EMPTY_LIST}`),
     ).getAlternative();
-    if (ALTERNATIVES.size < REMEMBERED) ALTERNATIVES.set(tag, alternative);
+    if (ALTERNATIVES.size < REMEMBERED) ALTERNATIVES.set(head, alternative);
   }
   return alternative;
 };
 
-/** The items of a list the reader is at, each read as `readPrototype` reads it */
-const readList = (reader: CborReader): PlutusDataPrototype[] => {
+/** The offset of the reader in `cbor`, the hex it reads */
+const offsetIn = (cbor: string, reader: CborReader): number =>
+  cbor.length / 2 - reader.getBytesRemaining();
+
+/** The items of a list the reader of `cbor` is at, each read as `readPrototype` reads it */
+const readList = (reader: CborReader, cbor: string): PlutusDataPrototype[] => {
   const items: PlutusDataPrototype[] = [];
   reader.readStartArray();
-  while (reader.peekState() !== CborReaderState.EndArray) items.push(readPrototype(reader));
+  while (reader.peekState() !== CborReaderState.EndArray)
+    items.push(readPrototype(reader, cbor));
   reader.readEndArray();
   return items;
 };
 
-/** The Plutus data item the reader is at, in the prototype shape, read from the bytes in their
- * order: a map keeps every pair it is written with, a repeated key with each of its values, and
- * no key is looked up. An integer written as a big number is read by the value decoder. */
-const readPrototype = (reader: CborReader): PlutusDataPrototype => {
+/** The Plutus data item the reader of `cbor` is at, in the prototype shape, read from the bytes
+ * in their order: a map keeps every pair it is written with, a repeated key with each of its
+ * values, and no key is looked up. An integer written as a big number is read by the value
+ * decoder. A tag is judged as the reader gives it, the way the value decoder judges it. */
+const readPrototype = (reader: CborReader, cbor: string): PlutusDataPrototype => {
   switch (reader.peekState()) {
     case CborReaderState.UnsignedInteger:
     case CborReaderState.NegativeInteger:
@@ -54,27 +64,31 @@ const readPrototype = (reader: CborReader): PlutusDataPrototype => {
     case CborReaderState.StartIndefiniteLengthByteString:
       return { type: "BYTES", value: Buffer.from(reader.readByteString()).toString("hex") };
     case CborReaderState.StartArray:
-      return { type: "LIST", value: readList(reader) };
+      return { type: "LIST", value: readList(reader, cbor) };
     case CborReaderState.StartMap: {
       const value: [PlutusDataPrototype, PlutusDataPrototype][] = [];
       reader.readStartMap();
       while (reader.peekState() !== CborReaderState.EndMap)
-        value.push([readPrototype(reader), readPrototype(reader)]);
+        value.push([readPrototype(reader, cbor), readPrototype(reader, cbor)]);
       reader.readEndMap();
       return { type: "MAP", value };
     }
     case CborReaderState.Tag: {
-      const tag = Number(reader.peekTag());
+      const tag: number = reader.peekTag();
       if (tag === CborTag.UnsignedBigNum || tag === CborTag.NegativeBigNum) {
         const data = PlutusData.fromCbor(HexBlob.fromBytes(reader.readEncodedValue()));
         return { type: "INTEGER", value: data.asInteger()! };
       }
+      const start = offsetIn(cbor, reader);
       reader.readTag();
-      if (tag !== GENERAL_FORM_TAG)
-        return { type: "CONSTR", alternative: compactAlternative(tag), fields: readList(reader) };
+      if (tag !== GENERAL_FORM_TAG) {
+        const head = cbor.slice(start * 2, offsetIn(cbor, reader) * 2);
+        const alternative = compactAlternative(head);
+        return { type: "CONSTR", alternative, fields: readList(reader, cbor) };
+      }
       reader.readStartArray();
       const alternative = reader.readInt();
-      const fields = readList(reader);
+      const fields = readList(reader, cbor);
       reader.readEndArray();
       return { type: "CONSTR", alternative, fields };
     }
@@ -86,8 +100,10 @@ const readPrototype = (reader: CborReader): PlutusDataPrototype => {
 /** Inverse of `../tx-prototype-to-cbor/plutus-data.ts`. Reads CST's `PlutusData` back into the
  * ledger-level tagged prototype shape, from its bytes: a map shows every pair it holds, in their
  * order, a repeated key included. */
-export const plutusDataToPrototype = (data: PlutusData): PlutusDataPrototype =>
-  readPrototype(new CborReader(data.toCbor()));
+export const plutusDataToPrototype = (data: PlutusData): PlutusDataPrototype => {
+  const cbor = data.toCbor();
+  return readPrototype(new CborReader(cbor), cbor);
+};
 
 /**
  * Decodes to the `MANUAL` arm by default, which is the round-trippable choice: `CBOR` would also
