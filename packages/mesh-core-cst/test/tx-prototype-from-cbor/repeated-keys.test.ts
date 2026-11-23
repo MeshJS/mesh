@@ -154,3 +154,37 @@ describe("a map that repeats a key", () => {
     });
   });
 });
+
+describe("a constructor's alternative read as the value decoder reads it", () => {
+  /** A constructor of tag `tag` with one field, the integer 0 */
+  const constr = (tag: number) => {
+    const head =
+      tag < 256
+        ? `d8${tag.toString(16).padStart(2, "0")}`
+        : `d9${tag.toString(16).padStart(4, "0")}`;
+    return `${head}8100`;
+  };
+
+  it("is the alternative the decoder's constructor gives, for each tag at and past the bounds of each range", () => {
+    for (const tag of [
+      121, 122, 127, 128, 1279, 1280, 1281, 1400, 1401, 200, 120,
+    ]) {
+      const data = PlutusData.fromCbor(HexBlob(constr(tag)));
+      expect([tag, plutusDataToPrototype(data)]).toEqual([
+        tag,
+        {
+          type: "CONSTR",
+          alternative: data.asConstrPlutusData()!.getAlternative(),
+          fields: [int(0n)],
+        },
+      ]);
+    }
+    // The general form takes its alternative from its array
+    const general = PlutusData.fromCbor(HexBlob("d86682188c8100"));
+    expect(plutusDataToPrototype(general)).toEqual({
+      type: "CONSTR",
+      alternative: 140n,
+      fields: [int(0n)],
+    });
+  });
+});

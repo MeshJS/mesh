@@ -2,20 +2,35 @@ import { Serialization } from "@cardano-sdk/core";
 
 import type { PlutusDataPrototype, PlutusDataVariant } from "@meshsdk/common";
 
-import { CborReader, HexBlob, PlutusData } from "../types";
+import {
+  CborReader,
+  CborWriter,
+  ConstrPlutusData,
+  HexBlob,
+  PlutusData,
+} from "../types";
 
 const { CborReaderState, CborTag } = Serialization;
 
 /** The tag of a constructor in the general form, `102([alternative, fields])` */
 const GENERAL_FORM_TAG = 102;
 
-/** The alternative of a constructor written with a compact tag, as the decoder reads it: tags
- * 121 to 127 are alternatives 0 to 6, tags 1280 to 1400 alternatives 7 to 127, and any other
- * tag is read as the general form's */
+/** The alternatives of the first tags read, up to `REMEMBERED` of them */
+const ALTERNATIVES = new Map<number, bigint>();
+const REMEMBERED = 256;
+
+/** The alternative of a constructor written with a tag other than the general form's, as the
+ * value decoder of `@cardano-sdk/core` reads it: asked of its constructor class for the tag
+ * before an empty list, written by its writer, so that the fields are not decoded again */
 const compactAlternative = (tag: number): bigint => {
-  if (tag >= 121 && tag <= 127) return BigInt(tag - 121);
-  if (tag >= 1280 && tag <= 1400) return BigInt(tag - 1280 + 7);
-  return BigInt(GENERAL_FORM_TAG);
+  let alternative = ALTERNATIVES.get(tag);
+  if (alternative === undefined) {
+    alternative = ConstrPlutusData.fromCbor(
+      new CborWriter().writeTag(tag).writeStartArray(0).encodeAsHex(),
+    ).getAlternative();
+    if (ALTERNATIVES.size < REMEMBERED) ALTERNATIVES.set(tag, alternative);
+  }
+  return alternative;
 };
 
 /** The items of a list the reader is at, each read as `readPrototype` reads it */
