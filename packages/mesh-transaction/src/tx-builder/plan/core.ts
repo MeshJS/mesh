@@ -92,6 +92,12 @@ export type StepRecord = {
    * tag: each as the entry it came with was, else as its body writes its input set
    */
   readonly tags?: KeyWitnessTags;
+  /**
+   * Of a prebuilt step: the witness set it came with, in CBOR hex, each entry in its place and
+   * form, when its witnesses written again into `built.tx` would not be those bytes: what its
+   * witnesses are written into
+   */
+  readonly witnessSet?: string;
   /** How many deliveries of it were recorded */
   readonly sends: number;
   /** How many of those deliveries the submitter refused */
@@ -238,6 +244,7 @@ export type NewStep = Pick<
   | "extraKeyWitnesses"
   | "given"
   | "tags"
+  | "witnessSet"
 > & {
   /** Witnesses it holds already, verified against its body */
   readonly witnesses?: readonly KeyWitness[];
@@ -799,6 +806,8 @@ const append = (json: PlanRecord, event: EventOf<"steps">): PlanAdvanced => {
         ...(step.given !== undefined && { given: step.given }),
         ...(step.kind === "prebuilt" &&
           step.tags !== undefined && { tags: { ...step.tags } }),
+        ...(step.kind === "prebuilt" &&
+          step.witnessSet !== undefined && { witnessSet: step.witnessSet }),
         sends: 0,
         refused: 0,
       });
@@ -825,6 +834,8 @@ const append = (json: PlanRecord, event: EventOf<"steps">): PlanAdvanced => {
       ...(step.given !== undefined && { given: step.given }),
       ...(step.kind === "prebuilt" &&
         step.tags !== undefined && { tags: { ...step.tags } }),
+      ...(step.kind === "prebuilt" &&
+        step.witnessSet !== undefined && { witnessSet: step.witnessSet }),
       sends: 0,
       refused: 0,
     };

@@ -22,6 +22,7 @@ import { freeze } from "../parts/normalize";
 import { plainUtxo, utxoCopy, UtxoError, utxoKey } from "../parts/utxo";
 import {
   keyWitnessTags,
+  readKeptWitnessSet,
   readTransaction,
   readWitnessArgument,
   verifies,
@@ -1673,6 +1674,8 @@ const encodeStep = (step: StepRecord): TxStepJSON => ({
     ...(step.witnesses.length > 0 && {
       witnesses: writeWitnessSet(step.witnesses, step.tags ?? false),
     }),
+    // A prebuilt step's witness set as it came, when its witnesses do not give it again
+    ...(step.witnessSet !== undefined && { witnessSet: step.witnessSet }),
     ...(step.extraKeyWitnesses !== undefined && {
       extraKeyWitnesses: step.extraKeyWitnesses,
     }),
@@ -1832,6 +1835,7 @@ const TX_MEMBERS = [
   "txHash",
   "built",
   "witnesses",
+  "witnessSet",
   "extraKeyWitnesses",
   "delivered",
 ] as const;
@@ -1966,6 +1970,7 @@ export const decodeTx = (
   extraKeyWitnesses?: number;
   delivered: boolean;
   tags: KeyWitnessTags;
+  witnessSet?: string;
 } => {
   const json = object(value, path);
   known(json, TX_MEMBERS, path);
@@ -2068,6 +2073,20 @@ export const decodeTx = (
         );
     });
   }
+  // The witness set it came with: its own but for its vkey and bootstrap entries, and every
+  // witness in it of the step's body
+  let witnessSet: string | undefined;
+  if (json.witnessSet !== undefined) {
+    const at = `${path}.witnessSet`;
+    witnessSet = text(json.witnessSet, at).toLowerCase();
+    try {
+      readKeptWitnessSet(raw, witnessSet);
+    } catch (error) {
+      unread(
+        `${at} is not the witness set of the step's transaction: ${(error as Error).message}`,
+      );
+    }
+  }
   const extra = json.extraKeyWitnesses;
   if (extra !== undefined && count(extra, `${path}.extraKeyWitnesses`) === 0)
     unread(`${path}.extraKeyWitnesses is 0: it is written only when above 0`);
@@ -2082,6 +2101,7 @@ export const decodeTx = (
       vkey: tags.vkey ?? taggedSets,
       bootstrap: tags.bootstrap ?? taggedSets,
     },
+    ...(witnessSet !== undefined && { witnessSet }),
   };
 };
 
@@ -2203,6 +2223,8 @@ const decodeStep = (
       given: decodeGiven(json.given, `${path}.given`),
     }),
     ...(json.kind === "prebuilt" && { tags: tx.tags }),
+    ...(json.kind === "prebuilt" &&
+      tx.witnessSet !== undefined && { witnessSet: tx.witnessSet }),
     sends,
     refused,
   };

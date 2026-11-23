@@ -16,8 +16,10 @@ import {
   keyWitnessEntryForm,
   keyWitnessSetTags,
   vkeyWitnessSetFor,
+  readTransactionItems,
   withKeyWitnesses,
   withoutKeyWitnesses,
+  withWitnessSet,
 } from "../../src/utils/witness-set";
 
 describe("Witness Set", () => {
@@ -284,6 +286,29 @@ describe("the one writer of key witnesses into a transaction", () => {
       ).toBe(tx(body(tagged), `bf${native}ff`));
       const none = tx(body(tagged), `a2${native}00d9010280`);
       expect(withoutKeyWitnesses(none)).toBe(none);
+    }
+  });
+
+  it("puts back the witness set a transaction came with, every other byte kept", () => {
+    const native = `01d9010281820181${"8200581c" + "44".repeat(28)}`;
+    for (const tagged of [true, false]) {
+      // Its entries out of their order, the heads of the map and of an entry longer than needed
+      for (const set of [
+        `b90003${native}029801${bootstrap(3)}00${"9f" + written(1) + "ff"}`,
+        `bf00${"81" + written(1)}${native}ff`,
+        "a0",
+      ]) {
+        const given = tx(body(tagged), set);
+        const taken = withoutKeyWitnesses(given);
+        expect(withWitnessSet(taken, set)).toBe(given);
+        expect(withWitnessSet(readTransactionItems(taken), set)).toBe(given);
+      }
+      expect(() => withWitnessSet(tx(body(tagged), "a0"), "80")).toThrow(
+        "expected a CBOR map",
+      );
+      expect(() => withWitnessSet(tx(body(tagged), "a0"), "a000")).toThrow(
+        "unexpected bytes after the CBOR item",
+      );
     }
   });
 });

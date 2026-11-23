@@ -78,7 +78,8 @@ import {
   signsHashes,
   toSigners,
   verifies,
-  withWitnesses,
+  withHeldWitnesses,
+  withKeptWitnessSet,
 } from "../sign";
 import { askedKeys, countedKeys } from "../witnesses";
 import {
@@ -514,8 +515,13 @@ const signedTxOf = (step: StepRecord): string | undefined => {
   let tx = SIGNED.get(step);
   if (tx === undefined) {
     const raw = readTransaction(step.built.tx);
-    // A prebuilt step's witnesses in the form they came in
-    tx = withWitnesses(raw, step.witnesses, step.tags ?? raw.taggedSets);
+    // A prebuilt step's witnesses in the form they came in, into the witness set it came with
+    // when the record holds it
+    tx = withHeldWitnesses(
+      withKeptWitnessSet(raw, step.witnessSet),
+      step.witnesses,
+      step.tags ?? raw.taggedSets,
+    );
     SIGNED.set(step, tx);
   }
   return tx;
@@ -543,15 +549,20 @@ const VIEWS = new WeakMap<StepRecord, TxStep>();
  * A prebuilt step as the transaction it is: an object on the plan's builder, with the witnesses
  * the plan holds, in the form they came in, and no payer
  */
-const prebuiltOf = (builder: TxBuilder, step: StepRecord): BuiltTx =>
-  withRecordedMarks(
+const prebuiltOf = (builder: TxBuilder, step: StepRecord): BuiltTx => {
+  const raw = readTransaction(step.built.tx);
+  return withRecordedMarks(
     makeBuiltTx(builder, step.built, step.extraKeyWitnesses ?? 0, {
-      raw: readTransaction(step.built.tx),
+      raw,
       held: step.witnesses,
       delivered: deliveredOf(step),
       ...(step.tags !== undefined && { tags: step.tags }),
+      ...(step.witnessSet !== undefined && {
+        host: withKeptWitnessSet(raw, step.witnessSet),
+      }),
     }),
   );
+};
 
 /** A step as the public `TxStep`: the data of its transaction with its place in the plan */
 const viewOf = (step: StepRecord): TxStep => {

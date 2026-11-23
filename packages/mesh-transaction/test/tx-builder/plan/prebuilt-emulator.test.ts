@@ -1106,6 +1106,54 @@ describe.each(VALIDATORS)(
     );
 
     it(
+      "signs a step given built into its witness set as it came: its map and entry heads longer than needed, the same bytes as the object of fromCbor and the wallet give, also resumed",
+      async () => {
+        const ctx = await setup(v);
+        // More than the wallet's UTxO holds: the partner pays too, and signs
+        const cbor = await takesFromWallet(ctx, ctx.funded[1]!, 25n * ADA);
+        const [body, , valid, aux] = topItems(cbor);
+        const entry = witnessEntry(cbor, 0)!;
+        expect(entry.startsWith("d9010281")).toBe(true);
+        // The map's head in three bytes, the entry's in two
+        const longSet = `b90001${uint(0)}d901029801${entry.slice(8)}`;
+        const given = arr(body!, longSet, valid!, aux!);
+        const byWallet = await ctx.wallet.signTx(given, true);
+        const signedEntry = witnessEntry(byWallet, 0)!;
+        // The wallet keeps the map's head, and writes the entry's count shortest
+        expect(topItems(byWallet)[1]!.startsWith("b90001")).toBe(true);
+        expect(signedEntry.startsWith("d9010282")).toBe(true);
+        const read = await ctx.builder.fromCbor(given);
+        await read.sign({ signers: ctx.wallet });
+        expect(read.signedTx).toBe(byWallet);
+        const plan = await ctx.builder.plan(
+          { swap: given },
+          { payer: ctx.wallet },
+        );
+        const record = plan.toJSON();
+        expect(record.steps[0]!.tx.witnessSet).toBe(longSet);
+        expect(plan.step("swap").signedTx).toBeUndefined();
+        await plan.sign();
+        expect(plan.step("swap").signedTx).toBe(byWallet);
+        const again = await ctx.builder.resume(plan.toJSON(), {
+          payer: ctx.wallet,
+        });
+        expect(again.step("swap").signedTx).toBe(byWallet);
+        // Not yet signed, and resumed: signed there, the same bytes
+        const unsigned = await ctx.builder.resume(record, {
+          payer: ctx.wallet,
+        });
+        await unsigned.sign();
+        expect(unsigned.step("swap").signedTx).toBe(byWallet);
+        // The object rest gives for it signs the same way
+        const back = (await ctx.builder.resume(record, { payer: ctx.wallet }))
+          .rest.swap as BuiltTx;
+        await back.sign({ signers: ctx.wallet });
+        expect(back.signedTx).toBe(byWallet);
+      },
+      LONG,
+    );
+
+    it(
       "sends a signed transaction as it came",
       async () => {
         const ctx = await setup(v);

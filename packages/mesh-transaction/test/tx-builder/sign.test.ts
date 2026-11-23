@@ -880,6 +880,213 @@ describe("withoutKeyWitnesses", () => {
   });
 });
 
+describe("the key witness entries a transaction holds", () => {
+  /** A form of an entry: as held, and once a witness is written into it */
+  type EntryForm = {
+    name: string;
+    held: (items: string[]) => string;
+    signed: (items: string[]) => string;
+  };
+  /** A head of an array in `bytes` more bytes than its count, of these items */
+  const longHead = (extra: 1 | 4, items: string[]) =>
+    `${extra === 1 ? "98" : "9a"}${items.length.toString(16).padStart(extra * 2, "0")}${items.join("")}`;
+  const same = (
+    name: string,
+    write: (items: string[]) => string,
+  ): EntryForm => ({ name, held: write, signed: write });
+  /** The set tag 258 in five bytes and in nine */
+  const tag5 = (item: string) => `da00000102${item}`;
+  const tag9 = (item: string) => `db0000000000000102${item}`;
+  /**
+   * The forms of a vkey entry: a count head that changes is written in its shortest form, a tag
+   * and an indefinite length stay as written
+   */
+  const VKEY_FORMS: EntryForm[] = [
+    same("definite", (w) => cbor.arr(...w)),
+    same("tagged", (w) => cbor.tag258(cbor.arr(...w))),
+    same("indefinite", (w) => cbor.arrIndef(...w)),
+    same("tagged, indefinite", (w) => cbor.tag258(cbor.arrIndef(...w))),
+    {
+      name: "a head in two bytes",
+      held: (w) => longHead(1, w),
+      signed: (w) => cbor.arr(...w),
+    },
+    {
+      name: "tagged, a head in two bytes",
+      held: (w) => cbor.tag258(longHead(1, w)),
+      signed: (w) => cbor.tag258(cbor.arr(...w)),
+    },
+    {
+      name: "a head in five bytes",
+      held: (w) => longHead(4, w),
+      signed: (w) => cbor.arr(...w),
+    },
+    same("a tag in five bytes", (w) => tag5(cbor.arr(...w))),
+    same("a tag in nine bytes, indefinite", (w) => tag9(cbor.arrIndef(...w))),
+  ];
+  /** The forms of a bootstrap entry, which nothing is written into here */
+  const BOOTSTRAP_FORMS: [string, (items: string[]) => string][] = [
+    ["definite", (w) => cbor.arr(...w)],
+    ["a head in two bytes", (w) => longHead(1, w)],
+    ["tagged", (w) => cbor.tag258(cbor.arr(...w))],
+    ["indefinite", (w) => cbor.arrIndef(...w)],
+    ["a tag in five bytes, indefinite", (w) => tag5(cbor.arrIndef(...w))],
+  ];
+
+  it("are kept byte for byte and in their places on every path, an entry a witness is written into in its tag and kind of length: the same bytes from the object of fromCbor, restored, blind, addWitnesses, a wallet, the wallets' writer and the size the emulator counts", async () => {
+    await Crypto.ready();
+    const held = testKey();
+    const byronKey = testKey();
+    const byron = Address.fromBytes(HexBlob(cbor.byronAddress(24))).toBase58();
+    const knownUtxos: Utxo[] = [
+      { txHash: cbor.TX_IN, outputIndex: 0, address, value: lovelace(ada(5)) },
+      {
+        txHash: cbor.TX_IN,
+        outputIndex: 1,
+        address: held.address,
+        value: lovelace(ada(5)),
+      },
+      {
+        txHash: cbor.TX_IN,
+        outputIndex: 2,
+        address: byron,
+        value: lovelace(ada(5)),
+      },
+    ];
+    let cases = 0;
+    for (const bodyForm of ["tagged", "plain"] as const) {
+      const body = cbor.body(bodyForm, {
+        inputs: [0, 1, 2],
+        to: `60${keyHashHex(9)}`,
+      });
+      const txHash = cbor.txHashOf(body);
+      const vkeyA = cbor.vkeyWitness(held, txHash);
+      const bootstrap = cbor.arr(
+        cbor.bytes(byronKey.vkey),
+        cbor.bytes(byronKey.sign(txHash)),
+        cbor.bytes("00".repeat(32)),
+        cbor.bytes("a0"),
+      );
+      // The wallet's witness over this body, in the form its writer writes it
+      const { vkey, signature } = firstVkeyWitness(
+        await paymentWitnesses(cbor.tx(body)),
+      );
+      const mine = cbor.arr(cbor.bytes(vkey), cbor.bytes(signature));
+      /** A new vkey entry, in the form of the body's inputs */
+      const fresh = (w: string[]) =>
+        bodyForm === "tagged" ? cbor.tag258(cbor.arr(...w)) : cbor.arr(...w);
+      const vkeyForms: (EntryForm | undefined)[] = [undefined, ...VKEY_FORMS];
+      const bootstrapForms: (
+        [string, (items: string[]) => string] | undefined
+      )[] = [undefined, ...BOOTSTRAP_FORMS];
+      for (const vkeyForm of vkeyForms)
+        for (const bootstrapForm of bootstrapForms)
+          for (const bootstrapFirst of [false, true])
+            for (const mapForm of ["definite", "indefinite"] as const) {
+              if (bootstrapFirst && (!vkeyForm || !bootstrapForm)) continue;
+              cases++;
+              const what = [
+                bodyForm,
+                vkeyForm?.name ?? "no vkey entry",
+                bootstrapForm?.[0] ?? "no bootstrap entry",
+                bootstrapFirst ? "bootstrap first" : "vkey first",
+                mapForm,
+              ].join(", ");
+              const vkeyEntry = (signed: boolean): [string, string][] =>
+                vkeyForm
+                  ? [
+                      [
+                        cbor.uint(0),
+                        signed
+                          ? vkeyForm.signed([vkeyA, mine])
+                          : vkeyForm.held([vkeyA]),
+                      ],
+                    ]
+                  : signed
+                    ? [[cbor.uint(0), fresh([mine])]]
+                    : [];
+              const bootstrapEntry: [string, string][] = bootstrapForm
+                ? [[cbor.uint(2), bootstrapForm[1]([bootstrap])]]
+                : [];
+              const setOf = (signed: boolean) => {
+                const pairs = bootstrapFirst
+                  ? [...bootstrapEntry, ...vkeyEntry(signed)]
+                  : [...vkeyEntry(signed), ...bootstrapEntry];
+                return mapForm === "definite"
+                  ? cbor.map(...pairs)
+                  : cbor.mapIndef(...pairs);
+              };
+              const tx = cbor.tx(body, setOf(false));
+              const expected = cbor.tx(body, setOf(true));
+
+              const byWallet = await wallets.payment.signTx(tx, true);
+              const walletSet = await paymentWitnesses(tx);
+              const read = await builder().fromCbor(tx, { knownUtxos });
+              // Nothing added: the bytes as given
+              expect([what, read.partialTx]).toEqual([what, tx]);
+              const restored = await builder().restore(
+                JSON.parse(JSON.stringify(read)),
+              );
+              expect([what, restored.partialTx]).toEqual([what, tx]);
+              await read.sign({ signers: wallets.payment });
+              await restored.sign({ signers: wallets.payment });
+              const bySet = await (
+                await builder().fromCbor(tx, { knownUtxos })
+              ).addWitnesses(walletSet);
+              const byTx = await (
+                await builder().fromCbor(tx, { knownUtxos })
+              ).addWitnesses(byWallet);
+              const blind = await builder().fromCbor(tx, { blind: true });
+              await blind.sign({ signers: wallets.payment });
+              const written = addVKeyWitnessesToTransaction(tx, [
+                Serialization.VkeyWitness.fromCbor(HexBlob(mine)),
+              ]);
+              // The emulator counts the bytes a signature adds with the wallets' writer
+              const counted = addVKeyWitnessesToTransaction(tx, [
+                new Serialization.VkeyWitness(
+                  Crypto.Ed25519PublicKeyHex("00".repeat(32)),
+                  Crypto.Ed25519SignatureHex("00".repeat(64)),
+                ),
+              ]);
+              // Signed, through JSON, and read again from the signed bytes
+              const again = await builder().restore(
+                JSON.parse(JSON.stringify(read)),
+              );
+              const signedRead = await builder().fromCbor(expected, {
+                knownUtxos,
+              });
+              expect([
+                what,
+                byWallet,
+                read.partialTx,
+                restored.partialTx,
+                bySet.partialTx,
+                byTx.partialTx,
+                blind.partialTx,
+                await addWitnesses(tx, walletSet),
+                await addWitnesses(tx, byWallet),
+                written,
+                again.partialTx,
+                signedRead.partialTx,
+                counted.length,
+              ]).toEqual([
+                what,
+                ...Array<string>(11).fill(expected),
+                expected.length,
+              ]);
+              // Every key the body needs has signed: the vkey witnesses were the held key's
+              expect([what, read.missing.length]).toEqual([
+                what,
+                vkeyForm ? 0 : 1,
+              ]);
+            }
+    }
+    // Of each body form: every vkey form or none, every bootstrap form or none, in either map,
+    // and the two entries in the other order
+    expect(cases).toBe(2 * (10 * 6 * 2 + 9 * 5 * 2));
+  }, 600_000);
+});
+
 describe("an empty key witness entry a transaction holds", () => {
   it("keeps its form when a witness is added: the object of fromCbor signs as a wallet signs, also restored and through addWitnesses", async () => {
     await Crypto.ready();

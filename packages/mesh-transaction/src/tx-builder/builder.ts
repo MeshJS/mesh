@@ -2076,11 +2076,13 @@ export class TxBuilder {
    * bootstrap witnesses as it spends from Byron addresses.
    * What is added later is kept as `sign()` keeps it: of the keys the transaction needs or its
    * native scripts name. A transaction that came with every signature it needs has nothing in
-   * `missing`, and `submit()` sends it at once. `partialTx` and `signedTx` write the witnesses
-   * held with the set tag the transaction wrote its own with: the `signedTx` of a transaction
-   * that came with every signature differs from the bytes given in the encoding of its
-   * key-witness entries only, and is never longer than they are where those entries came with
-   * witnesses.
+   * `missing`, and `submit()` sends it at once. `partialTx` and `signedTx` are the transaction as
+   * given, every byte of it kept, each vkey and bootstrap entry in its place and as written, a
+   * witness that stands twice or one past those held included; a witness added later goes after
+   * those of its entry, which keeps its set tag as written and its kind of length, a count
+   * written again in its shortest form. They are the bytes a wallet of this library writes into
+   * the same transaction, also after `restore` and in a step of a plan: the record holds the
+   * witness set as it came when the witnesses held would not give those bytes again.
    *
    * It is someone else's transaction, and the ledger judges it: its fee, its balance, its
    * scripts, its validity interval and whether its inputs are unspent are not checked.
@@ -2240,6 +2242,7 @@ export class TxBuilder {
           raw,
           held: await verifiedWitnesses(given),
           tags: keyWitnessTags(given.witnessSet),
+          host: given,
         },
       );
     }
@@ -2441,7 +2444,13 @@ export class TxBuilder {
         parts: [],
       },
       extraKeys,
-      { raw, held, delivered: false, tags: keyWitnessTags(given.witnessSet) },
+      {
+        raw,
+        held,
+        delivered: false,
+        tags: keyWitnessTags(given.witnessSet),
+        host: given,
+      },
     );
   }
 

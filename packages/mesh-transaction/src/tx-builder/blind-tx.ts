@@ -4,7 +4,13 @@ import type {
   SubmitTxOptions,
   TxInclusion,
 } from "./built-tx";
-import type { KeyWitness, KeyWitnessTags, RawTx, Signer } from "./sign";
+import type {
+  KeyWitness,
+  KeyWitnessTags,
+  RawItems,
+  RawTx,
+  Signer,
+} from "./sign";
 import { abortable, throwIfAborted } from "./abort";
 import {
   CALL,
@@ -27,7 +33,7 @@ import {
   signerWitnesses,
   toSigners,
   unreadableSigner,
-  withWitnesses,
+  withHeldWitnesses,
   witnessesToAdd,
 } from "./sign";
 
@@ -63,6 +69,11 @@ export type BlindTxState = {
    * set tag, each when it held a witness
    */
   readonly tags: Partial<KeyWitnessTags>;
+  /**
+   * The transaction as it came, with the witnesses it came with in their entries, read once: what
+   * the witnesses held are written into, every byte of it kept
+   */
+  readonly host: RawItems;
 };
 
 const SIGN_ALLOWED = "an object { signers, signal? }";
@@ -164,6 +175,8 @@ export class BlindTx {
 
   /** The transaction as read, once: what is signed, whatever the members say later */
   readonly #raw: RawTx;
+  /** The transaction as it came, with its witnesses: what the witnesses held are written into */
+  readonly #host: RawItems;
   /** The witnesses held, each verified against the body, in the order they were kept */
   readonly #held: KeyWitness[] = [];
   /**
@@ -185,6 +198,7 @@ export class BlindTx {
   ) {
     Object.assign(this, data);
     this.#raw = state.raw;
+    this.#host = state.host;
     this.#keep(state.held);
     const tagOf = (kind: KeyWitness["kind"]) =>
       (this.#held.some((w) => w.kind === kind)
@@ -205,14 +219,16 @@ export class BlindTx {
 
   /**
    * The transaction with every witness held, in CBOR hex: `tx` itself while it holds none. It is
-   * what `submit()` sends, and what is handed to a party that signs next
+   * what `submit()` sends, and what is handed to a party that signs next. It is the transaction
+   * as it came, every byte of it kept, with the witnesses added after those of their entry, as
+   * the wallets of this library write them
    */
   get partialTx(): string {
     const count = this.#held.length;
     if (this.#written?.count !== count)
       this.#written = {
         count,
-        tx: withWitnesses(this.#raw, this.#held, this.#tags),
+        tx: withHeldWitnesses(this.#host, this.#held, this.#tags),
       };
     return this.#written.tx;
   }

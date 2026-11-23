@@ -16,6 +16,7 @@ import {
   transactionPrototypeFromCardano,
   withKeyWitnesses,
   withoutKeyWitnesses as withoutKeyWitnessEntries,
+  withWitnessSet,
 } from "@meshsdk/core-cst";
 
 import type { Utxo, UtxoInput } from "./parts/types";
@@ -701,7 +702,7 @@ export const withoutKeyWitnesses = (raw: RawItems): string =>
  *   (`keyWitnessTags`); as the body writes its input set when left out
  */
 export const withWitnesses = (
-  raw: RawTx,
+  raw: RawItems,
   added: readonly KeyWitness[],
   tagged: boolean | KeyWitnessTags = raw.taggedSets,
 ): string => {
@@ -714,6 +715,105 @@ export const withWitnesses = (
     { vkeys: written("vkey"), bootstraps: written("bootstrap") },
     bothTags(tagged),
   );
+};
+
+/**
+ * The transaction with the witnesses `held`, written into `host`, the transaction as it came:
+ * every byte of it stays, the witnesses it holds and the entries they are in included, each entry
+ * in its place, and only the witnesses of `held` it does not hold are written, after those of
+ * their entry (`withWitnesses`). One transaction signed on any path gets the same bytes: the
+ * wallets of this library write into the transaction they are given the same way
+ * @param tagged The form of an entry `host` does not hold, as for `withWitnesses`
+ */
+export const withHeldWitnesses = (
+  host: RawItems,
+  held: readonly KeyWitness[],
+  tagged: boolean | KeyWitnessTags = host.taggedSets,
+): string =>
+  withWitnesses(host, newWitnesses(held, witnessesOf(host.witnessSet)), tagged);
+
+/**
+ * The witness set of `host`, the transaction an object came as, in CBOR hex, when the witnesses
+ * `held` written again into `raw`, the transaction without them, in the forms `tagged`, would not
+ * give the bytes `withHeldWitnesses` gives: an entry in another place, a head written longer than
+ * needed, a witness written in a longer form, a witness held twice or one that is not held. What
+ * a record holds beside its witnesses, so that the object read back writes the same bytes;
+ * undefined when they would give them
+ */
+export const keptWitnessSet = (
+  host: RawItems,
+  raw: RawItems,
+  held: readonly KeyWitness[],
+  tagged: KeyWitnessTags,
+): string | undefined => {
+  if (host.hex === raw.hex) return undefined;
+  return withWitnesses(raw, held, tagged) ===
+    withHeldWitnesses(host, held, tagged)
+    ? undefined
+    : toHex(host.items.top.items[1]!);
+};
+
+/**
+ * `raw` with the witness set it came with (`keptWitnessSet`) in place of its own, read: what its
+ * witnesses are written into. That witness set was checked when it was read
+ * (`readKeptWitnessSet`); `raw` itself without one
+ */
+export const withKeptWitnessSet = (
+  raw: RawItems,
+  witnessSet: string | undefined,
+): RawItems =>
+  witnessSet === undefined
+    ? raw
+    : readRawItems(withWitnessSet(raw.items, witnessSet));
+
+/** The entries of a witness set other than its vkey and bootstrap entries, each as written */
+const otherEntries = (set: WitnessSet) =>
+  set.entries
+    .filter((e) => e.key !== VKEYS && e.key !== BOOTSTRAPS)
+    .map((e) => `${toHex(e.keyBytes)} ${toHex(e.value)}`);
+
+/**
+ * `raw`, a transaction without its vkey and bootstrap witnesses, with the witness set it came
+ * with (`keptWitnessSet`) in place of its own: the transaction the witnesses held are written
+ * into. That witness set must be one of `raw`: every entry other than its vkey and bootstrap
+ * entries is the one `raw` holds, byte for byte and in its order, its map of the same kind of
+ * length, no key repeated, and every vkey and bootstrap witness it holds of the body of `raw`
+ * @throws Error for what is not so, in words that quote none of it
+ */
+export const readKeptWitnessSet = (
+  raw: RawItems,
+  witnessSet: unknown,
+): RawItems => {
+  if (!isHex(witnessSet)) throw new Error("it is not CBOR in hex");
+  let host: RawItems;
+  try {
+    host = readTransactionItems(
+      withWitnessSet(raw.items, witnessSet.toLowerCase()),
+    );
+  } catch {
+    throw new Error(
+      "it is not a witness set whose witnesses this library reads",
+    );
+  }
+  if (repeatsKey(host.witnessSet)) throw new Error("it repeats a key");
+  if (host.witnessSet.map.definite !== raw.witnessSet.map.definite)
+    throw new Error(
+      "its map is not of the kind of length of the witness set its transaction holds",
+    );
+  const others = otherEntries(host.witnessSet);
+  const own = otherEntries(raw.witnessSet);
+  if (
+    others.length !== own.length ||
+    others.some((entry, i) => entry !== own[i])
+  )
+    throw new Error(
+      "an entry of it other than its vkey and bootstrap entries is not the one its transaction holds",
+    );
+  if (witnessesOf(host.witnessSet).some((w) => !verifies(w, raw.txId)))
+    throw new Error(
+      "it holds a witness that is not of the body of its transaction",
+    );
+  return host;
 };
 
 /** Whether a witness's signature over the transaction id verifies with its key */

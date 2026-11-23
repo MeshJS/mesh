@@ -121,6 +121,8 @@ export type MadeStep = {
   readonly witnesses?: readonly KeyWitness[];
   /** Of a prebuilt step: the set tag of each entry of its witnesses */
   readonly tags?: KeyWitnessTags;
+  /** Of a prebuilt step: the witness set it came with, when its witnesses do not give it */
+  readonly witnessSet?: string;
 };
 
 /** A plan built: its steps in order, the first record, the tip it was built at and its deadline */
@@ -1658,6 +1660,7 @@ const takenStepOf = (
     built: step.built,
     witnesses: step.witnesses,
     ...(step.tags !== undefined && { tags: step.tags }),
+    ...(step.witnessSet !== undefined && { witnessSet: step.witnessSet }),
     ...(step.extraKeyWitnesses !== undefined && {
       extraKeyWitnesses: step.extraKeyWitnesses,
     }),
@@ -2009,6 +2012,7 @@ type PrebuiltRead = {
   readonly witnesses: readonly KeyWitness[];
   readonly extraKeyWitnesses?: number;
   readonly tags: KeyWitnessTags;
+  readonly witnessSet?: string;
 };
 
 /**
@@ -2253,6 +2257,9 @@ const readPrebuilt = async (
           extraKeyWitnesses: record.extraKeyWitnesses,
         }),
         tags: record.tags,
+        ...(record.witnessSet !== undefined && {
+          witnessSet: record.witnessSet,
+        }),
       });
       done.push({ name, built });
     } catch (error) {
@@ -2488,6 +2495,7 @@ const buildSteps = async (
         kind: "prebuilt",
         witnesses: read.witnesses,
         tags: read.tags,
+        ...(read.witnessSet !== undefined && { witnessSet: read.witnessSet }),
         ...(read.extraKeyWitnesses !== undefined && {
           extraKeyWitnesses: read.extraKeyWitnesses,
         }),
@@ -2932,6 +2940,7 @@ const newStepOf = (step: MadeStep): NewStep => ({
   }),
   ...(step.witnesses !== undefined && { witnesses: step.witnesses }),
   ...(step.tags !== undefined && { tags: step.tags }),
+  ...(step.witnessSet !== undefined && { witnessSet: step.witnessSet }),
 });
 
 /** The option of the step when it has one, else the plan's, as a member to spread */

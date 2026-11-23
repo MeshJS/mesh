@@ -486,7 +486,10 @@ same object ([The path without a lifecycle][r-no-lifecycle]).
   as the transaction came with), and as many bootstrap witnesses as the
   transaction spends from Byron addresses. A key counts as signed by its vkey witness alone. A vkey
   or bootstrap entry is written with the set tag it had in the transaction or the JSON the object
-  was made of, else as the body writes its input set.
+  was made of, else as the body writes its input set. The object of `fromCbor` writes into the
+  transaction as given: an entry it adds nothing to keeps every byte and its place, and one it adds
+  to keeps its tag and its kind of length, as the wallets write it; its JSON holds the witness set
+  as it came when the witnesses held would not give those bytes again.
 - **A refusal.** `submit()` decides on settled facts. After a delivery of the object that was
   taken, or whose answer was lost, a refusal is no error and the call returns; a delivery that
   has not answered yet is waited for, and decides. Otherwise one look for the transaction: found,

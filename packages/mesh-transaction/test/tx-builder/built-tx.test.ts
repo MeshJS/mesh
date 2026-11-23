@@ -16,8 +16,10 @@ import {
   serializeAddressObj,
 } from "@meshsdk/core";
 import {
+  addVKeyWitnessesToTransaction,
   CborWriter,
   Crypto,
+  HexBlob,
   Serialization,
   Transaction,
   transactionPrototypeToHex,
@@ -4294,5 +4296,124 @@ describe("BuiltTx as JSON, and TxBuilder.restore", () => {
     expect((await b.restore(json)).txHash).toBe(built.txHash);
     // @ts-expect-error: the data of a build is not its JSON
     await expect(b.restore({ ...built })).rejects.toThrow(TxBuildError);
+  });
+
+  describe("the witness set a transaction from CBOR came with", () => {
+    /**
+     * The fixture signed by its payer, as given to fromCbor: its vkey entry as the builder writes
+     * it, and with a head in two bytes, which written again from its witness would be shorter
+     */
+    const given = async () => {
+      const { built, payer, guardKey, builder: b } = await fixture();
+      await built.addWitnesses(witnessSet(built.txHash, payer));
+      const plain = built.partialTx;
+      const [body, set, valid, aux] = topItems(plain);
+      const [[key, entry]] = mapPairs(set!) as [[string, string]];
+      expect(entry.startsWith("d9010281")).toBe(true);
+      const longSet = map([key, `d901029801${entry.slice(8)}`]);
+      const long = txOf(body!, longSet, { valid: valid!, aux: aux! });
+      return { built, plain, long, longSet, guardKey, b };
+    };
+
+    it("is written beside the witnesses only when they would not give its bytes again, and restore gives those bytes back, signed further as the object of fromCbor signs", async () => {
+      const { built, plain, long, longSet, guardKey, b } = await given();
+      const knownUtxos = built.inputs;
+      // Written as the builder writes it: the witnesses give it again
+      const read = await b.fromCbor(plain, { knownUtxos });
+      expect("witnessSet" in read.toJSON()).toBe(false);
+      // A head in two bytes: the witness set as it came is written too
+      const odd = await b.fromCbor(long, { knownUtxos });
+      const json = throughText(odd);
+      expect(json.witnessSet).toBe(longSet);
+      expect(Object.keys(json)).toEqual([
+        "kind",
+        "version",
+        "txHash",
+        "built",
+        "witnesses",
+        "witnessSet",
+      ]);
+      const restored = await b.restore(json);
+      expect(restored.partialTx).toBe(long);
+      expect(throughText(restored)).toEqual(json);
+      // Signed further: the entry keeps its tag, its count written shortest, as a wallet writes it
+      await odd.addWitnesses(witnessSet(built.txHash, guardKey));
+      await restored.addWitnesses(witnessSet(built.txHash, guardKey));
+      const signed = addVKeyWitnessesToTransaction(
+        long,
+        Serialization.TransactionWitnessSet.fromCbor(
+          HexBlob(witnessSet(built.txHash, guardKey)),
+        )
+          .vkeys()!
+          .values(),
+      );
+      expect(odd.signedTx).toBe(signed);
+      expect(restored.signedTx).toBe(signed);
+      expect(mapPairs(topItems(signed)[1]!)[0]![1].slice(0, 8)).toBe(
+        "d9010282",
+      );
+      // Signed, the entry's count is written shortest: its witnesses give its bytes again, and
+      // the record holds them alone
+      expect("witnessSet" in odd.toJSON()).toBe(false);
+      expect((await b.restore(throughText(odd))).signedTx).toBe(signed);
+    });
+
+    it("is refused by restore when it is not one of the record's transaction: another entry, another kind of map, a witness of another body, a repeated key, not a witness set; quoting none of it", async () => {
+      const { built, long, longSet, b } = await given();
+      const json = throughText(
+        await b.fromCbor(long, { knownUtxos: built.inputs }),
+      );
+      const pairs = mapPairs(longSet) as [string, string][];
+      // A witness over another body
+      const foreign = witnessSet("ab".repeat(32), testKey());
+      const cases: [unknown, string][] = [
+        [
+          map(...pairs, [uint(4), arr(uint(1))]),
+          "an entry of it other than its vkey and bootstrap entries is not the one its transaction holds",
+        ],
+        [
+          `bf${pairs.flat().join("")}ff`,
+          "its map is not of the kind of length of the witness set its transaction holds",
+        ],
+        [
+          map(...pairs, [uint(2), mapPairs(foreign)[0]![1]]),
+          "it is not a witness set whose witnesses this library reads",
+        ],
+        [
+          map([uint(0), mapPairs(foreign)[0]![1]]),
+          "it holds a witness that is not of the body of its transaction",
+        ],
+        [map(...pairs, ...pairs), "it repeats a key"],
+        [
+          arr(uint(1)),
+          "it is not a witness set whose witnesses this library reads",
+        ],
+        [
+          `${longSet}00`,
+          "it is not a witness set whose witnesses this library reads",
+        ],
+        ["zz", "it is not CBOR in hex"],
+      ];
+      for (const [witnessSet, reason] of cases) {
+        const error = await refusedRestore(b, { ...json, witnessSet });
+        expect(TxBuildError.is(error, "INVALID_OPTION")).toBe(true);
+        expect((error as Error).message).toBe(
+          `invalid json: its witnessSet is not the witness set of its transaction: ${reason}`,
+        );
+        expect((error as Error).message).not.toMatch(/[0-9a-f]{16}/);
+      }
+      // Not a text: a record this library does not read
+      const notText = await refusedRestore(b, { ...json, witnessSet: 1 });
+      expect(TxPlanError.is(notText, "INVALID_STATE")).toBe(true);
+      expect((notText as Error).message).toContain("witnessSet is not a text");
+      // Bounded before it is read, as the witnesses are
+      const large = await refusedRestore(b, {
+        ...json,
+        witnessSet: map([uint(5), head(4, 512_000) + "00".repeat(512_000)]),
+      });
+      expect((large as Error).message).toBe(
+        "invalid json: its witnessSet is not read: the witness set is more than the 16384 bytes of the protocol's maximum transaction size",
+      );
+    });
   });
 });

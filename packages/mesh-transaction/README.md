@@ -1737,8 +1737,13 @@ and `prototype` is the transaction read as a value, which need not serialize to 
 `tx` is the transaction without its vkey and bootstrap witnesses (an entry that holds none stays,
 and the witnesses added later go into it in its form, as the wallets write them; a witness set that
 repeats a key stays as given, and is not signed); those it came with are verified and held, so one
-that came signed has nothing in `missing`, and are written back in the form of their entry: its
-set tag as written and its kind of length, a count written again in its shortest form. The object
+that came signed has nothing in `missing`. `partialTx` and `signedTx` are the transaction as given,
+every byte of it kept: each vkey and bootstrap entry in its place and as written, a witness that
+stands twice and bootstrap witnesses beyond the Byron addresses spent from included (the object
+counts such a key once, and as many bootstrap witnesses as those addresses). A witness added later
+goes after those of its entry, which keeps its set tag as written and its kind of length, a count
+written again in its shortest form: the bytes a wallet of this library writes into the same
+transaction, on every path (`sign`, `addWitnesses`, `restore`, `blind`, a step of a plan). The object
 goes through JSON and `restore` as any other, and can be given as `after`: its inputs are not
 selected, its outputs can be named by out ref without a lookup, and it has no change to select.
 `knownUtxos`, in any form of `UtxoInput`, serves the outputs of a transaction not on chain yet,

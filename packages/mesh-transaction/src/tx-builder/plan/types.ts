@@ -325,6 +325,7 @@ export type TxStepJSON = {
     readonly txHash: string;
     readonly built: Record<string, unknown>;
     readonly witnesses?: string;
+    readonly witnessSet?: string;
     readonly extraKeyWitnesses?: number;
     readonly delivered?: true;
   };

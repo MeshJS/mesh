@@ -1,10 +1,12 @@
 import type { CachedFetcher, ISubmitter } from "@meshsdk/common";
+import { Crypto } from "@meshsdk/core-cst";
 
 import type { BuiltTxData, TxBuilder } from "./builder";
 import type {
   AskedKey,
   KeyWitness,
   KeyWitnessTags,
+  RawItems,
   RawTx,
   Signer,
 } from "./sign";
@@ -27,6 +29,7 @@ import {
   SUBMITTER_IN_PLACE,
   typeOf,
 } from "./options";
+import { errorText } from "./parts/normalize";
 import {
   checkWaitOptions,
   DEFAULT_POLL_MS,
@@ -44,10 +47,12 @@ import {
   canSign,
   countedWitnesses,
   isWallet,
+  keptWitnessSet,
   keysSignedBy,
   keyWitnessTags,
   payerHasNothingLeft,
   payerWitnesses,
+  readKeptWitnessSet,
   readTransaction,
   readWitnessArgument,
   refuseRepeatedKey,
@@ -55,7 +60,7 @@ import {
   signerWitnesses,
   toSigners,
   unreadableSigner,
-  withWitnesses,
+  withHeldWitnesses,
   witnessesToAdd,
   writeWitnessSet,
 } from "./sign";
@@ -174,6 +179,14 @@ export type BuiltTxJSON = {
    */
   readonly witnesses?: string;
   /**
+   * The library's: the witness set the transaction came with, as a CBOR witness set in hex, its
+   * vkey and bootstrap entries in their places and forms, each as written. Written only for an
+   * object of `fromCbor` whose witnesses, written again into its transaction from `witnesses`,
+   * would not be those bytes: an entry in another place, a head or a witness written in a longer
+   * form, a witness the object does not hold
+   */
+  readonly witnessSet?: string;
+  /**
    * The library's: how many witnesses of keys the transaction does not need it keeps: the
    * build's `extraKeyWitnesses`, or as many as a transaction made by `fromCbor` came with;
    * written only when above 0
@@ -196,6 +209,7 @@ const RECORD_MEMBERS: readonly string[] = [
   "txHash",
   "built",
   "witnesses",
+  "witnessSet",
   "extraKeyWitnesses",
   "delivered",
 ];
@@ -216,6 +230,11 @@ export type RestoredState = {
    * set tag, each when it held a witness
    */
   readonly tags?: Partial<KeyWitnessTags>;
+  /**
+   * The transaction as it came, with the witnesses it came with in their entries, read once: what
+   * the witnesses held are written into, every byte of it kept. `raw` when left out
+   */
+  readonly host?: RawItems;
 };
 
 /** An abort signal by its shape, whatever made it */
@@ -689,6 +708,11 @@ export class BuiltTx implements BuiltTxData {
 
   /** The transaction as built, read once: what is signed, whatever the members say later */
   readonly #raw: RawTx;
+  /**
+   * What the witnesses held are written into: the transaction as it came to `fromCbor`, with
+   * the witnesses it came with, each byte kept; else `#raw`
+   */
+  readonly #host: RawItems;
   /** The keys that must sign, copied: what `missing` lists */
   readonly #keys: readonly RequiredKey[];
   /** `signers` as built, copied: what the JSON writes, whatever the member says later */
@@ -738,6 +762,7 @@ export class BuiltTx implements BuiltTxData {
     Object.assign(this, built);
     this.#payer = restored === undefined ? payer : undefined;
     this.#raw = restored?.raw ?? readTransaction(built.tx);
+    this.#host = restored?.host ?? this.#raw;
     this.#sender = new TxSender(builder, this.#raw, restored?.delivered);
     this.#signers = structuredClone(built.signers);
     this.#keys = Object.freeze(
@@ -772,14 +797,16 @@ export class BuiltTx implements BuiltTxData {
    * signed: `tx` itself while it holds none, and `signedTx` once none is missing. It is what is
    * handed to a party that signs next outside this object, such as a wallet's `signTx(tx, true)`
    * in another program; what that party gives back goes to `addWitnesses`. While a key is
-   * missing the ledger refuses it: `submit()` sends `signedTx` only
+   * missing the ledger refuses it: `submit()` sends `signedTx` only. Of an object made by
+   * `fromCbor`, the transaction as it came, every byte of it kept, with the witnesses added
+   * after those of their entry, as the wallets of this library write them
    */
   get partialTx(): string {
     const count = this.#held.length;
     if (this.#written?.count !== count)
       this.#written = {
         count,
-        tx: withWitnesses(this.#raw, this.#held, this.#tags),
+        tx: withHeldWitnesses(this.#host, this.#held, this.#tags),
       };
     return this.#written.tx;
   }
@@ -971,6 +998,7 @@ export class BuiltTx implements BuiltTxData {
   toJSON(): BuiltTxJSON {
     const held = this.#held;
     const delivered = this.#sender.mayLand;
+    const witnessSet = keptWitnessSet(this.#host, this.#raw, held, this.#tags);
     return {
       kind: "BuiltTx",
       version: RECORD_VERSION,
@@ -982,6 +1010,7 @@ export class BuiltTx implements BuiltTxData {
       ...(held.length > 0 && {
         witnesses: writeWitnessSet(held, this.#tags),
       }),
+      ...(witnessSet !== undefined && { witnessSet }),
       ...(this.#extraKeys > 0 && { extraKeyWitnesses: this.#extraKeys }),
       ...(delivered && { delivered: true as const }),
     };
@@ -1110,6 +1139,8 @@ const readRecord = (json: Record<string, unknown>) =>
       unread("built.network is not a network name with its network id, 0 or 1");
     if (json.witnesses !== undefined && typeof json.witnesses !== "string")
       unread("witnesses is not a text");
+    if (json.witnessSet !== undefined && typeof json.witnessSet !== "string")
+      unread("witnessSet is not a text");
     const extraKeys = json.extraKeyWitnesses;
     if (
       extraKeys !== undefined &&
@@ -1122,6 +1153,7 @@ const readRecord = (json: Record<string, unknown>) =>
       txHash: json.txHash as string,
       built,
       witnesses: json.witnesses as string | undefined,
+      witnessSet: json.witnessSet as string | undefined,
       extraKeys: (extraKeys as number | undefined) ?? 0,
       delivered: json.delivered === true,
     };
@@ -1191,12 +1223,18 @@ export const restoreBuiltTx = async (
     if (!(error instanceof TxScanError)) throw error;
     throw invalidJson(json, `its transaction is not read: ${error.message}`);
   }
-  // So are its witnesses
+  // So are its witnesses, and the witness set it came with
   try {
     scanWitnessSet(record.witnesses, maxBytes);
   } catch (error) {
     if (!(error instanceof TxScanError)) throw error;
     throw invalidJson(json, `its witnesses are not read: ${error.message}`);
+  }
+  try {
+    scanWitnessSet(record.witnessSet, maxBytes);
+  } catch (error) {
+    if (!(error instanceof TxScanError)) throw error;
+    throw invalidJson(json, `its witnessSet is not read: ${error.message}`);
   }
   let raw: RawTx;
   try {
@@ -1243,10 +1281,26 @@ export const restoreBuiltTx = async (
         );
       throw notRead("witnesses is not a witness set this library reads");
     }
+  // The witness set it came with, when its witnesses written again would not be its bytes: what
+  // they are written into, each entry in its place. It is the transaction's own but for its vkey
+  // and bootstrap entries, and every witness in it is of the body
+  let host: RawItems | undefined;
+  if (record.witnessSet !== undefined) {
+    await Crypto.ready();
+    try {
+      host = readKeptWitnessSet(raw, record.witnessSet);
+    } catch (error) {
+      throw invalidJson(
+        json,
+        `its witnessSet is not the witness set of its transaction: ${errorText(error)}`,
+      );
+    }
+  }
   return makeBuiltTx(builder, built, record.extraKeys, {
     raw,
     held,
     delivered: record.delivered,
     tags,
+    ...(host !== undefined && { host }),
   });
 };

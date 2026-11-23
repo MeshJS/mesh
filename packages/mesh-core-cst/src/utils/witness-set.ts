@@ -336,6 +336,33 @@ export const withoutKeyWitnesses = (
   return kept.length === tx.entries.length ? tx.hex : withEntries(tx, kept);
 };
 
+/**
+ * The transaction with this witness set in place of its own, written as given: the body, the
+ * validity flag and the auxiliary data keep their bytes, so the hash does not change. How a
+ * transaction whose vkey and bootstrap witnesses were taken out (`withoutKeyWitnesses`) gets back
+ * the witness set it came with, each entry in its place and in its form
+ * @param tx A transaction in CBOR hex, or as `readTransactionItems` reads it
+ * @param witnessSet A witness set in CBOR hex: one map, nothing after it
+ * @throws Error for what is not a transaction, and for a witness set that is not one map
+ */
+export const withWitnessSet = (
+  tx: string | TransactionItems,
+  witnessSet: string,
+): string => {
+  const { top } = typeof tx === "string" ? readTransactionItems(tx) : tx;
+  const bytes = Buffer.from(witnessSet, "hex");
+  readItems(bytes, "map", witnessSet);
+  return toHex(
+    Buffer.concat([
+      top.header,
+      top.items[0]!,
+      bytes,
+      ...top.items.slice(2),
+      top.trailer,
+    ]),
+  );
+};
+
 /** Whether a transaction body writes its inputs with the set tag */
 const inputsTagged = (body: Uint8Array): boolean => {
   const reader = readerOf(body);

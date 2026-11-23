@@ -1465,7 +1465,7 @@ describe("TxBuilder.fromCbor: the witnesses it came with", () => {
     }
   });
 
-  it("holds a key once when the transaction holds its witness twice", async () => {
+  it("holds a key once when the transaction holds its witness twice, and keeps its bytes as given", async () => {
     await Crypto.ready();
     const key = testKey();
     const given = handPayment("tagged", key, (txHash) =>
@@ -1477,9 +1477,13 @@ describe("TxBuilder.fromCbor: the witnesses it came with", () => {
     const made = await offline().fromCbor(given.tx, {
       knownUtxos: given.knownUtxos,
     });
-    expect(keysOf(made.partialTx).vkeys).toEqual([key.vkey]);
     expect(made.missing).toEqual([]);
-    expect(made.signedTx!.length).toBeLessThan(given.tx.length);
+    // The entry it adds nothing to stays byte for byte, as the wallets keep it
+    expect(made.signedTx).toBe(given.tx);
+    expect(keysOf(made.signedTx!).vkeys).toEqual([key.vkey, key.vkey]);
+    // Signing again with the key adds nothing
+    await made.sign({ signers: keysSigner("object", key).signer });
+    expect(made.signedTx).toBe(given.tx);
   });
 
   it("is INVALID_WITNESS (wrongBody) for a key whose witness stands twice and once is of another body, in either order, vkey or bootstrap", async () => {
@@ -1565,7 +1569,11 @@ describe("TxBuilder.fromCbor: the witnesses it came with", () => {
       ),
       { knownUtxos },
     );
-    expect(keysOf(made.signedTx!).bootstraps).toEqual([first.vkey]);
+    // Both stay in the bytes, as given: the entry it adds nothing to is kept
+    expect(keysOf(made.signedTx!).bootstraps).toEqual([
+      first.vkey,
+      second.vkey,
+    ]);
     // A bootstrap witness is not a witness of another key: none is counted, and a later
     // witness of a key the transaction does not need is dropped
     expect(throughText(made).extraKeyWitnesses).toBeUndefined();
