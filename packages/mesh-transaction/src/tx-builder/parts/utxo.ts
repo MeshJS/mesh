@@ -216,10 +216,6 @@ const normalValue = (
   return toAssets(value);
 };
 
-/** Whether `hex` is exactly one well-formed CBOR item, with no bytes after it */
-export const isOneItem = (hex: string) =>
-  isOneCborItem(Buffer.from(hex, "hex"));
-
 /**
  * The CBOR of an inline datum, kept byte for byte as the hex given: it is never decoded, and its
  * form is not judged

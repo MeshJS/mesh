@@ -37,6 +37,7 @@ import type {
   Utxo,
 } from "./types";
 import type { UtxoProblem } from "./utxo";
+import { firstItemEnd } from "../tx-scan";
 import { TxPartError } from "./errors";
 import { givenShape, shownValue } from "./shape";
 import {
@@ -52,6 +53,9 @@ import {
 } from "./utxo";
 
 export { textShape } from "./shape";
+
+/** Hex of whole bytes, one or more */
+const HEX_BYTES = /^(?:[0-9a-f]{2})+$/i;
 
 /** Reports problems found while building one part */
 export type PartContext = {
@@ -309,12 +313,38 @@ const isBuilderData = (data: PlutusDataInput): data is BuilderData =>
   (data.type === "Mesh" || data.type === "JSON" || data.type === "CBOR");
 
 /**
+ * Plutus data given as CBOR in hex of whole bytes is one well-formed item with nothing after it:
+ * its bytes are kept as given, and they must read as one item in the transaction
+ * @throws Error for anything else, quoting none of the bytes
+ */
+const checkOneItem = (content: string) => {
+  const bytes = Buffer.from(content, "hex");
+  const end = firstItemEnd(bytes);
+  if (end === undefined)
+    throw new Error(
+      "the CBOR given is not one well-formed item: it is not well formed, or ends before its item does",
+    );
+  if (end !== bytes.length)
+    throw new Error(
+      `the CBOR given is not one item: ${bytes.length - end} byte${bytes.length - end === 1 ? "" : "s"} follow its first item`,
+    );
+};
+
+/**
  * Plutus data in its CBOR form, with its hash; throws the converter's own error for anything
- * that is not Plutus data
+ * that is not Plutus data. Plutus data given as CBOR is kept byte for byte, and is one
+ * well-formed item with nothing after it (`checkOneItem`)
  */
 export const encodePlutusData = (
   data: PlutusDataInput,
 ): { data: PlutusDataVariant & { type: "CBOR" }; hash: string } => {
+  if (
+    isBuilderData(data) &&
+    data.type === "CBOR" &&
+    typeof data.content === "string" &&
+    HEX_BYTES.test(data.content)
+  )
+    checkOneItem(data.content);
   const plutusData = fromBuilderToPlutusData(
     isBuilderData(data) ? data : { type: "Mesh", content: data },
   );

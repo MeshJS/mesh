@@ -30,7 +30,6 @@ import {
   toPlutusScriptCode,
 } from "./normalize";
 import { shownValue } from "./shape";
-import { isOneItem } from "./utxo";
 
 /** The largest quantity of a unit one output holds */
 const MAX_QUANTITY = 2n ** 64n - 1n;
@@ -139,14 +138,8 @@ const toDatum = (
       `invalid datum ${shownValue(datum)}: expected { type: "inline" | "hash", ... }`,
     );
   if (datum.type === "inline") {
+    // The output's UTxO holds these bytes, one item of data (`encodePlutusData`)
     const { data } = toPlutusData(ctx, datum.data);
-    // The output's UTxO holds these bytes: they are read back as one item of data
-    if (data.type === "CBOR" && !isOneItem(data.hex))
-      fail(
-        ctx,
-        "INVALID_DATA",
-        `invalid inline datum ${data.hex}: bytes follow the Plutus data`,
-      );
     return { plutus_data: { type: "DATA", value: data } };
   }
   if ("hash" in datum) {

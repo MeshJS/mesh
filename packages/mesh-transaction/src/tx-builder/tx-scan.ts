@@ -378,6 +378,13 @@ const walked = (bytes: Uint8Array): Walked | undefined => {
   }
 };
 
+/**
+ * The offset just after the first CBOR item of `bytes`, read with no call of itself; undefined
+ * where they do not start with one well-formed item
+ */
+export const firstItemEnd = (bytes: Uint8Array): number | undefined =>
+  walked(bytes)?.end;
+
 /** Whether `bytes` are exactly one well-formed CBOR item, read with no call of itself */
 export const isOneCborItem = (bytes: Uint8Array): boolean =>
   walked(bytes)?.end === bytes.length;
