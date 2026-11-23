@@ -175,9 +175,10 @@ export interface ProposalParams extends PartParams {
 export interface GuardrailParams {
   /**
    * The constitution's guardrail script, when it has one, run to authorise the proposal. Its
-   * hash goes in the action's policy hash.
+   * hash goes in the action's policy hash. Omit to let TxBuilder choose the
+   * active guardrail, or pass null to build without one.
    */
-  guardrail?: CredentialWitnessInput;
+  guardrail?: CredentialWitnessInput | null;
   /** The guardrail's hash; needed only for a guardrail referenced by out ref alone */
   policyHash?: string;
 }
@@ -259,7 +260,7 @@ export interface InfoActionParams extends ProposalParams {}
 
 const ctxOf = (params: unknown): PartContext => partContext("proposal", params);
 
-const toGuardrail = (
+export const toGuardrail = (
   ctx: PartContext,
   { guardrail, policyHash }: GuardrailParams,
 ): { policyHash?: string; witness: ProposalPart["witness"] } => {
@@ -277,7 +278,12 @@ const toGuardrail = (
         "WITNESS_MISMATCH",
         "a policy hash needs its guardrail script as witness",
       );
-    return { witness: { type: "none" } };
+    return {
+      witness: {
+        type: "none",
+        ...(guardrail === null && { defaultGuardrail: false as const }),
+      },
+    };
   }
   const scriptHash =
     "native" in guardrail

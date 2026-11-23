@@ -775,7 +775,10 @@ export type ProposalPart = PartBase & {
    * The guardrail script a parameter change or treasury withdrawal names in its policy hash;
    * nothing for every other proposal
    */
-  readonly witness: { readonly type: "none" } | NativeWitness | PlutusWitness;
+  readonly witness:
+    | { readonly type: "none"; readonly defaultGuardrail?: false }
+    | NativeWitness
+    | PlutusWitness;
 };
 
 export type TxPart =
