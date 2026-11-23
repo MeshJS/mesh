@@ -493,6 +493,10 @@ describe("MeshTxBuilder transactions", () => {
     const rewardAddress = serializeRewardAddress(
       resolvePaymentKeyHash(address),
     );
+    const drepId = Cardano.DRepID.cip129FromCredential({
+      type: Cardano.CredentialType.KeyHash,
+      hash: Hash28ByteBase16(resolvePaymentKeyHash(address)),
+    }).toString();
     const registrationTx = await new MeshTxBuilder({
       fetcher: provider,
       submitter: provider,
@@ -500,6 +504,7 @@ describe("MeshTxBuilder transactions", () => {
       params,
     })
       .registerStakeCertificate(rewardAddress)
+      .drepRegistrationCertificate(drepId)
       .changeAddress(address)
       .selectUtxosFrom(utxos)
       .complete();
@@ -514,7 +519,7 @@ describe("MeshTxBuilder transactions", () => {
     })
       .voteDelegationCertificate(
         {
-          dRepId: "drep1j6257gz2swty9ut46lspyvujkt02pd82am2zq97p7p9pv2euzs7",
+          dRepId: drepId,
         },
         rewardAddress,
       )
@@ -608,6 +613,7 @@ describe("MeshTxBuilder transactions", () => {
         { kind: "InfoAction", action: { type: "InfoAction" } },
         anchor,
         rewardAddress,
+        provider.emulator.getProtocolParameters().govActionDeposit.toString(),
       )
       .changeAddress(address)
       .selectUtxosFrom(await provider.fetchAddressUTxOs(address))
@@ -687,6 +693,7 @@ describe("MeshTxBuilder transactions", () => {
         { kind: "InfoAction", action: { type: "InfoAction" } },
         anchor,
         rewardAddress,
+        provider.emulator.getProtocolParameters().govActionDeposit.toString(),
       )
       .changeAddress(address)
       .selectUtxosFrom(
@@ -727,9 +734,37 @@ describe("MeshTxBuilder transactions", () => {
   });
 
   it("CC vote", async () => {
-    const { wallet, address, provider, params, utxos } =
-      await createTestSetup({ initialLovelace: "120000000000" });
+    const { wallet, address } = await createTestSetup();
     const hotKeyHash = resolvePaymentKeyHash(address);
+    // Only a sitting committee member may vote, so seat the wallet's key as one, with itself as
+    // the authorized hot key.
+    const { CardanoInfo, Emulator, Utxo, Value } = await importScalus();
+    const emulator = Emulator.create(CardanoInfo.preview(), {
+      committee: {
+        members: [
+          {
+            credentialType: "key",
+            credentialHash: hotKeyHash,
+            expiresAfter: 1_000_000,
+          },
+        ],
+        threshold: { numerator: 1, denominator: 1 },
+      },
+      committeeHotKeys: [
+        {
+          coldCredentialType: "key",
+          coldCredentialHash: hotKeyHash,
+          hotCredentialType: "key",
+          hotCredentialHash: hotKeyHash,
+        },
+      ],
+    });
+    emulator.addUtxo(
+      new Utxo("0".repeat(64), 0, address, new Value(120_000_000_000n, [])),
+    );
+    const provider = new ScalusEmulator(emulator);
+    const params = await provider.fetchProtocolParameters();
+    const utxos = await provider.fetchAddressUTxOs(address);
     const rewardAddress = serializeRewardAddress(hotKeyHash);
     const anchor = {
       anchorUrl: "https://path-to.jsonld",
@@ -756,6 +791,7 @@ describe("MeshTxBuilder transactions", () => {
         { kind: "InfoAction", action: { type: "InfoAction" } },
         anchor,
         rewardAddress,
+        provider.emulator.getProtocolParameters().govActionDeposit.toString(),
       )
       .changeAddress(address)
       .selectUtxosFrom(await provider.fetchAddressUTxOs(address))

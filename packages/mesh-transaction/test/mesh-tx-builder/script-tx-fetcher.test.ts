@@ -3,7 +3,7 @@ import { CSLSerializer, OfflineEvaluator } from "@meshsdk/core-csl";
 import { resolveScriptRef } from "@meshsdk/core-cst";
 import { OfflineFetcher } from "@meshsdk/provider";
 
-import { MeshTxBuilder } from "../../dist";
+import { MeshTxBuilder } from "@meshsdk/transaction";
 import { spend42Cbor, spend42Hash, txHash } from "../test-util";
 
 describe("MeshTxBuilder - Datum Script Transactions", () => {

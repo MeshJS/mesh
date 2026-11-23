@@ -33,7 +33,11 @@ import {
   Transaction as Tx,
 } from "@meshsdk/core-cst";
 
-import { MeshTxBuilder, MeshTxBuilderOptions } from "../mesh-tx-builder";
+import {
+  MeshTxBuilder,
+  MeshTxBuilderOptions,
+  utxoToTxIn,
+} from "../mesh-tx-builder";
 import { mergeContents, metadataObjToMap } from "../utils";
 
 export interface TransactionOptions extends MeshTxBuilderOptions {
@@ -271,14 +275,7 @@ export class Transaction {
       this.txBuilder.serializer.deserializer.script.deserializeNativeScript(
         script,
       );
-    this.txBuilder
-      .txIn(
-        utxo.input.txHash,
-        utxo.input.outputIndex,
-        utxo.output.amount,
-        utxo.output.address,
-      )
-      .txInScript(scriptCbor!);
+    this.txBuilder.txIn(...utxoToTxIn(utxo)).txInScript(scriptCbor!);
 
     return this;
   }
@@ -327,17 +324,17 @@ export class Transaction {
 
       this.isCollateralNeeded = true;
       this.spendingPlutusScript(scriptRef)
-        .txIn(
-          value.input.txHash,
-          value.input.outputIndex,
-          value.output.amount,
-          value.output.address,
-        )
+        .txIn(...utxoToTxIn(value))
         .spendingTxInReference(
           script.input.txHash,
           script.input.outputIndex,
           (script.output.scriptRef.length / 2).toString(),
-          script.output.scriptHash,
+          script.output.scriptHash ??
+            Serialization.Script.fromCbor(
+              <CardanoSDKUtil.HexBlob>script.output.scriptRef,
+            )
+              .hash()
+              .toString(),
         )
         .txInRedeemerValue(red.data, "Mesh", red.budget);
     }

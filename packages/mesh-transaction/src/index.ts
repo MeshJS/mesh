@@ -4,4 +4,5 @@ export * from "./transaction";
 export * from "./utils";
 export * from "./tx-parser";
 export * from "./mesh-tx-builder-v2";
+export * from "./tx-builder";
 export { LargestFirstInputSelector } from "./mesh-tx-builder/coin-selection";

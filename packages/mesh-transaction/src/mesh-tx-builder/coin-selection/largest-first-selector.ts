@@ -1,4 +1,4 @@
-import { Output, TxIn, TxOutput, UTxO } from "@meshsdk/common";
+import { Action, Output, TxIn, TxOutput, UTxO } from "@meshsdk/common";
 
 import {
   BuilderCallbacks,
@@ -251,6 +251,7 @@ export class LargestFirstInputSelector implements IInputSelector {
     finalSelectedUtxos: Set<UTxO>;
     fee: bigint;
     changeOutputs: TxOutput[];
+    redeemers?: Omit<Action, "data">[];
   }> => {
     let remainingValue = subValue(new Map(), requiredValue);
     let remainingUtxos = [...availableUtxos];
@@ -297,6 +298,7 @@ export class LargestFirstInputSelector implements IInputSelector {
     // We will recompute the costs based on the selected UTxOs
     let computedCost = 0n;
     let computedChangeOutputs: TxOutput[] = [];
+    let computedRedeemers: Omit<Action, "data">[] | undefined;
     // We need to decide on a number of iterations to calculate change and fees
     // since they are dependent on each other. They should eventually converge
     // to a stable value, but it's possible that they don't, in which case, we
@@ -327,15 +329,18 @@ export class LargestFirstInputSelector implements IInputSelector {
         }
       }
       if (i < numberOfIterations - 1) {
-        // If we are not on the last iteration, we will recompute the cost
-        computedCost = (
-          await constraints.computeMinimumCost({
-            newInputs: selectedUtxos,
-            newOutputs: new Set(),
-            change: changeOutputs,
-            fee: BigInt(1_000_000_000),
-          })
-        ).fee;
+        // If we are not on the last iteration, we will recompute the cost. Once there is a
+        // cost, the change already pays it, so the skeleton is priced with that fee: scripts
+        // see the fee and change of the transaction being built. Before that, a placeholder
+        // keeps the size estimate: it encodes in as many bytes as any realistic fee
+        const cost = await constraints.computeMinimumCost({
+          newInputs: selectedUtxos,
+          newOutputs: new Set(),
+          change: changeOutputs,
+          fee: computedCost > 0n ? computedCost : BigInt(1_000_000_000),
+        });
+        computedCost = cost.fee;
+        computedRedeemers = cost.redeemers;
       }
     }
 
@@ -343,6 +348,7 @@ export class LargestFirstInputSelector implements IInputSelector {
       finalSelectedUtxos: selectedUtxos,
       fee: computedCost,
       changeOutputs: computedChangeOutputs,
+      redeemers: computedRedeemers,
     };
   };
 
@@ -372,7 +378,7 @@ export class LargestFirstInputSelector implements IInputSelector {
       throw new Error("Not enough UTxOs to cover the required value.");
     }
 
-    const { finalSelectedUtxos, fee, changeOutputs } =
+    const { finalSelectedUtxos, fee, changeOutputs, redeemers } =
       await this.expandUtxosUntilFeeCovered(
         utxos,
         requiredValue,
@@ -394,6 +400,7 @@ export class LargestFirstInputSelector implements IInputSelector {
       newOutputs: new Set(),
       change: changeOutputs,
       fee: fee,
+      redeemers,
     };
   }
 }

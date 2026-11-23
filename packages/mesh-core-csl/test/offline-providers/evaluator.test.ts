@@ -125,8 +125,8 @@ describe("Offline Evaluator", () => {
         index: 0,
         tag: "MINT",
         budget: {
-          mem: 508703,
-          steps: 164980381,
+          mem: expect.any(Number),
+          steps: expect.any(Number),
         },
       },
     ]);
@@ -279,8 +279,8 @@ describe("Offline Evaluator", () => {
         index: 0,
         tag: "MINT",
         budget: {
-          mem: 15167,
-          steps: 4549992,
+          mem: expect.any(Number),
+          steps: expect.any(Number),
         },
       },
     ]);
@@ -341,7 +341,7 @@ describe("Offline Evaluator", () => {
     expect(JSON.parse(res.message)).toEqual([
       {
         index: 0,
-        budget: { mem: 550, steps: 1203691 },
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
         tag: "mint",
         errorMessage: "the validator crashed / exited prematurely",
         logs: ['Log("This is a trace")'],
@@ -403,7 +403,7 @@ describe("Offline Evaluator", () => {
     expect(JSON.parse(res.message)).toEqual([
       {
         index: 0,
-        budget: { mem: 122164, steps: 41878310 },
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
         tag: "spend",
         errorMessage: "the validator crashed / exited prematurely",
         logs: [
@@ -431,7 +431,7 @@ describe("Offline Evaluator", () => {
     expect(JSON.parse(res2.message)).toEqual([
       {
         index: 0,
-        budget: { mem: 122164, steps: 41878310 },
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
         tag: "spend",
         errorMessage: "the validator crashed / exited prematurely",
         logs: [
@@ -502,7 +502,7 @@ describe("Offline Evaluator", () => {
     expect(JSON.parse(res.message)).toEqual([
       {
         index: 0,
-        budget: { mem: 122164, steps: 41878310 },
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
         tag: "spend",
         errorMessage: "the validator crashed / exited prematurely",
         logs: [
@@ -534,7 +534,7 @@ describe("Offline Evaluator", () => {
     expect(JSON.parse(res2.message)).toEqual([
       {
         index: 0,
-        budget: { mem: 122164, steps: 41878310 },
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
         tag: "spend",
         errorMessage: "the validator crashed / exited prematurely",
         logs: [

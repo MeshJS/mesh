@@ -414,7 +414,7 @@ describe("MeshTxBuilder", () => {
         },
       ],
     };
-    const newTxBuilder = new MeshTxBuilder({ fetcher });
+    const newTxBuilder = new MeshTxBuilder({ fetcher, evaluator: null });
     const txHex = await newTxBuilder.complete(txBody);
     const cardanoTx = Transaction.fromCbor(TxCBOR(txHex));
     console.log(txHex);

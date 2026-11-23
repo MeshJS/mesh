@@ -4,11 +4,13 @@ import JSONBig from "json-bigint";
 import {
   Action,
   Asset,
+  CachedFetcher,
   Certificate,
   DEFAULT_PROTOCOL_PARAMETERS,
   DEFAULT_V1_COST_MODEL_LIST,
   DEFAULT_V2_COST_MODEL_LIST,
   DEFAULT_V3_COST_MODEL_LIST,
+  EvaluationContext,
   IEvaluator,
   IFetcher,
   IMeshTxSerializer,
@@ -16,6 +18,7 @@ import {
   MeshTxBuilderBody,
   MintItem,
   MintParam,
+  Network,
   Output,
   Protocol,
   ScriptSource,
@@ -36,6 +39,9 @@ import {
   CredentialType as CstCredentialType,
   NativeScript as CstNativeScript,
   Script as CstScript,
+  getTransactionInputs,
+  getTransactionOutputs,
+  OfflineEvaluatorScalus,
 } from "@meshsdk/core-cst";
 
 import {
@@ -49,10 +55,24 @@ import {
 } from "./coin-selection/coin-selection-interface";
 import { MeshTxBuilderCore } from "./tx-builder-core";
 
+/** How many times `complete()` evaluates the final transaction before giving up on a fixed point */
+const MAX_BALANCING_PASSES = 20;
+
 export interface MeshTxBuilderOptions {
   fetcher?: IFetcher;
   submitter?: ISubmitter;
-  evaluator?: IEvaluator;
+  /**
+   * Computes the execution units of the transaction's scripts. Left out, the builder evaluates
+   * locally with Scalus (`OfflineEvaluatorScalus`) if it has a `fetcher` to resolve inputs with.
+   * `null` turns evaluation off: redeemers keep the units declared on them.
+   */
+  evaluator?: IEvaluator | null;
+  /**
+   * The network the transaction is for, passed to an evaluator that takes it (`setNetwork` sets
+   * it too). Without it, mainnet is assumed for a mainnet change address. The default evaluator
+   * needs it to evaluate a transaction with a validity interval.
+   */
+  network?: Network;
   serializer?: IMeshTxSerializer;
   selector?: IInputSelector;
   isHydra?: boolean;
@@ -67,10 +87,14 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   submitter?: ISubmitter;
   evaluator?: IEvaluator;
   txHex: string = "";
+  /** The network the transaction is for, if given or set; see `MeshTxBuilderOptions.network` */
+  network?: Network;
   verbose: boolean;
   protected queriedTxHashes: Set<string> = new Set();
   protected queriedUTxOs: { [x: string]: UTxO[] } = {};
   protected utxosWithRefScripts: UTxO[] = [];
+  /** UTxOs already known to the builder (selection pool, evaluation inputs, chained txs), keyed by `txHash#index` */
+  protected knownUTxOs: Map<string, UTxO> = new Map();
 
   constructor({
     serializer,
@@ -78,6 +102,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     fetcher,
     submitter,
     evaluator,
+    network,
     params,
     isHydra = false,
     verbose = false,
@@ -86,6 +111,10 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     if (fetcher) this.fetcher = fetcher;
     if (submitter) this.submitter = submitter;
     if (evaluator) this.evaluator = evaluator;
+    // Mesh's default: local evaluation with Scalus, which resolves inputs through the fetcher
+    else if (evaluator === undefined && fetcher)
+      this.evaluator = new OfflineEvaluatorScalus(fetcher);
+    this.network = network;
     if (params) this.protocolParams(params);
     if (serializer) {
       this.serializer = serializer;
@@ -124,14 +153,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     if (Array.isArray(this.meshTxBuilderBody.network)) {
       return;
     }
-    const defaults = [
-      DEFAULT_V1_COST_MODEL_LIST,
-      DEFAULT_V2_COST_MODEL_LIST,
-      DEFAULT_V3_COST_MODEL_LIST,
-    ];
     if (this.fetcher) {
       try {
-        const costModels = await this.fetcher.fetchCostModels();
+        const costModels = await this.cachedFetcher()!.fetchCostModels();
         if (Array.isArray(costModels) && costModels.length > 0) {
           this.meshTxBuilderBody.network = costModels;
           return;
@@ -147,7 +171,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         );
       }
     }
-    this.meshTxBuilderBody.network = defaults;
+    this.meshTxBuilderBody.network = [...DEFAULT_COST_MODELS];
   };
 
   /**
@@ -195,7 +219,8 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         this.setFee(customizedTx.fee);
       }
     }
-    await this.completeCostModels();
+    // Cost models don't depend on the rest of the body, so fetch them alongside the UTxOs
+    const costModelsCompleted = this.completeCostModels();
     this.queueAllLastItem();
 
     if (this.verbose) {
@@ -214,7 +239,11 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     for (let collateral of this.meshTxBuilderBody.collaterals) {
       collateral.txIn.scriptSize = 0;
     }
-    await this.completeTxParts();
+    try {
+      await this.completeTxParts();
+    } finally {
+      await costModelsCompleted;
+    }
     await this.sanitizeOutputs();
 
     this.sortTxParts();
@@ -228,6 +257,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
     const txPrototype = await this.selectUtxos();
     await this.updateByTxPrototype(txPrototype, true);
+    await this.settleFeeAndChange(txPrototype.change.length);
     if (this.verbose) {
       console.log(
         "txBodyJson - after coin selection",
@@ -328,6 +358,100 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         selectionCallbacks,
       );
     };
+
+  /**
+   * Coin selection prices the redeemers on a skeleton, whose fee and change differ from the
+   * final transaction's. A script that reads the fee or the outputs can then need other units
+   * than the skeleton's. So evaluate the final transaction, recompute the fee, move the
+   * difference into the change output and repeat, until one more pass changes nothing.
+   * The first pass sets the fee to the minimum, which may refund the selection's estimate to
+   * the change. After that the fee only rises: a script that is cheaper with a higher fee
+   * could otherwise flip between two fees forever. Paying more than the minimum is valid.
+   * When the selection already priced the final transaction, this costs one evaluation.
+   * @param changeOutputCount How many outputs at the end are change added by coin selection
+   */
+  protected settleFeeAndChange = async (changeOutputCount: number) => {
+    if (!this.evaluator || !this.hasPlutusScriptWitness()) return;
+    const body = this.meshTxBuilderBody;
+    // The change output with the most lovelace absorbs the fee difference. When the change
+    // is split, the others usually hold just their minimum.
+    const change = body.outputs
+      .slice(body.outputs.length - changeOutputCount)
+      .reduce<Output | undefined>(
+        (best, output) =>
+          best && getLovelace(best) >= getLovelace(output) ? best : output,
+        undefined,
+      );
+    for (let pass = 1; ; pass++) {
+      if (pass > MAX_BALANCING_PASSES) {
+        throw new Error(
+          `Fee and execution units did not settle after ${MAX_BALANCING_PASSES} evaluations of the final transaction`,
+        );
+      }
+      const unitsBefore = JSON.stringify(this.getRedeemerCosts());
+      const feeBefore = BigInt(body.fee);
+      await this.evaluateRedeemers().catch((error) => {
+        throw new Error(
+          `Evaluate redeemers failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+      const minFee = this.getActualFee();
+      // Without a change output there is nothing to refund the excess to
+      const fee =
+        (pass === 1 && change) || minFee > feeBefore ? minFee : feeBefore;
+      if (fee === feeBefore) {
+        if (JSON.stringify(this.getRedeemerCosts()) === unitsBefore) break;
+        continue;
+      }
+      if (!change) {
+        throw new Error(
+          `Fee changed from ${feeBefore} to ${fee} after evaluating the final transaction, but there is no change output to absorb the difference`,
+        );
+      }
+      const newChange = getLovelace(change) + feeBefore - fee;
+      const minChange = this.calculateMinLovelaceForOutput(
+        setLoveLace(cloneOutput(change), newChange),
+      );
+      if (newChange < minChange) {
+        throw new Error(
+          `Fee changed from ${feeBefore} to ${fee} after evaluating the final transaction, which leaves ${newChange} lovelace in the change output, below its minimum of ${minChange}`,
+        );
+      }
+      setLoveLace(change, newChange);
+      body.fee = fee.toString();
+    }
+    this.checkSettledCollateral();
+  };
+
+  /**
+   * Settling can raise the fee. Check once that the collateral still covers it.
+   */
+  protected checkSettledCollateral = () => {
+    const { collateralPercent } = this._protocolParams;
+    const { collaterals, totalCollateral, fee } = this.meshTxBuilderBody;
+    const collateralAmounts = collaterals.map(
+      (collateral) => collateral.txIn.amount,
+    );
+    // Without a total collateral there is no collateral return, so the inputs are the collateral
+    const collateral = totalCollateral
+      ? BigInt(totalCollateral)
+      : collaterals.length > 0 && collateralAmounts.every((amount) => amount)
+        ? collateralAmounts.reduce(
+            (sum, amount) =>
+              sum + getLovelace({ address: "", amount: amount! }),
+            0n,
+          )
+        : undefined;
+    // The ledger rule: collateral * 100 >= fee * collateralPercent
+    if (
+      collateral !== undefined &&
+      collateral * 100n < BigInt(fee) * BigInt(collateralPercent)
+    ) {
+      throw new Error(
+        `Collateral of ${collateral} lovelace does not cover ${collateralPercent}% of the fee ${fee}`,
+      );
+    }
+  };
 
   updateByTxPrototype = async (
     selectionSkeleton: CoinSelectionInterface.TransactionPrototype,
@@ -522,15 +646,21 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   evaluateRedeemers = async () => {
-    let txHex = this.serializer.serializeTxBody(
-      this.meshTxBuilderBody,
-      this._protocolParams,
-    );
-    if (this.evaluator) {
-      const txEvaluation = await this.evaluator
+    if (this.evaluator && this.hasPlutusScriptWitness()) {
+      const txHex = this.serializer.serializeTxBody(
+        this.meshTxBuilderBody,
+        this._protocolParams,
+      );
+      const evaluator = this.evaluator;
+      evaluator.configure?.(this.evaluationContext());
+      const txEvaluation = await evaluator
         .evaluateTx(
           txHex,
-          Object.values(this.meshTxBuilderBody.inputsForEvaluation),
+          // A local evaluator can take every UTxO the builder holds. Others get only those
+          // given for evaluation: a remote one may reject UTxOs that also exist on chain.
+          evaluator.acceptsKnownUtxos
+            ? this.utxosForLocalEvaluator(txHex)
+            : this.utxosForEvaluation(),
           this.meshTxBuilderBody.chainedTxs,
         )
         .catch((error) => {
@@ -554,6 +684,132 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         });
       this.updateRedeemer(this.meshTxBuilderBody, txEvaluation);
     }
+  };
+
+  /**
+   * The network the transaction is for, if known: the `network` option or `setNetwork`, else
+   * mainnet for a mainnet change address. Not read from the fetcher cache, where any builder
+   * sharing the fetcher may have left a guess.
+   */
+  protected networkForEvaluation = (): Network | undefined => {
+    if (this.network) return this.network;
+    // Only a mainnet address pins the network; testnet ones fit preprod and preview alike
+    if (this.meshTxBuilderBody.changeAddress.startsWith("addr1"))
+      return "mainnet";
+    return undefined;
+  };
+
+  /** What the builder learned while completing the transaction, for `IEvaluator.configure` */
+  protected evaluationContext = (): EvaluationContext => {
+    const fetched = this.meshTxBuilderBody.network;
+    return {
+      network: this.networkForEvaluation(),
+      costModels: Array.isArray(fetched) ? fetched : undefined,
+    };
+  };
+
+  /**
+   * Key inputs given only by address and value (`txIn(hash, index, amount, address, 0)`), as
+   * UTxOs. They lack any datum, so a local evaluator gets their chain UTxO when the chain has
+   * it. Only non-Plutus inputs that declare no reference script (`scriptSize` 0) qualify.
+   */
+  protected declaredKeyInputs = (): Map<string, UTxO> => {
+    const { inputs, collaterals } = this.meshTxBuilderBody;
+    const declared = new Map<string, UTxO>();
+    for (const { type, txIn } of [...inputs, ...collaterals]) {
+      const { txHash, txIndex, address, amount, scriptSize } = txIn;
+      if (type !== "Script" && address && amount && scriptSize === 0)
+        declared.set(this.makeTxId(txHash, txIndex), {
+          input: { txHash, outputIndex: txIndex },
+          output: { address, amount },
+        });
+    }
+    return declared;
+  };
+
+  /**
+   * Fetch, once per `complete()`, the chain UTxOs of the declared key inputs the builder does
+   * not hold, for a local evaluator. One the fetcher does not have yet (an empty answer or
+   * a "not found" error) keeps its declared data; any other failure is thrown, since declared
+   * data could lack a datum or reference script the chain UTxO holds.
+   */
+  protected fetchDeclaredKeyInputs = async (): Promise<void> => {
+    const fetcher = this.cachedFetcher();
+    if (
+      !fetcher ||
+      !this.evaluator?.acceptsKnownUtxos ||
+      !this.hasPlutusScriptWitness()
+    )
+      return;
+    const txHashes = new Set<string>();
+    for (const { input } of this.declaredKeyInputs().values())
+      if (!this.findUTxO(input.txHash, input.outputIndex))
+        txHashes.add(input.txHash);
+    await Promise.all(
+      Array.from(txHashes, async (txHash) => {
+        const utxos = await fetcher.fetchUTxOs(txHash).catch((error) => {
+          if (isNotFound(error)) return [];
+          throw error;
+        });
+        if (utxos.length > 0) this.queriedUTxOs[txHash] = utxos;
+      }),
+    );
+  };
+
+  /**
+   * The UTxOs given for evaluation, each replaced by its fetched copy when the builder has one:
+   * a given copy may lack the script bytes the chain UTxO holds.
+   */
+  protected utxosForEvaluation = (): UTxO[] =>
+    Object.values(this.meshTxBuilderBody.inputsForEvaluation).map(
+      (utxo) =>
+        this.findUTxO(utxo.input.txHash, utxo.input.outputIndex) ?? utxo,
+    );
+
+  /**
+   * The UTxOs a local evaluator needs for the inputs, collateral and reference inputs of a
+   * transaction, so it need not fetch them (and can evaluate before an indexer sees them): the
+   * ones the builder holds, fetched first as in `findUTxO`, else the declared key inputs.
+   * Anything else is left for the evaluator to fetch.
+   */
+  protected utxosForLocalEvaluator = (txHex: string): UTxO[] => {
+    const declared = this.declaredKeyInputs();
+    return getTransactionInputs(txHex).flatMap(
+      ({ txHash, outputIndex }) =>
+        this.findUTxO(txHash, outputIndex) ??
+        declared.get(this.makeTxId(txHash, outputIndex)) ??
+        [],
+    );
+  };
+
+  /**
+   * Also the network the transaction is for, as `MeshTxBuilderOptions.network`: an evaluator
+   * that takes a context gets it. The body keeps it only until the cost models are fetched in
+   * its place. Like the option, and unlike the body, it is kept across `reset()`.
+   */
+  override setNetwork = (network: Network | number[][]) => {
+    if (typeof network === "string") this.network = network;
+    this.meshTxBuilderBody.network = network;
+    return this;
+  };
+
+  /**
+   * Whether any part of the transaction is witnessed by a Plutus script, i.e. whether
+   * there are redeemers for an evaluator to price
+   */
+  protected hasPlutusScriptWitness = (): boolean => {
+    const { inputs, mints, certificates, withdrawals, votes, proposals } =
+      this.meshTxBuilderBody;
+    return (
+      inputs.some((input) => input.type === "Script") ||
+      mints.some((mint) => mint.type === "Plutus") ||
+      certificates.some((cert) => cert.type === "ScriptCertificate") ||
+      withdrawals.some(
+        (withdrawal) => withdrawal.type === "ScriptWithdrawal",
+      ) ||
+      votes.some((vote) => vote.type === "ScriptVote") ||
+      proposals.some((proposal) => proposal.type === "ScriptProposal")
+    );
   };
 
   protected getRedeemerCosts = () => {
@@ -653,21 +909,66 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
    * @returns
    */
   submitTx = async (txHex: string): Promise<string | undefined> => {
-    const txHash = await this.submitter?.submitTx(txHex);
-    return txHash;
+    try {
+      return await this.submitter?.submitTx(txHex);
+    } finally {
+      // Address UTxOs and the like change once the tx lands; don't serve them from cache
+      this.cachedFetcher()?.clearVolatile();
+    }
   };
 
   /**
-   * Get the UTxO information from the blockchain
-   * @param txHash The TxIn object that contains the txHash and txIndex, while missing amount and address information
+   * The fetcher behind a cache shared by every builder and evaluator using it: transaction
+   * outputs are fetched once per hash, and cost models once per epoch
+   */
+  protected cachedFetcher = (): CachedFetcher | undefined => {
+    if (!this.fetcher) return undefined;
+    const cachedFetcher = CachedFetcher.wrap(this.fetcher);
+    if (!cachedFetcher.network) {
+      const changeAddress = this.meshTxBuilderBody.changeAddress;
+      // Only a mainnet address pins the network; testnet ones fit preprod and preview alike
+      if (changeAddress.startsWith("addr1")) cachedFetcher.network = "mainnet";
+    }
+    return cachedFetcher;
+  };
+
+  /**
+   * Get the UTxO information from the blockchain.
+   * A failed or empty response is not remembered, so a later `complete()` can retry it.
+   * @param txHash The hash of the transaction whose outputs are needed
    */
   protected getUTxOInfo = async (txHash: string): Promise<void> => {
-    let utxos: UTxO[] = [];
-    if (!this.queriedTxHashes.has(txHash)) {
-      this.queriedTxHashes.add(txHash);
-      utxos = (await this.fetcher?.fetchUTxOs(txHash)) || [];
-      this.queriedUTxOs[txHash] = utxos;
-    }
+    if (this.queriedTxHashes.has(txHash)) return;
+    const utxos = (await this.cachedFetcher()?.fetchUTxOs(txHash)) || [];
+    this.queriedUTxOs[txHash] = utxos;
+    if (utxos.length > 0) this.queriedTxHashes.add(txHash);
+  };
+
+  /**
+   * Index the UTxOs the builder already holds - the selection pool, the inputs given
+   * for evaluation and the outputs of chained transactions - so they need not be fetched
+   */
+  protected indexKnownUTxOs = () => {
+    const { extraInputs, inputsForEvaluation, chainedTxs } =
+      this.meshTxBuilderBody;
+    const known = new Map<string, UTxO>();
+    const add = (utxo: UTxO) =>
+      known.set(this.makeTxId(utxo.input.txHash, utxo.input.outputIndex), utxo);
+    extraInputs.forEach(add);
+    Object.values(inputsForEvaluation).forEach(add);
+    chainedTxs.forEach((txHex) => getTransactionOutputs(txHex).forEach(add));
+    this.knownUTxOs = known;
+  };
+
+  /**
+   * Look up a UTxO among the fetched ones and the ones the builder already holds
+   */
+  protected findUTxO = (txHash: string, index: number): UTxO | undefined => {
+    return (
+      this.queriedUTxOs[txHash]?.find(
+        (utxo) => utxo.input.outputIndex === index,
+      ) ?? this.knownUTxOs.get(this.makeTxId(txHash, index))
+    );
   };
 
   protected queryAllTxInfo = (
@@ -675,29 +976,46 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     incompleteScriptSources: ScriptSource[],
     incompleteSimpleScriptSources: SimpleScriptSourceInfo[],
   ) => {
-    const queryUTxOPromises: Promise<void>[] = [];
-    if (
-      (incompleteTxIns.length > 0 ||
-        incompleteScriptSources.length > 0 ||
-        incompleteSimpleScriptSources.length) &&
-      !this.fetcher
-    )
-      throw Error(
-        "Transaction information is incomplete while no fetcher instance is provided. Provide a `fetcher`.",
-      );
+    const txHashesToQuery = new Set<string>();
+    const queryIfUnknown = (
+      txHash: string,
+      index: number,
+      needsScriptRef = false,
+    ) => {
+      const utxo = this.findUTxO(txHash, index);
+      // Locally supplied UTxOs may omit script bytes even when their hash is known.
+      if (!utxo || (needsScriptRef && !utxo.output.scriptRef))
+        txHashesToQuery.add(txHash);
+    };
     for (let i = 0; i < incompleteTxIns.length; i++) {
       const currentTxIn = incompleteTxIns[i]!;
       if (!this.isInputInfoComplete(currentTxIn)) {
-        queryUTxOPromises.push(this.getUTxOInfo(currentTxIn.txIn.txHash));
+        queryIfUnknown(currentTxIn.txIn.txHash, currentTxIn.txIn.txIndex);
       }
     }
     for (let i = 0; i < incompleteScriptSources.length; i++) {
       const scriptSource = incompleteScriptSources[i]!;
       if (scriptSource.type === "Inline") {
-        queryUTxOPromises.push(this.getUTxOInfo(scriptSource.txHash));
+        queryIfUnknown(scriptSource.txHash, scriptSource.txIndex, true);
       }
     }
-    return Promise.all(queryUTxOPromises);
+    for (let i = 0; i < incompleteSimpleScriptSources.length; i++) {
+      const simpleScriptSource = incompleteSimpleScriptSources[i]!;
+      if (simpleScriptSource.type === "Inline") {
+        queryIfUnknown(
+          simpleScriptSource.txHash,
+          simpleScriptSource.txIndex,
+          true,
+        );
+      }
+    }
+    if (txHashesToQuery.size > 0 && !this.fetcher)
+      throw Error(
+        "Transaction information is incomplete while no fetcher instance is provided. Provide a `fetcher`.",
+      );
+    return Promise.all(
+      Array.from(txHashesToQuery, (txHash) => this.getUTxOInfo(txHash)),
+    );
   };
 
   protected completeTxInformation = (input: TxIn) => {
@@ -716,10 +1034,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   protected completeInputInfo = (input: TxIn) => {
-    const utxos: UTxO[] = this.queriedUTxOs[input.txIn.txHash]!;
-    const utxo = utxos?.find(
-      (utxo) => utxo.input.outputIndex === input.txIn.txIndex,
-    );
+    const utxo = this.findUTxO(input.txIn.txHash, input.txIn.txIndex);
     const amount = utxo?.output.amount;
     const address = utxo?.output.address;
     if (!amount || amount.length === 0)
@@ -741,39 +1056,55 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     }
   };
 
+  /**
+   * Find the UTxO holding a reference script, with the script's hash filled in
+   * even when the source of the UTxO did not provide it
+   */
+  protected findScriptRefUTxO = (
+    txHash: string,
+    index: number,
+  ): { scriptRef: string; scriptHash: string } => {
+    const utxo = this.findUTxO(txHash, index);
+    if (!utxo)
+      throw Error(`Couldn't find script reference utxo for ${txHash}#${index}`);
+    const { scriptRef, scriptHash } = utxo.output;
+    if (!scriptRef)
+      throw Error(`Utxo ${txHash}#${index} does not hold a reference script`);
+    return {
+      scriptRef,
+      scriptHash:
+        scriptHash ??
+        CstScript.fromCbor(<CardanoSDKUtil.HexBlob>scriptRef)
+          .hash()
+          .toString(),
+    };
+  };
+
   protected completeScriptInfo = (scriptSource: ScriptSource) => {
     if (scriptSource?.type != "Inline") return;
-    const refUtxos = this.queriedUTxOs[scriptSource.txHash]!;
-    const scriptRefUtxo = refUtxos.find(
-      (utxo) => utxo.input.outputIndex === scriptSource.txIndex,
+    const { scriptRef, scriptHash } = this.findScriptRefUTxO(
+      scriptSource.txHash,
+      scriptSource.txIndex,
     );
-    if (!scriptRefUtxo)
-      throw Error(
-        `Couldn't find script reference utxo for ${scriptSource.txHash}#${scriptSource.txIndex}`,
-      );
-    scriptSource.scriptHash = scriptRefUtxo?.output.scriptHash!;
-    scriptSource.scriptSize = (
-      scriptRefUtxo?.output.scriptRef!.length / 2
-    ).toString();
+    scriptSource.scriptHash = scriptHash;
+    scriptSource.scriptSize = (scriptRef.length / 2).toString();
   };
 
   protected completeSimpleScriptInfo = (
     simpleScript: SimpleScriptSourceInfo,
   ) => {
     if (simpleScript.type !== "Inline") return;
-    const refUtxos = this.queriedUTxOs[simpleScript.txHash]!;
-    const scriptRefUtxo = refUtxos.find(
-      (utxo) => utxo.input.outputIndex === simpleScript.txIndex,
+    const { scriptRef, scriptHash } = this.findScriptRefUTxO(
+      simpleScript.txHash,
+      simpleScript.txIndex,
     );
-    if (!scriptRefUtxo)
-      throw Error(
-        `Couldn't find script reference utxo for ${simpleScript.txHash}#${simpleScript.txIndex}`,
-      );
-    simpleScript.simpleScriptHash = scriptRefUtxo?.output.scriptHash!;
+    simpleScript.simpleScriptHash = scriptHash;
+    simpleScript.scriptSize = (scriptRef.length / 2).toString();
   };
 
   protected isInputComplete = (txIn: TxIn): boolean => {
-    if (txIn.type === "PubKey") return this.isInputInfoComplete(txIn);
+    if (txIn.type === "PubKey" || txIn.type === "SimpleScript")
+      return this.isInputInfoComplete(txIn);
     if (txIn.type === "Script") {
       const { scriptSource } = txIn.scriptTxIn;
       return (
@@ -872,6 +1203,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
   };
 
   protected completeTxParts = async (): Promise<void> => {
+    this.indexKnownUTxOs();
     // Checking if all inputs are complete
     const { inputs, collaterals, mints, withdrawals, votes, certificates } =
       this.meshTxBuilderBody;
@@ -968,11 +1300,14 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     });
 
     // Getting all missing utxo information
-    await this.queryAllTxInfo(
-      incompleteTxIns,
-      incompleteScriptSources,
-      incompleteSimpleScriptSources,
-    );
+    await Promise.all([
+      this.queryAllTxInfo(
+        incompleteTxIns,
+        incompleteScriptSources,
+        incompleteSimpleScriptSources,
+      ),
+      this.fetchDeclaredKeyInputs(),
+    ]);
     // Completing all inputs
     incompleteTxIns.forEach((txIn) => {
       this.completeTxInformation(txIn);
@@ -1519,12 +1854,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
     txHash: string,
     index: number,
   ): CstNativeScript | undefined => {
-    const utxos = this.queriedUTxOs[txHash];
-    if (!utxos) {
-      return undefined;
-    }
-
-    const utxo = utxos.find((utxo) => utxo.input.outputIndex === index);
+    const utxo = this.findUTxO(txHash, index);
     if (utxo?.output.scriptRef) {
       const script = CstScript.fromCbor(
         <CardanoSDKUtil.HexBlob>utxo.output.scriptRef,
@@ -1803,7 +2133,9 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
         serializer: this.serializer,
         fetcher: this.fetcher,
         submitter: this.submitter,
-        evaluator: this.evaluator,
+        // A clone never makes a default of its own
+        evaluator: this.evaluator ?? null,
+        network: this.network,
         verbose: this.verbose,
         params: { ...this._protocolParams },
       });
@@ -1811,14 +2143,48 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
 
     newBuilder.txHex = this.txHex;
 
-    newBuilder.queriedTxHashes = structuredClone(this.queriedTxHashes);
-
-    newBuilder.queriedUTxOs = structuredClone(this.queriedUTxOs);
+    // Fetched and known UTxOs are only ever added to, never edited, so clones made
+    // during coin selection can share them instead of deep-copying every script
+    newBuilder.queriedTxHashes = this.queriedTxHashes;
+    newBuilder.queriedUTxOs = this.queriedUTxOs;
+    newBuilder.knownUTxOs = this.knownUTxOs;
     newBuilder.utxosWithRefScripts = structuredClone(this.utxosWithRefScripts);
 
     return newBuilder;
   }
 }
+
+const DEFAULT_COST_MODELS = [
+  DEFAULT_V1_COST_MODEL_LIST,
+  DEFAULT_V2_COST_MODEL_LIST,
+  DEFAULT_V3_COST_MODEL_LIST,
+];
+
+/** "UTxO not found", or OfflineFetcher's "No UTxOs found for transaction hash: ..." */
+const NOT_FOUND = /\bnot found\b|\bno \w+ found\b/i;
+
+/**
+ * Whether a fetcher's error says the transaction is not there: an HTTP 404, as Blockfrost and
+ * Maestro throw it (`parseHttpError`'s JSON string, sometimes encoded twice, with a `status`),
+ * or an error saying "not found", as `OfflineFetcher` throws. Fetchers that return `[]` for a
+ * missing transaction (Kupo, UTxO RPC, the Scalus emulator) do not get here.
+ */
+const isNotFound = (error: unknown): boolean => {
+  let parsed: unknown = error;
+  for (let i = 0; i < 2 && typeof parsed === "string"; i++) {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      break;
+    }
+  }
+  if (typeof parsed === "string") return NOT_FOUND.test(parsed);
+  if (typeof parsed !== "object" || parsed === null) return false;
+  // Errors from another realm (a vm context, a worker) are not `instanceof Error`
+  const { status, message } = parsed as Record<string, unknown>;
+  if (status !== undefined) return status === 404;
+  return typeof message === "string" && NOT_FOUND.test(message);
+};
 
 function minRefScriptFee(
   totalRefScriptsSize: bigint,

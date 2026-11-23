@@ -11,6 +11,7 @@ import {
   deserializeAddress,
   deserializeDatum,
   UTxO,
+  utxoToTxIn,
 } from "@meshsdk/core";
 import { applyParamsToScript } from "@meshsdk/core-cst";
 
@@ -88,12 +89,7 @@ export class MeshVestingContract extends MeshTxInitiator {
 
     await this.mesh
       .spendingPlutusScript(this.languageVersion)
-      .txIn(
-        vestingUtxo.input.txHash,
-        vestingUtxo.input.outputIndex,
-        vestingUtxo.output.amount,
-        this.scriptAddress,
-      )
+      .txIn(...utxoToTxIn(vestingUtxo))
       .spendingReferenceTxInInlineDatumPresent()
       .spendingReferenceTxInRedeemerValue("")
       .txInScript(this.scriptCbor)

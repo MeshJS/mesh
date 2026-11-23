@@ -93,10 +93,12 @@ describe("MeshTxBuilder - Duplicate Inputs", () => {
 
   const txBuilder = new MeshTxBuilder({
     fetcher: offlineFetcher,
+    evaluator: null,
   });
 
   const txBuilder2 = new MeshTxBuilder({
     fetcher: offlineFetcher,
+    evaluator: null,
   });
 
   beforeEach(() => {

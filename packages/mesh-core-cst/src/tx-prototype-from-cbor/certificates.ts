@@ -64,9 +64,8 @@ const poolParamsToPrototype = (p: Cardano.PoolParameters): PoolParamsPrototype =
  * bech32 reward addresses to reuse `toCardanoCert`, whereas here the raw credential is available
  * directly.
  *
- * Round-trip caveat: CDDL certs 0/1 (no deposit) and 7/8 (with deposit) are distinct, and Mesh's
- * `CertificateType` has no deposit-carrying registration variant, so the encoder always emits the
- * no-deposit form. A `STAKE_REGISTRATION` carrying a `coin` therefore comes back with `coin: null`.
+ * CDDL certs 0/1 (no deposit) and 7/8 (with deposit) are distinct; both decode to
+ * `STAKE_REGISTRATION`/`STAKE_DEREGISTRATION`, with `coin: null` for 0/1 and the deposit for 7/8.
  */
 export const certificateToPrototype = (cert: Certificate): CertificatePrototype => {
   const core = cert.toCore();

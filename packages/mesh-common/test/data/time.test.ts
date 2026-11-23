@@ -1,5 +1,6 @@
 import {
   BlockfrostProvider,
+  resolveEpochEnd,
   resolveEpochNo,
   resolveSlotNo,
   // SLOT_CONFIG_NETWORK,
@@ -165,5 +166,36 @@ describe("Time", () => {
         expect(calculatedEpoch).toBe(Number(latestBlockInfo.epoch));
       });
     }
+  });
+  describe("resolveEpochEnd", () => {
+    // Chain tips read on 2026-10-12: block time, epoch and slot within the epoch
+    it("should resolve the end of the current mainnet epoch", () => {
+      // epoch 661, epoch slot 61660 of 432000
+      expect(resolveEpochEnd("mainnet", 1791816751000)).toBe(
+        (1791816751 - 61660 + 432000) * 1000,
+      );
+    });
+    it("should resolve the end of the current preprod epoch", () => {
+      // epoch 318, epoch slot 399111 of 432000
+      expect(resolveEpochEnd("preprod", 1791816711000)).toBe(
+        (1791816711 - 399111 + 432000) * 1000,
+      );
+    });
+    it("should resolve the end of the current preview epoch", () => {
+      // epoch 1448, epoch slot 53543 of 86400
+      expect(resolveEpochEnd("preview", 1791816743000)).toBe(
+        (1791816743 - 53543 + 86400) * 1000,
+      );
+    });
+    it("should resolve the next epoch at an exact boundary", () => {
+      const boundary = resolveEpochEnd("preview", 1791816743000);
+      expect(resolveEpochEnd("preview", boundary)).toBe(
+        boundary + 86400 * 1000,
+      );
+      expect(resolveEpochNo("preview", boundary)).toBe(1449);
+    });
+    it("should reject a network without known epochs", () => {
+      expect(() => resolveEpochEnd("testnet")).toThrow();
+    });
   });
 });

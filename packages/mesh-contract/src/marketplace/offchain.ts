@@ -20,6 +20,7 @@ import {
   serializeAddressObj,
   Unit,
   UTxO,
+  utxoToTxIn,
 } from "@meshsdk/core";
 import { applyParamsToScript } from "@meshsdk/core-cst";
 
@@ -123,12 +124,7 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
 
     await this.mesh
       .spendingPlutusScript(this.languageVersion)
-      .txIn(
-        marketplaceUtxo.input.txHash,
-        marketplaceUtxo.input.outputIndex,
-        marketplaceUtxo.output.amount,
-        marketplaceUtxo.output.address,
-      )
+      .txIn(...utxoToTxIn(marketplaceUtxo))
       .spendingReferenceTxInInlineDatumPresent()
       .spendingReferenceTxInRedeemerValue(mConStr1([]))
       .txInScript(this.scriptCbor)
@@ -160,12 +156,7 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
 
     const tx = this.mesh
       .spendingPlutusScript(this.languageVersion)
-      .txIn(
-        marketplaceUtxo.input.txHash,
-        marketplaceUtxo.input.outputIndex,
-        marketplaceUtxo.output.amount,
-        marketplaceUtxo.output.address,
-      )
+      .txIn(...utxoToTxIn(marketplaceUtxo))
       .spendingReferenceTxInInlineDatumPresent()
       .spendingReferenceTxInRedeemerValue(mConStr0([]))
       .txInScript(this.scriptCbor)
@@ -228,12 +219,7 @@ export class MeshMarketplaceContract extends MeshTxInitiator {
 
     await this.mesh
       .spendingPlutusScript(this.languageVersion)
-      .txIn(
-        marketplaceUtxo.input.txHash,
-        marketplaceUtxo.input.outputIndex,
-        marketplaceUtxo.output.amount,
-        marketplaceUtxo.output.address,
-      )
+      .txIn(...utxoToTxIn(marketplaceUtxo))
       .spendingReferenceTxInInlineDatumPresent()
       .spendingReferenceTxInRedeemerValue(mConStr1([]))
       .txInScript(this.scriptCbor)

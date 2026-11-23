@@ -52,6 +52,23 @@ export const getTransactionInputs = (
   return inputs;
 };
 
+/** The validity interval of a transaction, in slots; a bound it does not set is left out */
+export const getTransactionValidityInterval = (
+  txHex: string,
+): { invalidBefore?: number; invalidHereafter?: number } => {
+  const body = deserializeTx(txHex).body();
+  const invalidBefore = body.validityStartInterval();
+  const invalidHereafter = body.ttl();
+  return {
+    ...(invalidBefore !== undefined && {
+      invalidBefore: Number(invalidBefore),
+    }),
+    ...(invalidHereafter !== undefined && {
+      invalidHereafter: Number(invalidHereafter),
+    }),
+  };
+};
+
 export const getTransactionOutputs = (txHex: string): UTxO[] => {
   const outputs: UTxO[] = [];
 

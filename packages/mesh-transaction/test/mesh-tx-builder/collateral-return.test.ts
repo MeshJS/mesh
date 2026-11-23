@@ -103,6 +103,7 @@ describe("MeshTxBuilder - collateral return test", () => {
 
   const txBuilder = new MeshTxBuilder({
     fetcher: offlineFetcher,
+    evaluator: null,
   });
 
   beforeEach(() => {

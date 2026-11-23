@@ -99,10 +99,12 @@ describe("MeshTxBuilder - Script Transactions", () => {
   const txBuilder = new MeshTxBuilder({
     serializer: new CSLSerializer(),
     fetcher: offlineFetcher,
+    evaluator: null,
   });
 
   const txBuilder2 = new MeshTxBuilder({
     fetcher: offlineFetcher,
+    evaluator: null,
   });
 
   beforeEach(() => {
