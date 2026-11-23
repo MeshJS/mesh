@@ -1288,7 +1288,8 @@ export const restoreBuiltTx = async (
   if (record.witnessSet !== undefined) {
     await Crypto.ready();
     try {
-      host = readKeptWitnessSet(raw, record.witnessSet);
+      // A witness verified as one of `held` is not verified again
+      host = readKeptWitnessSet(raw, record.witnessSet, held);
     } catch (error) {
       throw invalidJson(
         json,

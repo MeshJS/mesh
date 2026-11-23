@@ -2080,7 +2080,8 @@ export const decodeTx = (
     const at = `${path}.witnessSet`;
     witnessSet = text(json.witnessSet, at).toLowerCase();
     try {
-      readKeptWitnessSet(raw, witnessSet);
+      // A witness verified as one of `witnesses` is not verified again
+      readKeptWitnessSet(raw, witnessSet, witnesses);
     } catch (error) {
       unread(
         `${at} is not the witness set of the step's transaction: ${(error as Error).message}`,

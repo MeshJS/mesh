@@ -772,17 +772,24 @@ const otherEntries = (set: WitnessSet) =>
     .filter((e) => e.key !== VKEYS && e.key !== BOOTSTRAPS)
     .map((e) => `${toHex(e.keyBytes)} ${toHex(e.value)}`);
 
+/** A witness's key and signature: what its check against a body reads */
+const signatureOf = (witness: KeyWitness) =>
+  `${witness.vkey} ${witness.signature}`;
+
 /**
  * `raw`, a transaction without its vkey and bootstrap witnesses, with the witness set it came
  * with (`keptWitnessSet`) in place of its own: the transaction the witnesses held are written
  * into. That witness set must be one of `raw`: every entry other than its vkey and bootstrap
  * entries is the one `raw` holds, byte for byte and in its order, its map of the same kind of
  * length, no key repeated, and every vkey and bootstrap witness it holds of the body of `raw`
+ * @param verified Witnesses already verified against the body of `raw`: a witness of the same
+ *   key and signature is not verified again, so a record's witnesses are verified once
  * @throws Error for what is not so, in words that quote none of it
  */
 export const readKeptWitnessSet = (
   raw: RawItems,
   witnessSet: unknown,
+  verified: readonly KeyWitness[] = [],
 ): RawItems => {
   if (!isHex(witnessSet)) throw new Error("it is not CBOR in hex");
   let host: RawItems;
@@ -809,7 +816,12 @@ export const readKeptWitnessSet = (
     throw new Error(
       "an entry of it other than its vkey and bootstrap entries is not the one its transaction holds",
     );
-  if (witnessesOf(host.witnessSet).some((w) => !verifies(w, raw.txId)))
+  const checked = new Set(verified.map(signatureOf));
+  if (
+    witnessesOf(host.witnessSet).some(
+      (w) => !checked.has(signatureOf(w)) && !verifies(w, raw.txId),
+    )
+  )
     throw new Error(
       "it holds a witness that is not of the body of its transaction",
     );

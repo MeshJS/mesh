@@ -4312,7 +4312,7 @@ describe("BuiltTx as JSON, and TxBuilder.restore", () => {
       expect(entry.startsWith("d9010281")).toBe(true);
       const longSet = map([key, `d901029801${entry.slice(8)}`]);
       const long = txOf(body!, longSet, { valid: valid!, aux: aux! });
-      return { built, plain, long, longSet, guardKey, b };
+      return { built, plain, long, longSet, payer, guardKey, b };
     };
 
     it("is written beside the witnesses only when they would not give its bytes again, and restore gives those bytes back, signed further as the object of fromCbor signs", async () => {
@@ -4356,6 +4356,39 @@ describe("BuiltTx as JSON, and TxBuilder.restore", () => {
       // the record holds them alone
       expect("witnessSet" in odd.toJSON()).toBe(false);
       expect((await b.restore(throughText(odd))).signedTx).toBe(signed);
+    });
+
+    it("is verified once by restore: a signature it holds beside the record's witnesses is checked one time, and one of their key over another body is checked, and refused", async () => {
+      const { built, long, longSet, payer, b } = await given();
+      const json = throughText(
+        await b.fromCbor(long, { knownUtxos: built.inputs }),
+      );
+      expect(json.witnessSet).toBe(longSet);
+      const verify = jest.spyOn(Crypto.Ed25519PublicKey.prototype, "verify");
+      try {
+        expect((await b.restore(json)).partialTx).toBe(long);
+        // The payer's witness, in witnesses and in witnessSet, is verified once
+        expect(verify).toHaveBeenCalledTimes(1);
+      } finally {
+        verify.mockRestore();
+      }
+      // The payer's key again, with its signature of another body
+      const [[key, entry]] = mapPairs(longSet) as [[string, string]];
+      expect(entry.startsWith("d901029801")).toBe(true);
+      const [[, foreign]] = mapPairs(witnessSet("ab".repeat(32), payer)) as [
+        [string, string],
+      ];
+      const error = await refusedRestore(b, {
+        ...json,
+        witnessSet: map([
+          key,
+          `d901029802${entry.slice(10)}${foreign.slice(2)}`,
+        ]),
+      });
+      expect(TxBuildError.is(error, "INVALID_OPTION")).toBe(true);
+      expect((error as Error).message).toBe(
+        "invalid json: its witnessSet is not the witness set of its transaction: it holds a witness that is not of the body of its transaction",
+      );
     });
 
     it("is refused by restore when it is not one of the record's transaction: another entry, another kind of map, a witness of another body, a repeated key, not a witness set; quoting none of it", async () => {

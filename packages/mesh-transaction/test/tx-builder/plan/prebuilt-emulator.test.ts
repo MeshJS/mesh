@@ -1138,12 +1138,41 @@ describe.each(VALIDATORS)(
           payer: ctx.wallet,
         });
         expect(again.step("swap").signedTx).toBe(byWallet);
-        // Not yet signed, and resumed: signed there, the same bytes
-        const unsigned = await ctx.builder.resume(record, {
-          payer: ctx.wallet,
-        });
+        // Not yet signed, and resumed: signed there, the same bytes. The partner's witness, in
+        // witnesses and in witnessSet, is verified once
+        const verify = jest.spyOn(Crypto.Ed25519PublicKey.prototype, "verify");
+        let unsigned: TxPlan;
+        try {
+          unsigned = await ctx.builder.resume(record, { payer: ctx.wallet });
+          expect(verify).toHaveBeenCalledTimes(1);
+        } finally {
+          verify.mockRestore();
+        }
         await unsigned.sign();
         expect(unsigned.step("swap").signedTx).toBe(byWallet);
+        // The partner's key again in it, with its signature of another body: verified, refused
+        const other = await partnerPays(ctx, ctx.address, 2n * ADA);
+        const foreign = witnessEntry(other.partialTx, 0)!;
+        const [step] = record.steps;
+        const edited = {
+          ...record,
+          steps: [
+            {
+              ...step!,
+              tx: {
+                ...step!.tx,
+                witnessSet: `b90001${uint(0)}d901029802${entry.slice(8)}${foreign.slice(8)}`,
+              },
+            },
+          ],
+        };
+        const refused = await caught(
+          ctx.builder.resume(edited, { payer: ctx.wallet }),
+        );
+        expect(TxPlanError.is(refused, "INVALID_STATE")).toBe(true);
+        expect((refused as Error).message).toContain(
+          "is not the witness set of the step's transaction: it holds a witness that is not of the body of its transaction",
+        );
         // The object rest gives for it signs the same way
         const back = (await ctx.builder.resume(record, { payer: ctx.wallet }))
           .rest.swap as BuiltTx;
