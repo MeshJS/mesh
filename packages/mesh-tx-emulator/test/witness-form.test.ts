@@ -138,6 +138,63 @@ describe.each(["scalus", "cquisitor"] as const)(
       }
     });
 
+    /** The transaction with a witness set holding only this vkey entry */
+    const holding = (txHex: string, entry: string) => {
+      const [body, , valid, aux] = items(txHex);
+      return `84${body}a100${entry}${valid}${aux}`;
+    };
+    /** Empty vkey entries in forms other than the writer's, and the bytes a witness adds to each */
+    const HELD: [string, string, number][] = [
+      ["indefinite", "9fff", 101],
+      ["tagged, indefinite", "d901029fff", 101],
+      ["a tag in five bytes", "da0000010280", 101],
+      ["a head in two bytes, written again in one", "9800", 100],
+    ];
+    /** The payment holding `entry`, its fee exact for one witness written into it */
+    const exactHolding = (entry: string, adds: number) => {
+      const size = holding(payment(200_000n, false), entry).length / 2;
+      return (less = 0n) =>
+        holding(payment(feeFor(size + adds) - less, false), entry);
+    };
+
+    it("keeps the form of a vkey entry the transaction holds when each wallet signs, and the fee priced for it is enough", async () => {
+      for (const [what, entry, adds] of HELD) {
+        const priced = exactHolding(entry, adds);
+        for (const sign of signers()) {
+          const signed = await sign(priced());
+          expect([what, rules(await emulator.simulate(signed))]).toEqual([
+            what,
+            [],
+          ]);
+          expect([what, signed.length / 2 - priced().length / 2]).toEqual([
+            what,
+            adds,
+          ]);
+          expect(items(signed)[0]).toBe(items(priced())[0]);
+        }
+        expect([
+          what,
+          rules(await emulator.simulate(await mesh.signTx(priced(1n)))),
+        ]).toEqual([what, [FEE_RULE[validator]]]);
+      }
+    });
+
+    if (validator === "cquisitor")
+      it("prices the signatures still to come in the form of a vkey entry the transaction holds", async () => {
+        const unsigned = { requireSignatures: false };
+        for (const [what, entry, adds] of HELD) {
+          const priced = exactHolding(entry, adds);
+          expect([
+            what,
+            rules(await emulator.simulate(priced(), unsigned)),
+          ]).toEqual([what, []]);
+          expect([
+            what,
+            rules(await emulator.simulate(priced(1n), unsigned)),
+          ]).toEqual([what, ["FeeTooSmallUTxO"]]);
+        }
+      });
+
     if (validator === "cquisitor")
       it("prices the signatures an unsigned transaction is still to get in its form", async () => {
         const unsigned = { requireSignatures: false };

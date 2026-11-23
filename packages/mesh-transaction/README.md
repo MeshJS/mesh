@@ -1737,8 +1737,9 @@ and `prototype` is the transaction read as a value, which need not serialize to 
 `tx` is the transaction without its vkey and bootstrap witnesses (an entry that holds none stays,
 and the witnesses added later go into it in its form, as the wallets write them; a witness set that
 repeats a key stays as given, and is not signed); those it came with are verified and held, so one
-that came signed has nothing in `missing`. The object goes
-through JSON and `restore` as any other, and can be given as `after`: its inputs are not
+that came signed has nothing in `missing`, and are written back in the form of their entry: its
+set tag as written and its kind of length, a count written again in its shortest form. The object
+goes through JSON and `restore` as any other, and can be given as `after`: its inputs are not
 selected, its outputs can be named by out ref without a lookup, and it has no change to select.
 `knownUtxos`, in any form of `UtxoInput`, serves the outputs of a transaction not on chain yet,
 spent outputs a provider does not list, and a builder without a provider; a UTxO neither given

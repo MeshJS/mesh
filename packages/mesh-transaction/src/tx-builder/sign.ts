@@ -1,4 +1,5 @@
 import type { TransactionPrototype } from "@meshsdk/common";
+import type { KeyWitnessEntryForm, TransactionItems } from "@meshsdk/core-cst";
 import {
   Address,
   CborReader,
@@ -6,10 +7,15 @@ import {
   CredentialType,
   Crypto,
   HexBlob,
+  keyWitnessEntry,
+  keyWitnessEntryForm,
   keyWitnessSetTags,
+  readTransactionItems as readTransactionCbor,
   Serialization,
   Transaction,
   transactionPrototypeFromCardano,
+  withKeyWitnesses,
+  withoutKeyWitnesses as withoutKeyWitnessEntries,
 } from "@meshsdk/core-cst";
 
 import type { Utxo, UtxoInput } from "./parts/types";
@@ -146,7 +152,8 @@ export type Signer =
     };
 
 /* ---------------------------------------------------------------------------------------------
- * Reading and writing CBOR as raw items, so that what is not changed keeps its bytes
+ * Reading CBOR as raw items; witnesses are written into a transaction by `withKeyWitnesses` of
+ * `@meshsdk/core-cst`, so that what is not changed keeps its bytes
  * ------------------------------------------------------------------------------------------- */
 
 const State = Serialization.CborReaderState;
@@ -158,8 +165,6 @@ const SET_TAG = 258;
 
 const toHex = (bytes: Uint8Array) => Buffer.from(bytes).toString("hex");
 const readerOf = (bytes: Uint8Array) => new CborReader(HexBlob(toHex(bytes)));
-const concat = (...chunks: Uint8Array[]) =>
-  new Uint8Array(Buffer.concat(chunks));
 const isHex = (value: unknown): value is string =>
   typeof value === "string" &&
   value.length > 0 &&
@@ -173,11 +178,7 @@ const expectFinished = (reader: CborReader) => {
 
 /** The items of an array or the keys and values of a map, each as written */
 type Container = {
-  /** Every byte before the first item */
-  header: Uint8Array;
   items: Uint8Array[];
-  /** Every byte after the last item: the break of an indefinite length */
-  trailer: Uint8Array;
   definite: boolean;
   /** Whether the container carries the set tag */
   tagged: boolean;
@@ -211,16 +212,7 @@ const readContainer = (
   if (kind === "array") reader.readEndArray();
   else reader.readEndMap();
   expectFinished(reader);
-  const inner = items.reduce((size, item) => size + item.length, 0);
-  const trailerLength = length === null ? 1 : 0;
-  const headerLength = bytes.length - inner - trailerLength;
-  return {
-    header: bytes.slice(0, headerLength),
-    items,
-    trailer: bytes.slice(bytes.length - trailerLength),
-    definite: length !== null,
-    tagged,
-  };
+  return { items, definite: length !== null, tagged };
 };
 
 const readUint = (bytes: Uint8Array) => {
@@ -289,15 +281,19 @@ const readWitness = (
   return witness;
 };
 
-/** A vkey or bootstrap entry of a witness set: its witnesses and the form it is written in */
-type WitnessEntry = Container & { witnesses: KeyWitness[] };
+/** A vkey or bootstrap entry of a witness set: its witnesses, its bytes and its form */
+type WitnessEntry = Container & { bytes: Uint8Array; witnesses: KeyWitness[] };
 
 const readWitnessEntry = (
   bytes: Uint8Array,
   kind: KeyWitness["kind"],
 ): WitnessEntry => {
   const list = readContainer(bytes, "array", { tag: true });
-  return { ...list, witnesses: list.items.map((w) => readWitness(w, kind)) };
+  return {
+    ...list,
+    bytes,
+    witnesses: list.items.map((w) => readWitness(w, kind)),
+  };
 };
 
 /** A witness set read as raw entries, with its vkey and bootstrap entries decoded */
@@ -317,6 +313,14 @@ const readWitnessSet = (bytes: Uint8Array): WitnessSet => {
       keyBytes: map.items[i]!,
       value: map.items[i + 1]!,
     });
+  return witnessSetOf(map, entries);
+};
+
+/** A witness set of these entries, its vkey and bootstrap entries decoded */
+const witnessSetOf = (
+  map: Container,
+  entries: WitnessSet["entries"],
+): WitnessSet => {
   // Of a key the set repeats, the last entry, as the value decoder reads it
   const valueOf = (key: number) =>
     [...entries].reverse().find((e) => e.key === key)?.value;
@@ -369,6 +373,8 @@ const witnessesOf = (set: WitnessSet) => [
 /** A transaction read as its raw top-level items, nothing of it decoded into a value */
 export type RawItems = {
   hex: string;
+  /** The transaction as the writer of its witnesses reads it, read once */
+  items: TransactionItems;
   top: Container;
   witnessSet: WitnessSet;
   /** The blake2b-256 hash of the body bytes */
@@ -403,17 +409,32 @@ const bodyUsesSetTag = (body: Uint8Array) => {
 };
 
 const readRawItems = (hex: string): RawItems => {
-  const top = readContainer(Buffer.from(hex, "hex"), "array");
   // A transaction is an array of definite length: the body, the witness set, the validity
-  // flag when it has four items, and the auxiliary data or null
-  if (!top.definite || top.items.length < 3 || top.items.length > 4)
-    throw new Error(
-      "a transaction is an array of three or four items, of definite length",
-    );
+  // flag when it has four items, and the auxiliary data or null. It is read once, by the reader
+  // of the writer of its witnesses, which writes into what it read
+  const items = readTransactionCbor(hex);
+  const top: Container = {
+    items: items.top.items,
+    definite: items.top.definite,
+    tagged: false,
+  };
+  const map: Container = {
+    items: items.set.items,
+    definite: items.set.definite,
+    tagged: false,
+  };
   return {
     hex,
+    items,
     top,
-    witnessSet: readWitnessSet(top.items[1]!),
+    witnessSet: witnessSetOf(
+      map,
+      items.entries.map(({ key, keyBytes, value }) => ({
+        key: Number(key),
+        keyBytes,
+        value,
+      })),
+    ),
     txId: Crypto.blake2b.hash(HexBlob(toHex(top.items[0]!)), 32).toString(),
     taggedSets: bodyUsesSetTag(top.items[0]!),
   };
@@ -572,54 +593,38 @@ const writeWitness = (witness: KeyWitness) => {
   return writer.encode();
 };
 
-/** A new witness-set entry: definite length, with the set tag when `tagged` */
-const writeEntry = (witnesses: readonly KeyWitness[], tagged: boolean) => {
-  const writer = new CborWriter();
-  if (tagged) writer.writeTag(SET_TAG);
-  writer.writeStartArray(witnesses.length);
-  return concat(writer.encode(), ...witnesses.map(writeWitness));
+/**
+ * The form the vkey entry and the bootstrap entry of a witness set are written in: true or false
+ * for an array of definite length with the set tag 258 or without, or the entry holding no
+ * witness in CBOR hex for any other form, its tag as written and its kind of length
+ * (`KeyWitnessEntryForm` of `@meshsdk/core-cst`)
+ */
+export type KeyWitnessTags = {
+  vkey: KeyWitnessEntryForm;
+  bootstrap: KeyWitnessEntryForm;
 };
-
-/** An entry with witnesses appended, in the form it has: its tag and its kind of length */
-const appendToEntry = (entry: WitnessEntry, added: readonly KeyWitness[]) => {
-  const header = entry.definite
-    ? (() => {
-        const writer = new CborWriter();
-        if (entry.tagged) writer.writeTag(SET_TAG);
-        writer.writeStartArray(entry.items.length + added.length);
-        return writer.encode();
-      })()
-    : entry.header;
-  return concat(
-    header,
-    ...entry.items,
-    ...added.map(writeWitness),
-    entry.trailer,
-  );
-};
-
-/** Whether the vkey entry and the bootstrap entry of a witness set are written with the set tag */
-export type KeyWitnessTags = { vkey: boolean; bootstrap: boolean };
 
 const bothTags = (tagged: boolean | KeyWitnessTags): KeyWitnessTags =>
   typeof tagged === "boolean" ? { vkey: tagged, bootstrap: tagged } : tagged;
 
 /**
- * How a witness set writes its key witnesses: the set tag of its vkey entry and of its bootstrap
+ * How a witness set writes its key witnesses: the form of its vkey entry and of its bootstrap
  * entry, each when the entry holds a witness
  */
 export const keyWitnessTags = (set: WitnessSet): Partial<KeyWitnessTags> => ({
   ...(set.vkeys !== undefined &&
-    set.vkeys.witnesses.length > 0 && { vkey: set.vkeys.tagged }),
+    set.vkeys.witnesses.length > 0 && {
+      vkey: keyWitnessEntryForm(toHex(set.vkeys.bytes)),
+    }),
   ...(set.bootstraps !== undefined &&
     set.bootstraps.witnesses.length > 0 && {
-      bootstrap: set.bootstraps.tagged,
+      bootstrap: keyWitnessEntryForm(toHex(set.bootstraps.bytes)),
     }),
 });
 
 /**
  * A witness set holding only these witnesses: a vkey entry and a bootstrap entry, each when it
- * has a witness, with the set tag when `tagged`, which may differ between the two
+ * has a witness, in the form `tagged` gives for it, which may differ between the two
  */
 export const writeWitnessSet = (
   witnesses: readonly KeyWitness[],
@@ -633,11 +638,15 @@ export const writeWitnessSet = (
     (vkeys.length > 0 ? 1 : 0) + (bootstraps.length > 0 ? 1 : 0),
   );
   if (vkeys.length > 0)
-    writer.writeInt(VKEYS).writeEncodedValue(writeEntry(vkeys, tags.vkey));
+    writer
+      .writeInt(VKEYS)
+      .writeEncodedValue(keyWitnessEntry(tags.vkey, vkeys.map(writeWitness)));
   if (bootstraps.length > 0)
     writer
       .writeInt(BOOTSTRAPS)
-      .writeEncodedValue(writeEntry(bootstraps, tags.bootstrap));
+      .writeEncodedValue(
+        keyWitnessEntry(tags.bootstrap, bootstraps.map(writeWitness)),
+      );
   return toHex(writer.encode());
 };
 
@@ -679,41 +688,17 @@ export const newWitnesses = (
  * and so is one whose witness set repeats a key (`repeatsKey`): no entry of it is taken out, and
  * no witness is written into it
  */
-export const withoutKeyWitnesses = (raw: RawItems): string => {
-  const { witnessSet, top } = raw;
-  if (repeatsKey(witnessSet)) return raw.hex;
-  const kept = witnessSet.entries.filter(
-    (e) =>
-      (e.key !== VKEYS && e.key !== BOOTSTRAPS) ||
-      readWitnessEntry(e.value, e.key === VKEYS ? "vkey" : "bootstrap").items
-        .length === 0,
-  );
-  if (kept.length === witnessSet.entries.length) return raw.hex;
-  const { map } = witnessSet;
-  const header = map.definite
-    ? new CborWriter().writeStartMap(kept.length).encode()
-    : map.header;
-  const newSet = concat(
-    header,
-    ...kept.flatMap((e) => [e.keyBytes, e.value]),
-    map.trailer,
-  );
-  return toHex(
-    concat(
-      top.header,
-      top.items[0]!,
-      newSet,
-      ...top.items.slice(2),
-      top.trailer,
-    ),
-  );
-};
+export const withoutKeyWitnesses = (raw: RawItems): string =>
+  withoutKeyWitnessEntries(raw.items);
 
 /**
- * The transaction with these witnesses added to its witness set. Only the vkey and bootstrap
- * entries change; every other byte is kept. The witnesses must be new to it.
- * @param tagged Whether a vkey entry and a bootstrap entry the transaction does not have yet are
- *   written with the set tag; as the body writes its input set when left out
+ * The transaction with these witnesses added to its witness set, by `withKeyWitnesses` of
+ * `@meshsdk/core-cst`, the writer the wallets of this library use. Only the vkey and bootstrap
+ * entries change; every other byte is kept. An entry the transaction holds keeps its form. The
+ * witnesses must be new to it.
+ * @param tagged The form of a vkey entry and of a bootstrap entry the transaction does not have
+ *   yet: true or false for the set tag or none, or a form an entry of a witness set had
+ *   (`keyWitnessTags`); as the body writes its input set when left out
  */
 export const withWitnesses = (
   raw: RawTx,
@@ -722,55 +707,12 @@ export const withWitnesses = (
 ): string => {
   if (added.length === 0) return raw.hex;
   refuseRepeatedKey(raw.witnessSet);
-  const tags = bothTags(tagged);
-  const { witnessSet, top } = raw;
-  const byKind = {
-    [VKEYS]: added.filter((w) => w.kind === "vkey"),
-    [BOOTSTRAPS]: added.filter((w) => w.kind === "bootstrap"),
-  };
-  const held = {
-    [VKEYS]: witnessSet.vkeys,
-    [BOOTSTRAPS]: witnessSet.bootstraps,
-  };
-  const entries = witnessSet.entries.map(({ key, keyBytes, value }) => {
-    const entry = key === VKEYS || key === BOOTSTRAPS ? held[key] : undefined;
-    const more = entry ? byKind[key as typeof VKEYS | typeof BOOTSTRAPS] : [];
-    return {
-      key,
-      bytes: [keyBytes, more.length > 0 ? appendToEntry(entry!, more) : value],
-    };
-  });
-  // A new entry goes before the first larger key, with the set tag `tagged` gives it
-  for (const key of [VKEYS, BOOTSTRAPS] as const) {
-    if (held[key] || byKind[key].length === 0) continue;
-    const at = entries.findIndex((e) => e.key > key);
-    entries.splice(at === -1 ? entries.length : at, 0, {
-      key,
-      bytes: [
-        new CborWriter().writeInt(key).encode(),
-        writeEntry(byKind[key], key === VKEYS ? tags.vkey : tags.bootstrap),
-      ],
-    });
-  }
-  const count = entries.length;
-  const map = witnessSet.map;
-  const mapHeader =
-    map.definite && count !== witnessSet.entries.length
-      ? new CborWriter().writeStartMap(count).encode()
-      : map.header;
-  const newSet = concat(
-    mapHeader,
-    ...entries.flatMap((e) => e.bytes),
-    map.trailer,
-  );
-  return toHex(
-    concat(
-      top.header,
-      top.items[0]!,
-      newSet,
-      ...top.items.slice(2),
-      top.trailer,
-    ),
+  const written = (kind: KeyWitness["kind"]) =>
+    added.filter((w) => w.kind === kind).map(writeWitness);
+  return withKeyWitnesses(
+    raw.items,
+    { vkeys: written("vkey"), bootstraps: written("bootstrap") },
+    bothTags(tagged),
   );
 };
 

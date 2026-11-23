@@ -12,8 +12,12 @@ import {
 import {
   addVKeyWitnessesToTransaction,
   addVKeyWitnessSetToTransaction,
+  keyWitnessEntry,
+  keyWitnessEntryForm,
   keyWitnessSetTags,
   vkeyWitnessSetFor,
+  withKeyWitnesses,
+  withoutKeyWitnesses,
 } from "../../src/utils/witness-set";
 
 describe("Witness Set", () => {
@@ -168,6 +172,118 @@ describe("the form of the vkey witnesses written into a transaction", () => {
         true,
       );
       expect(txId(signed)).toBe(txId(unsigned));
+    }
+  });
+});
+
+describe("the one writer of key witnesses into a transaction", () => {
+  /** A bootstrap witness of its own key: the signatures are not checked here */
+  const bootstrap = (n: number) =>
+    `845820${n.toString(16).padStart(64, "0")}5840${"ee".repeat(64)}5820${"00".repeat(32)}41a0`;
+  const bytesOf = (hex: string) => Buffer.from(hex, "hex");
+  /** Vkey entries in each form, and the same with witness 2 written into it */
+  const FORMS: [string, string][] = [
+    ["80", `81${written(2)}`],
+    ["9fff", `9f${written(2)}ff`],
+    ["9800", `81${written(2)}`],
+    ["d9010280", `d9010281${written(2)}`],
+    ["d901029fff", `d901029f${written(2)}ff`],
+    ["da0000010280", `da0000010281${written(2)}`],
+    [`81${written(1)}`, `82${written(1)}${written(2)}`],
+    [`9f${written(1)}ff`, `9f${written(1)}${written(2)}ff`],
+    [`9801${written(1)}`, `82${written(1)}${written(2)}`],
+    [`da0000010281${written(1)}`, `da0000010282${written(1)}${written(2)}`],
+  ];
+
+  it("writes a witness into an entry the transaction holds in the entry's form, and a wallet does so too", () => {
+    for (const tagged of [true, false])
+      for (const [held, signed] of FORMS) {
+        const unsigned = tx(body(tagged), `a100${held}`);
+        expect(
+          withKeyWitnesses(unsigned, { vkeys: [bytesOf(written(2))] }),
+        ).toBe(tx(body(tagged), `a100${signed}`));
+        expect(addVKeyWitnessesToTransaction(unsigned, [witness(2)])).toBe(
+          tx(body(tagged), `a100${signed}`),
+        );
+      }
+  });
+
+  it("writes an entry the transaction does not hold in the form asked for, else as the body writes its inputs; a bootstrap entry after the vkey entry", () => {
+    for (const tagged of [true, false]) {
+      const unsigned = tx(body(tagged), "a10180");
+      const added = {
+        vkeys: [bytesOf(written(2))],
+        bootstraps: [bytesOf(bootstrap(3))],
+      };
+      expect(withKeyWitnesses(unsigned, added)).toBe(
+        tx(
+          body(tagged),
+          `a300${tag(tagged)}81${written(2)}0180` +
+            `02${tag(tagged)}81${bootstrap(3)}`,
+        ),
+      );
+      expect(
+        withKeyWitnesses(unsigned, added, {
+          vkey: "9fff",
+          bootstrap: !tagged,
+        }),
+      ).toBe(
+        tx(
+          body(tagged),
+          `a3009f${written(2)}ff0180` + `02${tag(!tagged)}81${bootstrap(3)}`,
+        ),
+      );
+      // Nothing to write: the transaction as it is
+      expect(withKeyWitnesses(unsigned, {})).toBe(unsigned);
+    }
+  });
+
+  it("gives the form of an entry, and writes an entry in it", () => {
+    // An entry in the form of each held one, holding witness 2 alone
+    const alone = [
+      `81${written(2)}`,
+      `9f${written(2)}ff`,
+      `81${written(2)}`,
+      `d9010281${written(2)}`,
+      `d901029f${written(2)}ff`,
+      `da0000010281${written(2)}`,
+    ];
+    FORMS.forEach(([held], i) => {
+      const entry = Buffer.from(
+        keyWitnessEntry(keyWitnessEntryForm(held), [bytesOf(written(2))]),
+      ).toString("hex");
+      expect([held, entry]).toEqual([
+        held,
+        alone[i < 6 ? i : [0, 1, 2, 5][i - 6]!],
+      ]);
+    });
+    expect(keyWitnessEntryForm("80")).toBe(false);
+    expect(keyWitnessEntryForm(`d9010281${written(1)}`)).toBe(true);
+    expect(keyWitnessEntryForm(`9801${written(1)}`)).toBe(false);
+    expect(keyWitnessEntryForm(`9f${written(1)}ff`)).toBe("9fff");
+    expect(keyWitnessEntryForm(`da0000010281${written(1)}`)).toBe(
+      "da0000010280",
+    );
+    expect(() => keyWitnessEntryForm("d9010380")).toThrow(
+      "unexpected CBOR tag 259",
+    );
+  });
+
+  it("takes out the entries that hold a witness, keeping the empty ones and every other byte", () => {
+    const native = `01d9010281820181${"8200581c" + "44".repeat(28)}`;
+    for (const tagged of [true, false]) {
+      expect(
+        withoutKeyWitnesses(
+          tx(body(tagged), `a3${native}00${"9f" + written(1) + "ff"}0280`),
+        ),
+      ).toBe(tx(body(tagged), `a2${native}0280`));
+      expect(
+        withoutKeyWitnesses(
+          tx(body(tagged), `bf00${"81" + written(1)}${native}ff`),
+        ),
+      ).toBe(tx(body(tagged), `bf${native}ff`));
+      const none = tx(body(tagged), `a2${native}00d9010280`);
+      expect(withoutKeyWitnesses(none)).toBe(none);
     }
   });
 });

@@ -15,6 +15,8 @@ const State = Serialization.CborReaderState;
 /** The witness-set keys of the vkey and of the bootstrap witnesses */
 const VKEYS = 0n;
 const BOOTSTRAPS = 2n;
+/** The CBOR tag of a set */
+const SET_TAG = 258;
 
 /** Whether the vkey and the bootstrap witness sets of a transaction carry the set tag 258 */
 export type KeyWitnessSetTags = { vkey: boolean; bootstrap: boolean };
@@ -32,8 +34,18 @@ type Items = {
   definite: boolean;
 };
 
-const readItems = (bytes: Uint8Array, kind: "array" | "map"): Items => {
-  const reader = readerOf(bytes);
+const readItems = (
+  bytes: Uint8Array,
+  kind: "array" | "map",
+  hex?: string,
+): Items => {
+  const reader =
+    hex === undefined ? readerOf(bytes) : new CborReader(HexBlob(hex));
+  if (
+    reader.peekState() !==
+    (kind === "array" ? State.StartArray : State.StartMap)
+  )
+    throw new Error(`expected a CBOR ${kind}`);
   const length =
     kind === "array" ? reader.readStartArray() : reader.readStartMap();
   const header = bytes.subarray(0, bytes.length - reader.getBytesRemaining());
@@ -52,11 +64,46 @@ const readItems = (bytes: Uint8Array, kind: "array" | "map"): Items => {
   return { header, items, trailer, definite: length !== null };
 };
 
-type WitnessSetEntry = { key: bigint; keyBytes: Uint8Array; value: Uint8Array };
+/** An entry of a witness set: its key, and the key and the value as written */
+export type WitnessSetEntry = {
+  key: bigint;
+  keyBytes: Uint8Array;
+  value: Uint8Array;
+};
 
-/** A transaction as its items, and the entries of its witness set, each as written */
-const readTransactionItems = (txHex: string) => {
-  const top = readItems(Buffer.from(txHex, "hex"), "array");
+/**
+ * A transaction read as its items, and its witness set as its entries, each as written: what
+ * `withKeyWitnesses` and `withoutKeyWitnesses` write into, read once
+ */
+export type TransactionItems = {
+  /** The transaction in CBOR hex, as given */
+  hex: string;
+  /** The items of the transaction: the body, the witness set, the flag if any, the data */
+  top: Items;
+  set: Items;
+  entries: WitnessSetEntry[];
+};
+
+/** The key of a witness-set entry: an unsigned integer, and nothing after it */
+const readKey = (bytes: Uint8Array) => {
+  const reader = readerOf(bytes);
+  if (reader.peekState() !== State.UnsignedInteger)
+    throw new Error("expected an unsigned integer as a witness-set key");
+  const key = reader.readUInt();
+  if (reader.peekState() !== State.Finished)
+    throw new Error("unexpected bytes after the CBOR item");
+  return key;
+};
+
+/**
+ * A transaction read as its items, and the entries of its witness set, each as written: an array
+ * of three or four items of definite length, its witness set a map whose keys are unsigned
+ * integers. Nothing of it is decoded into a value
+ * @param txHex A transaction in CBOR hex
+ * @throws Error for what is not so
+ */
+export const readTransactionItems = (txHex: string): TransactionItems => {
+  const top = readItems(Buffer.from(txHex, "hex"), "array", txHex);
   if (!top.definite || top.items.length < 3 || top.items.length > 4)
     throw new Error(
       "a transaction is an array of three or four items, of definite length",
@@ -65,11 +112,228 @@ const readTransactionItems = (txHex: string) => {
   const entries: WitnessSetEntry[] = [];
   for (let i = 0; i < set.items.length; i += 2)
     entries.push({
-      key: readerOf(set.items[i]!).readUInt(),
+      key: readKey(set.items[i]!),
       keyBytes: set.items[i]!,
       value: set.items[i + 1]!,
     });
-  return { top, set, entries };
+  return { hex: txHex, top, set, entries };
+};
+
+const REPEATED_KEY =
+  "the witness set of the transaction repeats a key, and a reader may take another entry than the one a witness is written into: none is written";
+
+const repeatsKey = ({ entries }: TransactionItems) =>
+  new Set(entries.map((e) => e.key)).size !== entries.length;
+
+/**
+ * The form a vkey or a bootstrap entry of a witness set is written in. True or false: an array of
+ * definite length with the set tag 258 or without, written as the writer of `@cardano-sdk/core`
+ * writes it. A text: the entry holding no witness, in CBOR hex, for another form, its set tag
+ * written in a longer form or its array of indefinite length (`keyWitnessEntryForm`)
+ */
+export type KeyWitnessEntryForm = boolean | string;
+
+/** The forms of the vkey entry and of the bootstrap entry of a witness set */
+export type KeyWitnessEntryForms = {
+  vkey?: KeyWitnessEntryForm;
+  bootstrap?: KeyWitnessEntryForm;
+};
+
+/** Key witnesses to write into a witness set, each as the CBOR of one witness */
+export type KeyWitnessesCbor = {
+  vkeys?: readonly Uint8Array[];
+  bootstraps?: readonly Uint8Array[];
+};
+
+/** A vkey or bootstrap entry as written: the bytes of its set tag, none without one, its array */
+type Entry = { tag: Uint8Array; array: Items };
+
+const readEntry = (bytes: Uint8Array): Entry => {
+  const reader = readerOf(bytes);
+  let after = 0;
+  if (reader.peekState() === State.Tag) {
+    const tag = Number(reader.readTag());
+    if (tag !== SET_TAG) throw new Error(`unexpected CBOR tag ${tag}`);
+    after = bytes.length - reader.getBytesRemaining();
+  }
+  return {
+    tag: bytes.subarray(0, after),
+    array: readItems(bytes.subarray(after), "array"),
+  };
+};
+
+/**
+ * An entry with these witnesses after those it holds, in its form: its set tag as written, the
+ * head and the break of an array of indefinite length as written, and for an array of definite
+ * length a head of its new count, which the writer of `@cardano-sdk/core` writes in the shortest
+ * form. The witnesses it holds keep their bytes
+ */
+const appended = (
+  bytes: Uint8Array,
+  added: readonly Uint8Array[],
+): Uint8Array => {
+  if (added.length === 0) return bytes;
+  const { tag, array } = readEntry(bytes);
+  const head = array.definite
+    ? new CborWriter()
+        .writeStartArray(array.items.length + added.length)
+        .encode()
+    : array.header;
+  return Buffer.concat([tag, head, ...array.items, ...added, array.trailer]);
+};
+
+/** An entry holding no witness, in a form */
+const emptyEntry = (form: KeyWitnessEntryForm): Uint8Array => {
+  if (typeof form === "string") {
+    const bytes = Buffer.from(form, "hex");
+    if (readEntry(bytes).array.items.length > 0)
+      throw new Error("the form of an entry holds a witness");
+    return bytes;
+  }
+  const writer = new CborWriter();
+  if (form) writer.writeTag(SET_TAG);
+  return writer.writeStartArray(0).encode();
+};
+
+/**
+ * The form of a vkey or a bootstrap entry of a witness set (`KeyWitnessEntryForm`): true or false
+ * for an array of definite length with the set tag in its shortest form or without a tag, the
+ * entry holding no witness for any other form, its tag as written, the head and the break of an
+ * array of indefinite length as written
+ * @param entry The entry in CBOR hex
+ * @throws Error for what is not an array, with or without the set tag
+ */
+export const keyWitnessEntryForm = (entry: string): KeyWitnessEntryForm => {
+  const { tag, array } = readEntry(Buffer.from(entry, "hex"));
+  const plainTag =
+    tag.length === 0 ||
+    toHex(tag) === new CborWriter().writeTag(SET_TAG).encodeAsHex();
+  if (array.definite && plainTag) return tag.length > 0;
+  const head = array.definite
+    ? new CborWriter().writeStartArray(0).encode()
+    : array.header;
+  return toHex(Buffer.concat([tag, head, array.trailer]));
+};
+
+/**
+ * A vkey or a bootstrap entry holding these witnesses, in a form
+ * @param witnesses Each the CBOR of one witness, written as given
+ */
+export const keyWitnessEntry = (
+  form: KeyWitnessEntryForm,
+  witnesses: readonly Uint8Array[],
+): Uint8Array => appended(emptyEntry(form), witnesses);
+
+/**
+ * The transaction with a witness set of these entries: its header written again when it states
+ * a length and the count changes, every other byte of the transaction kept
+ */
+const withEntries = (tx: TransactionItems, entries: WitnessSetEntry[]) => {
+  const { top, set } = tx;
+  const header =
+    set.definite && entries.length !== tx.entries.length
+      ? new CborWriter().writeStartMap(entries.length).encode()
+      : set.header;
+  const witnessSet = Buffer.concat([
+    header,
+    ...entries.flatMap((e) => [e.keyBytes, e.value]),
+    set.trailer,
+  ]);
+  return toHex(
+    Buffer.concat([
+      top.header,
+      top.items[0]!,
+      witnessSet,
+      ...top.items.slice(2),
+      top.trailer,
+    ]),
+  );
+};
+
+/** The witnesses written into the entries of a transaction read as its items */
+const spliced = (
+  tx: TransactionItems,
+  added: KeyWitnessesCbor,
+  forms: KeyWitnessEntryForms,
+): string => {
+  if (repeatsKey(tx)) throw new Error(REPEATED_KEY);
+  const entries = [...tx.entries];
+  let inputs: boolean | undefined;
+  for (const [key, witnesses, form] of [
+    [VKEYS, added.vkeys ?? [], forms.vkey],
+    [BOOTSTRAPS, added.bootstraps ?? [], forms.bootstrap],
+  ] as const) {
+    if (witnesses.length === 0) continue;
+    const at = entries.findIndex((e) => e.key === key);
+    if (at !== -1) {
+      const held = entries[at]!;
+      entries[at] = { ...held, value: appended(held.value, witnesses) };
+      continue;
+    }
+    // A new entry goes before the first larger key, in the form asked for, else in the form of
+    // the body's inputs
+    const value = keyWitnessEntry(
+      form ?? (inputs ??= inputsTagged(tx.top.items[0]!)),
+      witnesses,
+    );
+    const before = entries.findIndex((e) => e.key > key);
+    entries.splice(before === -1 ? entries.length : before, 0, {
+      key,
+      keyBytes: new CborWriter().writeInt(key).encode(),
+      value,
+    });
+  }
+  return withEntries(tx, entries);
+};
+
+/**
+ * The transaction with these vkey and bootstrap witnesses written into its witness set: the one
+ * writer of key witnesses into a transaction, of the wallets of `@meshsdk/wallet`, of the emulator
+ * and of the builder's signing. Each is written after those an entry the transaction holds, in
+ * the entry's form; an entry the transaction does not hold is written in the form `forms` gives,
+ * else in the form of the body's inputs, with the set tag 258 or without, before the first larger
+ * key. Only these entries are written: the body, the other entries of the witness set, the
+ * validity flag and the auxiliary data keep their bytes, so the hash does not change. A head that
+ * states a count that changes is written again, by the writer of `@cardano-sdk/core`, in its
+ * shortest form. The witnesses are written as given: none is left out as one held already
+ * @param tx A transaction in CBOR hex, or as `readTransactionItems` reads it
+ * @param added Each witness as its CBOR
+ * @throws Error for what is not a transaction, and for a witness set that repeats a key, any key:
+ *   a reader may take another entry than the one written into, and none is
+ */
+export const withKeyWitnesses = (
+  tx: string | TransactionItems,
+  added: KeyWitnessesCbor,
+  forms: KeyWitnessEntryForms = {},
+): string => {
+  if ((added.vkeys?.length ?? 0) + (added.bootstraps?.length ?? 0) === 0)
+    return typeof tx === "string" ? tx : tx.hex;
+  return spliced(
+    typeof tx === "string" ? readTransactionItems(tx) : tx,
+    added,
+    forms,
+  );
+};
+
+/**
+ * The transaction without its vkey and bootstrap witnesses: an entry that holds a witness is
+ * taken out, one that holds none stays in its form, so that a witness added later is written into
+ * it. Every other byte stays: the header of the witness set is written again when it states a
+ * length and the count changes. A transaction without such an entry, and one whose witness set
+ * repeats a key, are returned as they are
+ * @param given A transaction in CBOR hex, or as `readTransactionItems` reads it
+ */
+export const withoutKeyWitnesses = (
+  given: string | TransactionItems,
+): string => {
+  const tx = typeof given === "string" ? readTransactionItems(given) : given;
+  if (repeatsKey(tx)) return tx.hex;
+  const kept = tx.entries.filter(
+    (e) =>
+      (e.key !== VKEYS && e.key !== BOOTSTRAPS) ||
+      readEntry(e.value).array.items.length === 0,
+  );
+  return kept.length === tx.entries.length ? tx.hex : withEntries(tx, kept);
 };
 
 /** Whether a transaction body writes its inputs with the set tag */
@@ -125,12 +389,13 @@ const writtenWithSetTag = (tagged: boolean, write: () => string): string => {
 };
 
 /**
- * The transaction with these vkey witnesses added to its vkey witness set, in the form
- * `keyWitnessSetTags` gives: a set the transaction holds keeps its form, and a new one takes the
- * form of the body's inputs. A witness of a key the transaction holds a witness of, or given
- * twice, is added once. Only the vkey entry of the witness set is written: the body, the other
- * entries of the witness set, the validity flag and the auxiliary data keep their bytes, so the
- * transaction's hash does not change. The transaction is returned as it is when nothing is added
+ * The transaction with these vkey witnesses added to its vkey witness set, as `withKeyWitnesses`
+ * writes them: a set the transaction holds keeps its form (its set tag 258 or none, its kind of
+ * length), and a new one takes the form of the body's inputs. A witness of a key the transaction
+ * holds a witness of, or given twice, is added once. Only the vkey entry of the witness set is
+ * written: the body, the other entries of the witness set, the validity flag and the auxiliary
+ * data keep their bytes, so the transaction's hash does not change. The transaction is returned
+ * as it is when nothing is added
  * @param txHex A transaction in CBOR hex
  * @throws Error for what is not a transaction, and for a witness set that repeats a key, any key:
  *   a reader may take another entry than the one written into, and none is
@@ -142,10 +407,7 @@ export const addVKeyWitnessesToTransaction = (
   Transaction.fromCbor(TxCBOR(txHex));
   const tx = readTransactionItems(txHex);
   const at = tx.entries.findIndex((e) => e.key === VKEYS);
-  if (new Set(tx.entries.map((e) => e.key)).size !== tx.entries.length)
-    throw new Error(
-      "the witness set of the transaction repeats a key, and a reader may take another entry than the one a witness is written into: none is written",
-    );
+  if (repeatsKey(tx)) throw new Error(REPEATED_KEY);
   const held =
     at === -1
       ? []
@@ -161,36 +423,10 @@ export const addVKeyWitnessesToTransaction = (
     added.push(witness);
   }
   if (added.length === 0) return txHex;
-  // The witnesses held keep their bytes; the set is written in the form `tagsOf` gives
-  const vkeys = writtenWithSetTag(tagsOf(tx).vkey, () => {
-    const set = CborSet.fromCore([], VkeyWitness.fromCore);
-    set.setValues([...held, ...added]);
-    return set.toCbor();
-  });
-  const entries = tx.entries.map((e) => [e.keyBytes, e.value]);
-  const value = Buffer.from(vkeys, "hex");
-  if (at === -1) {
-    // A new entry goes before the first larger key
-    const before = tx.entries.findIndex((e) => e.key > VKEYS);
-    entries.splice(before === -1 ? entries.length : before, 0, [
-      new CborWriter().writeInt(VKEYS).encode(),
-      value,
-    ]);
-  } else entries[at] = [tx.entries[at]!.keyBytes, value];
-  const { top, set } = tx;
-  const header =
-    set.definite && at === -1
-      ? new CborWriter().writeStartMap(entries.length).encode()
-      : set.header;
-  const witnessSet = Buffer.concat([header, ...entries.flat(), set.trailer]);
-  return toHex(
-    Buffer.concat([
-      top.header,
-      top.items[0]!,
-      witnessSet,
-      ...top.items.slice(2),
-      top.trailer,
-    ]),
+  return spliced(
+    tx,
+    { vkeys: added.map((witness) => Buffer.from(witness.toCbor(), "hex")) },
+    {},
   );
 };
 

@@ -17,6 +17,7 @@ import {
 } from "@meshsdk/core";
 import {
   Address,
+  addVKeyWitnessesToTransaction,
   CborReader,
   CborWriter,
   Crypto,
@@ -918,6 +919,114 @@ describe("an empty key witness entry a transaction holds", () => {
             empty,
             byWallet,
           ]);
+      }
+    }
+  });
+
+  it("is written in one way, kept in its form, by the object of fromCbor, addWitnesses, a wallet and the size the emulator counts: definite, indefinite, its head or its tag longer than needed, empty or holding a witness", async () => {
+    await Crypto.ready();
+    const spent = utxo(lovelace(ada(100)));
+    const built = await builder().build(
+      [output({ address: recipient, value: { lovelace: ada(5) } })],
+      { payer: payer(spent) },
+    );
+    /** The set tag 258 written in five bytes */
+    const longTag = (item: string) => `da00000102${item}`;
+    for (const taggedSets of [true, false]) {
+      const [body, , valid, aux] = topItems(
+        transactionPrototypeToHex(built.prototype, { taggedSets }),
+      );
+      const txOf = (vkeys: string) =>
+        cbor.tx(body!, cbor.map([cbor.uint(0), vkeys]), {
+          valid: valid!,
+          aux: aux!,
+        });
+      // A witness of another key, made over the same body
+      const other = entry(
+        await wallets.stake.signTx(txOf(cbor.arr()), true),
+        0,
+      )!
+        .replace(/^d90102/, "")
+        .slice(2);
+      const mine = entry(
+        await wallets.payment.signTx(txOf(cbor.arr()), true),
+        0,
+      )!
+        .replace(/^d90102/, "")
+        .slice(2);
+      /** The entry held, and the entry once the payment key has signed */
+      const forms: [string, string, string][] = [
+        ["definite", cbor.arr(), cbor.arr(mine)],
+        ["indefinite", "9fff", `9f${mine}ff`],
+        ["a head in two bytes", "9800", cbor.arr(mine)],
+        ["tagged", cbor.tag258(cbor.arr()), cbor.tag258(cbor.arr(mine))],
+        ["tagged, indefinite", cbor.tag258("9fff"), cbor.tag258(`9f${mine}ff`)],
+        ["a tag in five bytes", longTag(cbor.arr()), longTag(cbor.arr(mine))],
+        ["held, definite", cbor.arr(other), cbor.arr(other, mine)],
+        ["held, indefinite", `9f${other}ff`, `9f${other}${mine}ff`],
+        ["held, a head in two bytes", `9801${other}`, cbor.arr(other, mine)],
+        [
+          "held, tagged",
+          cbor.tag258(cbor.arr(other)),
+          cbor.tag258(cbor.arr(other, mine)),
+        ],
+        [
+          "held, tagged, indefinite",
+          cbor.tag258(`9f${other}ff`),
+          cbor.tag258(`9f${other}${mine}ff`),
+        ],
+        [
+          "held, a tag in five bytes",
+          longTag(cbor.arr(other)),
+          longTag(cbor.arr(other, mine)),
+        ],
+      ];
+      for (const [what, held, signed] of forms) {
+        const tx = txOf(held);
+        const expected = txOf(signed);
+        const byWallet = await wallets.payment.signTx(tx, true);
+        const read = await builder().fromCbor(tx, { knownUtxos: [spent] });
+        const restored = await builder().restore(
+          JSON.parse(JSON.stringify(read)),
+        );
+        await read.sign({ signers: wallets.payment });
+        await restored.sign({ signers: wallets.payment });
+        const added = await (
+          await builder().fromCbor(tx, { knownUtxos: [spent] })
+        ).addWitnesses(await paymentWitnesses(tx));
+        const blind = await builder().fromCbor(tx, { blind: true });
+        await blind.sign({ signers: wallets.payment });
+        // The emulator counts the bytes a signature adds with the wallets' writer
+        const counted = addVKeyWitnessesToTransaction(tx, [
+          new Serialization.VkeyWitness(
+            Crypto.Ed25519PublicKeyHex("00".repeat(32)),
+            Crypto.Ed25519SignatureHex("00".repeat(64)),
+          ),
+        ]);
+        expect([
+          what,
+          taggedSets,
+          byWallet,
+          read.signedTx,
+          restored.signedTx,
+          added.signedTx,
+          blind.partialTx,
+          await addWitnesses(tx, await paymentWitnesses(tx)),
+          counted.length,
+        ]).toEqual([
+          what,
+          taggedSets,
+          expected,
+          expected,
+          expected,
+          expected,
+          expected,
+          expected,
+          expected.length,
+        ]);
+        // The body is the same; a vkey witness is 101 bytes, and the entry grows by no more
+        expect(topItems(byWallet)[0]).toBe(body);
+        expect(byWallet.length / 2 - tx.length / 2).toBeLessThanOrEqual(101);
       }
     }
   });
