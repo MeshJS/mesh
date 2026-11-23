@@ -313,8 +313,9 @@ const isBuilderData = (data: PlutusDataInput): data is BuilderData =>
   (data.type === "Mesh" || data.type === "JSON" || data.type === "CBOR");
 
 /**
- * Plutus data given as CBOR in hex of whole bytes is one well-formed item with nothing after it:
- * its bytes are kept as given, and they must read as one item in the transaction
+ * Plutus data or a native script given as CBOR in hex of whole bytes is one well-formed item
+ * with nothing after it: its bytes are kept as given, and they must read as one item in the
+ * transaction
  * @throws Error for anything else, quoting none of the bytes
  */
 const checkOneItem = (content: string) => {
@@ -324,9 +325,10 @@ const checkOneItem = (content: string) => {
     throw new Error(
       "the CBOR given is not one well-formed item: it is not well formed, or ends before its item does",
     );
-  if (end !== bytes.length)
+  const after = bytes.length - end;
+  if (after !== 0)
     throw new Error(
-      `the CBOR given is not one item: ${bytes.length - end} byte${bytes.length - end === 1 ? "" : "s"} follow its first item`,
+      `the CBOR given is not one item: ${after === 1 ? "1 byte follows" : `${after} bytes follow`} its first item`,
     );
 };
 
@@ -669,6 +671,9 @@ export const toNativeScriptSource = (
   if (typeof script === "string" || "type" in script) {
     let nativeScript: CstNativeScript;
     try {
+      // Its bytes are kept as given (below): bytes after its item would reach the witness set
+      if (typeof script === "string" && HEX_BYTES.test(script))
+        checkOneItem(script);
       nativeScript =
         typeof script === "string"
           ? CstNativeScript.fromCbor(HexBlob(script))

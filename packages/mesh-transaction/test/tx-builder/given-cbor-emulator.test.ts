@@ -370,6 +370,14 @@ describe("Plutus data given as CBOR that is not one item", () => {
       }
   });
 
+  it("says how many bytes follow its item", () => {
+    for (const [data, words] of [
+      ["d8798000", "1 byte follows its first item"],
+      ["d879800000", "2 bytes follow its first item"],
+    ])
+      expect(() => PARTS[2]![1](data!)).toThrow(words);
+  });
+
   it("is refused at the build when a redeemer function answers it", async () => {
     const builder = new TxBuilder({
       network: "preprod",
@@ -481,5 +489,128 @@ describe("Plutus data given as CBOR that is not one item", () => {
         [data, data, data],
       ]);
     }
+  });
+});
+
+describe("A native script given as CBOR that is not one item", () => {
+  /** `sig` of a key, then a byte; then two bytes; cut short; nothing; not hex; upper case */
+  const sig = `8200581c${keyHashHex(1)}`;
+  const NOT_ONE_SCRIPT = [
+    `${sig}00`,
+    `${sig}0000`,
+    "82019f",
+    sig.slice(0, -2),
+    "",
+    "zz",
+    `${sig}00`.toUpperCase(),
+  ];
+  /** The hash of a script that is hex of whole bytes, else of `sig` */
+  const hashOf = (script: string) =>
+    nativeHash(/^(?:[0-9a-f]{2})+$/i.test(script) ? script.toLowerCase() : sig);
+  const stakeOf = (script: string) =>
+    scriptHashToRewardAddress(hashOf(script), 0);
+  /** Each part that takes a native script, and the script in it */
+  const PARTS: [string, (script: string) => unknown][] = [
+    [
+      "spend.native",
+      (script) =>
+        spend.native({
+          utxo: {
+            txHash: "1".repeat(64),
+            outputIndex: 0,
+            address: scriptHashToBech32(hashOf(script), undefined, 0),
+            value: { lovelace: 10_000_000n },
+          },
+          script,
+        }),
+    ],
+    ["mint.native", (script) => mint.native({ script, assets: { "01": 1n } })],
+    [
+      "withdrawal.native",
+      (script) =>
+        withdrawal.native({
+          rewardAddress: stakeOf(script),
+          amount: 0n,
+          script,
+        }),
+    ],
+    [
+      "a certificate's witness",
+      (script) =>
+        certificate.stakeDelegation({
+          stake: stakeOf(script),
+          pool: keyHashHex(2),
+          witness: { native: script },
+        }),
+    ],
+    [
+      "a vote's witness",
+      (script) =>
+        vote({
+          voter: { drep: { type: "SCRIPT", value: hashOf(script) } },
+          votes: [
+            { action: { txHash: "2".repeat(64), index: 0 }, vote: "yes" },
+          ],
+          witness: { native: script },
+        }),
+    ],
+    [
+      "a proposal's guardrail",
+      (script) =>
+        proposal.treasuryWithdrawals({
+          rewardAccount: stakeOf(script),
+          anchor: {
+            url: "https://example.com/a.json",
+            dataHash: "ab".repeat(32),
+          },
+          withdrawals: { [stakeOf(script)]: 1n },
+          guardrail: { native: script },
+        }),
+    ],
+  ];
+
+  it("is refused as INVALID_SCRIPT at the part call, its message quoting none of the bytes, by every part", () => {
+    for (const [what, make] of PARTS)
+      for (const script of NOT_ONE_SCRIPT) {
+        let error: unknown;
+        try {
+          make(script);
+        } catch (e) {
+          error = e;
+        }
+        expect([what, script, TxError.is(error, "INVALID_SCRIPT")]).toEqual([
+          what,
+          script,
+          true,
+        ]);
+        const message = (error as Error).message.toLowerCase();
+        if (script.length > 2)
+          for (const quoted of [script, script.slice(0, 20), script.slice(-20)])
+            expect([
+              what,
+              script,
+              message.includes(quoted.toLowerCase()),
+            ]).toEqual([what, script, false]);
+      }
+    expect(() => PARTS[1]![1](`${sig}00`)).toThrow(
+      "invalid native script: the CBOR given is not one item: 1 byte follows its first item",
+    );
+    expect(() => PARTS[1]![1](`${sig}0000`)).toThrow(
+      "2 bytes follow its first item",
+    );
+  });
+
+  it("is kept as given when it is one item in a longer form, in each part", () => {
+    for (const script of [sig, ...NATIVE])
+      for (const [what, make] of PARTS) {
+        const part = JSON.stringify(make(script), (_, v) =>
+          typeof v === "bigint" ? v.toString() : v,
+        );
+        expect([what, script, part.includes(`"${script}"`)]).toEqual([
+          what,
+          script,
+          true,
+        ]);
+      }
   });
 });
