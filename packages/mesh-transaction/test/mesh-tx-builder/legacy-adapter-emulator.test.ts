@@ -1661,6 +1661,14 @@ describe.each(["scalus", "cquisitor"] as const)(
         const { emulator, address, wallet } = context;
         const [rewardAddress] = await wallet.getRewardAddresses();
         emulator.setAccount({ rewardAddress: rewardAddress! });
+        // The preprod guardrail rejects zero prices. Isolate partial-price
+        // encoding while still validating the transaction with the emulator.
+        emulator.setConstitution({
+          anchor: {
+            anchorUrl: "https://example.com/constitution.json",
+            anchorDataHash: "ab".repeat(32),
+          },
+        });
         // The emulated network's govActionDeposit
         const deposit = 1_000_000_000n;
         const memPrice = { numerator: "577", denominator: "10000" };
