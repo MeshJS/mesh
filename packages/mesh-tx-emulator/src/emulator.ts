@@ -212,6 +212,8 @@ export type FromChainOptions = {
   validator: TxValidator;
   /** The provider to read the chain from */
   fetcher: IFetcher;
+  /** Override the source tip slot, or supply it when the fetcher cannot report it */
+  slot?: number;
   /** Where governance state is read from; the fetcher, when it implements `IGovernanceFetcher` */
   governance?: IGovernanceFetcher;
   /** Where stake pools are read from; the fetcher, when it implements `IStakePoolFetcher` */
@@ -735,6 +737,7 @@ export class TxEmulator
       params: snapshot.protocol,
       ...(snapshot.costModels && { costModels: snapshot.costModels }),
       utxos: snapshot.utxos,
+      slot: snapshot.slot,
       state: () => snapshot.state,
     });
   }

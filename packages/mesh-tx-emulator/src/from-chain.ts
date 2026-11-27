@@ -1,4 +1,5 @@
 import type {
+  BlockInfo,
   GovernanceProposalInfo,
   IFetcher,
   IGovernanceFetcher,
@@ -39,6 +40,7 @@ export type ChainNetwork = "mainnet" | "preprod" | "preview";
 /** The chain state a transaction reads, gathered from providers */
 export type ChainSnapshot = {
   network: ChainNetwork;
+  slot?: number;
   protocol: Protocol;
   costModels?: number[][];
   utxos: UTxO[];
@@ -175,9 +177,29 @@ export const fetchChainSnapshot = async (
     governance?: IGovernanceFetcher;
     pools?: IStakePoolFetcher;
     network?: ChainNetwork;
+    slot?: number;
   },
 ): Promise<ChainSnapshot> => {
   const { fetcher } = options;
+  const tipFetcher = implementsAll<{
+    fetchLatestBlock(): Promise<Pick<BlockInfo, "slot">>;
+  }>(fetcher, ["fetchLatestBlock"]);
+  const sourceSlot = async (): Promise<number | undefined> => {
+    if (options.slot !== undefined) {
+      if (!Number.isSafeInteger(options.slot) || options.slot < 0)
+        throw new RangeError("slot must be a non-negative safe integer");
+      return options.slot;
+    }
+    const slot = "slot" in fetcher ? fetcher.slot : undefined;
+    if (typeof slot === "number" && Number.isSafeInteger(slot) && slot >= 0)
+      return slot;
+    if (!tipFetcher) return undefined;
+    const tip = await settle(
+      () => tipFetcher.fetchLatestBlock(),
+      ({ slot }) => (/^\d+$/.test(slot) ? Number(slot) : undefined),
+    );
+    if ("value" in tip && Number.isSafeInteger(tip.value)) return tip.value;
+  };
   const governance =
     options.governance ??
     implementsAll<IGovernanceFetcher>(fetcher, GOVERNANCE_METHODS);
@@ -204,7 +226,7 @@ export const fetchChainSnapshot = async (
   const reasons = state.partial!.reasons;
   const unknown = (key: string, reason: string) => reasons.set(key, reason);
 
-  const [utxoLists, protocol, costModels] = await Promise.all([
+  const [utxoLists, protocol, costModels, slot] = await Promise.all([
     Promise.all(
       [...new Set(outRefs.map((ref) => ref.split("#")[0]!))].map((txHash) =>
         fetcher.fetchUTxOs(txHash),
@@ -215,6 +237,7 @@ export const fetchChainSnapshot = async (
       () => fetcher.fetchCostModels(),
       (costModels) => costModels,
     ),
+    sourceSlot(),
   ]);
   const utxos = utxoLists
     .flat()
@@ -473,6 +496,7 @@ export const fetchChainSnapshot = async (
 
   return {
     network,
+    ...(slot !== undefined && { slot }),
     protocol,
     ...("value" in costModels && { costModels: costModels.value }),
     utxos,

@@ -217,6 +217,10 @@ throws. Pools are read from an `IStakePoolFetcher`, and DReps, the committee, th
 actions, the treasury and the constitution from an `IGovernanceFetcher`: the fetcher itself when
 it implements them, or the providers given as `pools` and `governance`.
 
+The snapshot uses the source emulator's current slot or the slot returned by the provider's
+`fetchLatestBlock()`. Pass `slot` to override it. If no slot is supplied or available, the
+emulator estimates it from the local clock.
+
 State no provider reports is taken to be as the transaction needs it, so it cannot fail the
 transaction, and is listed in the result's warnings with the rule `NotChecked`. So is what a
 provider leaves out of an answer, such as a deposit, a pool's reward address or a stake
