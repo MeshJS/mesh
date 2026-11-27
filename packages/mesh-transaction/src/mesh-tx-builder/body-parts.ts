@@ -102,6 +102,11 @@ export type BodyOutputs = {
    * collateral given
    */
   unbalanced?: Pick<Protocol, "coinsPerUtxoSize">;
+  /**
+   * The deposit of a stake registration, and the refund of a deregistration, that the call does
+   * not state: the `keyDeposit` the build is on, as the old builder took it
+   */
+  keyDeposit: bigint;
 };
 
 /** The body as parts, with what the build must know of the outputs it has no data for */
@@ -590,13 +595,19 @@ export const bodyToParts = (
     const w = witness ? { witness } : {};
     const cert = item.certType;
     switch (cert.type) {
+      // Certificates 7 and 8, which state their deposit: `keyDeposit` unless the call gives one
       case "RegisterStake":
-        return certificate.legacyStakeRegistration({
+        return certificate.stakeRegistration({
           stake: cert.stakeKeyAddress,
+          deposit:
+            cert.coin === undefined ? outputs.keyDeposit : BigInt(cert.coin),
+          ...w,
         });
       case "DeregisterStake":
-        return certificate.legacyStakeDeregistration({
+        return certificate.stakeDeregistration({
           stake: cert.stakeKeyAddress,
+          refund:
+            cert.coin === undefined ? outputs.keyDeposit : BigInt(cert.coin),
           ...w,
         });
       case "DelegateStake":

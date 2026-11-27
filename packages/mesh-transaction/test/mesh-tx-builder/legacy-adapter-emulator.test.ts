@@ -369,7 +369,10 @@ describe("MeshTxBuilder's synchronous methods and body queries", () => {
       .completeSync();
     const certificates = parse(txHex).body().certs()!.values();
     expect(certificates).toHaveLength(2);
-    expect(certificates[0]!.asStakeRegistration()).toBeDefined();
+    // Certificate 7, its deposit the builder's keyDeposit
+    expect(certificates[0]!.asRegistrationCert()?.deposit()).toBe(
+      BigInt(DEFAULT_PROTOCOL_PARAMETERS.keyDeposit),
+    );
     expect(certificates[1]!.asPoolRegistration()).toBeDefined();
   });
 

@@ -3,12 +3,12 @@ import {
   mConStr0,
   NativeScript,
   OfflineFetcher,
-  resolveScriptRef,
   resolveNativeScriptAddress,
   resolveNativeScriptHash,
   resolveNativeScriptHex,
   resolvePaymentKeyHash,
   resolveScriptHashDRepId,
+  resolveScriptRef,
   serializeRewardAddress,
 } from "@meshsdk/core";
 import { OfflineEvaluator } from "@meshsdk/core-csl";
@@ -21,6 +21,7 @@ import {
 import { ScalusEmulator } from "@meshsdk/scalus-emulator";
 import { MeshTxBuilder } from "@meshsdk/transaction";
 import { MeshWallet } from "@meshsdk/wallet";
+
 import { alwaysSucceedCbor, alwaysSucceedHash } from "../test-util";
 
 async function createTestSetup({
@@ -72,7 +73,8 @@ async function createTestSetup({
   let info: Parameters<typeof ScalusEmulator.create>[1];
   if (costModels || network === "mainnet") {
     const { CardanoInfo, ProtocolParams } = await importScalus();
-    info = network === "mainnet" ? CardanoInfo.mainnet() : CardanoInfo.preview();
+    info =
+      network === "mainnet" ? CardanoInfo.mainnet() : CardanoInfo.preview();
     if (costModels) {
       const protocolParameters = JSON.parse(
         info.protocolParams.toBlockfrostJson(),
@@ -94,16 +96,14 @@ async function createTestSetup({
   return { wallet, address, provider, params, utxos, costModels };
 }
 
-const importScalus = new Function(
-  "return import('scalus')",
-) as () => Promise<typeof import("scalus")>;
+const importScalus = new Function("return import('scalus')") as () => Promise<
+  typeof import("scalus")
+>;
 
 async function createCustomCostModels() {
   const { CardanoInfo } = await importScalus();
   const info = CardanoInfo.preview();
-  const protocolParameters = JSON.parse(
-    info.protocolParams.toBlockfrostJson(),
-  );
+  const protocolParameters = JSON.parse(info.protocolParams.toBlockfrostJson());
   const costModelsRaw = protocolParameters.cost_models_raw;
   const costModels = [
     [...costModelsRaw.PlutusV1],
@@ -303,12 +303,10 @@ describe("MeshTxBuilder transactions", () => {
   it("Build tx to register DRep should succeed", async () => {
     const { wallet, address, provider, params, utxos } =
       await createTestSetup();
-    const drepId = Cardano.DRepID.cip105FromCredential(
-      {
-        type: Cardano.CredentialType.KeyHash,
-        hash: resolvePaymentKeyHash(address),
-      },
-    );
+    const drepId = Cardano.DRepID.cip105FromCredential({
+      type: Cardano.CredentialType.KeyHash,
+      hash: resolvePaymentKeyHash(address),
+    });
 
     const txHex = await new MeshTxBuilder({
       fetcher: provider,
@@ -318,14 +316,11 @@ describe("MeshTxBuilder transactions", () => {
     })
       .changeAddress(address)
       .selectUtxosFrom(utxos)
-      .drepRegistrationCertificate(
-        drepId,
-        {
-          anchorUrl: "https://path-to.jsonld",
-          anchorDataHash:
-            "2aef51273a566e529a2d5958d981d7f0b3c7224fc2853b6c4922e019657b5060",
-        },
-      )
+      .drepRegistrationCertificate(drepId, {
+        anchorUrl: "https://path-to.jsonld",
+        anchorDataHash:
+          "2aef51273a566e529a2d5958d981d7f0b3c7224fc2853b6c4922e019657b5060",
+      })
       .complete();
     const signedTx = await wallet.signTx(txHex);
     const txHash = await provider.submitTx(signedTx);
@@ -447,24 +442,24 @@ describe("MeshTxBuilder transactions", () => {
   });
 
   it("Build tx to register script stake without its script should fail", async () => {
-    const { wallet, address, provider, params, utxos } =
-      await createTestSetup();
+    const { address, provider, params, utxos } = await createTestSetup();
 
-    // Certificate 7, unlike the removed certificate 0, needs a witness
-    const txHex = await new MeshTxBuilder({
-      fetcher: provider,
-      submitter: provider,
-      evaluator: provider,
-      params,
-    })
-      .changeAddress(address)
-      .selectUtxosFrom(utxos)
-      .registerStakeCertificate(serializeRewardAddress(alwaysSucceedHash, true))
-      .complete();
-
-    await expect(provider.submitTx(await wallet.signTx(txHex))).rejects.toThrow(
-      "MissingOrExtraScriptHashes",
-    );
+    // Certificate 7, unlike the removed certificate 0, needs a witness: the build refuses it
+    // before the ledger would
+    await expect(
+      new MeshTxBuilder({
+        fetcher: provider,
+        submitter: provider,
+        evaluator: provider,
+        params,
+      })
+        .changeAddress(address)
+        .selectUtxosFrom(utxos)
+        .registerStakeCertificate(
+          serializeRewardAddress(alwaysSucceedHash, true),
+        )
+        .complete(),
+    ).rejects.toMatchObject({ code: "WITNESS_MISMATCH" });
   });
 
   it("Build tx to register stake should need the stake key signature", async () => {
@@ -504,8 +499,9 @@ describe("MeshTxBuilder transactions", () => {
   });
 
   it("Build tx to withdraw from script stake should succeed", async () => {
-    const { wallet, address, provider, params, utxos } =
-      await createTestSetup({ includeCollateral: true });
+    const { wallet, address, provider, params, utxos } = await createTestSetup({
+      includeCollateral: true,
+    });
     const collateralHash = "1".repeat(64);
     const rewardAddress = serializeRewardAddress(alwaysSucceedHash, true);
     const registrationUtxos = utxos.filter(
@@ -645,8 +641,9 @@ describe("MeshTxBuilder transactions", () => {
   });
 
   it("Drep vote", async () => {
-    const { wallet, address, provider, params, utxos } =
-      await createTestSetup({ initialLovelace: "120000000000" });
+    const { wallet, address, provider, params, utxos } = await createTestSetup({
+      initialLovelace: "120000000000",
+    });
     const keyHash = resolvePaymentKeyHash(address);
     const rewardAddress = serializeRewardAddress(keyHash);
     const drepId = Cardano.DRepID.cip129FromCredential({
@@ -709,11 +706,10 @@ describe("MeshTxBuilder transactions", () => {
   });
 
   it("Script drep vote", async () => {
-    const { wallet, address, provider, params, utxos } =
-      await createTestSetup({
-        includeCollateral: true,
-        initialLovelace: "120000000000",
-      });
+    const { wallet, address, provider, params, utxos } = await createTestSetup({
+      includeCollateral: true,
+      initialLovelace: "120000000000",
+    });
     const collateralHash = "1".repeat(64);
     const keyHash = resolvePaymentKeyHash(address);
     const rewardAddress = serializeRewardAddress(keyHash);
@@ -891,8 +887,10 @@ describe("MeshTxBuilder transactions", () => {
 
   it("Custom cost models", async () => {
     const costModels = await createCustomCostModels();
-    const { wallet, address, utxos, provider, params } =
-      await createTestSetup({ includeCollateral: true, costModels });
+    const { wallet, address, utxos, provider, params } = await createTestSetup({
+      includeCollateral: true,
+      costModels,
+    });
     const collateralHash = "1".repeat(64);
     const collateral = utxos.find(
       (utxo) => utxo.input.txHash === collateralHash,
@@ -967,8 +965,9 @@ describe("MeshTxBuilder transactions", () => {
   });
 
   it("byron output test", async () => {
-    const { wallet, address, provider, params, utxos } =
-      await createTestSetup({ network: "mainnet" });
+    const { wallet, address, provider, params, utxos } = await createTestSetup({
+      network: "mainnet",
+    });
     const txHex = await new MeshTxBuilder({
       fetcher: provider,
       submitter: provider,
@@ -989,8 +988,9 @@ describe("MeshTxBuilder transactions", () => {
   });
 
   it("byron change output test", async () => {
-    const { wallet, provider, params, utxos } =
-      await createTestSetup({ network: "mainnet" });
+    const { wallet, provider, params, utxos } = await createTestSetup({
+      network: "mainnet",
+    });
     const byronAddress =
       "DdzFFzCqrhswh7xiYG8RE1TtcvWamhbExTXfsCYaF9PrGWHRLCwCsBH5JkeApUagvo4FZE3DJD3rn5hw8vaMBib2StKMJ77rJHt51jPt";
     const txHex = await new MeshTxBuilder({
@@ -1458,4 +1458,3 @@ describe("MeshTxBuilder transactions", () => {
     ).toBeTruthy();
   });
 });
-

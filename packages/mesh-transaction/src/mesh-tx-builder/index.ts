@@ -337,6 +337,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       },
       needsScriptSize: true,
       keepExUnits: !evaluator,
+      keyDeposit: BigInt(params.keyDeposit),
     });
     const costModels = translated.plutus
       ? await this.readCostModels(cache)
@@ -747,6 +748,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       needsScriptSize: false,
       keepExUnits: true,
       unbalanced: params,
+      keyDeposit: BigInt(params.keyDeposit),
     });
     // A refused repeat is reported before the gaps of the parts, as complete() reports it
     checkPartRepeats(translated.parts);
