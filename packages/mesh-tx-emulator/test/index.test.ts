@@ -15,6 +15,7 @@ import {
 } from "@meshsdk/core";
 import {
   Cardano,
+  CardanoSDKSerializer,
   deserializeTx,
   scriptHashToRewardAddress,
   transactionPrototypeFromHex,
@@ -562,6 +563,47 @@ describe.each(["scalus", "cquisitor"] as const)(
         validator === "scalus"
           ? "TransactionExpired"
           : "OutsideValidityIntervalUTxO",
+      ]);
+    });
+
+    it("keeps key and script stake balances separate when their hashes match", async () => {
+      const serializer = new CardanoSDKSerializer();
+      const hash = "ab".repeat(28);
+      const pubKeyHash = "cd".repeat(28);
+      const keyStake = serializer.serializeRewardAddress(hash, false, 1);
+      const scriptStake = serializer.serializeRewardAddress(hash, true, 1);
+      const emulator = await TxEmulator.create({
+        validator,
+        accounts: [{ rewardAddress: keyStake }, { rewardAddress: scriptStake }],
+        utxos: [
+          {
+            input: outRef(0),
+            output: {
+              address: serializer.serializeAddress(
+                { pubKeyHash, stakeCredentialHash: hash },
+                1,
+              ),
+              amount: lovelace("10000000"),
+            },
+          },
+          {
+            input: outRef(1),
+            output: {
+              address: serializer.serializeAddress(
+                { pubKeyHash, stakeScriptCredentialHash: hash },
+                1,
+              ),
+              amount: lovelace("20000000"),
+            },
+          },
+        ],
+      });
+
+      const keyAccount = await emulator.fetchAccountInfo(keyStake);
+      const scriptAccount = await emulator.fetchAccountInfo(scriptStake);
+      expect([keyAccount.balance, scriptAccount.balance]).toEqual([
+        "10000000",
+        "20000000",
       ]);
     });
 

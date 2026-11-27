@@ -83,6 +83,7 @@ import {
 } from "./state-edits";
 import {
   bech32PoolId,
+  credentialKey,
   CredentialRef,
   GOV_PURPOSES,
   govActionKey,
@@ -90,6 +91,7 @@ import {
   normalizeDRepId,
   normalizePoolId,
   rewardAddressOf,
+  toCredentialRef,
   toMeshCredential,
   TxRefs,
   txRefs,
@@ -479,11 +481,7 @@ const stakeCredentialOf = (rewardAddress: string): CredentialRef => {
     ?.asReward()
     ?.getPaymentCredential();
   if (!credential) throw new Error(`invalid reward address ${rewardAddress}`);
-  return {
-    type:
-      credential.type === Cardano.CredentialType.ScriptHash ? "script" : "key",
-    hash: credential.hash.toString(),
-  };
+  return toCredentialRef(credential);
 };
 
 /** The stake credential of an address, as its reward address */
@@ -1059,13 +1057,13 @@ export class TxEmulator
       `stake address ${rewardAddress}`,
     );
     const account = this.state.accounts.get(rewardAddress);
-    const credential = stakeCredentialOf(rewardAddress);
+    const stakeKey = credentialKey(stakeCredentialOf(rewardAddress));
     let balance = account?.rewards ?? 0n;
     for (const utxo of this.ledger.getUtxos({})) {
       const stake = Cardano.Address.fromString(utxo.address)
         ?.asBase()
         ?.getStakeCredential();
-      if (stake && stake.hash.toString() === credential.hash)
+      if (stake && credentialKey(toCredentialRef(stake)) === stakeKey)
         balance += utxo.value.coin;
     }
     return {
