@@ -852,8 +852,9 @@ const governanceProposal = (
   base: { rewardAccount: string; anchor: AnchorInput; deposit: bigint },
   guardrail: CredentialWitnessInput | undefined,
 ) => {
+  // A guardrail runs only when the calls give one, as before: the build adds none
   const guarded = (policyHash: { bytes: string } | undefined) => ({
-    ...(guardrail && { guardrail }),
+    guardrail: guardrail ?? null,
     ...(policyHash && { policyHash: policyHash.bytes }),
   });
   switch (action.kind) {

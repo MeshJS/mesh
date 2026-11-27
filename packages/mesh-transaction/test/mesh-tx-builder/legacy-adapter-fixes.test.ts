@@ -246,6 +246,48 @@ describe.each(["scalus", "cquisitor"] as const)(
       await accept(context, txHex);
     });
 
+    it("adds no guardrail to a proposal whose calls give none, as before", async () => {
+      const context = await setup(validator);
+      const { emulator, address, wallet } = context;
+      const [rewardAddress] = await wallet.getRewardAddresses();
+      emulator.setAccount({ rewardAddress: rewardAddress! });
+      emulator.setTreasury("1000000000000");
+      // The guardrail TxBuilder adds by default
+      emulator.setConstitution({
+        anchor: {
+          anchorUrl: "https://example.com/c.json",
+          anchorDataHash: "cd".repeat(32),
+        },
+        guardrailScriptHash:
+          "fa24fb305126805cf2164c161d852a0e7330cf988f1fe558cf7d4a64",
+      });
+      const fetchConstitution = jest.spyOn(emulator, "fetchConstitution");
+      // The emulated network's govActionDeposit
+      const deposit = 1_000_000_000n;
+      const funds = emulator.fund(address, {
+        lovelace: deposit + 100_000_000n,
+      });
+      const txHex = await new MeshTxBuilder({ fetcher: emulator })
+        .proposal(
+          {
+            kind: "TreasuryWithdrawalsAction",
+            action: { withdrawals: { [rewardAddress!]: "10" } },
+          },
+          {
+            anchorUrl: "https://example.com/p.json",
+            anchorDataHash: "cd".repeat(32),
+          },
+          rewardAddress!,
+          String(deposit),
+        )
+        .changeAddress(address)
+        .selectUtxosFrom([funds])
+        .complete();
+
+      expect(pointersOf(txHex)).toEqual([]);
+      expect(fetchConstitution).not.toHaveBeenCalled();
+    });
+
     it("builds with LargestFirstInputSelector: the units the fee was priced on are the evaluated ones", async () => {
       const context = await setup(validator);
       const { emulator, address, funds, locked, wallet } = context;
