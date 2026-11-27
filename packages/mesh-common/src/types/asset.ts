@@ -16,7 +16,7 @@ export const mergeAssets = (assets: Asset[]): Asset[] => {
         BigInt(existing.quantity) + BigInt(asset.quantity)
       ).toString();
     } else {
-      merged.push(asset);
+      merged.push({ ...asset });
     }
   });
   return merged;
