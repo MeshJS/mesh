@@ -337,7 +337,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       },
       needsScriptSize: true,
       keepExUnits: !evaluator,
-      keyDeposit: BigInt(params.keyDeposit),
+      ...keyDepositOf(params),
     });
     const costModels = translated.plutus
       ? await this.readCostModels(cache)
@@ -748,7 +748,7 @@ export class MeshTxBuilder extends MeshTxBuilderCore {
       needsScriptSize: false,
       keepExUnits: true,
       unbalanced: params,
-      keyDeposit: BigInt(params.keyDeposit),
+      ...keyDepositOf(params),
     });
     // A refused repeat is reported before the gaps of the parts, as complete() reports it
     checkPartRepeats(translated.parts);
@@ -944,6 +944,14 @@ const runsPlutus = (body: MeshTxBuilderBody): boolean =>
   body.withdrawals.some((item) => item.type === "ScriptWithdrawal") ||
   body.votes.some((item) => item.type === "ScriptVote") ||
   body.proposals.some((item) => item.type === "ScriptProposal");
+
+/** The `keyDeposit` of the parameters a build is on, when they hold one */
+const keyDepositOf = (params: {
+  keyDeposit?: number | string | null;
+}): { keyDeposit?: bigint } =>
+  params.keyDeposit === undefined || params.keyDeposit === null
+    ? {}
+    : { keyDeposit: BigInt(params.keyDeposit) };
 
 /**
  * The out refs a body names, as `txHash#index` with the hash in lower case: inputs, collateral,

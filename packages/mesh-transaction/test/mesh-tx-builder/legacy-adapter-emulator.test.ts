@@ -376,6 +376,56 @@ describe("MeshTxBuilder's synchronous methods and body queries", () => {
     expect(certificates[1]!.asPoolRegistration()).toBeDefined();
   });
 
+  it("takes a coin of null as none, and builds what needs no keyDeposit without one", () => {
+    const rewardAddress =
+      "stake_test1uzw5mnt7g4xjgdqkfa80hrk7kdvds6sa4k0vvgjvlj7w8eskffj2n";
+    const registration = new MeshTxBuilder()
+      .txIn("c".repeat(64), 0, lovelace(1_000_000_000), address, 0)
+      .registerStakeCertificate(rewardAddress, null as never)
+      .changeAddress(address)
+      .completeSync();
+    expect(
+      parse(registration)
+        .body()
+        .certs()!
+        .values()[0]!
+        .asRegistrationCert()
+        ?.deposit(),
+    ).toBe(BigInt(DEFAULT_PROTOCOL_PARAMETERS.keyDeposit));
+
+    const payment = new MeshTxBuilder({
+      params: { keyDeposit: undefined as never },
+    })
+      .txIn("c".repeat(64), 0, lovelace(1_000_000_000), address, 0)
+      .txOut(address, lovelace(2_000_000))
+      .changeAddress(address)
+      .completeSync();
+    // Assembled as it is, without change
+    expect(parse(payment).body().outputs()).toHaveLength(1);
+  });
+
+  it("refuses a script given to a proposal that runs none", () => {
+    expect(() =>
+      new MeshTxBuilder()
+        .txIn("c".repeat(64), 0, lovelace(1_000_000_000), address, 0)
+        .proposal(
+          { kind: "InfoAction", action: {} },
+          {
+            anchorUrl: "https://example.com/p.json",
+            anchorDataHash: "cd".repeat(32),
+          },
+          "stake_test1uzw5mnt7g4xjgdqkfa80hrk7kdvds6sa4k0vvgjvlj7w8eskffj2n",
+          "1000000000",
+        )
+        .proposalScript(alwaysSucceedCbor, "V3")
+        .proposalRedeemerValue(mConStr0([]))
+        .changeAddress(address)
+        .completeSync(),
+    ).toThrow(
+      /only a parameter change or a treasury withdrawal runs a guardrail script, not a InfoAction/,
+    );
+  });
+
   it("voteTxInReference records the version of the vote script", () => {
     const voter = { type: "DRep" as const, drepId: "drep1" };
     const builder = new MeshTxBuilder()

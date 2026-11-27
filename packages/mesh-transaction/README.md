@@ -2229,14 +2229,15 @@ release signs with each of its payment, stake and DRep keys the transaction need
 A parameter change or a treasury withdrawal runs the constitution's guardrail script, when the
 constitution has one, and names it in its policy hash. Without `guardrail` the build adds it: the
 guardrail the provider's `fetchConstitution` answers with, and when the provider has no such query
-or cannot answer, the one of mainnet, preprod and preview, the same script on all three. On
-another network nothing is added without an answer. The guardrail is a Plutus script, so the build
-then puts up collateral and evaluates it, and needs cost models. A constitution that names a
-guardrail this library does not hold is `UNRESOLVED`, with the gap `guardrail` and its hash: give
-the proposal that script as `guardrail`. `guardrail: null` builds the proposal without one. The
-constitution is read once per build, past the provider's cache, and only for such a proposal. A
-builder made from `chain()` has no provider and takes the guardrail of its network. The old
-`MeshTxBuilder` adds none: its proposal runs the guardrail its calls give.
+or cannot answer, the one of mainnet, preprod and preview, the same script on all three. On another
+network nothing is added without an answer. The guardrail is a Plutus script, so the build then puts
+up collateral and evaluates it, and needs cost models; with `evaluator: null` the guardrail has no
+units and the build is `MISSING_EVALUATOR`, so give it as `guardrail` with its `exUnits`. A
+constitution that names a guardrail this library does not hold is `UNRESOLVED`, with the gap
+`guardrail` and its hash: give the proposal that script as `guardrail`. `guardrail: null` builds the
+proposal without one. The constitution is read once per build, past the provider's cache, and only
+for such a proposal. A builder made from `chain()` has no provider and takes the guardrail of its
+network. The old `MeshTxBuilder` adds none: its proposal runs the guardrail its calls give.
 
 ## Time
 
@@ -2825,8 +2826,15 @@ signatures are kept and behave the same or very close, though the final CBOR may
 - Where the old code silently returned a transaction the ledger refuses, it now throws the new
   builder's error: an output below the minimum lovelace (`OUTPUT_BELOW_MIN_COIN`), a fee below the
   minimum (`FEE_TOO_LOW`), an address of another network (`NETWORK_MISMATCH`), a datum that does
-  not fit (`DATUM_MISMATCH`), a metadata integer out of range (`INVALID_DATA`), and the like.
-  Errors are `TxBuildError` and `TxPartError` with codes; messages differ from the old ones.
+  not fit (`DATUM_MISMATCH`), a metadata integer out of range (`INVALID_DATA`), a script given
+  to a proposal that runs none, or a stake script without its script (`WITNESS_MISMATCH`), and
+  the like. Errors are `TxBuildError` and `TxPartError` with codes; messages differ from the old
+  ones.
+- `registerStakeCertificate` and `deregisterStakeCertificate` give certificates 7 and 8, which
+  state the call's `coin`, else `keyDeposit`, and need the stake credential's witness: its key's
+  signature, or its script. A Plutus V1 or V2 stake script cannot witness them
+  (`WITNESS_MISMATCH`); `certificate.legacyStakeRegistration` and
+  `certificate.legacyStakeDeregistration` of `TxBuilder` still give certificates 0 and 1.
   `Transaction.build()` passes the error of `complete()` on as it is, and wraps the errors of its
   other steps, and of `build(false)`, in a plain `Error`.
 - Entries of one input or collateral input out ref that name no field differently are taken as one

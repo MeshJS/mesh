@@ -104,9 +104,10 @@ export type BodyOutputs = {
   unbalanced?: Pick<Protocol, "coinsPerUtxoSize">;
   /**
    * The deposit of a stake registration, and the refund of a deregistration, that the call does
-   * not state: the `keyDeposit` the build is on, as the old builder took it
+   * not state: the `keyDeposit` the build is on, as the old builder took it; without it the
+   * build fills it in, or reports it missing
    */
-  keyDeposit: bigint;
+  keyDeposit?: bigint;
 };
 
 /** The body as parts, with what the build must know of the outputs it has no data for */
@@ -582,6 +583,17 @@ export const bodyToParts = (
       addRedeemer(`CERT:${i}`, item.redeemer);
   });
 
+  /** The deposit or refund a call states, else the `keyDeposit` the build is on, if known */
+  function amountOf<K extends "deposit" | "refund">(
+    key: K,
+    coin: number | null | undefined,
+  ): { [k in K]?: bigint } {
+    const amount = coin ?? outputs.keyDeposit;
+    return amount === undefined || amount === null
+      ? {}
+      : ({ [key]: BigInt(amount) } as { [k in K]?: bigint });
+  }
+
   function certificatePart(item: Certificate, index: number) {
     const witness =
       item.type === "SimpleScriptCertificate"
@@ -599,15 +611,13 @@ export const bodyToParts = (
       case "RegisterStake":
         return certificate.stakeRegistration({
           stake: cert.stakeKeyAddress,
-          deposit:
-            cert.coin === undefined ? outputs.keyDeposit : BigInt(cert.coin),
+          ...amountOf("deposit", cert.coin),
           ...w,
         });
       case "DeregisterStake":
         return certificate.stakeDeregistration({
           stake: cert.stakeKeyAddress,
-          refund:
-            cert.coin === undefined ? outputs.keyDeposit : BigInt(cert.coin),
+          ...amountOf("refund", cert.coin),
           ...w,
         });
       case "DelegateStake":
@@ -863,6 +873,18 @@ const governanceProposal = (
   base: { rewardAccount: string; anchor: AnchorInput; deposit: bigint },
   guardrail: CredentialWitnessInput | undefined,
 ) => {
+  // Only a parameter change and a treasury withdrawal run a guardrail: the ledger refuses a
+  // script given to another proposal
+  if (
+    guardrail &&
+    action.kind !== "ParameterChangeAction" &&
+    action.kind !== "TreasuryWithdrawalsAction"
+  )
+    return fail(
+      { part: "proposal" },
+      "WITNESS_MISMATCH",
+      `only a parameter change or a treasury withdrawal runs a guardrail script, not a ${action.kind}`,
+    );
   // A guardrail runs only when the calls give one, as before: the build adds none
   const guarded = (policyHash: { bytes: string } | undefined) => ({
     guardrail: guardrail ?? null,

@@ -177,8 +177,9 @@ export interface GuardrailParams {
    * The constitution's guardrail script, when it has one, run to authorise the proposal. Its
    * hash goes in the action's policy hash. Left out, the build gives the proposal the guardrail
    * of the constitution: as the provider's `fetchConstitution` answers, else the one of mainnet,
-   * preprod and preview; on another network without an answer, none. `null` builds the proposal
-   * without one.
+   * preprod and preview; on another network without an answer, none. A constitution naming a
+   * guardrail this library does not hold is `UNRESOLVED`. `null` builds the proposal without
+   * one.
    */
   guardrail?: CredentialWitnessInput | null;
   /** The guardrail's hash; needed only for a guardrail referenced by out ref alone */

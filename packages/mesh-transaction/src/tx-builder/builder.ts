@@ -1878,9 +1878,10 @@ export class TxBuilder {
    *    a submit, makes its next read fresh. What is read and looked up is checked for its
    *    network too.
    * 2. Fills in what the parts leave open: reference scripts, datums, deposits, output lovelace,
-   *    and the guardrail of a parameter change or a treasury withdrawal that names none (the
-   *    constitution's, else the one of mainnet, preprod and preview; `guardrail: null` refuses
-   *    it), which then runs as a Plutus script.
+   *    and the guardrail of a parameter change or a treasury withdrawal that names none, which
+   *    then runs as a Plutus script: the constitution's when this library holds it, else
+   *    UNRESOLVED; without an answer, the one of mainnet, preprod and preview on those networks
+   *    and none on another. `guardrail: null` refuses it.
    * 3. Balances: selects inputs from the payer's UTxOs, less those `after` spends and with
    *    its change at the payer's change address, that `canSelect` lets it, with `coinSelection`
    *    when given, returns change to its change address (or sends everything left to

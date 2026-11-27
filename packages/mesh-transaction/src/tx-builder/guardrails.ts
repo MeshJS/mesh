@@ -93,12 +93,21 @@ const answeredGuardrail = async (
     // The query throws when the provider cannot answer it
     return undefined;
   }
-  if (typeof constitution !== "object" || constitution === null)
+  if (
+    typeof constitution !== "object" ||
+    constitution === null ||
+    Array.isArray(constitution)
+  )
     return undefined;
-  const hash = (constitution as { guardrailScriptHash?: unknown })
-    .guardrailScriptHash;
+  const { anchor, guardrailScriptHash: hash } = constitution as {
+    anchor?: unknown;
+    guardrailScriptHash?: unknown;
+  };
+  if (typeof anchor !== "object" || anchor === null) return undefined;
   if (hash === undefined || hash === null) return null;
-  return typeof hash === "string" ? hash.toLowerCase() : undefined;
+  return typeof hash === "string" && /^[0-9a-f]{56}$/i.test(hash)
+    ? hash.toLowerCase()
+    : undefined;
 };
 
 /**

@@ -1,8 +1,23 @@
-import { customNetwork, networkConfig } from "@meshsdk/common";
+import type { IFetcher } from "@meshsdk/common";
+import {
+  CachedFetcher,
+  customNetwork,
+  DEFAULT_PROTOCOL_PARAMETERS,
+  DEFAULT_V1_COST_MODEL_LIST,
+  DEFAULT_V2_COST_MODEL_LIST,
+  DEFAULT_V3_COST_MODEL_LIST,
+  networkConfig,
+} from "@meshsdk/common";
+import { scriptHashToRewardAddress } from "@meshsdk/core-cst";
 
-import { proposal } from "../../src/tx-builder";
+import { proposal, TxBuilder } from "../../src/tx-builder";
 import { withDefaultGuardrails } from "../../src/tx-builder/guardrails";
-import { alwaysSucceedCbor, rewardAddress } from "../test-util";
+import {
+  alwaysSucceedCbor,
+  alwaysSucceedHash,
+  baseAddress,
+  rewardAddress,
+} from "../test-util";
 
 const activeHash = "fa24fb305126805cf2164c161d852a0e7330cf988f1fe558cf7d4a64";
 const parameters = {
@@ -50,7 +65,17 @@ describe("default governance guardrails", () => {
 
   it("takes an answer of another form as no answer", async () => {
     const parts = [proposal.parameterChange(parameters)];
-    for (const answer of [null, "x", { anchor, guardrailScriptHash: 5 }]) {
+    for (const answer of [
+      null,
+      "x",
+      [],
+      {},
+      { guardrailScriptHash: activeHash },
+      { anchor, guardrailScriptHash: 5 },
+      { anchor, guardrailScriptHash: "" },
+      { anchor, guardrailScriptHash: "zz".repeat(28) },
+      { anchor, guardrailScriptHash: ` ${activeHash}` },
+    ]) {
       const provider = { fetchConstitution: async () => answer as never };
       await expect(
         withDefaultGuardrails(parts, networkConfig("preprod"), provider),
@@ -122,7 +147,9 @@ describe("default governance guardrails", () => {
       }),
     ).rejects.toMatchObject({
       code: "UNRESOLVED",
-      message: expect.stringMatching(/guardrail: null/),
+      message: expect.stringMatching(
+        /proposal "change" \(guardrail\).*the script the constitution names/,
+      ),
       details: [
         {
           kind: "proposal",
@@ -153,5 +180,76 @@ describe("default governance guardrails", () => {
       }),
     ).resolves.toBe(parts);
     expect(fetchConstitution).not.toHaveBeenCalled();
+  });
+});
+
+describe("the default guardrail in a build", () => {
+  const unused = () => {
+    throw new Error("not read by this build");
+  };
+  /** A provider, wrapped in a cache, that answers only the constitution */
+  const providerOf = (fetchConstitution: () => Promise<unknown>) =>
+    new CachedFetcher({
+      fetchAddressUTxOs: unused,
+      fetchUTxOs: unused,
+      fetchProtocolParameters: unused,
+      fetchConstitution,
+    } as unknown as IFetcher);
+  const builderOf = (provider: IFetcher) =>
+    new TxBuilder({
+      network: "preprod",
+      provider,
+      params: DEFAULT_PROTOCOL_PARAMETERS,
+      costModels: [
+        DEFAULT_V1_COST_MODEL_LIST,
+        DEFAULT_V2_COST_MODEL_LIST,
+        DEFAULT_V3_COST_MODEL_LIST,
+      ],
+    });
+  const payer = {
+    changeAddress: baseAddress(0),
+    utxos: [
+      {
+        txHash: "0".repeat(64),
+        outputIndex: 0,
+        address: baseAddress(0),
+        value: { lovelace: 2_000_000_000_000n },
+      },
+    ],
+  };
+  const change = proposal.parameterChange({
+    rewardAccount: scriptHashToRewardAddress(alwaysSucceedHash, 0),
+    anchor: parameters.anchor,
+    updates: parameters.updates,
+    deposit: 1_000_000_000n,
+  });
+
+  it("reads the constitution once, past the cache, and runs its guardrail as a Plutus script", async () => {
+    const fetchConstitution = jest.fn(async () => ({
+      anchor,
+      guardrailScriptHash: activeHash,
+    }));
+    const built = await builderOf(providerOf(fetchConstitution)).build(change, {
+      payer,
+    });
+    expect(fetchConstitution).toHaveBeenCalledTimes(1);
+    expect(built.redeemers).toMatchObject([
+      { tag: "VOTING_PROPOSAL", index: 0 },
+    ]);
+    expect(built.redeemers[0]!.exUnits.mem).toBeGreaterThan(0n);
+    expect(built.collateral).toBeDefined();
+    expect(built.parts.find((part) => part.kind === "proposal")).toMatchObject(
+      guarded,
+    );
+  });
+
+  it("is ABORTED while the constitution is read", async () => {
+    const controller = new AbortController();
+    const build = builderOf(providerOf(() => new Promise(() => {}))).build(
+      change,
+      { payer, signal: controller.signal },
+    );
+    controller.abort();
+    await expect(build).rejects.toMatchObject({ code: "ABORTED" });
   });
 });

@@ -279,7 +279,7 @@ export const unresolvedError = (gaps: PartGaps[]) =>
         : ""
     }${
       gaps.some((p) => p.gaps.some((gap) => gap.type === "guardrail"))
-        ? "; give the proposal the guardrail script the constitution names, or guardrail: null to build it without one"
+        ? "; give the proposal, as its guardrail, the script the constitution names (its hash is in details)"
         : ""
     }`,
     { details: gaps },
