@@ -60,9 +60,9 @@ describe("MeshTxBuilder expected signatures", () => {
       .changeAddress(baseAddress(15))
       .voteDelegationCertificate({ alwaysAbstain: null }, rewardAddress(16))
       .complete();
-    // The input's key, the three DReps, the delegating and deregistering stake keys, the pool
-    // operator and its two owners, the retiring pool, and the vote-delegating stake key. A stake
-    // registration (certificate 0) takes no witness.
-    expect(txBuilder.meshTxBuilderBody.expectedNumberKeyWitnesses).toEqual(11);
+    // The input's key, the three DReps, the delegating, deregistering and registering stake
+    // keys (a stake registration is certificate 7, which its key witnesses), the pool operator
+    // and its two owners, the retiring pool, and the vote-delegating stake key
+    expect(txBuilder.meshTxBuilderBody.expectedNumberKeyWitnesses).toEqual(12);
   });
 });
