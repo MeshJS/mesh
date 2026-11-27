@@ -616,7 +616,10 @@ describe.each(["scalus", "cquisitor"] as const)(
 
       expectAccepted(
         await emulator.submit(
-          await next().registerStakeCertificate(openStake).complete(),
+          await next()
+            .registerStakeCertificate(openStake)
+            .certificateScript(openScriptHex)
+            .complete(),
         ),
       );
       expect(await emulator.fetchAccountInfo(openStake)).toMatchObject({
@@ -1103,6 +1106,7 @@ describe.each(["scalus", "cquisitor"] as const)(
         .setTotalCollateral("3000000")
         .setCollateralReturnAddress(address)
         .registerStakeCertificate(openStake)
+        .certificateScript(openScriptHex)
         .changeAddress(address)
         .complete();
       const tx = deserializeTx(await wallet.signTx(txHex));
@@ -1944,15 +1948,38 @@ describe("TxEmulator (cquisitor) ledger rules", () => {
     expect(passing.result.accepted).toBe(false);
   });
 
-  it("registers a key-hash stake address with the payment key's signature alone", async () => {
-    const { wallet, stake, emulator, builder, address, funding } =
+  it("registers a key-hash stake address: certificate 0 without a signature of its key, certificate 7 only with it", async () => {
+    const { wallet, stake, emulator, builder, address, funding, sign } =
       await setup("cquisitor");
+    // registerStakeCertificate gives certificate 7
     const txHex = await builder()
       .registerStakeCertificate(stake)
       .changeAddress(address)
       .selectUtxosFrom([funding])
       .complete();
-    expectAccepted(await emulator.simulate(await wallet.signTx(txHex)));
+    expect(rules(await emulator.simulate(await wallet.signTx(txHex)))).toEqual([
+      "MissingVKeyWitnesses",
+    ]);
+    expectAccepted(await emulator.simulate(await sign(txHex)));
+
+    const { stakeCredentialHash } = deserializeAddress(address);
+    expectAccepted(
+      await emulator.simulate(
+        rawTx({
+          delta: 2_000_000n,
+          body: {
+            certs: [
+              {
+                type: "STAKE_REGISTRATION",
+                value: {
+                  stake_credential: { type: "KEY", value: stakeCredentialHash },
+                },
+              },
+            ],
+          },
+        }),
+      ),
+    );
   });
 
   it("checks the treasury a transaction states, when it is known", async () => {
@@ -3355,6 +3382,7 @@ describe.each(["scalus", "cquisitor"] as const)(
         .deregisterStakeCertificate(openStake)
         .certificateScript(openScriptHex)
         .registerStakeCertificate(openStake)
+        .certificateScript(openScriptHex)
         .complete();
       const drep = await next()
         .drepDeregistrationCertificate(openDRep, "500000000")
