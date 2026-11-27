@@ -607,6 +607,33 @@ describe("the encoding of parts", () => {
     ).toThrow(/a witness of the type "guardian"/);
   });
 
+  it("keeps a proposal's guardrail: null, and refuses another value of its mark", () => {
+    const [unguarded] = encodeParts([
+      proposal.parameterChange({
+        ...common,
+        updates: { max_tx_size: 16384 },
+        guardrail: null,
+      }),
+    ]) as any[];
+    expect(unguarded.witness).toEqual({
+      type: "none",
+      defaultGuardrail: false,
+    });
+    expect(decodeParts([unguarded])[0]).toMatchObject({
+      witness: { type: "none", defaultGuardrail: false },
+    });
+    expect(() =>
+      decodeParts([
+        {
+          ...unguarded,
+          witness: { type: "none", defaultGuardrail: "false" },
+        },
+      ]),
+    ).toThrow(
+      /parts\[0\]\.witness\.defaultGuardrail: "false", where only false is written/,
+    );
+  });
+
   it("is NOT_SERIALIZABLE for a redeemer function, naming the part and its label", () => {
     const parts = [
       output({ address: recipient, value: { lovelace: 2_000_000n } }),

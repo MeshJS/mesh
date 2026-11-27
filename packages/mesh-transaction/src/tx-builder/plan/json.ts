@@ -795,6 +795,12 @@ const witnessValue = (value: unknown, path: string): unknown => {
   const json = object(value, path);
   switch (tagOf(json, path)) {
     case "none":
+      // The mark of `guardrail: null`; any other value would let the build add a guardrail
+      if ("defaultGuardrail" in json && json.defaultGuardrail !== false)
+        return unread(
+          `${path}.defaultGuardrail: ${show(json.defaultGuardrail)}, where only false is written`,
+        );
+      return json;
     case "key":
       return json;
     case "native":

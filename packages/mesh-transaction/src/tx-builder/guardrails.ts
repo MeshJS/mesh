@@ -4,12 +4,13 @@ import type {
   PlutusScript,
 } from "@meshsdk/common";
 
+import type { PartGaps } from "./errors";
 import type { ProposalPart, TxPart } from "./parts/types";
-import { TxBuildError } from "./errors";
+import { unresolvedError } from "./assemble";
 import { toGuardrail } from "./parts/governance";
 import { partContext } from "./parts/normalize";
 
-// Verified against both testnets' current constitutions and on-chain Plutus V3 script.
+// The guardrail script the constitution in force names on mainnet, preprod and preview
 const guardrailHash =
   "fa24fb305126805cf2164c161d852a0e7330cf988f1fe558cf7d4a64";
 const guardrailScript: PlutusScript = {
@@ -69,6 +70,44 @@ const canDefault = (part: TxPart): part is ProposalPart =>
   (part.proposal.governance_action.type === "PARAMETER_CHANGE_ACTION" ||
     part.proposal.governance_action.type === "TREASURY_WITHDRAWALS_ACTION");
 
+/** The networks whose constitution in force names `guardrailScript` */
+const knownNetworks: ReadonlySet<string> = new Set([
+  "mainnet",
+  "preprod",
+  "preview",
+]);
+
+/**
+ * The guardrail hash of the constitution as the provider answers it: `null` when the
+ * constitution has none, `undefined` when the provider cannot answer (no such query, an error, an
+ * answer of another form)
+ */
+const answeredGuardrail = async (
+  provider?: Partial<Pick<IGovernanceFetcher, "fetchConstitution">>,
+): Promise<string | null | undefined> => {
+  if (typeof provider?.fetchConstitution !== "function") return undefined;
+  let constitution: unknown;
+  try {
+    constitution = await provider.fetchConstitution();
+  } catch {
+    // The query throws when the provider cannot answer it
+    return undefined;
+  }
+  if (typeof constitution !== "object" || constitution === null)
+    return undefined;
+  const hash = (constitution as { guardrailScriptHash?: unknown })
+    .guardrailScriptHash;
+  if (hash === undefined || hash === null) return null;
+  return typeof hash === "string" ? hash.toLowerCase() : undefined;
+};
+
+/**
+ * Gives each parameter change and treasury withdrawal that names no guardrail, and does not
+ * refuse one, the guardrail of the constitution: as the provider answers it, else the one of
+ * mainnet, preprod and preview. On another network, without an answer, nothing is added.
+ * @throws TxBuildError UNRESOLVED (gap `guardrail`) when the constitution names a guardrail this
+ *   library does not hold
+ */
 export const withDefaultGuardrails = async (
   parts: readonly TxPart[],
   network: NetworkConfig,
@@ -76,25 +115,22 @@ export const withDefaultGuardrails = async (
 ): Promise<readonly TxPart[]> => {
   if (!parts.some(canDefault)) return parts;
 
-  let constitution;
-  try {
-    constitution = await provider?.fetchConstitution?.();
-  } catch {
-    // Providers without a constitution query can use the verified testnet snapshot.
-  }
-  if (constitution !== undefined) {
-    const hash = constitution.guardrailScriptHash?.toLowerCase();
-    if (hash === undefined) return parts;
-    if (hash !== guardrailHash) {
-      throw new TxBuildError(
-        "PROVIDER_FAILED",
-        `the current constitution names a different guardrail (${hash}); supply its script and redeemer explicitly`,
-        { details: { operation: "fetchConstitution" } },
-      );
-    }
-  } else if (network.name !== "preprod" && network.name !== "preview") {
-    return parts;
-  }
+  const answered = await answeredGuardrail(provider);
+  const hash =
+    answered !== undefined
+      ? answered
+      : knownNetworks.has(network.name)
+        ? guardrailHash
+        : null;
+  if (hash === null) return parts;
+  if (hash !== guardrailHash)
+    throw unresolvedError(
+      parts.filter(canDefault).map((part): PartGaps => ({
+        kind: part.kind,
+        ...(part.label !== undefined && { label: part.label }),
+        gaps: [{ type: "guardrail", scriptHash: hash }],
+      })),
+    );
 
   return parts.map((part) => {
     if (!canDefault(part)) return part;

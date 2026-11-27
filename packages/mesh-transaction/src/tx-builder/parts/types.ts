@@ -831,6 +831,11 @@ export type Unresolved =
       readonly parameter: DepositParameter;
     }
   /**
+   * The guardrail script the constitution names, which a parameter change or a treasury withdrawal
+   * runs, and which this library does not hold
+   */
+  | { readonly type: "guardrail"; readonly scriptHash: string }
+  /**
    * The output, or all the change, of an earlier step that a part is linked to; the plan that
    * builds the step fills it in
    */

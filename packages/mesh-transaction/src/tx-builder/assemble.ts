@@ -277,6 +277,10 @@ export const unresolvedError = (gaps: PartGaps[]) =>
       gaps.some((p) => p.gaps.some((gap) => gap.type === "link"))
         ? "; a part linked to an earlier step is filled in only by the plan that builds the step"
         : ""
+    }${
+      gaps.some((p) => p.gaps.some((gap) => gap.type === "guardrail"))
+        ? "; give the proposal the guardrail script the constitution names, or guardrail: null to build it without one"
+        : ""
     }`,
     { details: gaps },
   );

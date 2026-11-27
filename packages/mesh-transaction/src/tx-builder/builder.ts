@@ -103,7 +103,6 @@ import {
   toKnownUtxos,
 } from "./chain";
 import { TxBuildError, TxPlanError } from "./errors";
-import { withDefaultGuardrails } from "./guardrails";
 import {
   checkProtocol,
   coversMinCoin,
@@ -112,6 +111,7 @@ import {
   prototypeExUnits,
   valueSize,
 } from "./fee";
+import { withDefaultGuardrails } from "./guardrails";
 import { auxiliaryDataHashOf, scriptDataHashOf } from "./hashes";
 import {
   checkNetworks,
@@ -1682,7 +1682,8 @@ export class TxBuilder {
 
   /**
    * The network, parameters and cost models this builder builds on now, as data: the options
-   * where given, else read from the provider
+   * where given, else read from the provider. The constitution is not part of it: a builder made
+   * from it has no provider, and gives a proposal the guardrail of its network
    * @throws TxBuildError MISSING_PARAMETER when the parameters or the cost models cannot be had:
    *   (`params`) at once on a builder given neither a provider nor `params`
    */
@@ -1863,7 +1864,9 @@ export class TxBuilder {
    *    `until` to the slot containing it. A lower bound whose slot starts after the current time
    *    of the local clock is reported in `warnings` as VALID_FROM_FUTURE. Refuses a part that
    *    names an output a transaction of `after` spends, and a second part of what a transaction
-   *    holds once (DUPLICATE_PART). Reads the payer and looks up, all at
+   *    holds once (DUPLICATE_PART). For a parameter change or a treasury withdrawal that names
+   *    no guardrail, first reads the constitution, past the cache, when the provider has
+   *    `fetchConstitution`. Then reads the payer and looks up, all at
    *    once and once each, the outputs the parts reference that neither `knownUtxos` nor the
    *    outputs of `after` hold, the reward balances they withdraw in full, the protocol
    *    parameters and (when Plutus scripts run) the cost models. Lookups go through the
@@ -1874,7 +1877,10 @@ export class TxBuilder {
    *    wallet's `submitTx`, or calling `clearVolatile()` on `CachedFetcher.wrap(provider)` after
    *    a submit, makes its next read fresh. What is read and looked up is checked for its
    *    network too.
-   * 2. Fills in what the parts leave open: reference scripts, datums, deposits, output lovelace.
+   * 2. Fills in what the parts leave open: reference scripts, datums, deposits, output lovelace,
+   *    and the guardrail of a parameter change or a treasury withdrawal that names none (the
+   *    constitution's, else the one of mainnet, preprod and preview; `guardrail: null` refuses
+   *    it), which then runs as a Plutus script.
    * 3. Balances: selects inputs from the payer's UTxOs, less those `after` spends and with
    *    its change at the payer's change address, that `canSelect` lets it, with `coinSelection`
    *    when given, returns change to its change address (or sends everything left to

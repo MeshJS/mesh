@@ -175,8 +175,10 @@ export interface ProposalParams extends PartParams {
 export interface GuardrailParams {
   /**
    * The constitution's guardrail script, when it has one, run to authorise the proposal. Its
-   * hash goes in the action's policy hash. Omit to let TxBuilder choose the
-   * active guardrail, or pass null to build without one.
+   * hash goes in the action's policy hash. Left out, the build gives the proposal the guardrail
+   * of the constitution: as the provider's `fetchConstitution` answers, else the one of mainnet,
+   * preprod and preview; on another network without an answer, none. `null` builds the proposal
+   * without one.
    */
   guardrail?: CredentialWitnessInput | null;
   /** The guardrail's hash; needed only for a guardrail referenced by out ref alone */

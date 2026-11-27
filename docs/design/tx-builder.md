@@ -259,8 +259,16 @@ an input it did not hold are written with `toMeshUtxo`. See [UTxOs][r-utxos].
 
 Before any request the build checks the network of every address it is given, converts time
 bounds to slots, refuses a part naming an output a transaction of `after` spends
-(`UTXO_NOT_FOUND`) and runs the conflict checks of assembly. Then one pass, with every read
+(`UTXO_NOT_FOUND`) and runs the conflict checks of assembly. A parameter change or a treasury
+withdrawal that names no guardrail gets one first (below). Then one pass, with every other read
 started at once:
+
+- The guardrail. For a parameter change or a treasury withdrawal that names none, the
+  constitution is read once, past the cache, when the provider has `fetchConstitution`. Its
+  guardrail is added when it is the script this library holds, the guardrail of mainnet, preprod
+  and preview; another is `UNRESOLVED` (the gap `guardrail`). When the provider cannot answer,
+  those three networks take that script, and another network adds none. `guardrail: null` refuses
+  it. The added guardrail runs as a Plutus script: collateral, cost models and evaluation follow.
 
 - Outputs the parts reference by out ref alone — spent, referenced, collateral, reference
   scripts — are taken from `knownUtxos`, the outputs of `after` and a snapshot payer's UTxOs; the
@@ -270,7 +278,7 @@ started at once:
 - Every read goes through the `CachedFetcher` shared by every builder, wallet and evaluator over
   the same provider object: a transaction's outputs are fetched once per hash, parameters kept
   until the epoch ends, chain state for a few seconds, and concurrent equal requests share one.
-  The payer's UTxOs are read past it.
+  The payer's UTxOs and the constitution are read past it.
 - What was looked up is checked against the parts as the part builders would have checked it:
   the lock of a spent output against its witness, a reference script's hash, size and version,
   the network of every address. The datum of a spent script output is worked out from the output.
