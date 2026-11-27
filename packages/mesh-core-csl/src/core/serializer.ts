@@ -75,6 +75,19 @@ export class CSLSerializer implements IMeshTxSerializer {
     txBody: MeshTxBuilderBody,
     protocolParams?: Protocol,
   ): string {
+    // Whisky currently ignores the deposit and emits legacy stake certificates.
+    // Reject these operations until the backend supports certificate kinds 7/8.
+    if (
+      txBody.certificates.some(
+        ({ certType }) =>
+          certType.type === "RegisterStake" ||
+          certType.type === "DeregisterStake",
+      )
+    ) {
+      throw new Error(
+        "Deposit-bearing stake registration and deregistration are not supported by the CSL serializer; use CardanoSDKSerializer (CST) instead",
+      );
+    }
     if (txBody.donation) {
       throw new Error(
         "Treasury donation is not supported by the CSL serializer, use CSTSerializer instead",
