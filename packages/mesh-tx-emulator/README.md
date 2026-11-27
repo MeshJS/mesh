@@ -282,8 +282,10 @@ emulator.advanceTo({ epoch: emulator.epoch + 1 }); // the epoch's first slot
 ```
 
 The clock only moves forward, and only through `advanceTo`: transactions and changes of the
-state do not move it, and nothing reads the wall clock. `emulator.slotConfig` is the network's
-slot clock as a Mesh `SlotConfig`, equal to `SLOT_CONFIG_NETWORK[network]` of `@meshsdk/common`.
+state do not move it. The wall clock is read once, for the starting slot when none is given or
+available (the slot containing the current time), and never after. `emulator.slotConfig` is the
+network's slot clock as a Mesh `SlotConfig`, equal to `SLOT_CONFIG_NETWORK[network]` of
+`@meshsdk/common`.
 The tip is the block of the current slot, so its `time` is the slot's start, in POSIX seconds.
 
 Entering an epoch retires the pools due to retire, paying their deposits back and undelegating
