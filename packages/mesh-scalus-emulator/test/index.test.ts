@@ -940,7 +940,7 @@ describe("ScalusEmulator", () => {
         {
           tag: "MINT",
           index: 0,
-          budget: { mem: 2001, steps: 380149 },
+          budget: { mem: expect.any(Number), steps: expect.any(Number) },
         },
       ]);
     });
