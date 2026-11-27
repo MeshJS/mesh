@@ -52,8 +52,8 @@ export interface TransactionV2 {
   setMetadata(label: number, metadata: unknown): this;
   withdrawRewards(rewardAddress: string, lovelace: string): this;
   delegateStake(rewardAddress: string, poolId: string): this;
-  deregisterStake(rewardAddress: string): this;
-  registerStake(rewardAddress: string): this;
+  deregisterStake(rewardAddress: string, coin?: number): this;
+  registerStake(rewardAddress: string, coin?: number): this;
   registerPool(params: PoolParams): this;
   retirePool(poolId: string, epochNo: number): this;
   spendUtxo(utxo: UTxO, redeemer?: Data): this;

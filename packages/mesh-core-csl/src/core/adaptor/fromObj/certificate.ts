@@ -59,6 +59,9 @@ export const baseCertFromObj = (obj: any): CertificateType => {
       poolParams: poolParamsFromObj(obj.registerPool.poolParams),
     };
   } else if ("registerStake" in obj) {
+    // The deposit is deliberately not read: whisky's parser reports `coin: 0`
+    // for every stake registration, so it is left to the keyDeposit protocol
+    // parameter. Same for the refund below, which whisky does not report.
     return {
       type: "RegisterStake",
       stakeKeyAddress: obj.registerStake.stakeKeyAddress,

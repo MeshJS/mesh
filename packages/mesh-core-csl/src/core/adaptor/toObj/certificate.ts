@@ -1,6 +1,7 @@
 import {
   Certificate,
   CertificateType,
+  DEFAULT_PROTOCOL_PARAMETERS,
   PoolMetadata,
   PoolParams,
   Relay,
@@ -52,7 +53,7 @@ export const baseCertToObj = (baseCert: CertificateType): object => {
       return {
         registerStake: {
           stakeKeyAddress: baseCert.stakeKeyAddress,
-          coin: 2000000, // TODO: change in conway era (this should become an argument)
+          coin: baseCert.coin ?? DEFAULT_PROTOCOL_PARAMETERS.keyDeposit,
         },
       };
     case "DelegateStake":
@@ -66,6 +67,7 @@ export const baseCertToObj = (baseCert: CertificateType): object => {
       return {
         deregisterStake: {
           stakeKeyAddress: baseCert.stakeKeyAddress,
+          coin: baseCert.coin ?? DEFAULT_PROTOCOL_PARAMETERS.keyDeposit,
         },
       };
     case "RetirePool":
