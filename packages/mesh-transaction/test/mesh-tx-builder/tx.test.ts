@@ -1,6 +1,4 @@
 import {
-  applyCborEncoding,
-  BlockfrostProvider,
   DEFAULT_REDEEMER_BUDGET,
   mConStr0,
   NativeScript,
@@ -10,7 +8,6 @@ import {
   resolveNativeScriptHash,
   resolveNativeScriptHex,
   resolvePaymentKeyHash,
-  resolveScriptHash,
   resolveScriptHashDRepId,
   serializeRewardAddress,
 } from "@meshsdk/core";

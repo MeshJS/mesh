@@ -1,3 +1,5 @@
+import { jest } from "@jest/globals";
+
 import type { TransactionPrototype } from "@meshsdk/common";
 import {
   awaitTransactionConfirmation,
@@ -23,6 +25,7 @@ import {
 } from "@meshsdk/core";
 import {
   Cardano,
+  CardanoSDKSerializer,
   CborWriter,
   deserializeTx,
   scriptHashToRewardAddress,
@@ -653,6 +656,47 @@ describe.each(["scalus", "cquisitor"] as const)(
         validator === "scalus"
           ? "TransactionExpired"
           : "OutsideValidityIntervalUTxO",
+      ]);
+    });
+
+    it("keeps key and script stake balances separate when their hashes match", async () => {
+      const serializer = new CardanoSDKSerializer();
+      const hash = "ab".repeat(28);
+      const pubKeyHash = "cd".repeat(28);
+      const keyStake = serializer.serializeRewardAddress(hash, false, 1);
+      const scriptStake = serializer.serializeRewardAddress(hash, true, 1);
+      const emulator = await TxEmulator.create({
+        validator,
+        accounts: [{ rewardAddress: keyStake }, { rewardAddress: scriptStake }],
+        utxos: [
+          {
+            input: outRef(0),
+            output: {
+              address: serializer.serializeAddress(
+                { pubKeyHash, stakeCredentialHash: hash },
+                1,
+              ),
+              amount: lovelace("10000000"),
+            },
+          },
+          {
+            input: outRef(1),
+            output: {
+              address: serializer.serializeAddress(
+                { pubKeyHash, stakeScriptCredentialHash: hash },
+                1,
+              ),
+              amount: lovelace("20000000"),
+            },
+          },
+        ],
+      });
+
+      const keyAccount = await emulator.fetchAccountInfo(keyStake);
+      const scriptAccount = await emulator.fetchAccountInfo(scriptStake);
+      expect([keyAccount.balance, scriptAccount.balance]).toEqual([
+        "10000000",
+        "20000000",
       ]);
     });
 
@@ -3481,6 +3525,49 @@ describe.each(["scalus", "cquisitor"] as const)(
         },
       }) as unknown as IFetcher;
     };
+
+    it("checks the transaction validity interval at the source chain slot", async () => {
+      const { emulator: chain } = await setup(validator);
+      const slot = chain.advanceTo({ slot: chain.slot + 1000 });
+      const tx = rawTx({ body: { validity_start_interval: slot - 1 } });
+      expectAccepted(await chain.simulate(tx));
+
+      const snapshot = await TxEmulator.fromChain(tx, {
+        validator,
+        fetcher: chain,
+      });
+
+      expect(snapshot.slot).toBe(slot);
+      expectAccepted(await snapshot.simulate(tx));
+    });
+
+    it("uses the provider's latest block slot and honors an explicit override", async () => {
+      const { emulator: chain } = await setup(validator);
+      const fetchLatestBlock = jest.fn(async () => ({ slot: "1000" }));
+      const provider = plainFetcher(chain);
+      const fetcher = new Proxy(provider, {
+        has: (target, property) =>
+          property !== "slot" && Reflect.has(target, property),
+        get: (target, property, receiver) =>
+          property === "fetchLatestBlock"
+            ? fetchLatestBlock
+            : Reflect.get(target, property, receiver),
+      });
+      const tx = rawTx({});
+
+      expect(
+        (await TxEmulator.fromChain(tx, { validator, fetcher })).slot,
+      ).toBe(1000);
+      expect(fetchLatestBlock).toHaveBeenCalledTimes(1);
+
+      const overridden = await TxEmulator.fromChain(tx, {
+        validator,
+        fetcher,
+        slot: 0,
+      });
+      expect(overridden.slot).toBe(0);
+      expect(fetchLatestBlock).toHaveBeenCalledTimes(1);
+    });
 
     it("finds the outputs it read as transactions of its starting slot", async () => {
       const { emulator: chain, next, open } = await setup(validator);
