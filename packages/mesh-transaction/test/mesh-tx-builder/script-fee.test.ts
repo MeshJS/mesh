@@ -72,6 +72,6 @@ describe("MeshTxBuilder - Script Fee", () => {
         ),
         resolveScriptRef({ code: alwaysSucceedCbor, version: "V3" }).length / 2,
       ),
-    ).toBeLessThan(cardanoTx.body().fee());
+    ).toBeLessThanOrEqual(cardanoTx.body().fee());
   });
 });

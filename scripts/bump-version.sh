@@ -18,6 +18,7 @@ FILES=(
   "packages/mesh-transaction/package.json"
   "packages/mesh-wallet/package.json"
   "packages/mesh-scalus-emulator/package.json"
+  "packages/mesh-tx-emulator/package.json"
   "scripts/mesh-cli/package.json"
 )
 
@@ -37,6 +38,7 @@ for FILE in "${FILES[@]}"; do
     sed -i '' -e "s/\"@meshsdk\/react\": \".*\"/\"@meshsdk\/react\": \"$VERSION\"/" "$FILE"
     sed -i '' -e "s/\"@meshsdk\/svelte\": \".*\"/\"@meshsdk\/svelte\": \"$VERSION\"/" "$FILE"
     sed -i '' -e "s/\"@meshsdk\/transaction\": \".*\"/\"@meshsdk\/transaction\": \"$VERSION\"/" "$FILE"
+    sed -i '' -e "s/\"@meshsdk\/scalus-emulator\": \".*\"/\"@meshsdk\/scalus-emulator\": \"$VERSION\"/" "$FILE"
     sed -i '' -e "s/\"@meshsdk\/wallet\": \".*\"/\"@meshsdk\/wallet\": \"$VERSION\"/" "$FILE"
     sed -i '' -e "s/\"@meshsdk\/midnight-setup\": \".*\"/\"@meshsdk\/midnight-setup\": \"$VERSION\"/" "$FILE"
     sed -i '' -e "s/\"@meshsdk\/midnight-contracts-wizard\": \".*\"/\"@meshsdk\/midnight-contracts-wizard\": \"$VERSION\"/" "$FILE"

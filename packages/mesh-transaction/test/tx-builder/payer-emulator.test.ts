@@ -1,0 +1,150 @@
+import { CachedFetcher } from "@meshsdk/core";
+import { ScalusEmulator } from "@meshsdk/scalus-emulator";
+import { BrowserWallet, MeshWallet } from "@meshsdk/wallet";
+
+import {
+  BuiltTxData,
+  output,
+  Payer,
+  TxBuilder,
+  Utxo,
+} from "../../src/tx-builder";
+import { cip30Wallet } from "../cip30-wallet";
+import { baseAddress } from "../test-util";
+import { asMesh } from "./utxo-util";
+
+const words = Array(24).fill("solution");
+const recipient = baseAddress(2);
+
+/*
+ * Payments built from a payer in each of its forms, signed by the wallet and submitted to the
+ * emulator, whose ledger checks that the UTxOs read are the wallet's and unspent.
+ */
+describe("TxBuilder payers on the emulator", () => {
+  let emulator: ScalusEmulator;
+  let builder: TxBuilder;
+  let address: string;
+  /** The fixture's wallet, reading through the emulator without the short-lived cache */
+  let wallet: MeshWallet;
+
+  const pay = () =>
+    output({ address: recipient, value: { lovelace: 5_000_000n } });
+  const submit = async (built: BuiltTxData) => {
+    const txHash = await emulator.submitTx(await wallet.signTx(built.tx));
+    expect(txHash).toBe(built.txHash);
+  };
+
+  beforeEach(async () => {
+    const reader = new MeshWallet({
+      networkId: 0,
+      key: { type: "mnemonic", words },
+    });
+    await reader.init();
+    address = (await reader.getChangeAddress())!;
+    emulator = await ScalusEmulator.create(
+      [0, 1]
+        .map((i): Utxo => ({
+          txHash: "0".repeat(64),
+          outputIndex: i,
+          address,
+          value: { lovelace: 100_000_000_000n },
+        }))
+        .map(asMesh),
+    );
+    wallet = new MeshWallet({
+      networkId: 0,
+      key: { type: "mnemonic", words },
+      fetcher: new CachedFetcher(emulator, { volatileTtlMs: 0 }),
+    });
+    await wallet.init();
+    builder = new TxBuilder({ network: "preview", provider: emulator });
+  });
+
+  it("reads a wallet made without a fetcher through the provider", async () => {
+    const noFetcher = new MeshWallet({
+      networkId: 0,
+      key: { type: "mnemonic", words },
+    });
+    await noFetcher.init();
+    const built = await builder.build(pay(), { payer: noFetcher });
+    expect(built.change.map((o) => o.address)).toEqual([address]);
+    const txHash = await emulator.submitTx(await noFetcher.signTx(built.tx));
+    expect(txHash).toBe(built.txHash);
+  });
+
+  it("pays from one wallet in each form of payer", async () => {
+    const api = await cip30Wallet({
+      words,
+      fetcher: new CachedFetcher(emulator, { volatileTtlMs: 0 }),
+    });
+    const payers: (() => Promise<Payer>)[] = [
+      async () => wallet,
+      async () => api,
+      async () => address,
+      () => builder.readPayer(api),
+    ];
+    for (const payer of payers) {
+      const built = await builder.build(pay(), { payer: await payer() });
+      expect(built.change.map((o) => o.address)).toEqual([address]);
+      // The CIP-30 api answers with its witnesses only
+      const witnesses = await api.signTx(built.tx, false);
+      const tx = BrowserWallet.addBrowserWitnesses(built.tx, witnesses);
+      expect(await emulator.submitTx(tx)).toBe(built.txHash);
+    }
+  });
+
+  it("builds a second payment from an address right after the first, reading it anew", async () => {
+    const first = await builder.build(pay(), { payer: address });
+    await submit(first);
+    const second = await builder.build(pay(), { payer: address });
+    await submit(second);
+    const spent = new Set(
+      first.inputs.map((u) => `${u.txHash}#${u.outputIndex}`),
+    );
+    for (const input of second.inputs)
+      expect(spent.has(`${input.txHash}#${input.outputIndex}`)).toBe(false);
+  });
+
+  it("takes a MeshWallet's UTxOs from its fetcher's cache, fresh after the wallet's own submit", async () => {
+    // The clock stands still: a cached answer cannot expire on its own during the test. The
+    // provider is a new object, so its shared cache is made under that clock
+    const clock = jest.spyOn(Date, "now").mockReturnValue(Date.now());
+    try {
+      const provider = new Proxy(emulator, {
+        get: (target, prop) => Reflect.get(target, prop, target),
+      });
+      const onProvider = new TxBuilder({ network: "preview", provider });
+      // The wallet reads through the builder's provider, so through its shared cache
+      const shared = new MeshWallet({
+        networkId: 0,
+        key: { type: "mnemonic", words },
+        fetcher: provider,
+        submitter: provider,
+      });
+      await shared.init();
+      const outRefs = (built: BuiltTxData) =>
+        built.inputs.map((u) => `${u.txHash}#${u.outputIndex}`);
+
+      const first = await onProvider.build(pay(), { payer: shared });
+      expect(await shared.submitTx(await shared.signTx(first.tx))).toBe(
+        first.txHash,
+      );
+      const second = await onProvider.build(pay(), { payer: shared });
+      expect(outRefs(second)).not.toEqual(
+        expect.arrayContaining(outRefs(first)),
+      );
+      // Submitted past the wallet, the next read still lists the spent input
+      await submit(second);
+      const stale = await onProvider.build(pay(), { payer: shared });
+      expect(outRefs(stale)).toEqual(outRefs(second));
+      CachedFetcher.wrap(provider).clearVolatile();
+      const fresh = await onProvider.build(pay(), { payer: shared });
+      expect(outRefs(fresh)).not.toEqual(
+        expect.arrayContaining(outRefs(second)),
+      );
+      await submit(fresh);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+});

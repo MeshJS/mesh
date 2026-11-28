@@ -100,3 +100,16 @@ describe("transactionWitnessSetPrototypeToCardano", () => {
     expect(bootstrap!.attributes().toString()).toEqual("010203");
   });
 });
+
+describe("the data of a redeemer given as CBOR", () => {
+  it("keeps its bytes in the witness set: the integer 1 in each width, a constructor of indefinite length", () => {
+    for (const hex of ["01", "1801", "1a00000001", "d8799f1a00000001ff"]) {
+      const ws = transactionWitnessSetPrototypeToCardano({
+        redeemers: [{ ...redeemer("SPEND"), data: { type: "CBOR", hex } }],
+      });
+      const [red] = [...ws.redeemers()!.values()];
+      expect([hex, red!.data().toCbor().toString()]).toEqual([hex, hex]);
+      expect(ws.redeemers()!.toCbor().toString()).toContain(`82${hex}82`);
+    }
+  });
+});

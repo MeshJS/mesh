@@ -66,7 +66,8 @@ export type CachedFetcherOptions = {
  *   provider does; `MeshTxBuilder.submitTx` does so.
  *
  * Concurrent calls for the same key share one request, and failures are never remembered,
- * nor are empty transaction outputs. `get(url)` is passed straight through.
+ * nor are empty transaction outputs. `get(url)` and `fetchLatestBlock()` are passed straight
+ * through; the wrapper has `fetchLatestBlock` only when the wrapped fetcher has it.
  */
 export class CachedFetcher implements IFetcher {
   private static readonly shared = new WeakMap<IFetcher, CachedFetcher>();
@@ -93,6 +94,8 @@ export class CachedFetcher implements IFetcher {
   private readonly txOutputs = new Map<string, Promise<UTxO[]>>();
   private readonly epochValues = new Map<string, CacheEntry<unknown>>();
   private readonly volatileValues = new Map<string, CacheEntry<unknown>>();
+  /** The wrapped fetcher's latest block, asked anew on every call; absent when it has none */
+  declare readonly fetchLatestBlock?: () => Promise<BlockInfo>;
 
   constructor(
     readonly fetcher: IFetcher,
@@ -102,6 +105,8 @@ export class CachedFetcher implements IFetcher {
     this.maxCachedTxs = options.maxCachedTxs ?? DEFAULT_MAX_CACHED_TXS;
     this.volatileTtlMs = options.volatileTtlMs ?? DEFAULT_VOLATILE_TTL_MS;
     this.now = options.now ?? Date.now;
+    if (typeof fetcher.fetchLatestBlock === "function")
+      this.fetchLatestBlock = () => fetcher.fetchLatestBlock!();
   }
 
   /** Forget everything cached */

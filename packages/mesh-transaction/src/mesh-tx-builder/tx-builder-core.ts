@@ -2,12 +2,9 @@ import { HexBlob } from "@cardano-sdk/util";
 import JSONBig from "json-bigint";
 
 import {
-  Action,
   Anchor,
   Asset,
-  Budget,
   BuilderData,
-  cloneTxBuilderBody,
   Data,
   DEFAULT_PROTOCOL_PARAMETERS,
   DEFAULT_REDEEMER_BUDGET,
@@ -46,6 +43,10 @@ import { Address, CredentialType } from "@meshsdk/core-cst";
 import { metadataObjToMap } from "../utils";
 
 export class MeshTxBuilderCore {
+  /**
+   * @deprecated Multiplies nothing: a redeemer's execution units are the evaluation of the final
+   * transaction. `complete()` warns once per process when the value is not 1.
+   */
   txEvaluationMultiplier = 1;
   private txOutput?: Output;
   private addingPlutusScriptInput = false;
@@ -59,6 +60,16 @@ export class MeshTxBuilderCore {
 
   protected manualFee: string | undefined;
 
+  /** The parameters the consumer's fields lie over: the built-in ones until set */
+  private baseParams: Protocol = DEFAULT_PROTOCOL_PARAMETERS;
+
+  /** The protocol parameter fields the consumer gave, merged in the order given */
+  private givenParams: Partial<Protocol> = {};
+
+  /** Fields a setting of the builder fixes, laid over all others */
+  private fixedParams: Partial<Protocol> = {};
+
+  /** The parameters in effect: the consumer's fields and the fixed ones over the base */
   protected _protocolParams: Protocol = DEFAULT_PROTOCOL_PARAMETERS;
 
   protected mintItem?: MintItem;
@@ -1072,7 +1083,7 @@ export class MeshTxBuilderCore {
         txHash,
         txIndex,
         scriptHash,
-        version: this.plutusWithdrawalScriptVersion || "V2",
+        version: this.plutusVoteScriptVersion || "V2",
         scriptSize,
       };
     } else if (this.voteItem.type === "SimpleScriptVote") {
@@ -1627,9 +1638,41 @@ export class MeshTxBuilderCore {
    * @returns The MeshTxBuilder instance
    */
   protocolParams = (params: Partial<Protocol>) => {
-    const updatedParams = { ...DEFAULT_PROTOCOL_PARAMETERS, ...params };
-    this._protocolParams = updatedParams;
+    // A field once given stays given until it is given again
+    this.givenParams = { ...this.givenParams, ...params };
+    this._protocolParams = this.layParams();
     return this;
+  };
+
+  /**
+   * Protocol parameters as the builder uses them: the consumer's fields, then the fields a
+   * setting fixes, over `base`
+   * @param base The parameters underneath; the builder's base when omitted
+   */
+  protected layParams = (base: Protocol = this.baseParams): Protocol => ({
+    ...base,
+    ...this.givenParams,
+    ...this.fixedParams,
+  });
+
+  /** Whether the consumer's fields and the fixed ones give every parameter, none left to the base */
+  protected paramsGivenWhole = (): boolean => {
+    const own: Partial<Protocol> = { ...this.givenParams, ...this.fixedParams };
+    return (
+      Object.keys(DEFAULT_PROTOCOL_PARAMETERS) as (keyof Protocol)[]
+    ).every((key) => own[key] !== undefined);
+  };
+
+  /** Sets the parameters the consumer's fields lie over */
+  protected setBaseParams = (base: Protocol) => {
+    this.baseParams = base;
+    this._protocolParams = this.layParams();
+  };
+
+  /** Fixes fields over every other parameter source, for a setting of the builder */
+  protected fixParams = (fields: Partial<Protocol>) => {
+    this.fixedParams = { ...this.fixedParams, ...fields };
+    this._protocolParams = this.layParams();
   };
 
   /**
@@ -1931,116 +1974,6 @@ export class MeshTxBuilderCore {
     return red;
   };
 
-  protected updateRedeemer = (
-    meshTxBuilderBody: MeshTxBuilderBody,
-    txEvaluation: Omit<Action, "data">[],
-    doNotUseMultiplier: boolean = false,
-  ) => {
-    const txEvaluationMultiplier = doNotUseMultiplier
-      ? 1
-      : this.txEvaluationMultiplier;
-    txEvaluation.forEach((redeemerEvaluation) => {
-      switch (redeemerEvaluation.tag) {
-        case "SPEND": {
-          const input = meshTxBuilderBody.inputs[redeemerEvaluation.index];
-          if (!input) {
-            throw Error(
-              `updateRedeemer: Input not found for index ${redeemerEvaluation.index}`,
-            );
-          }
-          if (input.type == "Script" && input.scriptTxIn.redeemer) {
-            input.scriptTxIn.redeemer.exUnits.mem = Math.floor(
-              redeemerEvaluation.budget.mem * txEvaluationMultiplier,
-            );
-            input.scriptTxIn.redeemer.exUnits.steps = Math.floor(
-              redeemerEvaluation.budget.steps * txEvaluationMultiplier,
-            );
-          }
-          break;
-        }
-        case "MINT": {
-          const mint = meshTxBuilderBody.mints[redeemerEvaluation.index];
-          if (!mint) {
-            throw Error(
-              `updateRedeemer: Mint not found for index ${redeemerEvaluation.index}`,
-            );
-          }
-          if (mint.type == "Plutus" && mint.redeemer) {
-            let newExUnits: Budget = {
-              mem: Math.floor(
-                redeemerEvaluation.budget.mem * txEvaluationMultiplier,
-              ),
-              steps: Math.floor(
-                redeemerEvaluation.budget.steps * txEvaluationMultiplier,
-              ),
-            };
-            // It's possible to have multiple mints with the same policy id but different
-            // asset name, so we need to loop over the mints after evaluation
-            for (
-              let i = redeemerEvaluation.index;
-              i < meshTxBuilderBody.mints.length;
-              i++
-            ) {
-              if (meshTxBuilderBody.mints[i]!.policyId === mint.policyId) {
-                meshTxBuilderBody.mints[i]!.redeemer!.exUnits = newExUnits;
-              }
-            }
-          }
-          break;
-        }
-        case "CERT":
-          const cert = meshTxBuilderBody.certificates[redeemerEvaluation.index];
-          if (!cert) {
-            throw Error(
-              `updateRedeemer: Cert not found for index ${redeemerEvaluation.index}`,
-            );
-          }
-          if (cert.type === "ScriptCertificate" && cert.redeemer) {
-            cert.redeemer.exUnits.mem = Math.floor(
-              redeemerEvaluation.budget.mem * txEvaluationMultiplier,
-            );
-            cert.redeemer.exUnits.steps = Math.floor(
-              redeemerEvaluation.budget.steps * txEvaluationMultiplier,
-            );
-          }
-          break;
-        case "REWARD":
-          const withdrawal =
-            meshTxBuilderBody.withdrawals[redeemerEvaluation.index];
-          if (!withdrawal) {
-            throw Error(
-              `updateRedeemer: Withdrawal not found for index ${redeemerEvaluation.index}`,
-            );
-          }
-          if (withdrawal.type === "ScriptWithdrawal" && withdrawal.redeemer) {
-            withdrawal.redeemer.exUnits.mem = Math.floor(
-              redeemerEvaluation.budget.mem * txEvaluationMultiplier,
-            );
-            withdrawal.redeemer.exUnits.steps = Math.floor(
-              redeemerEvaluation.budget.steps * txEvaluationMultiplier,
-            );
-          }
-          break;
-        case "VOTE":
-          const vote = meshTxBuilderBody.votes[redeemerEvaluation.index];
-          if (!vote) {
-            throw Error(
-              `updateRedeemer: Vote not found for index ${redeemerEvaluation.index}`,
-            );
-          }
-          if (vote.type === "ScriptVote" && vote.redeemer) {
-            vote.redeemer.exUnits.mem = Math.floor(
-              redeemerEvaluation.budget.mem * txEvaluationMultiplier,
-            );
-            vote.redeemer.exUnits.steps = Math.floor(
-              redeemerEvaluation.budget.steps * txEvaluationMultiplier,
-            );
-          }
-          break;
-      }
-    });
-  };
-
   removeDuplicateInputs = () => {
     const { inputs } = this.meshTxBuilderBody;
     const getTxInId = (txIn: TxInParameter): string =>
@@ -2084,6 +2017,11 @@ export class MeshTxBuilderCore {
     return emptyTxBuilderBody;
   };
 
+  /**
+   * Starts a new transaction: empties the body and the items being added, and clears a fee set
+   * with `setFee()`. The protocol parameters stay, the fields given with `params` and
+   * `protocolParams()` among them.
+   */
   reset = () => {
     this.meshTxBuilderBody = emptyTxBuilderBody();
     this.txEvaluationMultiplier = 1;
@@ -2095,7 +2033,8 @@ export class MeshTxBuilderCore {
     this.addingPlutusWithdrawal = false;
     this.addingPlutusVote = false;
     this.plutusWithdrawalScriptVersion = undefined;
-    this._protocolParams = DEFAULT_PROTOCOL_PARAMETERS;
+    // A fee set by hand is for one transaction; the parameters are the builder's
+    this.manualFee = undefined;
     this.mintItem = undefined;
     this.txInQueueItem = undefined;
     this.withdrawalItem = undefined;
@@ -2104,57 +2043,4 @@ export class MeshTxBuilderCore {
     this.collateralQueueItem = undefined;
     this.refScriptTxInQueueItem = undefined;
   };
-
-  protected _cloneCore<T extends MeshTxBuilderCore>(
-    createInstance: () => T,
-  ): T {
-    this.queueAllLastItem();
-
-    const newBuilder = createInstance();
-
-    newBuilder.meshTxBuilderBody = cloneTxBuilderBody(this.meshTxBuilderBody);
-
-    newBuilder.txEvaluationMultiplier = this.txEvaluationMultiplier;
-    newBuilder.txOutput = this.txOutput
-      ? structuredClone(this.txOutput)
-      : undefined;
-
-    // Clone boolean flags
-    newBuilder.addingPlutusScriptInput = this.addingPlutusScriptInput;
-    newBuilder.plutusSpendingScriptVersion = this.plutusSpendingScriptVersion;
-    newBuilder.addingPlutusMint = this.addingPlutusMint;
-    newBuilder.plutusMintingScriptVersion = this.plutusMintingScriptVersion;
-    newBuilder.addingPlutusWithdrawal = this.addingPlutusWithdrawal;
-    newBuilder.plutusWithdrawalScriptVersion =
-      this.plutusWithdrawalScriptVersion;
-    newBuilder.addingPlutusVote = this.addingPlutusVote;
-    newBuilder.plutusVoteScriptVersion = this.plutusVoteScriptVersion;
-
-    newBuilder._protocolParams = structuredClone(this._protocolParams);
-
-    newBuilder.mintItem = this.mintItem
-      ? structuredClone(this.mintItem)
-      : undefined;
-    newBuilder.txInQueueItem = this.txInQueueItem
-      ? structuredClone(this.txInQueueItem)
-      : undefined;
-    newBuilder.withdrawalItem = this.withdrawalItem
-      ? structuredClone(this.withdrawalItem)
-      : undefined;
-    newBuilder.voteItem = this.voteItem
-      ? structuredClone(this.voteItem)
-      : undefined;
-    newBuilder.proposalItem = this.proposalItem
-      ? structuredClone(this.proposalItem)
-      : undefined;
-    newBuilder.collateralQueueItem = this.collateralQueueItem
-      ? structuredClone(this.collateralQueueItem)
-      : undefined;
-    newBuilder.refScriptTxInQueueItem = this.refScriptTxInQueueItem
-      ? structuredClone(this.refScriptTxInQueueItem)
-      : undefined;
-    newBuilder.manualFee = this.manualFee;
-
-    return newBuilder;
-  }
 }

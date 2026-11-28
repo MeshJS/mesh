@@ -1,0 +1,493 @@
+import type {
+  Cip30WalletApi,
+  IFetcher,
+  ISubmitter,
+  NetworkConfig,
+} from "@meshsdk/common";
+import { Address } from "@meshsdk/core-cst";
+
+import type { NetworkEntry } from "./network";
+import type { Utxo, UtxoInput } from "./parts/types";
+import { throwIfAborted } from "./abort";
+import { TxBuildError } from "./errors";
+import { checkNetworks, utxoEntry } from "./network";
+import { addressText, errorText, isObject, textShape } from "./parts/normalize";
+import { placeUtxos, readPlaced, UtxoTwiceError } from "./parts/utxo";
+
+/** The vkey witnesses a transaction needs, as key hashes */
+export type RequiredKeys = readonly string[];
+
+/**
+ * A wallet in the Mesh format: bech32 addresses and UTxO objects, as `MeshWallet` and
+ * `BrowserWallet` give them. `getChangeAddress` and `getUtxos` make it a payer; its UTxOs may be
+ * in any form the builder takes one.
+ */
+export type MeshFormatWallet = {
+  /** The address the change of a build goes to, in bech32 or hex */
+  getChangeAddress(): Promise<string>;
+  /**
+   * The wallet's own UTxO view. A wallet without it, or a `MeshWallet` made without a fetcher
+   * (its error has `code: "FETCHER_REQUIRED"`), is read at its change address through the
+   * builder's provider.
+   */
+  getUtxos?(): Promise<readonly UtxoInput[]>;
+  /** Checked against the builder's network before anything is selected */
+  getNetworkId?(): Promise<number>;
+  /** Signs with the keys of the given hashes, answering with a witness set */
+  signTxWitnesses?(tx: string, keyHashes?: RequiredKeys): Promise<string>;
+  /** Signs a transaction */
+  signTx?(
+    tx: string,
+    partialSign?: boolean,
+    returnFullTx?: boolean,
+  ): Promise<string>;
+  /** Submits a transaction, when the wallet is given as a submitter */
+  submitTx?(tx: string): Promise<string>;
+};
+
+/** A wallet as the builder takes it: a CIP-30 api, or a wallet in the Mesh format */
+export type TxWallet = Cip30WalletApi | MeshFormatWallet;
+
+/** A payer read once, as data: its change address in bech32 and its UTxOs */
+export type PayerSnapshot = {
+  readonly changeAddress: string;
+  readonly utxos: readonly Utxo[];
+};
+
+/**
+ * A payer given as data. The address may be bech32 or hex, and each UTxO in any form the builder
+ * takes one, the CBOR of a transaction unspent output among them, so what a CIP-30 wallet
+ * returns can be passed as it is.
+ */
+export type PayerSnapshotInput = {
+  /** The address the change goes to, in bech32 or hex */
+  readonly changeAddress: string;
+  /** The UTxOs the build may select from, each in any form the builder takes one */
+  readonly utxos: readonly UtxoInput[];
+};
+
+/**
+ * Who pays for a build and gets its change:
+ * - a wallet: its change address and UTxOs, read at this build;
+ * - an address, bech32 or hex: change to it, its UTxOs read through the provider;
+ * - a snapshot: both as given, nothing read.
+ */
+export type Payer = TxWallet | string | PayerSnapshotInput;
+
+/** Whether a wallet can submit, so that it can be given where a submitter is asked for */
+export function canSubmit<W extends object>(
+  wallet: W,
+): wallet is W & ISubmitter {
+  return (
+    typeof wallet === "object" &&
+    wallet !== null &&
+    typeof (wallet as { submitTx?: unknown }).submitTx === "function"
+  );
+}
+
+/**
+ * A payer as given, checked and converted as far as that needs no request. A snapshot made from
+ * a CIP-30 payer already read carries that payer's collateral fallback.
+ */
+export type PayerSource =
+  | {
+      readonly form: "snapshot";
+      readonly snapshot: PayerSnapshot;
+      readonly getCollateral?: GetCollateral;
+    }
+  | { readonly form: "address"; readonly address: string }
+  | { readonly form: "wallet"; readonly wallet: TxWallet };
+
+const PAYER_FORMS =
+  "a wallet (a CIP-30 api, or an object with getChangeAddress), an address in bech32 or hex, or a snapshot { changeAddress, utxos }";
+
+/**
+ * An address text in canonical form, bech32 or base58 for Byron; throws for any other text. A key
+ * may be given there by mistake, so the error tells the shape of a text that is no address,
+ * never the text, and keeps no cause that could quote it
+ */
+export const toAddressText = (text: unknown): string => {
+  if (typeof text !== "string") throw new Error("an address must be a string");
+  let parsed: Address | null;
+  try {
+    parsed = Address.fromString(text);
+  } catch {
+    parsed = null;
+  }
+  if (!parsed) throw new Error(`${textShape(text)} is not an address`);
+  // A reward address holds no UTxOs and cannot take change
+  if (parsed.asReward())
+    throw new Error(`${text} is a reward address, not a payment address`);
+  // Bytes that are no address can still read as one of a network that does not exist: the CBOR
+  // of a signing key file does, and must not go on as an address
+  const networkId = parsed.getNetworkId();
+  if (networkId !== 0 && networkId !== 1)
+    throw new Error(
+      `${textShape(text)} is not an address of a Cardano network: its network id is ${networkId}`,
+    );
+  return addressText(parsed);
+};
+
+const invalidPayer = (value: unknown, reason: string, cause?: unknown) =>
+  new TxBuildError("INVALID_OPTION", `invalid payer: ${reason}`, {
+    details: { option: "payer", value, allowed: PAYER_FORMS },
+    ...(cause !== undefined && { cause }),
+  });
+
+/** The JavaScript type of a value, with `null` told apart */
+const typeOf = (value: unknown) => (value === null ? "null" : typeof value);
+
+/**
+ * A list of a payer's UTxOs, each out ref once, in the order it first lists them: the entries are
+ * placed by their out refs before any is read whole, and two for one out ref must hold the same
+ * (`placeUtxos`, `readPlaced`). The same UTxO given again is one, and the entry taken for an out
+ * ref is the one selected, priced and bounded
+ * @param refused The error of the entry at a place that is not a UTxO, from the reader's
+ * @throws what `refused` makes; UtxoTwiceError for two entries that name one output and differ
+ */
+export const readPayerUtxos = (
+  list: readonly unknown[],
+  refused: (error: unknown, at: number, entry: unknown) => Error = (error) =>
+    error as Error,
+): Utxo[] => {
+  const refuse = (error: unknown, at: number, entry: unknown): never => {
+    throw refused(error, at, entry);
+  };
+  return Array.from(readPlaced(placeUtxos(list, refuse), refuse).values());
+};
+
+/**
+ * The error for a payer, or a snapshot's change address, that is no payment address, or is of
+ * no known form. A private key may be given there by mistake, so the message tells the shape of
+ * what was given and `details.value` its JavaScript type, never the value, and the parser's
+ * error, which quotes the text, is not the `cause`
+ */
+const unreadablePayer = (value: unknown, what: string) =>
+  invalidPayer(
+    typeOf(value),
+    `expected ${PAYER_FORMS}; ${what} is ${
+      typeof value === "string"
+        ? `${textShape(value)} that is not a payment address`
+        : `a value of type ${typeOf(value)}`
+    }`,
+  );
+
+/**
+ * Tells the form of a payer by its shape (a string, then a wallet, then a snapshot) and converts
+ * what is given as data: an address and a snapshot. Nothing is requested.
+ * @throws TxBuildError MISSING_PAYER for no payer; INVALID_OPTION for a payer of no known form,
+ *   an address that does not parse or is a reward address, a snapshot entry that is not a UTxO,
+ *   and two entries of a snapshot that name one output and differ
+ */
+export const toPayerSource = (payer: unknown): PayerSource => {
+  if (payer === undefined || payer === null)
+    throw new TxBuildError(
+      "MISSING_PAYER",
+      `no payer: give the build a payer, ${PAYER_FORMS}`,
+    );
+  if (typeof payer === "string") {
+    try {
+      return { form: "address", address: toAddressText(payer) };
+    } catch {
+      throw unreadablePayer(payer, "the payer");
+    }
+  }
+  if (!isObject(payer)) throw unreadablePayer(payer, "the payer");
+  if (typeof payer.getChangeAddress === "function")
+    return { form: "wallet", wallet: payer as TxWallet };
+  if (typeof payer.changeAddress === "string" && Array.isArray(payer.utxos)) {
+    let changeAddress: string;
+    try {
+      changeAddress = toAddressText(payer.changeAddress);
+    } catch {
+      throw unreadablePayer(
+        payer.changeAddress,
+        "the snapshot's change address",
+      );
+    }
+    let utxos: Utxo[];
+    try {
+      utxos = readPayerUtxos(payer.utxos as unknown[], (error, i, entry) =>
+        invalidPayer(
+          typeOf(entry),
+          `the snapshot's UTxO ${i} is neither a UTxO object nor the CBOR of one: ${errorText(error)}`,
+          error,
+        ),
+      );
+    } catch (error) {
+      if (!(error instanceof UtxoTwiceError)) throw error;
+      throw invalidPayer(
+        typeOf(payer.utxos),
+        `the snapshot's UTxOs ${error.at[0]} and ${error.at[1]} name the output ${error.key} ${error.how}`,
+      );
+    }
+    return { form: "snapshot", snapshot: { changeAddress, utxos } };
+  }
+  throw invalidPayer(
+    typeOf(payer),
+    `expected ${PAYER_FORMS}; got an object of none of these forms`,
+  );
+};
+
+/** The addresses a payer is given with, for the network check made before any request */
+export const givenPayerEntries = (source: PayerSource): NetworkEntry[] => {
+  switch (source.form) {
+    case "address":
+      return [{ role: "payer", address: source.address }];
+    case "snapshot":
+      return [
+        { role: "payer", address: source.snapshot.changeAddress },
+        ...source.snapshot.utxos.map((utxo) => utxoEntry(utxo)),
+      ];
+    default:
+      return [];
+  }
+};
+
+/** What reading a payer goes through */
+export type PayerReadContext = {
+  network: NetworkConfig;
+  /** The provider as given, not its cache: a payer's UTxOs are always read fresh */
+  provider?: IFetcher;
+  /** No read is started once it is aborted */
+  signal?: AbortSignal;
+};
+
+/** What a CIP-30 api's `getCollateral` takes and answers */
+export type GetCollateral = (params: {
+  amount: string;
+}) => Promise<string[] | null | undefined>;
+
+/**
+ * A payer as read: the snapshot, and for a CIP-30 api, its `getCollateral` (or
+ * `experimental.getCollateral`), the fallback for collateral
+ */
+export type PayerRead = {
+  readonly snapshot: PayerSnapshot;
+  readonly getCollateral?: GetCollateral;
+  /**
+   * The snapshot is the application's own, given as it is: nothing of it was read through the
+   * provider or a wallet, so it says nothing of what the chain holds at its addresses
+   */
+  readonly given?: true;
+};
+
+/** The numeric `code` of a thrown value, as CIP-30 errors carry it; read without instanceof */
+export const walletCodeOf = (error: unknown): number | undefined => {
+  const code = isObject(error) ? error.code : undefined;
+  return typeof code === "number" ? code : undefined;
+};
+
+/**
+ * A wallet that cannot read UTxOs without a fetcher: the error's code, or, from a wallet released
+ * before it had one, the start of its message
+ */
+const isFetcherRequired = (error: unknown) => {
+  if (!isObject(error)) return false;
+  if (error.code === "FETCHER_REQUIRED") return true;
+  return (
+    typeof error.message === "string" &&
+    error.message.startsWith("[MeshWallet] Fetcher is required")
+  );
+};
+
+const walletFailed = (what: string, error: unknown, decoding = false) => {
+  const walletCode = decoding ? undefined : walletCodeOf(error);
+  return new TxBuildError(
+    "WALLET_FAILED",
+    `reading the payer wallet failed: ${what}: ${errorText(error)}`,
+    {
+      details: walletCode === undefined ? {} : { walletCode },
+      cause: error,
+    },
+  );
+};
+
+/** Calls a wallet method, a synchronous throw becoming a rejection */
+const attempt = <T>(call: () => Promise<T>): Promise<T> => {
+  try {
+    return Promise.resolve(call());
+  } catch (error) {
+    return Promise.reject(error);
+  }
+};
+
+/**
+ * The UTxOs at an address, from the provider as given and so past its short-lived cache
+ * @throws TxBuildError MISSING_FETCHER without a provider; PROVIDER_FAILED when the read fails
+ */
+const fetchPayerUtxos = async (
+  address: string,
+  ctx: PayerReadContext,
+): Promise<Utxo[]> => {
+  const { provider } = ctx;
+  if (!provider)
+    throw new TxBuildError(
+      "MISSING_FETCHER",
+      `the UTxOs of the payer ${address} have to be read through a provider, and the builder has none`,
+    );
+  let utxos: unknown;
+  try {
+    utxos = await provider.fetchAddressUTxOs(address);
+  } catch (error) {
+    throw providerFailed(address, error);
+  }
+  try {
+    if (utxos === undefined || utxos === null) return [];
+    if (!Array.isArray(utxos)) throw new Error("the answer is not a list");
+    return readPayerUtxos(utxos);
+  } catch (error) {
+    throw providerFailed(address, error);
+  }
+};
+
+const providerFailed = (address: string, error: unknown) =>
+  new TxBuildError(
+    "PROVIDER_FAILED",
+    `fetching the UTxOs of the payer ${address} failed: ${errorText(error)}`,
+    { details: { operation: "fetchAddressUTxOs" }, cause: error },
+  );
+
+/**
+ * Reads a wallet once: its change address, UTxOs and network id, all three asked at once. The
+ * UTxOs of a wallet that cannot read them are read at its change address through the provider.
+ * The network id (only mainnet against the test networks) and the change address are checked
+ * before that read, so the provider is never asked about an address of another network; the
+ * UTxOs are checked once they are read.
+ */
+const readWallet = async (
+  wallet: TxWallet,
+  ctx: PayerReadContext,
+): Promise<PayerRead> => {
+  const ownUtxos = typeof wallet.getUtxos === "function";
+  if (!ownUtxos && !ctx.provider)
+    throw new TxBuildError(
+      "MISSING_FETCHER",
+      "the payer wallet cannot read its UTxOs, and the builder has no provider to read them through",
+    );
+  const [address, utxos, networkId] = await Promise.allSettled([
+    attempt(() => wallet.getChangeAddress()),
+    ownUtxos
+      ? attempt(() => wallet.getUtxos!() as Promise<unknown>)
+      : Promise.resolve(undefined),
+    typeof wallet.getNetworkId === "function"
+      ? attempt(() => wallet.getNetworkId!())
+      : Promise.resolve(undefined),
+  ]);
+  if (address.status === "rejected")
+    throw walletFailed("getChangeAddress", address.reason);
+  if (networkId.status === "rejected")
+    throw walletFailed("getNetworkId", networkId.reason);
+  let changeAddress: string;
+  try {
+    changeAddress = toAddressText(address.value);
+  } catch (error) {
+    throw walletFailed("its change address", error, true);
+  }
+  const stated = networkId.value;
+  checkNetworks(ctx.network, [
+    ...(stated === 0 || stated === 1
+      ? [{ role: "wallet" as const, networkId: stated }]
+      : []),
+    { role: "payer", address: changeAddress },
+  ]);
+  let read: Utxo[];
+  if (!ownUtxos) {
+    throwIfAborted(ctx.signal);
+    read = await fetchPayerUtxos(changeAddress, ctx);
+  } else if (utxos.status === "rejected") {
+    if (!isFetcherRequired(utxos.reason))
+      throw walletFailed("getUtxos", utxos.reason);
+    throwIfAborted(ctx.signal);
+    read = await fetchPayerUtxos(changeAddress, ctx);
+  } else {
+    const answer = utxos.value;
+    try {
+      if (answer === undefined || answer === null) read = [];
+      else if (!Array.isArray(answer))
+        throw new Error("getUtxos answered with something that is not a list");
+      else read = readPayerUtxos(answer);
+    } catch (error) {
+      throw walletFailed("its UTxOs", error, true);
+    }
+  }
+  checkNetworks(
+    ctx.network,
+    read.map((utxo) => utxoEntry(utxo)),
+  );
+  const snapshot = { changeAddress, utxos: read };
+  // A wallet answering in hex is a CIP-30 api; one in the Mesh format is never asked for
+  // collateral, whatever members it has
+  const getCollateral = isHexAddress(address.value)
+    ? collateralMethodOf(wallet as Cip30WalletApi)
+    : undefined;
+  return getCollateral ? { snapshot, getCollateral } : { snapshot };
+};
+
+/** Whether an address text is the hex of the address's bytes, as a CIP-30 api gives it */
+const isHexAddress = (text: unknown) =>
+  typeof text === "string" &&
+  /^[0-9a-f]+$/i.test(text) &&
+  Address.fromString(text)?.toBytes().toString() === text.toLowerCase();
+
+/** `getCollateral`, else `experimental.getCollateral`, bound to the api; one of them only */
+const collateralMethodOf = (api: Cip30WalletApi): GetCollateral | undefined => {
+  if (typeof api.getCollateral === "function")
+    return (params) => api.getCollateral!(params);
+  const { experimental } = api as { experimental?: unknown };
+  if (
+    isObject(experimental) &&
+    typeof experimental.getCollateral === "function"
+  )
+    return (params) =>
+      (experimental.getCollateral as GetCollateral).call(experimental, params);
+  return undefined;
+};
+
+/**
+ * The change address of a payer whose given data was checked, without its UTxOs: a request to
+ * a wallet, and none for an address or a snapshot
+ * @throws TxBuildError WALLET_FAILED when the wallet fails or answers with no address
+ */
+export const changeAddressOf = async (source: PayerSource): Promise<string> => {
+  if (source.form === "snapshot") return source.snapshot.changeAddress;
+  if (source.form === "address") return source.address;
+  let answer: unknown;
+  try {
+    answer = await attempt(() => source.wallet.getChangeAddress());
+  } catch (error) {
+    throw walletFailed("getChangeAddress", error);
+  }
+  try {
+    return toAddressText(answer);
+  } catch (error) {
+    throw walletFailed("its change address", error, true);
+  }
+};
+
+/**
+ * Reads a payer whose given data was checked: a wallet, or the UTxOs of an address; a snapshot
+ * is returned as it is. A CIP-30 api also gives its collateral method. What was read is checked
+ * for its network: the wallet's network id (only mainnet against the test networks), the change
+ * address and every UTxO.
+ */
+export const readPayerSource = async (
+  source: PayerSource,
+  ctx: PayerReadContext,
+): Promise<PayerRead> => {
+  if (source.form === "snapshot")
+    return source.getCollateral
+      ? {
+          snapshot: source.snapshot,
+          getCollateral: source.getCollateral,
+          given: true,
+        }
+      : { snapshot: source.snapshot, given: true };
+  if (source.form === "wallet") return readWallet(source.wallet, ctx);
+  const utxos = await fetchPayerUtxos(source.address, ctx);
+  checkNetworks(
+    ctx.network,
+    utxos.map((utxo) => utxoEntry(utxo)),
+  );
+  return { snapshot: { changeAddress: source.address, utxos } };
+};

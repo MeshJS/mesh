@@ -175,6 +175,98 @@ describe("output", () => {
     );
   });
 
+  it("refuses a quantity above what an output holds, naming the part and the unit", () => {
+    const max = 2n ** 64n - 1n;
+    const unit = `${policyA}0a`;
+    expect(
+      output({ address, value: { lovelace: max } }).output.amount.coin,
+    ).toBe(max.toString());
+    for (const [value, shown] of [
+      [{ lovelace: max + 1n }, "lovelace"],
+      [[{ unit: "lovelace", quantity: (max + 1n).toString() }], "lovelace"],
+      [{ lovelace: 2_000_000n, [unit]: max + 1n }, unit],
+      // Two entries of one unit that come to more
+      [
+        [
+          { unit, quantity: max.toString() },
+          { unit, quantity: "1" },
+        ],
+        unit,
+      ],
+    ] as const) {
+      let error: unknown;
+      try {
+        output({ address, value: value as never, label: "big" });
+      } catch (thrown) {
+        error = thrown;
+      }
+      expect(error).toBeInstanceOf(TxPartError);
+      expect((error as TxPartError).code).toBe("INVALID_VALUE");
+      expect((error as TxPartError).part).toBe("output");
+      expect((error as TxPartError).label).toBe("big");
+      expect((error as Error).message).toContain(shown);
+    }
+  });
+
+  it("keeps the error an argument was rejected for as the cause", () => {
+    const catchError = (build: () => unknown) => {
+      try {
+        build();
+      } catch (error) {
+        return error as TxPartError;
+      }
+      throw new Error("expected an error");
+    };
+    const badData = catchError(() =>
+      output({
+        address,
+        value: [],
+        datum: { type: "inline", data: { type: "CBOR", content: "zz" } },
+        label: "pay",
+      }),
+    );
+    expect(badData).toBeInstanceOf(TxPartError);
+    expect(badData).toMatchObject({
+      code: "INVALID_DATA",
+      part: "output",
+      label: "pay",
+    });
+    expect(badData.cause).toBeInstanceOf(Error);
+    expect(badData.message).toMatch(/^output "pay": invalid Plutus data: /);
+    expect(badData.message.endsWith((badData.cause as Error).message)).toBe(
+      true,
+    );
+
+    const badAddress = catchError(() =>
+      output({ address: "addr_nope", value: [] }),
+    );
+    expect(badAddress).toMatchObject({ code: "INVALID_ADDRESS" });
+    expect(badAddress.cause).toBeUndefined();
+  });
+
+  it("holds an inline datum only as one item of Plutus data, as its UTxO is read back", () => {
+    // Non-canonical, kept byte for byte
+    const kept = output({
+      address,
+      value: [],
+      datum: { type: "inline", data: { type: "CBOR", content: "d8799fff" } },
+    });
+    expect(kept.output.plutus_data).toEqual({
+      type: "DATA",
+      value: { type: "CBOR", hex: "d8799fff" },
+    });
+    for (const content of ["d8799fff00", "d8798000", "0102"])
+      expectPartError(
+        () =>
+          output({
+            address,
+            value: [],
+            datum: { type: "inline", data: { type: "CBOR", content } },
+          }),
+        "INVALID_DATA",
+      );
+  });
+
   it("rejects a bad address, datum hash or script", () => {
     expectPartError(
       () => output({ address: "nope", value: [] }),
@@ -193,5 +285,48 @@ describe("output", () => {
         }),
       "INVALID_SCRIPT",
     );
+  });
+
+  it("refuses a scriptRef that is not a script object, its CBOR among them, naming its JavaScript type alone", () => {
+    const plutus = resolveScriptRef({ code: alwaysSucceedCbor, version: "V3" });
+    const native = resolveScriptRef({ type: "all", scripts: [] });
+    const symbol = Symbol("script");
+    const cases: [unknown, string][] = [
+      [plutus, "string"],
+      [plutus.toUpperCase(), "string"],
+      [native, "string"],
+      [alwaysSucceedCbor, "string"],
+      ["", "string"],
+      [5, "number"],
+      [0, "number"],
+      [12345678901n, "bigint"],
+      [true, "boolean"],
+      [false, "boolean"],
+      [null, "null"],
+      [symbol, "symbol"],
+      [() => native, "function"],
+    ];
+    for (const [scriptRef, type] of cases) {
+      let error: unknown;
+      try {
+        output({ address, value: [], scriptRef: scriptRef as never });
+      } catch (e) {
+        error = e;
+      }
+      expect([type, error]).toEqual([type, expect.any(TxPartError)]);
+      expect([type, (error as TxPartError).code]).toEqual([
+        type,
+        "INVALID_SCRIPT",
+      ]);
+      const message = (error as TxPartError).message;
+      expect([type, message]).toEqual([
+        type,
+        `output: invalid reference script: expected a PlutusScript { code, version } or a NativeScript object, not the CBOR of a script; got a value of type ${type}`,
+      ]);
+    }
+    // Left out only when not given
+    expect(
+      output({ address, value: [], scriptRef: undefined }).output,
+    ).not.toHaveProperty("script_ref");
   });
 });

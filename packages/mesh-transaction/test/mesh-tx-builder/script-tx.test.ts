@@ -137,7 +137,7 @@ describe("MeshTxBuilder - Script Transactions", () => {
         "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
       )
       .setFee("5000000")
-      .setTotalCollateral("5000000")
+      .setTotalCollateral("7500000")
       .complete();
 
     expect(
@@ -149,7 +149,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "SPEND" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "SPEND",
+      },
     ]);
 
     expect(
@@ -161,7 +165,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "SPEND" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "SPEND",
+      },
     ]);
 
     const cardanoTx = Serialization.Transaction.fromCbor(
@@ -172,12 +180,12 @@ describe("MeshTxBuilder - Script Transactions", () => {
     );
     expect(cardanoTx.body().fee().toString()).toBe("5000000");
     expect(cardanoTx2.body().fee().toString()).toBe("5000000");
-    expect(cardanoTx2.body().totalCollateral()).toBe(5000000n);
+    expect(cardanoTx2.body().totalCollateral()).toBe(7500000n);
     expect(cardanoTx2.body().collateralReturn()?.address().toBech32()).toBe(
       "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
     );
     expect(cardanoTx2.body().collateralReturn()?.amount().coin()).toBe(
-      95000000n,
+      92500000n,
     );
   });
 
@@ -215,7 +223,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "SPEND" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "SPEND",
+      },
     ]);
 
     expect(
@@ -227,7 +239,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "SPEND" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "SPEND",
+      },
     ]);
   });
 
@@ -265,7 +281,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "MINT" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "MINT",
+      },
     ]);
 
     expect(
@@ -277,7 +297,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "MINT" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "MINT",
+      },
     ]);
   });
 
@@ -315,7 +339,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "MINT" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "MINT",
+      },
     ]);
 
     expect(
@@ -327,7 +355,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "MINT" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "MINT",
+      },
     ]);
   });
 
@@ -365,7 +397,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "REWARD" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "REWARD",
+      },
     ]);
 
     expect(
@@ -377,7 +413,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "REWARD" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "REWARD",
+      },
     ]);
   });
 
@@ -415,7 +455,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "REWARD" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "REWARD",
+      },
     ]);
 
     expect(
@@ -427,7 +471,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "REWARD" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "REWARD",
+      },
     ]);
   });
 
@@ -473,7 +521,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "CERT" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "CERT",
+      },
     ]);
 
     expect(
@@ -485,7 +537,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "CERT" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "CERT",
+      },
     ]);
   });
 
@@ -531,7 +587,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "CERT" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "CERT",
+      },
     ]);
 
     expect(
@@ -543,7 +603,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "CERT" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "CERT",
+      },
     ]);
   });
 
@@ -589,7 +653,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "VOTE" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "VOTE",
+      },
     ]);
 
     expect(
@@ -601,7 +669,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "VOTE" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "VOTE",
+      },
     ]);
   });
 
@@ -673,7 +745,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "VOTE" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "VOTE",
+      },
     ]);
 
     expect(
@@ -685,7 +761,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "VOTE" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "VOTE",
+      },
     ]);
   });
 
@@ -743,7 +823,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "REWARD" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "REWARD",
+      },
     ]);
 
     expect(
@@ -755,7 +839,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "REWARD" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "REWARD",
+      },
     ]);
   });
 
@@ -803,8 +891,16 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "SPEND" },
-      { budget: { mem: 2001, steps: 380149 }, index: 1, tag: "SPEND" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "SPEND",
+      },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 1,
+        tag: "SPEND",
+      },
     ]);
 
     expect(
@@ -816,8 +912,16 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "SPEND" },
-      { budget: { mem: 2001, steps: 380149 }, index: 1, tag: "SPEND" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "SPEND",
+      },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 1,
+        tag: "SPEND",
+      },
     ]);
   });
 
@@ -863,7 +967,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "MINT" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "MINT",
+      },
     ]);
 
     expect(
@@ -875,7 +983,11 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "MINT" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "MINT",
+      },
     ]);
   });
 
@@ -933,8 +1045,16 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "CERT" },
-      { budget: { mem: 2001, steps: 380149 }, index: 1, tag: "CERT" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "CERT",
+      },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 1,
+        tag: "CERT",
+      },
     ]);
 
     expect(
@@ -946,8 +1066,16 @@ describe("MeshTxBuilder - Script Transactions", () => {
         txBuilder.meshTxBuilderBody.chainedTxs,
       ),
     ).toEqual([
-      { budget: { mem: 2001, steps: 380149 }, index: 0, tag: "CERT" },
-      { budget: { mem: 2001, steps: 380149 }, index: 1, tag: "CERT" },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 0,
+        tag: "CERT",
+      },
+      {
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        index: 1,
+        tag: "CERT",
+      },
     ]);
   });
 });

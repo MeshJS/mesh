@@ -1,0 +1,2348 @@
+import { randomBytes } from "node:crypto";
+
+import {
+  Action,
+  DEFAULT_PROTOCOL_PARAMETERS,
+  DEFAULT_V1_COST_MODEL_LIST,
+  DEFAULT_V2_COST_MODEL_LIST,
+  DEFAULT_V3_COST_MODEL_LIST,
+  deserializeAddress,
+  IEvaluator,
+  mConStr0,
+  NativeScript,
+  Protocol,
+  pubKeyAddress,
+  resolveNativeScriptHash,
+  serializeAddressObj,
+} from "@meshsdk/core";
+import {
+  Address,
+  CardanoSDKSerializer,
+  Crypto,
+  HexBlob,
+  keyHashToRewardAddress,
+  toNativeScript,
+  Transaction,
+  TxCBOR,
+} from "@meshsdk/core-cst";
+import { MeshWallet } from "@meshsdk/wallet";
+
+import type { AskedKey } from "../../src/tx-builder";
+import {
+  addWitnesses as addWitnessSets,
+  BlindTx,
+  BuiltTx,
+  BuiltTxData,
+  BuiltTxJSON,
+  certificate,
+  collateral,
+  collateralReturn,
+  FromCborOptions,
+  guard,
+  keySigner,
+  mint,
+  output,
+  OutputScript,
+  Signer,
+  signWitnesses,
+  spend,
+  TxBuilder,
+  TxBuilderOptions,
+  TxBuildError,
+  TxError,
+  TxPlanError,
+  Utxo,
+  UtxoInput,
+  validity,
+  vote,
+  withdrawal,
+} from "../../src/tx-builder";
+import { plainUtxo } from "../../src/tx-builder/parts/utxo";
+import { decodeBuilt, encodeBuilt } from "../../src/tx-builder/plan/json";
+import {
+  readTransaction,
+  readWitnessArgument,
+} from "../../src/tx-builder/sign";
+import { alwaysSucceedCbor, baseAddress, keyHashHex } from "../test-util";
+import * as cbor from "./cbor-util";
+import { hashSigner, keysSigner, TestKey, testKey } from "./hash-signer-util";
+
+const params: Protocol = { ...DEFAULT_PROTOCOL_PARAMETERS };
+const costModels = [
+  DEFAULT_V1_COST_MODEL_LIST,
+  DEFAULT_V2_COST_MODEL_LIST,
+  DEFAULT_V3_COST_MODEL_LIST,
+];
+const deposits = { drepDeposit: 500_000_000n, govActionDeposit: 1_000_000n };
+const recipient = baseAddress(2);
+const ada = (n: number) => BigInt(n) * 1_000_000n;
+const BYRON = "Ae2tdPwUPEZ4YjgvykNpoFeYUxoyhNj2kg8KfKWN2FizsSpLUPv68MpTVDo";
+
+const TAGS: Action["tag"][] = [
+  "SPEND",
+  "MINT",
+  "CERT",
+  "REWARD",
+  "VOTE",
+  "PROPOSE",
+];
+/** Prices every redeemer of a transaction at fixed units */
+const fakeEvaluator: IEvaluator = {
+  evaluateTx: async (tx) =>
+    (
+      Transaction.fromCbor(TxCBOR(tx)).witnessSet().redeemers()?.values() ?? []
+    ).map((r) => ({
+      tag: TAGS[r.tag()]!,
+      index: Number(r.index()),
+      budget: { mem: 1000, steps: 2000 },
+    })),
+};
+const plutus = { code: alwaysSucceedCbor, version: "V3" as const };
+const redeemer = { data: mConStr0([]) };
+
+/** A builder without a provider: nothing is read */
+const offline = (
+  network: "preprod" | "mainnet" = "preprod",
+  extra: Partial<TxBuilderOptions> = {},
+) =>
+  new TxBuilder({
+    network,
+    params,
+    costModels,
+    evaluator: fakeEvaluator,
+    deposits,
+    ...extra,
+  });
+
+let nextHash = 0;
+const utxoAt = (address: string, lovelace = ada(100)): Utxo => ({
+  txHash: (++nextHash).toString(16).padStart(64, "d"),
+  outputIndex: 0,
+  address,
+  value: { lovelace },
+});
+
+/** The UTxO of input `TX_IN#index` of a hand-made body */
+const handUtxo = (address: string, outputIndex = 0, lovelace = ada(10)) => ({
+  txHash: cbor.TX_IN,
+  outputIndex,
+  address,
+  value: { lovelace },
+});
+
+/** A preprod enterprise address of a key, in hex */
+const addressHex = (key: { keyHash: string }, network: 0 | 1 = 0) =>
+  `${network === 0 ? "60" : "61"}${key.keyHash}`;
+/** The same address in bech32 */
+const addressOf = (key: { keyHash: string }, network: 0 | 1 = 0) =>
+  serializeAddressObj(pubKeyAddress(key.keyHash), network);
+
+/** A bootstrap witness of a key over a transaction hash */
+const bootstrapWitness = (key: TestKey, txHash: string) =>
+  cbor.arr(
+    cbor.bytes(key.vkey),
+    cbor.bytes(key.sign(txHash)),
+    cbor.bytes("00".repeat(32)),
+    cbor.bytes("a0"),
+  );
+
+/** The form a key-witness list is written in */
+type ListForm = "tagged" | "plain" | "indefinite";
+const list = (form: ListForm, ...items: string[]) =>
+  form === "tagged"
+    ? cbor.tag258(cbor.arr(...items))
+    : form === "plain"
+      ? cbor.arr(...items)
+      : cbor.arrIndef(...items);
+
+/** The rejection of a promise, or the throw of a call */
+const caught = async (run: () => unknown): Promise<any> => {
+  try {
+    await run();
+  } catch (error) {
+    return error;
+  }
+  throw new Error("expected a failure");
+};
+
+/** The public keys of a transaction's vkey and bootstrap witnesses */
+const keysOf = (tx: string) => {
+  const { vkeys, bootstraps } = readTransaction(tx).witnessSet;
+  return {
+    vkeys: (vkeys?.witnesses ?? []).map((w) => w.vkey),
+    bootstraps: (bootstraps?.witnesses ?? []).map((w) => w.vkey),
+  };
+};
+
+/** Whether every vkey and bootstrap witness of a transaction verifies against a hash */
+const allVerify = (tx: string, txHash: string) => {
+  const { vkeys, bootstraps } = readTransaction(tx).witnessSet;
+  return [...(vkeys?.witnesses ?? []), ...(bootstraps?.witnesses ?? [])].every(
+    (w) =>
+      Crypto.Ed25519PublicKey.fromHex(
+        w.vkey as Crypto.Ed25519PublicKeyHex,
+      ).verify(
+        Crypto.Ed25519Signature.fromHex(
+          w.signature as Crypto.Ed25519SignatureHex,
+        ),
+        HexBlob(txHash),
+      ),
+  );
+};
+
+const throughText = (built: BuiltTx) =>
+  JSON.parse(JSON.stringify(built)) as BuiltTxJSON;
+
+/** The UTxOs a build's transaction names: of its inputs, reference inputs and collateral */
+const namedBy = (built: BuiltTxData): Utxo[] => [
+  ...built.inputs,
+  ...built.referenceInputs,
+  ...(built.collateral?.inputs ?? []),
+];
+
+/** What a transaction made by `fromCbor` and the build that made it have alike */
+const viewOf = (built: BuiltTxData) => {
+  const sorted = <T>(items: readonly T[]) =>
+    [...items].sort((a, b) => (JSON.stringify(a) < JSON.stringify(b) ? -1 : 1));
+  return {
+    tx: built.tx,
+    txHash: built.txHash,
+    fee: built.fee,
+    exUnits: built.exUnits,
+    redeemers: built.redeemers.map(({ part: _p, label: _l, ...rest }) => rest),
+    inputs: built.inputs.map(plainUtxo),
+    referenceInputs: built.referenceInputs.map(plainUtxo),
+    outputs: built.outputs.map(plainUtxo),
+    collateral: built.collateral && {
+      inputs: built.collateral.inputs.map(plainUtxo),
+      total: built.collateral.total,
+      return: built.collateral.return && plainUtxo(built.collateral.return),
+    },
+    validity: built.validity,
+    network: built.network,
+    signers: {
+      keys: sorted(built.signers.keys),
+      keyHashes: sorted(built.signers.keyHashes),
+      byronAddresses: sorted(built.signers.byronAddresses),
+      nativeScripts: sorted(built.signers.nativeScripts),
+    },
+  };
+};
+
+/** A native script as an output holds it for reference */
+const nativeRefOf = (script: NativeScript): OutputScript => ({
+  type: "native",
+  cbor: toNativeScript(script).toCbor().toString(),
+  hash: resolveNativeScriptHash(script),
+});
+
+/* Builds of this builder, each a transaction of a kind */
+
+/**
+ * A Plutus spend with a mint and a withdrawal of the script, collateral with a return, and an
+ * output the script's lovelace does not cover: inputs are selected, and change is returned
+ */
+const plutusSpend = async () => {
+  await Crypto.ready();
+  const payer = testKey();
+  const b = offline();
+  const built = await b.build(
+    [
+      spend.plutus({
+        utxo: {
+          ...utxoAt(b.scriptAddress(plutus), ada(10)),
+          datum: { type: "inline", data: { type: "CBOR", content: "d87980" } },
+        },
+        script: plutus,
+        redeemer,
+        label: "unlock",
+      }),
+      mint.plutus({ script: plutus, redeemer, assets: { abcd: 1n } }),
+      withdrawal.plutus({ amount: 0n, script: plutus, redeemer }),
+      output({
+        address: recipient,
+        value: { lovelace: ada(20) },
+        label: "pay",
+      }),
+      validity({ invalidHereafter: 90_000_000 }),
+    ],
+    {
+      payer: {
+        changeAddress: payer.address,
+        utxos: [utxoAt(payer.address), utxoAt(payer.address, ada(5))],
+      },
+    },
+  );
+  return { built, payer, builder: b };
+};
+
+/** A native script and a Byron address spent from, on mainnet */
+const nativeAndByron = async () => {
+  await Crypto.ready();
+  const payer = testKey();
+  const scriptKey = testKey();
+  const native: NativeScript = {
+    type: "all",
+    scripts: [
+      { type: "sig", keyHash: scriptKey.keyHash },
+      { type: "after", slot: "1000" },
+    ],
+  };
+  const shelley = addressOf(payer, 1);
+  const b = offline("mainnet");
+  const built = await b.build(
+    [
+      spend.native({
+        utxo: utxoAt(b.scriptAddress(native), ada(2)),
+        script: native,
+      }),
+      spend.pubKey({ utxo: utxoAt(BYRON, ada(5)) }),
+      output({ address: shelley, value: { lovelace: ada(10) } }),
+      validity({ invalidBefore: 2_000 }),
+    ],
+    { payer: { changeAddress: shelley, utxos: [utxoAt(shelley)] } },
+  );
+  return { built, payer, scriptKey, builder: b };
+};
+
+/** A native script read from a reference input, and a guard key */
+const nativeByReference = async () => {
+  await Crypto.ready();
+  const payer = testKey();
+  const scriptKey = testKey();
+  const guardKey = testKey();
+  const native: NativeScript = { type: "sig", keyHash: scriptKey.keyHash };
+  const b = offline();
+  const holder: Utxo = {
+    ...utxoAt(payer.address, ada(20)),
+    script: nativeRefOf(native),
+  };
+  const built = await b.build(
+    [
+      spend.native({
+        utxo: utxoAt(b.scriptAddress(native), ada(10)),
+        script: { reference: holder },
+      }),
+      guard.pubKey({ keyHash: guardKey.keyHash }),
+      output({ address: recipient, value: { lovelace: ada(15) } }),
+    ],
+    { payer: { changeAddress: payer.address, utxos: [utxoAt(payer.address)] } },
+  );
+  return { built, payer, scriptKey, guardKey, builder: b };
+};
+
+/** A stake delegation with a withdrawal */
+const certificateAndWithdrawal = async () => {
+  await Crypto.ready();
+  const payer = testKey();
+  const b = offline();
+  const built = await b.build(
+    [
+      certificate.stakeDelegation({
+        stake: keyHashToRewardAddress(keyHashHex(12), 0),
+        pool: keyHashHex(17),
+      }),
+      withdrawal.pubKey({
+        rewardAddress: keyHashToRewardAddress(keyHashHex(11), 0),
+        amount: 0n,
+      }),
+    ],
+    { payer: { changeAddress: payer.address, utxos: [utxoAt(payer.address)] } },
+  );
+  return { built, payer, builder: b };
+};
+
+const BUILDS: [
+  string,
+  () => Promise<{ built: BuiltTx; builder: TxBuilder }>,
+][] = [
+  ["a Plutus spend with a mint and a withdrawal", plutusSpend],
+  ["a native script with a Byron address", nativeAndByron],
+  [
+    "a native script read from a reference input with a guard",
+    nativeByReference,
+  ],
+  ["a certificate with a withdrawal", certificateAndWithdrawal],
+];
+
+/** The object of a build's transaction, its UTxOs given */
+const fromBuild = (built: BuiltTxData, b: TxBuilder, tx = built.tx) =>
+  b.fromCbor(tx, { knownUtxos: namedBy(built) });
+
+/* Hand-made transactions */
+
+/**
+ * A hand-made preprod payment from `TX_IN#0` at the address of `key`, in the body form asked for
+ * @param witnessSet The witness set, made from the body's hash
+ */
+const handPayment = (
+  form: cbor.BodyForm,
+  key: TestKey,
+  witnessSet: (txHash: string) => string = () => cbor.map(),
+  extra: [string, string][] = [],
+) => {
+  const body = cbor.body(form, { to: addressHex(key), extra });
+  const txHash = cbor.txHashOf(body);
+  return {
+    body,
+    txHash,
+    tx: cbor.tx(body, witnessSet(txHash)),
+    unsigned: cbor.tx(body),
+    knownUtxos: [handUtxo(key.address)],
+  };
+};
+
+describe("TxBuilder.fromCbor: the object", () => {
+  it("is a BuiltTx whose own members are those of the data of a build, frozen, and copies as the same plain data", async () => {
+    for (const [, make] of BUILDS) {
+      const { built, builder: b } = await make();
+      const made = await fromBuild(built, b);
+      expect(made).toBeInstanceOf(BuiltTx);
+      expect(Reflect.ownKeys(made)).toEqual(Object.keys(built));
+      expect(Object.isFrozen(made)).toBe(true);
+      for (const key of Reflect.ownKeys(made)) {
+        const descriptor = Object.getOwnPropertyDescriptor(made, key)!;
+        expect(descriptor.writable).toBe(false);
+        expect(descriptor.enumerable).toBe(true);
+      }
+      const spread = { ...made };
+      const cloned = structuredClone(made);
+      expect(cloned).not.toBeInstanceOf(BuiltTx);
+      expect(cloned).toEqual(spread);
+      expect(Object.keys(cloned)).toEqual(Object.keys(built));
+    }
+  });
+
+  it.each(BUILDS)(
+    "gives the members of the build that made the transaction: %s",
+    async (_, make) => {
+      const { built, builder: b } = await make();
+      const made = await fromBuild(built, b);
+      expect(viewOf(made)).toEqual(viewOf(built));
+      // The same keys with the same roles
+      expect(made.signers.keys.length).toBe(built.signers.keys.length);
+    },
+  );
+
+  it("builds what the cases name", async () => {
+    const { built: spent } = await plutusSpend();
+    expect(spent.redeemers.map((r) => r.tag).sort()).toEqual([
+      "MINT",
+      "REWARD",
+      "SPEND",
+    ]);
+    expect(spent.collateral?.return).toBeDefined();
+    const { built: byron } = await nativeAndByron();
+    expect(byron.signers.byronAddresses).toEqual([BYRON]);
+    expect(byron.signers.nativeScripts).toHaveLength(1);
+    const { built: byReference } = await nativeByReference();
+    expect(byReference.referenceInputs).toHaveLength(1);
+    expect(byReference.signers.nativeScripts).toHaveLength(1);
+    expect(byReference.signers.keys.map((k) => k.roles)).toContainEqual([
+      "guard",
+    ]);
+    const { built: delegation } = await certificateAndWithdrawal();
+    expect(delegation.signers.keys.map((k) => k.roles).flat()).toEqual(
+      expect.arrayContaining(["certificate", "withdrawal", "input"]),
+    );
+  });
+
+  it("reads a transaction that pays a Byron address and returns collateral to one, each address in base58, and takes it through JSON", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const byron = Address.fromBase58(BYRON).toBytes() as string;
+    const body = cbor.body("tagged", {
+      to: byron,
+      extra: [
+        [
+          cbor.uint(13),
+          cbor.tag258(cbor.arr(cbor.arr(cbor.bytes(cbor.TX_IN), cbor.uint(1)))),
+        ],
+        [cbor.uint(16), cbor.arr(cbor.bytes(byron), cbor.uint(4_000_000))],
+      ],
+    });
+    const knownUtxos = [
+      handUtxo(addressOf(key, 1)),
+      handUtxo(addressOf(key, 1), 1, ada(5)),
+    ];
+    const b = offline("mainnet");
+    const made = await b.fromCbor(cbor.tx(body), { knownUtxos });
+    expect(made.tx).toBe(cbor.tx(body));
+    expect(made.outputs.map((o) => [o.address, o.value.lovelace])).toEqual([
+      [BYRON, 3_000_000n],
+    ]);
+    expect(made.collateral!.return!.address).toBe(BYRON);
+    expect(made.prototype.body.outputs[0]!.address).toBe(BYRON);
+    expect(made.prototype.body.collateral_return!.address).toBe(BYRON);
+    expect(made.prototype.body.fee).toBe("170000");
+    const restored = await b.restore(throughText(made));
+    expect(restored.outputs).toEqual(made.outputs);
+    expect(restored.prototype).toEqual(made.prototype);
+    // A Byron address of mainnet is of another network for a preprod builder
+    const error = await caught(() =>
+      offline().fromCbor(cbor.tx(body), {
+        knownUtxos: [handUtxo(key.address), handUtxo(key.address, 1)],
+      }),
+    );
+    expect(error.code).toBe("NETWORK_MISMATCH");
+  });
+
+  it("leaves selectedInputs, change and parts empty, outputs without label and change, redeemers without part", async () => {
+    const { built, builder: b } = await plutusSpend();
+    expect(built.selectedInputs.length).toBeGreaterThan(0);
+    expect(built.change.length).toBeGreaterThan(0);
+    expect(built.outputs.some((o) => o.label !== undefined)).toBe(true);
+    expect(built.redeemers.every((r) => r.part !== undefined)).toBe(true);
+    const made = await fromBuild(built, b);
+    expect(made.selectedInputs).toEqual([]);
+    expect(made.change).toEqual([]);
+    expect(made.parts).toEqual([]);
+    for (const out of made.outputs) {
+      expect("label" in out).toBe(false);
+      expect("change" in out).toBe(false);
+    }
+    for (const r of made.redeemers) {
+      expect("part" in r).toBe(false);
+      expect("label" in r).toBe(false);
+    }
+  });
+
+  it("takes txHash from the body bytes as given, for a body of indefinite length with 8-byte integers and keys out of order", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const given = handPayment("odd", key);
+    const b = offline();
+    const made = await b.fromCbor(given.tx, { knownUtxos: given.knownUtxos });
+    expect(made.txHash).toBe(given.txHash);
+    expect(made.fee).toBe(170_000n);
+    // The prototype serialized again is another encoding, with another hash
+    const again = new CardanoSDKSerializer().serializeTxPrototype(
+      made.prototype,
+    );
+    expect(cbor.topItems(again)[0]).not.toBe(given.body);
+    expect(Transaction.fromCbor(TxCBOR(again)).getId()).not.toBe(made.txHash);
+  });
+
+  it("gives the inline datum of an output and the data of a redeemer byte for byte, in each encoding", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const encodings = [
+      cbor.constr0(cbor.uint(1)),
+      cbor.constr0Indef(cbor.uint(1), cbor.bytes("cafe")),
+      cbor.constr0(cbor.uint64(1)),
+      cbor.constr0(cbor.chunkedBytes("cafe")),
+    ];
+    for (const data of encodings) {
+      const datumOutput = cbor.map(
+        [cbor.uint(0), cbor.bytes(addressHex(key))],
+        [cbor.uint(1), cbor.uint(3_000_000)],
+        [cbor.uint(2), cbor.arr(cbor.uint(1), `d818${cbor.bytes(data)}`)],
+      );
+      const body = cbor.map(
+        [
+          cbor.uint(0),
+          cbor.tag258(cbor.arr(cbor.arr(cbor.bytes(cbor.TX_IN), cbor.uint(0)))),
+        ],
+        [cbor.uint(1), cbor.arr(datumOutput)],
+        [cbor.uint(2), cbor.uint(170_000)],
+      );
+      const redeemers = cbor.arr(
+        cbor.arr(
+          cbor.uint(0),
+          cbor.uint(0),
+          data,
+          cbor.arr(cbor.uint(1000), cbor.uint(2000)),
+        ),
+      );
+      const given = cbor.tx(body, cbor.map([cbor.uint(5), redeemers]));
+      const made = await offline().fromCbor(given, {
+        knownUtxos: [handUtxo(key.address)],
+      });
+      expect(made.outputs[0]!.datum).toEqual({
+        type: "inline",
+        data: { type: "CBOR", content: data },
+      });
+      expect(made.redeemers).toEqual([
+        {
+          tag: "SPEND",
+          index: 0,
+          exUnits: { mem: 1000n, steps: 2000n },
+          data,
+        },
+      ]);
+    }
+  });
+
+  it("shows in prototype every pair of a map that repeats a key, in a datum, redeemer data and metadata, and keeps their bytes", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const datum = "a201020103";
+    const redeemerData = "a20741aa0741bb";
+    const output = cbor.map(
+      [cbor.uint(0), cbor.bytes(addressHex(key))],
+      [cbor.uint(1), cbor.uint(3_000_000)],
+      [cbor.uint(2), cbor.arr(cbor.uint(1), `d818${cbor.bytes(datum)}`)],
+    );
+    const body = cbor.map(
+      [
+        cbor.uint(0),
+        cbor.tag258(cbor.arr(cbor.arr(cbor.bytes(cbor.TX_IN), cbor.uint(0)))),
+      ],
+      [cbor.uint(1), cbor.arr(output)],
+      [cbor.uint(2), cbor.uint(170_000)],
+    );
+    const redeemers = cbor.arr(
+      cbor.arr(
+        cbor.uint(0),
+        cbor.uint(0),
+        redeemerData,
+        cbor.arr(cbor.uint(1000), cbor.uint(2000)),
+      ),
+    );
+    const given = cbor.tx(body, cbor.map([cbor.uint(5), redeemers]), {
+      aux: cbor.map([cbor.uint(1), "a205010502"]),
+    });
+    const made = await offline().fromCbor(given, {
+      knownUtxos: [handUtxo(key.address)],
+    });
+    const int = (value: bigint) => ({ type: "INTEGER", value });
+    expect(made.prototype.body.outputs[0]!.plutus_data).toEqual({
+      type: "DATA",
+      value: {
+        type: "MANUAL",
+        data: {
+          type: "MAP",
+          value: [
+            [int(1n), int(2n)],
+            [int(1n), int(3n)],
+          ],
+        },
+      },
+    });
+    expect(made.prototype.witness_set.redeemers![0]!.data).toEqual({
+      type: "MANUAL",
+      data: {
+        type: "MAP",
+        value: [
+          [int(7n), { type: "BYTES", value: "aa" }],
+          [int(7n), { type: "BYTES", value: "bb" }],
+        ],
+      },
+    });
+    expect(made.prototype.auxiliary_data!.metadata!["1"]).toEqual({
+      type: "MAP",
+      value: [
+        [
+          { type: "INT", value: 5n },
+          { type: "INT", value: 1n },
+        ],
+        [
+          { type: "INT", value: 5n },
+          { type: "INT", value: 2n },
+        ],
+      ],
+    });
+    // The members that carry bytes keep them
+    expect(made.outputs[0]!.datum).toEqual({
+      type: "inline",
+      data: { type: "CBOR", content: datum },
+    });
+    expect(made.redeemers[0]!.data).toBe(redeemerData);
+  });
+
+  it("reads upper-case hex as the same transaction, and gives tx in lower case", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const given = handPayment("tagged", key);
+    const b = offline();
+    const lower = await b.fromCbor(given.tx, { knownUtxos: given.knownUtxos });
+    const upper = await b.fromCbor(given.tx.toUpperCase(), {
+      knownUtxos: given.knownUtxos,
+    });
+    expect(upper.tx).toBe(given.tx);
+    expect(upper.txHash).toBe(lower.txHash);
+    expect({ ...upper }).toEqual({ ...lower });
+  });
+
+  it("lists the keys in the order the body first needs them", async () => {
+    await Crypto.ready();
+    const payer = testKey();
+    const spender = baseAddress(3);
+    const collateralOwner = baseAddress(4);
+    const b = offline();
+    // The parts in the reverse of the body's order
+    const built = await b.build(
+      [
+        vote({
+          voter: { drep: { type: "KEY", value: keyHashHex(15) } },
+          votes: [
+            { action: { txHash: "a".repeat(64), index: 0 }, vote: "yes" },
+          ],
+        }),
+        certificate.stakeDelegation({
+          stake: keyHashToRewardAddress(keyHashHex(12), 0),
+          pool: keyHashHex(17),
+        }),
+        withdrawal.pubKey({
+          rewardAddress: keyHashToRewardAddress(keyHashHex(11), 0),
+          amount: 0n,
+        }),
+        guard.pubKey({ keyHash: keyHashHex(10) }),
+        collateral({ utxo: utxoAt(collateralOwner, ada(5)) }),
+        spend.pubKey({ utxo: utxoAt(spender, ada(50)) }),
+      ],
+      {
+        payer: { changeAddress: payer.address, utxos: [utxoAt(payer.address)] },
+      },
+    );
+    const made = await fromBuild(built, b);
+    const firstRoles = made.signers.keys.map((k) => k.roles[0]);
+    expect(firstRoles.filter((r, i) => r !== firstRoles[i - 1])).toEqual([
+      "input",
+      "collateral",
+      "guard",
+      "withdrawal",
+      "certificate",
+      "vote",
+    ]);
+    expect(made.signers.keyHashes).toEqual(
+      made.signers.keys.map((k) => k.keyHash),
+    );
+    const keyOf = (address: string) => deserializeAddress(address).pubKeyHash;
+    expect(made.signers.keyHashes).toContain(keyOf(spender));
+    expect(made.signers.keyHashes).toContain(keyOf(collateralOwner));
+  });
+
+  it("lists VALID_FROM_FUTURE for a lower bound after the clock and COLLATERAL_FORFEITED for collateral without a return, without part", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const b = offline();
+    const collateralInput = cbor.arr(
+      cbor.arr(cbor.bytes(cbor.TX_IN), cbor.uint(1)),
+    );
+    const returned = cbor.map(
+      [cbor.uint(0), cbor.bytes(addressHex(key))],
+      [cbor.uint(1), cbor.uint(4_000_000)],
+    );
+    const knownUtxos = [
+      handUtxo(key.address),
+      handUtxo(key.address, 1, ada(5)),
+    ];
+    const slot = b.slotAt(Date.now() + 3_600_000);
+    const cases: [[string, string][], string[]][] = [
+      [[], []],
+      [[[cbor.uint(8), cbor.uint(slot)]], ["VALID_FROM_FUTURE"]],
+      [[[cbor.uint(8), cbor.uint(1_000)]], []],
+      [[[cbor.uint(13), collateralInput]], ["COLLATERAL_FORFEITED"]],
+      [
+        [
+          [cbor.uint(13), collateralInput],
+          [cbor.uint(16), returned],
+        ],
+        [],
+      ],
+      [
+        [
+          [cbor.uint(8), cbor.uint(slot)],
+          [cbor.uint(13), collateralInput],
+        ],
+        ["VALID_FROM_FUTURE", "COLLATERAL_FORFEITED"],
+      ],
+    ];
+    for (const [extra, codes] of cases) {
+      const given = handPayment("tagged", key, undefined, extra);
+      const made = await b.fromCbor(given.tx, { knownUtxos });
+      expect(made.warnings.map((w) => w.code)).toEqual(codes);
+      for (const warning of made.warnings) {
+        expect(Object.keys(warning).sort()).toEqual(["code", "message"]);
+      }
+    }
+  });
+});
+
+describe("a bootstrap witness beside a vkey witness of one key", () => {
+  /** A key behind a Shelley input and a Byron input of a mainnet transaction */
+  const twoInputs = () => {
+    const key = testKey();
+    const body = cbor.body("tagged", {
+      inputs: [0, 1],
+      to: addressHex(key, 1),
+    });
+    return {
+      key,
+      body,
+      txHash: cbor.txHashOf(body),
+      knownUtxos: [handUtxo(addressOf(key, 1)), handUtxo(BYRON, 1)],
+    };
+  };
+  /** A witness set of a vkey witness and a bootstrap witness of one key */
+  const both = (key: TestKey, txHash: string) =>
+    cbor.map(
+      [cbor.uint(0), cbor.arr(cbor.vkeyWitness(key, txHash))],
+      [cbor.uint(2), cbor.arr(bootstrapWitness(key, txHash))],
+    );
+  /** A wallet that answers with both witnesses of the key */
+  const walletOf = (key: TestKey) => ({
+    signTxWitnesses: async (tx: string) => both(key, readTransaction(tx).txId),
+  });
+
+  it("are both held by fromCbor from the transaction given, and the bytes stay", async () => {
+    await Crypto.ready();
+    const { key, body, txHash, knownUtxos } = twoInputs();
+    const given = cbor.tx(body, both(key, txHash));
+    const made = await offline("mainnet").fromCbor(given, { knownUtxos });
+    expect(made.signers.byronAddresses).toEqual([BYRON]);
+    expect(keysOf(made.partialTx)).toEqual({
+      vkeys: [key.vkey],
+      bootstraps: [key.vkey],
+    });
+    expect(made.signedTx).toBe(given);
+  });
+
+  it("are both kept by addWitnesses, given together or one after the other", async () => {
+    await Crypto.ready();
+    const { key, body, txHash, knownUtxos } = twoInputs();
+    const b = offline("mainnet");
+    const together = await b.fromCbor(cbor.tx(body), { knownUtxos });
+    await together.addWitnesses(both(key, txHash));
+    const apart = await b.fromCbor(cbor.tx(body), { knownUtxos });
+    await apart.addWitnesses(
+      cbor.map([cbor.uint(0), cbor.arr(cbor.vkeyWitness(key, txHash))]),
+    );
+    await apart.addWitnesses(
+      cbor.map([cbor.uint(2), cbor.arr(bootstrapWitness(key, txHash))]),
+    );
+    for (const made of [together, apart])
+      expect(keysOf(made.signedTx!)).toEqual({
+        vkeys: [key.vkey],
+        bootstraps: [key.vkey],
+      });
+  });
+
+  it("are both kept by sign() of a build and of an object from CBOR, and by a plan", async () => {
+    await Crypto.ready();
+    const { key, body, knownUtxos } = twoInputs();
+    const b = offline("mainnet");
+    const parts = [
+      spend.pubKey({ utxo: utxoAt(addressOf(key, 1), ada(5)) }),
+      spend.pubKey({ utxo: utxoAt(BYRON, ada(5)) }),
+      output({ address: addressOf(key, 1), value: { lovelace: ada(3) } }),
+    ];
+    const payer = {
+      changeAddress: addressOf(key, 1),
+      utxos: [utxoAt(addressOf(key, 1))],
+    };
+    const built = await b.build(parts, { payer });
+    const made = await b.fromCbor(cbor.tx(body), { knownUtxos });
+    for (const tx of [built, made]) {
+      await tx.sign({ signers: walletOf(key) });
+      expect(keysOf(tx.signedTx!)).toEqual({
+        vkeys: [key.vkey],
+        bootstraps: [key.vkey],
+      });
+    }
+    // A plan reads the chain's tip and can search for a transaction
+    const tip = {
+      fetchLatestBlock: async () => ({ slot: "1", height: 1 }),
+      fetchAddressUTxOs: async () => [],
+      fetchTxInfo: async () => {
+        throw new Error("not found");
+      },
+    } as unknown as TxBuilderOptions["provider"];
+    const plan = await offline("mainnet", { provider: tip }).plan(parts, {
+      payer,
+    });
+    await plan.sign({ signers: walletOf(key) });
+    expect(keysOf(plan.step("main").signedTx!)).toEqual({
+      vkeys: [key.vkey],
+      bootstraps: [key.vkey],
+    });
+  });
+
+  it("signs for no key with a bootstrap witness alone: the key of a Shelley input stays missing, in a BuiltTx and in a plan, until its vkey witness comes", async () => {
+    await Crypto.ready();
+    const { key, body, txHash, knownUtxos } = twoInputs();
+    const bootstrapOnly = (hash: string) =>
+      cbor.map([cbor.uint(2), cbor.arr(bootstrapWitness(key, hash))]);
+    const vkeyOnly = (hash: string) =>
+      cbor.map([cbor.uint(0), cbor.arr(cbor.vkeyWitness(key, hash))]);
+    const b = offline("mainnet");
+    const made = await b.fromCbor(cbor.tx(body, bootstrapOnly(txHash)), {
+      knownUtxos,
+    });
+    expect(made.missing.map((k) => k.keyHash)).toEqual([key.keyHash]);
+    expect(made.signedTx).toBeUndefined();
+    // sign() asks for the key, and its vkey witness completes the transaction
+    const { signer, requests } = keysSigner("object", key);
+    await made.sign({ signers: signer });
+    expect(requests[0]!.keys!.map((k) => k.keyHash)).toEqual([key.keyHash]);
+    expect(made.missing).toEqual([]);
+    expect(keysOf(made.signedTx!)).toEqual({
+      vkeys: [key.vkey],
+      bootstraps: [key.vkey],
+    });
+    // Given with both witnesses, nothing is missing
+    const both = await b.fromCbor(
+      cbor.tx(
+        body,
+        cbor.map(
+          [cbor.uint(0), cbor.arr(cbor.vkeyWitness(key, txHash))],
+          [cbor.uint(2), cbor.arr(bootstrapWitness(key, txHash))],
+        ),
+      ),
+      { knownUtxos },
+    );
+    expect(both.missing).toEqual([]);
+    expect(both.signedTx).toBeDefined();
+
+    // A plan of the same spend counts the same
+    const parts = [
+      spend.pubKey({ utxo: utxoAt(addressOf(key, 1), ada(5)) }),
+      spend.pubKey({ utxo: utxoAt(BYRON, ada(5)) }),
+      output({ address: addressOf(key, 1), value: { lovelace: ada(3) } }),
+    ];
+    const payer = {
+      changeAddress: addressOf(key, 1),
+      utxos: [utxoAt(addressOf(key, 1))],
+    };
+    const tip = {
+      fetchLatestBlock: async () => ({ slot: "1", height: 1 }),
+      fetchAddressUTxOs: async () => [],
+      fetchTxInfo: async () => {
+        throw new Error("not found");
+      },
+    } as unknown as TxBuilderOptions["provider"];
+    const plan = await offline("mainnet", { provider: tip }).plan(parts, {
+      payer,
+    });
+    const planHash = plan.step("main").txHash;
+    await plan.addWitnesses(bootstrapOnly(planHash));
+    expect(plan.step("main").status).toBe("built");
+    expect(plan.step("main").missing.map((k) => k.keyHash)).toEqual([
+      key.keyHash,
+    ]);
+    expect(plan.step("main").signedTx).toBeUndefined();
+    await plan.addWitnesses(vkeyOnly(planHash));
+    expect(plan.step("main").status).toBe("signed");
+    expect(plan.step("main").missing).toEqual([]);
+    expect(keysOf(plan.step("main").signedTx!)).toEqual({
+      vkeys: [key.vkey],
+      bootstraps: [key.vkey],
+    });
+  });
+});
+
+describe("TxBuilder.fromCbor: collateral returned to someone else", () => {
+  /** The collateral inputs `TX_IN#i` of each `i` given */
+  const collateralOf = (...indices: number[]) =>
+    cbor.tag258(
+      cbor.arr(
+        ...indices.map((i) => cbor.arr(cbor.bytes(cbor.TX_IN), cbor.uint(i))),
+      ),
+    );
+  /** A collateral return of 495 ada to an address in hex, holding these extra value entries */
+  const returnedTo = (addressHexText: string, value = cbor.uint(495_000_000)) =>
+    cbor.map([cbor.uint(0), cbor.bytes(addressHexText)], [cbor.uint(1), value]);
+  /** A bech32 address of its bytes in hex */
+  const bech32Of = (hex: string) =>
+    Address.fromBytes(HexBlob(hex)).toBech32() as string;
+  /** The warning, with each holder that loses: its address, its lovelace lost, its tokens lost */
+  const elsewhere = (
+    some: boolean,
+    ...losses: [string, bigint, boolean?][]
+  ) => {
+    const named = losses.map(
+      ([address, lovelace, tokens]) =>
+        `${address} loses ${lovelace} lovelace${tokens ? " and the tokens of its inputs" : ""}`,
+    );
+    const listed =
+      named.length === 1
+        ? named[0]
+        : `${named.slice(0, -1).join(", ")} and ${named[named.length - 1]}`;
+    return {
+      code: "COLLATERAL_RETURN_ELSEWHERE",
+      message: `the collateral return pays a payment credential that holds ${some ? "only some" : "none"} of the collateral inputs: if a script fails, ${listed}, however small the total collateral the body states; the validity flag is not signed, so whoever submits the transaction can mark it as failing`,
+    };
+  };
+
+  let user: TestKey;
+  let maker: TestKey;
+  let stake: TestKey;
+  beforeAll(async () => {
+    await Crypto.ready();
+    user = testKey();
+    maker = testKey();
+    stake = testKey();
+  });
+
+  /** The warnings of a payment by the maker whose body holds these collateral entries */
+  const warningsOf = async (
+    entries: [string, string][],
+    knownUtxos: Utxo[],
+  ) => {
+    const given = handPayment("tagged", maker, undefined, entries);
+    const made = await offline().fromCbor(given.tx, {
+      knownUtxos: [handUtxo(maker.address), ...knownUtxos],
+    });
+    return made;
+  };
+
+  it("lists none for a return to the one holder of the collateral inputs, at its enterprise address or at a base address of its key, and COLLATERAL_FORFEITED alone without a return", async () => {
+    const knownUtxos = [
+      handUtxo(user.address, 1, ada(500)),
+      handUtxo(user.address, 2, ada(7)),
+    ];
+    const userBase = serializeAddressObj(
+      pubKeyAddress(user.keyHash, stake.keyHash),
+      0,
+    );
+    for (const to of [
+      addressHex(user),
+      Address.fromBech32(userBase).toBytes() as string,
+    ]) {
+      const made = await warningsOf(
+        [
+          [cbor.uint(13), collateralOf(1, 2)],
+          [cbor.uint(16), returnedTo(to)],
+        ],
+        knownUtxos,
+      );
+      expect(made.warnings).toEqual([]);
+    }
+    const made = await warningsOf(
+      [[cbor.uint(13), collateralOf(1, 2)]],
+      knownUtxos,
+    );
+    expect(made.warnings.map((w) => w.code)).toEqual(["COLLATERAL_FORFEITED"]);
+  });
+
+  it("lists COLLATERAL_RETURN_ELSEWHERE with the lovelace of every collateral input whose holder the return does not pay: all of them for a return to another, those of the other holder for a return to one of two", async () => {
+    // Two inputs of the user, returned to the maker: all of them
+    const all = await warningsOf(
+      [
+        [cbor.uint(13), collateralOf(1, 2)],
+        [cbor.uint(16), returnedTo(addressHex(maker))],
+        [cbor.uint(17), cbor.uint(5_000_000)],
+      ],
+      [handUtxo(user.address, 1, ada(500)), handUtxo(user.address, 2, ada(7))],
+    );
+    expect(all.warnings).toEqual([elsewhere(false, [user.address, ada(507)])]);
+    expect(all.collateral!.total).toBe(ada(5));
+    // One input of the maker beside the user's, returned to the maker: the user's alone, however
+    // large the return
+    const mixed = await warningsOf(
+      [
+        [cbor.uint(13), collateralOf(1, 2)],
+        [cbor.uint(16), returnedTo(addressHex(maker))],
+      ],
+      [handUtxo(user.address, 1, ada(500)), handUtxo(maker.address, 2, ada(7))],
+    );
+    expect(mixed.warnings).toEqual([elsewhere(true, [user.address, ada(500)])]);
+    // The same returned to the user: the user gets back 495 of its 500 ada, and the maker's input
+    // leaves the maker, which is the maker's own business; the warning names both
+    const toUser = await warningsOf(
+      [
+        [cbor.uint(13), collateralOf(1, 2)],
+        [cbor.uint(16), returnedTo(addressHex(user))],
+      ],
+      [handUtxo(user.address, 1, ada(500)), handUtxo(maker.address, 2, ada(7))],
+    );
+    expect(toUser.warnings).toEqual([
+      elsewhere(true, [user.address, ada(5)], [maker.address, ada(7)]),
+    ]);
+    // Several inputs of one holder beside the return's holder: their sum
+    const several = await warningsOf(
+      [
+        [cbor.uint(13), collateralOf(1, 2, 3, 4)],
+        [cbor.uint(16), returnedTo(addressHex(maker))],
+      ],
+      [
+        handUtxo(maker.address, 1, ada(5)),
+        handUtxo(user.address, 2, ada(100)),
+        handUtxo(user.address, 3, ada(20)),
+        handUtxo(user.address, 4, ada(3)),
+      ],
+    );
+    expect(several.warnings).toEqual([
+      elsewhere(true, [user.address, ada(123)]),
+    ]);
+  });
+
+  it("tells holders by payment credential and its kind: a script holder paid at a base address of its script is paid, a key of the same hash is another holder", async () => {
+    const hash = keyHashHex(41);
+    const scriptHolder = bech32Of(`70${hash}`);
+    const knownUtxos = [handUtxo(scriptHolder, 1, ada(9))];
+    const paid = await warningsOf(
+      [
+        [cbor.uint(13), collateralOf(1)],
+        [cbor.uint(16), returnedTo(`10${hash}${stake.keyHash}`)],
+      ],
+      knownUtxos,
+    );
+    expect(paid.warnings).toEqual([]);
+    const other = await warningsOf(
+      [
+        [cbor.uint(13), collateralOf(1)],
+        [cbor.uint(16), returnedTo(`60${hash}`)],
+      ],
+      knownUtxos,
+    );
+    expect(other.warnings).toEqual([elsewhere(false, [scriptHolder, ada(9)])]);
+  });
+
+  it("counts lovelace only, says so when the inputs of other holders hold tokens, and the tokens of the return lower nothing", async () => {
+    const unit = `${keyHashHex(42)}41`;
+    const withToken: Utxo = {
+      ...handUtxo(user.address, 1, ada(50)),
+      value: { lovelace: ada(50), [unit]: 7n },
+    };
+    const tokens = await warningsOf(
+      [
+        [cbor.uint(13), collateralOf(1)],
+        [
+          cbor.uint(16),
+          returnedTo(
+            addressHex(maker),
+            cbor.arr(
+              cbor.uint(45_000_000),
+              cbor.map([
+                cbor.bytes(keyHashHex(42)),
+                cbor.map([cbor.bytes("41"), cbor.uint(7)]),
+              ]),
+            ),
+          ),
+        ],
+      ],
+      [withToken],
+    );
+    expect(tokens.warnings).toEqual([
+      elsewhere(false, [user.address, ada(50), true]),
+    ]);
+    // Tokens in the return alone: lovelace only, and no word of tokens
+    const plain = await warningsOf(
+      [
+        [cbor.uint(13), collateralOf(1)],
+        [
+          cbor.uint(16),
+          returnedTo(
+            addressHex(maker),
+            cbor.arr(
+              cbor.uint(45_000_000),
+              cbor.map([
+                cbor.bytes(keyHashHex(42)),
+                cbor.map([cbor.bytes("41"), cbor.uint(7)]),
+              ]),
+            ),
+          ),
+        ],
+      ],
+      [handUtxo(user.address, 1, ada(50))],
+    );
+    expect(plain.warnings).toEqual([elsewhere(false, [user.address, ada(50)])]);
+  });
+
+  it("names what each holder loses, the return's own holder too: inputs of 500 and 7 ada with 10 ada returned to the first lose 490 and 7 ada", async () => {
+    const made = await warningsOf(
+      [
+        [cbor.uint(13), collateralOf(1, 2)],
+        [cbor.uint(16), returnedTo(addressHex(user), cbor.uint(10_000_000))],
+        [cbor.uint(17), cbor.uint(497_000_000)],
+      ],
+      [handUtxo(user.address, 1, ada(500)), handUtxo(maker.address, 2, ada(7))],
+    );
+    expect(made.collateral!.total).toBe(ada(497));
+    expect(made.warnings).toEqual([
+      elsewhere(true, [user.address, ada(490)], [maker.address, ada(7)]),
+    ]);
+  });
+
+  it("names each of three holders that loses, in the order of their first collateral input", async () => {
+    const other = testKey();
+    const knownUtxos = [
+      handUtxo(user.address, 1, ada(500)),
+      handUtxo(other.address, 2, ada(300)),
+      handUtxo(maker.address, 3, ada(7)),
+    ];
+    // Returned to the maker, which gets back more than it put in
+    const toMaker = await warningsOf(
+      [
+        [cbor.uint(13), collateralOf(1, 2, 3)],
+        [cbor.uint(16), returnedTo(addressHex(maker))],
+      ],
+      knownUtxos,
+    );
+    expect(toMaker.warnings).toEqual([
+      elsewhere(true, [user.address, ada(500)], [other.address, ada(300)]),
+    ]);
+    // Returned to the second, 10 ada of its 300
+    const toOther = await warningsOf(
+      [
+        [cbor.uint(13), collateralOf(1, 2, 3)],
+        [cbor.uint(16), returnedTo(addressHex(other), cbor.uint(10_000_000))],
+      ],
+      knownUtxos,
+    );
+    expect(toOther.warnings).toEqual([
+      elsewhere(
+        true,
+        [user.address, ada(500)],
+        [other.address, ada(290)],
+        [maker.address, ada(7)],
+      ),
+    ]);
+    // Returned to none of them
+    const toStranger = await warningsOf(
+      [
+        [cbor.uint(13), collateralOf(1, 2, 3)],
+        [cbor.uint(16), returnedTo(addressHex(stake))],
+      ],
+      knownUtxos,
+    );
+    expect(toStranger.warnings).toEqual([
+      elsewhere(
+        false,
+        [user.address, ada(500)],
+        [other.address, ada(300)],
+        [maker.address, ada(7)],
+      ),
+    ]);
+  });
+
+  it("counts the collateral of a body that states no total as its inputs less its return, and takes a total it states", async () => {
+    const knownUtxos = [
+      handUtxo(user.address, 1, ada(500)),
+      handUtxo(user.address, 2, ada(7)),
+    ];
+    const untotalled = await warningsOf(
+      [
+        [cbor.uint(13), collateralOf(1, 2)],
+        [cbor.uint(16), returnedTo(addressHex(user))],
+      ],
+      knownUtxos,
+    );
+    expect(untotalled.collateral!.total).toBe(ada(507) - ada(495));
+    const stated = await warningsOf(
+      [
+        [cbor.uint(13), collateralOf(1, 2)],
+        [cbor.uint(16), returnedTo(addressHex(user))],
+        [cbor.uint(17), cbor.uint(5_000_000)],
+      ],
+      knownUtxos,
+    );
+    expect(stated.collateral!.total).toBe(ada(5));
+  });
+});
+
+describe("TxBuilder.fromCbor: the bytes", () => {
+  it("gives the text itself as tx for a transaction without key witnesses", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    for (const form of ["tagged", "plain", "odd"] as const) {
+      const given = handPayment(form, key);
+      const made = await offline().fromCbor(given.tx, {
+        knownUtxos: given.knownUtxos,
+      });
+      expect(made.tx).toBe(given.tx);
+      expect(made.partialTx).toBe(given.tx);
+    }
+  });
+
+  /**
+   * A transaction whose witness set is of indefinite length and holds redeemers, datums, vkeys
+   * and bootstrap witnesses in that order, with auxiliary data; every item in an unusual encoding
+   */
+  const unusual = (form: cbor.BodyForm, key: TestKey, signer: TestKey) => {
+    const body = cbor.body(form, { to: addressHex(key) });
+    const txHash = cbor.txHashOf(body);
+    const redeemers = cbor.arr(
+      cbor.arr(
+        cbor.uint(0),
+        cbor.uint(0),
+        cbor.constr0Indef(cbor.uint64(1)),
+        cbor.arr(cbor.uint64(1000), cbor.uint(2000)),
+      ),
+    );
+    const datums = cbor.arrIndef(cbor.constr0Indef(cbor.uint64(1)));
+    const aux = cbor.map([cbor.uint(1), "63616263"]);
+    const witnessSet = (keys: string, bootstraps?: string) =>
+      cbor.mapIndef(
+        [cbor.uint(5), redeemers],
+        [cbor.uint(4), datums],
+        ...(keys ? [["1800", keys] as [string, string]] : []),
+        ...(bootstraps ? [[cbor.uint(2), bootstraps] as [string, string]] : []),
+      );
+    return {
+      body,
+      txHash,
+      redeemers,
+      datums,
+      aux,
+      given: cbor.tx(
+        body,
+        witnessSet(
+          cbor.arr(cbor.vkeyWitness(signer, txHash)),
+          cbor.arrIndef(bootstrapWitness(signer, txHash)),
+        ),
+        { aux },
+      ),
+      unsigned: cbor.tx(body, witnessSet(""), { aux }),
+    };
+  };
+
+  it("takes the vkey and bootstrap entries out of tx and keeps every other byte", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const signer = testKey();
+    for (const form of ["tagged", "plain", "odd"] as const) {
+      const made_ = unusual(form, key, signer);
+      const made = await offline().fromCbor(made_.given, {
+        knownUtxos: [handUtxo(key.address)],
+      });
+      expect(made.tx).toBe(made_.unsigned);
+      const items = cbor.topItems(made.tx);
+      expect(items[0]).toBe(made_.body);
+      expect(items[2]).toBe("f5");
+      expect(items[3]).toBe(made_.aux);
+      expect(cbor.mapPairs(items[1]!)).toEqual([
+        [cbor.uint(5), made_.redeemers],
+        [cbor.uint(4), made_.datums],
+      ]);
+      expect(items[1]!.startsWith("bf")).toBe(true);
+      expect(made.txHash).toBe(made_.txHash);
+    }
+  });
+
+  it("keeps the body, the datums and the redeemers byte for byte in partialTx and signedTx after a signature is added", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const signer = testKey();
+    for (const form of ["tagged", "plain", "odd"] as const) {
+      const made_ = unusual(form, key, signer);
+      const made = await offline().fromCbor(made_.given, {
+        knownUtxos: [handUtxo(key.address)],
+      });
+      expect(made.missing.map((k) => k.keyHash)).toEqual([key.keyHash]);
+      await made.sign({ signers: keysSigner("object", key).signer });
+      for (const signed of [made.partialTx, made.signedTx!]) {
+        const items = cbor.topItems(signed);
+        expect(items[0]).toBe(made_.body);
+        expect(items[2]).toBe("f5");
+        expect(items[3]).toBe(made_.aux);
+        const pairs = cbor.mapPairs(items[1]!);
+        expect(pairs).toContainEqual([cbor.uint(5), made_.redeemers]);
+        expect(pairs).toContainEqual([cbor.uint(4), made_.datums]);
+        expect(allVerify(signed, made_.txHash)).toBe(true);
+      }
+      expect(keysOf(made.signedTx!).vkeys).toEqual([signer.vkey, key.vkey]);
+    }
+  });
+
+  it("gives back the bytes given as signedTx for a transaction signed in the form this library writes", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    for (const form of ["tagged", "plain"] as const)
+      for (const tagged of [true, false]) {
+        const given = handPayment(form, key, (txHash) =>
+          cbor.map([
+            cbor.uint(0),
+            list(tagged ? "tagged" : "plain", cbor.vkeyWitness(key, txHash)),
+          ]),
+        );
+        const made = await offline().fromCbor(given.tx, {
+          knownUtxos: given.knownUtxos,
+        });
+        expect(made.tx).toBe(given.unsigned);
+        expect(made.signedTx).toBe(given.tx);
+      }
+  });
+
+  it("writes the vkey entry and the bootstrap entry with the set tag each came with, and never a transaction longer than the one given", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const byronKey = testKey();
+    const forms: ListForm[] = ["tagged", "plain", "indefinite"];
+    const b = offline("mainnet");
+    for (const bodyForm of ["tagged", "plain", "odd"] as const)
+      for (const vkeyForm of forms)
+        for (const bootstrapForm of forms) {
+          const body = cbor.body(bodyForm, {
+            to: addressHex(key, 1),
+            inputs: [0, 1],
+          });
+          const txHash = cbor.txHashOf(body);
+          const given = cbor.tx(
+            body,
+            cbor.map(
+              [cbor.uint(0), list(vkeyForm, cbor.vkeyWitness(key, txHash))],
+              [
+                cbor.uint(2),
+                list(bootstrapForm, bootstrapWitness(byronKey, txHash)),
+              ],
+            ),
+          );
+          const made = await b.fromCbor(given, {
+            knownUtxos: [handUtxo(addressOf(key, 1), 0), handUtxo(BYRON, 1)],
+          });
+          expect(made.missing).toEqual([]);
+          const signed = made.signedTx!;
+          const { vkeys, bootstraps } = readTransaction(signed).witnessSet;
+          expect(vkeys!.tagged).toBe(vkeyForm === "tagged");
+          expect(bootstraps!.tagged).toBe(bootstrapForm === "tagged");
+          expect(signed.length).toBeLessThanOrEqual(given.length);
+          if (vkeyForm !== "indefinite" && bootstrapForm !== "indefinite")
+            expect(signed).toBe(given);
+          expect(cbor.topItems(signed)[0]).toBe(body);
+        }
+  });
+
+  it("writes the first witness as the body writes its input set when the transaction came with none", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    for (const [form, tagged] of [
+      ["tagged", true],
+      ["plain", false],
+      ["odd", false],
+    ] as const) {
+      const given = handPayment(form, key);
+      const made = await offline().fromCbor(given.tx, {
+        knownUtxos: given.knownUtxos,
+      });
+      await made.sign({ signers: keysSigner("object", key).signer });
+      expect(readTransaction(made.signedTx!).witnessSet.vkeys!.tagged).toBe(
+        tagged,
+      );
+    }
+  });
+});
+
+/** A provider that records every call and answers none */
+const recordingProvider = () => {
+  const calls: string[] = [];
+  const provider = new Proxy(
+    {},
+    {
+      get: (_, name) =>
+        typeof name === "string" && name !== "then"
+          ? (...args: unknown[]) => {
+              calls.push(name);
+              return Promise.reject(
+                new Error(`not answered: ${args.length} arguments`),
+              );
+            }
+          : undefined,
+    },
+  ) as TxBuilderOptions["provider"];
+  return { provider, calls };
+};
+
+describe("TxBuilder.fromCbor: the witnesses it came with", () => {
+  it("is INVALID_WITNESS (wrongBody) with the key hash for a vkey witness or a bootstrap witness of another body, before any request", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const stranger = testKey();
+    const other = cbor.txHashOf(
+      cbor.body("plain", { to: addressHex(stranger) }),
+    );
+    for (const entry of [
+      [cbor.uint(0), cbor.arr(cbor.vkeyWitness(stranger, other))],
+      [cbor.uint(2), cbor.arr(bootstrapWitness(stranger, other))],
+    ] as [string, string][]) {
+      const given = handPayment("tagged", key, () => cbor.map(entry));
+      const { provider, calls } = recordingProvider();
+      const error = await caught(() =>
+        new TxBuilder({ network: "preprod", params, provider }).fromCbor(
+          given.tx,
+        ),
+      );
+      expect(TxPlanError.is(error, "INVALID_WITNESS")).toBe(true);
+      expect(error.details).toEqual({
+        reason: "wrongBody",
+        argument: 0,
+        keyHash: stranger.keyHash,
+      });
+      expect(error.message).toContain("is not of its body");
+      expect(calls).toEqual([]);
+    }
+  });
+
+  it("holds a key once when the transaction holds its witness twice, and keeps its bytes as given", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const given = handPayment("tagged", key, (txHash) =>
+      cbor.map([
+        cbor.uint(0),
+        cbor.arr(cbor.vkeyWitness(key, txHash), cbor.vkeyWitness(key, txHash)),
+      ]),
+    );
+    const made = await offline().fromCbor(given.tx, {
+      knownUtxos: given.knownUtxos,
+    });
+    expect(made.missing).toEqual([]);
+    // The entry it adds nothing to stays byte for byte, as the wallets keep it
+    expect(made.signedTx).toBe(given.tx);
+    expect(keysOf(made.signedTx!).vkeys).toEqual([key.vkey, key.vkey]);
+    // Signing again with the key adds nothing
+    await made.sign({ signers: keysSigner("object", key).signer });
+    expect(made.signedTx).toBe(given.tx);
+  });
+
+  it("is INVALID_WITNESS (wrongBody) for a key whose witness stands twice and once is of another body, in either order, vkey or bootstrap", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const other = cbor.txHashOf(cbor.body("plain", { to: addressHex(key) }));
+    const cases: [number, (txHash: string) => string][] = [
+      [0, (txHash) => cbor.vkeyWitness(key, txHash)],
+      [2, (txHash) => bootstrapWitness(key, txHash)],
+    ];
+    for (const [entry, witness] of cases)
+      for (const order of ["good first", "bad first"]) {
+        const given = handPayment("tagged", key, (txHash) => {
+          const pair = [witness(txHash), witness(other)];
+          return cbor.map([
+            cbor.uint(entry),
+            cbor.arr(...(order === "good first" ? pair : pair.reverse())),
+          ]);
+        });
+        const error = await caught(() =>
+          offline().fromCbor(given.tx, { knownUtxos: given.knownUtxos }),
+        );
+        expect(TxPlanError.is(error, "INVALID_WITNESS")).toBe(true);
+        expect(error.details).toEqual({
+          reason: "wrongBody",
+          argument: 0,
+          keyHash: key.keyHash,
+        });
+      }
+  });
+
+  it("holds a witness of a key the transaction does not need, writes their number as extraKeyWitnesses, and drops a later witness of another such key", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const stranger = testKey();
+    const later = testKey();
+    const given = handPayment("tagged", key, (txHash) =>
+      cbor.map([cbor.uint(0), cbor.arr(cbor.vkeyWitness(stranger, txHash))]),
+    );
+    const b = offline();
+    const made = await b.fromCbor(given.tx, { knownUtxos: given.knownUtxos });
+    expect(made.partialTx).toBe(given.tx);
+    expect(made.missing.map((k) => k.keyHash)).toEqual([key.keyHash]);
+    expect(throughText(made).extraKeyWitnesses).toBe(1);
+    await made.addWitnesses(
+      cbor.map([cbor.uint(0), cbor.arr(cbor.vkeyWitness(later, given.txHash))]),
+    );
+    await made.sign({
+      signers: [
+        keysSigner("object", later).signer,
+        keysSigner("object", key).signer,
+      ],
+    });
+    expect(keysOf(made.signedTx!).vkeys).toEqual([stranger.vkey, key.vkey]);
+    const restored = await b.restore(throughText(made));
+    expect(restored.signedTx).toBe(made.signedTx);
+    expect(throughText(restored).extraKeyWitnesses).toBe(1);
+  });
+
+  it("holds bootstrap witnesses up to the Byron addresses spent from, and does not wait for them", async () => {
+    await Crypto.ready();
+    const first = testKey();
+    const second = testKey();
+    const to = testKey();
+    const body = cbor.body("tagged", { to: addressHex(to, 1) });
+    const txHash = cbor.txHashOf(body);
+    const b = offline("mainnet");
+    const knownUtxos = [handUtxo(BYRON)];
+    const unsigned = await b.fromCbor(cbor.tx(body), { knownUtxos });
+    expect(unsigned.signers.byronAddresses).toEqual([BYRON]);
+    expect(unsigned.missing).toEqual([]);
+    expect(unsigned.signedTx).toBe(cbor.tx(body));
+    const made = await b.fromCbor(
+      cbor.tx(
+        body,
+        cbor.map([
+          cbor.uint(2),
+          cbor.arr(
+            bootstrapWitness(first, txHash),
+            bootstrapWitness(second, txHash),
+          ),
+        ]),
+      ),
+      { knownUtxos },
+    );
+    // Both stay in the bytes, as given: the entry it adds nothing to is kept
+    expect(keysOf(made.signedTx!).bootstraps).toEqual([
+      first.vkey,
+      second.vkey,
+    ]);
+    // A bootstrap witness is not a witness of another key: none is counted, and a later
+    // witness of a key the transaction does not need is dropped
+    expect(throughText(made).extraKeyWitnesses).toBeUndefined();
+    const stranger = testKey();
+    await made.addWitnesses(
+      cbor.map([cbor.uint(0), cbor.arr(cbor.vkeyWitness(stranger, txHash))]),
+    );
+    expect(keysOf(made.partialTx).vkeys).toEqual([]);
+  });
+
+  it("has nothing missing for a transaction that came with every signature it needs: signedTx is defined at once", async () => {
+    const {
+      built,
+      payer,
+      guardKey,
+      builder: b,
+    } = await (async () => {
+      await Crypto.ready();
+      const payerKey = testKey();
+      const guardKey = testKey();
+      const builder = offline();
+      const built = await builder.build(
+        [
+          output({ address: recipient, value: { lovelace: ada(5) } }),
+          guard.pubKey({ keyHash: guardKey.keyHash }),
+        ],
+        {
+          payer: {
+            changeAddress: payerKey.address,
+            utxos: [utxoAt(payerKey.address)],
+          },
+        },
+      );
+      return { built, payer: payerKey, guardKey, builder };
+    })();
+    await built.sign({ signers: keysSigner("object", payer, guardKey).signer });
+    const made = await fromBuild(built, b, built.signedTx!);
+    expect(made.tx).toBe(built.tx);
+    expect(made.missing).toEqual([]);
+    expect(made.signedTx).toBe(built.signedTx);
+  });
+
+  it("lists the keys that have not signed with their roles, and asks a signer for exactly those and the keys native scripts name", async () => {
+    await Crypto.ready();
+    const payer = testKey();
+    const guardKey = testKey();
+    const scriptKey = testKey();
+    const native: NativeScript = { type: "sig", keyHash: scriptKey.keyHash };
+    const b = offline();
+    const built = await b.build(
+      [
+        output({ address: recipient, value: { lovelace: ada(5) } }),
+        guard.pubKey({ keyHash: guardKey.keyHash }),
+        spend.native({
+          utxo: utxoAt(b.scriptAddress(native), ada(2)),
+          script: native,
+        }),
+      ],
+      {
+        payer: { changeAddress: payer.address, utxos: [utxoAt(payer.address)] },
+      },
+    );
+    await built.sign({ signers: keysSigner("object", payer).signer });
+    const made = await fromBuild(built, b, built.partialTx);
+    expect(made.missing).toEqual([
+      { keyHash: guardKey.keyHash, roles: ["guard"] },
+    ]);
+    const asked = hashSigner("object", () => []);
+    await made.sign({ signers: asked.signer });
+    expect(asked.requests).toHaveLength(1);
+    expect(asked.requests[0]!.txHash).toBe(built.txHash);
+    expect(asked.requests[0]!.keys).toEqual([
+      { keyHash: guardKey.keyHash, roles: ["guard"] },
+      { keyHash: scriptKey.keyHash, roles: ["nativeScript"] },
+    ] satisfies AskedKey[]);
+  });
+
+  it("is MISSING_SIGNATURES from sign() without signers: it has no payer", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const given = handPayment("tagged", key);
+    const made = await offline().fromCbor(given.tx, {
+      knownUtxos: given.knownUtxos,
+    });
+    for (const options of [undefined, {}, { signers: [] }]) {
+      const error = await caught(() => made.sign(options));
+      expect(TxPlanError.is(error, "MISSING_SIGNATURES")).toBe(true);
+      expect(error.details.missing).toEqual([
+        { keyHash: key.keyHash, roles: ["input"] },
+      ]);
+      expect(error.message).toContain(
+        "an object made by fromCbor() or restore()",
+      );
+    }
+    expect(made.partialTx).toBe(given.tx);
+  });
+
+  it("has every form of signer sign the hash of the body bytes as given, for a body in an unusual encoding", async () => {
+    await Crypto.ready();
+    const wallet = new MeshWallet({
+      networkId: 0,
+      key: { type: "mnemonic", words: Array(24).fill("solution") },
+    });
+    await wallet.init();
+    const walletAddress = (await wallet.getChangeAddress())!;
+    const walletKey = deserializeAddress(walletAddress).pubKeyHash;
+    const secret = randomBytes(32);
+    const ownKeyHash = Crypto.Ed25519PrivateKey.fromNormalBytes(secret)
+      .toPublic()
+      .hash()
+      .hex() as string;
+    const hashKey = testKey();
+    const to = testKey();
+    for (const walletSigner of [
+      wallet,
+      { signTx: (tx: string, partial?: boolean) => wallet.signTx(tx, partial) },
+    ] as Signer[]) {
+      const body = cbor.body("odd", { to: addressHex(to), inputs: [0, 1, 2] });
+      const txHash = cbor.txHashOf(body);
+      const made = await offline().fromCbor(cbor.tx(body), {
+        knownUtxos: [
+          handUtxo(addressOf({ keyHash: ownKeyHash }), 0),
+          handUtxo(hashKey.address, 1),
+          handUtxo(walletAddress, 2),
+        ],
+      });
+      expect(made.txHash).toBe(txHash);
+      const viaHashes = keysSigner("callback", hashKey);
+      await made.sign({
+        signers: [
+          keySigner(secret.toString("hex")),
+          viaHashes.signer,
+          walletSigner,
+        ],
+      });
+      expect(viaHashes.requests[0]!.txHash).toBe(txHash);
+      expect(made.missing).toEqual([]);
+      const signed = made.signedTx!;
+      expect(cbor.topItems(signed)[0]).toBe(body);
+      expect(
+        readTransaction(signed)
+          .witnessSet.vkeys!.witnesses.map((w) => w.keyHash)
+          .sort(),
+      ).toEqual([ownKeyHash, hashKey.keyHash, walletKey].sort());
+      expect(allVerify(signed, txHash)).toBe(true);
+    }
+  });
+});
+
+describe("TxBuilder.fromCbor: as JSON, and as a built transaction elsewhere", () => {
+  it.each(BUILDS)(
+    "goes through JSON.stringify and restore with the same data, the same partialTx and the same missing, and both readers give the data back: %s",
+    async (_, make) => {
+      const { built, builder: b } = await make();
+      const made = await fromBuild(built, b);
+      const restored = await b.restore(throughText(made));
+      expect({ ...restored }).toEqual({ ...made });
+      expect(restored.partialTx).toBe(made.partialTx);
+      expect(restored.missing).toEqual(made.missing);
+      expect(throughText(restored)).toEqual(throughText(made));
+      const encoded = JSON.parse(JSON.stringify(encodeBuilt({ ...made })));
+      expect(decodeBuilt(encoded, "built")).toEqual({ ...made });
+    },
+  );
+
+  it("goes through JSON with bytes in unusual encodings", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const signer = testKey();
+    for (const form of ["tagged", "plain", "odd"] as const) {
+      const given = handPayment(form, key, (txHash) =>
+        cbor.map([
+          cbor.uint(0),
+          cbor.arrIndef(cbor.vkeyWitness(signer, txHash)),
+        ]),
+      );
+      const b = offline();
+      const made = await b.fromCbor(given.tx, { knownUtxos: given.knownUtxos });
+      const restored = await b.restore(throughText(made));
+      expect({ ...restored }).toEqual({ ...made });
+      expect(restored.partialTx).toBe(made.partialTx);
+      expect(restored.missing).toEqual(made.missing);
+      expect(throughText(restored)).toEqual(throughText(made));
+      const encoded = JSON.parse(JSON.stringify(encodeBuilt({ ...made })));
+      expect(decodeBuilt(encoded, "built")).toEqual({ ...made });
+    }
+  });
+
+  it("writes the unsigned transaction as built.tx and the witnesses it came with as witnesses, in the form they came in; the object restored writes the same bytes, and so does one restored from its JSON", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const signer = testKey();
+    for (const form of ["tagged", "plain"] as const)
+      for (const tagged of [true, false]) {
+        const given = handPayment(form, key, (txHash) =>
+          cbor.map([
+            cbor.uint(0),
+            list(tagged ? "tagged" : "plain", cbor.vkeyWitness(signer, txHash)),
+          ]),
+        );
+        const b = offline();
+        const made = await b.fromCbor(given.tx, {
+          knownUtxos: given.knownUtxos,
+        });
+        const json = throughText(made);
+        expect(json.built.tx).toBe(given.unsigned);
+        expect(json.extraKeyWitnesses).toBe(1);
+        const { witnessSet } = readWitnessArgument(json.witnesses);
+        expect(witnessSet.vkeys!.tagged).toBe(tagged);
+        expect(witnessSet.vkeys!.witnesses.map((w) => w.vkey)).toEqual([
+          signer.vkey,
+        ]);
+        const restored = await b.restore(json);
+        expect(restored.partialTx).toBe(given.tx);
+        const again = await b.restore(throughText(restored));
+        expect(again.partialTx).toBe(given.tx);
+        await again.sign({ signers: keysSigner("object", key).signer });
+        await made.sign({ signers: keysSigner("object", key).signer });
+        expect(again.signedTx).toBe(made.signedTx);
+      }
+  });
+
+  it("is taken as after: a build after it selects none of its inputs, names its outputs by out ref without a lookup, and selects none of them", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    // Two outputs at the address a later build has as its change address
+    const paid = cbor.map(
+      [cbor.uint(0), cbor.bytes(addressHex(key))],
+      [cbor.uint(1), cbor.uint(40_000_000)],
+    );
+    const given = cbor.tx(
+      cbor.map(
+        [
+          cbor.uint(0),
+          cbor.tag258(cbor.arr(cbor.arr(cbor.bytes(cbor.TX_IN), cbor.uint(0)))),
+        ],
+        [cbor.uint(1), cbor.arr(paid, paid)],
+        [cbor.uint(2), cbor.uint(170_000)],
+      ),
+    );
+    const spentByIt = handUtxo(key.address, 0, ada(100));
+    const { provider, calls } = recordingProvider();
+    const b = offline("preprod", { provider });
+    const made = await b.fromCbor(given, { knownUtxos: [spentByIt] });
+    expect(made.outputs.map((o) => o.address)).toEqual([
+      key.address,
+      key.address,
+    ]);
+    const small = utxoAt(key.address, ada(2));
+    // What the payer holds besides cannot pay 4 ada: neither the input the object spends nor
+    // its outputs are there to select
+    const short = await caught(() =>
+      b.build([output({ address: recipient, value: { lovelace: ada(4) } })], {
+        payer: { changeAddress: key.address, utxos: [spentByIt, small] },
+        after: made,
+      }),
+    );
+    expect(short.code).toBe("INSUFFICIENT_FUNDS");
+    // One of its outputs named by out ref is taken without a lookup; the other is not selected
+    const next = await b.build(
+      [
+        spend.pubKey({ utxo: { txHash: made.txHash, outputIndex: 1 } }),
+        output({ address: recipient, value: { lovelace: ada(38) } }),
+      ],
+      {
+        payer: { changeAddress: key.address, utxos: [spentByIt, small] },
+        after: made,
+      },
+    );
+    expect(calls).toEqual([]);
+    expect(next.inputs.map((u) => `${u.txHash}#${u.outputIndex}`)).toContain(
+      `${made.txHash}#1`,
+    );
+    for (const utxo of next.inputs)
+      expect(`${utxo.txHash}#${utxo.outputIndex}`).not.toBe(`${made.txHash}#0`);
+    expect(next.inputs.some((u) => u.txHash === cbor.TX_IN)).toBe(false);
+  });
+
+  it("types: fromCbor gives Promise<BuiltTx>, and its options take knownUtxos, and blind: false", async () => {
+    type Equal<A, B> =
+      (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
+        ? true
+        : false;
+    const returns: Equal<
+      ReturnType<TxBuilder["fromCbor"]>,
+      Promise<BuiltTx>
+    > = true;
+    const options: Equal<
+      Parameters<TxBuilder["fromCbor"]>[1],
+      FromCborOptions | undefined
+    > = true;
+    const known: Equal<
+      FromCborOptions,
+      { knownUtxos?: readonly UtxoInput[]; blind?: false }
+    > = true;
+    const first: Equal<Parameters<TxBuilder["fromCbor"]>[0], string> = true;
+    expect([returns, options, known, first]).toEqual([true, true, true, true]);
+    const b = offline();
+    const unused = async () => {
+      // @ts-expect-error: no option but knownUtxos and blind
+      await b.fromCbor("", { after: [] });
+      // @ts-expect-error: the transaction is text
+      await b.fromCbor(new Uint8Array());
+    };
+    expect(typeof unused).toBe("function");
+  });
+
+  describe("awaitInclusion", () => {
+    const foundInfo = (hash: string, extra: Record<string, unknown> = {}) => ({
+      hash,
+      slot: "1200",
+      block: "b".repeat(64),
+      blockHeight: 1200,
+      ...extra,
+    });
+    const searching = (answer: (hash: string) => unknown) =>
+      ({
+        fetchTxInfo: async (hash: string) => answer(hash),
+      }) as unknown as TxBuilderOptions["provider"];
+
+    /** A hand-made payment whose witness set holds a redeemer, in the list or the map form */
+    const withRedeemers = (key: TestKey, form: "list" | "map" | "none") => {
+      const data = cbor.constr0();
+      const units = cbor.arr(cbor.uint(1000), cbor.uint(2000));
+      const redeemers =
+        form === "list"
+          ? cbor.arr(cbor.arr(cbor.uint(0), cbor.uint(0), data, units))
+          : cbor.map([
+              cbor.arr(cbor.uint(0), cbor.uint(0)),
+              cbor.arr(data, units),
+            ]);
+      return handPayment("tagged", key, () =>
+        form === "none" ? cbor.map() : cbor.map([cbor.uint(5), redeemers]),
+      );
+    };
+
+    it("is SCRIPT_FAILED when the provider finds it with validContract: false", async () => {
+      await Crypto.ready();
+      const key = testKey();
+      const given = withRedeemers(key, "list");
+      const b = offline("preprod", {
+        provider: searching((hash) =>
+          foundInfo(hash, { validContract: false }),
+        ),
+      });
+      const made = await b.fromCbor(given.tx, { knownUtxos: given.knownUtxos });
+      const error = await caught(() => made.awaitInclusion());
+      expect(TxPlanError.is(error, "SCRIPT_FAILED")).toBe(true);
+    });
+
+    it.each(["list", "map"] as const)(
+      "is CANNOT_OBSERVE (noValidity) when a transaction that holds redeemers as a %s is found without validContract",
+      async (form) => {
+        await Crypto.ready();
+        const key = testKey();
+        const given = withRedeemers(key, form);
+        const b = offline("preprod", {
+          provider: searching((hash) => foundInfo(hash)),
+        });
+        const made = await b.fromCbor(given.tx, {
+          knownUtxos: given.knownUtxos,
+        });
+        expect(made.redeemers).toHaveLength(1);
+        const error = await caught(() => made.awaitInclusion());
+        expect(TxPlanError.is(error, "CANNOT_OBSERVE")).toBe(true);
+        expect(error.details.reason).toBe("noValidity");
+        const valid = await offline("preprod", {
+          provider: searching((hash) =>
+            foundInfo(hash, { validContract: true }),
+          ),
+        }).fromCbor(given.tx, { knownUtxos: given.knownUtxos });
+        expect((await valid.awaitInclusion()).txHash).toBe(given.txHash);
+      },
+    );
+
+    it("needs no validity for a transaction without redeemers", async () => {
+      await Crypto.ready();
+      const key = testKey();
+      const given = withRedeemers(key, "none");
+      const b = offline("preprod", {
+        provider: searching((hash) => foundInfo(hash)),
+      });
+      const made = await b.fromCbor(given.tx, { knownUtxos: given.knownUtxos });
+      expect(await made.awaitInclusion()).toEqual({
+        txHash: given.txHash,
+        slot: 1200,
+        block: "b".repeat(64),
+        blockHeight: 1200,
+      });
+    });
+  });
+});
+
+describe("TxBuilder.fromCbor with blind: a BlindTx", () => {
+  /** The members a BlindTx holds of the bytes */
+  const BLIND_MEMBERS = [
+    "tx",
+    "txHash",
+    "network",
+    "fee",
+    "outputs",
+    "validity",
+    "redeemers",
+  ] as const;
+
+  /** Checks a TxBuildError of this code, and returns it */
+  const refusedAs = (error: unknown, code: string) => {
+    expect(error).toBeInstanceOf(TxBuildError);
+    expect(TxError.is(error, code as never)).toBe(true);
+    return error as TxBuildError<"INVALID_OPTION">;
+  };
+
+  /** The key hash of a private key in hex */
+  const hashOfKey = (key: string) =>
+    Crypto.Ed25519PrivateKey.fromNormalBytes(Buffer.from(key, "hex"))
+      .toPublic()
+      .hash()
+      .hex() as string;
+
+  /** What the bytes show of a transaction, as a BuiltTx or a BlindTx holds it */
+  const fromBytes = (made: BlindTx | BuiltTxData) => ({
+    tx: made.tx,
+    txHash: made.txHash,
+    network: made.network,
+    fee: made.fee,
+    outputs: made.outputs,
+    validity: made.validity,
+    redeemers: made.redeemers,
+  });
+
+  it.each(BUILDS)(
+    "asks no provider, reads no UTxO, and shows what fromCbor with knownUtxos shows of the bytes: %s",
+    async (_, make) => {
+      const { built, builder: b } = await make();
+      const { provider, calls } = recordingProvider();
+      const network = b.network.name as "preprod" | "mainnet";
+      const blind = await offline(network, { provider }).fromCbor(built.tx, {
+        blind: true,
+      });
+      expect(calls).toEqual([]);
+      expect(blind).toBeInstanceOf(BlindTx);
+      expect(blind).not.toBeInstanceOf(BuiltTx);
+      const read = await fromBuild(built, b);
+      expect(fromBytes(blind)).toEqual(fromBytes(read));
+      expect(Reflect.ownKeys(blind)).toEqual(
+        BLIND_MEMBERS.filter((key) => key in read),
+      );
+      expect(Object.isFrozen(blind)).toBe(true);
+      // Nothing that needs the UTxOs of the inputs, or a build
+      for (const member of [
+        "inputs",
+        "referenceInputs",
+        "selectedInputs",
+        "missing",
+        "signers",
+        "signedTx",
+        "collateral",
+        "change",
+        "parts",
+        "prototype",
+        "warnings",
+        "exUnits",
+        "toJSON",
+      ])
+        expect(member in blind).toBe(false);
+      expect(blind.signedKeyHashes).toEqual([]);
+      expect(blind.partialTx).toBe(built.tx);
+    },
+  );
+
+  it("is read by a builder of its network alone, and the same with a transaction that came signed", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const given = handPayment("tagged", key, (txHash) =>
+      cbor.map([
+        cbor.uint(0),
+        cbor.tag258(cbor.arr(cbor.vkeyWitness(key, txHash))),
+      ]),
+    );
+    const cold = new TxBuilder({ network: "preprod" });
+    const blind = await cold.fromCbor(given.tx, { blind: true });
+    const read = await offline().fromCbor(given.tx, {
+      knownUtxos: given.knownUtxos,
+    });
+    expect(fromBytes(blind)).toEqual(fromBytes(read));
+    expect(blind.tx).toBe(given.unsigned);
+    expect(blind.signedKeyHashes).toEqual([key.keyHash]);
+    expect(blind.partialTx).toBe(read.partialTx);
+    expect(blind.partialTx).toBe(given.tx);
+  });
+
+  it("signs with keySigner a key the body needs and one it does not, asked with no list of keys, and keeps both", async () => {
+    await Crypto.ready();
+    const needed = randomBytes(32);
+    const neededHash = hashOfKey(needed.toString("hex"));
+    const stranger = testKey();
+    const given = handPayment("plain", testKey());
+    const blind = await new TxBuilder({ network: "preprod" }).fromCbor(
+      given.tx,
+      { blind: true },
+    );
+    const asked = keysSigner("object", stranger);
+    await blind.sign({
+      signers: [keySigner(needed.toString("hex")), asked.signer],
+    });
+    // The signer of hashes is asked with no keys, and handed the unsigned transaction
+    expect(asked.requests).toHaveLength(1);
+    expect(asked.requests[0]!.keys).toBeUndefined();
+    expect(asked.requests[0]!.tx).toBe(given.unsigned);
+    expect(asked.requests[0]!.txHash).toBe(given.txHash);
+    expect(blind.signedKeyHashes).toEqual([neededHash, stranger.keyHash]);
+    expect(keysOf(blind.partialTx).vkeys).toHaveLength(2);
+    expect(allVerify(blind.partialTx, given.txHash)).toBe(true);
+    expect(cbor.topItems(blind.partialTx)[0]).toBe(given.body);
+    // Asked again, a key that has signed adds nothing
+    await blind.sign({ signers: keySigner(needed.toString("hex")) });
+    expect(blind.signedKeyHashes).toEqual([neededHash, stranger.keyHash]);
+    // The object of fromCbor keeps the witness of the key the body needs alone
+    const read = await offline().fromCbor(given.tx, {
+      knownUtxos: [handUtxo(addressOf({ keyHash: neededHash }))],
+    });
+    await read.sign({
+      signers: [keySigner(needed.toString("hex")), asked.signer],
+    });
+    expect(keysOf(read.partialTx).vkeys).toHaveLength(1);
+  });
+
+  it("signs with a wallet: a Mesh wallet by signTxWitnesses with no key hashes, a CIP-30 api by signTx(tx, true); every witness kept", async () => {
+    await Crypto.ready();
+    const wallet = new MeshWallet({
+      networkId: 0,
+      key: { type: "mnemonic", words: Array(24).fill("solution") },
+    });
+    await wallet.init();
+    const walletKey = deserializeAddress(
+      (await wallet.getChangeAddress())!,
+    ).pubKeyHash;
+    const given = handPayment("tagged", testKey());
+    const asked: unknown[][] = [];
+    const meshWallet = {
+      signTxWitnesses: (...args: [string, string[]?]) => {
+        asked.push(["signTxWitnesses", ...args]);
+        return wallet.signTxWitnesses(...args);
+      },
+    };
+    const cip30 = {
+      signTx: (tx: string, partial?: boolean) => {
+        asked.push(["signTx", tx, partial]);
+        return wallet.signTx(tx, partial);
+      },
+    };
+    for (const signer of [wallet, meshWallet, cip30] as Signer[]) {
+      const blind = await offline().fromCbor(given.tx, { blind: true });
+      await blind.sign({ signers: signer });
+      expect(blind.signedKeyHashes).toEqual([walletKey]);
+      expect(allVerify(blind.partialTx, given.txHash)).toBe(true);
+    }
+    expect(asked).toEqual([
+      ["signTxWitnesses", given.unsigned],
+      ["signTx", given.unsigned, true],
+    ]);
+  });
+
+  it("adds a witness set and a full transaction, each checked against the body; refuses a witness of another body, keeping nothing of the call", async () => {
+    await Crypto.ready();
+    const first = randomBytes(32).toString("hex");
+    const second = testKey();
+    const given = handPayment("tagged", testKey());
+    const blind = await offline().fromCbor(given.tx, { blind: true });
+    const set = await signWitnesses(keySigner(first), given.unsigned);
+    await blind.addWitnesses(set);
+    expect(blind.signedKeyHashes).toEqual([hashOfKey(first)]);
+    const full = await addWitnessSets(
+      given.unsigned,
+      cbor.map([
+        cbor.uint(0),
+        cbor.tag258(cbor.arr(cbor.vkeyWitness(second, given.txHash))),
+      ]),
+    );
+    await blind.addWitnesses(full);
+    expect(blind.signedKeyHashes).toEqual([hashOfKey(first), second.keyHash]);
+    const before = blind.partialTx;
+    // A witness of another body: INVALID_WITNESS, nothing of the call kept
+    const other = handPayment("plain", testKey());
+    const stranger = testKey();
+    const error = await caught(() =>
+      blind.addWitnesses(
+        cbor.map([
+          cbor.uint(0),
+          cbor.tag258(cbor.arr(cbor.vkeyWitness(testKey(), given.txHash))),
+        ]),
+        cbor.map([
+          cbor.uint(0),
+          cbor.tag258(cbor.arr(cbor.vkeyWitness(stranger, other.txHash))),
+        ]),
+      ),
+    );
+    expect(TxPlanError.is(error, "INVALID_WITNESS")).toBe(true);
+    expect(error.details).toEqual({
+      reason: "wrongBody",
+      argument: 1,
+      keyHash: stranger.keyHash,
+    });
+    expect(blind.partialTx).toBe(before);
+    // A signer answering with a witness of another body fails, and nothing of it is kept
+    const wrong = hashSigner("callback", () => [stranger.answer(other.txHash)]);
+    const failed = await caught(() => blind.sign({ signers: wrong.signer }));
+    expect(TxPlanError.is(failed, "SIGNER_FAILED")).toBe(true);
+    expect(blind.partialTx).toBe(before);
+    // A transaction that came with a signature of another body is refused as fromCbor refuses it
+    const forged = handPayment("tagged", testKey(), () =>
+      cbor.map([
+        cbor.uint(0),
+        cbor.tag258(cbor.arr(cbor.vkeyWitness(stranger, other.txHash))),
+      ]),
+    );
+    const refused = await caught(() =>
+      offline().fromCbor(forged.tx, { blind: true }),
+    );
+    expect(TxPlanError.is(refused, "INVALID_WITNESS")).toBe(true);
+    expect(refused.details).toEqual({
+      reason: "wrongBody",
+      argument: 0,
+      keyHash: stranger.keyHash,
+    });
+  });
+
+  it("refuses blind beside knownUtxos, a blind that is not a boolean, and a sign without signers, naming types alone", async () => {
+    await Crypto.ready();
+    const given = handPayment("tagged", testKey());
+    const secret = randomBytes(32).toString("hex");
+    const both = await caught(() =>
+      offline().fromCbor(given.tx, {
+        blind: true,
+        knownUtxos: given.knownUtxos,
+      } as never),
+    );
+    refusedAs(both, "INVALID_OPTION");
+    expect(both.details).toEqual({
+      option: "options",
+      value: "object",
+      allowed: "an object { knownUtxos?, blind? }",
+    });
+    expect(both.message).toContain("one or the other");
+    // An empty list too: blind takes no knownUtxos
+    refusedAs(
+      await caught(() =>
+        offline().fromCbor(given.tx, { blind: true, knownUtxos: [] } as never),
+      ),
+      "INVALID_OPTION",
+    );
+    const notBoolean = await caught(() =>
+      offline().fromCbor(given.tx, { blind: secret } as never),
+    );
+    refusedAs(notBoolean, "INVALID_OPTION");
+    expect(notBoolean.details).toEqual({
+      option: "blind",
+      value: "string",
+      allowed: "a boolean",
+    });
+    expect(notBoolean.message).not.toContain(secret);
+    // blind: false is fromCbor without it
+    const read = await offline().fromCbor(given.tx, {
+      blind: false,
+      knownUtxos: given.knownUtxos,
+    });
+    expect(read).toBeInstanceOf(BuiltTx);
+
+    const blind = await offline().fromCbor(given.tx, { blind: true });
+    const asked = keysSigner("callback", testKey());
+    for (const options of [undefined, {}, { signers: [] }])
+      expect(
+        refusedAs(
+          await caught(() => blind.sign(options as never)),
+          "INVALID_OPTION",
+        ).details.option,
+      ).toBe("signers");
+    for (const options of [secret, keySigner(secret), asked.signer]) {
+      const error = refusedAs(
+        await caught(() => blind.sign(options as never)),
+        "INVALID_OPTION",
+      );
+      expect(error.details.option).toBe("options");
+      expect(error.message).not.toContain(secret);
+    }
+    expect(asked.requests).toEqual([]);
+    expect(blind.signedKeyHashes).toEqual([]);
+  });
+
+  it("submits partialTx through the call's submitter, else the builder's; without one nothing is sent, and it looks for none without a provider", async () => {
+    await Crypto.ready();
+    const key = randomBytes(32).toString("hex");
+    const given = handPayment("tagged", testKey());
+    const sent: [string, string][] = [];
+    const submitter = (name: string) => ({
+      submitTx: async (tx: string) => {
+        sent.push([name, tx]);
+        return given.txHash;
+      },
+    });
+    const bare = await new TxBuilder({ network: "preprod" }).fromCbor(
+      given.tx,
+      { blind: true },
+    );
+    expect(
+      TxPlanError.is(await caught(() => bare.submit()), "MISSING_SUBMITTER"),
+    ).toBe(true);
+    expect(
+      TxError.is(await caught(() => bare.awaitInclusion()), "MISSING_FETCHER"),
+    ).toBe(true);
+    const blind = await new TxBuilder({
+      network: "preprod",
+      submitter: submitter("builder"),
+    }).fromCbor(given.tx, { blind: true });
+    await blind.submit();
+    await blind.sign({ signers: keySigner(key) });
+    await blind.submit({ submitter: submitter("call") });
+    await blind.submit();
+    expect(sent).toEqual([
+      ["builder", given.unsigned],
+      ["call", blind.partialTx],
+      ["builder", blind.partialTx],
+    ]);
+    expect(blind.partialTx).not.toBe(given.unsigned);
+  });
+
+  it("is refused by after, by a plan as its steps or a step, and by restore, as INVALID_OPTION", async () => {
+    await Crypto.ready();
+    const key = testKey();
+    const given = handPayment("tagged", key);
+    const b = offline();
+    const blind = await b.fromCbor(given.tx, { blind: true });
+    const payer = {
+      changeAddress: key.address,
+      utxos: [utxoAt(key.address)],
+    };
+    const pay = output({ address: recipient, value: { lovelace: ada(2) } });
+    for (const after of [blind, [blind]]) {
+      const error = await caught(() =>
+        b.build(pay, { payer, after: after as never }),
+      );
+      refusedAs(error, "INVALID_OPTION");
+      expect(error.details.option).toBe("after");
+      expect(error.message).toContain("BlindTx");
+    }
+    for (const steps of [blind, { first: blind }, { first: [pay], blind }]) {
+      const error = await caught(() =>
+        b.plan(steps as never, { payer, after: [] }),
+      );
+      refusedAs(error, "INVALID_OPTION");
+      expect(error.details.option).toBe("steps");
+      expect(error.message).toContain("BlindTx");
+    }
+    const restored = await caught(() => b.restore(blind as never));
+    refusedAs(restored, "INVALID_OPTION");
+    expect(restored.details).toEqual({
+      option: "json",
+      value: "object",
+      allowed: "the JSON of a BuiltTx, as its toJSON() writes it",
+    });
+    expect(restored.message).toContain("BlindTx");
+  });
+
+  it("refuses a transaction of another network, as fromCbor does", async () => {
+    await Crypto.ready();
+    const given = handPayment("tagged", testKey());
+    const error = await caught(() =>
+      offline("mainnet").fromCbor(given.tx, { blind: true }),
+    );
+    refusedAs(error, "NETWORK_MISMATCH");
+  });
+});

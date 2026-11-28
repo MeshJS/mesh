@@ -3,7 +3,6 @@ import {
   NativeScript,
   resolveNativeScriptAddress,
   TransactionPrototype,
-  UTxO,
 } from "@meshsdk/core";
 import {
   resolvePlutusScriptAddress,
@@ -16,15 +15,16 @@ import {
   collateral,
   collateralReturn,
   donation,
+  guard,
   metadata,
   mint,
   networkId,
   output,
   referenceInput,
-  requiredSigner,
   spend,
   treasuryValue,
   TxPart,
+  Utxo,
   validity,
   withdrawal,
 } from "../../../src/tx-builder";
@@ -55,17 +55,22 @@ const toPrototype = (parts: TxPart[]): TransactionPrototype => {
         if (witness.type === "plutus") {
           if (witness.script.type === "attached") {
             const key =
-              `plutus_${witness.script.version.toLowerCase()}_scripts` as const;
+              `plutus_${witness.script.version.toLowerCase()}_scripts` as
+                "plutus_v1_scripts" | "plutus_v2_scripts" | "plutus_v3_scripts";
             (ws[key] ??= []).push(witness.script.cbor);
           } else (body.reference_inputs ??= []).push(witness.script.input);
           if (witness.datum?.type === "provided")
             (ws.plutus_data ??= { elems: [] }).elems.push(
               witness.datum.data.type === "CBOR" ? witness.datum.data.hex : "",
             );
+          const { data } = witness.redeemer;
+          // The parts here give their redeemers as values
+          if (data.type === "deferred")
+            throw new Error("a redeemer function is not data");
           (ws.redeemers ??= []).push({
             tag: { type: "SPEND" },
             index: String(body.inputs.length - 1),
-            data: witness.redeemer.data,
+            data,
             ex_units: witness.redeemer.exUnits ?? { mem: "0", steps: "0" },
           });
         }
@@ -107,11 +112,11 @@ const toPrototype = (parts: TxPart[]): TransactionPrototype => {
       case "withdrawal":
         body.withdrawals = {
           ...body.withdrawals,
-          [part.rewardAddress]: part.amount ?? "0",
+          [part.rewardAddress!]: part.amount ?? "0",
         };
         break;
-      case "requiredSigner":
-        (body.required_signers ??= []).push(part.keyHash);
+      case "guard":
+        (body.required_signers ??= []).push(part.credential.value);
         break;
       case "validity":
         body.validity_start_interval = part.invalidBefore;
@@ -146,13 +151,12 @@ const toPrototype = (parts: TxPart[]): TransactionPrototype => {
 const keyAddress = baseAddress(1);
 const nativeScript: NativeScript = { type: "all", scripts: [] };
 const plutusScript = { code: alwaysSucceedCbor, version: "V3" as const };
-const at = (outputIndex: number, address: string, extra = {}): UTxO => ({
-  input: { txHash: "a".repeat(64), outputIndex },
-  output: {
-    address,
-    amount: [{ unit: "lovelace", quantity: "5000000" }],
-    ...extra,
-  },
+const at = (outputIndex: number, address: string, extra = {}): Utxo => ({
+  txHash: "a".repeat(64),
+  outputIndex,
+  address,
+  value: { lovelace: 5_000_000n },
+  ...extra,
 });
 
 describe("parts as TransactionPrototype fragments", () => {
@@ -165,8 +169,10 @@ describe("parts as TransactionPrototype fragments", () => {
       }),
       spend.plutus({
         utxo: at(2, resolvePlutusScriptAddress(plutusScript, 0), {
-          dataHash:
-            "923918e403bf43c34b4ef6b48eb2ee04babed17320d8d1b9ff9ad086e86f44ec",
+          datum: {
+            type: "hash",
+            hash: "923918e403bf43c34b4ef6b48eb2ee04babed17320d8d1b9ff9ad086e86f44ec",
+          },
         }),
         script: plutusScript,
         datum: { data: mConStr0([]) },
@@ -254,7 +260,7 @@ describe("parts as TransactionPrototype fragments", () => {
         assets: { abcd: 1n },
       }),
       withdrawal.pubKey({ rewardAddress: rewardAddress(1), amount: 7n }),
-      requiredSigner({ keyHash: "e".repeat(56) }),
+      guard.pubKey({ keyHash: "e".repeat(56) }),
       validity({ invalidBefore: 0, invalidHereafter: 1000 }),
       networkId({ network: "testnet" }),
       donation({ amount: 3n }),

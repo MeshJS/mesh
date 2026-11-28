@@ -172,3 +172,113 @@ describe("MeshWallet cli key", () => {
     );
   });
 });
+
+describe("MeshWallet without a fetcher", () => {
+  const FETCHER_REQUIRED_MESSAGE =
+    "[MeshWallet] Fetcher is required to fetch UTxOs. Please provide a fetcher.";
+  const TX =
+    "84a4008182582004509185eb98edd8e2420c1ceea914d6a7a3142041039b2f12b4d4f03162d56f04018282581d605867c3b8e27840f556ac268b781578b14c5661fc63ee720dbeab663f1a000f42408258390004845038ee499ee8bc0afe56f688f27b2dd76f230d3698a9afcc1b66e0464447c1f51adaefe1ebfb0dd485a349a70479ced1d198cbdf7fe71a15d35396021a0002917d075820bdaa99eb158414dea0a91d6c727e2268574b23efe6e08ab3b841abe8059a030ca0f5d90103a0";
+
+  const newWallet = () =>
+    new MeshWallet({
+      networkId: 0,
+      key: {
+        type: "mnemonic",
+        words: "solution,".repeat(24).split(",").slice(0, 24),
+      },
+    });
+
+  const expectFetcherRequired = (error: unknown) => {
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).name).toBe("Error");
+    expect((error as Error).message).toBe(FETCHER_REQUIRED_MESSAGE);
+    expect(Object.prototype.hasOwnProperty.call(error, "code")).toBe(true);
+    expect((error as { code?: unknown }).code).toBe("FETCHER_REQUIRED");
+  };
+
+  it("getUtxos rejects with the code FETCHER_REQUIRED", async () => {
+    const wallet = newWallet();
+    const error = await wallet.getUtxos().catch((e: unknown) => e);
+    expectFetcherRequired(error);
+  });
+
+  it.each([
+    ["getUtxosHex", (w: MeshWallet) => w.getUtxosHex()],
+    ["getUsedUTxOs", (w: MeshWallet) => w.getUsedUTxOs()],
+    ["getUnspentOutputs", (w: MeshWallet) => w.getUnspentOutputs()],
+    ["getCollateral", (w: MeshWallet) => w.getCollateral()],
+    ["getCollateralHex", (w: MeshWallet) => w.getCollateralHex()],
+    [
+      "getCollateralUnspentOutput",
+      (w: MeshWallet) => w.getCollateralUnspentOutput(),
+    ],
+    ["getBalance", (w: MeshWallet) => w.getBalance()],
+    ["getLovelace", (w: MeshWallet) => w.getLovelace()],
+  ])("%s rejects with the code FETCHER_REQUIRED", async (_name, read) => {
+    const wallet = newWallet();
+    const error = await read(wallet).catch((e: unknown) => e);
+    expectFetcherRequired(error);
+  });
+
+  it("still answers its change address and network id, and signs", async () => {
+    const wallet = newWallet();
+    expect(await wallet.getChangeAddress()).toBe(
+      "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+    );
+    expect(await wallet.getNetworkId()).toBe(0);
+    const witnessSet = await wallet.signTx(TX, true, false);
+    expect(witnessSet).toMatch(/^a100(d90102)?81/);
+  });
+
+  it("a read-only wallet rejects getUtxos with the code too", async () => {
+    const wallet = new MeshWallet({
+      networkId: 0,
+      key: {
+        type: "address",
+        address:
+          "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+      },
+    });
+    const error = await wallet.getUtxos().catch((e: unknown) => e);
+    expectFetcherRequired(error);
+  });
+});
+
+describe("MeshWallet getRewardAddresses before init", () => {
+  const REWARD_ADDRESS =
+    "stake_test1uzw5mnt7g4xjgdqkfa80hrk7kdvds6sa4k0vvgjvlj7w8eskffj2n";
+
+  const newWallet = () =>
+    new MeshWallet({
+      networkId: 0,
+      key: {
+        type: "mnemonic",
+        words: "solution,".repeat(24).split(",").slice(0, 24),
+      },
+    });
+
+  it("resolves to the reward address on a wallet whose init was never called", async () => {
+    const wallet = newWallet();
+    expect(await wallet.getRewardAddresses()).toEqual([REWARD_ADDRESS]);
+  });
+
+  it("gives the same result when called again and after an explicit init", async () => {
+    const wallet = newWallet();
+    expect(await wallet.getRewardAddresses()).toEqual([REWARD_ADDRESS]);
+    expect(await wallet.getRewardAddresses()).toEqual([REWARD_ADDRESS]);
+    await wallet.init();
+    expect(await wallet.getRewardAddresses()).toEqual([REWARD_ADDRESS]);
+  });
+
+  it("a read-only wallet resolves to the reward address of its address", async () => {
+    const wallet = new MeshWallet({
+      networkId: 0,
+      key: {
+        type: "address",
+        address:
+          "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
+      },
+    });
+    expect(await wallet.getRewardAddresses()).toEqual([REWARD_ADDRESS]);
+  });
+});

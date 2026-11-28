@@ -3,17 +3,21 @@ import {
   fail,
   freeze,
   labelOf,
+  partContext,
   PartContext,
   rewardCredential,
   toNativeScriptSource,
   toPlutusScriptSource,
   toRedeemer,
+  toRewardAddress,
   withKnownHash,
 } from "./normalize";
+import { shownValue } from "./shape";
 import {
   KeyWitness,
   NativeScriptInput,
   NativeWitness,
+  PartParams,
   PlutusScriptInput,
   PlutusWitness,
   RedeemerInput,
@@ -22,65 +26,123 @@ import {
 
 type Credential = ReturnType<typeof rewardCredential>;
 
-type WithdrawalParams = {
-  /** The stake address, in bech32 */
-  rewardAddress: string;
+/** What every withdrawal takes */
+export interface WithdrawalParams extends PartParams {
   /**
-   * Lovelace to withdraw, which must be the whole reward balance; `"all"` looks the balance
-   * up before assembly. `0n` runs a staking script without withdrawing anything.
+   * Lovelace to withdraw, which must be the whole reward balance; `"all"` looks the balance up
+   * before assembly. With a script credential, `0n` runs the script without withdrawing anything
    */
   amount: bigint | "all";
-  label?: string;
-};
+}
+
+/** What `withdrawal.pubKey` takes */
+export interface WithdrawalPubKeyParams extends WithdrawalParams {
+  /** The stake address, in bech32 or hex */
+  rewardAddress: string;
+}
+
+/** What a script's withdrawal takes besides its script; its reward address may be left out */
+export interface ScriptWithdrawalParams extends WithdrawalParams {
+  /**
+   * The stake address, in bech32 or hex, checked against the script hash at the call and
+   * against the network at build. Left out: the script's own reward address, derived on the
+   * build's network; it cannot be left out for a script referenced by out ref alone without
+   * `scriptHash`
+   */
+  rewardAddress?: string;
+}
+
+/** What `withdrawal.native` takes */
+export interface WithdrawalNativeParams extends ScriptWithdrawalParams {
+  /**
+   * The script: attached as a `NativeScript` or its CBOR, or held in a reference output
+   * (`{ reference }`)
+   */
+  script: NativeScriptInput;
+}
+
+/** What `withdrawal.plutus` takes */
+export interface WithdrawalPlutusParams extends ScriptWithdrawalParams {
+  /**
+   * The script: attached (`{ code, version }`, the code flat or in one or two CBOR wrappings)
+   * or held in a reference output (`{ reference }`)
+   */
+  script: PlutusScriptInput;
+  /**
+   * Data, or a function of the final transaction (`self`: this reward account's index among
+   * the withdrawals), with execution units if already known
+   */
+  redeemer: RedeemerInput;
+}
 
 const build = (
-  params: WithdrawalParams,
+  params: ScriptWithdrawalParams,
   makeWitness: (
     ctx: PartContext,
-    credential: Credential,
+    credential: Credential | undefined,
   ) => KeyWitness | NativeWitness | PlutusWitness,
+  keyOnly = false,
 ): WithdrawalPart => {
-  const ctx: PartContext = { part: "withdrawal", label: params.label };
-  const credential = rewardCredential(ctx, params.rewardAddress);
+  const ctx = partContext("withdrawal", params);
+  // A key credential has no script to derive the address from: `pubKey` always parses it
+  const given =
+    params.rewardAddress === undefined && !keyOnly
+      ? undefined
+      : toRewardAddress(ctx, params.rewardAddress!);
   const { amount } = params;
   if (amount !== "all" && (typeof amount !== "bigint" || amount < 0n))
-    fail(ctx, "INVALID_VALUE", `invalid withdrawal amount ${amount}`);
-  const witness = makeWitness(ctx, credential);
-  checkCredential(
-    ctx,
-    params.rewardAddress,
-    credential,
-    witness.type === "key"
-      ? { type: "key" }
-      : { type: "script", hash: witness.script.scriptHash },
-  );
+    fail(
+      ctx,
+      "INVALID_VALUE",
+      `invalid withdrawal amount ${shownValue(amount)}`,
+    );
+  const witness = makeWitness(ctx, given?.credential);
+  if (given)
+    checkCredential(
+      ctx,
+      params.rewardAddress!,
+      given.credential,
+      witness.type === "key"
+        ? { type: "key" }
+        : { type: "script", hash: witness.script.scriptHash },
+    );
+  // Without an address the part keeps the script's credential: its hash, which must be known
+  else if (witness.type !== "key" && witness.script.scriptHash === undefined)
+    fail(
+      ctx,
+      "INVALID_SCRIPT",
+      "the script hash is unknown: pass rewardAddress, scriptHash, or the reference UTxO in full",
+    );
   return freeze({
     kind: "withdrawal",
-    rewardAddress: params.rewardAddress,
+    ...(given && { rewardAddress: given.address }),
     ...(amount !== "all" && { amount: amount.toString() }),
     witness,
     ...labelOf(params.label),
   });
 };
 
-export const withdrawal = {
-  /**
-   * Withdraw rewards from a stake address with a key stake credential.
-   * @param params.rewardAddress The stake address, in bech32
-   * @param params.amount The whole reward balance, or `"all"` to look it up
-   * @param params.label Name echoed in errors about this part
-   */
-  pubKey: (params: WithdrawalParams): WithdrawalPart =>
-    build(params, () => ({ type: "key" })),
+/** The builders of withdrawal parts, by the kind of the stake credential */
+export interface WithdrawalBuilders {
+  /** Withdraw rewards from a stake address with a key stake credential. */
+  pubKey(params: WithdrawalPubKeyParams): WithdrawalPart;
 
-  /**
-   * Withdraw rewards from a stake address with a native script stake credential.
-   * @param params.script The script: attached as a `NativeScript` or its CBOR, or held in a
-   *   reference output (`{ reference }`)
-   */
-  native: (
-    params: WithdrawalParams & { script: NativeScriptInput },
-  ): WithdrawalPart =>
+  /** Withdraw rewards from a stake address with a native script stake credential. */
+  native(params: WithdrawalNativeParams): WithdrawalPart;
+
+  /** Withdraw rewards from a stake address with a Plutus script stake credential. */
+  plutus(params: WithdrawalPlutusParams): WithdrawalPart;
+}
+
+/**
+ * Withdrawal parts. A script's reward address may be left out: the part keeps the script's
+ * credential and the build derives the address on its network.
+ */
+export const withdrawal: WithdrawalBuilders = {
+  pubKey: (params: WithdrawalPubKeyParams): WithdrawalPart =>
+    build(params, () => ({ type: "key" }), true),
+
+  native: (params: WithdrawalNativeParams): WithdrawalPart =>
     build(params, (ctx, credential) => ({
       type: "native",
       script: withKnownHash(
@@ -89,18 +151,7 @@ export const withdrawal = {
       ),
     })),
 
-  /**
-   * Withdraw rewards from a stake address with a Plutus script stake credential.
-   * @param params.script The script: attached (`{ code, version }`) or held in a reference
-   *   output (`{ reference }`)
-   * @param params.redeemer Redeemer data, with execution units if already known
-   */
-  plutus: (
-    params: WithdrawalParams & {
-      script: PlutusScriptInput;
-      redeemer: RedeemerInput;
-    },
-  ): WithdrawalPart =>
+  plutus: (params: WithdrawalPlutusParams): WithdrawalPart =>
     build(params, (ctx, credential) => ({
       type: "plutus",
       script: withKnownHash(

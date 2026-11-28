@@ -59,21 +59,24 @@ describe("MeshTxBuilder donation", () => {
     expect(() => txBuilder.setDonation("-1")).toThrow();
   });
 
-  it("Should throw for the CSL serializer", async () => {
+  it("Should set donation with the CSL serializer too", async () => {
+    // The transaction is encoded by the builder whichever of Mesh's serializers it holds
     const cslBuilder = new MeshTxBuilder({ serializer: new CSLSerializer() });
-    await expect(
-      cslBuilder
-        .txIn(
-          txHash("tx0"),
-          0,
-          [{ unit: "lovelace", quantity: "5000000" }],
-          address,
-          0,
-        )
-        .txOut(address, [{ unit: "lovelace", quantity: "1000000" }])
-        .setDonation("1500000")
-        .changeAddress(address)
-        .complete(),
-    ).rejects.toThrow(/donation/i);
+    const tx = await cslBuilder
+      .txIn(
+        txHash("tx0"),
+        0,
+        [{ unit: "lovelace", quantity: "5000000" }],
+        address,
+        0,
+      )
+      .txOut(address, [{ unit: "lovelace", quantity: "1000000" }])
+      .setDonation("1500000")
+      .changeAddress(address)
+      .complete();
+
+    const cardanoTx = Transaction.fromCbor(TxCBOR(tx));
+    expect(cardanoTx.body().donation()).toEqual(BigInt(1500000));
+    expect(cslBuilder.serializer).toBeInstanceOf(CSLSerializer);
   });
 });

@@ -15,11 +15,11 @@ import {
   Address,
   addressToBech32,
   AddressType,
+  addVKeyWitnessesToTransaction,
   blake2b,
   buildDRepID,
   CardanoSDKUtil,
   deserializeAddress,
-  deserializeTx,
   deserializeTxUnspentOutput,
   deserializeValue,
   DRep,
@@ -31,9 +31,7 @@ import {
   hexToBech32,
   Serialization,
   toAddress,
-  Transaction,
   TransactionUnspentOutput,
-  VkeyWitness,
 } from "@meshsdk/core-cst";
 
 import { WalletStaticMethods } from "../embedded";
@@ -640,21 +638,8 @@ export class BrowserWallet implements IWallet {
       return unsignedTx;
     }
 
-    let tx = deserializeTx(unsignedTx);
-    // let tx = Transaction.fromCbor(CardanoSDK.TxCBOR(txHex));
-    let witnessSet = tx.witnessSet();
-    let witnessSetVkeys = witnessSet.vkeys();
-    let witnessSetVkeysValues: Serialization.VkeyWitness[] = witnessSetVkeys
-      ? [...witnessSetVkeys.values(), ...cWitness]
-      : [...cWitness];
-    witnessSet.setVkeys(
-      Serialization.CborSet.fromCore(
-        witnessSetVkeysValues.map((vkw) => vkw.toCore()),
-        VkeyWitness.fromCore,
-      ),
-    );
-
-    return new Transaction(tx.body(), witnessSet, tx.auxiliaryData()).toCbor();
+    // In the form of the transaction's vkey witness set, or of its body's inputs
+    return addVKeyWitnessesToTransaction(unsignedTx, cWitness);
   }
 
   static getSupportedExtensions(wallet: string) {

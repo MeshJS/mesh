@@ -1,0 +1,4457 @@
+import { jest } from "@jest/globals";
+
+import type { TransactionPrototype } from "@meshsdk/common";
+import {
+  awaitTransactionConfirmation,
+  ProviderError,
+  ScriptEvaluationError,
+  SLOT_CONFIG_NETWORK,
+  slotToBeginUnixTime,
+  TxConfirmTimeoutError,
+} from "@meshsdk/common";
+import {
+  applyCborEncoding,
+  deserializeAddress,
+  GovernanceActionKind,
+  IFetcher,
+  mConStr0,
+  MeshTxBuilder,
+  NativeScript,
+  resolveNativeScriptAddress,
+  resolveNativeScriptHash,
+  resolveNativeScriptHex,
+  resolvePlutusScriptAddress,
+  UTxO,
+} from "@meshsdk/core";
+import {
+  Cardano,
+  CardanoSDKSerializer,
+  CborWriter,
+  deserializeTx,
+  scriptHashToRewardAddress,
+  transactionPrototypeFromHex,
+  transactionPrototypeToHex,
+} from "@meshsdk/core-cst";
+import { MeshWallet } from "@meshsdk/wallet";
+
+import {
+  TxEmulator,
+  TxEmulatorOptions,
+  TxRejectedError,
+  TxResult,
+  TxValidator,
+} from "../src";
+
+const alwaysSucceed = {
+  code: applyCborEncoding(
+    "58340101002332259800a518a4d153300249011856616c696461746f722072657475726e65642066616c736500136564004ae715cd01",
+  ),
+  version: "V3" as const,
+};
+const alwaysFail = {
+  code: applyCborEncoding("5001010023259800b452689b2b20025735"),
+  version: "V3" as const,
+};
+const lovelace = (quantity: string) => [{ unit: "lovelace", quantity }];
+const outRef = (n: number) => ({
+  txHash: String(n).repeat(64),
+  outputIndex: 0,
+});
+const anchor = {
+  anchor_url: "https://example.com/a.json",
+  anchor_data_hash: "cd".repeat(32),
+};
+/** A signed transaction marked as failing: its validity flag false, its other items as written */
+const markedFailing = (txHex: string) => {
+  const tx = deserializeTx(txHex);
+  const writer = new CborWriter();
+  writer.writeStartArray(4);
+  writer.writeEncodedValue(Buffer.from(tx.body().toCbor(), "hex"));
+  writer.writeEncodedValue(Buffer.from(tx.witnessSet().toCbor(), "hex"));
+  writer.writeBoolean(false);
+  const aux = tx.auxiliaryData();
+  if (aux) writer.writeEncodedValue(Buffer.from(aux.toCbor(), "hex"));
+  else writer.writeNull();
+  return writer.encodeAsHex();
+};
+/** A transaction hash no ledger here holds */
+const UNKNOWN = "ab".repeat(32);
+/** A token unit: policy id and asset name, in hex */
+const TOKEN = "cd".repeat(28) + "4d657368";
+const txHashOf = (txHex: string) => deserializeTx(txHex).getId().toString();
+
+/** How a promise has settled after many microtasks, before any timer can fire */
+const settledWithoutTimers = async (promise: Promise<unknown>) => {
+  let state = "pending";
+  promise.then(
+    () => (state = "resolved"),
+    () => (state = "rejected"),
+  );
+  for (let tick = 0; tick < 100; tick += 1) await Promise.resolve();
+  return state;
+};
+const lovelaceOf = (utxos: UTxO[]) =>
+  utxos.reduce(
+    (sum, { output }) =>
+      sum +
+      BigInt(output.amount.find((a) => a.unit === "lovelace")?.quantity ?? 0),
+    0n,
+  );
+/**
+ * The vesting validator: its datum is `[lockUntil, owner, beneficiary]`; the owner may unlock at
+ * any time, the beneficiary once the validity interval starts after `lockUntil`
+ */
+const VESTING_SCRIPT =
+  "5901a7010100323232323232322533300232323232325332330083001300937540042646464a66601666e1d2000300c37540022646464a66601c660026eb0c008c040dd50059bae3013301430103754006294454ccc038cc004dd6180118081baa00b375c60266028602860206ea800c4c8cc88c8c8c8c8c94ccc058c03cc05cdd5001099299980b802099b88007001002375a603660306ea80080044c94ccc058c03cc05cdd5001099299980b802001099b89007001375a603660306ea8008004528180c8011806180a1baa3018301900133016301700133016333012300b30133754602e603000298103d87a80004c0103d87980004bd7018099baa3003301337540046028602a602a602a602a602a602a602a60226ea8030dd6980098089baa0042301400114a044646600200200644a66602800229404c94ccc048cdc79bae301700200414a2266006006002602e00246024602660266026602660266026602660260026020601a6ea800458c03cc040008c038004c028dd50011b874800858c02cc030008c028004c028008c020004c010dd50008a4c26cacae6955ceaab9e5573eae815d0aba21";
+
+// A native script with no conditions: it needs no signature, so transactions it witnesses are
+// valid unsigned and chains of them can be built and played without keys
+const openScript: NativeScript = { type: "all", scripts: [] };
+const openScriptHex = resolveNativeScriptHex(openScript);
+const openHash = resolveNativeScriptHash(openScript);
+const openAddress = resolveNativeScriptAddress(openScript, 1);
+const openStake = scriptHashToRewardAddress(openHash, 1);
+const openCredential = { type: "SCRIPT", value: openHash };
+const openDRep = Cardano.DRepID.cip129FromCredential({
+  type: Cardano.CredentialType.ScriptHash,
+  hash: openHash as never,
+}).toString();
+const OPEN_FUNDS = 300_000_000_000n;
+const poolHash = "ab".repeat(28);
+const poolId = Cardano.PoolId.fromKeyHash(poolHash as never).toString();
+const GOV_DEPOSIT = 100_000_000_000n;
+
+/**
+ * A balanced transaction spending an open-script output into one change output. `delta` is
+ * what leaves it besides the fee and the change (deposits, donations) less what enters
+ * (refunds, withdrawals).
+ */
+const rawTx = ({
+  input = outRef(2),
+  inputValue = OPEN_FUNDS,
+  fee = 2_000_000n,
+  delta = 0n,
+  body = {},
+  isValid = true,
+}: {
+  input?: { txHash: string; outputIndex: number };
+  inputValue?: bigint;
+  fee?: bigint;
+  delta?: bigint;
+  body?: Record<string, unknown>;
+  isValid?: boolean;
+}) =>
+  transactionPrototypeToHex({
+    body: {
+      inputs: [{ transaction_id: input.txHash, index: input.outputIndex }],
+      outputs: [
+        {
+          address: openAddress,
+          amount: { coin: String(inputValue - fee - delta) },
+        },
+      ],
+      fee: String(fee),
+      ...body,
+    },
+    is_valid: isValid,
+    witness_set: {
+      native_scripts: [{ type: "SCRIPT_ALL", value: { native_scripts: [] } }],
+    },
+  } as unknown as TransactionPrototype);
+
+/** The largest open-script output, which a chain of raw transactions continues from */
+const nextOpen = (emulator: TxEmulator) => {
+  const [utxo] = emulator
+    .utxos({ address: openAddress })
+    .map((u) => ({
+      input: u.input,
+      inputValue: BigInt(u.output.amount[0]!.quantity),
+    }))
+    .sort((a, b) => (b.inputValue > a.inputValue ? 1 : -1));
+  return utxo!;
+};
+
+const rules = (result: TxResult) =>
+  result.accepted ? [] : result.errors.map((e) => e.rule);
+
+const warningRules = (result: TxResult) => result.warnings.map((w) => w.rule);
+
+const expectAccepted = (result: TxResult) => {
+  expect(rules(result)).toEqual([]);
+  return result as Extract<TxResult, { accepted: true }>;
+};
+
+/** The test wallet's payment key hash, which also stands for a pool operator */
+const walletKeyHash = (async () => {
+  const wallet = new MeshWallet({
+    networkId: 1,
+    key: { type: "mnemonic", words: Array(24).fill("solution") },
+  });
+  await wallet.init();
+  return deserializeAddress((await wallet.getChangeAddress())!).pubKeyHash;
+})();
+
+async function setup(
+  validator: TxValidator,
+  options: Partial<TxEmulatorOptions> = {},
+) {
+  const wallet = new MeshWallet({
+    networkId: 1,
+    key: { type: "mnemonic", words: Array(24).fill("solution") },
+  });
+  await wallet.init();
+  const stakeWallet = new MeshWallet({
+    networkId: 1,
+    key: { type: "mnemonic", words: Array(24).fill("solution") },
+    accountType: "stake",
+  });
+  await stakeWallet.init();
+  const address = (await wallet.getChangeAddress())!;
+  const [stake] = await wallet.getRewardAddresses();
+  const { pubKeyHash } = deserializeAddress(address);
+  const funding: UTxO = {
+    input: outRef(0),
+    output: { address, amount: lovelace("10000000000") },
+  };
+  const collateral: UTxO = {
+    input: outRef(1),
+    output: { address, amount: lovelace("5000000") },
+  };
+  const open: UTxO = {
+    input: outRef(2),
+    output: { address: openAddress, amount: lovelace(String(OPEN_FUNDS)) },
+  };
+  const emulator = await TxEmulator.create({
+    validator,
+    ...options,
+    utxos: [funding, collateral, open, ...(options.utxos ?? [])],
+  });
+  const params = await emulator.fetchProtocolParameters();
+  const builder = ({ evaluate = true } = {}) =>
+    new MeshTxBuilder({
+      fetcher: emulator,
+      // `null` turns evaluation off: a builder with a fetcher evaluates locally by default
+      evaluator: evaluate ? emulator : null,
+      params,
+    });
+  const send = (quantity = "2000000") =>
+    builder()
+      .txOut(address, lovelace(quantity))
+      .changeAddress(address)
+      .selectUtxosFrom([funding])
+      .complete();
+  /** A builder spending from the open script, as transactions to chain start out */
+  const fromOpen = (utxo: UTxO = open, { evaluate = true } = {}) =>
+    builder({ evaluate })
+      .txIn(
+        utxo.input.txHash,
+        utxo.input.outputIndex,
+        utxo.output.amount,
+        openAddress,
+        0,
+      )
+      .txInScript(openScriptHex)
+      .changeAddress(openAddress);
+  const next = () =>
+    fromOpen(
+      emulator
+        .utxos({ address: openAddress })
+        .sort((a, b) =>
+          BigInt(b.output.amount[0]!.quantity) >
+          BigInt(a.output.amount[0]!.quantity)
+            ? 1
+            : -1,
+        )[0]!,
+    );
+  /** Signed with the wallet's payment key, and its stake key */
+  const sign = async (txHex: string) =>
+    stakeWallet.signTx(await wallet.signTx(txHex, true), true);
+  return {
+    wallet,
+    address,
+    stake: stake!,
+    pubKeyHash,
+    funding,
+    collateral,
+    open,
+    emulator,
+    builder,
+    send,
+    fromOpen,
+    next,
+    sign,
+  };
+}
+
+/** A ledger holding an always-succeeding (`#0`) and an always-failing (`#1`) script output */
+async function withLocked(validator: TxValidator) {
+  const locked = (outputIndex: number, script: typeof alwaysSucceed): UTxO => ({
+    input: { txHash: "9".repeat(64), outputIndex },
+    output: {
+      address: resolvePlutusScriptAddress(script, 1),
+      amount: lovelace("20000000"),
+      plutusData: "d87980",
+    },
+  });
+  const context = await setup(validator, {
+    utxos: [locked(0, alwaysSucceed), locked(1, alwaysFail)],
+  });
+  const { address, collateral, builder } = context;
+  /** An unsigned spend of one of the two */
+  const spend = (
+    outputIndex: number,
+    script: typeof alwaysSucceed,
+    evaluate: boolean,
+  ) =>
+    builder({ evaluate })
+      .spendingPlutusScriptV3()
+      .txIn("9".repeat(64), outputIndex)
+      .txInInlineDatumPresent()
+      .txInRedeemerValue(mConStr0([]), "Mesh", {
+        mem: 1_000_000,
+        steps: 500_000_000,
+      })
+      .txInScript(script.code)
+      .txInCollateral(
+        collateral.input.txHash,
+        collateral.input.outputIndex,
+        collateral.output.amount,
+        collateral.output.address,
+      )
+      .changeAddress(address)
+      .complete();
+  return { ...context, spend };
+}
+
+describe.each(["scalus", "cquisitor"] as const)(
+  "TxEmulator (%s)",
+  (validator) => {
+    it("needs a validator", async () => {
+      await expect(TxEmulator.create({} as TxEmulatorOptions)).rejects.toThrow(
+        "validator",
+      );
+    });
+
+    it("emulates mainnet unless told otherwise", async () => {
+      const { emulator } = await setup(validator);
+      expect(emulator.network).toBe("mainnet");
+      const preview = await TxEmulator.create({
+        validator,
+        network: "preview",
+      });
+      expect(preview.network).toBe("preview");
+      // Preview epochs are a day long
+      const start = preview.advanceTo({ epoch: preview.epoch + 1 });
+      expect(preview.advanceTo({ slot: start + 86_400 })).toBe(start + 86_400);
+      expect(preview.epoch).toBe(Math.floor(start / 86_400) + 1);
+    });
+
+    it("takes protocol parameters, all or some", async () => {
+      const emulator = await TxEmulator.create({
+        validator,
+        params: { minFeeA: 45, keyDeposit: 3_000_000 },
+      });
+      const params = await emulator.fetchProtocolParameters();
+      expect(params.minFeeA).toBe(45);
+      expect(params.keyDeposit).toBe(3_000_000);
+    });
+
+    it("reports the protocol parameters it checks transactions with", async () => {
+      const { emulator, wallet, pubKeyHash, stake, address, funding } =
+        await setup(validator);
+      // Mainnet's, where Mesh's defaults differ
+      expect(await emulator.fetchProtocolParameters()).toMatchObject({
+        minPoolCost: "170000000",
+        maxBlockSize: 90112,
+        maxBlockExMem: "72000000",
+        maxBlockExSteps: "20000000000",
+      });
+      const fork = emulator.fork();
+      fork.setProtocolParameters({
+        minPoolCost: "100000000",
+        maxBlockHeaderSize: 1200,
+      });
+      expect(await fork.fetchProtocolParameters()).toMatchObject({
+        minPoolCost: "100000000",
+        maxBlockHeaderSize: 1200,
+      });
+
+      // A pool costing 200 ADA, above mainnet's minimum and below Mesh's default, passes on a
+      // ledger read back from this one too
+      const registration = await wallet.signTx(
+        await new MeshTxBuilder({
+          fetcher: emulator,
+          params: await emulator.fetchProtocolParameters(),
+        })
+          .registerPoolCertificate({
+            vrfKeyHash: "11".repeat(32),
+            operator: pubKeyHash,
+            pledge: "0",
+            cost: "200000000",
+            margin: [1, 100],
+            relays: [],
+            owners: [pubKeyHash],
+            rewardAddress: stake,
+          })
+          .selectUtxosFrom([funding])
+          .changeAddress(address)
+          .complete(),
+        true,
+      );
+      expectAccepted(await emulator.simulate(registration));
+      const copy = await TxEmulator.fromChain(registration, {
+        validator,
+        fetcher: emulator,
+      });
+      expectAccepted(await copy.simulate(registration));
+    });
+
+    it("simulates a transaction without changing the ledger", async () => {
+      const { wallet, address, funding, emulator, send } =
+        await setup(validator);
+      const result = expectAccepted(
+        await emulator.simulate(await wallet.signTx(await send())),
+      );
+
+      expect(BigInt(result.fee)).toBeGreaterThan(0n);
+      expect(result.consumed).toEqual([funding]);
+      expect(result.produced).toHaveLength(2);
+      expect(
+        result.produced.every((u) => u.input.txHash === result.txHash),
+      ).toBe(true);
+      expect(emulator.utxos({ address })).toHaveLength(2);
+    });
+
+    it("applies an accepted transaction on submit, listing what it produced", async () => {
+      const { wallet, address, emulator, send } = await setup(validator);
+      const signed = await wallet.signTx(await send());
+
+      const result = expectAccepted(await emulator.submit(signed));
+
+      expect(emulator.utxos({ txHash: result.txHash })).toEqual(
+        result.produced,
+      );
+      expect(emulator.utxos({ address })).toHaveLength(3);
+      expect(rules(await emulator.simulate(signed))).toEqual([
+        "UtxoNotAvailable",
+      ]);
+    });
+
+    it("is a fetcher, evaluator and submitter for building on it", async () => {
+      const { wallet, address, funding, emulator } = await setup(validator);
+      const txHex = await new MeshTxBuilder({
+        fetcher: emulator,
+        evaluator: emulator,
+        submitter: emulator,
+        params: await emulator.fetchProtocolParameters(),
+      })
+        .txOut(address, lovelace("2000000"))
+        .changeAddress(address)
+        .selectUtxosFrom([funding])
+        .complete();
+      const signed = await wallet.signTx(txHex);
+
+      const txHash = await emulator.submitTx(signed);
+      expect(await emulator.fetchUTxOs(txHash)).toHaveLength(2);
+      expect(await emulator.fetchAddressUTxOs(address)).toHaveLength(3);
+      const error = await emulator.submitTx(signed).catch((e) => e);
+      expect(error).toBeInstanceOf(TxRejectedError);
+      expect(rules((error as TxRejectedError).result)).toEqual([
+        "UtxoNotAvailable",
+      ]);
+    });
+
+    it("checks concurrent submissions one at a time", async () => {
+      const { wallet, emulator, send } = await setup(validator);
+      // Two transactions spending the same output
+      const [first, second] = await Promise.all([
+        send("2000000").then((tx) => wallet.signTx(tx)),
+        send("3000000").then((tx) => wallet.signTx(tx)),
+      ]);
+
+      const results = await Promise.all([
+        emulator.submit(first),
+        emulator.submit(second),
+      ]);
+
+      expect(results.map((r) => r.accepted)).toEqual([true, false]);
+      expect(rules(results[1]!)).toEqual(["UtxoNotAvailable"]);
+    });
+
+    it("reports missing signatures, and junk", async () => {
+      const { emulator, send } = await setup(validator);
+      const unsigned = await send();
+
+      expect(rules(await emulator.simulate(unsigned))).toEqual([
+        validator === "scalus" ? "MissingKeyHashes" : "MissingVKeyWitnesses",
+      ]);
+      for (const junk of [
+        "00",
+        { body: {} } as unknown as TransactionPrototype,
+      ])
+        expect(await emulator.submit(junk)).toMatchObject({
+          accepted: false,
+          errors: [{ rule: "InvalidTransaction" }],
+        });
+      if (validator === "cquisitor") {
+        expectAccepted(
+          await emulator.simulate(unsigned, { requireSignatures: false }),
+        );
+      } else {
+        await expect(
+          emulator.simulate(unsigned, { requireSignatures: false }),
+        ).rejects.toThrow("cquisitor");
+      }
+    });
+
+    it("reports script budgets, and script failures as phase 2", async () => {
+      const locked = (
+        outputIndex: number,
+        script: typeof alwaysSucceed,
+      ): UTxO => ({
+        input: { txHash: "9".repeat(64), outputIndex },
+        output: {
+          address: resolvePlutusScriptAddress(script, 1),
+          amount: lovelace("20000000"),
+          plutusData: "d87980",
+        },
+      });
+      const { wallet, address, collateral, emulator, builder } = await setup(
+        validator,
+        { utxos: [locked(0, alwaysSucceed), locked(1, alwaysFail)] },
+      );
+      const spend = (
+        outputIndex: number,
+        script: typeof alwaysSucceed,
+        evaluate: boolean,
+      ) =>
+        builder({ evaluate })
+          .spendingPlutusScriptV3()
+          .txIn("9".repeat(64), outputIndex)
+          .txInInlineDatumPresent()
+          .txInRedeemerValue(mConStr0([]), "Mesh", {
+            mem: 1_000_000,
+            steps: 500_000_000,
+          })
+          .txInScript(script.code)
+          .txInCollateral(
+            collateral.input.txHash,
+            collateral.input.outputIndex,
+            collateral.output.amount,
+            collateral.output.address,
+          )
+          .changeAddress(address)
+          .complete();
+
+      const passing = expectAccepted(
+        await emulator.simulate(
+          await wallet.signTx(await spend(0, alwaysSucceed, true)),
+        ),
+      );
+      expect(passing.redeemers).toEqual([
+        { tag: "SPEND", index: 0, budget: expect.any(Object) },
+      ]);
+
+      // Built without evaluation, as evaluating would fail before the ledger sees it
+      const failing = await emulator.simulate(
+        await wallet.signTx(await spend(1, alwaysFail, false)),
+      );
+      expect(failing.accepted).toBe(false);
+      expect(
+        !failing.accepted && failing.errors.every((e) => e.phase === 2),
+      ).toBe(true);
+    });
+
+    it("reports a failing native script as phase 1", async () => {
+      // A native script time-locked until long after the ledger's slot
+      const timeLocked: NativeScript = {
+        type: "all",
+        scripts: [{ type: "after", slot: "999999999999" }],
+      };
+      const lockedAddress = resolveNativeScriptAddress(timeLocked, 1);
+      const utxo: UTxO = {
+        input: outRef(7),
+        output: { address: lockedAddress, amount: lovelace("50000000") },
+      };
+      const emulator = await TxEmulator.create({ validator, utxos: [utxo] });
+      const txHex = await new MeshTxBuilder({
+        fetcher: emulator,
+        params: await emulator.fetchProtocolParameters(),
+      })
+        .txIn(utxo.input.txHash, 0, utxo.output.amount, lockedAddress, 0)
+        .txInScript(resolveNativeScriptHex(timeLocked))
+        .changeAddress(lockedAddress)
+        .complete();
+
+      const result = await emulator.simulate(txHex);
+      expect(result.accepted).toBe(false);
+      expect(!result.accepted && result.errors.map((e) => e.phase)).toEqual([
+        1,
+      ]);
+    });
+
+    it("simulates a TransactionPrototype", async () => {
+      const { emulator, fromOpen } = await setup(validator);
+      const txHex = await fromOpen().complete();
+
+      expectAccepted(
+        await emulator.simulate(transactionPrototypeFromHex(txHex)),
+      );
+    });
+
+    it("pays to Byron addresses", async () => {
+      const { wallet, address, funding, emulator, builder } =
+        await setup(validator);
+      const byron =
+        "Ae2tdPwUPEZFRbyhz3cpfC2CumGzNkFBN2L42rcUc2yjQpEkxDbkPodpMAi";
+      const txHex = await builder()
+        .txOut(byron, lovelace("2000000"))
+        .changeAddress(address)
+        .selectUtxosFrom([funding])
+        .complete();
+
+      const result = expectAccepted(
+        await emulator.submit(await wallet.signTx(txHex)),
+      );
+
+      expect(result.produced.map((u) => u.output.address)).toContain(byron);
+      expect(emulator.utxos({ address: byron })).toHaveLength(1);
+    });
+
+    it("forks the ledger into independent copies", async () => {
+      const { wallet, address, emulator, send } = await setup(validator);
+      const signed = await wallet.signTx(await send());
+      const fork = emulator.fork();
+
+      expectAccepted(await fork.submit(signed));
+      expect(fork.utxos({ address })).toHaveLength(3);
+      expect(emulator.utxos({ address })).toHaveLength(2);
+      expectAccepted(await emulator.submit(signed));
+    });
+
+    it("moves the clock forward only, and rejects an expired transaction", async () => {
+      const { wallet, address, funding, emulator, builder } =
+        await setup(validator);
+      const epoch = emulator.epoch;
+      const slot = emulator.advanceTo({ epoch: epoch + 1 });
+      expect(emulator.epoch).toBe(epoch + 1);
+      expect(() => emulator.advanceTo({ epoch })).toThrow("forward");
+      expect(emulator.advanceTo({ time: emulator.time + 10_000 })).toBe(
+        slot + 10,
+      );
+
+      const ttl = emulator.slot + 100;
+      const expiring = await wallet.signTx(
+        await builder()
+          .txOut(address, lovelace("2000000"))
+          .invalidHereafter(ttl)
+          .changeAddress(address)
+          .selectUtxosFrom([funding])
+          .complete(),
+      );
+      emulator.advanceTo({ slot: ttl - 1 });
+      expectAccepted(await emulator.simulate(expiring));
+      emulator.advanceTo({ slot: ttl });
+      expect(rules(await emulator.simulate(expiring))).toEqual([
+        validator === "scalus"
+          ? "TransactionExpired"
+          : "OutsideValidityIntervalUTxO",
+      ]);
+    });
+
+    it("keeps key and script stake balances separate when their hashes match", async () => {
+      const serializer = new CardanoSDKSerializer();
+      const hash = "ab".repeat(28);
+      const pubKeyHash = "cd".repeat(28);
+      const keyStake = serializer.serializeRewardAddress(hash, false, 1);
+      const scriptStake = serializer.serializeRewardAddress(hash, true, 1);
+      const emulator = await TxEmulator.create({
+        validator,
+        accounts: [{ rewardAddress: keyStake }, { rewardAddress: scriptStake }],
+        utxos: [
+          {
+            input: outRef(0),
+            output: {
+              address: serializer.serializeAddress(
+                { pubKeyHash, stakeCredentialHash: hash },
+                1,
+              ),
+              amount: lovelace("10000000"),
+            },
+          },
+          {
+            input: outRef(1),
+            output: {
+              address: serializer.serializeAddress(
+                { pubKeyHash, stakeScriptCredentialHash: hash },
+                1,
+              ),
+              amount: lovelace("20000000"),
+            },
+          },
+        ],
+      });
+
+      const keyAccount = await emulator.fetchAccountInfo(keyStake);
+      const scriptAccount = await emulator.fetchAccountInfo(scriptStake);
+      expect([keyAccount.balance, scriptAccount.balance]).toEqual([
+        "10000000",
+        "20000000",
+      ]);
+    });
+
+    it("chains transactions: each sees the UTxOs and registrations of those before", async () => {
+      const { emulator, next } = await setup(validator, {
+        pools: [{ poolId: poolHash }],
+      });
+
+      expectAccepted(
+        await emulator.submit(
+          await next()
+            .registerStakeCertificate(openStake)
+            .certificateScript(openScriptHex)
+            .complete(),
+        ),
+      );
+      expect(await emulator.fetchAccountInfo(openStake)).toMatchObject({
+        active: true,
+        deposit: "2000000",
+        rewards: "0",
+      });
+
+      expectAccepted(
+        await emulator.submit(
+          await next()
+            .delegateStakeCertificate(openStake, poolHash)
+            .certificateScript(openScriptHex)
+            .complete(),
+        ),
+      );
+      expect((await emulator.fetchAccountInfo(openStake)).poolId).toBe(poolId);
+
+      expectAccepted(
+        await emulator.submit(
+          await next()
+            .deregisterStakeCertificate(openStake)
+            .certificateScript(openScriptHex)
+            .complete(),
+        ),
+      );
+      expect((await emulator.fetchAccountInfo(openStake)).active).toBe(false);
+    });
+
+    it("retires a seeded pool, undelegating its stake and paying its deposit back", async () => {
+      const { emulator, pubKeyHash, sign } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake }],
+      });
+      // A pool registered on this ledger, its deposit going back to the open script's stake
+      const poolParams = {
+        operator: pubKeyHash,
+        vrf_keyhash: "11".repeat(32),
+        pledge: "0",
+        cost: "340000000",
+        margin: { numerator: "1", denominator: "100" },
+        reward_account: openStake,
+        pool_owners: [pubKeyHash],
+        relays: [],
+        pool_metadata: null,
+      };
+      expectAccepted(
+        await emulator.submit(
+          await sign(
+            rawTx({
+              delta: 500_000_000n,
+              body: {
+                certs: [
+                  {
+                    type: "POOL_REGISTRATION",
+                    value: { pool_params: poolParams },
+                  },
+                  {
+                    type: "STAKE_DELEGATION",
+                    value: {
+                      stake_credential: openCredential,
+                      pool_keyhash: pubKeyHash,
+                    },
+                  },
+                ],
+              },
+            }),
+          ),
+        ),
+      );
+      expect(await emulator.fetchPoolState(pubKeyHash)).toMatchObject({
+        registered: true,
+        deposit: "500000000",
+      });
+
+      const retirementEpoch = emulator.epoch + 1;
+      expectAccepted(
+        await emulator.submit(
+          await sign(
+            rawTx({
+              ...nextOpen(emulator),
+              body: {
+                certs: [
+                  {
+                    type: "POOL_RETIREMENT",
+                    value: {
+                      pool_keyhash: pubKeyHash,
+                      epoch: BigInt(retirementEpoch),
+                    },
+                  },
+                ],
+              },
+            }),
+          ),
+        ),
+      );
+      expect((await emulator.fetchPoolState(pubKeyHash)).retirementEpoch).toBe(
+        retirementEpoch,
+      );
+
+      emulator.advanceTo({ epoch: retirementEpoch });
+      expect((await emulator.fetchPoolState(pubKeyHash)).registered).toBe(
+        false,
+      );
+      const account = await emulator.fetchAccountInfo(openStake);
+      expect(account.poolId).toBeUndefined();
+      expect(account.rewards).toBe("500000000");
+    });
+
+    it("retires a pool given at creation", async () => {
+      const operator = await walletKeyHash;
+      const { emulator, pubKeyHash, sign } = await setup(validator, {
+        pools: [{ poolId: operator }],
+      });
+      const retire = await sign(
+        rawTx({
+          body: {
+            certs: [
+              {
+                type: "POOL_RETIREMENT",
+                value: {
+                  pool_keyhash: pubKeyHash,
+                  epoch: BigInt(emulator.epoch + 1),
+                },
+              },
+            ],
+          },
+        }),
+      );
+
+      expectAccepted(await emulator.submit(retire));
+    });
+
+    it("expires governance actions, returning their deposits", async () => {
+      const { emulator } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake }],
+      });
+      const proposal = expectAccepted(
+        await emulator.submit(
+          rawTx({
+            delta: GOV_DEPOSIT,
+            body: {
+              voting_proposals: [
+                {
+                  anchor,
+                  deposit: String(GOV_DEPOSIT),
+                  reward_account: openStake,
+                  governance_action: { type: "INFO_ACTION" },
+                },
+              ],
+            },
+          }),
+        ),
+      );
+      const action = await emulator.fetchGovernanceProposal(proposal.txHash, 0);
+      // Mainnet actions stay open to votes for six epochs after the one they are proposed in
+      expect(action.expiration).toBe(emulator.epoch + 7);
+
+      emulator.advanceTo({ epoch: action.expiration });
+      expect(
+        (await emulator.fetchGovernanceProposal(proposal.txHash, 0))
+          .expiredEpoch,
+      ).toBe(action.expiration);
+      emulator.advanceTo({ epoch: action.expiration + 1 });
+      await expect(
+        emulator.fetchGovernanceProposal(proposal.txHash, 0),
+      ).rejects.toThrow("not in the ledger");
+      expect((await emulator.fetchAccountInfo(openStake)).rewards).toBe(
+        String(GOV_DEPOSIT),
+      );
+    });
+
+    it("removes the actions following an expired one, returning their deposits", async () => {
+      const { emulator } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake }],
+      });
+      const propose = (previous?: string) =>
+        emulator.submit(
+          rawTx({
+            ...nextOpen(emulator),
+            delta: GOV_DEPOSIT,
+            body: {
+              voting_proposals: [
+                {
+                  anchor,
+                  deposit: String(GOV_DEPOSIT),
+                  reward_account: openStake,
+                  governance_action: {
+                    type: "NO_CONFIDENCE_ACTION",
+                    value: previous
+                      ? {
+                          gov_action_id: { transaction_id: previous, index: 0 },
+                        }
+                      : {},
+                  },
+                },
+              ],
+            },
+          }),
+        );
+      const first = expectAccepted(await propose());
+      emulator.advanceTo({ epoch: emulator.epoch + 1 });
+      const second = expectAccepted(await propose(first.txHash));
+      const { expiration } = await emulator.fetchGovernanceProposal(
+        first.txHash,
+        0,
+      );
+
+      // The first expires a boundary before the second would
+      emulator.advanceTo({ epoch: expiration + 1 });
+      for (const { txHash } of [first, second])
+        await expect(
+          emulator.fetchGovernanceProposal(txHash, 0),
+        ).rejects.toThrow("not in the ledger");
+      expect((await emulator.fetchAccountInfo(openStake)).rewards).toBe(
+        String(2n * GOV_DEPOSIT),
+      );
+    });
+
+    it("clears the hot credentials and resignations of members only proposed at the epoch boundary", async () => {
+      const sitting = { type: "KeyHash" as const, keyHash: "c0".repeat(28) };
+      const sittingHot = { type: "KeyHash" as const, keyHash: "a0".repeat(28) };
+      const proposed = { type: "ScriptHash" as const, scriptHash: openHash };
+      const { emulator } = await setup(validator, {
+        governance: {
+          committee: [
+            { cold: sitting, hot: sittingHot },
+            { cold: proposed, potential: true },
+          ],
+        },
+      });
+      const certify = (cert: Record<string, unknown>) =>
+        rawTx({ ...nextOpen(emulator), body: { certs: [cert] } });
+      const authorise = () =>
+        certify({
+          type: "COMMITTEE_HOT_AUTH",
+          value: {
+            committee_cold_credential: openCredential,
+            committee_hot_credential: { type: "KEY", value: "12".repeat(28) },
+          },
+        });
+      const member = async (cold: { type: string }) =>
+        (await emulator.fetchCommitteeState()).find(
+          (state) => JSON.stringify(state.cold) === JSON.stringify(cold),
+        );
+
+      expectAccepted(await emulator.submit(authorise()));
+      expectAccepted(
+        await emulator.submit(
+          certify({
+            type: "COMMITTEE_COLD_RESIGN",
+            value: { committee_cold_credential: openCredential },
+          }),
+        ),
+      );
+      expect(await member(proposed)).toEqual({
+        cold: proposed,
+        hot: { type: "KeyHash", keyHash: "12".repeat(28) },
+        resigned: true,
+        potential: true,
+      });
+      // Scalus does not check governance
+      if (validator === "cquisitor")
+        expect(rules(await emulator.simulate(authorise()))).toEqual([
+          "CommitteeHasPreviouslyResigned",
+        ]);
+
+      // The ledger keeps them for the sitting committee only
+      emulator.advanceTo({ epoch: emulator.epoch + 1 });
+      expect(await member(proposed)).toEqual({
+        cold: proposed,
+        resigned: false,
+        potential: true,
+      });
+      expect(await member(sitting)).toEqual({
+        cold: sitting,
+        hot: sittingHot,
+        resigned: false,
+      });
+      expectAccepted(await emulator.simulate(authorise()));
+    });
+
+    it("adds donations to the treasury at the epoch boundary", async () => {
+      const { emulator } = await setup(validator, {
+        governance: { treasury: "1000000000" },
+      });
+      expectAccepted(
+        await emulator.submit(
+          rawTx({ delta: 10_000_000n, body: { donation: "10000000" } }),
+        ),
+      );
+      expect(await emulator.fetchTreasury()).toBe("1000000000");
+
+      emulator.advanceTo({ epoch: emulator.epoch + 1 });
+      expect(await emulator.fetchTreasury()).toBe("1010000000");
+    });
+
+    it("undelegates the votes of a DRep that leaves", async () => {
+      const { emulator } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake, drep: openDRep }],
+        dreps: [{ drepId: openDRep }],
+      });
+      expect((await emulator.fetchAccountInfo(openStake)).drep).toBe(openDRep);
+
+      expectAccepted(
+        await emulator.submit(
+          rawTx({
+            delta: -500_000_000n,
+            body: {
+              certs: [
+                {
+                  type: "DREP_DEREGISTRATION",
+                  value: {
+                    voting_credential: openCredential,
+                    coin: "500000000",
+                  },
+                },
+              ],
+            },
+          }),
+        ),
+      );
+
+      expect((await emulator.fetchDRepState(openDRep)).registered).toBe(false);
+      // Known to delegate its vote to none
+      expect((await emulator.fetchAccountInfo(openStake)).drep).toBeNull();
+    });
+
+    it("adds and removes outputs without a transaction", async () => {
+      const { wallet, address, emulator, builder } = await setup(validator);
+      const extra: UTxO = {
+        input: outRef(3),
+        output: { address, amount: lovelace("7000000") },
+      };
+      emulator.addUtxos([extra]);
+      expect(emulator.utxos({ txHash: extra.input.txHash })).toEqual([extra]);
+      const spending = await wallet.signTx(
+        await builder()
+          .txIn(extra.input.txHash, 0, extra.output.amount, address)
+          .changeAddress(address)
+          .complete(),
+      );
+      expectAccepted(await emulator.simulate(spending));
+
+      emulator.removeUtxos([extra.input]);
+      expect(emulator.utxos({ txHash: extra.input.txHash })).toEqual([]);
+      expect(rules(await emulator.simulate(spending))).toEqual([
+        "UtxoNotAvailable",
+      ]);
+    });
+
+    it("pays out rewards set without a transaction, keeping what is not given", async () => {
+      const { emulator, next } = await setup(validator, {
+        pools: [{ poolId: poolHash }],
+        accounts: [{ rewardAddress: openStake, poolId: poolHash }],
+      });
+      emulator.setAccount({ rewardAddress: openStake, rewards: "7000000" });
+      expect(await emulator.fetchAccountInfo(openStake)).toMatchObject({
+        rewards: "7000000",
+        poolId,
+      });
+
+      expectAccepted(
+        await emulator.submit(
+          await next()
+            .withdrawal(openStake, "7000000")
+            .withdrawalScript(openScriptHex)
+            .complete(),
+        ),
+      );
+      expect((await emulator.fetchAccountInfo(openStake)).rewards).toBe("0");
+
+      emulator.setAccount({ rewardAddress: openStake, poolId: null });
+      expect(
+        (await emulator.fetchAccountInfo(openStake)).poolId,
+      ).toBeUndefined();
+      emulator.removeAccount(openStake);
+      expect((await emulator.fetchAccountInfo(openStake)).active).toBe(false);
+
+      // Delegating needs the stake address registered
+      const delegation = await next()
+        .delegateStakeCertificate(openStake, poolHash)
+        .certificateScript(openScriptHex)
+        .complete();
+      expect((await emulator.simulate(delegation)).accepted).toBe(false);
+      emulator.setAccount({ rewardAddress: openStake });
+      expectAccepted(await emulator.simulate(delegation));
+    });
+
+    it("takes withdrawals off the rewards, which are withdrawn once", async () => {
+      const { emulator } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake, rewards: "5000000" }],
+      });
+      const withdraw = (amount: bigint) =>
+        rawTx({
+          ...nextOpen(emulator),
+          delta: -amount,
+          body: { withdrawals: { [openStake]: String(amount) } },
+        });
+
+      expectAccepted(await emulator.submit(withdraw(5_000_000n)));
+      expect((await emulator.fetchAccountInfo(openStake)).rewards).toBe("0");
+      // Through transactions not reading the stake address, and in a fork
+      expectAccepted(await emulator.submit(rawTx(nextOpen(emulator))));
+      const branch = emulator.fork();
+      expect((await branch.simulate(withdraw(5_000_000n))).accepted).toBe(
+        false,
+      );
+      expectAccepted(await branch.simulate(withdraw(0n)));
+      expect((await emulator.submit(withdraw(5_000_000n))).accepted).toBe(
+        false,
+      );
+      expect((await emulator.fetchAccountInfo(openStake)).rewards).toBe("0");
+
+      // Nothing is left: withdrawing nothing passes, and so does deregistering
+      expectAccepted(await emulator.simulate(withdraw(0n)));
+      expectAccepted(
+        await emulator.simulate(
+          rawTx({
+            ...nextOpen(emulator),
+            delta: -2_000_000n,
+            body: {
+              certs: [
+                {
+                  type: "STAKE_DEREGISTRATION",
+                  value: { stake_credential: openCredential },
+                },
+              ],
+            },
+          }),
+        ),
+      );
+    });
+
+    it("withdraws the rewards and deregisters in one transaction", async () => {
+      const { emulator } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake, rewards: "7000000" }],
+      });
+      const result = await emulator.simulate(
+        rawTx({
+          delta: -9_000_000n,
+          body: {
+            withdrawals: { [openStake]: "7000000" },
+            certs: [
+              {
+                type: "STAKE_DEREGISTRATION",
+                value: { stake_credential: openCredential },
+              },
+            ],
+          },
+        }),
+      );
+      // The ledger takes the withdrawal first, so the deregistration finds no rewards left
+      expectAccepted(result);
+    });
+
+    it("applies only the collateral of a transaction marked invalid, not its certificates", async () => {
+      const locked: UTxO = {
+        input: { txHash: "9".repeat(64), outputIndex: 0 },
+        output: {
+          address: resolvePlutusScriptAddress(alwaysFail, 1),
+          amount: lovelace("20000000"),
+          plutusData: "d87980",
+        },
+      };
+      const { wallet, address, collateral, emulator, builder } = await setup(
+        validator,
+        { utxos: [locked] },
+      );
+      const txHex = await builder({ evaluate: false })
+        .spendingPlutusScriptV3()
+        .txIn(locked.input.txHash, 0)
+        .txInInlineDatumPresent()
+        .txInRedeemerValue(mConStr0([]), "Mesh", {
+          mem: 1_000_000,
+          steps: 500_000_000,
+        })
+        .txInScript(alwaysFail.code)
+        .txInCollateral(
+          collateral.input.txHash,
+          0,
+          collateral.output.amount,
+          address,
+        )
+        .setTotalCollateral("3000000")
+        .setCollateralReturnAddress(address)
+        .registerStakeCertificate(openStake)
+        .certificateScript(openScriptHex)
+        .changeAddress(address)
+        .complete();
+      const tx = markedFailing(await wallet.signTx(txHex));
+
+      expect(expectAccepted(await emulator.submit(tx)).isValid).toBe(false);
+      expect((await emulator.fetchAccountInfo(openStake)).active).toBe(false);
+      // The registration it carried was not made, so it still can be
+      expectAccepted(
+        await emulator.simulate(
+          rawTx({
+            delta: 2_000_000n,
+            body: {
+              certs: [
+                {
+                  type: "STAKE_REGISTRATION",
+                  value: { stake_credential: openCredential },
+                },
+              ],
+            },
+          }),
+        ),
+      );
+    });
+
+    it("re-registers a pool without another deposit", async () => {
+      const { emulator, pubKeyHash, sign } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake }],
+      });
+      const registration = (cost: string, deposit: bigint) =>
+        sign(
+          rawTx({
+            ...nextOpen(emulator),
+            delta: deposit,
+            body: {
+              certs: [
+                {
+                  type: "POOL_REGISTRATION",
+                  value: {
+                    pool_params: {
+                      operator: pubKeyHash,
+                      vrf_keyhash: "11".repeat(32),
+                      pledge: "0",
+                      cost,
+                      margin: { numerator: "1", denominator: "100" },
+                      reward_account: openStake,
+                      pool_owners: [pubKeyHash],
+                      relays: [],
+                      pool_metadata: null,
+                    },
+                  },
+                },
+              ],
+            },
+          }),
+        );
+      expectAccepted(
+        await emulator.submit(await registration("340000000", 500_000_000n)),
+      );
+
+      const update = await emulator.simulate(
+        await registration("400000000", 0n),
+      );
+      const paying = await emulator.simulate(
+        await registration("400000000", 500_000_000n),
+      );
+      expectAccepted(update);
+      expect(paying.accepted).toBe(false);
+    });
+
+    it("refuses a withdrawal to a key-hash stake address delegating its vote to no DRep, unless Scalus checks it", async () => {
+      const {
+        emulator: base,
+        stake,
+        sign,
+        address,
+        funding,
+        builder,
+      } = await setup(validator);
+      const emulator = await TxEmulator.create({
+        validator,
+        utxos: base.utxos(),
+        accounts: [{ rewardAddress: stake, rewards: "7000000" }],
+      });
+      const withdrawal = await sign(
+        await builder()
+          .withdrawal(stake, "7000000")
+          .changeAddress(address)
+          .selectUtxosFrom([funding])
+          .complete(),
+      );
+
+      const result = await emulator.simulate(withdrawal);
+      // Scalus does not check DRep delegations (see the README)
+      if (validator === "cquisitor")
+        expect(rules(result)).toContain(
+          "WithdrawalNotAllowedBecauseNotDelegatedToDRep",
+        );
+      else expectAccepted(result);
+      emulator.setAccount({ rewardAddress: stake, drep: "alwaysAbstain" });
+      expectAccepted(await emulator.simulate(withdrawal));
+    });
+
+    it("refuses delegating to a pool or a DRep that is not registered", async () => {
+      const { emulator, fromOpen } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake }],
+      });
+
+      const toPool = await emulator.simulate(
+        await fromOpen()
+          .delegateStakeCertificate(openStake, poolHash)
+          .certificateScript(openScriptHex)
+          .complete(),
+      );
+      // Scalus names every broken rule of a stake certificate alike
+      expect(rules(toPool)).toContain(
+        validator === "scalus" ? "StakeCertificates" : "StakePoolNotRegistered",
+      );
+
+      const toDRep = await emulator.simulate(
+        await fromOpen()
+          .voteDelegationCertificate({ dRepId: openDRep }, openStake)
+          .certificateScript(openScriptHex)
+          .complete(),
+      );
+      expect(rules(toDRep)).toContain(
+        validator === "scalus"
+          ? "StakeCertificates"
+          : "DelegateeDRepNotRegistered",
+      );
+    });
+
+    it("registers pools and DReps without a transaction", async () => {
+      const operator = await walletKeyHash;
+      const { emulator, sign } = await setup(validator);
+      const retirement = await sign(
+        rawTx({
+          body: {
+            certs: [
+              {
+                type: "POOL_RETIREMENT",
+                value: {
+                  pool_keyhash: operator,
+                  epoch: BigInt(emulator.epoch + 1),
+                },
+              },
+            ],
+          },
+        }),
+      );
+      const leaving = rawTx({
+        delta: -500_000_000n,
+        body: {
+          certs: [
+            {
+              type: "DREP_DEREGISTRATION",
+              value: { voting_credential: openCredential, coin: "500000000" },
+            },
+          ],
+        },
+      });
+      expect((await emulator.simulate(retirement)).accepted).toBe(false);
+      expect((await emulator.simulate(leaving)).accepted).toBe(false);
+
+      emulator.setPool({ poolId: operator });
+      emulator.setDRep({ drepId: openDRep });
+      emulator.setAccount({
+        rewardAddress: openStake,
+        poolId: operator,
+        drep: openDRep,
+      });
+      expectAccepted(await emulator.simulate(retirement));
+      expectAccepted(await emulator.simulate(leaving));
+
+      // Removing them undelegates the stake and the votes delegated to them
+      emulator.removePool(operator);
+      emulator.removeDRep(openDRep);
+      const account = await emulator.fetchAccountInfo(openStake);
+      expect(account.poolId).toBeUndefined();
+      expect(account.drep).toBeNull();
+      expect((await emulator.simulate(retirement)).accepted).toBe(false);
+      expect((await emulator.simulate(leaving)).accepted).toBe(false);
+    });
+
+    it("pays a pool's deposit back to the stake address set for it, withdrawable", async () => {
+      const { emulator } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake }],
+      });
+      const retirementEpoch = emulator.epoch + 1;
+      emulator.setPool({
+        poolId: poolHash,
+        rewardAddress: openStake,
+        retirementEpoch,
+      });
+
+      emulator.advanceTo({ epoch: retirementEpoch });
+      expect((await emulator.fetchPoolState(poolHash)).registered).toBe(false);
+      expect((await emulator.fetchAccountInfo(openStake)).rewards).toBe(
+        "500000000",
+      );
+      expectAccepted(
+        await emulator.submit(
+          rawTx({
+            delta: -500_000_000n,
+            body: { withdrawals: { [openStake]: "500000000" } },
+          }),
+        ),
+      );
+    });
+
+    it("changes protocol parameters without a transaction", async () => {
+      const { wallet, emulator, send } = await setup(validator);
+      const signed = await wallet.signTx(await send());
+      const fork = emulator.fork();
+
+      emulator.setProtocolParameters({ minFeeA: 4_400 });
+      expect((await emulator.fetchProtocolParameters()).minFeeA).toBe(4_400);
+      expect((await emulator.simulate(signed)).accepted).toBe(false);
+
+      // A fork keeps the parameters it was made with
+      expect((await fork.fetchProtocolParameters()).minFeeA).toBe(44);
+      expectAccepted(await fork.simulate(signed));
+    });
+
+    it("refuses state it cannot hold", async () => {
+      const { emulator } = await setup(validator);
+      expect(() =>
+        emulator.setAccount({
+          rewardAddress: scriptHashToRewardAddress(openHash, 0),
+        }),
+      ).toThrow("network");
+      expect(() =>
+        emulator.setLastEnacted({
+          transactionId: "a".repeat(64),
+          govActionIndex: 0,
+          kind: GovernanceActionKind.InfoAction,
+        }),
+      ).toThrow("last enacted");
+    });
+
+    it("changes no state while a transaction is being checked", async () => {
+      const { wallet, emulator, send } = await setup(validator);
+      const submission = emulator.submit(await wallet.signTx(await send()));
+      expect(() => emulator.setTreasury("1000000000")).toThrow("await");
+      expect(() => emulator.advanceTo({ slot: emulator.slot + 1 })).toThrow(
+        "await",
+      );
+
+      expectAccepted(await submission);
+      emulator.setTreasury("1000000000");
+      expect(await emulator.fetchTreasury()).toBe("1000000000");
+    });
+
+    it("states the slot clock of the network it emulates", async () => {
+      for (const network of ["mainnet", "preprod", "preview"] as const) {
+        const emulator = await TxEmulator.create({ validator, network });
+        const slotConfig = emulator.slotConfig;
+        expect(slotConfig).toEqual(SLOT_CONFIG_NETWORK[network]);
+        expect(slotToBeginUnixTime(emulator.slot, slotConfig)).toBe(
+          emulator.time,
+        );
+        // A copy on every read, which no parameter change touches
+        expect(emulator.slotConfig).toEqual(slotConfig);
+        expect(emulator.slotConfig).not.toBe(slotConfig);
+        emulator.setProtocolParameters({ minFeeA: 45 });
+        expect(emulator.slotConfig).toEqual(slotConfig);
+      }
+    });
+
+    it("has a block in every slot: the tip is the current slot, moved only by the clock", async () => {
+      const { wallet, address, emulator, send } = await setup(validator);
+      const start = emulator.slot;
+      expect(await emulator.fetchLatestBlock()).toMatchObject({
+        slot: String(start),
+        height: start,
+      });
+
+      expectAccepted(await emulator.submit(await wallet.signTx(await send())));
+      emulator.addUtxos([
+        { input: outRef(3), output: { address, amount: lovelace("7000000") } },
+      ]);
+      emulator.fund(address, { lovelace: 5_000_000n });
+      emulator.setTreasury("1000000000");
+      emulator.setProtocolParameters({ minFeeA: 45 });
+      expect(await emulator.fetchLatestBlock()).toMatchObject({
+        slot: String(start),
+        height: start,
+      });
+
+      emulator.advanceTo({ slot: start + 30 });
+      expect(await emulator.fetchLatestBlock()).toMatchObject({
+        slot: String(start + 30),
+        height: start + 30,
+      });
+    });
+
+    it("finds a transaction it applied, at the slot it was applied in", async () => {
+      const { wallet, emulator, send } = await setup(validator);
+      emulator.advanceTo({ slot: emulator.slot + 5 });
+      const slot = emulator.slot;
+      const result = expectAccepted(
+        await emulator.submit(await wallet.signTx(await send())),
+      );
+
+      const info = await emulator.fetchTxInfo(result.txHash);
+      expect(info).toMatchObject({
+        hash: result.txHash,
+        slot: String(slot),
+        blockHeight: slot,
+        validContract: true,
+        fees: result.fee,
+      });
+      expect(info.inputs).toEqual(result.consumed);
+      expect(info.outputs).toEqual(result.produced);
+    });
+
+    it("finds a transaction marked invalid as one that only paid its collateral", async () => {
+      const locked: UTxO = {
+        input: { txHash: "9".repeat(64), outputIndex: 0 },
+        output: {
+          address: resolvePlutusScriptAddress(alwaysFail, 1),
+          amount: lovelace("20000000"),
+          plutusData: "d87980",
+        },
+      };
+      const { wallet, address, collateral, emulator, builder } = await setup(
+        validator,
+        { utxos: [locked] },
+      );
+      const txHex = await builder({ evaluate: false })
+        .spendingPlutusScriptV3()
+        .txIn(locked.input.txHash, 0)
+        .txInInlineDatumPresent()
+        .txInRedeemerValue(mConStr0([]), "Mesh", {
+          mem: 1_000_000,
+          steps: 500_000_000,
+        })
+        .txInScript(alwaysFail.code)
+        .txInCollateral(
+          collateral.input.txHash,
+          0,
+          collateral.output.amount,
+          address,
+        )
+        .setTotalCollateral("3000000")
+        .setCollateralReturnAddress(address)
+        .changeAddress(address)
+        .complete();
+      const tx = markedFailing(await wallet.signTx(txHex));
+      const result = expectAccepted(await emulator.submit(tx));
+      const slot = emulator.slot;
+
+      const info = await emulator.fetchTxInfo(result.txHash);
+      expect(info).toMatchObject({
+        slot: String(slot),
+        blockHeight: slot,
+        validContract: false,
+        deposit: "0",
+        fees: "3000000",
+      });
+      expect(info.inputs).toEqual([collateral]);
+      expect(info.outputs).toEqual(result.produced);
+      expect(info.outputs).toHaveLength(1);
+      expect(lovelaceOf(info.inputs) - lovelaceOf(info.outputs)).toBe(
+        3_000_000n,
+      );
+      expect(await emulator.awaitTransactionConfirmation(result.txHash)).toBe(
+        true,
+      );
+
+      // Outputs added under its hash later do not move it, nor make it valid
+      emulator.advanceTo({ slot: slot + 10 });
+      emulator.addUtxos([
+        {
+          input: { txHash: result.txHash, outputIndex: 5 },
+          output: { address, amount: lovelace("7000000") },
+        },
+      ]);
+      expect(await emulator.fetchTxInfo(result.txHash)).toEqual(info);
+    });
+
+    it("tells a transaction it does not know as not found", async () => {
+      const { emulator } = await setup(validator);
+      const error = await emulator.fetchTxInfo(UNKNOWN).catch((e) => e);
+
+      expect(ProviderError.is(error)).toBe(true);
+      expect(error).toMatchObject({
+        kind: "notFound",
+        status: 404,
+        retryable: false,
+      });
+      expect(error.body).toBeUndefined();
+      expect(error.message).not.toContain("not supported");
+    });
+
+    it("refuses a transaction on submitTx as a provider does", async () => {
+      const { emulator, send } = await setup(validator);
+      const error = await emulator.submitTx(await send()).catch((e) => e);
+
+      expect(error).toBeInstanceOf(TxRejectedError);
+      expect(rules((error as TxRejectedError).result)).toEqual([
+        validator === "scalus" ? "MissingKeyHashes" : "MissingVKeyWitnesses",
+      ]);
+      expect(ProviderError.is(error)).toBe(true);
+      expect(error).toMatchObject({
+        kind: "rejected",
+        status: 400,
+        retryable: false,
+      });
+      expect(error.body).toBe(error.result);
+      await expect(
+        emulator.fetchTxInfo(error.result.txHash),
+      ).rejects.toMatchObject({ kind: "notFound" });
+
+      // Bytes that are not a transaction are refused the same way
+      const junk = await emulator.submitTx("00").catch((e) => e);
+      expect(junk).toBeInstanceOf(TxRejectedError);
+      expect(junk).toMatchObject({
+        kind: "rejected",
+        status: 400,
+        retryable: false,
+      });
+      expect(rules((junk as TxRejectedError).result)).toEqual([
+        "InvalidTransaction",
+      ]);
+    });
+
+    it("finds the outputs it starts with as a transaction of the starting slot", async () => {
+      const utxo: UTxO = {
+        input: outRef(5),
+        output: { address: openAddress, amount: lovelace("9000000") },
+      };
+      const emulator = await TxEmulator.create({
+        validator,
+        slot: 1_000,
+        utxos: [utxo],
+      });
+
+      const info = await emulator.fetchTxInfo(utxo.input.txHash);
+      expect(info).toMatchObject({
+        hash: utxo.input.txHash,
+        slot: "1000",
+        blockHeight: 1000,
+        validContract: true,
+      });
+      expect(info.outputs).toContainEqual(utxo);
+    });
+
+    it("finds outputs added without a transaction at the slot they were added in", async () => {
+      const { address, emulator } = await setup(validator);
+      const start = emulator.slot;
+      emulator.advanceTo({ slot: start + 20 });
+      const extra: UTxO = {
+        input: outRef(3),
+        output: { address, amount: lovelace("7000000") },
+      };
+      emulator.addUtxos([extra]);
+
+      expect(await emulator.fetchTxInfo(extra.input.txHash)).toMatchObject({
+        slot: String(start + 20),
+        blockHeight: start + 20,
+        validContract: true,
+        outputs: [extra],
+      });
+      // The outputs it started with stay at the starting slot
+      expect((await emulator.fetchTxInfo(outRef(0).txHash)).blockHeight).toBe(
+        start,
+      );
+    });
+
+    it("finds a funded output at the slot it was funded in", async () => {
+      const { address, emulator } = await setup(validator);
+      const slot = emulator.advanceTo({ slot: emulator.slot + 40 });
+      const funded = emulator.fund(address, { lovelace: 5_000_000n });
+
+      expect(await emulator.fetchTxInfo(funded.input.txHash)).toMatchObject({
+        slot: String(slot),
+        blockHeight: slot,
+        validContract: true,
+        outputs: [funded],
+      });
+    });
+
+    it("keeps finding outputs it started with once they are spent or removed", async () => {
+      const { wallet, funding, collateral, emulator, send } =
+        await setup(validator);
+      const before = await emulator.fetchTxInfo(funding.input.txHash);
+
+      expectAccepted(await emulator.submit(await wallet.signTx(await send())));
+      expect(emulator.utxos({ txHash: funding.input.txHash })).toEqual([]);
+      expect(await emulator.fetchTxInfo(funding.input.txHash)).toEqual(before);
+      expect(before.outputs).toEqual([funding]);
+
+      emulator.removeUtxos([collateral.input]);
+      expect(
+        (await emulator.fetchTxInfo(collateral.input.txHash)).outputs,
+      ).toEqual([collateral]);
+    });
+
+    it("confirms at once what it finds, and times out at once otherwise", async () => {
+      const { wallet, funding, emulator, send } = await setup(validator);
+      const result = expectAccepted(
+        await emulator.submit(await wallet.signTx(await send())),
+      );
+
+      expect(
+        await emulator.awaitTransactionConfirmation(result.txHash, 60_000),
+      ).toBe(true);
+      expect(
+        await emulator.awaitTransactionConfirmation(funding.input.txHash),
+      ).toBe(true);
+
+      // Settled before any timer could fire
+      const waiting = emulator.awaitTransactionConfirmation(UNKNOWN, 60_000);
+      expect(await settledWithoutTimers(waiting)).toBe("rejected");
+      const error = await waiting.catch((e) => e);
+      expect(TxConfirmTimeoutError.is(error)).toBe(true);
+      expect(error).toMatchObject({ txHash: UNKNOWN, timeoutMs: 60_000 });
+      // Without a timeout it reports the time it waited
+      expect(
+        await emulator.awaitTransactionConfirmation(UNKNOWN).catch((e) => e),
+      ).toMatchObject({ txHash: UNKNOWN, timeoutMs: 0 });
+    });
+
+    it("funds an address, given as bech32 or hex, under hashes the same on every run", async () => {
+      const emulator = await TxEmulator.create({ validator });
+      const funded = emulator.fund(openAddress, {
+        lovelace: 5_000_000n,
+        [TOKEN]: 7n,
+      });
+      expect(emulator.utxos({ txHash: funded.input.txHash })).toEqual([funded]);
+      expect(funded.input.outputIndex).toBe(0);
+      expect(funded.output.address).toBe(openAddress);
+      expect(funded.output.amount).toEqual([
+        { unit: "lovelace", quantity: "5000000" },
+        { unit: TOKEN, quantity: "7" },
+      ]);
+
+      const hex = Cardano.Address.fromBech32(openAddress).toBytes();
+      const second = emulator.fund(hex, { lovelace: 1_000_000n });
+      expect(second.output.address).toBe(openAddress);
+      expect(second.input.txHash).not.toBe(funded.input.txHash);
+      for (const { input } of [funded, second])
+        expect(input.txHash).toMatch(/^[0-9a-f]{64}$/);
+
+      // Another emulator made the same way gives the same hashes
+      const again = await TxEmulator.create({ validator });
+      expect(
+        again.fund(openAddress, { lovelace: 5_000_000n }).input.txHash,
+      ).toBe(funded.input.txHash);
+      expect(again.fund(hex, { lovelace: 1_000_000n }).input.txHash).toBe(
+        second.input.txHash,
+      );
+
+      // One holding a funded output passes over its hash
+      const holding = await TxEmulator.create({ validator, utxos: [funded] });
+      const own = holding.fund(openAddress, { lovelace: 1_000_000n });
+      expect(own.input.txHash).not.toBe(funded.input.txHash);
+      expect(holding.utxos({ address: openAddress })).toEqual(
+        expect.arrayContaining([funded, own]),
+      );
+      expect(holding.utxos({ address: openAddress })).toHaveLength(2);
+    });
+
+    it("rejects evaluating a failing script with a ScriptEvaluationError naming its redeemer", async () => {
+      const { emulator, spend } = await withLocked(validator);
+      const error = await emulator
+        .evaluateTx(await spend(1, alwaysFail, false))
+        .catch((e) => e);
+
+      expect(ScriptEvaluationError.is(error)).toBe(true);
+      expect(error.failures).toEqual([
+        {
+          tag: "SPEND",
+          index: 0,
+          message: error.message,
+          logs: expect.any(Array),
+          budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        },
+      ]);
+      expect(error.message).toContain("failed");
+      // The evaluator's whole message, and its error as the cause
+      expect(error.cause).toBeInstanceOf(Error);
+      expect(error.cause.name).toBe("PlutusScriptEvaluationError");
+      expect(error.message).toBe(error.cause.message);
+      expect(error.message).toContain("spent budget");
+    });
+
+    it("evaluates a passing script as before, and lets other failures through", async () => {
+      const { emulator, spend } = await withLocked(validator);
+      const txHex = await spend(0, alwaysSucceed, false);
+
+      expect(await emulator.evaluateTx(txHex)).toEqual([
+        {
+          tag: "SPEND",
+          index: 0,
+          budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        },
+      ]);
+      emulator.removeUtxos([{ txHash: "9".repeat(64), outputIndex: 0 }]);
+      const error = await emulator.evaluateTx(txHex).catch((e) => e);
+      expect(error).toBeInstanceOf(Error);
+      expect(ScriptEvaluationError.is(error)).toBe(false);
+      // Nor are bytes that are not a transaction
+      const junk = await emulator.evaluateTx("00").catch((e) => e);
+      expect(junk).toBeInstanceOf(Error);
+      expect(ScriptEvaluationError.is(junk)).toBe(false);
+    });
+
+    it("takes every UTxO a builder knows, those its ledger holds included", async () => {
+      const { emulator, spend, collateral } = await withLocked(validator);
+      expect(emulator.acceptsKnownUtxos).toBe(true);
+      const txHex = await spend(0, alwaysSucceed, false);
+      const [script] = emulator.utxos({
+        address: resolvePlutusScriptAddress(alwaysSucceed, 1),
+      });
+
+      const [action] = await emulator.evaluateTx(txHex, [script!, collateral]);
+      expect(action).toEqual({
+        tag: "SPEND",
+        index: 0,
+        budget: { mem: expect.any(Number), steps: expect.any(Number) },
+      });
+    });
+
+    it("locks to a vesting script, refuses the wrong key, and unlocks after the deadline", async () => {
+      const vesting = {
+        code: applyCborEncoding(VESTING_SCRIPT),
+        version: "V3" as const,
+      };
+      const scriptAddress = resolvePlutusScriptAddress(vesting, 1);
+      const emulator = await TxEmulator.create({
+        validator,
+        slot: 160_000_000,
+      });
+      const params = await emulator.fetchProtocolParameters();
+      const builder = (evaluate = true) =>
+        new MeshTxBuilder({
+          fetcher: emulator,
+          evaluator: evaluate ? emulator : null,
+          params,
+        });
+      const [owner, beneficiary, attacker] = await Promise.all(
+        [0, 1, 2].map(async (accountIndex) => {
+          const wallet = new MeshWallet({
+            networkId: 1,
+            key: { type: "mnemonic", words: Array(24).fill("solution") },
+            accountIndex,
+          });
+          await wallet.init();
+          const address = (await wallet.getChangeAddress())!;
+          emulator.fund(address, { lovelace: 100_000_000n });
+          emulator.fund(address, { lovelace: 5_000_000n });
+          return {
+            wallet,
+            address,
+            keyHash: deserializeAddress(address).pubKeyHash,
+          };
+        }),
+      );
+
+      // The owner locks 50 ADA for the beneficiary, for an hour
+      const lockUntil = emulator.time + 3_600_000;
+      const lockTx = await builder()
+        .txOut(scriptAddress, lovelace("50000000"))
+        .txOutInlineDatumValue(
+          mConStr0([lockUntil, owner!.keyHash, beneficiary!.keyHash]),
+        )
+        .changeAddress(owner!.address)
+        .selectUtxosFrom(emulator.utxos({ address: owner!.address }))
+        .complete();
+      const lockHash = await emulator.submitTx(
+        await owner!.wallet.signTx(lockTx),
+      );
+      expect(await emulator.awaitTransactionConfirmation(lockHash)).toBe(true);
+      expect((await emulator.fetchTxInfo(lockHash)).validContract).toBe(true);
+
+      emulator.advanceTo({ time: lockUntil + 60_000 });
+      const [locked] = emulator.utxos({ address: scriptAddress });
+      /** An unlock paid by `by`, naming `signer` as the one who signs it */
+      const unlock = (
+        by: typeof owner,
+        signer: typeof owner,
+        evaluate: boolean,
+      ) => {
+        const collateral = emulator
+          .utxos({ address: by!.address })
+          .find((u) => u.output.amount[0]!.quantity === "5000000")!;
+        return builder(evaluate)
+          .spendingPlutusScriptV3()
+          .txIn(
+            locked!.input.txHash,
+            locked!.input.outputIndex,
+            locked!.output.amount,
+            scriptAddress,
+          )
+          .txInInlineDatumPresent()
+          .txInRedeemerValue(mConStr0([]), "Mesh", {
+            mem: 1_000_000,
+            steps: 500_000_000,
+          })
+          .txInScript(vesting.code)
+          .requiredSignerHash(signer!.keyHash)
+          .invalidBefore(emulator.slot)
+          .txInCollateral(
+            collateral.input.txHash,
+            collateral.input.outputIndex,
+            collateral.output.amount,
+            by!.address,
+          )
+          .changeAddress(by!.address)
+          .complete();
+      };
+
+      // The attacker's own key is not the beneficiary's: the script fails
+      const error = await emulator
+        .evaluateTx(await unlock(attacker, attacker, false))
+        .catch((e) => e);
+      expect(ScriptEvaluationError.is(error)).toBe(true);
+      expect(error.failures).toMatchObject([{ tag: "SPEND", index: 0 }]);
+
+      // Naming the beneficiary without their signature is refused
+      const forged = await emulator.submit(
+        await attacker!.wallet.signTx(
+          await unlock(attacker, beneficiary, true),
+        ),
+      );
+      expect(rules(forged)).toEqual([
+        validator === "scalus" ? "MissingKeyHashes" : "MissingVKeyWitnesses",
+      ]);
+
+      // The beneficiary unlocks
+      const unlocked = expectAccepted(
+        await emulator.submit(
+          await beneficiary!.wallet.signTx(
+            await unlock(beneficiary, beneficiary, true),
+          ),
+        ),
+      );
+      expect(unlocked.redeemers).toEqual([
+        {
+          tag: "SPEND",
+          index: 0,
+          budget: { mem: expect.any(Number), steps: expect.any(Number) },
+        },
+      ]);
+      expect(emulator.utxos({ address: scriptAddress })).toEqual([]);
+      expect((await emulator.fetchTxInfo(unlocked.txHash)).validContract).toBe(
+        true,
+      );
+    });
+
+    it("answers from the state at the call, not waiting for a running submit", async () => {
+      const { wallet, emulator, send } = await setup(validator);
+      const signed = await wallet.signTx(await send());
+      const txHash = txHashOf(signed);
+      const tip = await emulator.fetchLatestBlock();
+
+      const pending = emulator.submit(signed);
+      const search = emulator.fetchTxInfo(txHash).catch((e) => e);
+      const wait = emulator
+        .awaitTransactionConfirmation(txHash)
+        .catch((e) => e);
+      const latest = emulator.fetchLatestBlock();
+      expect(await search).toMatchObject({ kind: "notFound" });
+      expect(TxConfirmTimeoutError.is(await wait)).toBe(true);
+      expect(await latest).toEqual(tip);
+
+      expectAccepted(await pending);
+      expect((await emulator.fetchTxInfo(txHash)).hash).toBe(txHash);
+      expect(await emulator.awaitTransactionConfirmation(txHash)).toBe(true);
+    });
+
+    it("finds nothing that it did not apply", async () => {
+      const { emulator, send } = await setup(validator);
+      const simulated = expectAccepted(await emulator.simulate(rawTx({})));
+      await expect(
+        emulator.fetchTxInfo(simulated.txHash),
+      ).rejects.toMatchObject({ kind: "notFound" });
+
+      const unsigned = await send();
+      const refused = await emulator.submit(unsigned);
+      expect(refused.accepted).toBe(false);
+      await expect(emulator.fetchTxInfo(refused.txHash!)).rejects.toMatchObject(
+        { kind: "notFound" },
+      );
+
+      const evaluated = rawTx({ fee: 3_000_000n });
+      await emulator.evaluateTx(evaluated);
+      await expect(
+        emulator.fetchTxInfo(txHashOf(evaluated)),
+      ).rejects.toMatchObject({ kind: "notFound" });
+    });
+
+    it("puts the transactions of one slot in one block, in the order applied", async () => {
+      const { address, emulator } = await setup(validator);
+      // The outputs it starts with are records of the starting slot
+      emulator.advanceTo({ slot: emulator.slot + 1 });
+      const first = expectAccepted(await emulator.submit(rawTx({})));
+      const second = expectAccepted(
+        await emulator.submit(rawTx(nextOpen(emulator))),
+      );
+      const [a, b] = await Promise.all(
+        [first, second].map((r) => emulator.fetchTxInfo(r.txHash)),
+      );
+      expect(a!.blockHeight).toBe(b!.blockHeight);
+      expect(a!.block).toBe(b!.block);
+      expect([a!.index, b!.index]).toEqual([0, 1]);
+
+      // A funded output takes its place before a transaction applied after it
+      const slot = emulator.advanceTo({ slot: emulator.slot + 1 });
+      const funded = emulator.fund(address, { lovelace: 5_000_000n });
+      const third = expectAccepted(
+        await emulator.submit(rawTx(nextOpen(emulator))),
+      );
+      expect((await emulator.fetchTxInfo(funded.input.txHash)).index).toBe(0);
+      expect(await emulator.fetchTxInfo(third.txHash)).toMatchObject({
+        index: 1,
+        blockHeight: slot,
+      });
+
+      emulator.advanceTo({ slot: slot + 1 });
+      const fourth = expectAccepted(
+        await emulator.submit(rawTx(nextOpen(emulator))),
+      );
+      expect(await emulator.fetchTxInfo(fourth.txHash)).toMatchObject({
+        index: 0,
+        blockHeight: slot + 1,
+      });
+    });
+
+    it("counts the depth of a transaction by the slots passed since", async () => {
+      const { emulator } = await setup(validator);
+      const depth = async (txHash: string) =>
+        (await emulator.fetchLatestBlock()).height! -
+        (await emulator.fetchTxInfo(txHash)).blockHeight!;
+      const applied = expectAccepted(await emulator.submit(rawTx({})));
+      const info = await emulator.fetchTxInfo(applied.txHash);
+      expect(await depth(applied.txHash)).toBe(0);
+
+      const slot = emulator.slot;
+      emulator.advanceTo({ slot: slot + 30 });
+      expect(await depth(applied.txHash)).toBe(30);
+
+      // Its outputs spent, an epoch boundary, a parameter change: the answer stays
+      expectAccepted(await emulator.submit(rawTx(nextOpen(emulator))));
+      expect(emulator.utxos({ txHash: applied.txHash })).toEqual([]);
+      emulator.advanceTo({ epoch: emulator.epoch + 1 });
+      emulator.setProtocolParameters({ minFeeA: 45 });
+      expect(await emulator.fetchTxInfo(applied.txHash)).toEqual(info);
+      expect(await depth(applied.txHash)).toBe(emulator.slot - slot);
+    });
+
+    it("keeps what each fork finds apart", async () => {
+      const { address, emulator } = await setup(validator);
+      const before = expectAccepted(await emulator.submit(rawTx({})));
+      const copy = emulator.fork();
+      const twin = emulator.fork();
+      expect(await copy.fetchTxInfo(before.txHash)).toEqual(
+        await emulator.fetchTxInfo(before.txHash),
+      );
+
+      const onCopy = expectAccepted(await copy.submit(rawTx(nextOpen(copy))));
+      await expect(emulator.fetchTxInfo(onCopy.txHash)).rejects.toMatchObject({
+        kind: "notFound",
+      });
+      // The copy goes on with the order of the slot it was made in, and so does the original
+      const beforeIndex = (await copy.fetchTxInfo(before.txHash)).index;
+      expect((await copy.fetchTxInfo(onCopy.txHash)).index).toBe(
+        beforeIndex + 1,
+      );
+      const onOriginal = expectAccepted(
+        await emulator.submit(rawTx(nextOpen(emulator))),
+      );
+      expect((await emulator.fetchTxInfo(onOriginal.txHash)).index).toBe(
+        beforeIndex + 1,
+      );
+
+      const fundedHere = emulator.fund(address, { lovelace: 5_000_000n });
+      const fundedThere = copy.fund(address, { lovelace: 5_000_000n });
+      expect(fundedHere.input.txHash).not.toBe(fundedThere.input.txHash);
+      await expect(
+        copy.fetchTxInfo(fundedHere.input.txHash),
+      ).rejects.toMatchObject({ kind: "notFound" });
+      await expect(
+        emulator.fetchTxInfo(fundedThere.input.txHash),
+      ).rejects.toMatchObject({ kind: "notFound" });
+
+      // The original goes on as if it had not been forked
+      const { emulator: unforked } = await setup(validator);
+      expectAccepted(await unforked.submit(rawTx({})));
+      expect(
+        unforked.fund(address, { lovelace: 5_000_000n }).input.txHash,
+      ).toBe(fundedHere.input.txHash);
+      // Copies of one state give the same hashes
+      expect(twin.fund(address, { lovelace: 5_000_000n }).input.txHash).toBe(
+        fundedThere.input.txHash,
+      );
+    });
+
+    it("confirms through the wait of @meshsdk/common, by its own wait or by the search", async () => {
+      const { emulator } = await setup(validator);
+      const applied = expectAccepted(await emulator.submit(rawTx({})));
+      const options = { timeoutMs: 200, pollMs: 10 };
+      const searchOnly = {
+        fetchTxInfo: (hash: string) => emulator.fetchTxInfo(hash),
+      };
+
+      for (const provider of [emulator, searchOnly]) {
+        await expect(
+          awaitTransactionConfirmation(provider, applied.txHash, options),
+        ).resolves.toBeUndefined();
+        const error = await awaitTransactionConfirmation(
+          provider,
+          UNKNOWN,
+          options,
+        ).catch((e) => e);
+        expect(TxConfirmTimeoutError.is(error)).toBe(true);
+      }
+    });
+
+    it("spends a funded output", async () => {
+      const { wallet, address, emulator, builder } = await setup(validator);
+      const funded = emulator.fund(address, { lovelace: 20_000_000n });
+      const txHex = await builder()
+        .txOut(address, lovelace("2000000"))
+        .changeAddress(address)
+        .selectUtxosFrom([funded])
+        .complete();
+
+      const result = expectAccepted(
+        await emulator.submit(await wallet.signTx(txHex)),
+      );
+      expect(result.consumed).toEqual([funded]);
+    });
+
+    it("funds only valid outputs, and not while a transaction is being checked", async () => {
+      const { wallet, address, emulator, send } = await setup(validator);
+      expect(() =>
+        emulator.fund("not an address", { lovelace: 1_000_000n }),
+      ).toThrow("not an address");
+      // No output can be sent to a reward address, in any form
+      const [keyReward] = await wallet.getRewardAddresses();
+      for (const reward of [
+        keyReward!,
+        Cardano.Address.fromBech32(keyReward!).toBytes(),
+        openStake,
+      ])
+        expect(() => emulator.fund(reward, { lovelace: 1_000_000n })).toThrow(
+          "reward address",
+        );
+      expect(() => emulator.fund(address, { lovelace: -1n })).toThrow(
+        "negative",
+      );
+      expect(() => emulator.fund(address, { [TOKEN]: -1n })).toThrow(
+        "negative",
+      );
+      expect(
+        emulator.fund(address, { lovelace: 2_000_000n, [TOKEN]: 0n }).output
+          .amount,
+      ).toEqual([{ unit: "lovelace", quantity: "2000000" }]);
+      expect(emulator.fund(address, { [TOKEN]: 5n }).output.amount).toEqual([
+        { unit: "lovelace", quantity: "0" },
+        { unit: TOKEN, quantity: "5" },
+      ]);
+      // Another network's address is the builder's and the ledger's to report
+      const testnet = resolveNativeScriptAddress(openScript, 0);
+      expect(
+        emulator.fund(testnet, { lovelace: 1_000_000n }).output.address,
+      ).toBe(testnet);
+
+      const submission = emulator.submit(await wallet.signTx(await send()));
+      expect(() => emulator.fund(address, { lovelace: 1_000_000n })).toThrow(
+        "await",
+      );
+      expectAccepted(await submission);
+    });
+
+    it("is a fetcher with a tip and a network", async () => {
+      const { emulator } = await setup(validator);
+      // Checked by the type checker
+      const fetcher: Required<Pick<IFetcher, "fetchLatestBlock" | "network">> =
+        emulator;
+      expect(fetcher.network).toBe("mainnet");
+      expect((await fetcher.fetchLatestBlock()).height).toBe(emulator.slot);
+    });
+
+    it("answers for one hash by the first thing that happened under it, but a transaction", async () => {
+      const { address, emulator } = await setup(validator);
+      const hash = "5".repeat(64);
+      const output = (outputIndex: number, quantity: string): UTxO => ({
+        input: { txHash: hash, outputIndex },
+        output: { address, amount: lovelace(quantity) },
+      });
+      const start = emulator.slot;
+      // Given twice in one call, the ledger holds the last and the search the first
+      emulator.addUtxos([output(0, "1000000"), output(0, "9000000")]);
+      expect(emulator.utxos({ txHash: hash })).toEqual([output(0, "9000000")]);
+      emulator.advanceTo({ slot: start + 10 });
+      emulator.addUtxos([output(1, "2000000"), output(0, "3000000")]);
+      expect(await emulator.fetchTxInfo(hash)).toMatchObject({
+        slot: String(start),
+        blockHeight: start,
+        outputs: [output(0, "1000000"), output(1, "2000000")],
+      });
+      // The ledger holds the output added last
+      expect(emulator.utxos({ txHash: hash })).toContainEqual(
+        output(0, "3000000"),
+      );
+
+      // Outputs added under the hash of a transaction applied later give way to it
+      const txHex = rawTx({});
+      const txHash = txHashOf(txHex);
+      emulator.addUtxos([
+        {
+          input: { txHash, outputIndex: 5 },
+          output: { address, amount: lovelace("4000000") },
+        },
+      ]);
+      const slot = emulator.advanceTo({ slot: emulator.slot + 10 });
+      const applied = expectAccepted(await emulator.submit(txHex));
+      const info = await emulator.fetchTxInfo(txHash);
+      expect(info).toMatchObject({
+        slot: String(slot),
+        blockHeight: slot,
+        validContract: true,
+      });
+      expect(info.outputs).toEqual(applied.produced);
+
+      // Outputs added under the hash of a transaction applied leave it as it was
+      emulator.advanceTo({ slot: slot + 10 });
+      emulator.addUtxos([
+        {
+          input: { txHash, outputIndex: 6 },
+          output: { address, amount: lovelace("4000000") },
+        },
+      ]);
+      expect(await emulator.fetchTxInfo(txHash)).toEqual(info);
+    });
+
+    it("states the deposit, validity interval and size of a transaction", async () => {
+      const { emulator, fromOpen } = await setup(validator);
+      const registration = rawTx({
+        delta: 2_000_000n,
+        body: {
+          certs: [
+            {
+              type: "STAKE_REGISTRATION",
+              value: { stake_credential: openCredential },
+            },
+          ],
+        },
+      });
+      const registered = expectAccepted(await emulator.submit(registration));
+      const info = await emulator.fetchTxInfo(registered.txHash);
+      expect(info).toMatchObject({
+        deposit: "2000000",
+        invalidBefore: "",
+        invalidAfter: "",
+        size: registration.length / 2,
+      });
+
+      const from = emulator.slot - 10;
+      const to = emulator.slot + 100;
+      const bounded = await fromOpen(
+        emulator.utxos({ address: openAddress })[0],
+      )
+        .invalidBefore(from)
+        .invalidHereafter(to)
+        .complete();
+      const result = expectAccepted(await emulator.submit(bounded));
+      expect(await emulator.fetchTxInfo(result.txHash)).toMatchObject({
+        deposit: "0",
+        invalidBefore: String(from),
+        invalidAfter: String(to),
+        size: bounded.length / 2,
+      });
+    });
+
+    it("states the hash, time and epoch of the tip", async () => {
+      const { emulator } = await setup(validator);
+      const tip = await emulator.fetchLatestBlock();
+      expect(tip.hash).toMatch(/^[0-9a-f]{64}$/);
+      expect(tip.time).toBe(Math.floor(emulator.time / 1000));
+      expect(tip.epoch).toBe(emulator.epoch);
+      const applied = expectAccepted(await emulator.submit(rawTx({})));
+      expect((await emulator.fetchTxInfo(applied.txHash)).block).toBe(tip.hash);
+
+      emulator.advanceTo({ slot: emulator.slot + 1 });
+      const next = await emulator.fetchLatestBlock();
+      expect(next.hash).not.toBe(tip.hash);
+      expect(next.previousBlock).toBe(tip.hash);
+      expect(next.time).toBe(Math.floor(emulator.time / 1000));
+
+      // The slot within the epoch counts from its first slot
+      emulator.advanceTo({ epoch: emulator.epoch + 1 });
+      expect((await emulator.fetchLatestBlock()).epochSlot).toBe("0");
+      emulator.advanceTo({ slot: emulator.slot + 5 });
+      expect((await emulator.fetchLatestBlock()).epochSlot).toBe("5");
+
+      // The block of slot 0 has none before it
+      const first = await TxEmulator.create({
+        validator,
+        network: "preview",
+        slot: 0,
+      });
+      expect(await first.fetchLatestBlock()).toMatchObject({
+        slot: "0",
+        epochSlot: "0",
+        previousBlock: "",
+      });
+    });
+
+    it("matches hashes in any case, and answers with values of the caller's own", async () => {
+      const { emulator } = await setup(validator);
+      const applied = expectAccepted(await emulator.submit(rawTx({})));
+      const info = await emulator.fetchTxInfo(applied.txHash.toUpperCase());
+      expect(info.hash).toBe(applied.txHash);
+      expect(
+        await emulator.awaitTransactionConfirmation(
+          applied.txHash.toUpperCase(),
+        ),
+      ).toBe(true);
+
+      const answer = structuredClone(info);
+      info.outputs[0]!.output.amount[0]!.quantity = "1";
+      info.inputs.length = 0;
+      info.validContract = false;
+      expect(await emulator.fetchTxInfo(applied.txHash)).toEqual(answer);
+      const seeded = await emulator.fetchTxInfo(outRef(0).txHash);
+      seeded.outputs.length = 0;
+      expect(
+        (await emulator.fetchTxInfo(outRef(0).txHash)).outputs,
+      ).toHaveLength(1);
+    });
+  },
+);
+
+/*
+ * Scalus checks some rules against a governance state of its own, which cannot be given the
+ * emulator's, so the emulator does not take its refusal by them. Here it is a withdrawal to a
+ * key-hash stake address that delegates its vote to no DRep, as far as Scalus knows.
+ */
+describe("TxEmulator (scalus) rules Scalus cannot judge", () => {
+  const locked = (outputIndex: number, script: typeof alwaysSucceed): UTxO => ({
+    input: { txHash: "9".repeat(64), outputIndex },
+    output: {
+      address: resolvePlutusScriptAddress(script, 1),
+      amount: lovelace("20000000"),
+      plutusData: "d87980",
+    },
+  });
+  const withRewards = async () => {
+    const context = await setup("scalus", {
+      utxos: [locked(0, alwaysSucceed), locked(1, alwaysFail)],
+    });
+    context.emulator.setAccount({
+      rewardAddress: context.stake,
+      rewards: "7000000",
+    });
+    return context;
+  };
+
+  it("applies a transaction Scalus refuses only by them", async () => {
+    const { wallet, emulator, stake, sign, address, funding, builder } =
+      await withRewards();
+    const withdrawal = expectAccepted(
+      await emulator.submit(
+        await sign(
+          await builder()
+            .withdrawal(stake, "7000000")
+            .changeAddress(address)
+            .selectUtxosFrom([funding])
+            .complete(),
+        ),
+      ),
+    );
+    expect(withdrawal.consumed).toEqual([funding]);
+    expect(emulator.utxos({ txHash: funding.input.txHash })).toHaveLength(0);
+    expect(emulator.utxos({ txHash: withdrawal.txHash })).toHaveLength(
+      withdrawal.produced.length,
+    );
+    expect((await emulator.fetchAccountInfo(stake)).rewards).toBe("0");
+
+    // The ledger goes on from what the transaction produced
+    expectAccepted(
+      await emulator.submit(
+        await wallet.signTx(
+          await builder()
+            .txOut(address, lovelace("2000000"))
+            .changeAddress(address)
+            .selectUtxosFrom(withdrawal.produced)
+            .complete(),
+        ),
+      ),
+    );
+  });
+
+  it("runs the scripts of such a transaction, which Scalus did not", async () => {
+    const { emulator, stake, sign, address, funding, collateral, builder } =
+      await withRewards();
+    const spend = (
+      outputIndex: number,
+      script: typeof alwaysSucceed,
+      budget = { mem: 1_000_000, steps: 500_000_000 },
+    ) =>
+      builder({ evaluate: false })
+        .spendingPlutusScriptV3()
+        .txIn("9".repeat(64), outputIndex)
+        .txInInlineDatumPresent()
+        .txInRedeemerValue(mConStr0([]), "Mesh", budget)
+        .txInScript(script.code)
+        .txInCollateral(
+          collateral.input.txHash,
+          collateral.input.outputIndex,
+          collateral.output.amount,
+          collateral.output.address,
+        )
+        .withdrawal(stake, "7000000")
+        .changeAddress(address)
+        .selectUtxosFrom([funding])
+        .complete();
+
+    // A script that fails, and one given fewer units than it needs
+    for (const failing of [
+      await spend(1, alwaysFail),
+      await spend(0, alwaysSucceed, { mem: 10, steps: 10 }),
+    ]) {
+      const result = await emulator.simulate(await sign(failing));
+      expect(result.accepted).toBe(false);
+      expect(!result.accepted && result.errors).toEqual([
+        expect.objectContaining({ rule: "ScriptFailure", phase: 2 }),
+      ]);
+    }
+
+    const passing = expectAccepted(
+      await emulator.submit(await sign(await spend(0, alwaysSucceed))),
+    );
+    expect(passing.redeemers).toEqual([
+      { tag: "SPEND", index: 0, budget: expect.any(Object) },
+    ]);
+    // The script's output is spent, and the collateral is not
+    expect(emulator.utxos({ txHash: "9".repeat(64) })).toEqual([
+      expect.objectContaining({ input: locked(1, alwaysFail).input }),
+    ]);
+    expect(emulator.utxos({ txHash: collateral.input.txHash })).toHaveLength(1);
+  });
+
+  it("refuses a script given a transaction it cannot be shown, which Scalus did not report", async () => {
+    // A Plutus V2 script cannot be shown a donation to the treasury
+    const alwaysSucceedV2 = {
+      code: "4e4d01000033222220051200120011",
+      version: "V2" as const,
+    };
+    const { emulator, stake, sign, address, funding, collateral, builder } =
+      await setup("scalus", {
+        utxos: [
+          {
+            input: { txHash: "8".repeat(64), outputIndex: 0 },
+            output: {
+              address: resolvePlutusScriptAddress(alwaysSucceedV2, 1),
+              amount: lovelace("20000000"),
+              plutusData: "d87980",
+            },
+          },
+        ],
+      });
+    emulator.setAccount({ rewardAddress: stake, rewards: "7000000" });
+    const spend = (donation?: string) => {
+      const tx = builder({ evaluate: false })
+        .spendingPlutusScriptV2()
+        .txIn("8".repeat(64), 0)
+        .txInInlineDatumPresent()
+        .txInRedeemerValue(mConStr0([]), "Mesh", {
+          mem: 1_000_000,
+          steps: 500_000_000,
+        })
+        .txInScript(alwaysSucceedV2.code)
+        .txInCollateral(
+          collateral.input.txHash,
+          collateral.input.outputIndex,
+          collateral.output.amount,
+          collateral.output.address,
+        )
+        .withdrawal(stake, "7000000");
+      if (donation) tx.setDonation(donation);
+      return tx.changeAddress(address).selectUtxosFrom([funding]).complete();
+    };
+
+    expectAccepted(await emulator.simulate(await sign(await spend())));
+    expect(
+      rules(await emulator.simulate(await sign(await spend("1000000")))),
+    ).toEqual(["CollectErrors"]);
+  });
+
+  it("does not check the treasury a transaction states", async () => {
+    const { emulator } = await setup("scalus");
+    emulator.setTreasury("1000000000");
+    for (const value of ["1000000000", "999"])
+      expectAccepted(
+        await emulator.simulate(
+          rawTx({ body: { current_treasury_value: value } }),
+        ),
+      );
+  });
+
+  it("refuses such a transaction that breaks another rule too", async () => {
+    const { wallet, emulator, stake, sign, address, funding, builder } =
+      await withRewards();
+    const withdrawing = (quantity: string) =>
+      builder()
+        .withdrawal(stake, quantity)
+        .changeAddress(address)
+        .selectUtxosFrom([funding])
+        .complete();
+
+    // The stake key has to sign a withdrawal
+    expect(
+      rules(
+        await emulator.simulate(
+          await wallet.signTx(await withdrawing("7000000"), true),
+        ),
+      ),
+    ).toEqual(["MissingKeyHashes"]);
+    // More than the rewards hold
+    expect(
+      rules(await emulator.simulate(await sign(await withdrawing("9000000")))),
+    ).toEqual(["WithdrawalsNotInRewards"]);
+  });
+});
+
+describe("TxEmulator (cquisitor) ledger rules", () => {
+  it("delegates votes to AlwaysAbstain and AlwaysNoConfidence", async () => {
+    const { emulator } = await setup("cquisitor", {
+      accounts: [{ rewardAddress: openStake }],
+    });
+    for (const drep of ["ALWAYS_ABSTAIN", "ALWAYS_NO_CONFIDENCE"])
+      expectAccepted(
+        await emulator.simulate(
+          rawTx({
+            body: {
+              certs: [
+                {
+                  type: "VOTE_DELEGATION",
+                  value: {
+                    stake_credential: openCredential,
+                    drep: { type: drep },
+                  },
+                },
+              ],
+            },
+          }),
+        ),
+      );
+  });
+
+  it("chains a DRep registration, a vote delegation, a proposal and a vote on it", async () => {
+    const { emulator, next } = await setup("cquisitor", {
+      accounts: [{ rewardAddress: openStake }],
+    });
+
+    expectAccepted(
+      await emulator.submit(
+        await next()
+          .drepRegistrationCertificate(openDRep)
+          .certificateScript(openScriptHex)
+          .complete(),
+      ),
+    );
+    expect(await emulator.fetchDRepState(openDRep)).toEqual({
+      drepId: openDRep,
+      registered: true,
+      deposit: "500000000",
+    });
+
+    expectAccepted(
+      await emulator.submit(
+        await next()
+          .voteDelegationCertificate({ dRepId: openDRep }, openStake)
+          .certificateScript(openScriptHex)
+          .complete(),
+      ),
+    );
+    expect((await emulator.fetchAccountInfo(openStake)).drep).toBe(openDRep);
+
+    const proposal = expectAccepted(
+      await emulator.submit(
+        await next()
+          .proposal(
+            { kind: "InfoAction", action: {} },
+            {
+              anchorUrl: "https://example.com/p.json",
+              anchorDataHash: "cd".repeat(32),
+            },
+            openStake,
+          )
+          .complete(),
+      ),
+    );
+    expect(
+      await emulator.fetchGovernanceProposal(proposal.txHash, 0),
+    ).toMatchObject({
+      governanceType: GovernanceActionKind.InfoAction,
+      returnAddress: openStake,
+    });
+
+    const vote = (txHash: string) =>
+      next()
+        .vote(
+          { type: "DRep", drepId: openDRep },
+          { txHash, txIndex: 0 },
+          { voteKind: "Yes" },
+        )
+        .voteScript(openScriptHex)
+        .complete();
+    expectAccepted(await emulator.submit(await vote(proposal.txHash)));
+    expect(
+      rules(await emulator.simulate(await vote("e".repeat(64)))),
+    ).toContain("GovActionsDoNotExist");
+  });
+
+  it("lets a DRep registered in a transaction vote in it", async () => {
+    const { emulator } = await setup("cquisitor", {
+      governance: {
+        actions: [
+          {
+            transactionId: "e".repeat(64),
+            govActionIndex: 0,
+            kind: GovernanceActionKind.InfoAction,
+          },
+        ],
+      },
+    });
+    expectAccepted(
+      await emulator.simulate(
+        rawTx({
+          delta: 500_000_000n,
+          body: {
+            certs: [
+              {
+                type: "DREP_REGISTRATION",
+                value: { voting_credential: openCredential, coin: "500000000" },
+              },
+            ],
+            voting_procedures: [
+              {
+                voter: { type: "DREP", value: openCredential },
+                votes: [
+                  {
+                    action_id: { transaction_id: "e".repeat(64), index: 0 },
+                    voting_procedure: { vote: { type: "YES" } },
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      ),
+    );
+  });
+
+  it("rejects registering a registered DRep", async () => {
+    const { emulator } = await setup("cquisitor", {
+      dreps: [{ drepId: openDRep }],
+    });
+    const result = await emulator.simulate(
+      rawTx({
+        delta: 500_000_000n,
+        body: {
+          certs: [
+            {
+              type: "DREP_REGISTRATION",
+              value: { voting_credential: openCredential, coin: "500000000" },
+            },
+          ],
+        },
+      }),
+    );
+    expect(result.accepted).toBe(false);
+  });
+
+  it("lets sitting committee members vote with their hot credential", async () => {
+    const actionHash = "e".repeat(64);
+    const { emulator } = await setup("cquisitor", {
+      governance: {
+        actions: [
+          {
+            transactionId: actionHash,
+            govActionIndex: 0,
+            kind: GovernanceActionKind.InfoAction,
+          },
+        ],
+        committee: [
+          {
+            cold: { type: "KeyHash", keyHash: "c0".repeat(28) },
+            hot: { type: "ScriptHash", scriptHash: openHash },
+            resigned: false,
+          },
+        ],
+      },
+    });
+    expectAccepted(
+      await emulator.simulate(
+        rawTx({
+          body: {
+            voting_procedures: [
+              {
+                voter: {
+                  type: "CONSTITUTIONAL_COMMITTEE_HOT_CRED",
+                  value: openCredential,
+                },
+                votes: [
+                  {
+                    action_id: { transaction_id: actionHash, index: 0 },
+                    voting_procedure: { vote: { type: "YES" } },
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      ),
+    );
+  });
+
+  it("refuses votes from committee members not yet elected", async () => {
+    const actionHash = "e".repeat(64);
+    const { emulator } = await setup("cquisitor", {
+      governance: {
+        actions: [
+          {
+            transactionId: actionHash,
+            govActionIndex: 0,
+            kind: GovernanceActionKind.InfoAction,
+          },
+        ],
+        // Proposed by a pending committee update, with a hot credential authorised
+        committee: [
+          {
+            cold: { type: "KeyHash", keyHash: "c0".repeat(28) },
+            hot: { type: "ScriptHash", scriptHash: openHash },
+            resigned: false,
+            potential: true,
+          },
+        ],
+      },
+    });
+    const result = await emulator.simulate(
+      rawTx({
+        body: {
+          voting_procedures: [
+            {
+              voter: {
+                type: "CONSTITUTIONAL_COMMITTEE_HOT_CRED",
+                value: openCredential,
+              },
+              votes: [
+                {
+                  action_id: { transaction_id: actionHash, index: 0 },
+                  voting_procedure: { vote: { type: "YES" } },
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+    expect(rules(result)).toContain("UnelectedCommitteeVoters");
+  });
+
+  it("lets stake pools vote on changes to security-group parameters only", async () => {
+    const operator = await walletKeyHash;
+    const { emulator, pubKeyHash, sign } = await setup("cquisitor", {
+      accounts: [{ rewardAddress: openStake }],
+      pools: [{ poolId: operator }],
+    });
+    const spoVote = async (field: string, value: unknown) => {
+      const fork = emulator.fork();
+      const proposal = expectAccepted(
+        await fork.submit(
+          rawTx({
+            delta: GOV_DEPOSIT,
+            body: {
+              voting_proposals: [
+                {
+                  anchor,
+                  deposit: String(GOV_DEPOSIT),
+                  reward_account: openStake,
+                  governance_action: {
+                    type: "PARAMETER_CHANGE_ACTION",
+                    value: { protocol_param_updates: { [field]: value } },
+                  },
+                },
+              ],
+            },
+          }),
+        ),
+      );
+      return fork.simulate(
+        await sign(
+          rawTx({
+            ...nextOpen(fork),
+            body: {
+              voting_procedures: [
+                {
+                  voter: { type: "STAKING_POOL", value: pubKeyHash },
+                  votes: [
+                    {
+                      action_id: { transaction_id: proposal.txHash, index: 0 },
+                      voting_procedure: { vote: { type: "YES" } },
+                    },
+                  ],
+                },
+              ],
+            },
+          }),
+        ),
+      );
+    };
+
+    expectAccepted(await spoVote("minfee_a", "45"));
+    expectAccepted(
+      await spoVote("max_block_ex_units", { mem: "1", steps: "1" }),
+    );
+    expect(rules(await spoVote("collateral_percentage", 150))).toContain(
+      "DisallowedVoters",
+    );
+  });
+
+  it("accepts a proposal following the last enacted action of its purpose", async () => {
+    const enacted = "a".repeat(64);
+    const { emulator } = await setup("cquisitor", {
+      accounts: [{ rewardAddress: openStake }],
+      governance: {
+        lastEnacted: [
+          {
+            transactionId: enacted,
+            govActionIndex: 0,
+            kind: GovernanceActionKind.NoConfidenceAction,
+          },
+        ],
+      },
+    });
+    const proposeAfter = (transactionId: string) =>
+      emulator.simulate(
+        rawTx({
+          delta: GOV_DEPOSIT,
+          body: {
+            voting_proposals: [
+              {
+                anchor,
+                deposit: String(GOV_DEPOSIT),
+                reward_account: openStake,
+                governance_action: {
+                  type: "NO_CONFIDENCE_ACTION",
+                  value: {
+                    gov_action_id: { transaction_id: transactionId, index: 0 },
+                  },
+                },
+              },
+            ],
+          },
+        }),
+      );
+
+    expectAccepted(await proposeAfter(enacted));
+    expect((await proposeAfter("b".repeat(64))).accepted).toBe(false);
+  });
+
+  it("forfeits only the collateral of a transaction marked invalid, when a script fails", async () => {
+    const locked = (script: typeof alwaysSucceed): UTxO => ({
+      input: { txHash: "9".repeat(64), outputIndex: 0 },
+      output: {
+        address: resolvePlutusScriptAddress(script, 1),
+        amount: lovelace("20000000"),
+        plutusData: "d87980",
+      },
+    });
+    const markedInvalid = async (script: typeof alwaysSucceed) => {
+      const { wallet, address, collateral, emulator, builder } = await setup(
+        "cquisitor",
+        { utxos: [locked(script)] },
+      );
+      const txHex = await builder({ evaluate: false })
+        .spendingPlutusScriptV3()
+        .txIn("9".repeat(64), 0)
+        .txInInlineDatumPresent()
+        .txInRedeemerValue(mConStr0([]), "Mesh", {
+          mem: 1_000_000,
+          steps: 500_000_000,
+        })
+        .txInScript(script.code)
+        .txInCollateral(
+          collateral.input.txHash,
+          0,
+          collateral.output.amount,
+          address,
+        )
+        .setTotalCollateral("3000000")
+        .setCollateralReturnAddress(address)
+        .changeAddress(address)
+        .complete();
+      const tx = markedFailing(await wallet.signTx(txHex));
+      return {
+        emulator,
+        collateral,
+        result: await emulator.submit(tx),
+      };
+    };
+
+    const failing = await markedInvalid(alwaysFail);
+    const accepted = expectAccepted(failing.result);
+    expect(accepted.isValid).toBe(false);
+    expect(accepted.consumed).toEqual([failing.collateral]);
+    expect(accepted.produced).toHaveLength(1);
+    expect(failing.emulator.utxos({ txHash: "9".repeat(64) })).toHaveLength(1);
+
+    const passing = await markedInvalid(alwaysSucceed);
+    expect(passing.result.accepted).toBe(false);
+  });
+
+  it("registers a key-hash stake address: certificate 0 without a signature of its key, certificate 7 only with it", async () => {
+    const { wallet, stake, emulator, builder, address, funding, sign } =
+      await setup("cquisitor");
+    // registerStakeCertificate gives certificate 7
+    const txHex = await builder()
+      .registerStakeCertificate(stake)
+      .changeAddress(address)
+      .selectUtxosFrom([funding])
+      .complete();
+    expect(rules(await emulator.simulate(await wallet.signTx(txHex)))).toEqual([
+      "MissingVKeyWitnesses",
+    ]);
+    expectAccepted(await emulator.simulate(await sign(txHex)));
+
+    const { stakeCredentialHash } = deserializeAddress(address);
+    expectAccepted(
+      await emulator.simulate(
+        rawTx({
+          delta: 2_000_000n,
+          body: {
+            certs: [
+              {
+                type: "STAKE_REGISTRATION",
+                value: {
+                  stake_credential: { type: "KEY", value: stakeCredentialHash },
+                },
+              },
+            ],
+          },
+        }),
+      ),
+    );
+  });
+
+  it("checks the treasury a transaction states, when it is known", async () => {
+    const stating = (value: string) =>
+      rawTx({ body: { current_treasury_value: value } });
+    const known = await TxEmulator.create({
+      validator: "cquisitor",
+      utxos: [
+        {
+          input: outRef(2),
+          output: {
+            address: openAddress,
+            amount: lovelace(String(OPEN_FUNDS)),
+          },
+        },
+      ],
+      governance: { treasury: "1000000000" },
+    });
+    expectAccepted(await known.simulate(stating("1000000000")));
+    expect((await known.simulate(stating("999"))).accepted).toBe(false);
+
+    const unknown = await TxEmulator.create({
+      validator: "cquisitor",
+      utxos: [
+        {
+          input: outRef(2),
+          output: {
+            address: openAddress,
+            amount: lovelace(String(OPEN_FUNDS)),
+          },
+        },
+      ],
+    });
+    const taken = expectAccepted(await unknown.simulate(stating("999")));
+    expect(warningRules(taken)).toContain("NotChecked");
+  });
+
+  it("checks the guardrail script proposals name, when the constitution is known", async () => {
+    const guardrailed = (policyHash: string) =>
+      rawTx({
+        delta: GOV_DEPOSIT,
+        body: {
+          voting_proposals: [
+            {
+              anchor,
+              deposit: String(GOV_DEPOSIT),
+              reward_account: openStake,
+              governance_action: {
+                type: "PARAMETER_CHANGE_ACTION",
+                value: {
+                  policy_hash: policyHash,
+                  protocol_param_updates: { max_tx_size: 16385 },
+                },
+              },
+            },
+          ],
+        },
+      });
+    const withGuardrail = async (guardrailScriptHash?: string) =>
+      (
+        await setup("cquisitor", {
+          accounts: [{ rewardAddress: openStake }],
+          ...(guardrailScriptHash && {
+            governance: {
+              constitution: {
+                anchor: {
+                  anchorUrl: "https://example.com/c.json",
+                  anchorDataHash: "cd".repeat(32),
+                },
+                guardrailScriptHash,
+              },
+            },
+          }),
+        })
+      ).emulator;
+    // The proposals name the open script, which the transaction carries
+    const proposal = guardrailed(openHash);
+
+    expectAccepted(await (await withGuardrail(openHash)).simulate(proposal));
+    expect(
+      rules(await (await withGuardrail("12".repeat(28))).simulate(proposal)),
+    ).toEqual(["InvalidConstitutionPolicyHash"]);
+    const taken = expectAccepted(
+      await (await withGuardrail()).simulate(proposal),
+    );
+    expect(warningRules(taken)).toContain("NotChecked");
+  });
+
+  it("checks a native multisig unsigned, as it would pass once signed", async () => {
+    const { pubKeyHash, address } = await setup("cquisitor");
+    const spendFrom = async (script: NativeScript) => {
+      const scriptAddress = resolveNativeScriptAddress(script, 1);
+      const utxo: UTxO = {
+        input: outRef(5),
+        output: { address: scriptAddress, amount: lovelace("50000000") },
+      };
+      const emulator = await TxEmulator.create({
+        validator: "cquisitor",
+        utxos: [utxo],
+      });
+      const txHex = await new MeshTxBuilder({
+        fetcher: emulator,
+        params: await emulator.fetchProtocolParameters(),
+      })
+        .txIn(utxo.input.txHash, 0, utxo.output.amount, scriptAddress, 0)
+        .txInScript(resolveNativeScriptHex(script))
+        .changeAddress(address)
+        .complete();
+      return {
+        unsigned: await emulator.simulate(txHex, { requireSignatures: false }),
+        strict: await emulator.simulate(txHex),
+      };
+    };
+
+    const multisig = await spendFrom({ type: "sig", keyHash: pubKeyHash });
+    expectAccepted(multisig.unsigned);
+    expect(multisig.strict.accepted).toBe(false);
+
+    // A time lock not yet open fails whoever signs
+    const locked = await spendFrom({
+      type: "all",
+      scripts: [
+        { type: "sig", keyHash: pubKeyHash },
+        { type: "after", slot: "999999999999" },
+      ],
+    });
+    expect(locked.unsigned.accepted).toBe(false);
+  });
+
+  it("checks votes against governance state set without a transaction", async () => {
+    const actionHash = "e".repeat(64);
+    const action = { transactionId: actionHash, govActionIndex: 0 };
+    const { emulator } = await setup("cquisitor");
+    const voteBy = (voter: unknown) =>
+      emulator.simulate(
+        rawTx({
+          body: {
+            voting_procedures: [
+              {
+                voter,
+                votes: [
+                  {
+                    action_id: { transaction_id: actionHash, index: 0 },
+                    voting_procedure: { vote: { type: "YES" } },
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      );
+    const drep = { type: "DREP", value: openCredential };
+    const committee = {
+      type: "CONSTITUTIONAL_COMMITTEE_HOT_CRED",
+      value: openCredential,
+    };
+
+    emulator.setDRep({ drepId: openDRep });
+    expect(rules(await voteBy(drep))).toContain("GovActionsDoNotExist");
+    emulator.setGovernanceAction({
+      ...action,
+      kind: GovernanceActionKind.InfoAction,
+    });
+    expectAccepted(await voteBy(drep));
+
+    // A member proposed by a committee update, then elected
+    const cold = { type: "KeyHash" as const, keyHash: "c0".repeat(28) };
+    emulator.setCommitteeMember({
+      cold,
+      hot: { type: "ScriptHash", scriptHash: openHash },
+      potential: true,
+    });
+    expect(rules(await voteBy(committee))).toContain(
+      "UnelectedCommitteeVoters",
+    );
+    emulator.setCommitteeMember({ cold, potential: false });
+    expectAccepted(await voteBy(committee));
+    emulator.removeCommitteeMember(cold);
+    expect((await voteBy(committee)).accepted).toBe(false);
+
+    emulator.setGovernanceAction({
+      ...action,
+      kind: GovernanceActionKind.InfoAction,
+      active: false,
+    });
+    expect((await voteBy(drep)).accepted).toBe(false);
+    emulator.removeGovernanceAction(action);
+    expect(rules(await voteBy(drep))).toContain("GovActionsDoNotExist");
+  });
+
+  it("checks the treasury, the last enacted actions and the constitution set without a transaction", async () => {
+    const { emulator } = await setup("cquisitor", {
+      accounts: [{ rewardAddress: openStake }],
+    });
+    const propose = (action: Record<string, unknown>) =>
+      emulator.simulate(
+        rawTx({
+          delta: GOV_DEPOSIT,
+          body: {
+            voting_proposals: [
+              {
+                anchor,
+                deposit: String(GOV_DEPOSIT),
+                reward_account: openStake,
+                governance_action: action,
+              },
+            ],
+          },
+        }),
+      );
+
+    const stating = rawTx({ body: { current_treasury_value: "1000000000" } });
+    emulator.setTreasury("999");
+    expect((await emulator.simulate(stating)).accepted).toBe(false);
+    emulator.setTreasury("1000000000");
+    expect(
+      warningRules(expectAccepted(await emulator.simulate(stating))),
+    ).not.toContain("NotChecked");
+
+    // A no-confidence motion follows the last enacted action of the committee's purpose
+    emulator.setLastEnacted({
+      transactionId: "a".repeat(64),
+      govActionIndex: 0,
+      kind: GovernanceActionKind.UpdateCommitteeAction,
+    });
+    const noConfidenceAfter = (transactionId: string) =>
+      propose({
+        type: "NO_CONFIDENCE_ACTION",
+        value: { gov_action_id: { transaction_id: transactionId, index: 0 } },
+      });
+    expectAccepted(await noConfidenceAfter("a".repeat(64)));
+    expect((await noConfidenceAfter("b".repeat(64))).accepted).toBe(false);
+
+    // The proposal names the open script, which the transaction carries
+    const guardrailed = () =>
+      propose({
+        type: "PARAMETER_CHANGE_ACTION",
+        value: {
+          policy_hash: openHash,
+          protocol_param_updates: { max_tx_size: 16385 },
+        },
+      });
+    const constitution = (guardrailScriptHash: string) => ({
+      anchor: {
+        anchorUrl: "https://example.com/c.json",
+        anchorDataHash: "cd".repeat(32),
+      },
+      guardrailScriptHash,
+    });
+    emulator.setConstitution(constitution("12".repeat(28)));
+    expect(rules(await guardrailed())).toEqual([
+      "InvalidConstitutionPolicyHash",
+    ]);
+    emulator.setConstitution(constitution(openHash));
+    expectAccepted(await guardrailed());
+  });
+
+  it("lets a member proposed for the committee act only while a committee update proposes it", async () => {
+    const { emulator } = await setup("cquisitor", {
+      accounts: [{ rewardAddress: openStake }],
+    });
+    // Committee updates adding the open script's cold credential
+    const propose = () =>
+      emulator.submit(
+        rawTx({
+          ...nextOpen(emulator),
+          delta: GOV_DEPOSIT,
+          body: {
+            voting_proposals: [
+              {
+                anchor,
+                deposit: String(GOV_DEPOSIT),
+                reward_account: openStake,
+                governance_action: {
+                  type: "UPDATE_COMMITTEE_ACTION",
+                  value: {
+                    committee: {
+                      members: [
+                        {
+                          stake_credential: openCredential,
+                          term_limit: BigInt(emulator.epoch + 50),
+                        },
+                      ],
+                      quorum_threshold: { numerator: "1", denominator: "2" },
+                    },
+                    members_to_remove: [],
+                  },
+                },
+              },
+            ],
+          },
+        }),
+      );
+    const authorise = () =>
+      emulator.simulate(
+        rawTx({
+          ...nextOpen(emulator),
+          body: {
+            certs: [
+              {
+                type: "COMMITTEE_HOT_AUTH",
+                value: {
+                  committee_cold_credential: openCredential,
+                  committee_hot_credential: {
+                    type: "KEY",
+                    value: "12".repeat(28),
+                  },
+                },
+              },
+            ],
+          },
+        }),
+      );
+    const proposed = async () =>
+      (await emulator.fetchCommitteeState()).some(
+        ({ cold, potential }) =>
+          potential &&
+          cold.type === "ScriptHash" &&
+          cold.scriptHash === openHash,
+      );
+
+    const first = expectAccepted(await propose());
+    expect(await proposed()).toBe(true);
+    expectAccepted(await authorise());
+    emulator.advanceTo({ epoch: emulator.epoch + 3 });
+    const second = expectAccepted(await propose());
+
+    // The first update expires and goes, the second still proposes the member
+    const { expiration } = await emulator.fetchGovernanceProposal(
+      first.txHash,
+      0,
+    );
+    emulator.advanceTo({ epoch: expiration + 1 });
+    await expect(
+      emulator.fetchGovernanceProposal(first.txHash, 0),
+    ).rejects.toThrow("not in the ledger");
+    expect(await proposed()).toBe(true);
+    expectAccepted(await authorise());
+
+    // With no update proposing it any more, the ledger does not know the member
+    emulator.removeGovernanceAction({
+      transactionId: second.txHash,
+      govActionIndex: 0,
+    });
+    expect(await proposed()).toBe(false);
+    expect(rules(await authorise())).toContain("CommitteeIsUnknown");
+  });
+
+  it("checks the fee and size of an unsigned transaction as they will be once signed", async () => {
+    const { wallet, address, funding, pubKeyHash, emulator } =
+      await setup("cquisitor");
+    const { minFeeA, minFeeB } = await emulator.fetchProtocolParameters();
+    // A payment built by hand, its fee worked out from its size
+    const payment = (fee: bigint) =>
+      transactionPrototypeToHex({
+        body: {
+          inputs: [{ transaction_id: funding.input.txHash, index: 0 }],
+          outputs: [
+            { address, amount: { coin: String(10_000_000_000n - fee) } },
+          ],
+          fee: String(fee),
+        },
+        is_valid: true,
+        witness_set: {},
+      } as unknown as TransactionPrototype);
+    const feeFor = (txHex: string) =>
+      BigInt(minFeeA) * BigInt(txHex.length / 2) + BigInt(minFeeB);
+
+    // Enough for the bytes it has, not for the signature it is still to get
+    const unsignedFee = payment(feeFor(payment(200_000n)));
+    expect(
+      rules(await emulator.simulate(unsignedFee, { requireSignatures: false })),
+    ).toEqual(["FeeTooSmallUTxO"]);
+    expect(
+      rules(await emulator.simulate(await wallet.signTx(unsignedFee))),
+    ).toEqual(["FeeTooSmallUTxO"]);
+    const signedFee = payment(feeFor(await wallet.signTx(unsignedFee)));
+    expectAccepted(
+      await emulator.simulate(signedFee, { requireSignatures: false }),
+    );
+    expectAccepted(await emulator.simulate(await wallet.signTx(signedFee)));
+    expectAccepted(
+      await emulator.simulate(await wallet.signTx(signedFee), {
+        requireSignatures: false,
+      }),
+    );
+
+    // The key a native script needs counts as a signature still to come
+    const script: NativeScript = { type: "sig", keyHash: pubKeyHash };
+    const locked: UTxO = {
+      input: outRef(5),
+      output: {
+        address: resolveNativeScriptAddress(script, 1),
+        amount: lovelace("50000000"),
+      },
+    };
+    const scripted = await TxEmulator.create({
+      validator: "cquisitor",
+      utxos: [locked],
+    });
+    const spend = (fee: bigint) =>
+      transactionPrototypeToHex({
+        body: {
+          inputs: [{ transaction_id: locked.input.txHash, index: 0 }],
+          outputs: [{ address, amount: { coin: String(50_000_000n - fee) } }],
+          fee: String(fee),
+        },
+        is_valid: true,
+        witness_set: {
+          native_scripts: [
+            { type: "SCRIPT_PUBKEY", value: { addr_keyhash: pubKeyHash } },
+          ],
+        },
+      } as unknown as TransactionPrototype);
+    const scriptFee = spend(feeFor(spend(200_000n)));
+    expect(
+      rules(await scripted.simulate(scriptFee, { requireSignatures: false })),
+    ).toEqual(["FeeTooSmallUTxO"]);
+    expectAccepted(
+      await scripted.simulate(
+        spend(feeFor(await wallet.signTx(scriptFee, true))),
+        { requireSignatures: false },
+      ),
+    );
+
+    // Within the size limit only unsigned
+    const strict = await TxEmulator.create({
+      validator: "cquisitor",
+      utxos: [funding],
+      params: { maxTxSize: signedFee.length / 2 },
+    });
+    const tooBig = await strict.simulate(signedFee, {
+      requireSignatures: false,
+    });
+    expect(rules(tooBig)).toEqual(["MaxTxSizeUTxO"]);
+    expect(!tooBig.accepted && tooBig.errors[0]!.message).toContain(
+      "once signed",
+    );
+  });
+
+  it("reports a governance action closed to votes as expired, to a ledger read from it too", async () => {
+    const { emulator } = await setup("cquisitor", {
+      accounts: [{ rewardAddress: openStake }],
+      dreps: [{ drepId: openDRep }],
+    });
+    const voteOn = (txHash: string) =>
+      rawTx({
+        ...nextOpen(emulator),
+        body: {
+          voting_procedures: [
+            {
+              voter: { type: "DREP", value: openCredential },
+              votes: [
+                {
+                  action_id: { transaction_id: txHash, index: 0 },
+                  voting_procedure: { vote: { type: "YES" } },
+                },
+              ],
+            },
+          ],
+        },
+      });
+    const proposal = expectAccepted(
+      await emulator.submit(
+        rawTx({
+          delta: GOV_DEPOSIT,
+          body: {
+            voting_proposals: [
+              {
+                anchor,
+                deposit: String(GOV_DEPOSIT),
+                reward_account: openStake,
+                governance_action: { type: "INFO_ACTION" },
+              },
+            ],
+          },
+        }),
+      ),
+    );
+    emulator.setGovernanceAction({
+      transactionId: proposal.txHash,
+      govActionIndex: 0,
+      kind: GovernanceActionKind.InfoAction,
+      active: false,
+    });
+    const vote = voteOn(proposal.txHash);
+    expect(rules(await emulator.simulate(vote))).toEqual([
+      "VotingOnExpiredGovAction",
+    ]);
+    expect(
+      (await emulator.fetchGovernanceProposal(proposal.txHash, 0)).expiredEpoch,
+    ).toBe(emulator.epoch);
+
+    const copy = await TxEmulator.fromChain(vote, {
+      validator: "cquisitor",
+      fetcher: emulator,
+    });
+    const result = await copy.simulate(vote);
+    expect(rules(result)).toEqual(["VotingOnExpiredGovAction"]);
+    expect(warningRules(result)).not.toContain("NotChecked");
+
+    // One closed with no lifetime stays in the copy as long as here
+    const closed = "e".repeat(64);
+    emulator.setGovernanceAction({
+      transactionId: closed,
+      govActionIndex: 0,
+      kind: GovernanceActionKind.InfoAction,
+      active: false,
+    });
+    const late = voteOn(closed);
+    const lateCopy = await TxEmulator.fromChain(late, {
+      validator: "cquisitor",
+      fetcher: emulator,
+    });
+    lateCopy.advanceTo({ epoch: lateCopy.epoch + 2 });
+    expect(rules(await lateCopy.simulate(late))).toEqual([
+      "VotingOnExpiredGovAction",
+    ]);
+  });
+
+  it("takes a parameter change whose parameters are not given as one stake pools vote on, and says so", async () => {
+    const operator = await walletKeyHash;
+    const actionHash = "e".repeat(64);
+    const action = {
+      transactionId: actionHash,
+      govActionIndex: 0,
+      kind: GovernanceActionKind.ParameterChangeAction,
+    };
+    const { emulator, pubKeyHash, sign } = await setup("cquisitor", {
+      pools: [{ poolId: operator }],
+      governance: { actions: [action] },
+    });
+    const vote = await sign(
+      rawTx({
+        body: {
+          voting_procedures: [
+            {
+              voter: { type: "STAKING_POOL", value: pubKeyHash },
+              votes: [
+                {
+                  action_id: { transaction_id: actionHash, index: 0 },
+                  voting_procedure: { vote: { type: "YES" } },
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+    const unknownParameters = expect.objectContaining({
+      rule: "NotChecked",
+      message: expect.stringContaining("Which parameters"),
+    });
+
+    expect(
+      expectAccepted(await emulator.simulate(vote)).warnings,
+    ).toContainEqual(unknownParameters);
+    const copy = await TxEmulator.fromChain(vote, {
+      validator: "cquisitor",
+      fetcher: emulator,
+    });
+    expect(expectAccepted(await copy.simulate(vote)).warnings).toContainEqual(
+      unknownParameters,
+    );
+
+    // Once they are given, they are checked
+    emulator.setGovernanceAction({
+      ...action,
+      changedParameters: ["collateralPercentage"],
+    });
+    expect(rules(await emulator.simulate(vote))).toContain("DisallowedVoters");
+  });
+});
+
+describe.each(["scalus", "cquisitor"] as const)(
+  "TxEmulator.fromChain (%s)",
+  (validator) => {
+    /** A provider that is only an `IFetcher`, reading another emulator */
+    const plainFetcher = (chain: TxEmulator): IFetcher => {
+      const hidden = new Set([
+        "fetchDRepState",
+        "fetchCommitteeState",
+        "fetchLastEnactedGovernanceActions",
+        "fetchTreasury",
+        "fetchConstitution",
+        "fetchPoolState",
+      ]);
+      return new Proxy(chain, {
+        get: (target, property) => {
+          if (hidden.has(String(property))) return undefined;
+          if (property === "fetchAccountInfo")
+            // Without the DRep delegation, which a plain provider may not report
+            return async (address: string) => {
+              const { drep, ...info } = await target.fetchAccountInfo(address);
+              void drep;
+              return info;
+            };
+          const value = (target as any)[property];
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      }) as unknown as IFetcher;
+    };
+
+    it("checks the transaction validity interval at the source chain slot", async () => {
+      const { emulator: chain } = await setup(validator);
+      const slot = chain.advanceTo({ slot: chain.slot + 1000 });
+      const tx = rawTx({ body: { validity_start_interval: slot - 1 } });
+      expectAccepted(await chain.simulate(tx));
+
+      const snapshot = await TxEmulator.fromChain(tx, {
+        validator,
+        fetcher: chain,
+      });
+
+      expect(snapshot.slot).toBe(slot);
+      expectAccepted(await snapshot.simulate(tx));
+    });
+
+    it("uses the provider's latest block slot and honors an explicit override", async () => {
+      const { emulator: chain } = await setup(validator);
+      const fetchLatestBlock = jest.fn(async () => ({ slot: "1000" }));
+      const provider = plainFetcher(chain);
+      const fetcher = new Proxy(provider, {
+        has: (target, property) =>
+          property !== "slot" && Reflect.has(target, property),
+        get: (target, property, receiver) =>
+          property === "fetchLatestBlock"
+            ? fetchLatestBlock
+            : Reflect.get(target, property, receiver),
+      });
+      const tx = rawTx({});
+
+      expect(
+        (await TxEmulator.fromChain(tx, { validator, fetcher })).slot,
+      ).toBe(1000);
+      expect(fetchLatestBlock).toHaveBeenCalledTimes(1);
+
+      const overridden = await TxEmulator.fromChain(tx, {
+        validator,
+        fetcher,
+        slot: 0,
+      });
+      expect(overridden.slot).toBe(0);
+      expect(fetchLatestBlock).toHaveBeenCalledTimes(1);
+    });
+
+    it("finds the outputs it read as transactions of its starting slot", async () => {
+      const { emulator: chain, next, open } = await setup(validator);
+      const tx = await next().complete();
+
+      const emulator = await TxEmulator.fromChain(tx, {
+        validator,
+        fetcher: chain,
+      });
+
+      expect(await emulator.fetchTxInfo(open.input.txHash)).toMatchObject({
+        slot: String(emulator.slot),
+        blockHeight: emulator.slot,
+        validContract: true,
+        outputs: [open],
+      });
+      expectAccepted(await emulator.submit(tx));
+      expect((await emulator.fetchTxInfo(txHashOf(tx))).validContract).toBe(
+        true,
+      );
+    });
+
+    it("checks a transaction against the state a full provider reports", async () => {
+      const { emulator: chain, next } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake, rewards: "7000000" }],
+        pools: [{ poolId: poolHash }],
+      });
+      const tx = await next()
+        .withdrawal(openStake, "7000000")
+        .withdrawalScript(openScriptHex)
+        .delegateStakeCertificate(openStake, poolHash)
+        .certificateScript(openScriptHex)
+        .complete();
+
+      const emulator = await TxEmulator.fromChain(tx, {
+        validator,
+        fetcher: chain,
+      });
+
+      expect((await emulator.fetchAccountInfo(openStake)).rewards).toBe(
+        "7000000",
+      );
+      const result = expectAccepted(await emulator.simulate(tx));
+      expect(warningRules(result)).not.toContain("NotChecked");
+    });
+
+    it("takes what a plain IFetcher cannot report as the transaction needs it, and says so", async () => {
+      const { emulator: chain, next } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake }],
+        pools: [{ poolId: poolHash }],
+      });
+      const delegation = await next()
+        .delegateStakeCertificate(openStake, poolHash)
+        .certificateScript(openScriptHex)
+        .complete();
+
+      const emulator = await TxEmulator.fromChain(delegation, {
+        validator,
+        fetcher: plainFetcher(chain),
+      });
+
+      const result = expectAccepted(await emulator.simulate(delegation));
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          rule: "NotChecked",
+          message: expect.stringContaining(poolId),
+        }),
+      );
+      await expect(emulator.fetchPoolState(poolHash)).rejects.toThrow(
+        "not known",
+      );
+    });
+
+    it("leaves DRep delegations a provider does not report unchecked", async () => {
+      const {
+        emulator: base,
+        stake,
+        sign,
+        address,
+        funding,
+        builder,
+      } = await setup(validator);
+      const chain = await TxEmulator.create({
+        validator,
+        utxos: base.utxos(),
+        accounts: [
+          { rewardAddress: stake, rewards: "7000000", drep: "alwaysAbstain" },
+        ],
+      });
+      const withdrawal = await sign(
+        await builder()
+          .withdrawal(stake, "7000000")
+          .changeAddress(address)
+          .selectUtxosFrom([funding])
+          .complete(),
+      );
+
+      const emulator = await TxEmulator.fromChain(withdrawal, {
+        validator,
+        fetcher: plainFetcher(chain),
+      });
+
+      const result = expectAccepted(await emulator.simulate(withdrawal));
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          rule: "NotChecked",
+          message: expect.stringContaining("DRep delegation"),
+        }),
+      );
+    });
+
+    it("reads governance state from a separate provider", async () => {
+      const { emulator: chain, next } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake }],
+        dreps: [{ drepId: openDRep }],
+      });
+      const delegation = await next()
+        .voteDelegationCertificate({ dRepId: openDRep }, openStake)
+        .certificateScript(openScriptHex)
+        .complete();
+
+      const blind = await TxEmulator.fromChain(delegation, {
+        validator,
+        fetcher: plainFetcher(chain),
+      });
+      expect(
+        expectAccepted(await blind.simulate(delegation)).warnings,
+      ).toContainEqual(
+        expect.objectContaining({
+          rule: "NotChecked",
+          message: expect.stringContaining(openDRep),
+        }),
+      );
+
+      const informed = await TxEmulator.fromChain(delegation, {
+        validator,
+        fetcher: plainFetcher(chain),
+        governance: chain,
+      });
+      expect(
+        warningRules(expectAccepted(await informed.simulate(delegation))),
+      ).not.toContain("NotChecked");
+      expect((await informed.fetchDRepState(openDRep)).registered).toBe(true);
+    });
+
+    it("checks state set after reading the chain", async () => {
+      const { emulator: chain, next } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake }],
+        pools: [{ poolId: poolHash }],
+      });
+      const delegation = await next()
+        .delegateStakeCertificate(openStake, poolHash)
+        .certificateScript(openScriptHex)
+        .complete();
+      const emulator = await TxEmulator.fromChain(delegation, {
+        validator,
+        fetcher: plainFetcher(chain),
+      });
+
+      emulator.setPool({ poolId: poolHash });
+      expect(
+        warningRules(expectAccepted(await emulator.simulate(delegation))),
+      ).not.toContain("NotChecked");
+      if (validator === "cquisitor") {
+        emulator.removePool(poolHash);
+        expect(rules(await emulator.simulate(delegation))).toContain(
+          "StakePoolNotRegistered",
+        );
+      }
+    });
+
+    it("throws when the outputs or parameters cannot be read", async () => {
+      const { emulator: chain, next } = await setup(validator);
+      const tx = await next().complete();
+      const failing = new Proxy(chain, {
+        get: (target, property) =>
+          property === "fetchUTxOs"
+            ? async () => {
+                throw new Error("provider down");
+              }
+            : ((target as any)[property]?.bind?.(target) ??
+              (target as any)[property]),
+      }) as unknown as IFetcher;
+
+      await expect(
+        TxEmulator.fromChain(tx, { validator, fetcher: failing }),
+      ).rejects.toThrow("provider down");
+    });
+
+    /** A provider answering as another one does, but for the methods given */
+    const view = (
+      provider: IFetcher,
+      methods: Record<string, unknown>,
+    ): IFetcher =>
+      new Proxy(provider, {
+        get: (target, property) => {
+          if (String(property) in methods) return methods[String(property)];
+          const value = (target as any)[property];
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      });
+
+    const notChecked = (subject: string) =>
+      expect.objectContaining({
+        rule: "NotChecked",
+        message: expect.stringContaining(subject),
+      });
+
+    it("takes a proposal to follow the enacted action it names, when the last enacted ones are not known", async () => {
+      const enacted = "a".repeat(64);
+      const { emulator: chain } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake }],
+      });
+      const motion = rawTx({
+        delta: GOV_DEPOSIT,
+        body: {
+          voting_proposals: [
+            {
+              anchor,
+              deposit: String(GOV_DEPOSIT),
+              reward_account: openStake,
+              governance_action: {
+                type: "NO_CONFIDENCE_ACTION",
+                value: { gov_action_id: { transaction_id: enacted, index: 0 } },
+              },
+            },
+          ],
+        },
+      });
+      // The provider reports the action enacted, as indexers do, not the last enacted ones
+      const fetcher = view(plainFetcher(chain), {
+        fetchGovernanceProposal: async (txHash: string, certIndex: number) => ({
+          txHash,
+          certIndex,
+          governanceType: "no_confidence",
+          deposit: Number(GOV_DEPOSIT),
+          returnAddress: openStake,
+          governanceDescription: { tag: "NoConfidence" },
+          ratifiedEpoch: 500,
+          enactedEpoch: 501,
+          droppedEpoch: null,
+          expiredEpoch: null,
+          expiration: 506,
+          metadata: {},
+        }),
+      });
+
+      const emulator = await TxEmulator.fromChain(motion, {
+        validator,
+        fetcher,
+      });
+      expect(
+        expectAccepted(await emulator.simulate(motion)).warnings,
+      ).toContainEqual(notChecked("last enacted committee action"));
+    });
+
+    it("takes a pool registration it cannot read as new or as an update, as the transaction pays", async () => {
+      const operator = await walletKeyHash;
+      const {
+        emulator: chain,
+        pubKeyHash,
+        sign,
+      } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake }],
+        pools: [{ poolId: operator }],
+      });
+      const registration = (deposit: bigint) =>
+        sign(
+          rawTx({
+            delta: deposit,
+            body: {
+              certs: [
+                {
+                  type: "POOL_REGISTRATION",
+                  value: {
+                    pool_params: {
+                      operator: pubKeyHash,
+                      vrf_keyhash: "11".repeat(32),
+                      pledge: "0",
+                      cost: "400000000",
+                      margin: { numerator: "1", denominator: "100" },
+                      reward_account: openStake,
+                      pool_owners: [pubKeyHash],
+                      relays: [],
+                      pool_metadata: null,
+                    },
+                  },
+                },
+              ],
+            },
+          }),
+        );
+      const check = async (txHex: string) =>
+        (
+          await TxEmulator.fromChain(txHex, {
+            validator,
+            fetcher: plainFetcher(chain),
+          })
+        ).simulate(txHex);
+
+      // An update of the pool, paying no deposit
+      const update = await check(await registration(0n));
+      expect(update.warnings).toContainEqual(
+        notChecked(Cardano.PoolId.fromKeyHash(operator as never).toString()),
+      );
+      expectAccepted(update);
+      // A registration paying the deposit, taken to be of a new pool
+      expectAccepted(await check(await registration(500_000_000n)));
+    });
+
+    it("knows the governance actions proposed on it", async () => {
+      const operator = await walletKeyHash;
+      const {
+        emulator: chain,
+        pubKeyHash,
+        sign,
+      } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake }],
+      });
+      const treasuryWithdrawal = rawTx({
+        delta: GOV_DEPOSIT,
+        body: {
+          voting_proposals: [
+            {
+              anchor,
+              deposit: String(GOV_DEPOSIT),
+              reward_account: openStake,
+              governance_action: {
+                type: "TREASURY_WITHDRAWALS_ACTION",
+                value: { withdrawals: { [openStake]: "1000000" } },
+              },
+            },
+          ],
+        },
+      });
+      const emulator = await TxEmulator.fromChain(treasuryWithdrawal, {
+        validator,
+        fetcher: chain,
+      });
+      const proposal = expectAccepted(
+        await emulator.submit(treasuryWithdrawal),
+      );
+      expect(
+        await emulator.fetchGovernanceProposal(proposal.txHash, 0),
+      ).toMatchObject({
+        governanceType: GovernanceActionKind.TreasuryWithdrawalsAction,
+      });
+
+      // Stake pools do not vote on treasury withdrawals
+      emulator.setPool({ poolId: operator });
+      const vote = await emulator.simulate(
+        await sign(
+          rawTx({
+            ...nextOpen(emulator),
+            body: {
+              voting_procedures: [
+                {
+                  voter: { type: "STAKING_POOL", value: pubKeyHash },
+                  votes: [
+                    {
+                      action_id: { transaction_id: proposal.txHash, index: 0 },
+                      voting_procedure: { vote: { type: "YES" } },
+                    },
+                  ],
+                },
+              ],
+            },
+          }),
+        ),
+      );
+      expect(warningRules(vote)).not.toContain("NotChecked");
+      if (validator === "cquisitor")
+        expect(rules(vote)).toContain("DisallowedVoters");
+    });
+
+    it("takes an action a provider gives no epoch of as open, and says so", async () => {
+      const live = "e".repeat(64);
+      const pending = "f".repeat(64);
+      const { emulator: chain } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake }],
+        dreps: [{ drepId: openDRep }],
+      });
+      // Some providers write 0 for every epoch of an action, however far it got, so whether it
+      // is still open is not known
+      const fetcher = view(chain, {
+        fetchGovernanceProposal: async (txHash: string, certIndex: number) => ({
+          txHash,
+          certIndex,
+          governanceType:
+            txHash === live ? "INFO_ACTION" : "PARAMETER_CHANGE_ACTION",
+          deposit: Number(GOV_DEPOSIT),
+          returnAddress: openStake,
+          governanceDescription: "https://example.com/a.json",
+          ratifiedEpoch: 0,
+          enactedEpoch: 0,
+          droppedEpoch: 0,
+          expiredEpoch: 0,
+          expiration: 0,
+          metadata: {},
+        }),
+      });
+      const vote = rawTx({
+        body: {
+          voting_procedures: [
+            {
+              voter: { type: "DREP", value: openCredential },
+              votes: [
+                {
+                  action_id: { transaction_id: live, index: 0 },
+                  voting_procedure: { vote: { type: "YES" } },
+                },
+              ],
+            },
+          ],
+        },
+      });
+      const following = rawTx({
+        delta: GOV_DEPOSIT,
+        body: {
+          voting_proposals: [
+            {
+              anchor,
+              deposit: String(GOV_DEPOSIT),
+              reward_account: openStake,
+              governance_action: {
+                type: "PARAMETER_CHANGE_ACTION",
+                value: {
+                  gov_action_id: { transaction_id: pending, index: 0 },
+                  protocol_param_updates: { max_tx_size: 16385 },
+                },
+              },
+            },
+          ],
+        },
+      });
+
+      const voted = expectAccepted(
+        await (
+          await TxEmulator.fromChain(vote, { validator, fetcher })
+        ).simulate(vote),
+      );
+      expect(voted.warnings).toContainEqual(
+        notChecked(`Whether governance action ${live}#0 is still open`),
+      );
+      const followed = expectAccepted(
+        await (
+          await TxEmulator.fromChain(following, { validator, fetcher })
+        ).simulate(following),
+      );
+      expect(followed.warnings).toContainEqual(
+        notChecked(`Whether governance action ${pending}#0 is still pending`),
+      );
+    });
+
+    it("reads the epochs of a provider that reports them, 0 standing for a step not taken", async () => {
+      const live = "e".repeat(64);
+      const expired = "f".repeat(64);
+      const { emulator: chain } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake }],
+        dreps: [{ drepId: openDRep }],
+      });
+      // The expiration every action has, and 0 for the steps it has not taken
+      const fetcher = view(chain, {
+        fetchGovernanceProposal: async (txHash: string, certIndex: number) => ({
+          txHash,
+          certIndex,
+          governanceType: "INFO_ACTION",
+          deposit: Number(GOV_DEPOSIT),
+          returnAddress: openStake,
+          governanceDescription: "",
+          ratifiedEpoch: 0,
+          enactedEpoch: 0,
+          droppedEpoch: 0,
+          expiredEpoch: txHash === expired ? chain.epoch - 1 : 0,
+          expiration: txHash === expired ? chain.epoch - 1 : chain.epoch + 6,
+          metadata: {},
+        }),
+      });
+      const voteOn = (txHash: string) =>
+        rawTx({
+          body: {
+            voting_procedures: [
+              {
+                voter: { type: "DREP", value: openCredential },
+                votes: [
+                  {
+                    action_id: { transaction_id: txHash, index: 0 },
+                    voting_procedure: { vote: { type: "YES" } },
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      const check = async (tx: string) =>
+        (await TxEmulator.fromChain(tx, { validator, fetcher })).simulate(tx);
+
+      const open = expectAccepted(await check(voteOn(live)));
+      expect(warningRules(open)).not.toContain("NotChecked");
+      // Scalus does not check governance
+      const closed = await check(voteOn(expired));
+      if (validator === "cquisitor")
+        expect(rules(closed)).toEqual(["VotingOnExpiredGovAction"]);
+      else
+        expect(warningRules(expectAccepted(closed))).not.toContain(
+          "NotChecked",
+        );
+    });
+
+    it("knows only the committee member or the purpose set after reading the chain", async () => {
+      const action = "e".repeat(64);
+      const keyHash = (byte: string) => ({
+        type: "KeyHash" as const,
+        keyHash: byte.repeat(28),
+      });
+      const { emulator: chain } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake }],
+        governance: {
+          actions: [
+            {
+              transactionId: action,
+              govActionIndex: 0,
+              kind: GovernanceActionKind.InfoAction,
+            },
+          ],
+          committee: [
+            { cold: keyHash("c1"), hot: keyHash("a1"), resigned: false },
+            {
+              cold: keyHash("c2"),
+              hot: { type: "ScriptHash", scriptHash: openHash },
+              resigned: false,
+            },
+          ],
+          lastEnacted: [
+            {
+              transactionId: "a".repeat(64),
+              govActionIndex: 0,
+              kind: GovernanceActionKind.NoConfidenceAction,
+            },
+            {
+              transactionId: "b".repeat(64),
+              govActionIndex: 0,
+              kind: GovernanceActionKind.ParameterChangeAction,
+            },
+          ],
+        },
+      });
+
+      // The second member votes; the first is set, the second stays unknown
+      const vote = rawTx({
+        body: {
+          voting_procedures: [
+            {
+              voter: {
+                type: "CONSTITUTIONAL_COMMITTEE_HOT_CRED",
+                value: openCredential,
+              },
+              votes: [
+                {
+                  action_id: { transaction_id: action, index: 0 },
+                  voting_procedure: { vote: { type: "YES" } },
+                },
+              ],
+            },
+          ],
+        },
+      });
+      const voting = await TxEmulator.fromChain(vote, {
+        validator,
+        fetcher: plainFetcher(chain),
+      });
+      voting.setCommitteeMember({ cold: keyHash("c1"), hot: keyHash("a1") });
+      expect(
+        expectAccepted(await voting.simulate(vote)).warnings,
+      ).toContainEqual(notChecked("committee member voting"));
+      await expect(voting.fetchCommitteeState()).rejects.toThrow("not known");
+
+      // A no-confidence motion naming no action, though one of its purpose was enacted; the
+      // last enacted parameter change is set, that of the committee stays unknown
+      const motion = rawTx({
+        delta: GOV_DEPOSIT,
+        body: {
+          voting_proposals: [
+            {
+              anchor,
+              deposit: String(GOV_DEPOSIT),
+              reward_account: openStake,
+              governance_action: { type: "NO_CONFIDENCE_ACTION", value: {} },
+            },
+          ],
+        },
+      });
+      const proposing = await TxEmulator.fromChain(motion, {
+        validator,
+        fetcher: plainFetcher(chain),
+      });
+      proposing.setLastEnacted({
+        transactionId: "b".repeat(64),
+        govActionIndex: 0,
+        kind: GovernanceActionKind.ParameterChangeAction,
+      });
+      expect(
+        expectAccepted(await proposing.simulate(motion)).warnings,
+      ).toContainEqual(notChecked("last enacted committee action"));
+    });
+
+    it("takes the state each transaction needs that it does not know, not only the first", async () => {
+      const { emulator: base, stake, sign } = await setup(validator);
+      const chain = await TxEmulator.create({
+        validator,
+        utxos: base.utxos(),
+        accounts: [
+          { rewardAddress: openStake },
+          { rewardAddress: stake, rewards: "7000000", drep: "alwaysAbstain" },
+        ],
+        pools: [{ poolId: poolHash }],
+        dreps: [{ drepId: openDRep, deposit: "400000000" }],
+      });
+      // Read for a payment, which touches no stake address, pool or DRep
+      const emulator = await TxEmulator.fromChain(rawTx({}), {
+        validator,
+        fetcher: chain,
+      });
+      const withdrawal = await sign(
+        rawTx({
+          delta: -7_000_000n,
+          body: { withdrawals: { [stake]: "7000000" } },
+        }),
+      );
+      const delegation = rawTx({
+        body: {
+          certs: [
+            {
+              type: "STAKE_DELEGATION",
+              value: {
+                stake_credential: openCredential,
+                pool_keyhash: poolHash,
+              },
+            },
+          ],
+        },
+      });
+      // Reclaiming a deposit other than the current one
+      const leaving = rawTx({
+        delta: -400_000_000n,
+        body: {
+          certs: [
+            {
+              type: "DREP_DEREGISTRATION",
+              value: { voting_credential: openCredential, coin: "400000000" },
+            },
+          ],
+        },
+      });
+
+      for (const tx of [withdrawal, delegation, leaving])
+        expect(
+          warningRules(expectAccepted(await emulator.simulate(tx))),
+        ).toContain("NotChecked");
+
+      // Applied too, on the state taken for it
+      const applied = expectAccepted(await emulator.submit(withdrawal));
+      expect(emulator.utxos({ txHash: outRef(2).txHash })).toHaveLength(0);
+      expect(emulator.utxos({ txHash: applied.txHash })).toHaveLength(1);
+    });
+
+    it("tells a DRep delegation it does not know from none, as a provider for another ledger", async () => {
+      const {
+        emulator: base,
+        stake,
+        sign,
+        address,
+        funding,
+        builder,
+      } = await setup(validator);
+      const withAccount = (drep?: string) =>
+        TxEmulator.create({
+          validator,
+          utxos: base.utxos(),
+          accounts: [{ rewardAddress: stake, rewards: "7000000", drep }],
+        });
+      const withdrawal = await sign(
+        await builder()
+          .withdrawal(stake, "7000000")
+          .changeAddress(address)
+          .selectUtxosFrom([funding])
+          .complete(),
+      );
+
+      // Read through a provider that does not report delegations, the delegation is not known,
+      // and stays so for a ledger read from that one
+      const first = await TxEmulator.fromChain(withdrawal, {
+        validator,
+        fetcher: plainFetcher(await withAccount("alwaysAbstain")),
+      });
+      expect((await first.fetchAccountInfo(stake)).drep).toBeUndefined();
+      const second = await TxEmulator.fromChain(withdrawal, {
+        validator,
+        fetcher: first,
+      });
+      expect(
+        expectAccepted(await second.simulate(withdrawal)).warnings,
+      ).toContainEqual(notChecked("DRep delegation"));
+
+      // One known to be none is reported, and checked
+      const undelegated = await withAccount();
+      expect((await undelegated.fetchAccountInfo(stake)).drep).toBeNull();
+      const result = await (
+        await TxEmulator.fromChain(withdrawal, {
+          validator,
+          fetcher: undelegated,
+        })
+      ).simulate(withdrawal);
+      expect(warningRules(result)).not.toContain("NotChecked");
+      // Scalus does not check DRep delegations (see the README)
+      if (validator === "cquisitor")
+        expect(rules(result)).toContain(
+          "WithdrawalNotAllowedBecauseNotDelegatedToDRep",
+        );
+    });
+
+    it("pays a retiring pool's deposit back to the stake address the provider reports for it", async () => {
+      const { emulator: chain, next } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake }],
+      });
+      const retirementEpoch = chain.epoch + 1;
+      chain.setPool({
+        poolId: poolHash,
+        rewardAddress: openStake,
+        retirementEpoch,
+      });
+      expect((await chain.fetchPoolState(poolHash)).rewardAddress).toBe(
+        openStake,
+      );
+      // A transaction reading the pool and its stake address
+      const delegation = await next()
+        .delegateStakeCertificate(openStake, poolHash)
+        .certificateScript(openScriptHex)
+        .complete();
+      const emulator = await TxEmulator.fromChain(delegation, {
+        validator,
+        fetcher: chain,
+      });
+
+      expectAccepted(await emulator.submit(delegation));
+      emulator.advanceTo({ epoch: retirementEpoch });
+      expect((await emulator.fetchAccountInfo(openStake)).rewards).toBe(
+        "500000000",
+      );
+      expectAccepted(
+        await emulator.simulate(
+          rawTx({
+            ...nextOpen(emulator),
+            delta: -500_000_000n,
+            body: { withdrawals: { [openStake]: "500000000" } },
+          }),
+        ),
+      );
+    });
+
+    it("takes a stake address or DRep a transaction deregisters, then registers again, as registered before", async () => {
+      const { emulator: chain, next } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake }],
+        dreps: [{ drepId: openDRep }],
+      });
+      // A provider that cannot read stake addresses or DReps
+      const blind = view(chain, {
+        fetchAccountInfo: async () => {
+          throw new Error("not available");
+        },
+        fetchDRepState: async () => {
+          throw new Error("not available");
+        },
+      });
+      const account = await next()
+        .deregisterStakeCertificate(openStake)
+        .certificateScript(openScriptHex)
+        .registerStakeCertificate(openStake)
+        .certificateScript(openScriptHex)
+        .complete();
+      const drep = await next()
+        .drepDeregistrationCertificate(openDRep, "500000000")
+        .certificateScript(openScriptHex)
+        .drepRegistrationCertificate(openDRep, undefined, "500000000")
+        .certificateScript(openScriptHex)
+        .complete();
+
+      for (const tx of [account, drep]) {
+        expectAccepted(await chain.simulate(tx));
+        const emulator = await TxEmulator.fromChain(tx, {
+          validator,
+          fetcher: blind,
+        });
+        expect(
+          warningRules(expectAccepted(await emulator.simulate(tx))),
+        ).toContain("NotChecked");
+      }
+    });
+
+    it("takes a deposit the provider does not report as the transaction reclaims it, and says so", async () => {
+      // Registered when the deposit was 5 ADA
+      const { emulator: chain } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake, deposit: "5000000" }],
+      });
+      const unreported = view(chain, {
+        fetchAccountInfo: async (address: string) => {
+          const { deposit, ...info } = await chain.fetchAccountInfo(address);
+          void deposit;
+          return info;
+        },
+      });
+      const leaving = rawTx({
+        delta: -5_000_000n,
+        body: {
+          certs: [
+            {
+              type: "STAKE_DEREGISTRATION",
+              value: { stake_credential: openCredential },
+            },
+          ],
+        },
+      });
+
+      const result = await (
+        await TxEmulator.fromChain(leaving, { validator, fetcher: unreported })
+      ).simulate(leaving);
+      expect(result.warnings).toContainEqual(
+        notChecked(`The deposit of ${openStake}`),
+      );
+      // Scalus takes the deposit to be the current one (see the README)
+      if (validator === "cquisitor") expectAccepted(result);
+    });
+
+    it("takes what a provider reports in a form it cannot read as not known", async () => {
+      const { emulator: chain, next } = await setup(validator, {
+        accounts: [{ rewardAddress: openStake, drep: "alwaysAbstain" }],
+        dreps: [{ drepId: openDRep }],
+      });
+      const delegation = await next()
+        .voteDelegationCertificate({ dRepId: openDRep }, openStake)
+        .certificateScript(openScriptHex)
+        .complete();
+      // A DRep spelt as an indexer's own API spells it
+      const odd = view(chain, {
+        fetchAccountInfo: async (address: string) => ({
+          ...(await chain.fetchAccountInfo(address)),
+          drep: "drep_always_abstain",
+        }),
+      });
+
+      const emulator = await TxEmulator.fromChain(delegation, {
+        validator,
+        fetcher: odd,
+      });
+      expect(
+        expectAccepted(await emulator.simulate(delegation)).warnings,
+      ).toContainEqual(notChecked("could not be read"));
+    });
+  },
+);

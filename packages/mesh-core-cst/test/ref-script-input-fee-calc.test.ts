@@ -1,6 +1,17 @@
-import { MeshTxBuilderBody } from "@meshsdk/common";
+import {
+  DEFAULT_PROTOCOL_PARAMETERS,
+  MeshTxBuilderBody,
+} from "@meshsdk/common";
 import { MeshTxBuilder } from "@meshsdk/core";
-import { CardanoSDKSerializer, Transaction, TxCBOR } from "@meshsdk/core-cst";
+import {
+  calculateFees,
+  CardanoSDKSerializer,
+  Ed25519PublicKeyHex,
+  Ed25519SignatureHex,
+  Serialization,
+  Transaction,
+  TxCBOR,
+} from "@meshsdk/core-cst";
 
 describe("Ref script inputs", () => {
   it("Basic ref script inputs should be included in fees", async () => {
@@ -125,6 +136,33 @@ describe("Ref script inputs", () => {
 
     const txHex = await new MeshTxBuilder().complete(body);
     const cardanoTx = Transaction.fromCbor(TxCBOR(txHex));
-    expect(cardanoTx.body().fee()).toBeGreaterThanOrEqual(BigInt("628587"));
+    // Not below the minimum fee of the transaction once its one key has signed: a witness
+    // of that size stands in for the signature
+    const signed = Transaction.fromCbor(TxCBOR(txHex));
+    const witnessSet = signed.witnessSet();
+    witnessSet.setVkeys(
+      Serialization.CborSet.fromCore(
+        [
+          new Serialization.VkeyWitness(
+            Ed25519PublicKeyHex("11".repeat(32)),
+            Ed25519SignatureHex("22".repeat(64)),
+          ).toCore(),
+        ],
+        Serialization.VkeyWitness.fromCore,
+      ),
+    );
+    signed.setWitnessSet(witnessSet);
+    const params = DEFAULT_PROTOCOL_PARAMETERS;
+    expect(cardanoTx.body().fee()).toBeGreaterThanOrEqual(
+      calculateFees(
+        params.minFeeA,
+        params.minFeeB,
+        params.minFeeRefScriptCostPerByte,
+        params.priceMem,
+        params.priceStep,
+        signed,
+        6069 + 396 + 1120,
+      ),
+    );
   });
 });

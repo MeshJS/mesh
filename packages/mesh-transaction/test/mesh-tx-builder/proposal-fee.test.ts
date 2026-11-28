@@ -1,9 +1,11 @@
 import {
   applyCborEncoding,
+  DEFAULT_PROTOCOL_PARAMETERS,
   GovernanceAction,
   MeshTxBuilder,
 } from "@meshsdk/core";
-import { Transaction } from "@meshsdk/core-cst";
+import { Transaction, transactionPrototypeFromHex } from "@meshsdk/core-cst";
+import { minFee } from "@meshsdk/transaction";
 
 const PlutusV1CostModels = [
   100788, 420, 1, 1, 1000, 173, 0, 1, 1000, 59957, 4, 1, 11183, 32, 201305,
@@ -225,6 +227,15 @@ describe("mesh-scalus-emulator", () => {
       .complete();
 
     const tx = Transaction.fromCbor(txHex);
-    expect(tx.body().fee().valueOf()).toBeGreaterThan(900000);
+    expect(tx.body().proposalProcedures()?.size()).toBe(1);
+    const [redeemer] = tx.witnessSet().redeemers()!.values();
+    expect([redeemer!.tag(), Number(redeemer!.index())]).toEqual([5, 0]);
+    // Not below the minimum fee of the transaction once its key has signed
+    expect(tx.body().fee()).toBeGreaterThanOrEqual(
+      minFee(transactionPrototypeFromHex(txHex), {
+        params: DEFAULT_PROTOCOL_PARAMETERS,
+        vkeyWitnesses: 1,
+      }),
+    );
   });
 });

@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/scalus-emulator",
-  "version": "1.9.1",
+  "version": "1.9.2",
   "description": "Scalus emulator utilities for Mesh SDK",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
@@ -28,8 +28,8 @@
     "test:package": "node --test test/package.test.mjs"
   },
   "dependencies": {
-    "@meshsdk/common": "1.9.1",
-    "@meshsdk/core-cst": "1.9.1",
+    "@meshsdk/common": "1.9.2",
+    "@meshsdk/core-cst": "1.9.2",
     "scalus": "^1.5.0"
   },
   "devDependencies": {

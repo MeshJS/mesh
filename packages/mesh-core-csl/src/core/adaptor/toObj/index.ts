@@ -13,6 +13,11 @@ import { collateralTxInToObj, txInToObj } from "./txIn";
 import { voteToObj } from "./vote";
 import { withdrawalToObj } from "./withdrawal";
 
+/**
+ * @deprecated The JSON form of a `MeshTxBuilderBody` for `CSLSerializer.serializeTxBody`,
+ * deprecated with both. A `TransactionPrototype` needs no such step: `serializeTxPrototype` takes
+ * it as it is.
+ */
 export const meshTxBuilderBodyToObj = ({
   inputs,
   outputs,

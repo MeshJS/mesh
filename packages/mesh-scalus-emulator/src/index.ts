@@ -61,7 +61,8 @@ const MESH_TAG: Record<RedeemerBudget["tag"], RedeemerTagType> = {
   Proposing: "PROPOSE",
 };
 
-function toMeshUtxo(utxo: Utxo): MeshUTxO {
+/** A Scalus UTxO as a Mesh one */
+export function toMeshUtxo(utxo: Utxo): MeshUTxO {
   const amount: MeshAsset[] = [
     { unit: "lovelace", quantity: utxo.value.coin.toString() },
     ...utxo.value.assets.map((a) => ({
@@ -81,7 +82,11 @@ function toMeshUtxo(utxo: Utxo): MeshUTxO {
   };
 }
 
-function fromMeshUtxo(utxo: MeshUTxO, lib: typeof import("scalus")): Utxo {
+/** A Mesh UTxO as a Scalus one; `lib` is the loaded `scalus` module */
+export function fromMeshUtxo(
+  utxo: MeshUTxO,
+  lib: typeof import("scalus"),
+): Utxo {
   const { Asset, Utxo, Value } = lib;
   const lovelace = utxo.output.amount.find((a) => a.unit === "lovelace");
   const assets = utxo.output.amount

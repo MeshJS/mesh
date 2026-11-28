@@ -8,6 +8,7 @@ import {
 } from "@meshsdk/common";
 import {
   Address,
+  addVKeyWitnessesToTransaction,
   Bip32PrivateKey,
   buildBaseAddress,
   buildBip32PrivateKey,
@@ -16,7 +17,6 @@ import {
   buildKeys,
   buildRewardAddress,
   Crypto,
-  deserializeTx,
   deserializeTxHash,
   DRep,
   DRepID,
@@ -27,9 +27,7 @@ import {
   HexBlob,
   hexToBech32,
   resolveTxHash,
-  Serialization,
   signData,
-  Transaction,
   VkeyWitness,
 } from "@meshsdk/core-cst";
 
@@ -171,20 +169,13 @@ export class WalletStaticMethods {
     return mnemonic.split(" ");
   }
 
+  /**
+   * The transaction with these vkey witnesses added: in the form of the vkey witness set it
+   * holds, or of its body's inputs when it holds none (with the set tag 258 or without), every
+   * other byte kept, so its hash and the size its fee was priced for stay
+   */
   static addWitnessSets(txHex: string, witnesses: VkeyWitness[]): string {
-    let tx = deserializeTx(txHex);
-    let witnessSet = tx.witnessSet();
-    let witnessSetVkeys = witnessSet.vkeys();
-    let witnessSetVkeysValues: Serialization.VkeyWitness[] = witnessSetVkeys
-      ? [...witnessSetVkeys.values(), ...witnesses]
-      : witnesses;
-    witnessSet.setVkeys(
-      Serialization.CborSet.fromCore(
-        witnessSetVkeysValues.map((vkw) => vkw.toCore()),
-        VkeyWitness.fromCore,
-      ),
-    );
-    return new Transaction(tx.body(), witnessSet, tx.auxiliaryData()).toCbor();
+    return addVKeyWitnessesToTransaction(txHex, witnesses);
   }
 }
 
