@@ -21,6 +21,7 @@ import {
   PlutusDataType,
   PlutusScript,
   Protocol,
+  TransactionPrototype,
   TxInput,
   TxTester,
   UTxO,
@@ -40,6 +41,7 @@ import {
   toNativeScript,
 } from "../deser";
 import { CSLParser } from "../parser";
+import { serializeTxPrototype } from "../tx-prototype";
 import {
   calculateTxHash,
   deserializeBech32Address,
@@ -67,10 +69,24 @@ export class CSLSerializer implements IMeshTxSerializer {
 
   parserTxBody: MeshTxBuilderBody = emptyTxBuilderBody();
 
+  // Marks the class as one of Mesh's serializers, which `MeshTxBuilder` accepts; it holds across
+  // copies of the package and bundlers, where neither `instanceof` nor the class name does. A
+  // member with a literal name: a statement after the class, or a computed key, would keep the
+  // whole class in every bundle that imports anything from this package
+  private get "@meshsdk/serializer"(): boolean {
+    return true;
+  }
+
   constructor(protocolParams?: Protocol) {
     this.protocolParams = protocolParams || DEFAULT_PROTOCOL_PARAMETERS;
   }
 
+  /**
+   * @deprecated Serializes a `MeshTxBuilderBody`, which is deprecated. Use `serializeTxPrototype`
+   * with a `TransactionPrototype`. This class's `serializeTxPrototype` refuses Plutus V2 and V3
+   * witness scripts, integers in metadata and integers in Plutus data not given as CBOR, among
+   * others; `CardanoSDKSerializer` of `@meshsdk/core-cst` covers the whole type.
+   */
   serializeTxBody(
     txBody: MeshTxBuilderBody,
     protocolParams?: Protocol,
@@ -101,6 +117,10 @@ export class CSLSerializer implements IMeshTxSerializer {
       throw new Error(`txBuildResult error: ${txBuildResult.get_error()}`);
     }
     return txBuildResult.get_data();
+  }
+
+  serializeTxPrototype(txPrototype: TransactionPrototype): string {
+    return serializeTxPrototype(txPrototype);
   }
 
   addSigningKeys(txHex: string, signingKeys: string[]): string {
@@ -275,6 +295,11 @@ export class CSLSerializer implements IMeshTxSerializer {
       .to_hex();
   }
 
+  /**
+   * @deprecated Serializes a `MeshTxBuilderBody` with placeholder witnesses, to size the signed
+   * transaction. `minFee` of `@meshsdk/transaction` gives the minimum fee of a
+   * `TransactionPrototype` once signed.
+   */
   serializeTxBodyWithMockSignatures(
     txBuilderBody: MeshTxBuilderBody,
     protocolParams: Protocol,

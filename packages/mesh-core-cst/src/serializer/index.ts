@@ -56,6 +56,7 @@ import {
   SimpleScriptTxIn,
   SimpleScriptVote,
   toBytes,
+  TransactionPrototype,
   TxIn,
   TxInput,
   TxMetadata,
@@ -114,6 +115,7 @@ import {
   VkeyWitness,
 } from "../types";
 import {
+  addVKeyWitnessesToTransaction,
   buildEd25519PrivateKeyFromSecretKey,
   fromBuilderToPlutusData,
   mergeValue,
@@ -126,6 +128,7 @@ import { toCardanoCert } from "../utils/certificate";
 import { toCardanoMetadataMap } from "../utils/metadata";
 import { toCardanoProposalProcedure } from "../utils/proposal";
 import { hashScriptData } from "../utils/script-data-hash";
+import { transactionPrototypeToHex } from "../tx-prototype-to-cbor";
 import {
   toCardanoGovernanceActionId,
   toCardanoVoter,
@@ -138,6 +141,14 @@ const CHAIN_CODE_SIZE_BYTES = 32;
 
 export class CardanoSDKSerializer implements IMeshTxSerializer {
   protocolParams: Protocol;
+
+  // Marks the class as one of Mesh's serializers, which `MeshTxBuilder` accepts; it holds across
+  // copies of the package and bundlers, where neither `instanceof` nor the class name does. A
+  // member with a literal name: a statement after the class, or a computed key, would keep the
+  // whole class in every bundle that imports anything from this package
+  private get "@meshsdk/serializer"(): boolean {
+    return true;
+  }
 
   constructor(protocolParams?: Protocol) {
     setInConwayEra(true);
@@ -436,6 +447,10 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     },
   };
 
+  /**
+   * @deprecated Serializes a `MeshTxBuilderBody`, which is deprecated. Use `serializeTxPrototype`
+   * with a `TransactionPrototype`; `TxBuilder` of `@meshsdk/transaction` builds one from parts.
+   */
   serializeTxBody = (
     txBuilderBody: MeshTxBuilderBody,
     protocolParams?: Protocol,
@@ -446,6 +461,11 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     return serializerCore.coreSerializeTx(txBuilderBody);
   };
 
+  /**
+   * @deprecated Serializes a `MeshTxBuilderBody` with placeholder witnesses, to size the signed
+   * transaction. `minFee` of `@meshsdk/transaction` gives the minimum fee of a
+   * `TransactionPrototype` once signed.
+   */
   serializeTxBodyWithMockSignatures(
     txBuilderBody: MeshTxBuilderBody,
     protocolParams: Protocol,
@@ -454,12 +474,13 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
     return serializerCore.coreSerializeTxWithMockSignatures(txBuilderBody);
   }
 
+  serializeTxPrototype = (txPrototype: TransactionPrototype): string => {
+    return transactionPrototypeToHex(txPrototype);
+  };
+
   addSigningKeys = (txHex: string, signingKeys: string[]): string => {
     let cardanoTx = Transaction.fromCbor(Serialization.TxCBOR(txHex));
-    let currentWitnessSet = cardanoTx.witnessSet();
-    let currentWitnessSetVkeys = currentWitnessSet.vkeys();
-    let currentWitnessSetVkeysValues: Serialization.VkeyWitness[] =
-      currentWitnessSetVkeys ? [...currentWitnessSetVkeys.values()] : [];
+    const added: Serialization.VkeyWitness[] = [];
     for (let i = 0; i < signingKeys.length; i++) {
       let keyHex = signingKeys[i];
       if (keyHex) {
@@ -468,7 +489,7 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
         }
         const cardanoSigner = buildEd25519PrivateKeyFromSecretKey(keyHex);
         const signature = cardanoSigner.sign(HexBlob(cardanoTx.getId()));
-        currentWitnessSetVkeysValues.push(
+        added.push(
           new VkeyWitness(
             Ed25519PublicKeyHex(cardanoSigner.toPublic().hex()),
             Ed25519SignatureHex(signature.hex()),
@@ -476,14 +497,8 @@ export class CardanoSDKSerializer implements IMeshTxSerializer {
         );
       }
     }
-    currentWitnessSet.setVkeys(
-      Serialization.CborSet.fromCore(
-        currentWitnessSetVkeysValues.map((vkw) => vkw.toCore()),
-        VkeyWitness.fromCore,
-      ),
-    );
-    cardanoTx.setWitnessSet(currentWitnessSet);
-    return cardanoTx.toCbor();
+    // In the form of the transaction's witness set, or of its body's inputs
+    return addVKeyWitnessesToTransaction(txHex, added);
   };
 
   serializeValue(value: Asset[]): string {
@@ -580,10 +595,12 @@ class CardanoSDKSerializerCore {
 
   private scriptsProvided: Set<string> = new Set<string>();
   private datumsProvided: Set<PlutusData> = new Set<PlutusData>();
+  // Plutus V4 is not supported: no script of it is ever used
   private usedLanguages: Record<PlutusLanguageVersion, boolean> = {
     [0]: false,
     [1]: false,
     [2]: false,
+    [3]: false,
   };
   private protocolParams: Protocol;
   private refScriptSize: number;

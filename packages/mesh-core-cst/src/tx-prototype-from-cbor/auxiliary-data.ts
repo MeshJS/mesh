@@ -6,39 +6,51 @@ import type {
   TxMetadataPrototype,
 } from "@meshsdk/common";
 
-import { AuxiliaryData, TransactionMetadatum } from "../types";
+import { AuxiliaryData, CborReader, HexBlob, TransactionMetadatum } from "../types";
 import { nativeScriptToPrototype } from "./native-script";
 
-const { TransactionMetadatumKind } = Serialization;
+const { CborReaderState, TransactionMetadatumKind } = Serialization;
 
-const metadatumToPrototype = (metadatum: TransactionMetadatum): MetadatumPrototype => {
-  switch (metadatum.getKind()) {
-    case TransactionMetadatumKind.Integer:
-      return { type: "INT", value: metadatum.asInteger()! };
-    case TransactionMetadatumKind.Bytes:
-      return { type: "BYTES", value: [...metadatum.asBytes()!] };
-    case TransactionMetadatumKind.Text:
-      return { type: "STRING", value: metadatum.asText()! };
-    case TransactionMetadatumKind.List: {
-      const list = metadatum.asList()!;
+/** The metadatum the reader is at, in the prototype shape, read from the bytes in their order: a
+ * map keeps every pair it is written with, a repeated key with each of its values, and no key is
+ * looked up. An integer written as a big number is read by the value decoder. */
+const readMetadatum = (reader: CborReader): MetadatumPrototype => {
+  switch (reader.peekState()) {
+    case CborReaderState.UnsignedInteger:
+    case CborReaderState.NegativeInteger:
+      return { type: "INT", value: reader.readInt() };
+    case CborReaderState.ByteString:
+    case CborReaderState.StartIndefiniteLengthByteString:
+      return { type: "BYTES", value: [...reader.readByteString()] };
+    case CborReaderState.TextString:
+    case CborReaderState.StartIndefiniteLengthTextString:
+      return { type: "STRING", value: reader.readTextString() };
+    case CborReaderState.StartArray: {
       const value: MetadatumPrototype[] = [];
-      for (let i = 0; i < list.getLength(); i++) value.push(metadatumToPrototype(list.get(i)));
+      reader.readStartArray();
+      while (reader.peekState() !== CborReaderState.EndArray) value.push(readMetadatum(reader));
+      reader.readEndArray();
       return { type: "LIST", value };
     }
-    case TransactionMetadatumKind.Map: {
-      const map = metadatum.asMap()!;
-      const keys = map.getKeys();
+    case CborReaderState.StartMap: {
       const value: [MetadatumPrototype, MetadatumPrototype][] = [];
-      for (let i = 0; i < keys.getLength(); i++) {
-        const key = keys.get(i);
-        value.push([metadatumToPrototype(key), metadatumToPrototype(map.get(key)!)]);
-      }
+      reader.readStartMap();
+      while (reader.peekState() !== CborReaderState.EndMap)
+        value.push([readMetadatum(reader), readMetadatum(reader)]);
+      reader.readEndMap();
       return { type: "MAP", value };
     }
     default:
-      throw new Error(`Unsupported metadatum kind: ${metadatum.getKind()}`);
+      break;
   }
+  const metadatum = TransactionMetadatum.fromCbor(HexBlob.fromBytes(reader.readEncodedValue()));
+  if (metadatum.getKind() === TransactionMetadatumKind.Integer)
+    return { type: "INT", value: metadatum.asInteger()! };
+  throw new Error(`Unsupported metadatum kind: ${metadatum.getKind()}`);
 };
+
+const metadatumToPrototype = (metadatum: TransactionMetadatum): MetadatumPrototype =>
+  readMetadatum(new CborReader(metadatum.toCbor()));
 
 /** Inverse of `../tx-prototype-to-cbor/auxiliary-data.ts`. */
 export const auxiliaryDataToPrototype = (aux: AuxiliaryData): AuxiliaryDataPrototype => {

@@ -1,6 +1,11 @@
 // Type-only: erased at compile time, so the CommonJS build still loads Scalus through the
 // dynamic import() below rather than a top-level require of an ESM-only package.
-import type { RedeemerBudget, ScriptCache, TxEvaluator } from "scalus";
+import type {
+  PlutusScriptEvaluationError,
+  RedeemerBudget,
+  ScriptCache,
+  TxEvaluator,
+} from "scalus";
 
 import {
   Action,
@@ -13,6 +18,8 @@ import {
   IFetcher,
   Network,
   RedeemerTagType,
+  ScriptEvaluationError,
+  ScriptFailure,
   SLOT_CONFIG_NETWORK,
   SlotConfig,
   UTxO,
@@ -52,6 +59,35 @@ const slotConfigOf = (network?: Network): EvaluatorSlotConfig => {
     slotLength: 0,
   };
   return { zeroTime, zeroSlot, slotLength };
+};
+
+/**
+ * A script failure Scalus throws, as a `ScriptEvaluationError` with the same message and one
+ * entry for the redeemer it names; anything else is returned as it is. The error is recognised
+ * by its `name`: the class's own name is minified in the Scalus bundle.
+ */
+const toScriptEvaluationError = (error: unknown): unknown => {
+  if (!(error instanceof Error) || error.name !== "PlutusScriptEvaluationError")
+    return error;
+  const { logs, redeemer } = error as Partial<PlutusScriptEvaluationError>;
+  const tag = redeemer && MESH_TAG[redeemer.tag];
+  // Without a redeemer (or with a tag mesh does not know) there is no failure to point at
+  const failures: ScriptFailure[] =
+    redeemer && tag
+      ? [
+          {
+            tag,
+            index: redeemer.index,
+            message: error.message,
+            logs: [...(logs ?? [])],
+            budget: {
+              mem: Number(redeemer.budget.memory),
+              steps: Number(redeemer.budget.steps),
+            },
+          },
+        ]
+      : [];
+  return new ScriptEvaluationError(error.message, failures, { cause: error });
 };
 
 export class OfflineEvaluatorScalus implements IEvaluator {
@@ -102,14 +138,20 @@ export class OfflineEvaluatorScalus implements IEvaluator {
   }
 
   /**
-   * A network other than the current one replaces the slot config, unless one was given to the
-   * constructor. Cost models replace the current ones version by version; an empty entry keeps
-   * the current model of its version.
+   * A slot config replaces the current one, unless one was given to the constructor; without
+   * one, a network other than the current one replaces it with that network's. Cost models
+   * replace the current ones version by version; an empty entry keeps the current model of its
+   * version.
    */
-  configure({ network, costModels }: EvaluationContext): void {
+  configure({ network, costModels, slotConfig }: EvaluationContext): void {
     if (network && network !== this.network) {
       this.network = network;
-      if (!this.pinnedSlotConfig) this.slotConfig = slotConfigOf(network);
+      if (!this.pinnedSlotConfig && !slotConfig)
+        this.slotConfig = slotConfigOf(network);
+    }
+    if (slotConfig && !this.pinnedSlotConfig) {
+      const { zeroTime, zeroSlot, slotLength } = slotConfig;
+      this.slotConfig = { zeroTime, zeroSlot, slotLength };
     }
     if (costModels)
       this.costModels = this.costModels.map((current, version) => {
@@ -118,6 +160,16 @@ export class OfflineEvaluatorScalus implements IEvaluator {
       });
   }
 
+  /**
+   * The execution units each redeemer of `tx` needs. Each input is taken from the outputs of
+   * `additionalTxs`, else from `additionalUtxos`, else through the fetcher.
+   *
+   * Rejects with a `ScriptEvaluationError` when a script fails: the message is Scalus's, and
+   * `failures` holds the redeemer that failed, with the script's logs and what it spent, and
+   * Scalus's own error is the `cause`. Any other failure (an input not found, a validity
+   * interval without a known network, Scalus that cannot be loaded) rejects as it is, not as a
+   * `ScriptEvaluationError`.
+   */
   async evaluateTx(
     tx: string,
     additionalUtxos?: UTxO[],
@@ -164,29 +216,32 @@ export class OfflineEvaluatorScalus implements IEvaluator {
     });
 
     const txEvaluator = await this.getTxEvaluator(slotConfig);
-    return txEvaluator
-      .evaluate(
+    let redeemers: RedeemerBudget[];
+    try {
+      redeemers = txEvaluator.evaluate(
         tx,
         // A TransactionUnspentOutput encodes as the [input, output] pair Scalus reads.
         Array.from(foundUtxos.values(), (utxo) =>
           toTxUnspentOutput(utxo).toCbor(),
         ),
-      )
-      .map((scalusRedeemer) => {
-        // Still guarded at runtime: the dependency is a caret range, so an installed Scalus can
-        // emit a tag the compiled-against declarations did not carry.
-        const tag = MESH_TAG[scalusRedeemer.tag];
-        if (!tag)
-          throw new Error(`Unknown redeemer tag: ${scalusRedeemer.tag}`);
-        return {
-          tag,
-          index: scalusRedeemer.index,
-          budget: {
-            mem: Number(scalusRedeemer.budget.memory),
-            steps: Number(scalusRedeemer.budget.steps),
-          },
-        };
-      });
+      );
+    } catch (error) {
+      throw toScriptEvaluationError(error);
+    }
+    return redeemers.map((scalusRedeemer) => {
+      // Still guarded at runtime: the dependency is a caret range, so an installed Scalus can
+      // emit a tag the compiled-against declarations did not carry.
+      const tag = MESH_TAG[scalusRedeemer.tag];
+      if (!tag) throw new Error(`Unknown redeemer tag: ${scalusRedeemer.tag}`);
+      return {
+        tag,
+        index: scalusRedeemer.index,
+        budget: {
+          mem: Number(scalusRedeemer.budget.memory),
+          steps: Number(scalusRedeemer.budget.steps),
+        },
+      };
+    });
   }
 
   /**

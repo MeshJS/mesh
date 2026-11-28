@@ -17,7 +17,7 @@ export const DEFAULT_PROTOCOL_PARAMETERS: Protocol = {
   collateralPercent: 150,
   maxBlockHeaderSize: 1100,
   minPoolCost: "340000000",
-  maxTxExMem: "16000000",
+  maxTxExMem: "16500000",
   maxTxExSteps: "10000000000",
   maxBlockExMem: "80000000",
   maxBlockExSteps: "40000000000",

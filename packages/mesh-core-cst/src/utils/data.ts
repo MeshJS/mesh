@@ -70,6 +70,9 @@ type KeyValuePlutusDataJson = {
   v: object;
 };
 
+/** Hex of whole bytes, in either case; the empty text is no bytes */
+const HEX_BYTES = /^(?:[0-9a-fA-F]{2})*$/;
+
 function isMapPlutusDataJson(data: any) {
   return typeof data === "object" && Array.isArray(data);
 }
@@ -109,6 +112,13 @@ export const fromJsonToPlutusData = (data: object): PlutusData => {
     }
   } else if ("bytes" in data && Object.keys(data).length === 1) {
     if (typeof data.bytes === "string") {
+      // Hex of whole bytes, in either case: Buffer.from drops an odd last digit and stops at the
+      // first character that is not hex. The message quotes none of it
+      if (!HEX_BYTES.test(data.bytes)) {
+        throw new Error(
+          "Malformed bytes field in Plutus data, expected hex of whole bytes",
+        );
+      }
       return PlutusData.newBytes(Buffer.from(data.bytes, "hex"));
     } else {
       throw new Error("Malformed bytes field in Plutus data, expected string");

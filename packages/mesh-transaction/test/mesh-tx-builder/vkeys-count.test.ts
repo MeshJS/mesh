@@ -1,4 +1,4 @@
-import { MeshTxBuilderBody } from "@meshsdk/common";
+import { serializeRewardAddress } from "@meshsdk/core";
 import { MeshTxBuilder } from "@meshsdk/transaction";
 
 import {
@@ -6,10 +6,13 @@ import {
   drepBech32,
   keyHashHex,
   poolIdBech32,
-  rewardAddress,
   txHash,
   vrfKeyHashHex,
 } from "../test-util";
+
+/** A test network reward address of the stake key `keyHashHex(index)` */
+const rewardAddress = (index: number) =>
+  serializeRewardAddress(keyHashHex(index), false, 0);
 
 describe("MeshTxBuilder expected signatures", () => {
   let txBuilder: MeshTxBuilder;
@@ -19,10 +22,6 @@ describe("MeshTxBuilder expected signatures", () => {
   });
 
   it("should have the correct number of possible vkeys for certificates", async () => {
-    const serializeTxBodyWithMockSignatures = jest.spyOn(
-      txBuilder.serializer as any,
-      "serializeTxBodyWithMockSignatures",
-    );
     await txBuilder
       .txIn(
         txHash("tx3"),
@@ -61,8 +60,9 @@ describe("MeshTxBuilder expected signatures", () => {
       .changeAddress(baseAddress(15))
       .voteDelegationCertificate({ alwaysAbstain: null }, rewardAddress(16))
       .complete();
-    const callArg = serializeTxBodyWithMockSignatures.mock
-      .calls[0]![0] as MeshTxBuilderBody;
-    expect(callArg.expectedNumberKeyWitnesses).toEqual(12);
+    // The input's key, the three DReps, the delegating, deregistering and registering stake
+    // keys (a stake registration is certificate 7, which its key witnesses), the pool operator
+    // and its two owners, the retiring pool, and the vote-delegating stake key
+    expect(txBuilder.meshTxBuilderBody.expectedNumberKeyWitnesses).toEqual(12);
   });
 });

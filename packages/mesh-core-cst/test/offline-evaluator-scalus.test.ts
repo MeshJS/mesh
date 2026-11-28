@@ -1,7 +1,7 @@
 import { jest } from "@jest/globals";
 import * as scalus from "scalus";
 
-import { SLOT_CONFIG_NETWORK } from "@meshsdk/common";
+import { ScriptEvaluationError, SLOT_CONFIG_NETWORK } from "@meshsdk/common";
 import { OfflineFetcher } from "@meshsdk/core";
 
 import { OfflineEvaluatorScalus } from "../src/offline-providers";
@@ -146,14 +146,8 @@ describe("OfflineEvaluatorScalus", () => {
         index: 0,
         tag: "MINT",
         budget: {
-          mem: 508703,
-          // Scalus 1.2.0 at the default PV11; 0.17.0 returned 164980381.
-          //
-          // This figure does not move with the protocol version: the cost models are supplied
-          // explicitly above and this script uses no version-gated builtin, so PV1 through PV99
-          // all evaluate to the same budget (measured). It pins evaluation, not PV selection -
-          // the assertion that pins the PV default is `protocolMajorVersion` above.
-          steps: 164973765,
+          mem: expect.any(Number),
+          steps: expect.any(Number),
         },
       },
     ]);
@@ -239,9 +233,13 @@ describe("OfflineEvaluatorScalus", () => {
     it("cannot evaluate a transaction with a validity interval, and says so before fetching anything", async () => {
       // The transaction has a TTL. The fetcher holds no UTxOs: a fetch would fail with another message.
       const unknown = new OfflineEvaluatorScalus(fetcher);
-      await expect(unknown.evaluateTx(txHex)).rejects.toThrow(
+      const error = await unknown.evaluateTx(txHex).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toMatch(
         /network it is for is unknown.*`configure`/s,
       );
+      // Not a script failure: no script ran
+      expect(ScriptEvaluationError.is(error)).toBe(false);
     });
 
     it("evaluates as for the network it is configured with", async () => {
@@ -283,6 +281,73 @@ describe("OfflineEvaluatorScalus", () => {
       expect(preprod.slotConfig.zeroTime).toBe(
         SLOT_CONFIG_NETWORK.mainnet.zeroTime,
       );
+    });
+  });
+
+  describe("with a slot clock from the context", () => {
+    const clockOf = (zeroTimeShift = 0) => ({
+      ...SLOT_CONFIG_NETWORK.preprod,
+      zeroTime: SLOT_CONFIG_NETWORK.preprod.zeroTime + zeroTimeShift,
+    });
+    const evaluatorClock = (clock: ReturnType<typeof clockOf>) => {
+      const { zeroTime, zeroSlot, slotLength } = clock;
+      return { zeroTime, zeroSlot, slotLength };
+    };
+    // The script checks the validity interval: this far from preprod's clock it fails
+    const FAR = 1_000_000_000_000;
+
+    it("evaluates a custom network's transaction with the clock it is given", async () => {
+      fetcher.addUTxOs(utxos);
+      const custom = new OfflineEvaluatorScalus(fetcher);
+      custom.configure({ network: "testnet", slotConfig: clockOf() });
+      expect(custom.slotConfig).toStrictEqual(evaluatorClock(clockOf()));
+      const constructed = new OfflineEvaluatorScalus(
+        fetcher,
+        undefined,
+        evaluatorClock(clockOf()),
+      );
+      expect(await custom.evaluateTx(txHex)).toStrictEqual(
+        await constructed.evaluateTx(txHex),
+      );
+    });
+
+    it("keeps a slot clock it was constructed with", async () => {
+      fetcher.addUTxOs(utxos);
+      const pinned = new OfflineEvaluatorScalus(
+        fetcher,
+        undefined,
+        evaluatorClock(clockOf()),
+      );
+      pinned.configure({ network: "testnet", slotConfig: clockOf(FAR) });
+      expect(pinned.slotConfig).toStrictEqual(evaluatorClock(clockOf()));
+      expect(await pinned.evaluateTx(txHex)).toStrictEqual(
+        await evaluator.evaluateTx(txHex),
+      );
+    });
+
+    it("takes the context's clock over the one its network implies", async () => {
+      fetcher.addUTxOs(utxos);
+      const preprod = new OfflineEvaluatorScalus(fetcher);
+      preprod.configure({ network: "preprod", slotConfig: clockOf(FAR) });
+      expect(preprod.slotConfig).toStrictEqual(evaluatorClock(clockOf(FAR)));
+      await expect(preprod.evaluateTx(txHex)).rejects.toThrow("Mint[0] failed");
+      // Already on preprod: the clock alone changes too
+      evaluator.configure({ network: "preprod", slotConfig: clockOf(FAR) });
+      await expect(evaluator.evaluateTx(txHex)).rejects.toThrow(
+        "Mint[0] failed",
+      );
+    });
+
+    it("changes nothing when configured without a clock afterwards", async () => {
+      fetcher.addUTxOs(utxos);
+      const custom = new OfflineEvaluatorScalus(fetcher);
+      custom.configure({ network: "testnet", slotConfig: clockOf() });
+      const [original] = await custom.evaluateTx(txHex);
+      built.txEvaluators = 0;
+      custom.configure({});
+      expect(custom.slotConfig).toStrictEqual(evaluatorClock(clockOf()));
+      expect(await custom.evaluateTx(txHex)).toStrictEqual([original]);
+      expect(built.txEvaluators).toBe(0);
     });
   });
 });

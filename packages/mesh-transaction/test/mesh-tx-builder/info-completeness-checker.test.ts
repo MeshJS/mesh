@@ -1,333 +1,217 @@
-import { MintItem, ScriptSource, TxIn } from "@meshsdk/common";
+import { Asset, mConStr0, MintParam, NativeScript } from "@meshsdk/common";
+import { resolveNativeScriptHash, serializePlutusScript } from "@meshsdk/core";
 import { MeshTxBuilder } from "@meshsdk/transaction";
 
-class MockTxBuilder extends MeshTxBuilder {
-  isInputCompleteExtended = this.isInputComplete;
-  isInputInfoCompleteExtended = this.isInputInfoComplete;
-  isRefScriptInfoCompleteExtended = this.isRefScriptInfoComplete;
-  isMintCompleteExtended = this.isMintComplete;
-}
+import {
+  alwaysSucceedCbor,
+  alwaysSucceedHash,
+  baseAddress,
+  txHash,
+} from "../test-util";
 
-describe("MeshTxBuilder", () => {
-  let txBuilder: MockTxBuilder;
+/**
+ * What the body must state of an output for the builder to do without a fetcher: `complete()`
+ * builds on the data the calls declare, and refuses what it would have to read
+ * (MISSING_FETCHER); the sync methods need less, and refuse what they cannot assemble
+ * (UNRESOLVED).
+ */
 
-  beforeEach(() => {
-    txBuilder = new MockTxBuilder();
-  });
+const lovelace = (quantity: string): Asset[] => [
+  { unit: "lovelace", quantity },
+];
+const scriptAddress = serializePlutusScript({
+  code: alwaysSucceedCbor,
+  version: "V3",
+}).address;
+const native: NativeScript = { type: "all", scripts: [] };
+const scriptSize = "100";
 
-  describe("isInputComplete", () => {
-    it("should return false for incomplete PubKey input", () => {
-      const txIn: TxIn = {
-        type: "PubKey",
-        txIn: { txHash: "hash", txIndex: 0 },
-      };
-      expect(txBuilder.isInputCompleteExtended(txIn)).toBe(false);
-    });
+type Declared = { amount?: Asset[]; address?: string; scriptSize?: number };
 
-    it("should return false for incomplete PubKey input", () => {
-      const txIn: TxIn = {
-        type: "PubKey",
-        txIn: { txHash: "hash", txIndex: 0, address: "address" },
-      };
-      expect(txBuilder.isInputCompleteExtended(txIn)).toBe(false);
-    });
-    it("should return false for incomplete PubKey input", () => {
-      const txIn: TxIn = {
-        type: "PubKey",
-        txIn: { txHash: "hash", txIndex: 0, amount: [] },
-      };
-      expect(txBuilder.isInputCompleteExtended(txIn)).toBe(false);
-    });
-    it("should return true for complete PubKey input", () => {
-      const txIn: TxIn = {
-        type: "PubKey",
-        txIn: {
-          txHash: "hash",
-          txIndex: 0,
-          amount: [],
-          address: "address",
-          scriptSize: 0,
-        },
-      };
-      expect(txBuilder.isInputCompleteExtended(txIn)).toBe(true);
-    });
+/** A key input with what is declared of it */
+const keyInput = ({ amount, address, scriptSize }: Declared) =>
+  new MeshTxBuilder()
+    .txIn(txHash("key"), 0, amount, address, scriptSize)
+    .changeAddress(baseAddress(0));
 
-    it("should return false for incomplete Script input", () => {
-      const txIn: TxIn = {
-        type: "Script",
-        txIn: { txHash: "hash", txIndex: 0 },
-        scriptTxIn: {
-          scriptSource: {
-            type: "Provided",
-            script: { code: "code", version: "V1" },
-          },
-        },
-      };
-      expect(txBuilder.isInputCompleteExtended(txIn)).toBe(false);
-    });
+/** A Plutus input with what is declared of it, and a declared collateral */
+const scriptInput = ({ amount, address, scriptSize }: Declared) =>
+  new MeshTxBuilder()
+    .spendingPlutusScriptV3()
+    .txIn(txHash("script"), 0, amount, address, scriptSize)
+    .txInInlineDatumPresent()
+    .txInRedeemerValue(mConStr0([]))
+    .txInScript(alwaysSucceedCbor)
+    .txInCollateral(
+      txHash("collateral"),
+      0,
+      lovelace("10000000"),
+      baseAddress(1),
+    )
+    .changeAddress(baseAddress(0));
 
-    it("should return false for incomplete Script input", () => {
-      const txIn: TxIn = {
-        type: "Script",
-        txIn: { txHash: "hash", txIndex: 0, address: "address" },
-        scriptTxIn: {
-          scriptSource: {
-            type: "Provided",
-            script: { code: "code", version: "V1" },
-          },
-        },
-      };
-      expect(txBuilder.isInputCompleteExtended(txIn)).toBe(false);
-    });
-    it("should return false for incomplete Script input", () => {
-      const txIn: TxIn = {
-        type: "Script",
-        txIn: { txHash: "hash", txIndex: 0, amount: [] },
-        scriptTxIn: {
-          scriptSource: {
-            type: "Provided",
-            script: { code: "code", version: "V1" },
-          },
-        },
-      };
-      expect(txBuilder.isInputCompleteExtended(txIn)).toBe(false);
-    });
-    it("should return true for complete Script input", () => {
-      const txIn: TxIn = {
-        type: "Script",
-        txIn: {
-          txHash: "hash",
-          txIndex: 0,
-          amount: [],
-          address: "address",
-          scriptSize: 0,
-        },
-        scriptTxIn: {
-          scriptSource: {
-            type: "Provided",
-            script: { code: "code", version: "V1" },
-          },
-        },
-      };
-      expect(txBuilder.isInputCompleteExtended(txIn)).toBe(true);
-    });
-    it("should return true for complete Script input, with complete script ref", () => {
-      const txIn: TxIn = {
-        type: "Script",
-        txIn: {
-          txHash: "hash",
-          txIndex: 0,
-          amount: [],
-          address: "address",
-          scriptSize: 0,
-        },
-        scriptTxIn: {
-          scriptSource: {
-            type: "Inline",
-            txHash: "hash",
-            txIndex: 0,
-            scriptSize: "100",
-            scriptHash: "hash",
-            version: "V1",
-          },
-        },
-      };
-      expect(txBuilder.isInputCompleteExtended(txIn)).toBe(true);
-    });
-    it("should return false for complete Script input, but incomplete script ref (no script hash)", () => {
-      const txIn: TxIn = {
-        type: "Script",
-        txIn: { txHash: "hash", txIndex: 0, amount: [], address: "address" },
-        scriptTxIn: {
-          scriptSource: {
-            type: "Inline",
-            txHash: "hash",
-            txIndex: 0,
-            scriptSize: "100",
-            version: "V1",
-          },
-        },
-      };
-      expect(txBuilder.isInputCompleteExtended(txIn)).toBe(false);
-    });
-    it("should return false for complete Script input, but incomplete script ref (no script size)", () => {
-      const txIn: TxIn = {
-        type: "Script",
-        txIn: { txHash: "hash", txIndex: 0, amount: [], address: "address" },
-        scriptTxIn: {
-          scriptSource: {
-            type: "Inline",
-            txHash: "hash",
-            txIndex: 0,
-            scriptHash: "hash",
-            version: "V1",
-          },
-        },
-      };
-      expect(txBuilder.isInputCompleteExtended(txIn)).toBe(false);
-    });
-  });
+/** A Plutus input whose script is read from a reference output, declared as given */
+const scriptByReference = (size?: string, hash?: string) =>
+  new MeshTxBuilder()
+    .spendingPlutusScriptV3()
+    .txIn(txHash("script"), 0, lovelace("20000000"), scriptAddress, 0)
+    .txInInlineDatumPresent()
+    .txInRedeemerValue(mConStr0([]))
+    .spendingTxInReference(txHash("ref"), 0, size, hash)
+    .txInCollateral(
+      txHash("collateral"),
+      0,
+      lovelace("10000000"),
+      baseAddress(1),
+    )
+    .changeAddress(baseAddress(0));
 
-  describe("isInputInfoComplete", () => {
-    it("should return false for incomplete PubKey input", () => {
-      const txIn: TxIn = {
-        type: "PubKey",
-        txIn: { txHash: "hash", txIndex: 0 },
-      };
-      expect(txBuilder.isInputInfoCompleteExtended(txIn)).toBe(false);
-    });
+/** A key input paying for a Plutus mint whose script is read from a reference output */
+const plutusMintByReference = (size?: string, hash?: string) =>
+  new MeshTxBuilder()
+    .txIn(txHash("key"), 0, lovelace("20000000"), baseAddress(0), 0)
+    .mintPlutusScriptV3()
+    .mint("1", alwaysSucceedHash, "")
+    .mintRedeemerValue(mConStr0([]))
+    .mintTxInReference(txHash("ref"), 0, size, hash)
+    .txInCollateral(
+      txHash("collateral"),
+      0,
+      lovelace("10000000"),
+      baseAddress(1),
+    )
+    .changeAddress(baseAddress(0));
 
-    it("should return false for incomplete PubKey input", () => {
-      const txIn: TxIn = {
-        type: "PubKey",
-        txIn: { txHash: "hash", txIndex: 0, address: "address" },
-      };
-      expect(txBuilder.isInputInfoCompleteExtended(txIn)).toBe(false);
-    });
-    it("should return false for incomplete PubKey input", () => {
-      const txIn: TxIn = {
-        type: "PubKey",
-        txIn: { txHash: "hash", txIndex: 0, amount: [] },
-      };
-      expect(txBuilder.isInputInfoCompleteExtended(txIn)).toBe(false);
-    });
-    it("should return true for complete PubKey input", () => {
-      const txIn: TxIn = {
-        type: "PubKey",
-        txIn: {
-          txHash: "hash",
-          txIndex: 0,
-          amount: [],
-          address: "address",
-          scriptSize: 0,
-        },
-      };
-      expect(txBuilder.isInputInfoCompleteExtended(txIn)).toBe(true);
-    });
-  });
+/** A native mint whose script is read from a reference output, as a body can state it */
+const nativeMintByReference = (simpleScriptHash?: string, size?: string) => {
+  const builder = new MeshTxBuilder()
+    .txIn(txHash("key"), 0, lovelace("20000000"), baseAddress(0), 0)
+    .changeAddress(baseAddress(0));
+  const mint: MintParam = {
+    type: "Native",
+    policyId: resolveNativeScriptHash(native),
+    mintValue: [{ assetName: "", amount: "1" }],
+    scriptSource: {
+      type: "Inline",
+      txHash: txHash("ref"),
+      txIndex: 0,
+      ...(simpleScriptHash && { simpleScriptHash }),
+      ...(size && { scriptSize: size }),
+    },
+  };
+  return { builder, body: { mints: [mint] } };
+};
 
-  describe("isMintComplete", () => {
-    it("should return true for complete Plutus mint", () => {
-      const mint: MintItem = {
-        type: "Plutus",
-        policyId: "policyId",
-        assetName: "assetName",
-        amount: "1",
-        scriptSource: {
-          type: "Inline",
-          txHash: "hash",
-          txIndex: 0,
-          scriptSize: "100",
-          scriptHash: "hash",
-          version: "V1",
-        },
-      };
-      expect(txBuilder.isMintCompleteExtended(mint)).toBe(true);
-    });
+const builds = expect.stringMatching(/^[0-9a-f]+$/);
+const missingFetcher = expect.objectContaining({ code: "MISSING_FETCHER" });
+const unresolved = expect.objectContaining({ code: "UNRESOLVED" });
 
-    it("should return false for complete Plutus mint (no script hash)", () => {
-      const mint: MintItem = {
-        type: "Plutus",
-        policyId: "policyId",
-        assetName: "assetName",
-        amount: "1",
-        scriptSource: {
-          type: "Inline",
-          txHash: "hash",
-          txIndex: 0,
-          scriptSize: "100",
-          version: "V1",
-        },
-      };
-      expect(txBuilder.isMintCompleteExtended(mint)).toBe(false);
-    });
+describe("MeshTxBuilder without a fetcher", () => {
+  describe("an input", () => {
+    it.each([
+      ["neither amount nor address", {}],
+      ["an address only", { address: baseAddress(0), scriptSize: 0 }],
+      ["an amount only", { amount: lovelace("20000000"), scriptSize: 0 }],
+    ])(
+      "with %s cannot be built: MISSING_FETCHER, and UNRESOLVED from completeSync()",
+      async (_, declared) => {
+        await expect(keyInput(declared).complete()).rejects.toEqual(
+          missingFetcher,
+        );
+        expect(() => keyInput(declared).completeSync()).toThrow(unresolved);
+      },
+    );
 
-    it("should return false for incomplete Plutus mint (no script size)", () => {
-      const mint: MintItem = {
-        type: "Plutus",
-        policyId: "policyId",
-        assetName: "assetName",
-        amount: "1",
-        scriptSource: {
-          type: "Inline",
-          txHash: "hash",
-          txIndex: 0,
-          scriptHash: "hash",
-          version: "V1",
-        },
+    it("with amount and address but no scriptSize: MISSING_FETCHER, while completeSync() builds", async () => {
+      const declared = {
+        amount: lovelace("20000000"),
+        address: baseAddress(0),
       };
-      expect(txBuilder.isMintCompleteExtended(mint)).toBe(false);
-    });
-
-    it("should return true for complete Native mint", () => {
-      const mint: MintItem = {
-        type: "Native",
-        policyId: "policyId",
-        assetName: "assetName",
-        amount: "1",
-        scriptSource: {
-          type: "Inline",
-          txHash: "hash",
-          txIndex: 0,
-          simpleScriptHash: "hash",
-        },
-      };
-      expect(txBuilder.isMintCompleteExtended(mint)).toBe(true);
-    });
-
-    it("should return false for incomplete Native mint (no script hash)", () => {
-      const mint: MintItem = {
-        type: "Plutus",
-        policyId: "policyId",
-        assetName: "assetName",
-        amount: "1",
-        scriptSource: {
-          type: "Inline",
-          txHash: "hash",
-          txIndex: 0,
-        },
-      };
-      expect(txBuilder.isMintCompleteExtended(mint)).toBe(false);
-    });
-  });
-
-  describe("isRefScriptInfoComplete", () => {
-    it("should return true with complete script ref", () => {
-      const scriptSource: ScriptSource = {
-        type: "Inline",
-        txHash: "hash",
-        txIndex: 0,
-        scriptSize: "100",
-        scriptHash: "hash",
-        version: "V1",
-      };
-      expect(txBuilder.isRefScriptInfoCompleteExtended(scriptSource)).toBe(
-        true,
+      await expect(keyInput(declared).complete()).rejects.toEqual(
+        missingFetcher,
       );
+      expect(keyInput(declared).completeSync()).toEqual(builds);
     });
-    it("should return false for incomplete script ref (no script hash)", () => {
-      const scriptSource: ScriptSource = {
-        type: "Inline",
-        txHash: "hash",
-        txIndex: 0,
-        scriptSize: "100",
-        version: "V1",
+
+    it("with amount, address and scriptSize builds", async () => {
+      const declared = {
+        amount: lovelace("20000000"),
+        address: baseAddress(0),
+        scriptSize: 0,
       };
-      expect(txBuilder.isRefScriptInfoCompleteExtended(scriptSource)).toBe(
-        false,
-      );
+      await expect(keyInput(declared).complete()).resolves.toEqual(builds);
+      expect(keyInput(declared).completeSync()).toEqual(builds);
     });
-    it("should return false for incomplete script ref (no script size)", () => {
-      const scriptSource: ScriptSource = {
-        type: "Inline",
-        txHash: "hash",
-        txIndex: 0,
-        scriptHash: "hash",
-        version: "V1",
+  });
+
+  describe("a Plutus input", () => {
+    it.each([
+      ["neither amount nor address", {}],
+      ["an address only", { address: scriptAddress, scriptSize: 0 }],
+      ["an amount only", { amount: lovelace("20000000"), scriptSize: 0 }],
+    ])(
+      "with %s cannot be built: MISSING_FETCHER, and UNRESOLVED from completeSync()",
+      async (_, declared) => {
+        await expect(scriptInput(declared).complete()).rejects.toEqual(
+          missingFetcher,
+        );
+        expect(() => scriptInput(declared).completeSync()).toThrow(unresolved);
+      },
+    );
+
+    it("with amount, address and scriptSize builds", async () => {
+      const declared = {
+        amount: lovelace("20000000"),
+        address: scriptAddress,
+        scriptSize: 0,
       };
-      expect(txBuilder.isRefScriptInfoCompleteExtended(scriptSource)).toBe(
-        false,
+      await expect(scriptInput(declared).complete()).resolves.toEqual(builds);
+      expect(scriptInput(declared).completeSync()).toEqual(builds);
+    });
+  });
+
+  describe("a reference script", () => {
+    it("with hash and size builds, for a spend and for a mint", async () => {
+      for (const make of [scriptByReference, plutusMintByReference]) {
+        await expect(
+          make(scriptSize, alwaysSucceedHash).complete(),
+        ).resolves.toEqual(builds);
+        expect(make(scriptSize, alwaysSucceedHash).completeSync()).toEqual(
+          builds,
+        );
+      }
+    });
+
+    it("with no size cannot be built: MISSING_FETCHER, and UNRESOLVED from completeSync()", async () => {
+      for (const make of [scriptByReference, plutusMintByReference]) {
+        await expect(
+          make(undefined, alwaysSucceedHash).complete(),
+        ).rejects.toEqual(missingFetcher);
+        expect(() => make(undefined, alwaysSucceedHash).completeSync()).toThrow(
+          unresolved,
+        );
+      }
+    });
+
+    it("with no hash builds: the hash is the input address's or the policy id", async () => {
+      for (const make of [scriptByReference, plutusMintByReference]) {
+        await expect(make(scriptSize).complete()).resolves.toEqual(builds);
+        expect(make(scriptSize).completeSync()).toEqual(builds);
+      }
+    });
+
+    it("of a native mint needs its size, and takes its hash from the policy id", async () => {
+      // The size prices the reference script
+      const hashOnly = nativeMintByReference(resolveNativeScriptHash(native));
+      await expect(hashOnly.builder.complete(hashOnly.body)).rejects.toEqual(
+        missingFetcher,
       );
+      for (const hash of [undefined, resolveNativeScriptHash(native)]) {
+        const declared = nativeMintByReference(hash, "10");
+        await expect(declared.builder.complete(declared.body)).resolves.toEqual(
+          builds,
+        );
+      }
     });
   });
 });

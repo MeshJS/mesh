@@ -1,0 +1,177 @@
+import { Address, blake2b, Serialization } from "@meshsdk/core-cst";
+import { TxEmulator } from "@meshsdk/tx-emulator";
+import { MeshWallet } from "@meshsdk/wallet";
+
+import { output, TxBuilder, TxError } from "../../../src/tx-builder";
+import {
+  arr,
+  bytes,
+  head,
+  map,
+  topItems,
+  tx,
+  txHashOf,
+  uint,
+} from "../cbor-util";
+import { VALIDATORS } from "./plan-emulator-util";
+
+/*
+ * A step given built is decoded by its reader, `fromCbor`, and once more by the reader of the
+ * record it enters the plan through: the bound on the reference scripts it runs is counted in the
+ * reader's decode, not in one of its own. The time a step at the bounds of a transaction takes in
+ * `plan` is these decodes.
+ */
+
+describe.each(VALIDATORS)("a plan of a step given built (%s)", (v) => {
+  it("decodes the step's body twice: in its reader, which counts its reference scripts, and in the reader of its record", async () => {
+    const emulator = await TxEmulator.create({
+      validator: v,
+      network: "preprod",
+      slot: 100_000_000,
+    });
+    const builder = new TxBuilder({
+      network: "preprod",
+      provider: emulator,
+      evaluator: emulator,
+    });
+    const wallet = new MeshWallet({
+      networkId: 0,
+      key: { type: "mnemonic", words: Array(24).fill("solution") },
+    });
+    await wallet.init();
+    const payTo = (await wallet.getChangeAddress())!;
+    emulator.fund(payTo, { lovelace: 1_000_000_000n });
+    const built = await builder.build(
+      [output({ address: payTo, value: { lovelace: 2_000_000n } })],
+      { payer: wallet },
+    );
+    const [body] = topItems(built.tx);
+    const decode = jest.spyOn(Serialization.TransactionBody, "fromCbor");
+    let decodes: number;
+    try {
+      const plan = await builder.plan({ given: built.tx }, { payer: wallet });
+      expect(plan.steps.map((step) => step.kind)).toEqual(["prebuilt"]);
+      decodes = decode.mock.calls.filter(([cbor]) => cbor === body).length;
+    } finally {
+      decode.mockRestore();
+    }
+    expect(decodes).toBe(2);
+  }, 60_000);
+
+  it("counts the reference scripts of the outputs of the plan's own transactions the step reads: refused at once past the bound", async () => {
+    const emulator = await TxEmulator.create({
+      validator: v,
+      network: "preprod",
+      slot: 100_000_000,
+    });
+    const builder = new TxBuilder({
+      network: "preprod",
+      provider: emulator,
+      evaluator: emulator,
+    });
+    const wallet = new MeshWallet({
+      networkId: 0,
+      key: { type: "mnemonic", words: Array(24).fill("solution") },
+    });
+    await wallet.init();
+    const payTo = (await wallet.getChangeAddress())!;
+    const payHex = Address.fromBech32(payTo).toBytes().toString();
+    const funded = emulator.fund(payTo, { lovelace: 1_000_000_000n });
+    // Transactions of after, each paying one output that holds a native script of 15 365 bytes,
+    // all of 480 keys: 14 of them hold 215 110 bytes, past the 204 800 a node takes
+    const key = (i: number) => `8200581c${i.toString(16).padStart(56, "0")}`;
+    const scripts: string[] = [];
+    const outputs: string[] = [];
+    const bodies = Array.from({ length: 14 }, (_, i) => {
+      const script = `8201${head(4, 480)}${Array.from({ length: 480 }, (_, k) => key(i * 1_000 + k)).join("")}`;
+      const paid = map(
+        [uint(0), bytes(payHex)],
+        [uint(1), uint(60_000_000)],
+        [uint(3), `d818${bytes(arr(uint(0), script))}`],
+      );
+      scripts.push(script);
+      outputs.push(paid);
+      return map(
+        [
+          uint(0),
+          arr(arr(bytes((i + 1).toString(16).padStart(64, "0")), uint(0))),
+        ],
+        [uint(1), arr(paid)],
+        [uint(2), uint(1_000_000)],
+      );
+    });
+    // Read from their own bytes: of the object only the number of its outputs is taken
+    const after = bodies.map(
+      (body) => ({ tx: tx(body), outputs: [{}] }) as never,
+    );
+    const step = tx(
+      map(
+        [
+          uint(0),
+          arr(arr(bytes(funded.input.txHash), uint(funded.input.outputIndex))),
+        ],
+        [
+          uint(1),
+          arr(map([uint(0), bytes(payHex)], [uint(1), uint(900_000_000)])),
+        ],
+        [uint(2), uint(1_000_000)],
+        [
+          uint(18),
+          arr(...bodies.map((body) => arr(bytes(txHashOf(body)), uint(0)))),
+        ],
+      ),
+    );
+    // What is read: every decode of a transaction's body, every read of UTxOs a provider gives,
+    // and every read of an output of them: its decode, the decode of its reference script and
+    // of the native script it holds, and the hash of that script, which a read of the UTxO whole
+    // takes
+    const decode = jest.spyOn(Serialization.TransactionBody, "fromCbor");
+    const reads = [
+      jest.spyOn(emulator, "fetchUTxOs"),
+      jest.spyOn(emulator, "fetchAddressUTxOs"),
+    ];
+    const outputReads: [jest.SpyInstance, string[]][] = [
+      [jest.spyOn(Serialization.TransactionOutput, "fromCbor"), outputs],
+      [
+        jest.spyOn(Serialization.Script, "fromCbor"),
+        scripts.map((script) => arr(uint(0), script)),
+      ],
+      [jest.spyOn(Serialization.NativeScript, "fromCbor"), scripts],
+      [jest.spyOn(blake2b, "hash"), scripts.map((script) => `00${script}`)],
+    ];
+    const started = performance.now();
+    let error: unknown;
+    let decodes: number[];
+    let outputsRead: number[][];
+    try {
+      await builder.plan({ given: step }, { payer: wallet, after });
+    } catch (e) {
+      error = e;
+    } finally {
+      decodes = [...bodies, topItems(step)[0]!].map(
+        (body) => decode.mock.calls.filter(([cbor]) => cbor === body).length,
+      );
+      decode.mockRestore();
+      outputsRead = outputReads.map(([spy, items]) =>
+        items.map(
+          (item) => spy.mock.calls.filter(([given]) => given === item).length,
+        ),
+      );
+      outputReads.forEach(([spy]) => spy.mockRestore());
+    }
+    const read = reads.map((spy) => spy.mock.calls.length);
+    reads.forEach((spy) => spy.mockRestore());
+    // A backstop far above its time on a quiet machine (400 ms): the reads are what is counted
+    expect(performance.now() - started).toBeLessThan(30_000);
+    // Each transaction of after read once, from its bytes at the door; the step's body once, by
+    // its reader, which counts and refuses: nothing past the bound, no UTxO asked of the provider
+    expect(decodes).toEqual([...bodies.map(() => 1), 1]);
+    expect(read).toEqual([0, 0]);
+    // Each output of after read once, at the door: decoded with its scripts, its script hashed
+    expect(outputsRead).toEqual(outputReads.map(() => bodies.map(() => 1)));
+    expect(TxError.is(error, "INVALID_OPTION")).toBe(true);
+    expect((error as Error).message).toBe(
+      'step "given": invalid tx: its spent and reference inputs hold more than the 204800 bytes of reference scripts a node takes in one transaction (ConwayTxRefScriptsSizeTooBig)',
+    );
+  }, 60_000);
+});

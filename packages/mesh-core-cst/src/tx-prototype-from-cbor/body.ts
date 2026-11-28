@@ -61,6 +61,14 @@ export const transactionBodyToPrototype = (body: TransactionBody): TransactionBo
     result.collateral = [...collateral.values()].map(transactionInputToPrototype);
   }
 
+  // `@cardano-sdk/core` (since 0.47) reads key 14 in the credential form of a later era as guards,
+  // and the body then holds no required signers: refused, as a Conway ledger refuses it, so that
+  // no key it names is left out of the signers read from it
+  if (body.guards()) {
+    throw new Error(
+      "its required signers are credentials (the guards of an era after Conway), which are not read",
+    );
+  }
   const requiredSigners = body.requiredSigners();
   if (requiredSigners?.size()) {
     result.required_signers = [...requiredSigners.values()].map((s) => s.toCore().toString());

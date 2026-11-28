@@ -37,6 +37,19 @@ export const spend42Cbor = applyCborEncoding(
 
 export const spend42Hash = resolveScriptHash(spend42Cbor, "V3");
 
+/**
+ * The vesting validator of `@meshsdk/contract` (Plutus V3), as its blueprint holds it. Its datum
+ * is `mConStr0([lockUntil, ownerKeyHash, beneficiaryKeyHash])`: the owner may spend at any time,
+ * the beneficiary only with a lower bound strictly after `lockUntil`.
+ */
+export const vestingCbor =
+  "5901a7010100323232323232322533300232323232325332330083001300937540042646464a66601666e1d2000300c37540022646464a66601c660026eb0c008c040dd50059bae3013301430103754006294454ccc038cc004dd6180118081baa00b375c60266028602860206ea800c4c8cc88c8c8c8c8c94ccc058c03cc05cdd5001099299980b802099b88007001002375a603660306ea80080044c94ccc058c03cc05cdd5001099299980b802001099b89007001375a603660306ea8008004528180c8011806180a1baa3018301900133016301700133016333012300b30133754602e603000298103d87a80004c0103d87980004bd7018099baa3003301337540046028602a602a602a602a602a602a602a60226ea8030dd6980098089baa0042301400114a044646600200200644a66602800229404c94ccc048cdc79bae301700200414a2266006006002602e00246024602660266026602660266026602660260026020601a6ea800458c03cc040008c038004c028dd50011b874800858c02cc030008c028004c028008c020004c010dd50008a4c26cacae6955ceaab9e5573eae815d0aba21";
+
+export const vestingHash = resolveScriptHash(
+  applyCborEncoding(vestingCbor),
+  "V3",
+);
+
 export const baseAddress = (index: number) => {
   const numberString = index.toString().padStart(28, "0");
   const numberStringReversed = numberString.split("").reverse().join("");
@@ -112,8 +125,9 @@ export const calculateMinLovelaceForTransactionOutput = (
   output: TransactionOutput,
   coinsPerUtxoSize: bigint,
 ): bigint => {
+  // The ledger's minimum: (160 + size of the output) * coinsPerUtxoSize
   const txOutSize = BigInt(output.toCbor().length / 2);
-  return 160n + BigInt(txOutSize) * coinsPerUtxoSize;
+  return (160n + txOutSize) * coinsPerUtxoSize;
 };
 
 export const mintParamCbor = (nonce: number) => {

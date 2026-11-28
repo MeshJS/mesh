@@ -6,41 +6,101 @@ import type {
   PlutusDataVariant,
   PlutusScript,
 } from "@meshsdk/common";
-import { toScriptRef } from "@meshsdk/core-cst";
+import { Script, toScriptRef } from "@meshsdk/core-cst";
 
 import type { PartContext } from "./normalize";
-import type { OutputDatumInput, OutputPart, ValueInput } from "./types";
+import type {
+  OutputDatumInput,
+  OutputPart,
+  PartParams,
+  ValueInput,
+} from "./types";
 import {
+  addressText,
   errorText,
   fail,
   freeze,
   isHash28,
   isHash32,
   isHex,
+  isObject,
   labelOf,
+  nativeScriptOf,
   parseAddress,
+  partContext,
   toPlutusData,
+  toPlutusScriptCode,
 } from "./normalize";
+import { shownValue } from "./shape";
+
+/** The largest quantity of a unit one output holds */
+const MAX_QUANTITY = 2n ** 64n - 1n;
 
 /** Asset names are at most 32 bytes */
 const MAX_ASSET_NAME_HEX = 64;
 
+/**
+ * An asset unit for an error about its quantity: as given when it reads as one, else by its
+ * shape, as it may be a key given by mistake
+ */
+const unitShown = (unit: unknown): string =>
+  typeof unit === "string" &&
+  (unit === "lovelace" ||
+    unit === "" ||
+    (isHash28(unit.slice(0, 56).toLowerCase()) &&
+      isHex(unit.slice(56).toLowerCase()) &&
+      unit.length <= 56 + MAX_ASSET_NAME_HEX))
+    ? unit
+    : shownValue(unit);
+
 const toValue = (ctx: PartContext, value: ValueInput) => {
+  if (typeof value !== "object" || value === null)
+    fail(
+      ctx,
+      "INVALID_VALUE",
+      `invalid value ${shownValue(value)}: expected a list of assets or { unit: quantity }`,
+    );
   const entries: [string, bigint][] = Array.isArray(value)
-    ? value.map(({ unit, quantity }) => {
+    ? value.map((asset: unknown) => {
+        if (typeof asset !== "object" || asset === null)
+          fail(ctx, "INVALID_VALUE", `invalid asset ${shownValue(asset)}`);
+        const { unit, quantity } = asset as {
+          unit: unknown;
+          quantity: unknown;
+        };
         if (typeof quantity !== "string" || !/^\d+$/.test(quantity))
-          fail(ctx, "INVALID_VALUE", `invalid quantity ${quantity} of ${unit}`);
-        return [unit, BigInt(quantity)];
+          fail(
+            ctx,
+            "INVALID_VALUE",
+            `invalid quantity ${shownValue(quantity)} of ${unitShown(unit)}`,
+          );
+        return [unit as string, BigInt(quantity as string)];
       })
     : Object.entries(value);
 
   let coin: bigint | undefined;
   const multiasset: MultiAssetPrototype = {};
+  /** A quantity a transaction holds: one output's quantity of a unit is at most 2^64 - 1 */
+  const bounded = (quantity: bigint, unit: unknown) => {
+    if (quantity > MAX_QUANTITY)
+      fail(
+        ctx,
+        "INVALID_VALUE",
+        `the quantity of ${unitShown(unit)} is ${quantity}, more than an output can hold (${MAX_QUANTITY})`,
+      );
+    return quantity;
+  };
   for (const [rawUnit, quantity] of entries) {
     if (typeof quantity !== "bigint" || quantity <= 0n)
-      fail(ctx, "INVALID_VALUE", `invalid quantity ${quantity} of ${rawUnit}`);
+      fail(
+        ctx,
+        "INVALID_VALUE",
+        `invalid quantity ${shownValue(quantity)} of ${unitShown(rawUnit)}`,
+      );
+    if (typeof rawUnit !== "string")
+      fail(ctx, "INVALID_VALUE", `invalid asset unit ${shownValue(rawUnit)}`);
     if (rawUnit === "lovelace" || rawUnit === "") {
-      coin = (coin ?? 0n) + quantity;
+      coin = bounded((coin ?? 0n) + quantity, rawUnit);
       continue;
     }
     const unit = rawUnit.toLowerCase();
@@ -51,9 +111,16 @@ const toValue = (ctx: PartContext, value: ValueInput) => {
       !isHex(assetName) ||
       assetName.length > MAX_ASSET_NAME_HEX
     )
-      fail(ctx, "INVALID_VALUE", `invalid asset unit ${rawUnit}`);
+      fail(
+        ctx,
+        "INVALID_VALUE",
+        `invalid asset unit: expected lovelace or a policy id and an asset name in hex; got ${shownValue(rawUnit)}`,
+      );
     const assets: AssetsPrototype = (multiasset[policyId] ??= {});
-    assets[assetName] = (BigInt(assets[assetName] ?? 0) + quantity).toString();
+    assets[assetName] = bounded(
+      BigInt(assets[assetName] ?? 0) + quantity,
+      rawUnit,
+    ).toString();
   }
 
   return {
@@ -66,15 +133,26 @@ const toDatum = (
   ctx: PartContext,
   datum: OutputDatumInput,
 ): { plutus_data: DataOptionPrototype; embeddedDatum?: PlutusDataVariant } => {
-  if (datum.type === "inline")
-    return {
-      plutus_data: { type: "DATA", value: toPlutusData(ctx, datum.data).data },
-    };
+  if (typeof datum !== "object" || datum === null)
+    fail(
+      ctx,
+      "INVALID_DATA",
+      `invalid datum ${shownValue(datum)}: expected { type: "inline" | "hash", ... }`,
+    );
+  if (datum.type === "inline") {
+    // The output's UTxO holds these bytes, one item of data (`encodePlutusData`)
+    const { data } = toPlutusData(ctx, datum.data);
+    return { plutus_data: { type: "DATA", value: data } };
+  }
   if ("hash" in datum) {
     const hash =
       typeof datum.hash === "string" ? datum.hash.toLowerCase() : datum.hash;
     if (typeof hash !== "string" || !isHash32(hash))
-      fail(ctx, "INVALID_DATA", `invalid datum hash ${datum.hash}`);
+      fail(
+        ctx,
+        "INVALID_DATA",
+        `invalid datum hash: expected a 32-byte hash in hex; got ${shownValue(datum.hash)}`,
+      );
     return { plutus_data: { type: "DATA_HASH", value: hash } };
   }
   const { data, hash } = toPlutusData(ctx, datum.data);
@@ -84,38 +162,67 @@ const toDatum = (
   };
 };
 
+/**
+ * The bytes of a reference script given as a `PlutusScript` or a `NativeScript`; a text, its
+ * CBOR among them, or any other value that is not an object is refused, its JavaScript type alone
+ * named
+ */
 const toScriptReference = (
   ctx: PartContext,
   script: PlutusScript | NativeScript,
 ): string => {
-  try {
-    return toScriptRef(script).toCbor().toString();
-  } catch (error) {
-    return fail(
+  const what = "invalid reference script";
+  if (!isObject(script))
+    fail(
       ctx,
       "INVALID_SCRIPT",
-      `invalid reference script: ${errorText(error)}`,
+      `${what}: expected a PlutusScript { code, version } or a NativeScript object, not the CBOR of a script; got a value of type ${script === null ? "null" : typeof script}`,
     );
+  const plutus =
+    "code" in script
+      ? { ...script, code: toPlutusScriptCode(ctx, script.code, what) }
+      : undefined;
+  try {
+    // A native script written from its structure, its slots exact
+    return (
+      plutus
+        ? toScriptRef(plutus)
+        : Script.newNativeScript(nativeScriptOf(script as NativeScript).native)
+    )
+      .toCbor()
+      .toString();
+  } catch (error) {
+    return fail(ctx, "INVALID_SCRIPT", `${what}: ${errorText(error)}`, error);
   }
 };
 
-/**
- * Create an output.
- * @param params.address The address receiving the output
- * @param params.value Lovelace and assets; without lovelace, the output holds the minimum it
- *   needs
- * @param params.datum A datum held inline, or as a hash
- * @param params.scriptRef A Plutus or native script made available as a reference script
- * @param params.label Name echoed in errors about this part
- */
-export const output = (params: {
+/** What `output` takes */
+export interface OutputParams extends PartParams {
+  /** The address receiving the output, in bech32, base58 (Byron) or hex */
   address: string;
+  /** Lovelace and assets; without lovelace, the output holds the minimum it needs */
   value: ValueInput;
+  /**
+   * A datum held inline, or as a hash; an inline datum given as CBOR is one item of Plutus
+   * data, with no bytes after it
+   */
   datum?: OutputDatumInput;
+  /**
+   * A Plutus or native script made available as a reference script; a Plutus script's code
+   * flat or in one or two CBOR wrappings. An object: the CBOR of a script given as a text, or
+   * any other value, is INVALID_SCRIPT
+   */
   scriptRef?: PlutusScript | NativeScript;
+  /**
+   * Free-form name, echoed in errors about this part; a redeemer function (`tx.output(label)`)
+   * and a later step of a plan (`{ step, output: label }`) find the output by it
+   */
   label?: string;
-}): OutputPart => {
-  const ctx: PartContext = { part: "output", label: params.label };
+}
+
+/** Create an output. */
+export const output = (params: OutputParams): OutputPart => {
+  const ctx = partContext("output", params);
   const address = parseAddress(ctx, params.address);
   if (address.asReward())
     fail(
@@ -127,10 +234,11 @@ export const output = (params: {
   return freeze({
     kind: "output",
     output: {
-      address: params.address,
+      address: addressText(address),
       amount: toValue(ctx, params.value),
       ...(datum && { plutus_data: datum.plutus_data }),
-      ...(params.scriptRef && {
+      // Left out only when it is not given: an empty text, 0, false or null is refused
+      ...(params.scriptRef !== undefined && {
         script_ref: toScriptReference(ctx, params.scriptRef),
       }),
     },

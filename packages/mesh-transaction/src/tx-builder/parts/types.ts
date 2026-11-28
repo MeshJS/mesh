@@ -35,11 +35,16 @@ import type {
  *
  * Parts are shaped after `TransactionPrototype`, so turning them into one is mostly a matter of
  * collecting them. What a part cannot know when it is built is left out and listed by
- * `unresolved()`: the contents of an input given by reference only, script execution units,
- * the lovelace an output needs to hold. Those are filled in before assembly.
+ * `unresolved()`: the contents of a spent or collateral input given by reference only, script
+ * execution units, the lovelace an output needs to hold, the slot of a validity bound given as a
+ * time. Those are filled in before assembly.
  *
  * Redeemers carry no index. The index depends on where the item they witness ends up once the
  * transaction is sorted, so it is assigned once, at assembly, from what the redeemer belongs to.
+ *
+ * A redeemer given as a function of the final transaction is the one content of a part that is
+ * not data: the part keeps the function, uncalled, and assembly calls it. A part holding one
+ * cannot be written as JSON.
  */
 
 /* ---------------------------------------------------------------------------------------------
@@ -47,13 +52,123 @@ import type {
  * ------------------------------------------------------------------------------------------- */
 
 /** A transaction output, identified by the transaction that created it and its position */
-export type OutRef = { txHash: string; outputIndex: number };
+export type OutRef = {
+  /** Hash of the transaction that made the output, in hex; the builder gives it in lower case */
+  txHash: string;
+  /** Its position among the outputs of that transaction */
+  outputIndex: number;
+};
 
 /**
- * An existing output: either just its reference, to be resolved before assembly, or the full
- * UTxO. Passing the UTxO lets the part check it straight away and spares a lookup later.
+ * Lovelace and tokens as quantities by unit: `lovelace`, or a policy id followed by an asset
+ * name, in hex. It is the record a part takes as its `value`. As the builder returns it,
+ * lovelace is always there (it may be `0n`), a token that is not held has no entry, and tokens
+ * stand in the order of their units.
  */
-export type InputRef = OutRef | UTxO;
+export type Assets = {
+  /** Lovelace; always there, `0n` when the value holds none */
+  readonly lovelace: bigint;
+  readonly [unit: string]: bigint;
+};
+
+/**
+ * The datum an output holds, in the forms `output()` takes a datum in:
+ * - `{ type: "inline", data }`: held in the output; `data` is its CBOR in hex, byte for byte
+ *   as the output holds it, in the form every part takes as data;
+ * - `{ type: "hash", hash }`: only its hash is held.
+ */
+export type OutputDatum =
+  | {
+      /** `"inline"`: the output holds the datum; `"hash"`: only its hash */
+      readonly type: "inline";
+      /** The datum, as the output holds it */
+      readonly data: {
+        /** The form of `content`: always CBOR */
+        readonly type: "CBOR";
+        /** The datum's CBOR in hex, byte for byte as the output holds it */
+        readonly content: string;
+      };
+    }
+  | {
+      /** `"inline"`: the output holds the datum; `"hash"`: only its hash */
+      readonly type: "hash";
+      /** The datum's hash, 32 bytes in hex */
+      readonly hash: string;
+    };
+
+/**
+ * The reference script an output holds:
+ * - `"plutus"`: a `PlutusScript` as parts take one, with its hash; `code` is in its double CBOR
+ *   wrapping, the bytes the hash is taken over kept as the output holds them;
+ * - `"native"`: the script's CBOR in hex, as parts take a native script, with its hash;
+ * - `"unknown"`: a reference script this library cannot read (a language it does not know,
+ *   bytes that are not a script, or bytes whose hash is not the one stated with them), kept as
+ *   it was given, with the hash stated for it when there was one. It counts for the fee by its
+ *   size and cannot be used as a script.
+ */
+export type OutputScript =
+  | {
+      /** `"plutus"`, `"native"`, or `"unknown"` for a script this library cannot read */
+      readonly type: "plutus";
+      /** Plutus version of the script */
+      readonly version: LanguageVersion;
+      /** The script in its double CBOR wrapping, in hex, as the output holds it */
+      readonly code: string;
+      /** Hash of the script, in hex; of an unknown script, the hash stated with it, if any */
+      readonly hash: string;
+    }
+  | {
+      /** `"plutus"`, `"native"`, or `"unknown"` for a script this library cannot read */
+      readonly type: "native";
+      /** The script's CBOR, in hex */
+      readonly cbor: string;
+      /** Hash of the script, in hex; of an unknown script, the hash stated with it, if any */
+      readonly hash: string;
+    }
+  | {
+      /** `"plutus"`, `"native"`, or `"unknown"` for a script this library cannot read */
+      readonly type: "unknown";
+      /** The reference script in hex, kept as it was given */
+      readonly scriptRef: string;
+      /** Hash of the script, in hex; of an unknown script, the hash stated with it, if any */
+      readonly hash?: string;
+    };
+
+/**
+ * An unspent transaction output: plain data, in the words of the parts. Everything the builder
+ * returns holds UTxOs in this form, and it is itself an `OutRef`.
+ */
+export type Utxo = {
+  /** Hash of the transaction that made the output, in hex; the builder gives it in lower case */
+  readonly txHash: string;
+  /** Its position among the outputs of that transaction */
+  readonly outputIndex: number;
+  /** In bech32; base58 for a Byron address */
+  readonly address: string;
+  /** Lovelace and tokens held, by unit */
+  readonly value: Assets;
+  /** Left out when the output holds no datum */
+  readonly datum?: OutputDatum;
+  /** Left out when the output holds no reference script */
+  readonly script?: OutputScript;
+};
+
+/**
+ * A UTxO as the builder takes one, wherever it takes one:
+ * - a `Utxo`;
+ * - a Mesh `UTxO`, as providers and Mesh wallets return it;
+ * - the CBOR of a transaction unspent output in hex, as a CIP-30 wallet returns it.
+ * Each is checked and copied into a `Utxo` at the call; `toUtxo` is that conversion.
+ */
+export type UtxoInput = Utxo | UTxO | string;
+
+/**
+ * An existing output: just its reference, looked up before assembly, or the UTxO in full, in
+ * any form the builder takes one. Passing the UTxO lets the part check it straight away and
+ * spares the lookup. An object with `txHash` and `outputIndex` is the UTxO in full when it
+ * also has an `address` or a `value`, and a reference otherwise.
+ */
+export type InputRef = OutRef | UtxoInput;
 
 /** Plutus data, as Mesh `Data` or in any of the `BuilderData` formats */
 export type PlutusDataInput = Data | BuilderData;
@@ -68,7 +183,13 @@ export type ScriptReferenceInput = {
   scriptSize?: number;
 };
 
-/** A Plutus script, attached to the transaction or held in a reference output */
+/**
+ * A Plutus script, attached to the transaction or held in a reference output. `code` of an
+ * attached script may be the flat program, its single CBOR wrapping (a blueprint's
+ * `compiledCode`) or its double wrapping: it is normalised at the part call
+ * (`normalizePlutusScript(code, "DoubleCBOR")`), so the hash, policy id and address are those
+ * the blueprint states. Anything that is not a script throws TxPartError INVALID_SCRIPT.
+ */
 export type PlutusScriptInput =
   | PlutusScript
   | (ScriptReferenceInput & {
@@ -79,8 +200,49 @@ export type PlutusScriptInput =
 /** A native script, attached (as a script or its CBOR) or held in a reference output */
 export type NativeScriptInput = NativeScript | string | ScriptReferenceInput;
 
+/**
+ * The final positions a redeemer function may read. Its functions are bound, so
+ * `utxos.map(tx.input)` works.
+ */
+export type RedeemerContext = {
+  /**
+   * Index of the item the redeemer witnesses, in the ledger's order for its purpose: the input
+   * among the sorted inputs, the policy among the sorted policies, the reward account among the
+   * sorted withdrawals, the certificate, voter or proposal in its list
+   */
+  readonly self: number;
+  /** The inputs, sorted as the ledger sorts them */
+  readonly inputs: readonly OutRef[];
+  /**
+   * Index of an input among the sorted inputs
+   * @throws TxBuildError INVALID_REDEEMER (`notAnInput`), with this part's label
+   */
+  readonly input: (ref: InputRef) => number;
+  /**
+   * Index of a reference input among the sorted reference inputs
+   * @throws TxBuildError INVALID_REDEEMER (`notAReferenceInput`), with this part's label
+   */
+  readonly referenceInput: (ref: InputRef) => number;
+  /**
+   * Index of the output made by the output part with this label; when several output parts
+   * carry it, the first of them in the order of the parts
+   * @throws TxBuildError INVALID_REDEEMER (`noSuchOutput`), with this part's label
+   */
+  readonly output: (label: string) => number;
+};
+
+/**
+ * Redeemer data, as a value or computed from the final transaction. A function runs inside
+ * `assembleTxPrototype`, synchronously, after the ledger order is fixed, in every balancing
+ * round, so the fee and the evaluator see the data of the transaction returned. It must depend
+ * on nothing but its argument. What it throws becomes TxBuildError INVALID_REDEEMER with the
+ * part and label, the thrown value as `cause`; an INVALID_REDEEMER raised by the lookups of its
+ * own context and not caught passes as it is, with its own reason. Data it returns that is not
+ * Plutus data is INVALID_REDEEMER (`invalidData`).
+ */
 export type RedeemerInput = {
-  data: PlutusDataInput;
+  /** The redeemer's data, or a function of the final transaction that returns it */
+  data: PlutusDataInput | ((tx: RedeemerContext) => PlutusDataInput);
   /** Execution units; left to evaluation when omitted */
   exUnits?: Budget;
 };
@@ -89,13 +251,33 @@ export type RedeemerInput = {
  * The datum of a spent script output:
  * - `"inline"`: the output holds its datum inline;
  * - `"none"`: the output holds no datum (Plutus V3 only);
- * - `{ data }`: the output holds the datum's hash, and the datum is supplied with the
- *   transaction.
+ * - `{ data }`: the datum of the output. For an output that holds its datum's hash, the datum
+ *   is supplied with the transaction, in its witness set. For an output that holds its datum
+ *   inline, it is a check: the data must be that datum, byte for byte (DATUM_MISMATCH else),
+ *   and it goes nowhere, since the ledger, and a local evaluation, read the datum from the output.
+ *   An output with no datum is DATUM_MISMATCH.
  */
-export type SpendDatumInput = "inline" | "none" | { data: PlutusDataInput };
+export type SpendDatumInput =
+  | "inline"
+  | "none"
+  | {
+      /**
+       * The datum: supplied with the transaction for an output that holds its hash, checked
+       * against the output for an output that holds it inline
+       */
+      data: PlutusDataInput;
+    };
 
-/** Lovelace and assets: Mesh `Asset[]`, or quantities keyed by unit (`"lovelace"` for ADA) */
-export type ValueInput = Asset[] | Record<string, bigint>;
+/**
+ * Lovelace and assets: Mesh `Asset[]`, or quantities keyed by unit (`"lovelace"` for ADA, else a
+ * policy id followed by an asset name in hex)
+ */
+export type ValueInput =
+  | Asset[]
+  | ({
+      /** Lovelace; left out, the output holds the minimum it needs */
+      lovelace?: bigint;
+    } & Record<string, bigint>);
 
 /**
  * The datum of a new output:
@@ -105,9 +287,26 @@ export type ValueInput = Asset[] | Record<string, bigint>;
  * - `{ type: "hash", hash }`: only a known hash, with no datum to publish.
  */
 export type OutputDatumInput =
-  | { type: "inline"; data: PlutusDataInput }
-  | { type: "hash"; data: PlutusDataInput; embed?: boolean }
-  | { type: "hash"; hash: string };
+  | {
+      /** `"inline"`: the output holds the datum; `"hash"`: only its hash */
+      type: "inline";
+      /** The datum */
+      data: PlutusDataInput;
+    }
+  | {
+      /** `"inline"`: the output holds the datum; `"hash"`: only its hash */
+      type: "hash";
+      /** The datum */
+      data: PlutusDataInput;
+      /** `true` also puts the datum in the witness set, so it is published with the transaction */
+      embed?: boolean;
+    }
+  | {
+      /** `"inline"`: the output holds the datum; `"hash"`: only its hash */
+      type: "hash";
+      /** A datum's hash, 32 bytes in hex, with no datum to publish */
+      hash: string;
+    };
 
 /**
  * Quantities minted (positive) or burnt (negative) under one policy, keyed by asset name in
@@ -137,31 +336,84 @@ export type CredentialInput = string | CredTypePrototype;
 /** A DRep: its id in bech32 (CIP-105 or CIP-129), or its credential */
 export type DRepCredentialInput = string | CredTypePrototype;
 
-/** Whom a stake credential delegates its vote to */
+/**
+ * Whom a stake credential delegates its vote to: `"alwaysAbstain"`, `"alwaysNoConfidence"`, a
+ * DRep id, or a credential
+ */
 export type DRepInput =
-  DRepCredentialInput | "alwaysAbstain" | "alwaysNoConfidence" | DRepPrototype;
+  | "alwaysAbstain"
+  | "alwaysNoConfidence"
+  // Any other string, a DRep id. `string & Record<never, never>` is the same set of values as
+  // `string`, and it keeps the two words above in the suggestions of an editor
+  | (string & Record<never, never>)
+  | CredTypePrototype
+  | DRepPrototype;
 
 /** A stake pool: its id in bech32, or its operator key hash in hex */
 export type PoolInput = string;
 
-export type AnchorInput = { url: string; dataHash: string };
+/** A document published off the chain: where it is, and the hash of its content */
+export type AnchorInput = {
+  /** Where the document is published; at most 128 bytes */
+  url: string;
+  /** Hash of the document's content, 32 bytes in hex */
+  dataHash: string;
+};
 
-/** How a script credential authorises a certificate; key credentials need nothing */
+/**
+ * How a script credential authorises a certificate, a vote or a proposal; key credentials need
+ * nothing. The redeemer's data may be a function of the final transaction (`self`: the
+ * certificate's or proposal's position in its list, the voter's among the voters).
+ */
 export type CredentialWitnessInput =
-  | { native: NativeScriptInput }
-  | { plutus: PlutusScriptInput; redeemer: RedeemerInput };
+  | {
+      /**
+       * A native script: attached as a `NativeScript` or its CBOR, or held in a reference output
+       * (`{ reference }`)
+       */
+      native: NativeScriptInput;
+    }
+  | {
+      /**
+       * A Plutus script: attached (`{ code, version }`, the code flat or in one or two CBOR
+       * wrappings) or held in a reference output (`{ reference }`)
+       */
+      plutus: PlutusScriptInput;
+      /**
+       * Data, or a function of the final transaction (`self`: the certificate's or proposal's
+       * position in its list, the voter's among the voters), with execution units if already known
+       */
+      redeemer: RedeemerInput;
+    };
 
 /** A governance action: the transaction that proposed it and the proposal's position there */
-export type GovActionIdInput = { txHash: string; index: number };
+export type GovActionIdInput = {
+  /** Hash of the transaction that proposed the action, in hex */
+  txHash: string;
+  /** The proposal's position among the proposals of that transaction, from 0 */
+  index: number;
+};
 
 /** Who votes: a DRep, a constitutional committee member's hot credential, or a stake pool */
 export type VoterInput =
-  | { drep: DRepCredentialInput }
-  | { committee: CredentialInput }
-  | { pool: PoolInput };
+  | {
+      /** The DRep's id in bech32, or its credential */
+      drep: DRepCredentialInput;
+    }
+  | {
+      /** The member's hot credential, or a reward address carrying it */
+      committee: CredentialInput;
+    }
+  | {
+      /** The pool id in bech32, or its key hash */
+      pool: PoolInput;
+    };
 
+/** One vote: the governance action and the voter's answer */
 export type VoteInput = {
+  /** The governance action voted on */
   action: GovActionIdInput;
+  /** The answer */
   vote: "yes" | "no" | "abstain";
   /** Where the rationale is published */
   anchor?: AnchorInput;
@@ -170,6 +422,21 @@ export type VoteInput = {
 /** The protocol parameters deposits and refunds are taken from */
 export type DepositParameter =
   "keyDeposit" | "drepDeposit" | "govActionDeposit";
+
+/** What every part builder takes */
+export interface PartParams {
+  /** Free-form name, echoed in errors about this part */
+  label?: string;
+}
+
+/** What a certificate or a vote takes besides its own fields */
+export interface CredentialWitnessParams extends PartParams {
+  /**
+   * Needed when the credential that authorises the part is a script: the script, and a Plutus
+   * script's redeemer. A key credential, and a pool, authorise with their key's signature
+   */
+  witness?: CredentialWitnessInput;
+}
 
 /* ---------------------------------------------------------------------------------------------
  * Parts
@@ -183,7 +450,7 @@ type PartBase = {
 type ResolvableInput = {
   readonly input: Readonly<TransactionInputPrototype>;
   /** The output being referenced, once known */
-  readonly utxo?: Readonly<UTxO>;
+  readonly utxo?: Readonly<Utxo>;
 };
 
 export type PlutusScriptSource =
@@ -215,7 +482,13 @@ export type NativeScriptSource =
     });
 
 export type PartRedeemer = {
-  readonly data: Readonly<PlutusDataVariant>;
+  /** The data, or the function that computes it at assembly, kept as given */
+  readonly data:
+    | Readonly<PlutusDataVariant>
+    | {
+        readonly type: "deferred";
+        readonly build: (tx: RedeemerContext) => PlutusDataInput;
+      };
   readonly exUnits?: Readonly<ExUnitsPrototype>;
 };
 
@@ -268,6 +541,57 @@ export type CollateralPart = PartBase &
     readonly kind: "collateral";
   };
 
+/**
+ * An output of an earlier step of the same plan: the output its transaction makes from the
+ * output part with this label, or the output at this position in its transaction. It stands
+ * where a part takes a UTxO, in `spend.pubKey`, `spend.native`, `spend.plutus`, `referenceInput`
+ * and `collateral`. The plan fills it in when it builds the step, from the earlier step's own
+ * transaction: nothing is looked up, and no transaction hash is written by hand.
+ */
+export type StepOutput = {
+  /** The name of the earlier step */
+  readonly step: string;
+  /** The label of the output part that makes the output, or the output's position, from 0 */
+  readonly output: string | number;
+};
+
+/**
+ * All the change of an earlier step of the same plan. It stands where `spend.pubKey` takes a
+ * UTxO: the part spends every change output of that step's transaction, one input for each, and
+ * none when the transaction has no change.
+ */
+export type StepChange = {
+  /** The name of the earlier step */
+  readonly step: string;
+  /** All of its change */
+  readonly change: true;
+};
+
+/**
+ * A part whose input is an output of an earlier step: it holds `link` where the part holds
+ * `input` and `utxo`. The plan that builds the step fills the input in, and a part linked to all
+ * the change may become several parts there. Until then the part is unresolved (the gap `link`):
+ * `builder.build` and `assembleTxPrototype` do not take it.
+ */
+export type Linked<P extends SpendPart | ReferenceInputPart | CollateralPart> =
+  Omit<P, "input" | "utxo"> & {
+    /** The output, or all the change, of the earlier step */
+    readonly link: StepOutput | StepChange;
+  };
+
+/**
+ * The part a builder makes when its output is given as `U`: a `Linked` part when `U` is a link to
+ * an earlier step, else the part itself. A `U` that is `any` gives the part itself.
+ */
+export type LinkedWhen<
+  U,
+  P extends SpendPart | ReferenceInputPart | CollateralPart,
+> = 0 extends 1 & U ? P : U extends StepOutput | StepChange ? Linked<P> : P;
+
+/** Every part that may be linked to an earlier step */
+export type LinkedPart =
+  Linked<SpendPart> | Linked<ReferenceInputPart> | Linked<CollateralPart>;
+
 /** Where the collateral left over after a script failure goes */
 export type CollateralReturnPart = PartBase & {
   readonly kind: "collateralReturn";
@@ -311,25 +635,44 @@ export type MintPart = PartBase & {
 /** Rewards withdrawn from a stake address */
 export type WithdrawalPart = PartBase & {
   readonly kind: "withdrawal";
-  readonly rewardAddress: string;
+  /** Left out for a script's own reward address, derived on the build's network before assembly */
+  readonly rewardAddress?: string;
   /** Lovelace withdrawn; left out to withdraw the whole balance, looked up before assembly */
   readonly amount?: string;
   readonly witness: KeyWitness | NativeWitness | PlutusWitness;
 };
 
-/** A key whose signature the transaction requires, visible to its scripts */
-export type RequiredSignerPart = PartBase & {
-  readonly kind: "requiredSigner";
-  readonly keyHash: string;
+/**
+ * A guard: a credential the transaction must be authorised by, visible to its scripts (body
+ * key 14). Today the only guard is a key, Conway's required signer; a later ledger era admits a
+ * script credential in the same field, and this type then gains members
+ */
+export type GuardPart = PartBase & {
+  readonly kind: "guard";
+  /** The key hash, in the form `CredTypePrototype` has */
+  readonly credential: { readonly type: "KEY"; readonly value: string };
+  /** What authorises the guard: the key's signature; `guard.pubKey` sets it */
+  readonly witness: KeyWitness;
 };
 
 /** The slots between which the transaction is valid */
-export type ValidityPart = PartBase & {
+export type SlotValidityPart = PartBase & {
   readonly kind: "validity";
   /** First slot the transaction is valid in (`validity_start_interval`) */
   readonly invalidBefore?: string;
   /** First slot the transaction is no longer valid in (`ttl`) */
   readonly invalidHereafter?: string;
+};
+
+/**
+ * When the transaction is valid. A bound may be a POSIX time, converted to a slot when the
+ * transaction is built, with the builder's network
+ */
+export type ValidityPart = SlotValidityPart & {
+  /** Earliest time the transaction is valid at, in POSIX ms, until converted */
+  readonly from?: number;
+  /** Latest time the transaction is valid at, in POSIX ms, until converted */
+  readonly until?: number;
 };
 
 /** One metadata entry */
@@ -432,7 +775,10 @@ export type ProposalPart = PartBase & {
    * The guardrail script a parameter change or treasury withdrawal names in its policy hash;
    * nothing for every other proposal
    */
-  readonly witness: { readonly type: "none" } | NativeWitness | PlutusWitness;
+  readonly witness:
+    | { readonly type: "none"; readonly defaultGuardrail?: false }
+    | NativeWitness
+    | PlutusWitness;
 };
 
 export type TxPart =
@@ -443,7 +789,7 @@ export type TxPart =
   | OutputPart
   | MintPart
   | WithdrawalPart
-  | RequiredSignerPart
+  | GuardPart
   | ValidityPart
   | MetadataPart
   | AuxiliaryScriptPart
@@ -456,7 +802,7 @@ export type TxPart =
 
 /** Something a part leaves to be filled in before assembly */
 export type Unresolved =
-  /** The contents of an output given by reference only */
+  /** The contents of an output spent or put up as collateral, given by reference only */
   | { readonly type: "utxo"; readonly input: TransactionInputPrototype }
   /** Hash, size or version of a script in a reference output */
   | {
@@ -471,10 +817,26 @@ export type Unresolved =
   | { readonly type: "minCoin" }
   /** The lovelace forfeited on script failure */
   | { readonly type: "totalCollateral" }
-  /** The reward balance of a stake address, to withdraw in full */
-  | { readonly type: "rewardBalance"; readonly rewardAddress: string }
+  /** The slot of a validity bound given as a time */
+  | { readonly type: "slot" }
+  /** The reward address of a script's stake credential, which depends on the network */
+  | { readonly type: "rewardAddress" }
+  /**
+   * The reward balance of a stake address, to withdraw in full; no address while it is not derived
+   */
+  | { readonly type: "rewardBalance"; readonly rewardAddress?: string }
   /** A deposit or refund, from a protocol parameter */
   | {
       readonly type: "deposit";
       readonly parameter: DepositParameter;
-    };
+    }
+  /**
+   * The guardrail script the constitution names, which a parameter change or a treasury withdrawal
+   * runs, and which this library does not hold
+   */
+  | { readonly type: "guardrail"; readonly scriptHash: string }
+  /**
+   * The output, or all the change, of an earlier step that a part is linked to; the plan that
+   * builds the step fills it in
+   */
+  | { readonly type: "link"; readonly link: StepOutput | StepChange };

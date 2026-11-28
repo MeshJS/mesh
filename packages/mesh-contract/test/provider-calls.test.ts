@@ -80,8 +80,8 @@ describe("Contract provider calls", () => {
     expect(calls.fetchUTxOs).toBe(1);
     // Wallet UTxOs and collateral come from one request
     expect(calls.fetchAddressUTxOs).toBe(1);
-    // Cost models were fetched for the lock tx, in the same epoch
-    expect(calls.fetchCostModels).toBeUndefined();
+    // The lock tx runs no script and reads no cost models; the unlock reads them once
+    expect(calls.fetchCostModels).toBe(1);
     expect(calls.submitTx).toBe(1);
   });
 });

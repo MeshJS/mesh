@@ -134,7 +134,10 @@ export const transactionWitnessSetPrototypeToCardano = (
   }
 
   if (ws.redeemers?.length) {
-    result.setRedeemers(Redeemers.fromCore(ws.redeemers.map((r) => redeemerPrototypeToCardano(r).toCore())));
+    // The redeemers as built, so that the data of each keeps the bytes it is given in
+    const redeemers = Redeemers.fromCore([]);
+    redeemers.setValues(ws.redeemers.map(redeemerPrototypeToCardano));
+    result.setRedeemers(redeemers);
   }
 
   return result;

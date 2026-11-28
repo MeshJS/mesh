@@ -13,8 +13,14 @@ import { getOutputMinLovelace } from ".";
 
 /**
  * Convert UTxO to TxIn parameters in array for MeshTxBuilder, e.g. `txIn(...utxoToTxIn(utxo))`.
- * Passing the reference script size too means the builder has all it needs and does not
- * fetch the UTxO again.
+ * A builder with a fetcher still reads the output when `complete()` runs, and builds on what it
+ * reads. The amount, address and reference script size given here hold only where the output
+ * cannot be read: without a fetcher, when the provider does not have it, or, in a build that
+ * hands no UTxOs to an evaluator, when the read fails in any other way. In a transaction that
+ * runs a Plutus script under an evaluator given the build's UTxOs, as the default one is, they
+ * hold only for an input no Plutus script spends whose script size is 0, and only where the
+ * output cannot be had; for any other input `complete()` throws `UTXO_NOT_FOUND`
+ * (`MISSING_FETCHER` without a fetcher).
  * @param utxo UTxO
  * @returns [txHash, outputIndex, amount, address, scriptSize]
  */

@@ -24,12 +24,11 @@ import {
   fromTxUnspentOutput,
   Hash28ByteBase16,
   resolvePrivateKey,
-  Serialization,
   toAddress,
   toTxUnspentOutput,
   TransactionUnspentOutput,
-  TransactionWitnessSet,
   VkeyWitness,
+  vkeyWitnessSetFor,
 } from "@meshsdk/core-cst";
 import { Transaction } from "@meshsdk/transaction";
 
@@ -388,6 +387,7 @@ export class MeshWallet implements IWallet {
    * @returns a list of reward addresses
    */
   async getRewardAddresses(): Promise<string[]> {
+    await this.init();
     return [this.addresses.rewardAddressBech32!];
   }
 
@@ -451,7 +451,7 @@ export class MeshWallet implements IWallet {
   }
 
   /**
-   * Return a list of all UTXOs (unspent transaction outputs) controlled by the wallet.
+   * Return a list of all UTXOs (unspent transaction outputs) controlled by the wallet. A wallet created without a fetcher throws an error whose `code` is `"FETCHER_REQUIRED"`.
    *
    * @param addressType - the type of address to fetch UTXOs from (default: payment)
    * @returns a list of UTXOs
@@ -538,19 +538,75 @@ export class MeshWallet implements IWallet {
       this._accountType,
     );
 
-    if (!returnFullTx) {
-      let witnessSet = new TransactionWitnessSet();
-      witnessSet.setVkeys(
-        Serialization.CborSet.fromCore(
-          [newSignatures.toCore()],
-          VkeyWitness.fromCore,
-        ),
-      );
-      return witnessSet.toCbor().toString();
-    }
+    // The witness set alone, in the form the transaction's would take
+    if (!returnFullTx) return vkeyWitnessSetFor(unsignedTx, [newSignatures]);
 
     let signedTx = EmbeddedWallet.addWitnessSets(unsignedTx, [newSignatures]);
     return signedTx;
+  }
+
+  /**
+   * Returns this wallet's vkey witnesses for the transaction as a CBOR witness set, never the transaction; `"a0"` when it signed nothing.
+   *
+   * With `keyHashes`, the wallet signs with each of its payment, stake and DRep keys whose hash is in the list, and with no other: an empty list signs nothing. Without the list it signs with its `accountType` key, as `signTx` does.
+   *
+   * @param tx - a transaction in CBOR
+   * @param keyHashes - hashes of the keys to sign with (optional)
+   * @returns a witness set in CBOR
+   */
+  async signTxWitnesses(
+    tx: string,
+    keyHashes?: readonly string[],
+  ): Promise<string> {
+    await this.init();
+
+    if (!this._wallet) {
+      throw new Error(
+        "[MeshWallet] Read only wallet does not support signing data.",
+      );
+    }
+
+    // decode first, so that text which is not a transaction never yields "a0"
+    deserializeTx(tx);
+
+    const witnesses: VkeyWitness[] = [];
+    if (keyHashes === undefined) {
+      witnesses.push(
+        this._wallet.signTx(
+          tx,
+          this._accountIndex,
+          this._keyIndex,
+          this._accountType,
+        ),
+      );
+    } else {
+      // hashes are compared in lower case, as the wallet's own are written
+      const listed = new Set(keyHashes.map((hash) => hash.toLowerCase()));
+      const { paymentKey, stakeKey, drepKey } = this._wallet.getAccount(
+        this._accountIndex,
+        this._keyIndex,
+      );
+      const keys: [AccountType, typeof paymentKey | undefined][] = [
+        ["payment", paymentKey],
+        ["stake", stakeKey],
+        ["drep", drepKey],
+      ];
+      for (const [accountType, key] of keys) {
+        if (key && listed.has(key.toPublic().hash().hex())) {
+          witnesses.push(
+            this._wallet.signTx(
+              tx,
+              this._accountIndex,
+              this._keyIndex,
+              accountType,
+            ),
+          );
+        }
+      }
+    }
+
+    // In the form the transaction's vkey witness set would take
+    return vkeyWitnessSetFor(tx, witnesses);
   }
 
   /**
@@ -624,7 +680,7 @@ export class MeshWallet implements IWallet {
   /**
    * Get a list of UTXOs to be used for transaction building.
    *
-   * This is used in transaction building.
+   * This is used in transaction building. A wallet created without a fetcher throws an error whose `code` is `"FETCHER_REQUIRED"`.
    *
    * @param addressType - the type of address to fetch UTXOs from (default: payment)
    * @returns a list of UTXOs
@@ -633,8 +689,12 @@ export class MeshWallet implements IWallet {
     addressType: GetAddressType = "payment",
   ): Promise<TransactionUnspentOutput[]> {
     if (!this._fetcher) {
-      throw new Error(
-        "[MeshWallet] Fetcher is required to fetch UTxOs. Please provide a fetcher.",
+      // the code lets a transaction builder tell this error from other failed reads
+      throw Object.assign(
+        new Error(
+          "[MeshWallet] Fetcher is required to fetch UTxOs. Please provide a fetcher.",
+        ),
+        { code: "FETCHER_REQUIRED" },
       );
     }
 

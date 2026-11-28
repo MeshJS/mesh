@@ -133,11 +133,10 @@ describe("MeshTxBuilder - Failed Script Transactions", () => {
       });
     expect(res).toBeInstanceOf(Error);
     expect(res2).toBeInstanceOf(Error);
-    expect(res.message).toMatch(
-      `Evaluate redeemers failed: Tx evaluation failed: [{\"index\":0,\"budget\":{\"mem\":100,\"steps\":100},\"tag\":\"spend\",\"errorMessage\":\"the validator crashed / exited prematurely\",\"logs\":[]}] \n For txHex:`,
-    );
-    expect(res2.message).toMatch(
-      `Evaluate redeemers failed: Tx evaluation failed: [{\"index\":0,\"budget\":{\"mem\":100,\"steps\":100},\"tag\":\"spend\",\"errorMessage\":\"the validator crashed / exited prematurely\",\"logs\":[]}] \n For txHex:`,
-    );
+    // The evaluator's failure, as the builder's error code with the failure as its cause
+    expect(res).toMatchObject({ code: "EVALUATION_FAILED" });
+    expect(res2).toMatchObject({ code: "EVALUATION_FAILED" });
+    expect(res.cause).toBeDefined();
+    expect(res2.cause).toBeDefined();
   });
 });

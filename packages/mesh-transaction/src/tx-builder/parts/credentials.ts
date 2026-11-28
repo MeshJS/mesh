@@ -17,6 +17,7 @@ import {
   toRedeemer,
   withKnownHash,
 } from "./normalize";
+import { shownValue } from "./shape";
 import {
   AnchorInput,
   CredentialInput,
@@ -29,6 +30,10 @@ import {
   PlutusWitness,
   PoolInput,
 } from "./types";
+
+/** The form of a credential given as an object */
+const CREDENTIAL_FORM =
+  '{ type: "KEY" | "SCRIPT", value: <28-byte hash in hex> }';
 
 export type Credential = { type: "key" | "script"; hash: string };
 
@@ -43,16 +48,25 @@ export const fromPrototypeCredential = (
   ctx: PartContext,
   credential: CredTypePrototype,
 ): Credential => {
-  const hash =
-    typeof credential.value === "string" ? credential.value.toLowerCase() : "";
-  if (
-    (credential.type !== "KEY" && credential.type !== "SCRIPT") ||
-    !isHash28(hash)
-  )
+  if (typeof credential !== "object" || credential === null)
     fail(
       ctx,
       "INVALID_DATA",
-      `invalid credential ${JSON.stringify(credential)}`,
+      `invalid credential: expected ${CREDENTIAL_FORM}; got ${shownValue(credential)}`,
+    );
+  const hash =
+    typeof credential.value === "string" ? credential.value.toLowerCase() : "";
+  if (credential.type !== "KEY" && credential.type !== "SCRIPT")
+    fail(
+      ctx,
+      "INVALID_DATA",
+      `invalid credential: expected ${CREDENTIAL_FORM}; got the type ${shownValue((credential as { type?: unknown }).type)}`,
+    );
+  if (!isHash28(hash))
+    fail(
+      ctx,
+      "INVALID_DATA",
+      `invalid credential: expected ${CREDENTIAL_FORM}; got the value ${shownValue(credential.value)}`,
     );
   return { type: credential.type === "SCRIPT" ? "script" : "key", hash };
 };
@@ -72,7 +86,11 @@ export const toDRepCredential = (
 ): Credential => {
   if (typeof input !== "string") return fromPrototypeCredential(ctx, input);
   if (!Cardano.DRepID.isValid(input))
-    return fail(ctx, "INVALID_DATA", `invalid DRep id ${input}`);
+    return fail(
+      ctx,
+      "INVALID_DATA",
+      `invalid DRep id: expected a DRep id in bech32; got ${shownValue(input)}`,
+    );
   const credential = Cardano.DRepID.toCredential(Cardano.DRepID(input));
   return {
     type:
@@ -84,7 +102,7 @@ export const toDRepCredential = (
 export const toDRep = (ctx: PartContext, input: DRepInput): DRepPrototype => {
   if (input === "alwaysAbstain") return { type: "ALWAYS_ABSTAIN" };
   if (input === "alwaysNoConfidence") return { type: "ALWAYS_NO_CONFIDENCE" };
-  if (typeof input === "object" && "type" in input) {
+  if (typeof input === "object" && input !== null && "type" in input) {
     if (
       input.type === "ALWAYS_ABSTAIN" ||
       input.type === "ALWAYS_NO_CONFIDENCE"
@@ -110,7 +128,12 @@ export const toPoolKeyHash = (ctx: PartContext, pool: PoolInput): string => {
   try {
     return Cardano.PoolId.toKeyHash(Cardano.PoolId(pool)).toString();
   } catch {
-    return fail(ctx, "INVALID_DATA", `invalid pool id ${pool}`);
+    // The reader's error quotes the text, which may be a key given by mistake
+    return fail(
+      ctx,
+      "INVALID_DATA",
+      `invalid pool id: expected a pool id in bech32 or a 28-byte key hash in hex; got ${shownValue(pool)}`,
+    );
   }
 };
 
@@ -122,10 +145,16 @@ export const toAnchor = (
   anchor: AnchorInput | undefined,
 ): AnchorPrototype | undefined => {
   if (anchor === undefined) return undefined;
+  if (typeof anchor !== "object" || anchor === null)
+    fail(ctx, "INVALID_DATA", `invalid anchor ${shownValue(anchor)}`);
   const dataHash =
     typeof anchor.dataHash === "string" ? anchor.dataHash.toLowerCase() : "";
   if (!isHash32(dataHash))
-    fail(ctx, "INVALID_DATA", `invalid anchor data hash ${anchor.dataHash}`);
+    fail(
+      ctx,
+      "INVALID_DATA",
+      `invalid anchor data hash: expected a 32-byte hash in hex; got ${shownValue(anchor.dataHash)}`,
+    );
   if (
     typeof anchor.url !== "string" ||
     new TextEncoder().encode(anchor.url).length > MAX_ANCHOR_URL_BYTES
@@ -142,7 +171,7 @@ export const toDeposit = <P extends DepositParameter>(
 ): { coin?: string; depositParameter?: P } => {
   if (amount === undefined) return { depositParameter: parameter };
   if (typeof amount !== "bigint" || amount < 0n)
-    fail(ctx, "INVALID_VALUE", `invalid deposit ${amount}`);
+    fail(ctx, "INVALID_VALUE", `invalid deposit ${shownValue(amount)}`);
   return { coin: amount.toString() };
 };
 
@@ -172,6 +201,12 @@ export const toCredentialWitness = (
       ctx,
       "WITNESS_MISMATCH",
       `${what} needs a witness: { native } or { plutus, redeemer }`,
+    );
+  if (typeof witness !== "object")
+    return fail(
+      ctx,
+      "WITNESS_MISMATCH",
+      `invalid witness ${shownValue(witness)}: expected { native } or { plutus, redeemer }`,
     );
   if ("native" in witness) {
     const script = withKnownHash(

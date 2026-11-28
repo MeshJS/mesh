@@ -1,3 +1,4 @@
+import type { SlotConfig } from "../data/time";
 import { Action, Network, UTxO } from "../types";
 
 /** What a transaction builder learns while completing a transaction; a field left out is unknown */
@@ -6,6 +7,8 @@ export interface EvaluationContext {
   network?: Network;
   /** The cost models fetched for it, by Plutus version (V1, V2, V3); an empty entry is none */
   costModels?: number[][];
+  /** The slot clock, so that a custom network's clock reaches the evaluator */
+  slotConfig?: SlotConfig;
 }
 
 export interface IEvaluator {

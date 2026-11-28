@@ -38,13 +38,21 @@ export type AssetNamesPrototype = string[];
 export interface AssetsPrototype {
   [k: string]: string;
 }
-export type NativeScriptPrototype =
+export type NativeScriptPrototype = (
   | { type: "SCRIPT_PUBKEY"; value: ScriptPubkeyPrototype }
   | { type: "SCRIPT_ALL"; value: ScriptAllPrototype }
   | { type: "SCRIPT_ANY"; value: ScriptAnyPrototype }
   | { type: "SCRIPT_N_OF_K"; value: ScriptNOfKPrototype }
   | { type: "TIMELOCK_START"; value: TimelockStartPrototype }
-  | { type: "TIMELOCK_EXPIRY"; value: TimelockExpiryPrototype };
+  | { type: "TIMELOCK_EXPIRY"; value: TimelockExpiryPrototype }
+) & {
+  /**
+   * The script's CBOR in hex, when it was given in CBOR its structure is not written as: the
+   * script is written in these bytes, and its hash is the hash of these bytes. The structure is
+   * what the bytes read as
+   */
+  cbor?: string;
+};
 
 export interface AuxiliaryDataPrototype {
   /** CDDL `auxiliary_data_map` key 0. */
