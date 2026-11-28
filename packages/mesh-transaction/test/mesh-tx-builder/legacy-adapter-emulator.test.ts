@@ -9,7 +9,6 @@ import {
   MeshTxBuilderBody,
   UTxO,
 } from "@meshsdk/common";
-import { CSLSerializer } from "@meshsdk/core-csl";
 import {
   CardanoSDKSerializer,
   resolveScriptHashDRepId,
@@ -80,11 +79,10 @@ describe("MeshTxBuilder options", () => {
     );
   });
 
-  it("accepts Mesh's serializers, their subclasses and copies, and Mesh's selectors", () => {
+  it("accepts Mesh's serializer, its subclasses and copies, and Mesh's selectors", () => {
     class MySerializer extends CardanoSDKSerializer {}
     for (const serializer of [
       new CardanoSDKSerializer(),
-      new CSLSerializer(),
       new MySerializer(),
       Object.create(CardanoSDKSerializer.prototype),
     ])
@@ -142,7 +140,6 @@ describe("MeshTxBuilder's synchronous methods and body queries", () => {
 
   describe.each([
     ["CardanoSDKSerializer", () => new CardanoSDKSerializer()],
-    ["CSLSerializer", () => new CSLSerializer()],
   ] as const)("with %s", (_, serializer) => {
     const builder = () => new MeshTxBuilder({ serializer: serializer() });
 
@@ -1434,12 +1431,24 @@ describe.each(["scalus", "cquisitor"] as const)(
       await accept(context, withRef);
     });
 
-    it("encodes with the builder's encoder whatever the serializer: CSL fields it lost are there", async () => {
+    it("encodes with the builder's encoder, never the serializer's", async () => {
       const context = await setup(validator);
       const { emulator, wallet, address, funds, locked } = context;
       const [rewardAddress] = await wallet.getRewardAddresses();
       emulator.setAccount({ rewardAddress: rewardAddress! });
-      const serializer = new CSLSerializer();
+      // A serializer whose encoders throw: it only signs
+      class SignOnly extends CardanoSDKSerializer {
+        override serializeTxBody = (): string => {
+          throw new Error("serializeTxBody");
+        };
+        override serializeTxPrototype = (): string => {
+          throw new Error("serializeTxPrototype");
+        };
+        override serializeTxBodyWithMockSignatures(): string {
+          throw new Error("serializeTxBodyWithMockSignatures");
+        }
+      }
+      const serializer = new SignOnly();
       const collateral = emulator.fund(address, { lovelace: 10_000_000n });
       const build = (scriptInMetadata: boolean) => {
         const builder = new MeshTxBuilder({ fetcher: emulator, serializer });

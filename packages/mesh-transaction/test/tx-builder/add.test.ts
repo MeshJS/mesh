@@ -10,8 +10,8 @@ import {
   mConStr0,
   Protocol,
 } from "@meshsdk/core";
-import { CSLSerializer } from "@meshsdk/core-csl";
 import {
+  CardanoSDKSerializer,
   keyHashToRewardAddress,
   OfflineEvaluatorScalus,
   resolvePlutusScriptAddress,
@@ -281,7 +281,7 @@ describe("TxBuilder.add", () => {
     const b = new TxBuilder({
       network,
       provider,
-      serializer: new CSLSerializer(),
+      serializer: new CardanoSDKSerializer(),
       params,
       costModels,
       deposits,

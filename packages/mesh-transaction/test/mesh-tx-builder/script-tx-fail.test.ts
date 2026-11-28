@@ -1,14 +1,16 @@
 import { serializePlutusScript } from "@meshsdk/core";
-import { CSLSerializer, OfflineEvaluator } from "@meshsdk/core-csl";
-import { resolveScriptRef } from "@meshsdk/core-cst";
+import { OfflineEvaluatorScalus, resolveScriptRef } from "@meshsdk/core-cst";
 import { OfflineFetcher } from "@meshsdk/provider";
-
 import { MeshTxBuilder } from "@meshsdk/transaction";
+
 import { alwaysFailCbor, alwaysFailHash, txHash } from "../test-util";
 
 describe("MeshTxBuilder - Failed Script Transactions", () => {
   const offlineFetcher = new OfflineFetcher();
-  const offlineEvaluator = new OfflineEvaluator(offlineFetcher, "preprod");
+  const offlineEvaluator = new OfflineEvaluatorScalus(
+    offlineFetcher,
+    "preprod",
+  );
 
   offlineFetcher.addUTxOs([
     {
@@ -86,19 +88,12 @@ describe("MeshTxBuilder - Failed Script Transactions", () => {
   ]);
 
   const txBuilder = new MeshTxBuilder({
-    serializer: new CSLSerializer(),
-    fetcher: offlineFetcher,
-    evaluator: offlineEvaluator,
-  });
-
-  const txBuilder2 = new MeshTxBuilder({
     fetcher: offlineFetcher,
     evaluator: offlineEvaluator,
   });
 
   beforeEach(() => {
     txBuilder.reset();
-    txBuilder2.reset();
   });
 
   it("failed scripts should provide error", async () => {
@@ -116,27 +111,9 @@ describe("MeshTxBuilder - Failed Script Transactions", () => {
       .catch((err) => {
         return err;
       });
-
-    const res2 = await txBuilder2
-      .spendingPlutusScriptV3()
-      .txIn(txHash("tx2"), 0)
-      .txInInlineDatumPresent()
-      .txInRedeemerValue("")
-      .txInScript(alwaysFailCbor)
-      .txInCollateral(txHash("tx1"), 0)
-      .changeAddress(
-        "addr_test1qpvx0sacufuypa2k4sngk7q40zc5c4npl337uusdh64kv0uafhxhu32dys6pvn6wlw8dav6cmp4pmtv7cc3yel9uu0nq93swx9",
-      )
-      .complete()
-      .catch((err) => {
-        return err;
-      });
     expect(res).toBeInstanceOf(Error);
-    expect(res2).toBeInstanceOf(Error);
     // The evaluator's failure, as the builder's error code with the failure as its cause
     expect(res).toMatchObject({ code: "EVALUATION_FAILED" });
-    expect(res2).toMatchObject({ code: "EVALUATION_FAILED" });
     expect(res.cause).toBeDefined();
-    expect(res2.cause).toBeDefined();
   });
 });

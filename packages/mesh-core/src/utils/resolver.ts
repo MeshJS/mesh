@@ -124,7 +124,7 @@ export const resolvePlutusScriptHash = (bech32: string) =>
 /**
  * Deprecated - this is more used with the low level process inside Mesh
  *
- * If you need this, please import @meshsdk/core-csl or @meshsdk/core-cst instead
+ * If you need this, please import @meshsdk/core-cst instead
  */
 export const resolveScriptRef = (script: NativeScript | PlutusScript) =>
   core.resolveScriptRef(script);

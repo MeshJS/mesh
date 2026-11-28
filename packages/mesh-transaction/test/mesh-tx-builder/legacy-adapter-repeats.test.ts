@@ -1,5 +1,5 @@
 import { mConStr0, MeshTxBuilderBody, UTxO } from "@meshsdk/common";
-import { CSLSerializer } from "@meshsdk/core-csl";
+import { CardanoSDKSerializer } from "@meshsdk/core-cst";
 import { MeshWallet } from "@meshsdk/wallet";
 
 import { MeshTxBuilder, Transaction, utxoToTxIn } from "../../src";
@@ -618,7 +618,7 @@ describe.each(["scalus", "cquisitor"] as const)(
 
     describe("a collateral input", () => {
       it("named twice is one collateral input, its return the input less the total: accepted", async () => {
-        for (const serializer of [undefined, new CSLSerializer()]) {
+        for (const serializer of [undefined, new CardanoSDKSerializer()]) {
           const context = await setup(validator);
           const { emulator, address, funds, locked } = context;
           const c = emulator.fund(address, { lovelace: 10_000_000n });
@@ -717,7 +717,7 @@ describe.each(["scalus", "cquisitor"] as const)(
       });
 
       it("named by an entry with the amount and one with the address, in either order, is one collateral input", async () => {
-        for (const serializer of [undefined, new CSLSerializer()])
+        for (const serializer of [undefined, new CardanoSDKSerializer()])
           for (const amountFirst of [true, false]) {
             const context = await setup(validator);
             const { emulator, address, funds, locked } = context;

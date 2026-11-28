@@ -2810,8 +2810,8 @@ input, also in a head. The old API's `isHydra` sets five parameters to zero (`mi
 signatures are kept and behave the same or very close, though the final CBOR may differ;
 `MeshTxBuilderV2` and `Transaction` work through it. New code uses `TxBuilder` and its parts.
 
-- Its `serializer` and `selector` accept only Mesh's: `CardanoSDKSerializer` or `CSLSerializer`,
-  and a `LargestFirstInputSelector` or none; anything else is `INVALID_OPTION` at construction. The
+- Its `serializer` and `selector` accept only Mesh's: `CardanoSDKSerializer`, and a
+  `LargestFirstInputSelector` or none; anything else is `INVALID_OPTION` at construction. The
   transaction is always encoded by the builder, and `LargestFirstInputSelector` is a mark whose
   `select()` rejects: a selection of one's own is `coinSelection` of `TxBuilder`.
 - `complete()` builds with `TxBuilder.build(parts, options)` and writes the built transaction back

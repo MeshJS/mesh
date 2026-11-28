@@ -23,9 +23,9 @@ import {
   TransactionPrototype,
   UTxO,
 } from "@meshsdk/core";
-import { CSLSerializer } from "@meshsdk/core-csl";
 import {
   Address,
+  CardanoSDKSerializer,
   keyHashToRewardAddress,
   OfflineEvaluatorScalus,
   resolvePlutusScriptAddress,
@@ -2847,19 +2847,24 @@ describe("TxBuilder: serialization", () => {
     const options = {
       payer: { changeAddress: wallet, utxos: [utxo(lovelace(ada(10)))] },
     };
-    const cst = await new TxBuilder({ network, params }).build(parts, options);
-    const csl = await new TxBuilder({
-      network,
-      params,
-      serializer: new CSLSerializer(),
-    }).build(parts, options);
-    expect(csl.prototype).toEqual(cst.prototype);
-    expect(csl.txHash).toBe(cst.txHash);
+    const plain = await new TxBuilder({ network, params }).build(
+      parts,
+      options,
+    );
+    const serializer = new CardanoSDKSerializer();
+    const serializeTxPrototype = jest.spyOn(serializer, "serializeTxPrototype");
+    const given = await new TxBuilder({ network, params, serializer }).build(
+      parts,
+      options,
+    );
+    expect(serializeTxPrototype).toHaveBeenCalled();
+    expect(given.prototype).toEqual(plain.prototype);
+    expect(given.txHash).toBe(plain.txHash);
   });
 
   it("rejects a serializer without serializeTxPrototype", async () => {
     const serializer = {
-      ...new CSLSerializer(),
+      ...new CardanoSDKSerializer(),
       serializeTxPrototype: undefined,
     };
     // With params the serializer is the only fault; without them it is still the one reported
@@ -2985,16 +2990,16 @@ describe("TxBuilder: serialization", () => {
     });
 
     it("leaves the built-in encoder and a working serializer as they were", async () => {
-      const cst = await new TxBuilder({ network, params }).build(
+      const plain = await new TxBuilder({ network, params }).build(
         parts,
         options,
       );
-      const csl = await new TxBuilder({
+      const given = await new TxBuilder({
         network,
         params,
-        serializer: new CSLSerializer(),
+        serializer: new CardanoSDKSerializer(),
       }).build(parts, options);
-      expect(csl.txHash).toBe(cst.txHash);
+      expect(given.txHash).toBe(plain.txHash);
     });
   });
 });

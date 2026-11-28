@@ -3,7 +3,6 @@ import {
   MeshTxBuilderBody,
   resolveScriptRef,
 } from "@meshsdk/core";
-import { OfflineEvaluator } from "@meshsdk/core-csl";
 import { Transaction, TxCBOR } from "@meshsdk/core-cst";
 import { BlockfrostProvider, OfflineFetcher } from "@meshsdk/provider";
 import { MeshTxBuilder } from "@meshsdk/transaction";

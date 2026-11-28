@@ -74,9 +74,9 @@ export interface MeshTxBuilderOptions {
    */
   network?: Network;
   /**
-   * Mesh's serializers only: `CardanoSDKSerializer` (the default) or `CSLSerializer`; any other
-   * object is INVALID_OPTION. It signs in `completeSigning()`; the transaction itself is encoded
-   * by the builder, whichever of the two is given
+   * Mesh's serializer only: `CardanoSDKSerializer`, the default; any other object is
+   * INVALID_OPTION. It signs in `completeSigning()`; the transaction itself is encoded by the
+   * builder
    */
   serializer?: IMeshTxSerializer;
   /**
@@ -106,8 +106,7 @@ const HYDRA_PARAMS: Partial<Protocol> = {
 /** The name of the member that marks Mesh's serializers, on their prototype */
 const MESH_SERIALIZER = "@meshsdk/serializer";
 
-const SERIALIZERS_ALLOWED =
-  "one of Mesh's serializers: CardanoSDKSerializer or CSLSerializer";
+const SERIALIZERS_ALLOWED = "Mesh's serializer: CardanoSDKSerializer";
 const SELECTORS_ALLOWED = "a LargestFirstInputSelector, or none";
 
 const isMeshSerializer = (serializer: unknown): boolean =>
