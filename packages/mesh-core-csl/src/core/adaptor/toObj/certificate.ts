@@ -18,6 +18,11 @@ export const certificateToObj = (certificate: Certificate): object => {
         basicCertificate: baseCertToObj(baseCert),
       };
     case "ScriptCertificate":
+      if (baseCert.type === "RegisterStake") {
+        return {
+          basicCertificate: baseCertToObj(baseCert),
+        };
+      }
       return {
         scriptCertificate: {
           cert: baseCertToObj(baseCert),
@@ -30,6 +35,11 @@ export const certificateToObj = (certificate: Certificate): object => {
         },
       };
     case "SimpleScriptCertificate":
+      if (baseCert.type === "RegisterStake") {
+        return {
+          basicCertificate: baseCertToObj(baseCert),
+        };
+      }
       return {
         simpleScriptCertificate: {
           cert: baseCertToObj(baseCert),
