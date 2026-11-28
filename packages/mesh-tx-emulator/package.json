@@ -1,6 +1,6 @@
 {
   "name": "@meshsdk/tx-emulator",
-  "version": "1.9.1",
+  "version": "1.9.2",
   "description": "Simulate and submit Cardano transactions against a local ledger",
   "main": "./dist/index.cjs",
   "browser": "./dist/index.js",
@@ -27,9 +27,9 @@
     "test": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js"
   },
   "dependencies": {
-    "@meshsdk/common": "1.9.1",
-    "@meshsdk/core-cst": "1.9.1",
-    "@meshsdk/scalus-emulator": "1.9.1",
+    "@meshsdk/common": "1.9.2",
+    "@meshsdk/core-cst": "1.9.2",
+    "@meshsdk/scalus-emulator": "1.9.2",
     "scalus": "^1.5.0"
   },
   "peerDependencies": {
@@ -43,8 +43,8 @@
   "devDependencies": {
     "@cardananium/cquisitor-lib": "0.1.0-beta.68",
     "@meshsdk/configs": "*",
-    "@meshsdk/core": "1.9.1",
-    "@meshsdk/wallet": "1.9.1",
+    "@meshsdk/core": "1.9.2",
+    "@meshsdk/wallet": "1.9.2",
     "eslint": "^8.57.0",
     "ts-jest": "^29.1.4",
     "tsup": "^8.0.2",
