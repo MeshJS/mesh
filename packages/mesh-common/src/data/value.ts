@@ -275,7 +275,11 @@ export class MeshValue {
    * @returns boolean
    */
   eq = (other: MeshValue): boolean => {
-    return Object.keys(this.value).every((key) => this.eqUnit(key, other));
+    const units = Object.keys(this.value);
+    return (
+      units.length === Object.keys(other.value).length &&
+      units.every((key) => this.eqUnit(key, other))
+    );
   };
 
   /**
