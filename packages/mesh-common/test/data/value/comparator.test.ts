@@ -145,6 +145,37 @@ describe("MeshValue class", () => {
       expect(value.leqUnit(mockUnit, target)).toBe(false);
     });
   });
+  describe("eq", () => {
+    it("should return true if both values hold the same units and quantities", () => {
+      const value = new MeshValue({ lovelace: 20n, [mockUnit]: 10n });
+      const target = new MeshValue({ lovelace: 20n, [mockUnit]: 10n });
+      expect(value.eq(target)).toBe(true);
+    });
+
+    it("should return false if a quantity differs", () => {
+      const value = new MeshValue({ lovelace: 20n, [mockUnit]: 10n });
+      const target = new MeshValue({ lovelace: 20n, [mockUnit]: 5n });
+      expect(value.eq(target)).toBe(false);
+    });
+
+    it("should return false if there is missing unit in the target value", () => {
+      const value = new MeshValue({ lovelace: 20n, [mockUnit]: 10n });
+      const target = new MeshValue({ lovelace: 20n });
+      expect(value.eq(target)).toBe(false);
+    });
+
+    it("should return false if there is missing unit in the value.value", () => {
+      const value = new MeshValue({ lovelace: 20n });
+      const target = new MeshValue({ lovelace: 20n, [mockUnit]: 10n });
+      expect(value.eq(target)).toBe(false);
+    });
+
+    it("should return false if an empty value is compared with a non empty one", () => {
+      const value = new MeshValue();
+      const target = new MeshValue({ lovelace: 20n });
+      expect(value.eq(target)).toBe(false);
+    });
+  });
   describe("isEmpty", () => {
     it("should return true if the value is empty", () => {
       const value = new MeshValue();
