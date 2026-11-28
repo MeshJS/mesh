@@ -1,5 +1,6 @@
 import {
   BuilderData,
+  hashPlutusScript,
   mnemonicToEntropy,
   NativeScript,
   PlutusDataType,
@@ -8,7 +9,6 @@ import {
 
 import {
   castDataToPlutusData,
-  deserializePlutusScript,
   fromUTF8,
   toAddress,
   toBaseAddress,
@@ -72,11 +72,14 @@ export const resolvePlutusScriptAddress = (
   script: PlutusScript,
   networkId = 0,
 ) => {
-  const plutusScript = deserializePlutusScript(script.code, script.version);
+  // Hash the serialised script bytes (ledger rule); the deserialized
+  // object's hash() unwraps the CBOR byte string first and disagrees
+  // with Aiken/cardano-cli (see MeshJS/mesh#763).
+  const scriptHash = hashPlutusScript(script.code, script.version);
 
   const enterpriseAddress = csl.EnterpriseAddress.new(
     networkId,
-    csl.Credential.from_scripthash(plutusScript.hash()),
+    csl.Credential.from_scripthash(csl.ScriptHash.from_hex(scriptHash)),
   );
 
   return enterpriseAddress.to_address().to_bech32();

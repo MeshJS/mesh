@@ -108,8 +108,11 @@ describe("resolvePlutusScriptAddress", () => {
       version: "V1",
     };
 
+    // The address must embed the ledger script hash, taken over the
+    // serialised script bytes. The previous expected value embedded a
+    // hash of the CBOR-unwrapped bytes instead (see MeshJS/mesh#763).
     expect(resolvePlutusScriptAddress(script, 0)).toEqual(
-      "addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8",
+      "addr_test1wrrdx3xfy2n7rnrcalp37852a8yeyu3pg7rk0lu0c6qvgaq8yg6l2",
     );
   });
 });

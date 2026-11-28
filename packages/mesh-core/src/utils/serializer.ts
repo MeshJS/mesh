@@ -1,6 +1,7 @@
 import {
   BuilderData,
   DeserializedAddress,
+  hashPlutusScript,
   NativeScript,
   PlutusDataType,
   PlutusScript,
@@ -56,10 +57,7 @@ export const serializePlutusScript = (
   networkId = 0,
   isScriptStakeCredential = false,
 ) => {
-  const scriptHash = core
-    .deserializePlutusScript(script.code, script.version)
-    .hash()
-    .toString();
+  const scriptHash = hashPlutusScript(script.code, script.version);
   const address = core.scriptHashToBech32(
     scriptHash,
     stakeCredentialHash,
