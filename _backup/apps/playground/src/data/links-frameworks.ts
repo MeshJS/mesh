@@ -5,13 +5,13 @@ import { MenuItem } from "~/types/menu-item";
 export const metaNextjs = {
   title: "Next.js",
   desc: "React-based web applications with server-side rendering and static website generation",
-  link: "/getting-started/frameworks/nextjs",
+  link: "/resources/platforms/nextjs",
 };
 
 export const metaSvelte = {
   title: "Svelte",
   desc: "Cybernetically enhanced web apps",
-  link: "/getting-started/frameworks/svelte",
+  link: "/svelte/getting-started",
 };
 
 // vite
@@ -28,7 +28,7 @@ export const linksFrameworks: MenuItem[] = [metaNextjs, metaSvelte];
 export const metaFrameworks: MenuItem = {
   title: "Setup on Frameworks",
   desc: "Get started with Mesh on different frameworks",
-  link: "/getting-started/frameworks",
+  link: "/resources/platforms",
   items: linksFrameworks,
   icon: CpuChipIcon,
 };
