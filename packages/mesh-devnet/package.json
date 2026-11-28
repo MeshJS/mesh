@@ -1,0 +1,95 @@
+{
+  "name": "@meshsdk/devnet",
+  "version": "0.0.1",
+  "description": "Production-grade Cardano devnet — real ledger rules, simulated block production, default network magic 42",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "mesh-devnet": "./dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./provider": {
+      "types": "./dist/provider.d.ts",
+      "import": "./dist/provider.js"
+    },
+    "./tx-builder": {
+      "types": "./dist/tx-builder.d.ts",
+      "import": "./dist/tx-builder.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
+    },
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "import": "./dist/config.js"
+    }
+  },
+  "files": [
+    "dist/**"
+  ],
+  "scripts": {
+    "build:mesh": "tsc",
+    "clean": "rm -rf .turbo && rm -rf dist && rm -rf node_modules",
+    "dev": "node --no-warnings --loader ts-node/esm src/index.ts start",
+    "selftest": "node --no-warnings --loader ts-node/esm src/index.ts selftest",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "node --no-warnings --loader ts-node/esm src/test.ts",
+    "plutus": "node --no-warnings --loader ts-node/esm test/plutus.ts",
+    "start": "node dist/index.js start",
+    "wallets": "node dist/index.js wallets",
+    "tip": "node dist/index.js tip",
+    "format": "prettier --check . --ignore-path ../../.gitignore",
+    "lint": "eslint",
+    "pack": "npm pack --pack-destination=./dist"
+  },
+  "keywords": [
+    "cardano",
+    "ada",
+    "web3",
+    "blockchain",
+    "sdk",
+    "devnet"
+  ],
+  "devDependencies": {
+    "@meshsdk/configs": "*",
+    "@types/express": "^5.0.6",
+    "@types/node": "^20.11.0",
+    "@types/ws": "^8.18.1",
+    "eslint": "^8.57.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3",
+    "vitest": "^4.1.5"
+  },
+  "dependencies": {
+    "@harmoniclabs/bip32_ed25519": "^0.1.3",
+    "@harmoniclabs/cardano-costmodels-ts": "^1.4.0",
+    "@harmoniclabs/cardano-ledger-ts": "^0.5.1",
+    "@harmoniclabs/cbor": "^2.0.1",
+    "@harmoniclabs/pair": "^1.0.0",
+    "@harmoniclabs/plutus-data": "^2.0.1",
+    "@harmoniclabs/plutus-machine": "^3.0.2",
+    "@harmoniclabs/uplc": "^2.0.6",
+    "@meshsdk/common": "1.9.1",
+    "@meshsdk/core": "1.9.1",
+    "@noble/ed25519": "^3.1.0",
+    "@noble/hashes": "^2.2.0",
+    "bech32": "^2.0.0",
+    "cbor": "^8.1.0",
+    "chalk": "^5.6.2",
+    "commander": "^14.0.3",
+    "express": "^5.2.1",
+    "ws": "^8.20.0"
+  },
+  "prettier": "@meshsdk/configs/prettier",
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "Apache-2.0"
+}

@@ -1,0 +1,92 @@
+{
+    "preamble": {
+      "title": "emmanuel/lesson203_3",
+      "description": "Aiken contracts for project 'emmanuel/lesson203_3'",
+      "version": "0.0.0",
+      "plutusVersion": "v3",
+      "compiler": {
+        "name": "Aiken",
+        "version": "v1.1.21+unknown"
+      },
+      "license": "Apache-2.0"
+    },
+    "validators": [
+      {
+        "title": "lesson203_1.hello_world.spend",
+        "datum": {
+          "title": "datum",
+          "schema": {
+            "$ref": "#/definitions/lesson203_1~1Datum"
+          }
+        },
+        "redeemer": {
+          "title": "redeemer",
+          "schema": {
+            "$ref": "#/definitions/lesson203_1~1Redeemer"
+          }
+        },
+        "compiledCode": "59015201010029800aba2aba1aab9faab9eaab9dab9a488888966002664464653001300637540032259800980298041baa002899192cc004c03800a0071640306eb8c030004c024dd50014590074c024012601200491112cc004cdc3a4004009132332233006004159800980518069baa0018acc004cdc79bae3010300e375400891011248656c6c6f5370656e6452656465656d657200899199119801001000912cc00400629422b30013371e6eb8c04c00400e2946266004004602800280790121bac301130123012301230123012301230123012300f375400c6eb8c040c038dd5180818071baa0018a504031164030601c002601c601e00260166ea80162b3001300700489919802001099b8f375c601c60186ea800922011148656c6c6f4d696e7452656465656d657200375c601a60166ea80162c80490090c020c024004c020008c00cdd50039b874800229344d95900101",
+        "hash": "837ff340bc109fd82aa73724d0f8234cf84a7da1cfa84f0378b74f89"
+      },
+      {
+        "title": "lesson203_1.hello_world.mint",
+        "redeemer": {
+          "title": "redeemer",
+          "schema": {
+            "$ref": "#/definitions/lesson203_1~1Redeemer"
+          }
+        },
+        "compiledCode": "59015201010029800aba2aba1aab9faab9eaab9dab9a488888966002664464653001300637540032259800980298041baa002899192cc004c03800a0071640306eb8c030004c024dd50014590074c024012601200491112cc004cdc3a4004009132332233006004159800980518069baa0018acc004cdc79bae3010300e375400891011248656c6c6f5370656e6452656465656d657200899199119801001000912cc00400629422b30013371e6eb8c04c00400e2946266004004602800280790121bac301130123012301230123012301230123012300f375400c6eb8c040c038dd5180818071baa0018a504031164030601c002601c601e00260166ea80162b3001300700489919802001099b8f375c601c60186ea800922011148656c6c6f4d696e7452656465656d657200375c601a60166ea80162c80490090c020c024004c020008c00cdd50039b874800229344d95900101",
+        "hash": "837ff340bc109fd82aa73724d0f8234cf84a7da1cfa84f0378b74f89"
+      },
+      {
+        "title": "lesson203_1.hello_world.else",
+        "redeemer": {
+          "schema": {}
+        },
+        "compiledCode": "59015201010029800aba2aba1aab9faab9eaab9dab9a488888966002664464653001300637540032259800980298041baa002899192cc004c03800a0071640306eb8c030004c024dd50014590074c024012601200491112cc004cdc3a4004009132332233006004159800980518069baa0018acc004cdc79bae3010300e375400891011248656c6c6f5370656e6452656465656d657200899199119801001000912cc00400629422b30013371e6eb8c04c00400e2946266004004602800280790121bac301130123012301230123012301230123012300f375400c6eb8c040c038dd5180818071baa0018a504031164030601c002601c601e00260166ea80162b3001300700489919802001099b8f375c601c60186ea800922011148656c6c6f4d696e7452656465656d657200375c601a60166ea80162c80490090c020c024004c020008c00cdd50039b874800229344d95900101",
+        "hash": "837ff340bc109fd82aa73724d0f8234cf84a7da1cfa84f0378b74f89"
+      }
+    ],
+    "definitions": {
+      "ByteArray": {
+        "dataType": "bytes"
+      },
+      "aiken/crypto/VerificationKeyHash": {
+        "title": "VerificationKeyHash",
+        "dataType": "bytes"
+      },
+      "lesson203_1/Datum": {
+        "title": "Datum",
+        "anyOf": [
+          {
+            "title": "Datum",
+            "dataType": "constructor",
+            "index": 0,
+            "fields": [
+              {
+                "title": "owner",
+                "$ref": "#/definitions/aiken~1crypto~1VerificationKeyHash"
+              }
+            ]
+          }
+        ]
+      },
+      "lesson203_1/Redeemer": {
+        "title": "Redeemer",
+        "anyOf": [
+          {
+            "title": "Redeemer",
+            "dataType": "constructor",
+            "index": 0,
+            "fields": [
+              {
+                "title": "msg",
+                "$ref": "#/definitions/ByteArray"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
